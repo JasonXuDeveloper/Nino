@@ -1,0 +1,52 @@
+<Project>
+    <!-- The version of every package the projects under src/ use (NuGet central package management). -->
+    <PropertyGroup>
+        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    </PropertyGroup>
+
+    <!-- What the packages depend on: the versions in their nuspecs. -->
+    <ItemGroup>
+        <PackageVersion Include="System.Buffers" Version="4.6.1"/>
+        <PackageVersion Include="System.Memory" Version="4.6.3"/>
+        <PackageVersion Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2"/>
+        <PackageVersion Include="System.Collections.Immutable" Version="10.0.13"/>
+        <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.13"/>
+    </ItemGroup>
+
+    <!-- Roslyn. The generator is compiled against the oldest compiler each of its builds supports: 4.3 here (Unity),
+         4.8 and 4.12 in Nino.Generator.Roslyn4.8 and Nino.Generator.Roslyn4.12 (VersionOverride). -->
+    <ItemGroup>
+        <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0"/>
+        <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0"/>
+        <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.3.0"/>
+        <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.3.0"/>
+    </ItemGroup>
+
+    <!-- Tests. -->
+    <ItemGroup>
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0"/>
+        <PackageVersion Include="MSTest.TestAdapter" Version="4.5.1"/>
+        <PackageVersion Include="MSTest.TestFramework" Version="4.5.1"/>
+        <PackageVersion Include="coverlet.collector" Version="10.1.0"/>
+        <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4"/>
+        <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.MSTest" Version="1.1.2"/>
+        <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing.MSTest" Version="1.1.2"/>
+        <PackageVersion Include="PolySharp" Version="1.16.0"/>
+        <PackageVersion Include="UniTask" Version="2.5.11"/>
+        <!-- net10.0; the net8.0 build of Nino.AspNetCore.Tests takes 8.0.32 (VersionOverride). -->
+        <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.13"/>
+        <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3"/>
+        <!-- The patched version of a package the Roslyn test libraries bring in (security advisory): never
+             referenced, it pins the transitive dependency in Nino.UnitTests (CentralPackageTransitivePinningEnabled
+             there). -->
+        <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13"/>
+    </ItemGroup>
+
+    <!-- Benchmarks. -->
+    <ItemGroup>
+        <PackageVersion Include="BenchmarkDotNet" Version="0.15.8"/>
+        <PackageVersion Include="MemoryPack" Version="1.21.4"/>
+        <PackageVersion Include="MessagePack" Version="3.1.12"/>
+        <PackageVersion Include="MessagePackAnalyzer" Version="3.1.12"/>
+    </ItemGroup>
+</Project>

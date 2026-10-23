@@ -13,6 +13,9 @@
         <ReportAnalyzer>true</ReportAnalyzer>
         <EnableNETAnalyzers>false</EnableNETAnalyzers>
         <NoWarn>RS1022;NU1608</NoWarn>
+        <!-- The Roslyn test libraries bring in packages with security advisories: the patched versions in
+             Directory.Packages.props replace them. -->
+        <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     </PropertyGroup>
 
     <!-- netstandard2.1 is only compiled, never run: it checks the generated code builds the way Unity builds it. It
@@ -38,33 +41,28 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0" PrivateAssets="all"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.3.0" />
-        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.3.0" />
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4" />
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.MSTest" Version="1.1.2" />
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing.MSTest" Version="1.1.2" />
-        <PackageReference Include="PolySharp" Version="1.16.0">
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.MSTest" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing.MSTest" />
+        <PackageReference Include="PolySharp">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="MSTest.TestFramework" Version="4.5.1" />
+        <PackageReference Include="MSTest.TestFramework" />
     </ItemGroup>
 
     <ItemGroup Condition=" '$(TargetFramework)' != 'netstandard2.1' ">
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
-        <PackageReference Include="MSTest.TestAdapter" Version="4.5.1" />
-        <PackageReference Include="coverlet.collector" Version="10.1.0">
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="MSTest.TestAdapter" />
+        <PackageReference Include="coverlet.collector">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
     </ItemGroup>
 
-    <!-- Patched versions of packages the Roslyn test libraries bring in (security advisories). -->
-    <ItemGroup>
-      <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
-      <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
-    </ItemGroup>
 
     <ItemGroup>
         <!-- Build with -p:NinoCoreTfm=netstandard2.0 (or netstandard2.1) to test a specific Nino.Core build. -->

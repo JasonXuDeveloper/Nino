@@ -28,7 +28,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="System.Reflection.MetadataLoadContext" Version="10.0.13"/>
+        <PackageReference Include="System.Reflection.MetadataLoadContext"/>
     </ItemGroup>
 
     <!-- The tool and its dependencies go to tools/ in the package, where the targets run it from. -->

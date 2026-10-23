@@ -11,10 +11,10 @@
         <DefineConstants Condition="'$(NinoBenchLegacy)' == 'true'">$(DefineConstants);NINO_BENCH_LEGACY</DefineConstants>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
-        <PackageReference Include="MemoryPack" Version="1.21.4" />
-        <PackageReference Include="MessagePack" Version="3.1.12" />
-        <PackageReference Include="MessagePackAnalyzer" Version="3.1.12">
+        <PackageReference Include="BenchmarkDotNet" />
+        <PackageReference Include="MemoryPack" />
+        <PackageReference Include="MessagePack" />
+        <PackageReference Include="MessagePackAnalyzer">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>

@@ -14,7 +14,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" PrivateAssets="all"/>
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(TargetFramework)' != 'net472'"/>
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(TargetFramework)' == 'net472'"
                           SetTargetFramework="TargetFramework=netstandard2.0"/>
