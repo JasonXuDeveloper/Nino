@@ -729,7 +729,7 @@ internal sealed class BodyEmitter
             _w.Line($"{assign}{call}");
             _w.Open();
             foreach (var member in initializers)
-                _w.Line($"{Identifier(member.Name)} = {Local(member)},");
+                _w.Line($"{Identifier(member.SourceName)} = {Local(member)},");
             _w.Close(";");
         }
 
