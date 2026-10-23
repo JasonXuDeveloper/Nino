@@ -2,6 +2,7 @@ using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 using UnityEngine;
+using static Nino.UnitTests.Rt;
 
 #nullable disable
 namespace Nino.UnitTests;
@@ -21,8 +22,6 @@ public class UnityClassHolder
 [TestClass]
 public class UnityTypesTests
 {
-    private static T RoundTrip<T>(T value) => NinoDeserializer.Deserialize<T>(NinoSerializer.Serialize(value));
-
     [TestMethod]
     public void AnimationCurves()
     {

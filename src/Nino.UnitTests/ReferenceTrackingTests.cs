@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using static Nino.UnitTests.Rt;
 
 #nullable disable
 namespace Nino.UnitTests;
@@ -64,8 +65,6 @@ public class PlainHolder
 [TestClass]
 public class ReferenceTrackingTests
 {
-    private static T RoundTrip<T>(T value) => NinoDeserializer.Deserialize<T>(NinoSerializer.Serialize(value));
-
     [TestMethod]
     public void SharedReferencesStayShared()
     {
