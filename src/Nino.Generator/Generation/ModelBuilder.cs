@@ -234,6 +234,7 @@ internal static class ModelBuilder
             Deferrable: instantiable && !construction.Recreate &&
                         (construction.Factory.Length != 0 || construction.Creator.Length != 0) &&
                         !ComparesByValue(type),
+            PublishesDeferrable: facts.Symbols.LayoutDeferrable,
             Nests: !instantiable || collection is { OpensBodies: true } || members.Any(m => m.OpensBodies),
             FixedSize: !rawStruct && facts.IsFixedSize(type),
             DepthBound: bound,

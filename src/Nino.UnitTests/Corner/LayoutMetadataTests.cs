@@ -1,5 +1,9 @@
+using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
@@ -92,6 +96,68 @@ namespace Layout
                 "Any:object:object",
                 "Entry:System.Collections.Generic.KeyValuePair<int, Layout.Box<int>>:pair(raw(4),type(Layout.Box<int>))",
                 "At:System.DateTimeOffset:datetimeoffset"), Layout(assembly, "Layout.Shapes").Members);
+        }
+
+        /// <summary>
+        /// Whether a class body can be deferred (read after its instance is in its slot) is published as
+        /// <c>Deferrable</c> where the referenced Nino.Core's attribute has that property, and left out where it has
+        /// not (this one): a stand-in Nino.Core with the property shows what the generator writes.
+        /// </summary>
+        [TestMethod]
+        public void PublishesDeferrabilityWhereNinoCoreCanHoldIt()
+        {
+            Assert.IsNull(typeof(NinoTypeLayoutAttribute).GetProperty("Deferrable"));
+            Assert.IsFalse(CornerCompiler.Compile(Types).GeneratedCode.Contains("Deferrable ="));
+
+            const string stand = @"
+namespace Nino.Core
+{
+    public enum NinoFormat { Positional, VersionTolerant, Keyed }
+    public enum NinoHeader { None, NullFlag, TypeId }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct | System.AttributeTargets.Interface)]
+    public sealed class NinoTypeAttribute : System.Attribute
+    {
+        public NinoTypeAttribute(bool autoCollect = true, bool containNonPublicMembers = false,
+            bool allowInheritance = true, NinoFormat format = NinoFormat.Positional, bool trackReferences = false) { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Assembly, AllowMultiple = true)]
+    public sealed class NinoTypeLayoutAttribute : System.Attribute
+    {
+        public NinoTypeLayoutAttribute(System.Type type, NinoFormat format, NinoHeader header, bool trackReferences,
+            bool raw, int typeId, string members) { }
+        public bool Deferrable { get; set; }
+    }
+}";
+            var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
+                .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p)).ToList();
+            var core = CSharpCompilation.Create("Nino.Core", new[] { CSharpSyntaxTree.ParseText(stand) }, refs,
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            using var image = new MemoryStream();
+            Assert.IsTrue(core.Emit(image).Success);
+            refs.Add(MetadataReference.CreateFromImage(image.ToArray()));
+            var user = CSharpCompilation.Create("Deferral" + Guid.NewGuid().ToString("N"),
+                new[]
+                {
+                    CSharpSyntaxTree.ParseText(@"
+using Nino.Core;
+namespace Deferral
+{
+    [NinoType] public sealed class Node { public Node Next; }
+    [NinoType] public sealed record Point(int X, int Y);
+    [NinoType] public abstract class Shape { public int Id; }
+    [NinoType] public struct Pair { public int A; public int B; }
+}"),
+                }, refs, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            var generated = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator())
+                .RunGenerators(user).GetRunResult().GeneratedTrees.Select(t => t.ToString()).ToList();
+
+            string Layout(string type) => generated.SelectMany(t => t.Split('\n'))
+                .Single(l => l.Contains($"NinoTypeLayout(typeof(global::Deferral.{type})"));
+            StringAssert.EndsWith(Layout("Node"), ", Deferrable = true)]");
+            // Re-created through its constructor, compared by value, never created, a struct: never deferred.
+            StringAssert.EndsWith(Layout("Point"), ", Deferrable = false)]");
+            StringAssert.EndsWith(Layout("Shape"), ", Deferrable = false)]");
+            StringAssert.EndsWith(Layout("Pair"), ", Deferrable = false)]");
         }
 
         [TestMethod]

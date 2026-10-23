@@ -9,7 +9,9 @@ namespace Nino.Generator.Generation.Emit;
 /// <summary>
 /// Emits the <c>[assembly: NinoTypeLayout]</c> of a type: its wire layout as metadata, from the same model as its
 /// formatter (see <c>NinoTypeLayoutAttribute</c> for the format). Depends only on the model, which is the same in
-/// every target framework.
+/// every target framework. Whether a class body can be deferred (read after its instance is in its slot, see
+/// <c>NinoDepth</c>) is published too, as <c>Deferrable</c>, where the referenced Nino.Core has that property: a reader
+/// in another language needs it to read data nested deeper than <c>NinoDepth.Inline</c>.
 /// </summary>
 internal static class LayoutEmitter
 {
@@ -26,7 +28,8 @@ internal static class LayoutEmitter
         };
         return $"[assembly: {Core}NinoTypeLayout(typeof({OpenType(m)}), {Core}NinoFormat.{format}, " +
                $"{Core}NinoHeader.{header}, {Bool(m.TrackReferences)}, {Bool(m.RawStruct)}, " +
-               $"{m.TypeId.ToString(CultureInfo.InvariantCulture)}, \"{Members(m)}\")]\n";
+               $"{m.TypeId.ToString(CultureInfo.InvariantCulture)}, \"{Members(m)}\"" +
+               (m.PublishesDeferrable ? $", Deferrable = {Bool(m.Deferrable)}" : "") + ")]\n";
     }
 
     /// <summary>The members part: <c>name:type:encoding</c> per member, in written order.</summary>

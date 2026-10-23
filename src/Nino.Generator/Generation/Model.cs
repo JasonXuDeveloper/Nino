@@ -169,6 +169,8 @@ internal sealed record TypeModel(
     // A class whose body can be read after its instance is in its slot (see NinoDepth): created without its
     // members (not by a constructor taking them) and not compared by value.
     bool Deferrable,
+    // Whether the layout publishes Deferrable (NinoSymbols.LayoutDeferrable: the referenced Nino.Core can hold it).
+    bool PublishesDeferrable,
     // Whether a class body may hold class bodies (see NinoBody.Nests): false lets it skip the depth count.
     bool Nests,
     // Whether every (non-null) value is written in the same number of bytes (TypeFacts.IsFixedSize): the formatter

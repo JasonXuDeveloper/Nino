@@ -17,6 +17,12 @@ internal sealed class NinoSymbols
         Constructor, Factory, Created, Raw, Pooled, IFormatter, FormatterAttribute,
         Serializer, Deserializer;
 
+    /// <summary>
+    /// Whether the referenced Nino.Core's <c>NinoTypeLayoutAttribute</c> has a settable <c>bool Deferrable</c>, which
+    /// the published layouts set (<c>LayoutEmitter</c>); older versions have none.
+    /// </summary>
+    public readonly bool LayoutDeferrable;
+
     public NinoSymbols(Compilation compilation)
     {
         INamedTypeSymbol? Core(string name) => compilation.GetTypeByMetadataName(NinoNames.Core(name));
@@ -34,6 +40,9 @@ internal sealed class NinoSymbols
         Pooled = Core("NinoPooledAttribute");
         Serializer = Core(NinoNames.Serializer);
         Deserializer = Core(NinoNames.Deserializer);
+        LayoutDeferrable = Core("NinoTypeLayoutAttribute") is { } layout && layout.GetMembers("Deferrable")
+            .OfType<IPropertySymbol>().Any(static p => p.Type.SpecialType == SpecialType.System_Boolean &&
+                                                       p.SetMethod is { DeclaredAccessibility: Accessibility.Public });
     }
 
     /// <summary>
