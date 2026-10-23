@@ -187,7 +187,7 @@ this also applies to subtypes of a tracked type. Make the members assignable.
 
 ### NINO017
 
-A `[NinoFactory]` factory must be `public static`, callable without arguments (parameterless, or every
+A `[NinoFactory]` factory must be `public static`, non-generic, callable without arguments (parameterless, or every
 parameter optional, like ET's `static T Create(bool isFromPool = false)`) and return the containing type.
 
 ## Pooling

@@ -33,8 +33,9 @@ versions. Nino defines the bytes instead:
 
 `System.ValueTuple<...>` is `[StructLayout(LayoutKind.Auto)]` in corefx, so CoreCLR may reorder its fields
 and the padding differs from the sequential layout older Mono uses. Raw tuples are not portable. This is
-why `NinoTuple` exists, and why `ValueTuple` and `KeyValuePair` are always written member by member,
-never as raw memory.
+why `ValueTuple` and `KeyValuePair` are always written item by item, in declaration order and without padding,
+never as raw memory: arrays and lists of them with unmanaged items move between the runtime's layout and those
+packed bytes in blocks (vector shuffles), never as a copy of their memory.
 
 ### BCL structs
 
