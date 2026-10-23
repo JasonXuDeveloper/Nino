@@ -63,7 +63,7 @@
 - **ASP.NET Core 与 TypeScript。** [Nino.AspNetCore](https://nino.xgamedev.net/zh/docs/v4/advanced/aspnetcore) 为 `application/x-nino`
   提供 MVC 格式化器以及 Minimal API 的请求体和结果；[Nino.TypeScript](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript)
   在每次构建后为你的类型生成 TypeScript 编解码器，浏览器和 Node 读写的字节与 .NET 相同。
-- **写代码时就发现错误。** 26 条分析器诊断（NINO001–NINO026），许多带一键修复。
+- **写代码时就发现错误。** 27 条分析器诊断（NINO001–NINO027），许多带一键修复。
 
 ## 适用场景
 
@@ -228,7 +228,7 @@ v4 新增（截至 4.0.0-rc.7）：
   `[NinoUtf8]` 可按成员写成 UTF-8。
 - **集成**：Nino.AspNetCore（MVC 格式化器，Minimal API 的 `NinoBody<T>` 和 `NinoResults`）和 Nino.TypeScript
   （每次构建后生成供浏览器和 Node 使用的 TypeScript 类和编解码器）。
-- **工具**：增量生成器，以及 26 条带代码修复的分析器（NINO001–NINO026），Unity 中同样可用。
+- **工具**：增量生成器，以及 27 条带代码修复的分析器（NINO001–NINO027），Unity 中同样可用。
 
 详见 [v4 新特性](https://nino.xgamedev.net/zh/docs/v4/whats-new)、
 [更新日志](https://nino.xgamedev.net/zh/docs/v4/changelog)和

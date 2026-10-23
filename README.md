@@ -75,7 +75,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
   formatters and Minimal API bodies and results for `application/x-nino`;
   [Nino.TypeScript](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) generates TypeScript codecs for your types
   after each build, so browsers and Node read and write the same bytes as .NET.
-- **Mistakes caught while you type.** 26 analyzer diagnostics (NINO001–NINO026), many with a one-click fix.
+- **Mistakes caught while you type.** 27 analyzer diagnostics (NINO001–NINO027), many with a one-click fix.
 
 ## Built for
 
@@ -252,7 +252,7 @@ New in v4, through 4.0.0-rc.7:
   UTF-16, and `[NinoUtf8]` writes UTF-8 per member.
 - **Integrations**: Nino.AspNetCore (MVC formatters, Minimal API `NinoBody<T>` and `NinoResults`) and Nino.TypeScript
   (TypeScript classes and codecs for browsers and Node, generated after each build).
-- **Tooling**: an incremental generator and 26 analyzers (NINO001–NINO026) with code fixes, in Unity too.
+- **Tooling**: an incremental generator and 27 analyzers (NINO001–NINO027) with code fixes, in Unity too.
 
 See [what's new](https://nino.xgamedev.net/en/docs/v4/whats-new), the
 [changelog](https://nino.xgamedev.net/en/docs/v4/changelog) and the
