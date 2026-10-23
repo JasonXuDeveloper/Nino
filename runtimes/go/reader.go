@@ -129,6 +129,16 @@ func (r *Reader) flag() bool {
 	return b[0] == 1
 }
 
+// BoolAt decodes a bool byte taken from a raw block (a raw struct's field): it fails for anything but 0 or 1, as
+// [Reader.Bool] does (.NET copies such bytes as they are).
+func (r *Reader) BoolAt(b byte) bool {
+	if b > 1 {
+		r.Fail(CodeInvalidData, "invalid bool "+strconv.Itoa(int(b)))
+		return false
+	}
+	return b == 1
+}
+
 // U8 reads a byte.
 func (r *Reader) U8() uint8 {
 	b := r.buf

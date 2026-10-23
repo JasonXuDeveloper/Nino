@@ -196,3 +196,14 @@ func WriteAny(w *Writer, v Typed, allowed *TypeSet) {
 func (r *Reader) UnknownType(id int32) {
 	r.Fail(CodeUnknownType, "type id 0x"+strconv.FormatUint(uint64(uint32(id)), 16))
 }
+
+// WriteTyped writes a class behind a type id: 0 for nil, else id and the body (one case of a generated dispatch's
+// type switch).
+func WriteTyped[T any](w *Writer, id int32, v *T, c *Class[T]) {
+	if v == nil {
+		w.I32(NullTypeID)
+		return
+	}
+	w.I32(id)
+	WriteClass(w, v, c)
+}

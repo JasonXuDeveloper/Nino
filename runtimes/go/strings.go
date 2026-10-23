@@ -118,6 +118,15 @@ func (r *Reader) Utf8() string {
 	return s
 }
 
+// Utf8Ptr reads a [NinoUtf8] string: nil for null.
+func (r *Reader) Utf8Ptr() *string {
+	s, ok := r.NullableUtf8()
+	if !ok {
+		return nil
+	}
+	return &s
+}
+
 // NullableUtf8 reads a [NinoUtf8] string: ok is false for null.
 func (r *Reader) NullableUtf8() (s string, ok bool) {
 	c := r.I32()
@@ -489,6 +498,15 @@ func (w *Writer) NullableUtf8(s string, ok bool) {
 		return
 	}
 	w.Utf8(s)
+}
+
+// Utf8Ptr writes a utf8 string: nil is null.
+func (w *Writer) Utf8Ptr(s *string) {
+	if s == nil {
+		w.Null()
+		return
+	}
+	w.Utf8(*s)
 }
 
 func (w *Writer) wideUtf8(s string) {

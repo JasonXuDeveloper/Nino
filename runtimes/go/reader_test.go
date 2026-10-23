@@ -604,7 +604,7 @@ func TestFixedAndShape(t *testing.T) {
 		b[0] = p.a
 		b[1], b[2], b[3], b[4] = byte(p.b), byte(p.b>>8), byte(p.b>>16), byte(p.b>>24)
 	}
-	dec := func(b []byte) pair {
+	dec := func(_ *Reader, b []byte) pair {
 		return pair{b[0], int32(b[1]) | int32(b[2])<<8 | int32(b[3])<<16 | int32(b[4])<<24}
 	}
 	got := encode(t, func(w *Writer) { WriteFixed(w, []pair{{1, 2}}, 5, enc) })
@@ -744,5 +744,37 @@ func TestSerializeAPI(t *testing.T) {
 	})
 	if allocs != 0 {
 		t.Fatalf("%v allocations", allocs)
+	}
+}
+
+func TestValueRanges(t *testing.T) {
+	// decimal: scale above 28, or reserved flag bits.
+	expectCode(t, hx("00001D00 00000000 0100000000000000"), CodeInvalidData, func(r *Reader) { r.Decimal() })
+	expectCode(t, hx("01000000 00000000 0100000000000000"), CodeInvalidData, func(r *Reader) { r.Decimal() })
+	expectOK(t, hx("00001C80 00000000 0100000000000000"), func(r *Reader) { r.Decimal() })
+	// DateOnly: 0..3652058.
+	expectCode(t, hx("DBB93700"), CodeInvalidData, func(r *Reader) { r.DateOnly() })
+	expectOK(t, hx("DAB93700"), func(r *Reader) { r.DateOnly() })
+	expectCode(t, hx("FFFFFFFF"), CodeInvalidData, func(r *Reader) { r.DateOnly() })
+	// TimeOnly: 0..863999999999.
+	expectCode(t, hx("00C0692A C9000000"), CodeInvalidData, func(r *Reader) { r.TimeOnly() })
+	expectOK(t, hx("FFBF692A C9000000"), func(r *Reader) { r.TimeOnly() })
+	for _, f := range []func(w *Writer){
+		func(w *Writer) { w.Decimal(Decimal{Flags: 29 << 16}) },
+		func(w *Writer) { w.DateOnly(MaxDateOnly + 1) },
+		func(w *Writer) { w.TimeOnly(-1) },
+	} {
+		w := NewWriter(0)
+		if f(w); !errors.Is(w.Err(), ErrInvalidValue) {
+			t.Fatal(w.Err())
+		}
+	}
+}
+
+func expectOK(t *testing.T, data []byte, f func(r *Reader)) {
+	t.Helper()
+	r := NewReader(data)
+	if f(r); r.Err() != nil {
+		t.Fatal(r.Err())
 	}
 }

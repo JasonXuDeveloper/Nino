@@ -6,7 +6,7 @@ import (
 )
 
 // Primitive is the element types whose arrays and lists are written as one block of their little-endian bytes
-// (bool excepted: any byte but 0 reads as true, so its blocks are read byte by byte).
+// (bool excepted: each byte must be 0 or 1, see [ReadBools]).
 type Primitive interface {
 	~int8 | ~uint8 | ~int16 | ~uint16 | ~int32 | ~uint32 | ~int64 | ~uint64 | ~float32 | ~float64
 }

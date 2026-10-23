@@ -158,8 +158,8 @@ func WriteSet[T comparable](w *Writer, s map[T]struct{}, write func(*Writer, T))
 }
 
 // ReadFixed reads a sequence of elements of size bytes each (raw structs, tuples of raw values...) with one bounds
-// check: decode gets each element's bytes. nil for null.
-func ReadFixed[T any](r *Reader, size int, decode func(b []byte) T) []T {
+// check: decode gets each element's bytes (and the reader, to fail on an invalid value). nil for null.
+func ReadFixed[T any](r *Reader, size int, decode func(r *Reader, b []byte) T) []T {
 	n := r.Length(size)
 	if n < 0 {
 		return nil
@@ -174,7 +174,10 @@ func ReadFixed[T any](r *Reader, size int, decode func(b []byte) T) []T {
 		if i == len(v) {
 			v = growSlice(v, n)
 		}
-		v[i] = decode(b[i*size : (i+1)*size : (i+1)*size])
+		v[i] = decode(r, b[i*size:(i+1)*size:(i+1)*size])
+		if r.err != nil {
+			return nil
+		}
 	}
 	return v
 }
@@ -255,4 +258,64 @@ func (w *Writer) WriteShape(dims ...int) {
 	for _, d := range dims {
 		w.Length(d)
 	}
+}
+
+// ReadUnique reads a set as its elements in the order of the data (nil for null): an element read twice fails with
+// CodeDuplicateKey, as .NET's HashSet and SortedSet do when filled from empty. Unlike [ReadSet], writing the slice
+// back gives the same bytes.
+func ReadUnique[T comparable](r *Reader, minSize int, read func(*Reader) T) []T {
+	n := r.Length(minSize)
+	if n < 0 {
+		return nil
+	}
+	var zero T
+	size := int(unsafe.Sizeof(zero))
+	v := make([]T, r.SliceCap(n, size))
+	seen := make(map[T]struct{}, capacity(n, size+hashSlot, len(r.buf)))
+	for i := 0; i < n; i++ {
+		if i == len(v) {
+			v = growSlice(v, n)
+		}
+		e := read(r)
+		if r.err != nil {
+			return nil
+		}
+		if _, dup := seen[e]; dup {
+			r.Fail(CodeDuplicateKey, "")
+			return nil
+		}
+		seen[e] = struct{}{}
+		v[i] = e
+	}
+	return v
+}
+
+// ReadUniqueEntries reads a dictionary as its pairs in the order of the data (nil for null): a key read twice
+// fails with CodeDuplicateKey, as .NET's dictionaries do when filled from empty.
+func ReadUniqueEntries[K comparable, V any](r *Reader, minSize int, readKey func(*Reader) K, readValue func(*Reader) V) []Entry[K, V] {
+	n := r.Length(minSize)
+	if n < 0 {
+		return nil
+	}
+	var e Entry[K, V]
+	var k K
+	v := make([]Entry[K, V], r.SliceCap(n, int(unsafe.Sizeof(e))))
+	seen := make(map[K]struct{}, capacity(n, int(unsafe.Sizeof(k))+hashSlot, len(r.buf)))
+	for i := 0; i < n; i++ {
+		if i == len(v) {
+			v = growSlice(v, n)
+		}
+		key := readKey(r)
+		value := readValue(r)
+		if r.err != nil {
+			return nil
+		}
+		if _, dup := seen[key]; dup {
+			r.Fail(CodeDuplicateKey, "")
+			return nil
+		}
+		seen[key] = struct{}{}
+		v[i] = Entry[K, V]{key, value}
+	}
+	return v
 }

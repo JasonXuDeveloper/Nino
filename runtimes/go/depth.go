@@ -239,6 +239,8 @@ type Region struct {
 	rest []byte
 	// The position where the region's members end.
 	end int
+	// Whether a section of deferred bodies follows the members.
+	sectioned bool
 }
 
 // BeginRegion reads a region's length and limits the reader to its members until [Reader.EndRegion]. Members a
@@ -253,6 +255,7 @@ func (r *Reader) BeginRegion() Region {
 	length := int32(binary.LittleEndian.Uint32(b))
 	b = b[4:]
 	members, total := int(length), int(length)
+	sectioned := false
 	if length < 0 || int64(length) > int64(len(b)) {
 		// A region followed by a section of deferred bodies (its length has the top bit set), or invalid data:
 		// the members end at the offset the section's last 4 bytes give.
@@ -262,15 +265,38 @@ func (r *Reader) BeginRegion() Region {
 			return Region{}
 		}
 		m := int32(binary.LittleEndian.Uint32(b[total-4:]))
-		if m < 0 || int(m) > total-4 {
-			r.Fail(CodeInvalidData, "invalid offset of deferred bodies")
+		if m < 0 || int(m) > total-4 || r.regions != 0 || !validSection(b[m:total-4], total-4) {
+			r.Fail(CodeInvalidData, "invalid section of deferred bodies")
 			return Region{}
 		}
 		members = int(m)
+		sectioned = true
 	}
 	r.buf = b[:members]
 	r.regions++
-	return Region{rest: b[total:], end: r.Pos() + members}
+	return Region{rest: b[total:], end: r.Pos() + members, sectioned: sectioned}
+}
+
+// validSection reports whether section (after the members of a region whose members and section take limit
+// bytes) is a sequence of entries {key, length, body} that fills it exactly, each key a position inside the region
+// (where a body was deferred: in the members, or in an earlier entry's body). Only the outermost region of a value
+// may hold one: a flag on an inner region is invalid.
+//
+//go:noinline
+func validSection(section []byte, limit int) bool {
+	for len(section) != 0 {
+		if len(section) < 8 {
+			return false
+		}
+		key := int32(binary.LittleEndian.Uint32(section))
+		length := int32(binary.LittleEndian.Uint32(section[4:]))
+		section = section[8:]
+		if key < 0 || int(key) >= limit || length < 0 || int64(length) > int64(len(section)) {
+			return false
+		}
+		section = section[length:]
+	}
+	return true
 }
 
 // EndRegion ends the region g that [Reader.BeginRegion] started: the reader moves past it. At the end of the
@@ -282,6 +308,10 @@ func (r *Reader) EndRegion(g Region) {
 	r.regions--
 	r.buf = g.rest
 	if r.regions == 0 && r.ctx != nil && !r.ctx.region.empty() {
+		if !g.sectioned {
+			r.Fail(CodeInvalidData, "missing deferred bodies")
+			return
+		}
 		r.endDeferredRegion(g.end)
 	}
 }
@@ -333,6 +363,10 @@ func (r *Reader) endDeferredRegion(regionEnd int) {
 			if r.err != nil {
 				return
 			}
+			if len(r.buf) != 0 {
+				r.Fail(CodeInvalidData, "bytes left in a deferred body")
+				return
+			}
 			break
 		}
 	}
@@ -348,6 +382,8 @@ type writeContext struct {
 	// The deferred object whose body is being written, for cycle detection.
 	current, currentAnchor any
 	currentGen             int
+	// Open struct bodies counted by EnterStruct.
+	structs int32
 }
 
 func (c *writeContext) reset() {
@@ -355,6 +391,7 @@ func (c *writeContext) reset() {
 	c.region.clear()
 	c.topActive = false
 	c.current, c.currentAnchor, c.currentGen = nil, nil, 0
+	c.structs = 0
 }
 
 func (w *Writer) context() *writeContext {
@@ -362,6 +399,25 @@ func (w *Writer) context() *writeContext {
 		w.ctx = &writeContext{}
 	}
 	return w.ctx
+}
+
+// EnterStruct is [Reader.EnterStruct] for the writer: it fails (CodeTooDeep) past MaxDepth open bodies, where a
+// reader would fail too.
+func (w *Writer) EnterStruct() bool {
+	ctx := w.context()
+	ctx.structs++
+	if ctx.structs+w.depth > MaxDepth {
+		w.Fail(CodeTooDeep, strconv.Itoa(MaxDepth)+" open bodies")
+		return false
+	}
+	return true
+}
+
+// ExitStruct closes a body opened by [Writer.EnterStruct].
+func (w *Writer) ExitStruct() {
+	if w.ctx != nil {
+		w.ctx.structs--
+	}
 }
 
 // writeDeep defers a body nested too deep, or (if it cannot be) writes it in place up to MaxDepth.
@@ -373,7 +429,11 @@ func (w *Writer) writeDeep(v any, b body, deferrable bool) {
 		return
 	}
 	d := w.depth
-	if d >= MaxDepth {
+	var structs int32
+	if w.ctx != nil {
+		structs = w.ctx.structs
+	}
+	if d+structs >= MaxDepth {
 		w.Fail(CodeTooDeep, strconv.Itoa(MaxDepth)+" open bodies")
 		return
 	}
@@ -488,4 +548,87 @@ func (w *Writer) endOuterRegion(lengthPos int) {
 		return
 	}
 	w.PatchInt32(lengthPos, int32(n)|sectionFlag)
+}
+
+// KeyedEntry is a keyed member being read: its value's bytes.
+type KeyedEntry struct {
+	rest []byte
+}
+
+// BeginEntry reads a keyed entry's length (after its key, inside a keyed region) and limits the reader to the
+// entry's value until [Reader.EndEntry]. A length that is negative or past the region fails.
+func (r *Reader) BeginEntry() KeyedEntry {
+	n := r.I32()
+	if r.err != nil {
+		return KeyedEntry{}
+	}
+	if n < 0 || int64(n) > int64(len(r.buf)) {
+		r.badLength(int64(n))
+		return KeyedEntry{}
+	}
+	b := r.buf
+	r.buf = b[:n]
+	return KeyedEntry{rest: b[n:]}
+}
+
+// EndEntry ends the entry e: the reader moves past it. A value that left bytes of its entry unread is invalid
+// (writers make the length exactly the value's; .NET skips the rest).
+func (r *Reader) EndEntry(e KeyedEntry) {
+	if r.err != nil {
+		return
+	}
+	if len(r.buf) != 0 {
+		r.Fail(CodeInvalidData, "bytes left in a keyed member")
+		return
+	}
+	r.buf = e.rest
+}
+
+// SkipEntry skips the value of a keyed entry whose key the reader does not know (after [Reader.BeginEntry]).
+func (r *Reader) SkipEntry(e KeyedEntry) {
+	if r.err != nil {
+		return
+	}
+	r.buf = e.rest
+}
+
+// BeginEntry writes a keyed entry's key and reserves its length; [Writer.EndEntry] writes the length.
+func (w *Writer) BeginEntry(key int32) int {
+	w.I32(key)
+	return w.ReserveInt32()
+}
+
+// EndEntry ends the entry whose length is at pos.
+func (w *Writer) EndEntry(pos int) { w.patchLength(pos) }
+
+// ReadSealed reads a sealed class: its presence byte, then (when present) its body. nil for null.
+func ReadSealed[T any](r *Reader, c *Class[T]) *T {
+	if !r.Present() {
+		return nil
+	}
+	return ReadClass(r, c)
+}
+
+// WriteSealed writes a sealed class: its presence byte, then (unless v is nil) its body.
+func WriteSealed[T any](w *Writer, v *T, c *Class[T]) {
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	WriteClass(w, v, c)
+}
+
+// KeyedSeen records that the keyed member with index i (0 to 63) of the body being read was read, through seen
+// (a mask the generated read function keeps). A member read twice (its key, or a former key of it, repeated) fails
+// with CodeDuplicateKey, and KeyedSeen returns false: .NET keeps the last entry, which lets two readers that pick
+// different entries see different values.
+func (r *Reader) KeyedSeen(seen *uint64, i uint) bool {
+	bit := uint64(1) << (i & 63)
+	if *seen&bit != 0 {
+		r.Fail(CodeDuplicateKey, "keyed member repeated")
+		return false
+	}
+	*seen |= bit
+	return true
 }

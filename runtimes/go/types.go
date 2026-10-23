@@ -16,8 +16,9 @@ import (
 // ---------------------------------------------------------------- decimal
 
 // Decimal is System.Decimal as its 16 bytes: Flags (bits 16-23 the scale, bit 31 the sign), then the 96-bit
-// coefficient as Hi (bits 64-95) and Lo (bits 0-63). The value is (-1)^sign * coefficient / 10^scale. Read and
-// written as is, without validation (as .NET copies it).
+// coefficient as Hi (bits 64-95) and Lo (bits 0-63). The value is (-1)^sign * coefficient / 10^scale. The reader
+// rejects a scale above 28 or other flag bits set (.NET copies them as they are, making a decimal its arithmetic
+// misreads); the writer rejects them too.
 type Decimal struct {
 	Flags uint32
 	Hi    uint32
@@ -28,10 +29,26 @@ type Decimal struct {
 const DecimalSize = 16
 
 // Decimal reads a decimal.
-func (r *Reader) Decimal() Decimal { return DecimalAt(r.Take(DecimalSize)) }
+func (r *Reader) Decimal() Decimal {
+	d := DecimalAt(r.Take(DecimalSize))
+	if !d.Valid() {
+		r.Fail(CodeInvalidData, "invalid decimal")
+		return Decimal{}
+	}
+	return d
+}
 
 // Decimal writes a decimal.
-func (w *Writer) Decimal(d Decimal) { d.Put(w.Extend(DecimalSize)) }
+func (w *Writer) Decimal(d Decimal) {
+	if !d.Valid() {
+		w.Fail(CodeInvalidValue, "invalid decimal")
+		return
+	}
+	d.Put(w.Extend(DecimalSize))
+}
+
+// Valid reports whether the scale is at most 28 and no flag bit other than the scale and the sign is set.
+func (d Decimal) Valid() bool { return d.Flags&0x7F00FFFF == 0 && d.Flags>>16&0xFF <= 28 }
 
 // DecimalAt decodes the decimal at the start of b (zero when b is shorter).
 func DecimalAt(b []byte) Decimal {
@@ -376,26 +393,65 @@ func (w *Writer) DateTimeOffset(o DateTimeOffset) {
 	binary.LittleEndian.PutUint16(b[8:], uint16(o.OffsetMinutes))
 }
 
-// DateOnly is System.DateOnly: its day number (days since 0001-01-01). Read and written as is.
+// DateOnly is System.DateOnly: its day number (days since 0001-01-01), 0 to MaxDateOnly; the reader and the
+// writer reject others.
 type DateOnly int32
+
+// MaxDateOnly is the day number of 9999-12-31, DateOnly.MaxValue.
+const MaxDateOnly DateOnly = 3652058
+
+// MaxTimeOnly is the ticks of 23:59:59.9999999, TimeOnly.MaxValue.
+const MaxTimeOnly TimeOnly = 863999999999
+
+// Valid reports whether d is in DateOnly's range.
+func (d DateOnly) Valid() bool { return d >= 0 && d <= MaxDateOnly }
+
+// Valid reports whether t is in TimeOnly's range.
+func (t TimeOnly) Valid() bool { return t >= 0 && t <= MaxTimeOnly }
 
 // Time returns the date at midnight UTC.
 func (d DateOnly) Time() time.Time { return ticksTime(int64(d) * 86400 * ticksPerSecond) }
 
 // DateOnly reads a DateOnly.
-func (r *Reader) DateOnly() DateOnly { return DateOnly(r.I32()) }
+func (r *Reader) DateOnly() DateOnly {
+	d := DateOnly(r.I32())
+	if !d.Valid() {
+		r.Fail(CodeInvalidData, "invalid DateOnly")
+		return 0
+	}
+	return d
+}
 
 // DateOnly writes a DateOnly.
-func (w *Writer) DateOnly(d DateOnly) { w.I32(int32(d)) }
+func (w *Writer) DateOnly(d DateOnly) {
+	if !d.Valid() {
+		w.Fail(CodeInvalidValue, "DateOnly out of range")
+		return
+	}
+	w.I32(int32(d))
+}
 
-// TimeOnly is System.TimeOnly: ticks since midnight. Read and written as is.
+// TimeOnly is System.TimeOnly: ticks since midnight, 0 to MaxTimeOnly; the reader and the writer reject others.
 type TimeOnly int64
 
 // TimeOnly reads a TimeOnly.
-func (r *Reader) TimeOnly() TimeOnly { return TimeOnly(r.I64()) }
+func (r *Reader) TimeOnly() TimeOnly {
+	t := TimeOnly(r.I64())
+	if !t.Valid() {
+		r.Fail(CodeInvalidData, "invalid TimeOnly")
+		return 0
+	}
+	return t
+}
 
 // TimeOnly writes a TimeOnly.
-func (w *Writer) TimeOnly(t TimeOnly) { w.I64(int64(t)) }
+func (w *Writer) TimeOnly(t TimeOnly) {
+	if !t.Valid() {
+		w.Fail(CodeInvalidValue, "TimeOnly out of range")
+		return
+	}
+	w.I64(int64(t))
+}
 
 // ---------------------------------------------------------------- 128-bit integers and Half
 
