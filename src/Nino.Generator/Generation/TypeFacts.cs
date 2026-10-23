@@ -19,6 +19,9 @@ internal sealed class TypeFacts
 {
     private static readonly ConditionalWeakTable<Compilation, TypeFacts> Shared = new();
 
+    /// <summary>The facts of the files of a compilation whose preprocessor symbols differ from the first's, by symbols.</summary>
+    private static readonly ConditionalWeakTable<Compilation, ConcurrentDictionary<string, TypeFacts>> Others = new();
+
     private readonly ConcurrentDictionary<ISymbol, bool> _delegatable = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ISymbol, bool> _fixedSize = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ITypeSymbol, int> _typeIds = new(SymbolEqualityComparer.Default);
@@ -37,8 +40,10 @@ internal sealed class TypeFacts
         // A project's files normally share one ParseOptions instance: compare symbols only when they do not.
         if (ReferenceEquals(options, facts._options) || SymbolsOf(options).SequenceEqual(facts._symbols))
             return facts;
-        // Files of the same compilation with other preprocessor symbols get facts of their own.
-        return new TypeFacts(compilation, options);
+        // Files of the same compilation with other preprocessor symbols get facts of their own, shared by every file
+        // with the same symbols.
+        return Others.GetValue(compilation, static _ => new ConcurrentDictionary<string, TypeFacts>())
+            .GetOrAdd(ModelCache.SymbolKey(options), _ => new TypeFacts(compilation, options));
     }
 
     private static IEnumerable<string> SymbolsOf(ParseOptions? options) =>

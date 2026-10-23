@@ -132,6 +132,30 @@ public static class Other { public static T Deserialize<T>(byte[] b) => default;
         Assert.IsFalse(usages.Contains("List<byte>"), usages);
     }
 
+    /// <summary>An internal static method of the generator (<c>Nino.Generator.Generation.</c><paramref name="type"/>).</summary>
+    private static System.Reflection.MethodInfo Internal(string type, string method) =>
+        typeof(Generator.Generation.NinoGenerator).Assembly.GetType("Nino.Generator.Generation." + type, true)!
+            .GetMethod(method, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+                               System.Reflection.BindingFlags.Static)!;
+
+    [TestMethod]
+    public void FilesWithOtherSymbolsShareTheirFacts()
+    {
+        // TypeFacts.For: files whose preprocessor symbols differ from the project's share one set of facts per symbols.
+        var compilation = Create(("A.cs", Usings + "[NinoType] public class A { public int X; }\n}"));
+        var facts = Internal("TypeFacts", "For");
+        var project = facts.Invoke(null, new object[] { compilation, compilation.SyntaxTrees.First().Options });
+        object Other(params string[] symbols) => facts.Invoke(null, new object[]
+        {
+            compilation, new CSharpParseOptions(LanguageVersion.Latest, preprocessorSymbols: symbols),
+        });
+        var first = Other("OTHER");
+        Assert.AreNotSame(project, first);
+        Assert.AreSame(first, Other("OTHER"));
+        Assert.AreNotSame(first, Other("OTHER", "MORE"));
+        Assert.AreSame(project, facts.Invoke(null, new object[] { compilation, new CSharpParseOptions(LanguageVersion.Latest) }));
+    }
+
     [TestMethod]
     public void SubtypesOfAliasedNinoTypesAreGenerated()
     {
