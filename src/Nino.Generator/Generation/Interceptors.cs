@@ -82,6 +82,9 @@ internal static class Interceptors
         if (ctx.SemanticModel.GetInterceptableLocation(invocation, ct) is not { } location)
             return null;
         string attribute = $"{location.Version}, \"{location.Data}\"";
+        // The opaque data does not say where the call is: a comment does, "File.cs(line,column)" (no directory, so
+        // the code is the same on every machine).
+        string where = System.IO.Path.GetFileName(location.GetDisplayLocation());
 #else
         // The method name: after the receiver, or alone (using static).
         var name = invocation.Expression is MemberAccessExpressionSyntax access
@@ -92,6 +95,7 @@ internal static class Interceptors
         if (path.Length == 0)
             return null;
         string attribute = "@\"" + path.Replace("\"", "\"\"") + $"\", {position.Line + 1}, {position.Character + 1}";
+        string where = ""; // the attribute says it
 #endif
 
         var signature = new StringBuilder();
@@ -127,7 +131,7 @@ internal static class Interceptors
         bool inlinable = target == method.Name &&
                          !method.Parameters.Any(p => p.RefKind == RefKind.Ref && p.Type.Name is "Reader" or "Writer");
         return new InterceptedCall(signature.ToString(), target, TypeNames.Global(type), formatter,
-            arguments.ToString(), attribute, inlinable);
+            arguments.ToString(), attribute, inlinable, where);
     }
 
     /// <summary>
@@ -191,7 +195,9 @@ internal static class Interceptors
             if (n != 0)
                 w.Line();
             foreach (var call in group)
-                w.Line($"[__NinoIntercepts({call.Location})]");
+                w.Line(call.Where.Length == 0
+                    ? $"[__NinoIntercepts({call.Location})]"
+                    : $"[__NinoIntercepts({call.Location})] // {call.Where}");
             w.Line(GeneratedCode.Inline);
             // "R Name(params)" becomes "public static R NameN(params) => call;"
             var signature = group.Key.Signature;

@@ -376,7 +376,7 @@ internal sealed record TopLevelCall(UsageRegistration? Usage, InterceptedCall? I
 /// <c>Dictionary&lt;int, Small&gt;</c>), whose elements are read and written there too.
 /// </summary>
 internal sealed record InterceptedCall(string Signature, string Method, string TypeName, string Formatter,
-    string Arguments, string Location, bool Inlinable = false)
+    string Arguments, string Location, bool Inlinable = false, string Where = "")
 {
     /// <summary>A call of the <c>NinoDirect</c> method <paramref name="method"/> with <paramref name="formatter"/>, and this call's type and arguments.</summary>
     public string CallWith(string method, string formatter) =>
