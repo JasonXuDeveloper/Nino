@@ -381,7 +381,13 @@ export class NinoReader {
       const text = this.latin1(at, bytes);
       if (!nonAscii.test(text)) return text;
     }
-    const value = utf8Decoder.decode(new Uint8Array(this.data.buffer, this.data.byteOffset + at, bytes));
+    let value: string;
+    try {
+      value = utf8Decoder.decode(new Uint8Array(this.data.buffer, this.data.byteOffset + at, bytes));
+    } catch {
+      // The decoder is fatal: it throws a TypeError for bytes that are not UTF-8.
+      throw new NinoError("invalid UTF-8 string.");
+    }
     if (value.length !== chars) throw new NinoError("invalid UTF-8 string.");
     return value;
   }
