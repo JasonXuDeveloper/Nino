@@ -34,6 +34,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO024](#nino024) | Warning | `[NinoFormerName]` on a member of a type that is not keyed |
 | [NINO025](#nino025) | Warning | `[NinoFactory]` on a type created through `[NinoConstructor]` |
 | [NINO026](#nino026) | Error | More than one `[NinoFormerName]` on a type |
+| [NINO027](#nino027) | Warning | `[NinoFormerName]` on a generic type written with its type id |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -173,6 +174,15 @@ it, or give the type `format: NinoFormat.Keyed`.
 A type's `[NinoFormerName]` gives the earlier name its type id is computed from, so a type takes one. With two, the
 generator would use the first and `NinoTypeId.Of` would throw `AmbiguousMatchException`. Keep the name the type had
 when the data you still read was written. (Members of keyed types take several, one per earlier name.)
+
+### NINO027
+
+A type id is computed from the type's name, and `[NinoFormerName]` replaces that name. On a generic type, every
+instantiation then takes the same id: `Box<int>` and `Box<string>` collide once both are written with their type id,
+which happens when the type is written through a base class, an interface or `object`. Generic structs, and sealed
+generic classes with no `[NinoType]` base class or interface, are not written that way, so the warning leaves them
+alone. Remove the former name, or keep
+former names on non-generic types.
 
 ### NINO015
 
