@@ -1129,18 +1129,28 @@ func (b *builder) mapCodec(c *codec) error {
 		if c.enter && !w.EnterStruct() {
 			return
 		}
-		keys := sortedKeys(v)
-		k := reflect.New(kt).Elem()
-		val := reflect.New(vt).Elem()
-		for _, key := range keys {
+		// The pairs copied out once (two slices, no allocation per pair), then written in key order.
+		n := v.Len()
+		keys := reflect.MakeSlice(reflect.SliceOf(kt), n, n)
+		var vals reflect.Value
+		if vc != nil {
+			vals = reflect.MakeSlice(reflect.SliceOf(vt), n, n)
+		}
+		it := v.MapRange()
+		for i := 0; i < n && it.Next(); i++ {
+			keys.Index(i).SetIterKey(it)
+			if vc != nil {
+				vals.Index(i).SetIterValue(it)
+			}
+		}
+		order := keyOrder(keys)
+		for _, i := range order {
 			if w.err != nil {
 				break
 			}
-			k.Set(key)
-			kc.write(w, k)
+			kc.write(w, keys.Index(i))
 			if vc != nil {
-				val.Set(v.MapIndex(key))
-				vc.write(w, val)
+				vc.write(w, vals.Index(i))
 			}
 		}
 		if c.enter {
@@ -1150,31 +1160,40 @@ func (b *builder) mapCodec(c *codec) error {
 	return nil
 }
 
-// sortedKeys returns the keys of a map in order when they have one (numbers, strings, bools), so that writing a
-// map gives the same bytes every time; else in Go's map order.
-func sortedKeys(m reflect.Value) []reflect.Value {
-	keys := m.MapKeys()
-	switch m.Type().Key().Kind() {
+// keyOrder returns the indexes of keys (a slice) in key order when the keys have one (numbers, strings, bools),
+// so that writing a map gives the same bytes every time; else in the order given (Go's map order).
+func keyOrder(keys reflect.Value) []int {
+	n := keys.Len()
+	order := make([]int, n)
+	for i := range order {
+		order[i] = i
+	}
+	var less func(a, b int) int
+	switch keys.Type().Elem().Kind() {
 	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		slices.SortFunc(keys, func(a, b reflect.Value) int { return cmp.Compare(a.Int(), b.Int()) })
+		less = func(a, b int) int { return cmp.Compare(keys.Index(a).Int(), keys.Index(b).Int()) }
 	case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		slices.SortFunc(keys, func(a, b reflect.Value) int { return cmp.Compare(a.Uint(), b.Uint()) })
+		less = func(a, b int) int { return cmp.Compare(keys.Index(a).Uint(), keys.Index(b).Uint()) }
 	case reflect.Float32, reflect.Float64:
-		slices.SortFunc(keys, func(a, b reflect.Value) int { return cmp.Compare(a.Float(), b.Float()) })
+		less = func(a, b int) int { return cmp.Compare(keys.Index(a).Float(), keys.Index(b).Float()) }
 	case reflect.String:
-		slices.SortFunc(keys, func(a, b reflect.Value) int { return strings.Compare(a.String(), b.String()) })
+		less = func(a, b int) int { return strings.Compare(keys.Index(a).String(), keys.Index(b).String()) }
 	case reflect.Bool:
-		slices.SortFunc(keys, func(a, b reflect.Value) int {
-			x, y := a.Bool(), b.Bool()
-			if x == y {
+		less = func(a, b int) int {
+			x, y := keys.Index(a).Bool(), keys.Index(b).Bool()
+			switch {
+			case x == y:
 				return 0
-			} else if !x {
+			case !x:
 				return -1
 			}
 			return 1
-		})
+		}
+	default:
+		return order
 	}
-	return keys
+	slices.SortFunc(order, less)
+	return order
 }
 
 // iface: a polymorphic slot (object, an abstract class, an interface): a type id, then a registered type.

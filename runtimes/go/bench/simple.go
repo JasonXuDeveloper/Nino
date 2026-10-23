@@ -12,18 +12,19 @@ import (
 )
 
 // SimpleClass is the .NET benchmark's SimpleClass (its base's members first), with the codec a generator would
-// write for it: the fixed-size members at the start as one run, then the rest.
+// write for it: the fixed-size members at the start as one run, then the rest. Its nino tags map it for
+// nino.Marshal and nino.Unmarshal too (the struct-tag path, compared with the generated-style codec).
 type SimpleClass struct {
-	ID         int32            `json:"id" msgpack:"id"`
-	Tag        bool             `json:"tag" msgpack:"tag"`
-	Guid       nino.Guid        `json:"guid" msgpack:"guid"`
-	CreateTime nino.DateTime    `json:"createTime" msgpack:"createTime"`
-	Name       string           `json:"name" msgpack:"name"`
-	Desc       string           `json:"desc" msgpack:"desc"` // [NinoUtf8]
-	Numbers    []int32          `json:"numbers" msgpack:"numbers"`
-	Dates      []nino.DateTime  `json:"dates" msgpack:"dates"`
-	Map1       map[int32]string `json:"map1" msgpack:"map1"`
-	Map2       map[int32]int32  `json:"map2" msgpack:"map2"`
+	ID         int32            `nino:"0" json:"id" msgpack:"id"`
+	Tag        bool             `nino:"1" json:"tag" msgpack:"tag"`
+	Guid       nino.Guid        `nino:"2" json:"guid" msgpack:"guid"`
+	CreateTime nino.DateTime    `nino:"3" json:"createTime" msgpack:"createTime"`
+	Name       string           `nino:"4" json:"name" msgpack:"name"`
+	Desc       string           `nino:"5,utf8" json:"desc" msgpack:"desc"` // [NinoUtf8]
+	Numbers    []int32          `nino:"6" json:"numbers" msgpack:"numbers"`
+	Dates      []nino.DateTime  `nino:"7" json:"dates" msgpack:"dates"`
+	Map1       map[int32]string `nino:"8" json:"map1" msgpack:"map1"`
+	Map2       map[int32]int32  `nino:"9" json:"map2" msgpack:"map2"`
 }
 
 var simpleClass nino.Class[SimpleClass]

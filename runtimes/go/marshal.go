@@ -35,9 +35,17 @@ func marshal(dst []byte, t reflect.Type, rv reflect.Value) ([]byte, error) {
 	if err != nil {
 		return dst, err
 	}
-	// The codecs take addressable values.
-	tmp := reflect.New(t).Elem()
-	tmp.Set(rv)
+	// The codecs take addressable values: a copy, unless every value they reach is behind the root (a pointer,
+	// a slice, a map or an interface).
+	tmp := rv
+	switch t.Kind() {
+	case reflect.Pointer, reflect.Slice, reflect.Map, reflect.Interface:
+	default:
+		if !rv.CanAddr() {
+			tmp = reflect.New(t).Elem()
+			tmp.Set(rv)
+		}
+	}
 	w := writers.Get().(*Writer)
 	own := w.buf
 	w.Reset()

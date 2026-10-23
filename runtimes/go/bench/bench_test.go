@@ -34,6 +34,18 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(got, v) {
 		t.Fatalf("nino: %v", err)
 	}
+	// The struct-tag path reads the same value (it writes the maps in key order, so the bytes may differ).
+	tagged, err := nino.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back *SimpleClass
+	if err := nino.UnmarshalExact(tagged, &back); err != nil || !reflect.DeepEqual(back, v) {
+		t.Fatalf("tags: %v", err)
+	}
+	if err := nino.UnmarshalExact(data, &back); err != nil || !reflect.DeepEqual(back, v) {
+		t.Fatalf("tags reading the codec's bytes: %v", err)
+	}
 	j, _ := json.Marshal(v)
 	m, _ := msgpack.Marshal(v)
 	var g bytes.Buffer
@@ -65,10 +77,42 @@ func benchmarkRead[T any](b *testing.B, v T, write func(*nino.Writer, T), read f
 	}
 }
 
+// The struct-tag path: nino.MarshalAppend and nino.Unmarshal.
+func benchmarkMarshal(b *testing.B, v any) {
+	buf, err := nino.Marshal(v)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.SetBytes(int64(len(buf)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf, _ = nino.MarshalAppend(buf[:0], v)
+	}
+}
+
+func benchmarkUnmarshal[T any](b *testing.B, v T) {
+	data, err := nino.Marshal(v)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.SetBytes(int64(len(data)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var out T
+		if err := nino.Unmarshal(data, &out); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func BenchmarkSerialize(b *testing.B) {
 	v, vs := one(), list()
 	b.Run("Nino", func(b *testing.B) { benchmarkWrite(b, v, WriteSimpleClass) })
 	b.Run("NinoList", func(b *testing.B) { benchmarkWrite(b, vs, WriteSimpleClasses) })
+	b.Run("NinoTags", func(b *testing.B) { benchmarkMarshal(b, v) })
+	b.Run("NinoTagsList", func(b *testing.B) { benchmarkMarshal(b, vs) })
 	b.Run("JSON", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
@@ -110,6 +154,8 @@ func BenchmarkDeserialize(b *testing.B) {
 	v, vs := one(), list()
 	b.Run("Nino", func(b *testing.B) { benchmarkRead(b, v, WriteSimpleClass, ReadSimpleClass) })
 	b.Run("NinoList", func(b *testing.B) { benchmarkRead(b, vs, WriteSimpleClasses, ReadSimpleClasses) })
+	b.Run("NinoTags", func(b *testing.B) { benchmarkUnmarshal[*SimpleClass](b, v) })
+	b.Run("NinoTagsList", func(b *testing.B) { benchmarkUnmarshal[[]*SimpleClass](b, vs) })
 	b.Run("JSON", func(b *testing.B) {
 		data, _ := json.Marshal(v)
 		b.ReportAllocs()
