@@ -9,7 +9,7 @@
   "size": 10,
   "roundTrip": true,
   "layouts": {
-    "Conformance.BigValues": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD56E77DA; members=Big:System.Numerics.BigInteger:bigint;Version:System.Version:version"
+    "Conformance.BigValues": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD56E77DA; deferrable=true; members=Big:System.Numerics.BigInteger:bigint;Version:System.Version:version"
   },
   "value": {
     "$type": "Conformance.BigValues",

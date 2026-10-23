@@ -10,7 +10,7 @@
   "size": 21,
   "roundTrip": true,
   "layouts": {
-    "Conformance.StringCollections": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x744CD3F6; members=Array:string[]:seq(string);List:System.Collections.Generic.List<string>:seq(string);Utf8A:string:utf8;Plain:string:string;Utf8B:string:utf8"
+    "Conformance.StringCollections": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x744CD3F6; deferrable=true; members=Array:string[]:seq(string);List:System.Collections.Generic.List<string>:seq(string);Utf8A:string:utf8;Plain:string:string;Utf8B:string:utf8"
   },
   "value": {
     "$type": "Conformance.StringCollections",

@@ -8,9 +8,9 @@
   "size": 38,
   "roundTrip": true,
   "layouts": {
-    "Conformance.KeyedHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x7FBDA208; members=Keyed:Conformance.KeyedV1:type(Conformance.KeyedV1);Struct:Conformance.KeyedStruct:type(Conformance.KeyedStruct);Array:Conformance.KeyedV1[]:seq(type(Conformance.KeyedV1))",
-    "Conformance.KeyedStruct": "format=Keyed; header=None; trackReferences=false; raw=false; typeId=0x64822AB7; members=A:int:raw(4):key=0x6AD58324;B:double:raw(8):key=0xDCDCF25F",
-    "Conformance.KeyedV1": "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x8F865207; members=Health:int:raw(4):key=0x99A16761;Name:string:string:key=0x3085B3E2;Items:System.Collections.Generic.List<int>:seq(raw(4)):key=0xDCA8A053;Score:long:raw(8):key=0x044AB14D"
+    "Conformance.KeyedHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x7FBDA208; deferrable=true; members=Keyed:Conformance.KeyedV1:type(Conformance.KeyedV1);Struct:Conformance.KeyedStruct:type(Conformance.KeyedStruct);Array:Conformance.KeyedV1[]:seq(type(Conformance.KeyedV1))",
+    "Conformance.KeyedStruct": "format=Keyed; header=None; trackReferences=false; raw=false; typeId=0x64822AB7; deferrable=false; members=A:int:raw(4):key=0x6AD58324;B:double:raw(8):key=0xDCDCF25F",
+    "Conformance.KeyedV1": "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;Name:string:string:key=0x3085B3E2;Items:System.Collections.Generic.List<int>:seq(raw(4)):key=0xDCA8A053;Score:long:raw(8):key=0x044AB14D"
   },
   "value": {
     "$type": "Conformance.KeyedHolder",

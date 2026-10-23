@@ -6,8 +6,8 @@
   "exercises": "padded-array: a count of int.MinValue.",
   "size": 37,
   "layouts": {
-    "Conformance.Padded": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x2ACAE976; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}",
-    "Conformance.Targets.PaddedArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x1805EDC3; members=Values:Conformance.Padded[]:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)})"
+    "Conformance.Padded": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x2ACAE976; deferrable=false; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}",
+    "Conformance.Targets.PaddedArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x1805EDC3; deferrable=true; members=Values:Conformance.Padded[]:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)})"
   },
   "dotnet": {
     "outcome": "error",

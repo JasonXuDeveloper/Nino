@@ -6,7 +6,7 @@
   "exercises": "A record chain nested inline 513 deep, one past the limit of 512 open bodies (deep-records-512 is valid).",
   "size": 2566,
   "layouts": {
-    "Conformance.RecordChain": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x20F10406; members=Value:int:raw(4);Next:Conformance.RecordChain:type(Conformance.RecordChain)"
+    "Conformance.RecordChain": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x20F10406; deferrable=false; members=Value:int:raw(4);Next:Conformance.RecordChain:type(Conformance.RecordChain)"
   },
   "dotnet": {
     "outcome": "error",

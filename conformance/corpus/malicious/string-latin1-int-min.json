@@ -6,7 +6,7 @@
   "exercises": "A header of int.MinValue: int.MaxValue Latin-1 bytes, 3 present.",
   "size": 8,
   "layouts": {
-    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; members=Value:string:string"
+    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
   },
   "dotnet": {
     "outcome": "error",

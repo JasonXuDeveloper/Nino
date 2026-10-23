@@ -8,7 +8,7 @@
   "size": 56,
   "roundTrip": true,
   "layouts": {
-    "Conformance.Scalars": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD2727283; members=Flag:bool:raw(1);Char:char:raw(2);Decimal:decimal:raw(16);Guid:System.Guid:raw(16);Span:System.TimeSpan:raw(8);Date:System.DateOnly:raw(4);Time:System.TimeOnly:raw(8)"
+    "Conformance.Scalars": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD2727283; deferrable=true; members=Flag:bool:raw(1);Char:char:raw(2);Decimal:decimal:raw(16);Guid:System.Guid:raw(16);Span:System.TimeSpan:raw(8);Date:System.DateOnly:raw(4);Time:System.TimeOnly:raw(8)"
   },
   "value": {
     "$type": "Conformance.Scalars",

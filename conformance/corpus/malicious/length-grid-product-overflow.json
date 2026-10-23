@@ -6,7 +6,7 @@
   "exercises": "int[,]: 65536 x 65536 elements, 2^32 (0 in 32-bit arithmetic), with no data.",
   "size": 9,
   "layouts": {
-    "Conformance.Targets.Grid": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF8F3033A; members=Values:int[,]:grid(2,raw(4))"
+    "Conformance.Targets.Grid": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF8F3033A; deferrable=true; members=Values:int[,]:grid(2,raw(4))"
   },
   "dotnet": {
     "outcome": "error",

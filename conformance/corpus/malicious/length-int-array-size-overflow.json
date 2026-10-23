@@ -6,7 +6,7 @@
   "exercises": "int-array: a count of 0x40000001, whose byte size (4 a element) is 2^32 + 4: 4 bytes in 32-bit arithmetic, which are present.",
   "size": 9,
   "layouts": {
-    "Conformance.Targets.IntArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x694D6EF8; members=Values:int[]:seq(raw(4))"
+    "Conformance.Targets.IntArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x694D6EF8; deferrable=true; members=Values:int[]:seq(raw(4))"
   },
   "dotnet": {
     "outcome": "error",

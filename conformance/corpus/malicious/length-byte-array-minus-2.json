@@ -6,7 +6,7 @@
   "exercises": "byte-array: a count of -2 (only -1, null, is negative).",
   "size": 7,
   "layouts": {
-    "Conformance.Targets.ByteArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xEE43CD01; members=Values:byte[]:seq(raw(1))"
+    "Conformance.Targets.ByteArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xEE43CD01; deferrable=true; members=Values:byte[]:seq(raw(1))"
   },
   "dotnet": {
     "outcome": "error",

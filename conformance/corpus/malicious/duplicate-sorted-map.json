@@ -6,7 +6,7 @@
   "exercises": "SortedDictionary<int, int> with the key 3 twice.",
   "size": 21,
   "layouts": {
-    "Conformance.Targets.SortedMap": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3F694A3D; members=Values:System.Collections.Generic.SortedDictionary<int, int>:map(raw(4),raw(4))"
+    "Conformance.Targets.SortedMap": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3F694A3D; deferrable=true; members=Values:System.Collections.Generic.SortedDictionary<int, int>:map(raw(4),raw(4))"
   },
   "dotnet": {
     "outcome": "error",

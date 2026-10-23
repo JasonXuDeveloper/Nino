@@ -6,7 +6,7 @@
   "exercises": "string-list: a count of 3 with 2 elements' bytes.",
   "size": 13,
   "layouts": {
-    "Conformance.Targets.StringList": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x30796D4D; members=Values:System.Collections.Generic.List<string>:seq(string)"
+    "Conformance.Targets.StringList": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x30796D4D; deferrable=true; members=Values:System.Collections.Generic.List<string>:seq(string)"
   },
   "dotnet": {
     "outcome": "error",

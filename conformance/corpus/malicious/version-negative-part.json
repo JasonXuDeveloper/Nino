@@ -6,7 +6,7 @@
   "exercises": "A Version whose minor part is -2 (a major of -1 is null; build and revision may be -1, unset; nothing else is negative).",
   "size": 17,
   "layouts": {
-    "Conformance.Targets.VersionSlot": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9D692494; members=Value:System.Version:version"
+    "Conformance.Targets.VersionSlot": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9D692494; deferrable=true; members=Value:System.Version:version"
   },
   "dotnet": {
     "outcome": "error",

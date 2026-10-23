@@ -9,7 +9,7 @@
   "size": 42,
   "roundTrip": true,
   "layouts": {
-    "Conformance.Strings": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDBD0018; members=Text:string:string;Utf8:string:utf8"
+    "Conformance.Strings": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDBD0018; deferrable=true; members=Text:string:string;Utf8:string:utf8"
   },
   "value": {
     "$type": "Conformance.Strings",

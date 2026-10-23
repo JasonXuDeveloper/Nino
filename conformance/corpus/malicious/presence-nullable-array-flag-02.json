@@ -6,7 +6,7 @@
   "exercises": "An int?[] element (fixed stride: flag, 3 padding bytes, value) whose flag is 0x02.",
   "size": 13,
   "layouts": {
-    "Conformance.Targets.MaybeIntArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x436A69B2; members=Values:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
+    "Conformance.Targets.MaybeIntArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x436A69B2; deferrable=true; members=Values:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
   },
   "dotnet": {
     "outcome": "returned"

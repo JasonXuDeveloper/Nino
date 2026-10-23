@@ -9,9 +9,9 @@
   "size": 17,
   "roundTrip": true,
   "layouts": {
-    "Conformance.Tracked": "format=Positional; header=TypeId; trackReferences=true; raw=false; typeId=0x8E7C9360; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked)",
-    "Conformance.TrackedHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFA74F460; members=A:Conformance.Tracked:type(Conformance.Tracked);B:Conformance.Tracked:type(Conformance.Tracked);All:System.Collections.Generic.List<Conformance.Tracked>:seq(type(Conformance.Tracked));Any:object:object",
-    "Conformance.TrackedLeaf": "format=Positional; header=NullFlag; trackReferences=true; raw=false; typeId=0x671FC086; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked);Name:string:string"
+    "Conformance.Tracked": "format=Positional; header=TypeId; trackReferences=true; raw=false; typeId=0x8E7C9360; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked)",
+    "Conformance.TrackedHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFA74F460; deferrable=true; members=A:Conformance.Tracked:type(Conformance.Tracked);B:Conformance.Tracked:type(Conformance.Tracked);All:System.Collections.Generic.List<Conformance.Tracked>:seq(type(Conformance.Tracked));Any:object:object",
+    "Conformance.TrackedLeaf": "format=Positional; header=NullFlag; trackReferences=true; raw=false; typeId=0x671FC086; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked);Name:string:string"
   },
   "value": {
     "$type": "Conformance.TrackedHolder",

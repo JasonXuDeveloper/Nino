@@ -10,9 +10,9 @@
   "size": 11,
   "roundTrip": true,
   "layouts": {
-    "Conformance.Empties": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF6777155; members=Class:Conformance.Empty:type(Conformance.Empty);Struct:Conformance.EmptyStruct:raw;Structs:Conformance.EmptyStruct[]:seq(raw);Classes:System.Collections.Generic.List<Conformance.Empty>:seq(type(Conformance.Empty))",
-    "Conformance.Empty": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x0C95741B; members=",
-    "Conformance.EmptyStruct": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x18A30154; members=raw"
+    "Conformance.Empties": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF6777155; deferrable=true; members=Class:Conformance.Empty:type(Conformance.Empty);Struct:Conformance.EmptyStruct:raw;Structs:Conformance.EmptyStruct[]:seq(raw);Classes:System.Collections.Generic.List<Conformance.Empty>:seq(type(Conformance.Empty))",
+    "Conformance.Empty": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x0C95741B; deferrable=true; members=",
+    "Conformance.EmptyStruct": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x18A30154; deferrable=false; members=raw"
   },
   "value": {
     "$type": "Conformance.Empties",

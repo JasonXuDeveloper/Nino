@@ -6,7 +6,7 @@
   "exercises": "A header of -4 (3 Latin-1 bytes) with 1 present.",
   "size": 6,
   "layouts": {
-    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; members=Value:string:string"
+    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
   },
   "dotnet": {
     "outcome": "error",

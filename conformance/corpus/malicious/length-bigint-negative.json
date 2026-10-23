@@ -6,7 +6,7 @@
   "exercises": "BigInteger: a byte length of -2.",
   "size": 9,
   "layouts": {
-    "Conformance.Targets.BigSlot": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA6B6AFE2; members=Value:System.Numerics.BigInteger:bigint"
+    "Conformance.Targets.BigSlot": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA6B6AFE2; deferrable=true; members=Value:System.Numerics.BigInteger:bigint"
   },
   "dotnet": {
     "outcome": "error",

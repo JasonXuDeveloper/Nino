@@ -9,7 +9,7 @@
   "size": 32,
   "roundTrip": true,
   "layouts": {
-    "Conformance.KeyedStruct": "format=Keyed; header=None; trackReferences=false; raw=false; typeId=0x64822AB7; members=A:int:raw(4):key=0x6AD58324;B:double:raw(8):key=0xDCDCF25F"
+    "Conformance.KeyedStruct": "format=Keyed; header=None; trackReferences=false; raw=false; typeId=0x64822AB7; deferrable=false; members=A:int:raw(4):key=0x6AD58324;B:double:raw(8):key=0xDCDCF25F"
   },
   "value": {
     "$type": "Conformance.KeyedStruct",

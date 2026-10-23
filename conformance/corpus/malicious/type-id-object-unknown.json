@@ -6,7 +6,7 @@
   "exercises": "An object member whose type id belongs to no type.",
   "size": 13,
   "layouts": {
-    "Conformance.Targets.ObjectSlot": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x7A16C8DB; members=Value:object:object"
+    "Conformance.Targets.ObjectSlot": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x7A16C8DB; deferrable=true; members=Value:object:object"
   },
   "dotnet": {
     "outcome": "error",

@@ -6,7 +6,7 @@
   "exercises": "A keyed chain nested inline 10,000 deep, region in region.",
   "size": 250001,
   "layouts": {
-    "Conformance.KeyedChain": "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0xCBFD8A55; members=Value:int:raw(4):key=0xC373233E;Next:Conformance.KeyedChain:type(Conformance.KeyedChain):key=0xC9A6113A"
+    "Conformance.KeyedChain": "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0xCBFD8A55; deferrable=true; members=Value:int:raw(4):key=0xC373233E;Next:Conformance.KeyedChain:type(Conformance.KeyedChain):key=0xC9A6113A"
   },
   "dotnet": {
     "outcome": "error",

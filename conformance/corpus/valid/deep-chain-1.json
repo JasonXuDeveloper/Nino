@@ -8,7 +8,7 @@
   "size": 6,
   "roundTrip": true,
   "layouts": {
-    "Conformance.Chain": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8147BA33; members=Value:int:raw(4);Next:Conformance.Chain:type(Conformance.Chain)"
+    "Conformance.Chain": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8147BA33; deferrable=true; members=Value:int:raw(4);Next:Conformance.Chain:type(Conformance.Chain)"
   },
   "value": {
     "$type": "Conformance.Chain",

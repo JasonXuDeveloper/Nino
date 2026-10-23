@@ -6,7 +6,7 @@
   "exercises": "long-list: a 25-byte input claiming 100,000,000 elements; a reader must not allocate for the count before the data is there.",
   "size": 21,
   "layouts": {
-    "Conformance.Targets.LongList": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCECF34D2; members=Values:System.Collections.Generic.List<long>:seq(raw(8))"
+    "Conformance.Targets.LongList": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCECF34D2; deferrable=true; members=Values:System.Collections.Generic.List<long>:seq(raw(8))"
   },
   "dotnet": {
     "outcome": "error",

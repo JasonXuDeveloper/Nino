@@ -8,7 +8,7 @@
   "size": 1,
   "roundTrip": true,
   "layouts": {
-    "Conformance.EmptyStruct": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x18A30154; members=raw"
+    "Conformance.EmptyStruct": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x18A30154; deferrable=false; members=raw"
   },
   "value": {
     "$type": "Conformance.EmptyStruct"

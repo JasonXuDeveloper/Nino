@@ -6,7 +6,7 @@
   "exercises": "deep-tolerant-chain-300 with the section offset pointing at the offset itself (an empty section).",
   "size": 2721,
   "layouts": {
-    "Conformance.TolerantChain": "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x18DAD008; members=Value:int:raw(4);Next:Conformance.TolerantChain:type(Conformance.TolerantChain)"
+    "Conformance.TolerantChain": "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x18DAD008; deferrable=true; members=Value:int:raw(4);Next:Conformance.TolerantChain:type(Conformance.TolerantChain)"
   },
   "dotnet": {
     "outcome": "error",

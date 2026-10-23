@@ -6,7 +6,7 @@
   "exercises": "int-map: a count of -2 (only -1, null, is negative).",
   "size": 21,
   "layouts": {
-    "Conformance.Targets.IntMap": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD32CFD85; members=Values:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4))"
+    "Conformance.Targets.IntMap": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD32CFD85; deferrable=true; members=Values:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4))"
   },
   "dotnet": {
     "outcome": "error",

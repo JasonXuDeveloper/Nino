@@ -6,7 +6,7 @@
   "exercises": "A bool byte of 0xff (only 0 and 1 are bools).",
   "size": 2,
   "layouts": {
-    "Conformance.Targets.BoolValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x65FCB927; members=Value:bool:raw(1)"
+    "Conformance.Targets.BoolValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x65FCB927; deferrable=true; members=Value:bool:raw(1)"
   },
   "dotnet": {
     "outcome": "returned"

@@ -6,12 +6,12 @@
   "exercises": "An Animal member holding the id of Box<T> with T unbound (the open definition's name).",
   "size": 13,
   "layouts": {
-    "Conformance.Animal": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xD3594770; members=Name:string:string",
-    "Conformance.Box<T>": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; members=Name:string:string;Value:T:type(T)",
-    "Conformance.Cat": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xAD792380; members=Name:string:string;Lives:float:raw(4)",
-    "Conformance.Dog": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x69ACA68A; members=Name:string:string;Bones:int:raw(4)",
-    "Conformance.Puppy": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x94310DEA; members=Name:string:string;Bones:int:raw(4);Sleepy:bool:raw(1)",
-    "Conformance.Targets.AnimalSlot": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD4664648; members=Value:Conformance.Animal:type(Conformance.Animal)"
+    "Conformance.Animal": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xD3594770; deferrable=false; members=Name:string:string",
+    "Conformance.Box<T>": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Name:string:string;Value:T:type(T)",
+    "Conformance.Cat": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xAD792380; deferrable=true; members=Name:string:string;Lives:float:raw(4)",
+    "Conformance.Dog": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x69ACA68A; deferrable=true; members=Name:string:string;Bones:int:raw(4)",
+    "Conformance.Puppy": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x94310DEA; deferrable=true; members=Name:string:string;Bones:int:raw(4);Sleepy:bool:raw(1)",
+    "Conformance.Targets.AnimalSlot": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD4664648; deferrable=true; members=Value:Conformance.Animal:type(Conformance.Animal)"
   },
   "dotnet": {
     "outcome": "error",

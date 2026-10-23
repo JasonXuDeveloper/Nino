@@ -6,7 +6,7 @@
   "exercises": "class Tree : List<Tree> nested 10,000 deep: 4 bytes a level, no class body in between, so no depth count applies.",
   "size": 40009,
   "layouts": {
-    "Conformance.TreeHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA20A5480; members=Tree:Conformance.Tree:seq(type(Conformance.Tree));DictTree:Conformance.DictTree:map(string,type(Conformance.DictTree))"
+    "Conformance.TreeHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA20A5480; deferrable=true; members=Tree:Conformance.Tree:seq(type(Conformance.Tree));DictTree:Conformance.DictTree:map(string,type(Conformance.DictTree))"
   },
   "dotnet": {
     "outcome": "error",

@@ -6,10 +6,10 @@
   "exercises": "An IShape member holding the type id of IShape itself.",
   "size": 13,
   "layouts": {
-    "Conformance.Circle": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xD0A6E3F4; members=Area:double:raw(8);Radius:double:raw(8)",
-    "Conformance.IShape": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x7CC3C4C0; members=",
-    "Conformance.Square": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x844A4BA7; members=Area:double:raw(8);Side:double:raw(8)",
-    "Conformance.Targets.ShapeSlot": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFDAADCC1; members=Value:Conformance.IShape:type(Conformance.IShape)"
+    "Conformance.Circle": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xD0A6E3F4; deferrable=true; members=Area:double:raw(8);Radius:double:raw(8)",
+    "Conformance.IShape": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x7CC3C4C0; deferrable=false; members=",
+    "Conformance.Square": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x844A4BA7; deferrable=true; members=Area:double:raw(8);Side:double:raw(8)",
+    "Conformance.Targets.ShapeSlot": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFDAADCC1; deferrable=true; members=Value:Conformance.IShape:type(Conformance.IShape)"
   },
   "dotnet": {
     "outcome": "error",

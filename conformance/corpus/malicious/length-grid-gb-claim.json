@@ -6,7 +6,7 @@
   "exercises": "int[,]: 10000 x 10000 elements with 8 bytes present.",
   "size": 17,
   "layouts": {
-    "Conformance.Targets.Grid": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF8F3033A; members=Values:int[,]:grid(2,raw(4))"
+    "Conformance.Targets.Grid": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF8F3033A; deferrable=true; members=Values:int[,]:grid(2,raw(4))"
   },
   "dotnet": {
     "outcome": "error",

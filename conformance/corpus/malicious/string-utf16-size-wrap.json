@@ -6,7 +6,7 @@
   "exercises": "A header of 0x80000001 / 2 + 1 code units, whose byte size wraps past 2^31.",
   "size": 9,
   "layouts": {
-    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; members=Value:string:string"
+    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
   },
   "dotnet": {
     "outcome": "error",

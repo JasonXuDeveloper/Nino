@@ -8,7 +8,7 @@
   "size": 15,
   "roundTrip": true,
   "layouts": {
-    "Conformance.Floats": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3504C24D; members=F16:System.Half:raw(2);F32:float:raw(4);F64:double:raw(8)"
+    "Conformance.Floats": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3504C24D; deferrable=true; members=F16:System.Half:raw(2);F32:float:raw(4);F64:double:raw(8)"
   },
   "value": {
     "$type": "Conformance.Floats",

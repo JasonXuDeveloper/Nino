@@ -6,7 +6,7 @@
   "exercises": "A tree nested inline 10,000 deep through List<TreeNode>; may be read, as chain-inline-10k.",
   "size": 90009,
   "layouts": {
-    "Conformance.TreeNode": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x760566C0; members=Value:int:raw(4);Children:System.Collections.Generic.List<Conformance.TreeNode>:seq(type(Conformance.TreeNode))"
+    "Conformance.TreeNode": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x760566C0; deferrable=true; members=Value:int:raw(4);Children:System.Collections.Generic.List<Conformance.TreeNode>:seq(type(Conformance.TreeNode))"
   },
   "dotnet": {
     "outcome": "returned"

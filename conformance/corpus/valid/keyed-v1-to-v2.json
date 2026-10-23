@@ -10,7 +10,7 @@
   "roundTrip": false,
   "reencoded": "01370000004db14a04080000000000000000000010e2b3853007000000fcffffff6f6c64ad3571a1040000002a0000009b14a8ea0400000000000000",
   "layouts": {
-    "Conformance.KeyedV2": "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x1D7EE2CC; members=Score:long:raw(8):key=0x044AB14D;Name:string:string:key=0x3085B3E2;Hp:int:raw(4):key=0xA17135AD:former=0x99A16761;Level:int:raw(4):key=0xEAA8149B"
+    "Conformance.KeyedV2": "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x1D7EE2CC; deferrable=true; members=Score:long:raw(8):key=0x044AB14D;Name:string:string:key=0x3085B3E2;Hp:int:raw(4):key=0xA17135AD:former=0x99A16761;Level:int:raw(4):key=0xEAA8149B"
   },
   "value": {
     "$type": "Conformance.KeyedV2",
