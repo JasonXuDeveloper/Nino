@@ -10,6 +10,8 @@ namespace Nino.Core
     /// <summary>
     /// Writes and reads one registered type. Also the registry entry: the registry stores handler references, so
     /// a reader always sees a complete (type, id, code) triple. One handler serves every base type of its type.
+    /// Only Nino.Core creates handlers (from generated registrations): a read trusts that a handler's type is what it
+    /// reads.
     /// </summary>
     public abstract class NinoSubtypeHandler
     {
@@ -19,7 +21,7 @@ namespace Nino.Core
         /// <summary>The type id written before the body.</summary>
         public int Id { get; }
 
-        protected NinoSubtypeHandler(Type type, int id)
+        private protected NinoSubtypeHandler(Type type, int id)
         {
             Type = type;
             Id = id;
@@ -400,7 +402,7 @@ namespace Nino.Core
         private static readonly object Lock = new object();
 
         /// <summary>Registers a handler. Idempotent for the same type and id.</summary>
-        public static void Register(NinoSubtypeHandler handler)
+        internal static void Register(NinoSubtypeHandler handler)
         {
             if (handler.Id == NinoWire.NullTypeId)
                 throw new ArgumentException("Type id 0 is reserved for null.");
