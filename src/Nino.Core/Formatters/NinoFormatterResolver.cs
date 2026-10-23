@@ -160,9 +160,18 @@ namespace Nino.Core
         {
             if (type.IsPointer || type.IsGenericParameter || !NinoUnsafe.IsUnmanaged(type))
                 return false;
-            if (IsNinoType(type))
-                return IsRawStruct(type);
-            if (type == typeof(IntPtr) || type == typeof(UIntPtr) || type == typeof(DateTimeOffset))
+            return IsNinoType(type) ? IsRawStruct(type) : IsRawShape(type);
+        }
+
+        /// <summary>
+        /// <see cref="IsRawUnmanaged"/> of an unmanaged type that is not a <c>[NinoType]</c>, and false for a
+        /// <c>[NinoType]</c>: the rule NativeAOT applies too (NinoFormatterCache's CreateWithoutDynamicCode), where an
+        /// unmanaged type that generated code did not register can only be raw. Pointer-sized values are written as 8
+        /// bytes, and Nullable, KeyValuePair, the value tuples and DateTimeOffset have formats of their own.
+        /// </summary>
+        internal static bool IsRawShape(Type type)
+        {
+            if (type == typeof(IntPtr) || type == typeof(UIntPtr) || type == typeof(DateTimeOffset) || IsNinoType(type))
                 return false;
             if (type.IsGenericType)
             {

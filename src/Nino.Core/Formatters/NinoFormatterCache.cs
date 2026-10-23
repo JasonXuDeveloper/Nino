@@ -97,11 +97,12 @@ namespace Nino.Core
                 return (NinoFormatter<T>)(object)new StructFormatter<string, StringFormatter>();
             if (typeof(T) == typeof(object))
                 return (NinoFormatter<T>)(object)new StructFormatter<object, ObjectFormatter>();
-            // A constant per T: reference types (and structs holding references) compile none of this. Generic
-            // structs are left out (their formats are their own: Nullable, KeyValuePair, tuples, generic [NinoType]s),
-            // and so are [NinoType] structs, registered by their generated code (RegisterType, above) when they exist.
-            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && !typeof(T).IsGenericType &&
-                typeof(T) != typeof(IntPtr) && typeof(T) != typeof(UIntPtr) && typeof(T) != typeof(DateTimeOffset))
+            // A constant per T: reference types (and structs holding references) compile none of this. The rest by
+            // the resolver's rule (NinoFormatterResolver.IsRawShape), so a type is raw here exactly when it is with
+            // dynamic code: [NinoType] structs (registered by their generated code, RegisterType above, when they
+            // exist), pointer-sized values and the types with a format of their own are left out; other generic
+            // structs are raw, as everywhere else.
+            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoFormatterResolver.IsRawShape(typeof(T)))
                 return new StructFormatter<T, RawValueFormatter<T>>();
             return null;
         }
