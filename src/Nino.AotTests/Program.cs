@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -165,6 +166,21 @@ public class Holder
     public Dictionary<Point, Shape> StructKey;
 }
 
+// Nino.Immutable's formatters, reached from generated code (members) and top level. Hash-ordered collections have
+// keys whose hash codes are the same in every process (not strings), so the payload hash compares across runs.
+[NinoType]
+public class Frozen
+{
+    public ImmutableArray<int> Array;
+    public ImmutableList<string> List;
+    public ImmutableHashSet<long> Set;
+    public ImmutableSortedSet<string> Sorted;
+    public ImmutableQueue<int> Queue;
+    public ImmutableStack<string> Stack;
+    public ImmutableDictionary<int, Shape> Map;
+    public ImmutableSortedDictionary<int, string> SortedMap;
+}
+
 public static class Program
 {
     private static int _failures;
@@ -289,6 +305,29 @@ public static class Program
               && wr2.Vs[0].In.L == 9 && wr2.Ps[0].C == 4, "raw structs with padding");
         var pd = NinoDeserializer.Deserialize<Padded>(Ser(new Padded { A = 5, B = 6, C = 7 }));
         Check(pd.A == 5 && pd.B == 6 && pd.C == 7, "padded raw NinoType struct top level");
+
+        var fr = new Frozen
+        {
+            Array = ImmutableArray.Create(1, 2, 3), List = ImmutableList.Create("a", "b"),
+            Set = ImmutableHashSet.Create(5L, 6L, 7L), Sorted = ImmutableSortedSet.Create("z", "y"),
+            Queue = ImmutableQueue.Create(8, 9), Stack = ImmutableStack.Create("bottom", "top"),
+            Map = ImmutableDictionary<int, Shape>.Empty.Add(1, new Circle { Radius = 2 }).Add(2, new Rect { W = 3 }),
+            SortedMap = ImmutableSortedDictionary<int, string>.Empty.Add(2, "two").Add(1, "one"),
+        };
+        var fr2 = NinoDeserializer.Deserialize<Frozen>(Ser(fr));
+        Check(fr2.Array.SequenceEqual(fr.Array) && fr2.List.SequenceEqual(fr.List) && fr2.Set.SetEquals(fr.Set)
+              && fr2.Sorted.SequenceEqual(new[] { "y", "z" }) && fr2.Queue.SequenceEqual(fr.Queue)
+              && fr2.Stack.SequenceEqual(fr.Stack) && fr2.Map[1] is Circle { Radius: 2 } && fr2.Map[2] is Rect { W: 3 }
+              && fr2.SortedMap.Keys.SequenceEqual(new[] { 1, 2 }) && fr2.SortedMap[2] == "two",
+            "immutable collections as members");
+
+        var imap = NinoDeserializer.Deserialize<ImmutableDictionary<int, string>>(
+            Ser(Enumerable.Range(0, 100).ToImmutableDictionary(i => i, i => i.ToString())));
+        Check(imap.Count == 100 && imap[42] == "42", "immutable dictionary top level");
+        var iset = NinoDeserializer.Deserialize<ImmutableHashSet<int>>(Ser(ImmutableHashSet.Create(4, 5)));
+        Check(iset.Count == 2 && iset.Contains(5), "immutable hash set top level");
+        var iarr = NinoDeserializer.Deserialize<ImmutableArray<Point>>(Ser(ImmutableArray.Create(new Point { X = 1, Y = 2 })));
+        Check(iarr.Length == 1 && iarr[0].Y == 2, "immutable array of structs top level");
 
         Console.WriteLine("payload sha256: " + Convert.ToHexString(SHA256.HashData(AllBytes.ToArray())));
 

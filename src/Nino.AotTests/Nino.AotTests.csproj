@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!-- A program using every kind of type Nino handles, published trimmed (-p:NinoPublish=trim) or with NativeAOT
-         (-p:NinoPublish=aot) by CI: any trim or AOT warning from Nino.Core or from generated code fails the publish,
+         (-p:NinoPublish=aot) by CI: any trim or AOT warning from Nino.Core, Nino.Immutable or generated code fails the publish,
          and running it checks the round trips (see .github/workflows/ci.yml). PublishTrimmed/PublishAot are set
          here rather than with -p: a global property would reach the netstandard project references too. -->
     <PropertyGroup>
@@ -9,7 +9,6 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
-        <IsPackable>false</IsPackable>
         <InvariantGlobalization>true</InvariantGlobalization>
         <PublishTrimmed Condition="'$(NinoPublish)' == 'trim'">true</PublishTrimmed>
         <PublishAot Condition="'$(NinoPublish)' == 'aot'">true</PublishAot>
@@ -20,6 +19,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj"/>
+        <ProjectReference Include="..\Nino.Immutable\Nino.Immutable.csproj"/>
         <ProjectReference Include="..\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
                           OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
     </ItemGroup>

@@ -10,6 +10,13 @@
         <PackageTags>Nino;Serialization;Binary;Immutable</PackageTags>
     </PropertyGroup>
 
+    <!-- Trim and NativeAOT safe, like Nino.Core: the analyzers check the net8.0 build (netstandard has no
+         annotations to check). -->
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <IsTrimmable>true</IsTrimmable>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
     <ItemGroup>
         <Compile Include="..\Nino.Core\Internal\ObjectTypes.cs" Link="ObjectTypes.cs"/>
     </ItemGroup>
