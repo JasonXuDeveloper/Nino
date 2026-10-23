@@ -79,6 +79,11 @@ every method it lists. What has gone wrong before:
     under qemu, with a GC stress (forced compacting collections between builds, then every object checked).
     qemu-aarch64 crashes on allocation-heavy runs with or without Nino's code (in `ToImmutableDictionary`): keep
     Arm64 runs small there, or use an Arm64 runner.
+- Prefer one path for every platform. A platform-specific fast path (an intrinsic, `UnsafeAccessor` on .NET 8+,
+  `allows ref struct` on .NET 9+, a runtime's internal layout) is allowed only behind `#if` or a startup check, with
+  the shared path kept as the fallback; say in a comment which platforms take it, and test that both paths write and
+  read the same bytes (run the suite once with the fast path off: `DOTNET_EnableHWIntrinsic=0`, the `netstandard`
+  builds of Nino.Core, Mono).
 - The signs in the listing: `Reader:Skip`, `Reader:CopyTo` or `NinoUnsafe:Read` as calls (the budget ran out);
   `NinoReadContext:Return` or `NinoWriteContext:Return` calls and `[rbp-0x..]` loads and stores of the cursor (the
   reader or writer was not kept in registers).
@@ -93,6 +98,14 @@ every method it lists. What has gone wrong before:
   `src/Nino.UnitTests/Corner/ShapeMatrixTests.cs`, so it is compiled and round-tripped with every other one.
 - Generated registration code may call back into Nino.Core (`NinoPolymorphic.Register(Type)`), which asks every
   registry again: anything a registry calls must be re-entrant (`NinoRegistry.RegisterType` guards it per thread).
+
+## TypeScript runtime (runtimes/typescript)
+
+`src/nino.ts` is the runtime Nino.TypeScript embeds and writes next to the generated code. The reader takes hostile
+input as the Go and Rust ones do: check bounds and lengths before allocating, count depth as .NET does and defer past
+it, never build objects whose keys come from the data on a plain object (`__proto__`): use `Map`. Before committing:
+`npm ci && npm test` (type check and the `node:test` suite) in `runtimes/typescript`, and the
+`Nino.TypeScript.Tests` .NET tests.
 
 ## Go runtime
 
