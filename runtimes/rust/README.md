@@ -1,8 +1,8 @@
-# nino-runtime (Rust)
+# nino-serialization (Rust)
 
 Reads and writes [Nino](https://github.com/JasonXuDeveloper/Nino)'s binary wire format, the bytes Nino v4 writes in
-.NET, as specified in `docs/spec/wire-format.md`. The crate is `nino-runtime` and its library is `nino`. It is not
-published yet (`publish = false`).
+.NET, as specified in `docs/spec/wire-format.md`. The crate is `nino-serialization` (the same name as the npm package;
+`nino` is taken on crates.io) and its library is `nino`. It is not published yet (`publish = false`).
 
 - Edition 2021, MSRV 1.88.
 - No `unsafe` code (`#![forbid(unsafe_code)]`).
@@ -99,7 +99,7 @@ How each Rust type handles them:
 
 | Feature | Adds |
 | --- | --- |
-| `derive` | `#[derive(NinoRead, NinoWrite)]`, from the `nino-derive` crate in this workspace (proc-macro2, quote, syn) |
+| `derive` | `#[derive(NinoRead, NinoWrite)]`, from the `nino-serialization-derive` crate in this workspace (directory `nino-derive`) (proc-macro2, quote, syn) |
 | `serde` | `Serialize` and `Deserialize` for the value types above, in readable forms (described below). It also turns on serde for `indexmap` and `uuid` when those features are on. |
 | `uuid` | Reads and writes `uuid::Uuid` as `Guid`; `From` conversions between them |
 | `rust_decimal` | Reads and writes `rust_decimal::Decimal` as `decimal`; conversions between them |

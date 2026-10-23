@@ -1,11 +1,11 @@
 [package]
-name = "nino-derive"
+name = "nino-serialization-derive"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
 publish = false
 license = "MIT"
-description = "#[derive(NinoRead, NinoWrite)] for nino-runtime: the codecs Nino's generator writes, from attributes."
+description = "#[derive(NinoRead, NinoWrite)] for nino-serialization: the codecs Nino's generator writes, from attributes."
 repository = "https://github.com/JasonXuDeveloper/Nino"
 
 [lib]

@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-nino-runtime = { path = ".." }
+nino-serialization = { path = ".." }
 
 [dev-dependencies]
 criterion = { version = "0.5", default-features = false }

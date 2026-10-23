@@ -1,5 +1,5 @@
 {
-  "name": "nino-runtime",
+  "name": "nino-serialization",
   "private": true,
   "description": "The TypeScript runtime of Nino (src/nino.ts), which Nino.TypeScript writes next to the generated code, and its tests.",
   "license": "MIT",

@@ -275,7 +275,7 @@ version = "0.0.0"
 dependencies = [
  "bincode",
  "criterion",
- "nino-runtime",
+ "nino-serialization",
  "postcard",
  "rmp-serde",
  "serde",
@@ -283,27 +283,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "nino-derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "nino-runtime"
+name = "nino-serialization"
 version = "0.1.0"
 dependencies = [
  "chrono",
  "indexmap",
- "nino-derive",
+ "nino-serialization-derive",
  "num-bigint",
  "rust_decimal",
  "serde",
  "serde_json",
  "trybuild",
  "uuid",
+]
+
+[[package]]
+name = "nino-serialization-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]

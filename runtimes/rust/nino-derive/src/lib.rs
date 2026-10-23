@@ -1,5 +1,5 @@
 //! `#[derive(NinoRead, NinoWrite)]`: the codecs Nino's generator writes for a `[NinoType]`, from attributes on a
-//! Rust struct or enum. The expansion is plain calls into `nino-runtime` (no reflection, nothing at run time that
+//! Rust struct or enum. The expansion is plain calls into `nino-serialization` (no reflection, nothing at run time that
 //! hand-written code would not do); see `runtimes/rust/README.md` for the attributes.
 //!
 //! On a struct, `#[nino(...)]` takes:
