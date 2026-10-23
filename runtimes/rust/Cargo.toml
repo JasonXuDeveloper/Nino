@@ -1,0 +1,31 @@
+[package]
+name = "nino-runtime"
+version = "0.1.0"
+edition = "2021"
+# slice::as_chunks (1.88) keeps fixed-size element loops free of bounds checks and panics.
+rust-version = "1.88"
+publish = false
+license = "MIT"
+description = "Reads and writes Nino's binary wire format (the bytes Nino v4 writes in .NET)."
+repository = "https://github.com/JasonXuDeveloper/Nino"
+readme = "README.md"
+
+[lib]
+name = "nino"
+
+# No required dependencies: each optional one converts Nino's own value types to that crate's.
+[dependencies]
+uuid = { version = "1", optional = true, default-features = false }
+rust_decimal = { version = "1", optional = true, default-features = false }
+chrono = { version = "0.4", optional = true, default-features = false }
+num-bigint = { version = "0.4", optional = true, default-features = false, features = ["std"] }
+indexmap = { version = "2", optional = true, default-features = false, features = ["std"] }
+
+[features]
+default = []
+
+[workspace]
+members = [".", "bench"]
+
+[profile.bench]
+debug = false
