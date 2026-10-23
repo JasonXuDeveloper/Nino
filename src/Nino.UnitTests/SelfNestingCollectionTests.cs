@@ -102,7 +102,7 @@ public class SelfNestingCollectionTests
         // The list as the audit wrote it: the holder's body length, then counts of 1, the innermost list empty and
         // the map null.
         CollectionAssert.AreEqual(
-            Convert.FromHexString("01" + "10000000" + "01000000" + "01000000" + "00000000" + "FFFFFFFF"),
+            Rt.FromHex("01" + "10000000" + "01000000" + "01000000" + "00000000" + "FFFFFFFF"),
             NinoSerializer.Serialize(new SelfNestingHolder { T = Nest<SelfTree>(3, (o, i) => o.Add(i)) }));
     }
 

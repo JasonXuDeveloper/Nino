@@ -45,7 +45,7 @@ namespace RawWire
 }";
 
         // Length 2, then { has-value, 3 bytes of padding, X, Y } per element; the null one all zero.
-        private static readonly byte[] Expected = Convert.FromHexString(
+        private static readonly byte[] Expected = Rt.FromHex(
             "02000000" + "01000000" + "03000000" + "04000000" + "00000000" + "00000000" + "00000000");
 
         [TestMethod]
@@ -70,7 +70,7 @@ namespace RawWire
             var plainType = compiled.Assembly.GetType("RawWire.Point").MakeArrayType();
             var plain = (byte[])use.GetMethod("GeneratedPlain").Invoke(null, null);
             var plainValues = use.GetMethod("PlainValues").Invoke(null, null);
-            CollectionAssert.AreEqual(Convert.FromHexString("01000000" + "03000000" + "04000000"), plain.AsSpan(1).ToArray());
+            CollectionAssert.AreEqual(Rt.FromHex("01000000" + "03000000" + "04000000"), plain.AsSpan(1).ToArray());
             CollectionAssert.AreEqual(plain.AsSpan(1).ToArray(), NinoSerializer.SerializeBoxed(plainValues, plainType));
         }
     }
