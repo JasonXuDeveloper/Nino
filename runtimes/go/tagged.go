@@ -103,7 +103,8 @@ type codec struct {
 	write func(w *Writer, v reflect.Value)
 }
 
-func (c *codec) rawCapable() bool { return c.size > 0 && c.kind != kDTO }
+// rawCapable: the value can be a field of a raw struct (a fixed-size leaf or a raw struct).
+func (c *codec) rawCapable() bool { return c.kind <= kHalf || c.kind == kRawStruct }
 
 // plan is the body of a struct type.
 type plan struct {
@@ -1538,6 +1539,12 @@ func (b *builder) buildPlan(p *plan) error {
 		if enc != nil && enc.kind == "seq" && len(enc.args) == 1 && enc.args[0].kind == "nullable" {
 			variant = variantElementNullable
 		}
+		if enc != nil {
+			switch enc.kind {
+			case "grid", "group", "bits", "timezone", "formatter":
+				return &TagError{Type: t, Field: fi.path, Detail: fmt.Sprintf("layout member %s is %s: the encoding %s is not supported by struct tags", members[f.member].name, enc.text, enc.kind)}
+			}
+		}
 		c, err := b.codec(fi.sf.Type, variant, t)
 		if err != nil {
 			if te, ok := err.(*TagError); ok && te.Field == "" && te.Type == fi.sf.Type {
@@ -1761,7 +1768,8 @@ func checkEncoding(c *codec, e *encoding) error {
 		}
 	case "type":
 		switch c.kind {
-		case kClass, kIface:
+		case kClass, kIface, kSlice, kPrimSlice, kBytes, kSet, kMap, kStride:
+			// A class, a polymorphic slot, or a [NinoType] collection (a Go slice or map of its elements).
 			return nil
 		case kStruct:
 			if !c.plan.entry {

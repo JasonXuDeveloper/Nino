@@ -274,7 +274,12 @@ func parseEncoding(s string) (*encoding, error) {
 	case "type", "formatter":
 		e.text = args
 	case "nullable", "seq", "map", "pair", "tuple", "group", "grid":
-		for _, a := range splitTop(args, ',') {
+		as := splitTop(args, ',')
+		if name == "grid" && len(as) == 2 {
+			e.size, _ = strconv.Atoi(strings.TrimSpace(as[0])) // the rank
+			as = as[1:]
+		}
+		for _, a := range as {
 			ae, err := parseEncoding(strings.TrimSpace(a))
 			if err != nil {
 				return nil, err

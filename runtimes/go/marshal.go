@@ -15,18 +15,28 @@ func Marshal(v any) ([]byte, error) {
 	return MarshalAppend(nil, v)
 }
 
+// MarshalAs is [Marshal] of v as a T, for a T that Marshal cannot see in an any: an interface (a polymorphic root,
+// written behind its type id), or a nil.
+func MarshalAs[T any](v T) ([]byte, error) {
+	return marshal(nil, reflect.TypeFor[T](), reflect.ValueOf(&v).Elem())
+}
+
 // MarshalAppend is [Marshal] appending to dst.
 func MarshalAppend(dst []byte, v any) ([]byte, error) {
 	rv := reflect.ValueOf(v)
 	if !rv.IsValid() {
-		return dst, &TagError{Detail: "Marshal(nil): no type to write"}
+		return dst, &TagError{Detail: "Marshal(nil): no type to write (see MarshalAs)"}
 	}
-	c, err := codecOf(rv.Type(), variantDefault)
+	return marshal(dst, rv.Type(), rv)
+}
+
+func marshal(dst []byte, t reflect.Type, rv reflect.Value) ([]byte, error) {
+	c, err := codecOf(t, variantDefault)
 	if err != nil {
 		return dst, err
 	}
 	// The codecs take addressable values.
-	tmp := reflect.New(rv.Type()).Elem()
+	tmp := reflect.New(t).Elem()
 	tmp.Set(rv)
 	w := writers.Get().(*Writer)
 	own := w.buf
