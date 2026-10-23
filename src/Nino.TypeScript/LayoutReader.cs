@@ -50,7 +50,7 @@ namespace Nino.TypeScript
     /// </summary>
     internal sealed class LayoutReader : IDisposable
     {
-        private const string LayoutAttribute = "Nino.Core.NinoTypeLayoutAttribute";
+        internal const string LayoutAttribute = "Nino.Core.NinoTypeLayoutAttribute";
         private readonly MetadataLoadContext _context;
 
         public LayoutReader(string assemblyPath, IEnumerable<string> references)
