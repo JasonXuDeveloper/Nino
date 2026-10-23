@@ -289,7 +289,8 @@ namespace Nino.Core
         /// here, with the open class bodies, up to <see cref="NinoDepth.Max"/>, and the stack is checked every 16
         /// levels: deeply nested data throws instead of overflowing the stack. Call <see cref="ExitStruct"/> after the
         /// body. Out of line, as these bodies are: the reader's address reaches a call there already. A body that
-        /// throws leaves the count raised, in a context the failed call drops.
+        /// throws leaves the count raised, in a context the failed call drops. Collections that hold themselves count
+        /// their levels here too (<see cref="NestingFormatter{T,TFormatter}"/>).
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.NoInlining)]

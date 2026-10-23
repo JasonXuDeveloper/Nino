@@ -131,6 +131,8 @@ namespace Nino.Core
         /// </summary>
         private static NinoFormatter<T> Publish(NinoFormatter<T> formatter)
         {
+            if (NinoNesting.Holds(typeof(T)))
+                formatter = formatter.Counted();
             var instance = Interlocked.CompareExchange(ref _instance, formatter, null) ?? formatter;
             NinoFormatterCache.MarkRegistered(typeof(T), instance);
             return instance;

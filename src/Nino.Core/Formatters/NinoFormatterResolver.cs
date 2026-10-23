@@ -140,8 +140,15 @@ namespace Nino.Core
                 return registered.StructType;
             if (registered != null || IsNinoType(type))
                 return typeof(CachedFormatter<>).MakeGenericType(type);
+            // A collection of itself (class Tree : List<Tree>) reaches its own type again while its formatter is
+            // built: resolved at run time there, as the generator does.
+            if (t_building != null && t_building.Contains(type))
+                return typeof(CachedFormatter<>).MakeGenericType(type);
             return GetFormatterType(type) ?? typeof(CachedFormatter<>).MakeGenericType(type);
         }
+
+        /// <summary>The types whose formatter this thread is building (<see cref="Build"/>).</summary>
+        [ThreadStatic] private static HashSet<Type> t_building;
 
         /// <summary>Whether values of <paramref name="type"/> are written as their raw bytes.</summary>
         internal static bool IsRawUnmanaged(Type type)
@@ -163,13 +170,23 @@ namespace Nino.Core
         [RequiresDynamicCode(DynamicCodeMessage)]
         private static Type Build(Type type, bool topLevel)
         {
-            var result = TryBuild(type, topLevel);
-            if (result != null)
-                return result;
-            // The registration may live in an assembly that has not been looked at yet.
-            var before = _rules;
-            NinoRegistry.EnsureAllInitialized();
-            return ReferenceEquals(before, _rules) ? null : TryBuild(type, topLevel);
+            var building = t_building ??= new HashSet<Type>();
+            bool added = building.Add(type);
+            try
+            {
+                var result = TryBuild(type, topLevel);
+                if (result != null)
+                    return result;
+                // The registration may live in an assembly that has not been looked at yet.
+                var before = _rules;
+                NinoRegistry.EnsureAllInitialized();
+                return ReferenceEquals(before, _rules) ? null : TryBuild(type, topLevel);
+            }
+            finally
+            {
+                if (added)
+                    building.Remove(type);
+            }
         }
 
         [RequiresDynamicCode(DynamicCodeMessage)]

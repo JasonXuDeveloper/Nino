@@ -274,6 +274,12 @@ namespace Nino.Core
 
         /// <summary>A new array of exactly the value's bytes when its size is known up front (<see cref="Sized"/>), else null.</summary>
         internal virtual byte[] SerializeSized(T value) => null;
+
+        /// <summary>
+        /// This formatter, counting each read toward the depth limit, for a type that can hold itself through
+        /// collections (<see cref="NinoNesting"/>); the formatter itself where it cannot be wrapped.
+        /// </summary>
+        internal virtual NinoFormatter<T> Counted() => this;
     }
 
     /// <summary>Formatters of arrays whose elements are written as one raw block.</summary>
@@ -364,6 +370,8 @@ namespace Nino.Core
     internal sealed class StructFormatter<T, TFormatter> : StructFormatterBase<T, TFormatter>
         where TFormatter : struct, INinoFormatter<T>
     {
+        internal override NinoFormatter<T> Counted() => new NestingFormatter<T, TFormatter>();
+
         internal override bool IsRaw => RawFormatter.Is<T, TFormatter>();
 
         internal override INinoRawArrayFormatter RawArray =>
@@ -372,6 +380,32 @@ namespace Nino.Core
         internal override bool Sized => NinoSized.Is<T, TFormatter>();
 
         internal override byte[] SerializeSized(T value) => NinoSized.Serialize<T, TFormatter>(value);
+    }
+
+    /// <summary>
+    /// The formatter of a type that can hold itself through collections (<see cref="NinoNesting"/>): each read
+    /// counts toward <see cref="NinoDepth.Max"/>, as a class body does, so data nested deeper throws instead of
+    /// overflowing the stack. Each level of such data passes through here: a type reached again inside its own
+    /// formatter is read through <see cref="CachedFormatter{T}"/> (the generator's and the resolver's rule), and
+    /// <see cref="StructType"/> is null, so the resolver does not inline the formatter as an element's. Writes
+    /// are not counted: they follow the caller's own objects.
+    /// </summary>
+    internal sealed class NestingFormatter<T, TFormatter> : NinoFormatter<T>
+        where TFormatter : struct, INinoFormatter<T>
+    {
+        public override void Serialize(T value, ref Writer writer) => default(TFormatter).Serialize(value, ref writer);
+
+        public override void Deserialize(ref T value, ref Reader reader)
+        {
+            reader.EnterStruct(typeof(T));
+            default(TFormatter).Deserialize(ref value, ref reader);
+            reader.ExitStruct();
+        }
+
+        internal override void Write(T value, NinoArrayBufferWriter buffer) =>
+            NinoDirect.Write<T, TFormatter>(value, buffer);
+
+        internal override T Read(ReadOnlySpan<byte> data) => NinoDirect.Deserialize<T, TFormatter>(data);
     }
 
     /// <summary>

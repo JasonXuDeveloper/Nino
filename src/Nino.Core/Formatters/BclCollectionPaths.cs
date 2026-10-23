@@ -750,8 +750,10 @@ namespace Nino.Core
 
         /// <summary>
         /// Reads <paramref name="length"/> elements as an array is read, into a rented array (give it back with
-        /// <see cref="ReturnRented{T}"/>).
+        /// <see cref="ReturnRented{T}"/>). Out of line, as it was with the catch it had (a method with a catch is
+        /// never inlined; one with a finally may be, which made every caller larger).
         /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static T[] ReadRented<T, TFormatter>(int length, ref Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
@@ -767,14 +769,19 @@ namespace Nino.Core
             // Over default values: a rented array holds old ones (unless every element is overwritten).
             if (!NinoElements.ReadOverwrites<T, TFormatter>())
                 span.Clear();
+            // A finally, not a catch that rethrows: a rethrow is a new throw from the catch, on top of the stack of
+            // the first, so a failure deep in data that nests through here (a collection holding itself) would
+            // need stack at every level on its way out.
+            bool read = false;
             try
             {
                 NinoElements.Read<T, TFormatter>(span, ref reader);
+                read = true;
             }
-            catch
+            finally
             {
-                ReturnRented(array);
-                throw;
+                if (!read)
+                    ReturnRented(array);
             }
 
             return array;
