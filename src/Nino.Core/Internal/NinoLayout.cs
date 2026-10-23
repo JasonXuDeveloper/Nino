@@ -44,7 +44,7 @@ namespace Nino.Core
         /// <summary>Alignment of <c>decimal</c> inside structs on this runtime.</summary>
         private static readonly int DecimalAlign = Unsafe.SizeOf<DecimalProbe>() - 16;
 
-        private static readonly ConcurrentDictionary<Type, Info> Cache = new ConcurrentDictionary<Type, Info>();
+        private static readonly ConcurrentDictionary<Type, Info> Cache = NinoUnload.Cache<Info>();
 
         internal sealed class Info
         {
@@ -74,9 +74,6 @@ namespace Nino.Core
 #else
         private static Info GetCached(Type type, int runtimeSize) => Cache.GetOrAdd(type, Create, runtimeSize);
 #endif
-
-        /// <summary>Forgets the layouts of types of <paramref name="assembly"/> (<see cref="NinoRegistry.Remove"/>).</summary>
-        internal static void Remove(Assembly assembly) => NinoUnload.RemoveFrom(Cache, assembly);
 
         private static Info Create(Type type, int runtimeSize)
         {

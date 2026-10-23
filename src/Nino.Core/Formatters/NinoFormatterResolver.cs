@@ -28,9 +28,12 @@ namespace Nino.Core
     {
         internal const string DynamicCodeMessage =
             "Builds formatter types at run time (MakeGenericType); only for types without a generated registration.";
-        private static readonly ConcurrentDictionary<Type, Type> Cache = new ConcurrentDictionary<Type, Type>();
+        private static readonly ConcurrentDictionary<Type, Type> Cache = NinoUnload.Cache<Type>(formatter => formatter);
         private static readonly object Lock = new object();
-        private static readonly HashSet<Assembly> Scanned = new HashSet<Assembly>();
+        // Not a static constructor, which would make every call initialize the class (AddAssembly skips it without
+        // dynamic code).
+        private static readonly HashSet<Assembly> Scanned =
+            NinoUnload.With(new HashSet<Assembly>(), assembly => RemoveAssembly(assembly));
         private static Rules _rules = Rules.Empty.With(typeof(NinoFormatterResolver).Assembly);
 
         // Every ValueTuple definition (8 = with a nested TRest): tuples have their own format, never raw.
@@ -59,18 +62,16 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Forgets the formatter registrations of <paramref name="assembly"/> and every formatter type built for or
-        /// from its types (<see cref="NinoRegistry.Remove"/>).
+        /// Forgets the formatter registrations of <paramref name="assembly"/> (<see cref="NinoRegistry.Remove"/>); the
+        /// formatter types built for or from its types leave with <see cref="Cache"/>'s entries.
         /// </summary>
-        internal static void RemoveAssembly(Assembly assembly)
+        private static void RemoveAssembly(Assembly assembly)
         {
             lock (Lock)
             {
                 Scanned.Remove(assembly);
                 _rules = _rules.Without(assembly);
             }
-
-            NinoUnload.RemoveFrom(Cache, assembly, formatter => formatter);
         }
 
         /// <summary>

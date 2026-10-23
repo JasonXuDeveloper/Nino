@@ -148,7 +148,7 @@ namespace Nino.Core
     {
         // The formatter itself too: the boxed APIs reach it from a Type without closing a generic type at run time.
         private static readonly ConcurrentDictionary<Type, NinoFormatter> Registered =
-            new ConcurrentDictionary<Type, NinoFormatter>();
+            NinoUnload.Cache<NinoFormatter>(formatter => formatter.GetType());
 
         /// <summary>Called after the formatter of <paramref name="type"/> has been stored.</summary>
         public static void MarkRegistered(Type type, NinoFormatter formatter)
@@ -166,10 +166,6 @@ namespace Nino.Core
 
         /// <summary>Every type with a formatter so far (a snapshot), for the cold path of polymorphic reads.</summary>
         public static ICollection<Type> RegisteredTypes => Registered.Keys;
-
-        /// <summary>Forgets the formatters of types of <paramref name="assembly"/> (<see cref="NinoRegistry.Remove"/>).</summary>
-        public static void Remove(System.Reflection.Assembly assembly) =>
-            NinoUnload.RemoveFrom(Registered, assembly, formatter => formatter.GetType());
     }
 
     /// <summary>

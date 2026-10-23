@@ -144,12 +144,7 @@ namespace Nino.Core
                 Changed();
             }
 
-            NinoFormatterResolver.RemoveAssembly(assembly);
-            NinoFormatterCache.Remove(assembly);
-            BoxedFormatter.Remove(assembly);
-            NinoPolymorphic.Remove(assembly);
-            NinoTypeId.Remove(assembly);
-            NinoLayout.Remove(assembly);
+            NinoUnload.Remove(assembly);
         }
 
         /// <summary>Whether <see cref="Remove"/> has been called for <paramref name="assembly"/>. Called under <see cref="Lock"/>.</summary>

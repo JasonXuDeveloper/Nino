@@ -17,16 +17,13 @@ namespace Nino.Core
     /// </summary>
     public static class NinoTypeId
     {
-        private static readonly ConcurrentDictionary<Type, int> Cache = new ConcurrentDictionary<Type, int>();
+        private static readonly ConcurrentDictionary<Type, int> Cache = NinoUnload.Cache<int>();
 
         /// <summary>Hashes a type name.</summary>
         public static int Compute(string name) => NinoHash.Compute(name);
 
         /// <summary>Returns the id of <paramref name="type"/>, honoring <see cref="NinoFormerNameAttribute"/>.</summary>
         public static int Of(Type type) => Cache.GetOrAdd(type, t => Compute(GetIdName(t)));
-
-        /// <summary>Forgets the ids of types of <paramref name="assembly"/> (<see cref="NinoRegistry.Remove"/>).</summary>
-        internal static void Remove(Assembly assembly) => NinoUnload.RemoveFrom(Cache, assembly);
 
         /// <summary>Returns the name hashed for <paramref name="type"/>.</summary>
         public static string GetIdName(Type type)

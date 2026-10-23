@@ -212,37 +212,6 @@ namespace Nino.Core
     public static class NinoPolymorphic
     {
         /// <summary>
-        /// The base types whose <see cref="NinoPolymorphic{TBase}"/> holds a handler, with its removal, for
-        /// <see cref="Remove"/>.
-        /// </summary>
-        private static readonly List<KeyValuePair<Type, Action<System.Reflection.Assembly>>> Tables =
-            new List<KeyValuePair<Type, Action<System.Reflection.Assembly>>>();
-
-        /// <summary>Called by a <see cref="NinoPolymorphic{TBase}"/> on its first registration.</summary>
-        internal static void Track(Type baseType, Action<System.Reflection.Assembly> remove)
-        {
-            lock (Tables)
-                Tables.Add(new KeyValuePair<Type, Action<System.Reflection.Assembly>>(baseType, remove));
-        }
-
-        /// <summary>
-        /// Removes the handlers of types of <paramref name="assembly"/> from every base type's registry, and the
-        /// registries of its own base types (<see cref="NinoRegistry.Remove"/>).
-        /// </summary>
-        internal static void Remove(System.Reflection.Assembly assembly)
-        {
-            KeyValuePair<Type, Action<System.Reflection.Assembly>>[] tables;
-            lock (Tables)
-            {
-                tables = Tables.ToArray();
-                Tables.RemoveAll(table => NinoUnload.Mentions(table.Key, assembly));
-            }
-
-            foreach (var table in tables)
-                table.Value(assembly);
-        }
-
-        /// <summary>
         /// Registers <typeparamref name="TSub"/> with its generated formatter, once. Every base type finds it
         /// on first use, so a type is not registered once per base type.
         /// </summary>
@@ -428,8 +397,9 @@ namespace Nino.Core
 
                 if (!_tracked)
                 {
-                    // A lambda rather than a method group: older compilers (Unity's) allocate a delegate per use.
-                    NinoPolymorphic.Track(typeof(TBase), assembly => Remove(assembly));
+                    // A lambda rather than a method group: older compilers (Unity's) allocate a delegate per use. The
+                    // hook goes with TBase's assembly.
+                    NinoUnload.OnRemove(assembly => Remove(assembly), typeof(TBase));
                     _tracked = true;
                 }
 
