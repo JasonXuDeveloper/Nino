@@ -24,69 +24,264 @@ internal static class ModelBuilder
         if (facts.Shape(type) is not { } shape)
             return null;
         var attr = shape.Options;
-
-        var known = facts.Symbols;
-        bool rawStruct = shape.RawStruct;
         var kind = shape.Kind;
-
+        bool rawStruct = shape.RawStruct;
         var typeParameters = AllTypeParameters(type);
         bool generic = typeParameters.Count != 0;
-
         var (typeId, nameId) = generic ? (0, 0) : facts.Ids(type);
 
-        var members = new List<MemberModel>();
-        var memberSymbols = new List<ISymbol>();
         var factories = new List<FactoryRegistration>();
-        bool needsPartialAccessor = false;
+        var built = BuildMembers(type, shape, facts, diagnostics, factories, ct);
+        var members = built.Models;
 
-        bool tolerant = shape.Tolerant;
-        // Abstract classes have no body of their own, but emit WriteMembers/ReadMembers for their subtypes.
-        // Keyed bodies are self-describing per member: no delegation to or from them.
-        bool emitMembers = facts.IsDelegatable(type);
-        string baseFormatter = "";
-        int baseMemberCount = 0;
+        var construction = kind == FormatterKind.Polymorphic || rawStruct
+            ? new ConstructionModel(false, "", EquatableArray<string>.Empty, "")
+            : ConstructionPlanner.Plan(type, members, facts, diagnostics);
 
-        if ((kind != FormatterKind.Polymorphic || emitMembers) && !rawStruct)
+        var collection = kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate
+            ? shape.Collection
+            : null;
+        if (collection is { } c)
+            factories.AddRange(c.Factories);
+
+        if (construction.Recreate)
+            MarkUnassignable(type, built, construction, diagnostics);
+
+        // Tracking is inherited: a tracked base's reference header is resolved by the subtype's body as soon as
+        // the instance exists, so every subtype of a tracked type must record itself.
+        bool trackReferences = shape.TrackReferences;
+        if (shape.Tracked && kind == FormatterKind.Struct)
+            diagnostics?.Report(NinoDiagnostics.TrackReferencesOnStruct, type, type.ToDisplayString());
+        else if (trackReferences && construction.Recreate)
+            diagnostics?.Report(NinoDiagnostics.TrackReferencesNeedsAssignableMembers, type, type.ToDisplayString());
+
+        // The nesting bound and the __Shallow twin (non-generic: a twin of a generic formatter is never named).
+        int bound = kind == FormatterKind.Polymorphic || generic ? TypeFacts.Unbounded : facts.TypeBound(type);
+        bool shallow = !generic && kind is FormatterKind.SealedClass or FormatterKind.Struct && facts.HasShallow(type);
+
+        var (pooled, partial) = BuildPartial(type, kind, built.NeedsPartialAccessor, construction, facts, diagnostics,
+            ct);
+
+        bool instantiable = kind is FormatterKind.Class or FormatterKind.SealedClass;
+        return new TypeModel(
+            TypeName: Global(type),
+            OpenTypeName: generic ? OpenName(type) : Global(type),
+            FormatterName: FormatterName(type),
+            TypeParameters: new EquatableArray<string>(typeParameters.Select(p => p.Name)),
+            Constraints: Constraints(typeParameters),
+            Kind: kind,
+            TypeId: typeId,
+            NameId: nameId,
+            VersionTolerant: shape.Tolerant,
+            Keyed: attr.Keyed,
+            TrackReferences: trackReferences,
+            RawStruct: rawStruct,
+            Collection: collection is { } sc
+                ? new CollectionModel(sc.Code, facts.ShallowFormatter(sc.Code, sc, false), sc.Encoding)
+                : null,
+            Members: new EquatableArray<MemberModel>(members),
+            Construction: construction,
+            Inheritance: BuildDispatch(type, generic, trackReferences, built, facts),
+            Depth: new DepthModel(
+                Deferrable: instantiable && !construction.Recreate &&
+                            (construction.Factory.Length != 0 || construction.Creator.Length != 0) &&
+                            !ComparesByValue(type),
+                Nests: shape.Nests,
+                Bound: bound,
+                Shallow: shallow),
+            Pooled: pooled,
+            Partial: partial,
+            // The analyzer needs none of the types the registry names.
+            Registrations: BuildRegistrations(type, kind, generic, built, factories, facts,
+                namesTypes: diagnostics == null),
+            FixedSize: !rawStruct && facts.IsFixedSize(type),
+            FreshRead: kind == FormatterKind.SealedClass && !construction.Recreate &&
+                       construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
+                       !attr.Keyed && members.Skip(built.BaseMemberCount).Any(static m => m.Fresh) &&
+                       !members.Skip(built.BaseMemberCount).Any(static m => m.ReadsLoop) &&
+                       ConstructsDefaults(type, ct),
+            PublishesDeferrable: facts.Symbols.LayoutDeferrable,
+            RawLayout: rawStruct ? RawLayout.Describe(type) : "");
+    }
+
+    /// <summary>
+    /// The serialized members of a type (<see cref="Models"/>, with their symbols in <see cref="Symbols"/>), and how
+    /// many of the first a base formatter's <c>WriteMembers</c>/<c>ReadMembers</c> cover.
+    /// </summary>
+    private sealed class MemberSet
+    {
+        public readonly List<MemberModel> Models = new();
+        public readonly List<ISymbol> Symbols = new();
+
+        /// <summary>Whether a member is reached through an accessor class generated in the type's partial.</summary>
+        public bool NeedsPartialAccessor;
+
+        /// <summary>Whether the type emits <c>WriteMembers</c>/<c>ReadMembers</c> (<see cref="InheritanceModel.EmitMembers"/>).</summary>
+        public bool EmitMembers;
+
+        public string BaseFormatter = "";
+        public int BaseMemberCount;
+    }
+
+    /// <summary>
+    /// The members of <paramref name="type"/> and the base formatter that writes the first of them; reports the
+    /// problems of each member, an empty positional struct and colliding or misplaced names.
+    /// </summary>
+    private static MemberSet BuildMembers(INamedTypeSymbol type, TypeShape shape, TypeFacts facts,
+        DiagnosticSink? diagnostics, List<FactoryRegistration> factories, CancellationToken ct)
+    {
+        var attr = shape.Options;
+        var kind = shape.Kind;
+        var set = new MemberSet
+        {
+            // Abstract classes have no body of their own, but emit WriteMembers/ReadMembers for their subtypes.
+            // Keyed bodies are self-describing per member: no delegation to or from them.
+            EmitMembers = facts.IsDelegatable(type),
+        };
+        var members = set.Models;
+
+        if ((kind != FormatterKind.Polymorphic || set.EmitMembers) && !shape.RawStruct)
         {
             var symbols = facts.Members.Of(type, attr);
-            int basePrefix = BasePrefix(type, attr, symbols, facts, ref baseFormatter);
+            int basePrefix = BasePrefix(type, attr, symbols, facts, ref set.BaseFormatter);
 
             // Abstract types do not report member diagnostics: their subtypes do.
             var memberDiagnostics = kind == FormatterKind.Polymorphic ? null : diagnostics;
             for (int i = 0; i < symbols.Count; i++)
             {
                 var member = BuildMember(type, attr.Keyed, symbols, i, facts, memberDiagnostics,
-                    ref needsPartialAccessor, factories, ct);
+                    ref set.NeedsPartialAccessor, factories, ct);
                 if (member == null)
                     continue;
                 members.Add(member);
-                memberSymbols.Add(symbols[i]);
+                set.Symbols.Add(symbols[i]);
                 if (i < basePrefix)
-                    baseMemberCount++;
+                    set.BaseMemberCount++;
             }
 
             // Raw members on both sides of the boundary would be written as one block inline; delegating would
             // split it into two reservations (measurably slower for small types), so keep such members inline.
-            if (baseMemberCount > 0 && baseMemberCount < members.Count &&
-                members[baseMemberCount - 1].Raw != null && members[baseMemberCount].Raw != null)
+            if (set.BaseMemberCount > 0 && set.BaseMemberCount < members.Count &&
+                members[set.BaseMemberCount - 1].Raw != null && members[set.BaseMemberCount].Raw != null)
             {
-                baseFormatter = "";
-                baseMemberCount = 0;
+                set.BaseFormatter = "";
+                set.BaseMemberCount = 0;
             }
         }
 
         // A positional struct without members is written as nothing at all: a collection of it could not be read back,
         // since its count is checked against the bytes left (every element takes at least one byte).
-        if (kind == FormatterKind.Struct && !rawStruct && !tolerant && !attr.Keyed && members.Count == 0)
+        if (kind == FormatterKind.Struct && !shape.RawStruct && !shape.Tolerant && !attr.Keyed && members.Count == 0)
             diagnostics?.Report(NinoDiagnostics.EmptyStruct, type, type.ToDisplayString());
 
-        // Closed generic [NinoType]s named by the members and base types, for the registry (not needed by the analyzer).
-        var genericTypes = new List<TypeRegistration>();
-        // Structs whose layout the runtime measures, for the same registry (LayoutTypes).
-        var layoutTypes = new List<string>();
-        if (diagnostics == null)
+        if (diagnostics != null)
+            ReportNames(type, attr.Keyed, members, set.Symbols, facts.Symbols, diagnostics);
+        return set;
+    }
+
+    /// <summary>
+    /// Read-only members that are not constructor arguments of a recreated type cannot be assigned (init-only
+    /// properties can, through the object initializer, when they are accessible): their values are read and dropped.
+    /// </summary>
+    private static void MarkUnassignable(INamedTypeSymbol type, MemberSet members, ConstructionModel construction,
+        DiagnosticSink? diagnostics)
+    {
+        var args = new HashSet<string>(construction.Arguments);
+        for (int i = 0; i < members.Models.Count; i++)
         {
-            foreach (var symbol in memberSymbols)
+            var m = members.Models[i];
+            if (args.Contains(m.Name) || !m.ConstructionOnly ||
+                (m.Access == MemberAccess.Direct && members.Symbols[i] is IPropertySymbol { SetMethod: not null }))
+                continue;
+            members.Models[i] = m with { Unassignable = true };
+            diagnostics?.Report(NinoDiagnostics.ReadOnlyMember, members.Symbols[i], m.Name, type.ToDisplayString());
+        }
+    }
+
+    /// <summary>
+    /// Whether the type is pooled (<c>[NinoPooled]</c> on a sealed class that is not recreated, declared partial),
+    /// and the generated partial it needs for that and for its accessors.
+    /// </summary>
+    private static (bool Pooled, PartialModel Partial) BuildPartial(INamedTypeSymbol type, FormatterKind kind,
+        bool needsPartialAccessor, ConstructionModel construction, TypeFacts facts, DiagnosticSink? diagnostics,
+        CancellationToken ct)
+    {
+        bool pooled = NinoSymbols.Has(type, facts.Symbols.Pooled);
+        if (pooled && (kind != FormatterKind.SealedClass || construction.Recreate))
+        {
+            pooled = false;
+            diagnostics?.Report(NinoDiagnostics.InvalidPooledType, type, type.ToDisplayString());
+        }
+
+        if (!needsPartialAccessor && !pooled)
+            return (pooled, PartialModel.None);
+        if (!IsPartialChain(type, ct))
+        {
+            diagnostics?.Report(NinoDiagnostics.NotPartial, type, type.ToDisplayString());
+            return (false, PartialModel.None);
+        }
+
+        var declarations = new List<string>();
+        for (var t = type; t != null; t = t.ContainingType)
+            declarations.Insert(0, Declaration(t));
+        return (pooled, new PartialModel(
+            type.ContainingNamespace is { IsGlobalNamespace: false } ns ? ns.ToDisplayString() : "",
+            new EquatableArray<string>(declarations)));
+    }
+
+    /// <summary>
+    /// What the type shares with its hierarchy: the base formatter that writes its first members, and the
+    /// <c>[NinoType]</c> ancestors and dispatch root of the subtype dispatch.
+    /// </summary>
+    private static InheritanceModel BuildDispatch(INamedTypeSymbol type, bool generic, bool trackReferences,
+        MemberSet members, TypeFacts facts)
+    {
+        var ancestors = type.NinoAncestors().ToList();
+        var dispatchRoot = type.TypeKind == TypeKind.Class && !generic && !trackReferences
+            ? DispatchRoot(type, ancestors, facts)
+            : null;
+        return new InheritanceModel(
+            EmitMembers: members.EmitMembers,
+            BaseFormatter: members.BaseFormatter,
+            BaseMemberCount: members.BaseMemberCount,
+            SharedBase: type.TypeKind == TypeKind.Class && type.BaseType is { } baseType &&
+                        facts.IsDelegatable(baseType) && SharedInstance(baseType),
+            DispatchRoot: dispatchRoot == null ? "" : Global(dispatchRoot),
+            DispatchRootFormatter: dispatchRoot == null ? "" : FormatterName(dispatchRoot),
+            NinoBaseClasses: new EquatableArray<string>(ancestors
+                .Where(static a => a.TypeKind != TypeKind.Interface).Select(Global)),
+            NinoInterfaces: new EquatableArray<string>(ancestors
+                .Where(static a => a.TypeKind == TypeKind.Interface).Select(Global)),
+            NinoGenericAncestors: new EquatableArray<GenericAncestor>(ancestors
+                .Where(a => !a.IsDefinition && facts.Visibility.CanName(a))
+                .Select(a => new GenericAncestor(Global(a), Global(a.OriginalDefinition)))));
+    }
+
+    /// <summary>
+    /// What the assembly registers for the type (<see cref="RegistrationModel"/>): the built-in formatters and
+    /// creators its members use, and, when <paramref name="namesTypes"/>, the closed generic <c>[NinoType]</c>s and
+    /// the measured structs it names.
+    /// </summary>
+    private static RegistrationModel BuildRegistrations(INamedTypeSymbol type, FormatterKind kind, bool generic,
+        MemberSet members, List<FactoryRegistration> factories, TypeFacts facts, bool namesTypes)
+    {
+        var used = new List<FormatterRegistration>();
+        if (!generic && kind != FormatterKind.Polymorphic)
+        {
+            foreach (var m in members.Models)
+            {
+                if (m.TypeId != 0)
+                    used.Add(new FormatterRegistration(m.TypeName, m.Formatter, m.TypeId));
+            }
+        }
+
+        // Closed generic [NinoType]s named by the members and base types, and the structs whose layout the runtime
+        // measures (LayoutTypes).
+        var genericTypes = new List<TypeRegistration>();
+        var layoutTypes = new List<string>();
+        if (namesTypes)
+        {
+            foreach (var symbol in members.Symbols)
             {
                 if (MemberCollector.MemberType(symbol) is { } memberType)
                 {
@@ -101,148 +296,16 @@ internal static class ModelBuilder
                 LayoutTypes.Collect(t, facts, layoutTypes);
         }
 
-        if (diagnostics != null)
-            ReportNames(type, attr.Keyed, members, memberSymbols, known, diagnostics);
-
-        var construction = kind == FormatterKind.Polymorphic || rawStruct
-            ? new ConstructionModel(false, "", EquatableArray<string>.Empty, "")
-            : ConstructionPlanner.Plan(type, members, facts, diagnostics);
-
-        var collection = kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate
-            ? shape.Collection
-            : null;
-        var collectionFormatter = collection?.Code;
-        if (collection is { } c)
-            factories.AddRange(c.Factories);
-
-        if (construction.Recreate)
-        {
-            // Read-only members that are not constructor arguments cannot be assigned (init-only properties can,
-            // through the object initializer, when they are accessible): their values are read and dropped.
-            var args = new HashSet<string>(construction.Arguments);
-            for (int i = 0; i < members.Count; i++)
-            {
-                var m = members[i];
-                if (args.Contains(m.Name) || !m.ConstructionOnly ||
-                    (m.Access == MemberAccess.Direct && memberSymbols[i] is IPropertySymbol { SetMethod: not null }))
-                    continue;
-                members[i] = m with { Unassignable = true };
-                diagnostics?.Report(NinoDiagnostics.ReadOnlyMember, memberSymbols[i], m.Name, type.ToDisplayString());
-            }
-        }
-
-        // Tracking is inherited: a tracked base's reference header is resolved by the subtype's body as soon as
-        // the instance exists, so every subtype of a tracked type must record itself.
-        bool tracked = shape.Tracked;
-        bool trackReferences = shape.TrackReferences;
-        if (tracked && kind == FormatterKind.Struct)
-            diagnostics?.Report(NinoDiagnostics.TrackReferencesOnStruct, type, type.ToDisplayString());
-        else if (trackReferences && construction.Recreate)
-            diagnostics?.Report(NinoDiagnostics.TrackReferencesNeedsAssignableMembers, type, type.ToDisplayString());
-
-        // The nesting bound and the __Shallow twin (non-generic: a twin of a generic formatter is never named).
-        int bound = kind == FormatterKind.Polymorphic || generic ? TypeFacts.Unbounded : facts.TypeBound(type);
-        bool shallow = !generic && kind is FormatterKind.SealedClass or FormatterKind.Struct && facts.HasShallow(type);
-
-        var used = new List<FormatterRegistration>();
-        if (!generic && kind != FormatterKind.Polymorphic)
-        {
-            foreach (var m in members)
-            {
-                if (m.TypeId != 0)
-                    used.Add(new FormatterRegistration(m.TypeName, m.Formatter, m.TypeId));
-            }
-        }
-
-        bool pooled = NinoSymbols.Has(type, known.Pooled);
-        if (pooled && (kind != FormatterKind.SealedClass || construction.Recreate))
-        {
-            pooled = false;
-            diagnostics?.Report(NinoDiagnostics.InvalidPooledType, type, type.ToDisplayString());
-        }
-
-        string partialNamespace = "";
-        var partialDeclarations = new List<string>();
-        if (needsPartialAccessor || pooled)
-        {
-            if (!IsPartialChain(type, ct))
-            {
-                pooled = false;
-                diagnostics?.Report(NinoDiagnostics.NotPartial, type, type.ToDisplayString());
-            }
-            else
-            {
-                partialNamespace = type.ContainingNamespace is { IsGlobalNamespace: false } ns
-                    ? ns.ToDisplayString()
-                    : "";
-                for (var t = type; t != null; t = t.ContainingType)
-                    partialDeclarations.Insert(0, Declaration(t));
-            }
-        }
-
-        var ancestors = type.NinoAncestors().ToList();
-        var dispatchRoot = type.TypeKind == TypeKind.Class && !generic && !trackReferences
-            ? DispatchRoot(type, ancestors, facts)
-            : null;
-
-        bool instantiable = kind is FormatterKind.Class or FormatterKind.SealedClass;
-        return new TypeModel(
-            TypeName: Global(type),
-            OpenTypeName: generic ? OpenName(type) : Global(type),
-            FormatterName: FormatterName(type),
-            TypeParameters: new EquatableArray<string>(typeParameters.Select(p => p.Name)),
-            Constraints: Constraints(typeParameters),
-            Kind: kind,
-            TypeId: typeId,
-            NameId: nameId,
-            VersionTolerant: tolerant,
-            Keyed: attr.Keyed,
-            TrackReferences: trackReferences,
-            RawStruct: rawStruct,
-            CollectionFormatter: collectionFormatter,
-            CollectionEncoding: collection?.Encoding ?? "",
-            EmitMembers: emitMembers,
-            BaseFormatter: baseFormatter,
-            BaseMemberCount: baseMemberCount,
-            SharedBase: type.TypeKind == TypeKind.Class && type.BaseType is { } baseType && facts.IsDelegatable(baseType) &&
-                        SharedInstance(baseType),
-            Members: new EquatableArray<MemberModel>(members),
-            Construction: construction,
-            UsedFormatters: new EquatableArray<FormatterRegistration>(used),
+        return new RegistrationModel(
+            Formatters: new EquatableArray<FormatterRegistration>(used),
             // Generic types name no closed collection types; their formatters resolve creators at runtime.
-            UsedFactories: generic || kind == FormatterKind.Polymorphic
+            Factories: generic || kind == FormatterKind.Polymorphic
                 ? EquatableArray<FactoryRegistration>.Empty
                 : new EquatableArray<FactoryRegistration>(factories.Distinct()
                     .OrderBy(f => f.TypeName, System.StringComparer.Ordinal)),
-            UsedGenericTypes: new EquatableArray<TypeRegistration>(genericTypes.Distinct()
+            GenericTypes: new EquatableArray<TypeRegistration>(genericTypes.Distinct()
                 .OrderBy(g => g.TypeName, System.StringComparer.Ordinal)),
-            DispatchRoot: dispatchRoot == null ? "" : Global(dispatchRoot),
-            DispatchRootFormatter: dispatchRoot == null ? "" : FormatterName(dispatchRoot),
-            NinoBaseClasses: new EquatableArray<string>(ancestors
-                .Where(static a => a.TypeKind != TypeKind.Interface).Select(Global)),
-            NinoInterfaces: new EquatableArray<string>(ancestors
-                .Where(static a => a.TypeKind == TypeKind.Interface).Select(Global)),
-            NinoGenericAncestors: new EquatableArray<GenericAncestor>(ancestors
-                .Where(a => !a.IsDefinition && facts.Visibility.CanName(a))
-                .Select(a => new GenericAncestor(Global(a), Global(a.OriginalDefinition)))),
-            Pooled: pooled,
-            PartialNamespace: partialNamespace,
-            PartialDeclarations: new EquatableArray<string>(partialDeclarations),
-            Deferrable: instantiable && !construction.Recreate &&
-                        (construction.Factory.Length != 0 || construction.Creator.Length != 0) &&
-                        !ComparesByValue(type),
-            PublishesDeferrable: facts.Symbols.LayoutDeferrable,
-            Nests: shape.Nests,
-            FixedSize: !rawStruct && facts.IsFixedSize(type),
-            DepthBound: bound,
-            Shallow: shallow,
-            ShallowCollectionFormatter: collection is { } sc ? facts.ShallowFormatter(sc.Code, sc, false) : null,
-            FreshRead: kind == FormatterKind.SealedClass && !construction.Recreate &&
-                       construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
-                       !attr.Keyed && members.Skip(baseMemberCount).Any(static m => m.Fresh) &&
-                       !members.Skip(baseMemberCount).Any(static m => m.ReadsLoop) && ConstructsDefaults(type, ct),
-            LayoutTypes: LayoutTypes.ToArray(layoutTypes),
-            RawLayout: rawStruct ? RawLayout.Describe(type) : "");
+            LayoutTypes: LayoutTypes.ToArray(layoutTypes));
     }
 
     /// <summary>
@@ -515,13 +578,28 @@ internal static class ModelBuilder
         // Fresh: a Nino.Core formatter that reads into an existing value (not a string, object or cached one).
         const FormatterTraits replaces = FormatterTraits.Cached | FormatterTraits.Object | FormatterTraits.String |
                                          FormatterTraits.Utf8String;
-        return new MemberModel(name, symbol.Name, key, formerKeys, Global(memberType), formatter, traits,
-            raw?.Layout ?? encoding, raw,
-            symbol is IPropertySymbol, access, Global(declaring), declaring.IsValueType,
-            Visibility.IsConstructionOnly(symbol), false, typeId, shallowFormatter ?? formatter,
-            custom == null && memberType.IsReferenceType && (traits & FormatterTraits.Core) != 0 &&
-            (traits & replaces) == 0 && StartsDefault(symbol, ct),
-            raw == null && readsLoop);
+        return new MemberModel(
+            Name: name,
+            SourceName: symbol.Name,
+            Key: key,
+            FormerKeys: formerKeys,
+            TypeName: Global(memberType),
+            Formatter: formatter,
+            Traits: traits,
+            Encoding: raw?.Layout ?? encoding,
+            Raw: raw,
+            IsProperty: symbol is IPropertySymbol,
+            Access: access,
+            DeclaringType: Global(declaring),
+            DeclaringTypeIsValueType: declaring.IsValueType,
+            ConstructionOnly: Visibility.IsConstructionOnly(symbol),
+            // Decided with the construction (ModelBuilder.Build), once every member is known.
+            Unassignable: false,
+            TypeId: typeId,
+            ShallowFormatter: shallowFormatter ?? formatter,
+            Fresh: custom == null && memberType.IsReferenceType && (traits & FormatterTraits.Core) != 0 &&
+                   (traits & replaces) == 0 && StartsDefault(symbol, ct),
+            ReadsLoop: raw == null && readsLoop);
     }
 
     /// <summary>

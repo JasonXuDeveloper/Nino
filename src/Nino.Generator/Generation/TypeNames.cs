@@ -382,6 +382,6 @@ internal static class TypeNames
     /// <summary>The suffix that names a formatter's <c>__Top</c> twin (<c>TypeModel.HasTop</c>).</summary>
     public const string Top = ".__Top";
 
-    /// <summary>The suffix that names a formatter's <c>__Shallow</c> twin (<c>TypeModel.Shallow</c>).</summary>
+    /// <summary>The suffix that names a formatter's <c>__Shallow</c> twin (<c>DepthModel.Shallow</c>).</summary>
     public const string Shallow = ".__Shallow";
 }

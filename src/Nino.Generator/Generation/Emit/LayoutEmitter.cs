@@ -26,7 +26,7 @@ internal static class LayoutEmitter
         return $"[assembly: {Core}NinoTypeLayout(typeof({m.OpenTypeName}), {Core}NinoFormat.{format}, " +
                $"{Core}NinoHeader.{header}, {Bool(m.TrackReferences)}, {Bool(m.RawStruct)}, " +
                $"{m.TypeId.ToString(CultureInfo.InvariantCulture)}, \"{Members(m)}\"" +
-               (m.PublishesDeferrable ? $", Deferrable = {Bool(m.Deferrable)}" : "") + ")]\n";
+               (m.PublishesDeferrable ? $", Deferrable = {Bool(m.Depth.Deferrable)}" : "") + ")]\n";
     }
 
     /// <summary>The members part: <c>name:type:encoding</c> per member, in written order.</summary>
@@ -35,8 +35,8 @@ internal static class LayoutEmitter
         var sb = new StringBuilder();
         if (m.RawStruct)
             sb.Append(m.RawLayout);
-        if (m.IsCollection)
-            sb.Append("[elements]::").Append(m.CollectionEncoding);
+        if (m.Collection is { } collection)
+            sb.Append("[elements]::").Append(collection.Encoding);
         foreach (var member in m.Members)
         {
             if (sb.Length != 0)

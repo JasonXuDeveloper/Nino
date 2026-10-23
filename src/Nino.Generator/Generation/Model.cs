@@ -107,6 +107,69 @@ internal sealed record ConstructionModel(
     // [NinoFactory] factory method used when the target is null (in-place mode only).
     string Factory);
 
+/// <summary>
+/// For a <c>[NinoType]</c> collection: the formatter of its elements, written before its members.
+/// </summary>
+/// <param name="Formatter">The formatter of the collection's elements.</param>
+/// <param name="ShallowFormatter"><paramref name="Formatter"/> with its element formatters' shallow twins.</param>
+/// <param name="Encoding">How it writes them, for the published layout (WireEncoding).</param>
+internal sealed record CollectionModel(FormatterRef Formatter, FormatterRef ShallowFormatter, string Encoding);
+
+/// <summary>What a type shares with its base classes and the types of its hierarchy.</summary>
+internal sealed record InheritanceModel(
+    // Whether static WriteMembers/ReadMembers are emitted so derived types can reuse them (classes whose
+    // members are all directly accessible).
+    bool EmitMembers,
+    // Formatter whose WriteMembers/ReadMembers cover the first BaseMemberCount members, or "".
+    string BaseFormatter,
+    int BaseMemberCount,
+    // Whether the first members are a shared generic base's, written here instead of through its WriteMembers.
+    bool SharedBase,
+    // The topmost base class of this assembly that dispatches subtypes (and its formatter), or "": a dispatching
+    // type below it uses its dispatch.
+    string DispatchRoot,
+    string DispatchRootFormatter,
+    // The [NinoType] base classes (nearest first) and interfaces (global names), for the subtype dispatch.
+    EquatableArray<string> NinoBaseClasses,
+    EquatableArray<string> NinoInterfaces,
+    // The closed generic ones among them that generated code can name, with their definitions: a generic base of this
+    // assembly dispatches to this type when its type arguments are these (DispatchEmitter).
+    EquatableArray<GenericAncestor> NinoGenericAncestors);
+
+/// <summary>How the type's bodies nest, and what that lets its formatter skip (see <c>NinoDepth</c>).</summary>
+internal sealed record DepthModel(
+    // A class whose body can be read after its instance is in its slot (see NinoDepth): created without its
+    // members (not by a constructor taking them) and not compared by value.
+    bool Deferrable,
+    // Whether a class body may hold class bodies (see NinoBody.Nests): false lets it skip the depth count.
+    bool Nests,
+    // How deep below its own check a value can check the depth (TypeFacts.DepthBound): -1 if it opens no class
+    // body, TypeFacts.Unbounded when not known.
+    int Bound,
+    // Whether the formatter has a __Shallow twin (TypeFacts.HasShallow; a sealed class whose body nests nothing uses
+    // its __Top twin as that, TypeFacts.ShallowTwin).
+    bool Shallow);
+
+/// <summary>The generated partial of the type itself (accessor class, pool hooks).</summary>
+internal sealed record PartialModel(
+    // Namespace and containing declarations of the partial; empty when neither is needed.
+    string Namespace,
+    EquatableArray<string> Declarations)
+{
+    public static readonly PartialModel None = new("", EquatableArray<string>.Empty);
+}
+
+/// <summary>What the type's formatter needs registered with the assembly's (NinoGen.Usages).</summary>
+internal sealed record RegistrationModel(
+    // (type, formatter) pairs registered for AOT platforms and top-level calls.
+    EquatableArray<FormatterRegistration> Formatters,
+    // Creators of the collection types the members' formatters create (NinoActivator<T>), registered like them.
+    EquatableArray<FactoryRegistration> Factories,
+    // Closed generic [NinoType]s the type names (member types, base types), registered by type id.
+    EquatableArray<TypeRegistration> GenericTypes,
+    // Unmanaged structs whose layout the runtime measures (LayoutTypes), for the registry's [DynamicDependency].
+    EquatableArray<string> LayoutTypes);
+
 internal sealed record TypeModel(
     // Fully qualified type, e.g. "global::Ns.Outer.Box<T>".
     string TypeName,
@@ -131,68 +194,27 @@ internal sealed record TypeModel(
     bool TrackReferences,
     // Unmanaged struct written as its raw memory.
     bool RawStruct,
-    // For [NinoType] collections: the formatter of the elements, written before the members, and how it writes them;
-    // null for any other type.
-    FormatterRef? CollectionFormatter,
-    string CollectionEncoding,
-    // Whether static WriteMembers/ReadMembers are emitted so derived types can reuse them (classes whose
-    // members are all directly accessible).
-    bool EmitMembers,
-    // Formatter whose WriteMembers/ReadMembers cover the first BaseMemberCount members, or "".
-    string BaseFormatter,
-    int BaseMemberCount,
-    // Whether the first members are a shared generic base's, written here instead of through its WriteMembers.
-    bool SharedBase,
+    // For [NinoType] collections: the formatter of the elements; null for any other type.
+    CollectionModel? Collection,
     EquatableArray<MemberModel> Members,
     ConstructionModel Construction,
-    // (type, formatter) pairs registered for AOT platforms and top-level calls.
-    EquatableArray<FormatterRegistration> UsedFormatters,
-    // Creators of the collection types the members' formatters create (NinoActivator<T>), registered like them.
-    EquatableArray<FactoryRegistration> UsedFactories,
-    // Closed generic [NinoType]s the type names (member types, base types), registered by type id.
-    EquatableArray<TypeRegistration> UsedGenericTypes,
-    // The topmost base class of this assembly that dispatches subtypes (and its formatter), or "": a dispatching
-    // type below it uses its dispatch.
-    string DispatchRoot,
-    string DispatchRootFormatter,
-    // The [NinoType] base classes (nearest first) and interfaces (global names), for the subtype dispatch.
-    EquatableArray<string> NinoBaseClasses,
-    EquatableArray<string> NinoInterfaces,
-    // The closed generic ones among them that generated code can name, with their definitions: a generic base of this
-    // assembly dispatches to this type when its type arguments are these (DispatchEmitter).
-    EquatableArray<GenericAncestor> NinoGenericAncestors,
+    InheritanceModel Inheritance,
+    DepthModel Depth,
     // [NinoPooled]: instances are taken from NinoPool<T> before being created, and the partial adds the pool hooks.
     bool Pooled,
-    // Namespace and containing declarations of the generated partial (accessor class, pool hooks); empty when
-    // neither is needed.
-    string PartialNamespace,
-    EquatableArray<string> PartialDeclarations,
-    // A class whose body can be read after its instance is in its slot (see NinoDepth): created without its
-    // members (not by a constructor taking them) and not compared by value.
-    bool Deferrable,
-    // Whether the layout publishes Deferrable (NinoSymbols.LayoutDeferrable: the referenced Nino.Core can hold it).
-    bool PublishesDeferrable,
-    // Whether a class body may hold class bodies (see NinoBody.Nests): false lets it skip the depth count.
-    bool Nests,
+    PartialModel Partial,
+    RegistrationModel Registrations,
     // Whether every (non-null) value is written in the same number of bytes (TypeFacts.IsFixedSize): the formatter
     // implements INinoFixedSizeFormatter.
     bool FixedSize,
-    // How deep below its own check a value can check the depth (TypeFacts.DepthBound): -1 if it opens no class
-    // body, TypeFacts.Unbounded when not known.
-    int DepthBound,
-    // Whether the formatter has a __Shallow twin (TypeFacts.HasShallow; a sealed class whose body nests nothing uses
-    // its __Top twin as that, TypeFacts.ShallowTwin).
-    bool Shallow,
-    // CollectionFormatter with its element formatters' shallow twins.
-    FormatterRef? ShallowCollectionFormatter,
     // Whether ReadBody reads a new instance (created by `new T()`, not taken from a pool or a factory) apart from
     // an existing one: its members are known to be null there (MemberModel.Fresh), so their formatters' reuse
     // paths fold away. Only for types whose members read no loop in the body (MemberModel.ReadsLoop): a second copy
     // of a loop saves little per object and the JIT may allocate its registers worse there. Sealed classes only: those
     // are what collections hold many new instances of, and the second copy costs compile time for every type.
     bool FreshRead,
-    // Unmanaged structs whose layout the runtime measures (LayoutTypes), for the registry's [DynamicDependency].
-    EquatableArray<string> LayoutTypes,
+    // Whether the layout publishes Deferrable (NinoSymbols.LayoutDeferrable: the referenced Nino.Core can hold it).
+    bool PublishesDeferrable,
     // A raw struct's bytes in the canonical layout, its published layout (LayoutEmitter, RawLayout.Describe); empty
     // for any other type, whose layout is its members.
     string RawLayout)
@@ -220,14 +242,14 @@ internal sealed record TypeModel(
         value.Length != 0 ? value : throw new System.InvalidOperationException($"{name} of {TypeName} is empty");
 
     /// <inheritdoc cref="Need(string, string)"/>
-    public FormatterRef Need(FormatterRef? value, string name) =>
+    public T Need<T>(T? value, string name) where T : class =>
         value ?? throw new System.InvalidOperationException($"{name} of {TypeName} is empty");
 
     /// <summary>Whether the type is a <c>[NinoType]</c> collection, its elements written before its members.</summary>
-    public bool IsCollection => CollectionFormatter != null;
+    public bool IsCollection => Collection != null;
 
     /// <summary>Whether this type's formatter holds the dispatch of its hierarchy (emitted with the registry).</summary>
-    public bool IsDispatchRoot => DispatchesSubtypes && DispatchRoot.Length == 0;
+    public bool IsDispatchRoot => DispatchesSubtypes && Inheritance.DispatchRoot.Length == 0;
 
     /// <summary>Whether bases in this assembly dispatch to this type directly.</summary>
     public bool IsDispatchTarget =>
@@ -251,12 +273,12 @@ internal sealed record TypeModel(
     /// <summary>
     /// Whether the body is small enough to be inlined wherever the formatter is used (at most two members that call
     /// formatters, of at most eight), for a class whose body opens no class body. A subtype writing a base's members
-    /// (through its WriteMembers, or itself for a <see cref="SharedBase"/>) keeps its body out of line: inlined into a
+    /// (through its WriteMembers, or itself for a <see cref="InheritanceModel.SharedBase"/>) keeps its body out of line: inlined into a
     /// dispatch of many subtypes, the bodies would use up its inlining budget.
     /// </summary>
-    public bool InlineBody => !IsGeneric && !TrackReferences && !RawStruct && !Nests &&
+    public bool InlineBody => !IsGeneric && !TrackReferences && !RawStruct && !Depth.Nests &&
                               Kind is FormatterKind.Class or FormatterKind.SealedClass && !Keyed && !Tolerant &&
-                              BaseFormatter.Length == 0 && !SharedBase && !IsCollection &&
+                              Inheritance.BaseFormatter.Length == 0 && !Inheritance.SharedBase && !IsCollection &&
                               Members.Length <= 8 && Members.Count(static x => x.Raw == null) is 1 or 2;
 
     /// <summary>
@@ -265,30 +287,30 @@ internal sealed record TypeModel(
     /// depth, so the twin skips the depth check and calls the body directly (inlined if <see cref="TopInline"/>,
     /// else the out-of-line body), also for each element of a built-in collection of it.
     /// </summary>
-    public bool HasTop => TypeRules.HasTop(Kind, IsGeneric, TrackReferences, RawStruct, Nests);
+    public bool HasTop => TypeRules.HasTop(Kind, IsGeneric, TrackReferences, RawStruct, Depth.Nests);
 
     /// <summary>
     /// Whether the <c>__Shallow</c> twin has bodies of its own: a member (or the elements of a collection) is
     /// written by a formatter with twins. Otherwise the twin calls the body, which then has no depth to skip.
     /// </summary>
-    public bool ShallowBodies => Shallow && !RawStruct &&
-                                 (ShallowCollectionFormatter != CollectionFormatter ||
+    public bool ShallowBodies => Depth.Shallow && !RawStruct &&
+                                 (Collection is { } c && c.ShallowFormatter != c.Formatter ||
                                   Members.Any(static x => x.ShallowFormatter != x.Formatter));
 
     /// <summary>
     /// Whether a shallow body writes the base class's members itself rather than through its <c>WriteMembers</c>,
     /// whose formatters count the depth: one of them has a twin.
     /// </summary>
-    public bool ShallowInlinesBase => BaseFormatter.Length != 0 &&
-                                      Members.Take(BaseMemberCount).Any(static x => x.ShallowFormatter != x.Formatter);
+    public bool ShallowInlinesBase => Inheritance.BaseFormatter.Length != 0 &&
+                                      Members.Take(Inheritance.BaseMemberCount).Any(static x => x.ShallowFormatter != x.Formatter);
 
     /// <summary>
     /// Whether <c>Serialize</c>/<c>Deserialize</c> choose the <c>__Shallow</c> twin when the depth leaves room for
     /// the whole nesting bound (<c>NinoObject.SerializeSealed</c> with a bound): a sealed class whose body counts the
-    /// depth (<see cref="Nests"/>), which the twin then skips with every check inside. A body that does not nest
+    /// depth (<see cref="DepthModel.Nests"/>), which the twin then skips with every check inside. A body that does not nest
     /// checks only its own depth, which the twin cannot skip.
     /// </summary>
-    public bool BoundedEntry => Shallow && Kind == FormatterKind.SealedClass && Nests && !TrackReferences;
+    public bool BoundedEntry => Depth.Shallow && Kind == FormatterKind.SealedClass && Depth.Nests && !TrackReferences;
 
     /// <summary>
     /// Whether the body of a class is one block of raw members (positional, not tracked, not a collection): the
@@ -303,10 +325,10 @@ internal sealed record TypeModel(
     /// Whether the out-of-line read body works on a local copy of the reader, written back at its end: through the
     /// <c>ref</c> parameter, the position is stored after every member and loaded again by the next one (a store to
     /// load forwarding on the critical path of each member, and a load, an operation and a store on ARM64), where
-    /// a local the JIT keeps in registers. Only for bodies that open no class body (<see cref="Nests"/> false): a
+    /// a local the JIT keeps in registers. Only for bodies that open no class body (<see cref="DepthModel.Nests"/> false): a
     /// nested body takes the reader's address, which would keep the local in memory too.
     /// </summary>
-    public bool LocalReader => OutOfLineBody && !Nests && !Keyed && !TrackReferences;
+    public bool LocalReader => OutOfLineBody && !Depth.Nests && !Keyed && !TrackReferences;
 
     /// <summary>
     /// Whether the out-of-line write body works on a local copy of the writer, written back at its end, for the

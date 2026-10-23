@@ -23,7 +23,7 @@ internal static class FormatterEmitter
         names.WriteAliases(sb);
         sb.Append(body);
         sb.Append("}\n");
-        if (m.PartialDeclarations.Length > 0)
+        if (m.Partial.Declarations.Length > 0)
             sb.Append(AccessorEmitter.EmitPartial(m));
         return sb.ToString();
     }
@@ -86,7 +86,7 @@ internal static class FormatterEmitter
             else
                 EmitDispatchingEntryPoints(w, m, ownId: false);
             w.Line();
-            if (m.EmitMembers)
+            if (m.Inheritance.EmitMembers)
             {
                 body.EmitMembersMethods();
                 w.Line();
@@ -115,8 +115,8 @@ internal static class FormatterEmitter
             case FormatterKind.SealedClass when m.BoundedEntry:
                 // The twin's bodies when the depth leaves room for the whole nesting bound (see TypeFacts.DepthBound).
                 EmitEntryPoints(w, m,
-                    $"{Core}NinoObject.SerializeSealed<{t}, {self}, {self}.__Shallow>(value, ref writer, {m.DepthBound})",
-                    $"{Core}NinoObject.DeserializeSealed<{t}, {self}, {self}.__Shallow>(ref value, ref reader, {m.DepthBound})");
+                    $"{Core}NinoObject.SerializeSealed<{t}, {self}, {self}.__Shallow>(value, ref writer, {m.Depth.Bound})",
+                    $"{Core}NinoObject.DeserializeSealed<{t}, {self}, {self}.__Shallow>(ref value, ref reader, {m.Depth.Bound})");
                 break;
             case FormatterKind.SealedClass:
                 EmitEntryPoints(w, m, $"{Core}NinoObject.SerializeSealed{Raw(m)}<{t}, {self}>(value, ref writer)",
@@ -159,7 +159,7 @@ internal static class FormatterEmitter
             EmitTop(w, m, names, body);
         }
 
-        if (m.Shallow)
+        if (m.Depth.Shallow)
         {
             if (m.ShallowBodies)
             {
@@ -288,7 +288,7 @@ internal static class FormatterEmitter
 
     /// <summary>
     /// The twin for where the nesting bound is known to stay below <c>NinoDepth.Inline</c> (see
-    /// <see cref="TypeModel.Shallow"/>): the same bytes, with no depth counted or checked, here or in the members
+    /// <see cref="DepthModel.Shallow"/>): the same bytes, with no depth counted or checked, here or in the members
     /// (their formatters' twins). Used by the bodies of other twins, by <see cref="TypeModel.BoundedEntry"/> and by the
     /// intercepted top-level calls.
     /// </summary>
@@ -346,9 +346,9 @@ internal static class FormatterEmitter
     {
         string t = m.TypeName;
         // NinoBody.Nests and NinoBody.Deferrable.
-        int traits = (m.Nests ? 1 : 0) | (m.Deferrable ? 2 : 0);
+        int traits = (m.Depth.Nests ? 1 : 0) | (m.Depth.Deferrable ? 2 : 0);
         w.Line($"public int Traits => {traits};");
-        if (!m.Deferrable)
+        if (!m.Depth.Deferrable)
         {
             w.Line($"public {t} Create() => default;");
             return;
@@ -399,8 +399,8 @@ internal static class FormatterEmitter
         string rootFormatter = "", rootType = "";
         if (m.DispatchesSubtypes && !root)
         {
-            rootFormatter = m.Need(m.DispatchRootFormatter, nameof(m.DispatchRootFormatter));
-            rootType = m.Need(m.DispatchRoot, nameof(m.DispatchRoot));
+            rootFormatter = m.Need(m.Inheritance.DispatchRootFormatter, nameof(m.Inheritance.DispatchRootFormatter));
+            rootType = m.Need(m.Inheritance.DispatchRoot, nameof(m.Inheritance.DispatchRoot));
         }
 
         string write = !m.DispatchesSubtypes ? $"{Core}NinoPolymorphic<{t}>.Serialize(value, ref writer)"

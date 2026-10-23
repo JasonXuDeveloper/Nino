@@ -44,10 +44,10 @@ internal static class AccessorEmitter
     {
         var w = new CodeWriter(1024);
         w.Line();
-        bool hasNamespace = m.PartialNamespace.Length != 0;
+        bool hasNamespace = m.Partial.Namespace.Length != 0;
         if (hasNamespace)
-            w.Open($"namespace {m.PartialNamespace}");
-        var declarations = m.PartialDeclarations;
+            w.Open($"namespace {m.Partial.Namespace}");
+        var declarations = m.Partial.Declarations;
         for (int i = 0; i < declarations.Length; i++)
         {
             bool self = i == declarations.Length - 1;

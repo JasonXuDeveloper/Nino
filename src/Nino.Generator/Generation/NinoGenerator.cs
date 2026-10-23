@@ -132,18 +132,18 @@ public sealed class NinoGenerator : IIncrementalGenerator
         // collections those formatters create (NinoActivator<T>), registered the same way; and closed generic
         // [NinoType]s named anywhere above, registered by type id (they have no registration of their own: a
         // polymorphic read must be able to map their id back to the type).
-        var registrations = Merge(usages, CollectAll(models, static m => m.UsedFormatters),
+        var registrations = Merge(usages, CollectAll(models, static m => m.Registrations.Formatters),
             static u => u.Formatter is { } f ? new[] { f } : Array.Empty<FormatterRegistration>(),
             static all => all.OrderBy(u => u.TypeName, StringComparer.Ordinal)
                 .ThenBy(u => u.Formatter.ToString(), StringComparer.Ordinal));
-        var factories = Merge(usages, CollectAll(models, static m => m.UsedFactories), static u => u.Factories,
+        var factories = Merge(usages, CollectAll(models, static m => m.Registrations.Factories), static u => u.Factories,
             static all => all.OrderBy(f => f.TypeName, StringComparer.Ordinal));
-        var generics = Merge(usages, CollectAll(models, static m => m.UsedGenericTypes), static u => u.GenericTypes,
+        var generics = Merge(usages, CollectAll(models, static m => m.Registrations.GenericTypes), static u => u.GenericTypes,
             static all => all.OrderBy(g => g.TypeName, StringComparer.Ordinal));
 
         // Structs whose layout the runtime measures: their field metadata is kept for NativeAOT (LayoutTypes), where
         // the compilation can name [DynamicDependency].
-        var memberLayouts = CollectAll(models, static m => m.LayoutTypes);
+        var memberLayouts = CollectAll(models, static m => m.Registrations.LayoutTypes);
         var canKeepLayouts = context.CompilationProvider.Select(static (c, _) => LayoutTypes.CanEmit(c));
         var layouts = usages.Combine(memberLayouts).Combine(canKeepLayouts)
             .Select(static (x, _) => x.Right
@@ -171,9 +171,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var fileLocal = context.ParseOptionsProvider.Select(static (o, _) =>
             o is CSharpParseOptions { LanguageVersion: >= LanguageVersion.CSharp11 });
         // Formatters with a __Top twin for these calls (see TypeModel.HasTop), and with a __Shallow twin
-        // (see TypeModel.Shallow).
+        // (see DepthModel.Shallow).
         var top = NamesWhere(models, static m => m.HasTop);
-        var shallow = NamesWhere(models, static m => m.Shallow);
+        var shallow = NamesWhere(models, static m => m.Depth.Shallow);
         context.RegisterImplementationSourceOutput(
             intercepted.Combine(fileLocal).Combine(enabled).Combine(top).Combine(shallow),
             static (spc, x) =>
@@ -186,8 +186,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
 #endif
         // Bases dispatch the subtypes of this assembly through generated code; any other subtype through the registry.
         var dispatch = CollectAll(models, static m => new DispatchEntry(m.TypeName, m.FormatterName,
-                m.TypeParameterList, m.TypeId, m.IsDispatchRoot, m.IsDispatchTarget, m.NinoBaseClasses,
-                m.NinoInterfaces, m.NinoGenericAncestors, m.RawBody))
+                m.TypeParameterList, m.TypeId, m.IsDispatchRoot, m.IsDispatchTarget, m.Inheritance.NinoBaseClasses,
+                m.Inheritance.NinoInterfaces, m.Inheritance.NinoGenericAncestors, m.RawBody))
             .Select(static (x, _) => new EquatableArray<DispatchEntry>(x.Where(static e => e.IsBase || e.IsTarget)
                 .Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)));
         context.RegisterImplementationSourceOutput(dispatch.Combine(enabled), static (spc, x) =>

@@ -73,7 +73,7 @@ internal sealed class TypeShape
     public bool MembersOpenBodies { get; }
 
     /// <summary>
-    /// Whether its body may hold class bodies (<c>NinoBody.Nests</c>, <see cref="TypeModel.Nests"/>): any type but a
+    /// Whether its body may hold class bodies (<c>NinoBody.Nests</c>, <see cref="DepthModel.Nests"/>): any type but a
     /// class whose members and elements open none.
     /// </summary>
     public bool Nests => Kind is not (FormatterKind.Class or FormatterKind.SealedClass) ||

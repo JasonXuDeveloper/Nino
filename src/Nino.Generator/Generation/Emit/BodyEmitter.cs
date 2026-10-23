@@ -24,19 +24,40 @@ internal sealed class BodyEmitter
     private int _blocks;
 
     /// <summary>
+    /// Which body is being emitted. Set for the extent of one copy of the body (<see cref="In"/>), never changed in
+    /// the middle of one.
+    /// </summary>
+    /// <param name="Shallow">
+    /// The <c>__Shallow</c> twin's body (<see cref="TypeModel.ShallowBodies"/>): its members go through the twins of
+    /// their formatters, which count and check no depth.
+    /// </param>
+    /// <param name="Fresh">The reads of a new instance (<see cref="TypeModel.FreshRead"/>).</param>
+    /// <param name="Target">
     /// The instance member reads go to: <c>value</c>, or the local a class body caches it in (a store through
     /// <c>ref value</c> would otherwise make the JIT reload the reference after every call).
-    /// </summary>
-    private string _target = "value";
+    /// </param>
+    private sealed record BodyMode(bool Shallow, bool Fresh, string Target)
+    {
+        /// <summary>The type's own formatter's body, reading into <c>value</c>.</summary>
+        public static readonly BodyMode Own = new(false, false, "value");
+    }
 
-    /// <summary>
-    /// Whether the body being emitted is the <c>__Shallow</c> twin's (<see cref="TypeModel.ShallowBodies"/>): its
-    /// members go through the twins of their formatters, which count and check no depth.
-    /// </summary>
-    private bool _shallow;
+    private BodyMode _mode = BodyMode.Own;
 
-    /// <summary>Whether the reads being emitted are of a new instance (<see cref="TypeModel.FreshRead"/>).</summary>
-    private bool _fresh;
+    /// <summary>Emits <paramref name="emit"/> in <paramref name="mode"/>, then returns to the mode around it.</summary>
+    private void In(BodyMode mode, Action emit)
+    {
+        var outer = _mode;
+        _mode = mode;
+        try
+        {
+            emit();
+        }
+        finally
+        {
+            _mode = outer;
+        }
+    }
 
     public BodyEmitter(TypeModel model, CodeWriter writer, FormatterNames names)
     {
@@ -53,17 +74,23 @@ internal sealed class BodyEmitter
     /// <summary>Whether WriteBody/ReadBody put the members in a region (version tolerant or keyed).</summary>
     private bool Region => _m.Tolerant || _m.Keyed;
 
-    private bool Delegates => _m.BaseFormatter.Length != 0 && !(_shallow && _m.ShallowInlinesBase);
+    private bool Delegates => _m.Inheritance.BaseFormatter.Length != 0 && !(_mode.Shallow && _m.ShallowInlinesBase);
 
-    private IEnumerable<MemberModel> OwnMembers => Delegates ? _m.Members.Skip(_m.BaseMemberCount) : _m.Members;
+    private IEnumerable<MemberModel> OwnMembers => Delegates ? _m.Members.Skip(_m.Inheritance.BaseMemberCount) : _m.Members;
 
     private string Formatter(MemberModel member) =>
-        _names.Use(_shallow ? member.ShallowFormatter : member.Formatter);
+        _names.Use(_mode.Shallow ? member.ShallowFormatter : member.Formatter);
 
-    private string CollectionFormatter => _m.Need(_shallow ? _m.ShallowCollectionFormatter : _m.CollectionFormatter,
-        nameof(_m.CollectionFormatter)).ToString();
+    private string CollectionFormatter
+    {
+        get
+        {
+            var collection = _m.Need(_m.Collection, nameof(_m.Collection));
+            return (_mode.Shallow ? collection.ShallowFormatter : collection.Formatter).ToString();
+        }
+    }
 
-    private string BaseFormatter => _m.Need(_m.BaseFormatter, nameof(_m.BaseFormatter));
+    private string BaseFormatter => _m.Need(_m.Inheritance.BaseFormatter, nameof(_m.Inheritance.BaseFormatter));
 
     /// <summary>
     /// The bodies of the <c>__Shallow</c> twin (<see cref="TypeModel.ShallowBodies"/>): <c>__WriteBodyShallow</c> and
@@ -72,11 +99,12 @@ internal sealed class BodyEmitter
     /// </summary>
     public void EmitShallowBodies()
     {
-        _shallow = true;
-        EmitWriteBody();
-        _w.Line();
-        EmitReadBody();
-        _shallow = false;
+        In(_mode with { Shallow = true }, () =>
+        {
+            EmitWriteBody();
+            _w.Line();
+            EmitReadBody();
+        });
     }
 
     // ----- entry ---------------------------------------------------------------------------------------------
@@ -100,7 +128,9 @@ internal sealed class BodyEmitter
     private bool OutOfLine => _m.OutOfLineBody;
 
     /// <summary>
-    /// The signature of a body method. An out-of-line body is a static method behind an inlined instance forwarder:
+    /// Writes the methods in front of a body method (the instance forwarder, and the wrapper that calls an
+    /// inlinable body on a local copy of the reader or writer), with the attributes of the body method, and returns
+    /// the body method's signature, for the caller to write its statements under. An out-of-line body is a static method behind an inlined instance forwarder:
     /// a call to an instance method of the (empty) formatter struct stores a dummy byte on the caller's stack and
     /// passes its address as <c>this</c>. A body inlined wherever the formatter is used
     /// (<see cref="TypeModel.InlineBody"/>) is an inlinable static method (<c>__ReadBodyInline</c>) that the forwarder
@@ -108,7 +138,7 @@ internal sealed class BodyEmitter
     /// (<see cref="TypeModel.LocalWriter"/>), or whose new-instance read the <c>__Top</c> twin shares
     /// (<see cref="TypeModel.ReadTop"/>), calls an inlinable one on that copy.
     /// </summary>
-    private string BodySignature(string name, string parameters)
+    private string EmitForwardersReturningSignature(string name, string parameters)
     {
         bool write = name == "WriteBody";
         // The instance method's parameters, and the static bodies' (a struct's by reference: see ValueArgument).
@@ -116,7 +146,7 @@ internal sealed class BodyEmitter
         string value = write ? ValueArgument(_m) : "ref value";
         if (write && value != "value")
             parameters = "ref " + parameters;
-        if (_shallow)
+        if (_mode.Shallow)
         {
             _w.Line(_names.NoInline);
             return $"internal static void __{name}Shallow({parameters})";
@@ -166,14 +196,14 @@ internal sealed class BodyEmitter
 
     public void EmitWriteBody()
     {
-        if (_m.RawBody && !_shallow)
+        if (_m.RawBody && !_mode.Shallow)
         {
             EmitRawBody();
             return;
         }
 
-        string signature = BodySignature("WriteBody", Signature.WriteParameters(T));
-        if (_m.EmitMembers && !_shallow && !Region && !_m.IsCollection)
+        string signature = EmitForwardersReturningSignature("WriteBody", Signature.WriteParameters(T));
+        if (_m.Inheritance.EmitMembers && !_mode.Shallow && !Region && !_m.IsCollection)
         {
             _w.Line($"{signature} => WriteMembers(value, ref writer);");
             _w.Line();
@@ -183,7 +213,7 @@ internal sealed class BodyEmitter
 
         _w.Block(signature, () =>
         {
-            if (Region && !(_m.EmitMembers && !_shallow) && TryEmitRegionWithBlock())
+            if (Region && !(_m.Inheritance.EmitMembers && !_mode.Shallow) && TryEmitRegionWithBlock())
                 return;
             // Keyed: the region holds everything; version tolerant: the members (the elements of a collection come
             // first, as positional ones).
@@ -193,7 +223,7 @@ internal sealed class BodyEmitter
                 _w.Line($"default({CollectionFormatter}).Serialize(value, ref writer);");
             if (Tolerant)
                 _w.Line("int __length = writer.BeginRegion();");
-            if (_m.EmitMembers && !_shallow)
+            if (_m.Inheritance.EmitMembers && !_mode.Shallow)
                 _w.Line("WriteMembers(value, ref writer);");
             else
                 EmitMemberWrites();
@@ -201,7 +231,7 @@ internal sealed class BodyEmitter
                 _w.Line("writer.EndRegion(__length);");
         });
 
-        if (_m.EmitMembers && !_shallow)
+        if (_m.Inheritance.EmitMembers && !_mode.Shallow)
         {
             _w.Line();
             EmitMembersMethods();
@@ -228,7 +258,7 @@ internal sealed class BodyEmitter
         _w.Line();
         _w.Line(_names.Inline);
         _w.Line($"{Signature.WriteBody(T)} => WriteRawBody(value, ref writer.Reserve(BodySize), 0);");
-        if (!_m.EmitMembers)
+        if (!_m.Inheritance.EmitMembers)
             return;
         _w.Line();
         _w.Line(_names.Inline);
@@ -464,16 +494,16 @@ internal sealed class BodyEmitter
 
     /// <summary>
     /// Whether the read body counts its nesting with the reader's <c>EnterStruct</c>: a struct whose nesting no bound
-    /// covers (<see cref="TypeModel.DepthBound"/>, a struct that can reach itself or a type that is not known here),
+    /// covers (<see cref="DepthModel.Bound"/>, a struct that can reach itself or a type that is not known here),
     /// which opens no class body of its own to count it.
     /// </summary>
     private bool CountsStructDepth =>
-        _m.Kind == FormatterKind.Struct && !_shallow && _m.Nests && _m.DepthBound == TypeFacts.Unbounded;
+        _m.Kind == FormatterKind.Struct && !_mode.Shallow && _m.Depth.Nests && _m.Depth.Bound == TypeFacts.Unbounded;
 
     private bool LocalWriter => _m.LocalWriter;
 
     /// <summary><see cref="TypeModel.ReadTop"/>, for the body of the type's own formatter.</summary>
-    private bool ReadTop => !_shallow && _m.ReadTop;
+    private bool ReadTop => !_mode.Shallow && _m.ReadTop;
 
     private bool SplitFresh => _m.SplitFresh;
 
@@ -485,7 +515,7 @@ internal sealed class BodyEmitter
             return;
         }
 
-        _w.Open(BodySignature("ReadBody", Signature.ReadParameters(T)));
+        _w.Open(EmitForwardersReturningSignature("ReadBody", Signature.ReadParameters(T)));
         if (CountsStructDepth)
         {
             // A struct that can hold itself (through a collection, a nullable, a Lazy or an interface) opens no class
@@ -501,8 +531,8 @@ internal sealed class BodyEmitter
             return;
         }
 
-        // A __Top twin's inlinable body is read through the local of the out-of-line wrapper (BodySignature).
-        EmitReadBodyContents(fresh: false, local: LocalReader && !_m.InlineBody && !_shallow && !ReadTop);
+        // A __Top twin's inlinable body is read through the local of the out-of-line wrapper (EmitForwardersReturningSignature).
+        EmitReadBodyContents(fresh: false, local: LocalReader && !_m.InlineBody && !_mode.Shallow && !ReadTop);
         _w.Close();
     }
 
@@ -525,9 +555,7 @@ internal sealed class BodyEmitter
             // collection constructors of the member reads. An instance passed in anyway is still read correctly
             // (its members are replaced, not reused).
             ReadIntoLocal(_m.Need(_m.Construction.Creator, nameof(ConstructionModel.Creator)) + "()");
-            _fresh = true;
-            EmitInPlaceMembers(r);
-            _fresh = false;
+            In(_mode with { Fresh = true, Target = "__v" }, () => EmitInPlaceMembers(r));
         }
         else if (_m.Construction.Recreate)
             EmitRecreatingRead(r);
@@ -549,12 +577,11 @@ internal sealed class BodyEmitter
     }
 
     /// <summary>
-    /// Reads go to the local <c>__v</c>: the instance in <c>value</c>, or when null a new one (<paramref name="create"/>)
-    /// stored in both.
+    /// The local <c>__v</c>, which the reads that follow go to (<see cref="BodyMode.Target"/>): the instance in
+    /// <c>value</c>, or when null a new one (<paramref name="create"/>) stored in both.
     /// </summary>
     private void ReadIntoLocal(string create)
     {
-        _target = "__v";
         _w.Line("var __v = value;");
         _w.Line("if (__v == null)");
         _w.Indented(() => _w.Line($"value = __v = {create};"));
@@ -590,8 +617,8 @@ internal sealed class BodyEmitter
     private void EmitSplitReadBody()
     {
         string parameters = Signature.ReadParameters(T);
-        string body = _shallow ? "__ReadBodyShallow" : "__ReadBody";
-        if (!_shallow)
+        string body = _mode.Shallow ? "__ReadBodyShallow" : "__ReadBody";
+        if (!_mode.Shallow)
         {
             // The shallow twin's forwarder is its struct's (FormatterEmitter).
             _w.Line(_names.Inline);
@@ -603,7 +630,7 @@ internal sealed class BodyEmitter
 
         _w.Line(_names.NoInline);
         _w.Open($"internal static void {body}({parameters})");
-        EmitReadBodyContents(fresh: false, local: LocalReader && !_shallow);
+        EmitReadBodyContents(fresh: false, local: LocalReader && !_mode.Shallow);
         _w.Close();
         _w.Line();
         _w.Line(_names.NoInline);
@@ -621,7 +648,7 @@ internal sealed class BodyEmitter
         }
 
         _w.Open($"internal static void {body}Fresh({parameters})");
-        EmitReadBodyContents(fresh: true, local: LocalReader && !_shallow);
+        EmitReadBodyContents(fresh: true, local: LocalReader && !_mode.Shallow);
         _w.Close();
     }
 
@@ -634,22 +661,22 @@ internal sealed class BodyEmitter
             if (!_m.IsCollection)
             {
                 ReadIntoLocal(create);
+                In(_mode with { Target = "__v" }, () => EmitInPlaceMembers(r));
+                return;
             }
-            else
-            {
-                _w.Line("if (value == null)");
-                _w.Indented(() => _w.Line($"value = {create};"));
-            }
+
+            _w.Line("if (value == null)");
+            _w.Indented(() => _w.Line($"value = {create};"));
         }
 
         EmitInPlaceMembers(r);
     }
 
-    /// <summary>The reads of an instance in <see cref="_target"/> (or of a struct in place), in its regions.</summary>
+    /// <summary>The reads of an instance in <see cref="BodyMode.Target"/> (or of a struct in place), in its regions.</summary>
     private void EmitInPlaceMembers(string r)
     {
         if (_m.TrackReferences)
-            _w.Line($"reader.SetReference({_target});");
+            _w.Line($"reader.SetReference({_mode.Target});");
 
         // Keyed: the region holds everything; version tolerant: the members (the elements of a collection come first).
         string outer = r;
@@ -660,18 +687,17 @@ internal sealed class BodyEmitter
         if (Tolerant)
             r = BeginRegionRead(r);
 
-        if (_m.EmitMembers && !_shallow && !_fresh)
-            _w.Line($"ReadMembers({_target}, ref {r});");
+        if (_m.Inheritance.EmitMembers && !_mode.Shallow && !_mode.Fresh)
+            _w.Line($"ReadMembers({_mode.Target}, ref {r});");
         else
             EmitMemberReads(r, inPlace: true, eof: $"goto {EndLabel};");
-        _target = "value";
 
         if (Region)
             EndRegionRead(outer);
     }
 
     /// <summary>The label a version-tolerant read jumps to at the end of its region (one per copy of the reads).</summary>
-    private string EndLabel => _fresh ? "__endFresh" : "__end";
+    private string EndLabel => _mode.Fresh ? "__endFresh" : "__end";
 
     /// <summary>Opens the region of the members (<c>__reader</c>, read from <paramref name="r"/>).</summary>
     private string BeginRegionRead(string r)
@@ -750,7 +776,7 @@ internal sealed class BodyEmitter
         bool delegates = inPlace && Delegates;
         var members = inPlace ? OwnMembers : _m.Members;
         if (delegates)
-            _w.Line($"{BaseFormatter}.ReadMembers({_target}, ref {r});");
+            _w.Line($"{BaseFormatter}.ReadMembers({_mode.Target}, ref {r});");
 
         if (_m.Keyed)
         {
@@ -800,7 +826,7 @@ internal sealed class BodyEmitter
         for (int i = 0; i < group.Count; i++)
         {
             _w.Line(Store(_m, group[i], inPlace,
-                $"{Core}NinoUnsafe.Read<{group[i].TypeName}>(ref {p}, {block.Offsets[i]})", _target));
+                $"{Core}NinoUnsafe.Read<{group[i].TypeName}>(ref {p}, {block.Offsets[i]})", _mode.Target));
         }
     }
 
@@ -809,16 +835,16 @@ internal sealed class BodyEmitter
     {
         if (member.Raw != null)
         {
-            _w.Line(Store(_m, member, inPlace, $"{r}.UnsafeRead<{member.TypeName}>()", _target));
+            _w.Line(Store(_m, member, inPlace, $"{r}.UnsafeRead<{member.TypeName}>()", _mode.Target));
             return;
         }
 
         // An existing instance's string is passed in, and kept when unchanged; a new instance's is null.
-        bool existing = inPlace && !(_fresh && member.Fresh);
-        var direct = DirectRead(member, r, existing ? Get(_m, member, _target) : null);
+        bool existing = inPlace && !(_mode.Fresh && member.Fresh);
+        var direct = DirectRead(member, r, existing ? Get(_m, member, _mode.Target) : null);
         if (direct != null)
         {
-            _w.Line(Store(_m, member, inPlace, direct, _target));
+            _w.Line(Store(_m, member, inPlace, direct, _mode.Target));
             return;
         }
 
@@ -829,19 +855,19 @@ internal sealed class BodyEmitter
             return;
         }
 
-        if (_fresh && member.Fresh)
+        if (_mode.Fresh && member.Fresh)
         {
             // The member of a new instance is null: read from a null local, which the formatter (inlined) knows,
             // so its reuse path folds away; then stored.
             _w.Open();
             _w.Line($"{member.TypeName} __t = null;");
             _w.Line($"default({formatter}).Deserialize(ref __t, ref {r});");
-            _w.Line(Set(_m, member, _target, "__t"));
+            _w.Line(Set(_m, member, _mode.Target, "__t"));
             _w.Close();
             return;
         }
 
-        var reference = Ref(_m, member, _target);
+        var reference = Ref(_m, member, _mode.Target);
         if (reference != null)
         {
             _w.Line($"default({formatter}).Deserialize(ref {reference}, ref {r});");
@@ -850,9 +876,9 @@ internal sealed class BodyEmitter
 
         // Properties: read through a local so the existing instance is reused, then assign it back.
         _w.Open();
-        _w.Line($"var __t = {Get(_m, member, _target)};");
+        _w.Line($"var __t = {Get(_m, member, _mode.Target)};");
         _w.Line($"default({formatter}).Deserialize(ref __t, ref {r});");
-        _w.Line(Set(_m, member, _target, "__t"));
+        _w.Line(Set(_m, member, _mode.Target, "__t"));
         _w.Close();
     }
 
