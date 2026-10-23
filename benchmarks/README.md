@@ -31,12 +31,15 @@ The runtime tables in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) come fro
 below); the release notes of each release carry its numbers.
 
 Every release runs the same protocol in CI: [`report.yml`](../.github/workflows/report.yml) runs the benchmark
-classes in parallel on five runners per architecture (BclTypesTest split into its serialize and deserialize cases),
-each case's Nino and MemoryPack runs always on one, every case in three processes, and
+classes in parallel on seven runners per architecture (BclTypesTest and CollectionsTest split by type), each case's
+Nino and MemoryPack runs always on one, every case in three processes (MessagePack's cases run only locally), and
 [`merge_reports.py`](merge_reports.py) merges their reports into one table, naming each class's runner under it.
+The release notes get the short tables of [`compact_report.py`](compact_report.py) (Method, Mean, Ratio, Payload,
+Allocated, one table per class), as a release body holds at most 125,000 characters; the full reports are attached
+to the release.
 The `SimpleTest` runner builds `v3/` and runs it directly before its v4 run with the same settings; the workflow adds a
 **📊 v3 3.3.13 vs v4 (same machine)** section to the release notes, in front of the Performance Report: the
-`compare.py` table, then the v3 report. The documentation site takes its v4-vs-v3 ratios from that
+`compare.py` table and the v3 run's environment (the v3 report is attached). The documentation site takes its v4-vs-v3 ratios from that
 section of the newest v4 release. A v3 failure only leaves the section out; re-running the workflow for the tag
 adds whichever section is missing.
 

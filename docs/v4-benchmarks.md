@@ -316,7 +316,7 @@ dotnet run -c Release --project src/Nino.Benchmark -- --filter '*ReferenceTest*'
 ```
 
 The suite has eleven classes, all against MemoryPack 1.21.4:
-`SimpleTest` and `PolymorphicTest` (also against MessagePack), `GenericPolymorphicTest` (subtypes through a
+`SimpleTest` and `PolymorphicTest` (also against MessagePack, in local runs only), `GenericPolymorphicTest` (subtypes through a
 non-generic base and through closed instances of a generic base, whose union MemoryPack registers at runtime), `PooledTest` and `PooledGraphTest` (reuse and
 pooling), `ReferenceTest` (a graph with shared references and cycles: `trackReferences` against MemoryPack's
 `GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members as `NinoFormat.VersionTolerant`

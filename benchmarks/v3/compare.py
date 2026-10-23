@@ -52,7 +52,8 @@ def main():
     cases = []
     for method in list(v4) + list(v3):
         lib, case = split(method)
-        if lib == "Nino" and case not in cases:
+        # Only cases v3 has: the v4 report may be the whole suite (report.yml passes the merged report).
+        if lib == "Nino" and case not in cases and "Nino" + case in v3:
             cases.append(case)
     # serialize first, then deserialize; same order as the SimpleTest source
     cases.sort(key=lambda c: (not c.startswith("Serialize"),))

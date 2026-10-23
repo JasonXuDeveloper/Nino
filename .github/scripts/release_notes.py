@@ -28,7 +28,7 @@ from collections import OrderedDict
 REPO = os.environ.get("GITHUB_REPOSITORY", "JasonXuDeveloper/Nino")
 IGNORE = ["v*-preview.*", "v3.9.*"]
 BODY_LIMIT = 125_000          # GitHub rejects a longer release body (422)
-RESERVED = 95_000             # left for report.yml's v3 section (~14k), Arm64 section and Performance Report (~40k each, compacted)
+RESERVED = 50_000             # left for report.yml's sections: short tables (compact_report.py), about 20k each for x64 and Arm64, 3k for v3
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$")
 LABEL_RANK = {"alpha": 0, "beta": 1, "rc": 2, None: 3}
 # Commit trailer -> highlights section, in this order.

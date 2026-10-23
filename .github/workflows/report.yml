@@ -94,12 +94,12 @@ jobs:
           fi
 
   # The benchmark classes run in parallel, two or more per runner (so each joined report has a Type column), each case's
-  # Nino and MemoryPack runs always on one runner (BclTypesTest, a third of the suite, is split into its serialize and
-  # deserialize cases); with three launches a case, each shard takes 35 to 55 minutes. The publish job merges the
-  # reports into one table
-  # (benchmarks/merge_reports.py). v3 runs on the SimpleTest runner, directly before its v4 run, as benchmarks/run.sh does.
-  # The same shards run on Arm64 runners too, for the Arm64 section of the release (AdvSimd and TBL paths that x64
-  # never takes); an Arm64 failure leaves that section out and never blocks the x64 report.
+  # Nino and MemoryPack runs always on one runner. Seven shards of 28 to 36 cases (about a minute each with three
+  # launches); BclTypesTest and CollectionsTest are split by type. MessagePack runs only locally: nothing published
+  # reads its rows. v3 runs on the SimpleTest runner, directly before its v4 run, as benchmarks/run.sh does, which
+  # makes that shard the longest (about 45 minutes). The publish job merges the reports into one table
+  # (benchmarks/merge_reports.py). The same shards run on Arm64 runners too, for the Arm64 section of the release
+  # (AdvSimd and TBL paths that x64 never takes); an Arm64 failure leaves that section out and never blocks the x64 report.
   bench:
     name: Benchmark (${{ matrix.arch }} ${{ matrix.shard }})
     needs: target
@@ -111,16 +111,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { arch: x64, shard: a, filters: "'*.SimpleTest.*' '*.PooledTest.*'", v3: true }
-          - { arch: x64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*' '*.GenericPolymorphicTest.*'" }
-          - { arch: x64, shard: c, filters: "'*.PolymorphicTest.*' '*.BclTypesTest.NinoSerialize*' '*.BclTypesTest.MemoryPackSerialize*'" }
-          - { arch: x64, shard: d, filters: "'*.VersionTolerantTest.*' '*.ReferenceTest.*' '*.BclTypesTest.*Deserialize*'" }
-          - { arch: x64, shard: e, filters: "'*.CollectionsTest.*' '*.PooledGraphTest.*'" }
-          - { arch: arm64, shard: a, filters: "'*.SimpleTest.*' '*.PooledTest.*'" }
-          - { arch: arm64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*' '*.GenericPolymorphicTest.*'" }
-          - { arch: arm64, shard: c, filters: "'*.PolymorphicTest.*' '*.BclTypesTest.NinoSerialize*' '*.BclTypesTest.MemoryPackSerialize*'" }
-          - { arch: arm64, shard: d, filters: "'*.VersionTolerantTest.*' '*.ReferenceTest.*' '*.BclTypesTest.*Deserialize*'" }
-          - { arch: arm64, shard: e, filters: "'*.CollectionsTest.*' '*.PooledGraphTest.*'" }
+          - { arch: x64, shard: a, filters: "'*.SimpleTest.Nino*' '*.SimpleTest.MemoryPack*' '*.PooledTest.*'", v3: true }
+          - { arch: x64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*'" }
+          - { arch: x64, shard: c, filters: "'*.GenericPolymorphicTest.*' '*.VersionTolerantTest.*'" }
+          - { arch: x64, shard: d, filters: "'*.BclTypesTest.*Immutable*' '*.PolymorphicTest.Nino*' '*.PolymorphicTest.MemoryPack*'" }
+          - { arch: x64, shard: e, filters: "'*.BclTypesTest.*BigInteger' '*.BclTypesTest.*BitArray' '*.BclTypesTest.*BlockingCollection' '*.BclTypesTest.*CultureInfo' '*.BclTypesTest.*Lazy' '*.BclTypesTest.*Lookup' '*.BclTypesTest.*Memory' '*.PooledGraphTest.*'" }
+          - { arch: x64, shard: f, filters: "'*.BclTypesTest.*ReadOnlyCollection' '*.BclTypesTest.*ReadOnlySequence' '*.BclTypesTest.*StringBuilder' '*.BclTypesTest.*TimeZoneInfo' '*.BclTypesTest.*Uri' '*.BclTypesTest.*Version' '*.CollectionsTest.*ConcurrentDictionary' '*.CollectionsTest.*HashSet' '*.CollectionsTest.*KeyValuePairs'" }
+          - { arch: x64, shard: g, filters: "'*.CollectionsTest.*LinkedList' '*.CollectionsTest.*Queue' '*.CollectionsTest.*SortedDictionary' '*.CollectionsTest.*SortedList' '*.CollectionsTest.*SortedSet' '*.CollectionsTest.*TupleList' '*.ReferenceTest.*'" }
+          - { arch: arm64, shard: a, filters: "'*.SimpleTest.Nino*' '*.SimpleTest.MemoryPack*' '*.PooledTest.*'" }
+          - { arch: arm64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*'" }
+          - { arch: arm64, shard: c, filters: "'*.GenericPolymorphicTest.*' '*.VersionTolerantTest.*'" }
+          - { arch: arm64, shard: d, filters: "'*.BclTypesTest.*Immutable*' '*.PolymorphicTest.Nino*' '*.PolymorphicTest.MemoryPack*'" }
+          - { arch: arm64, shard: e, filters: "'*.BclTypesTest.*BigInteger' '*.BclTypesTest.*BitArray' '*.BclTypesTest.*BlockingCollection' '*.BclTypesTest.*CultureInfo' '*.BclTypesTest.*Lazy' '*.BclTypesTest.*Lookup' '*.BclTypesTest.*Memory' '*.PooledGraphTest.*'" }
+          - { arch: arm64, shard: f, filters: "'*.BclTypesTest.*ReadOnlyCollection' '*.BclTypesTest.*ReadOnlySequence' '*.BclTypesTest.*StringBuilder' '*.BclTypesTest.*TimeZoneInfo' '*.BclTypesTest.*Uri' '*.BclTypesTest.*Version' '*.CollectionsTest.*ConcurrentDictionary' '*.CollectionsTest.*HashSet' '*.CollectionsTest.*KeyValuePairs'" }
+          - { arch: arm64, shard: g, filters: "'*.CollectionsTest.*LinkedList' '*.CollectionsTest.*Queue' '*.CollectionsTest.*SortedDictionary' '*.CollectionsTest.*SortedList' '*.CollectionsTest.*SortedSet' '*.CollectionsTest.*TupleList' '*.ReferenceTest.*'" }
     env:
       V3_OUT: ${{ github.workspace }}/v3-results
       OUT: ${{ github.workspace }}/report
@@ -188,6 +192,15 @@ jobs:
           eval "PATTERNS=($FILTERS)"
           # The settings of the published numbers (BDN_ARGS above, docs/v4-benchmarks.md).
           # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
+          # The cases this shard runs, and on one shard every case, so the publish job can name a case no shard ran
+          # (the BclTypesTest and CollectionsTest shards select types by name).
+          mkdir -p "$OUT"
+          dotnet bin/Release/net10.0/Nino.Benchmark.dll --list flat --filter "${PATTERNS[@]}" \
+            | grep '^Nino\.Benchmark\.' > "$OUT/cases-${{ matrix.arch }}-${{ matrix.shard }}.txt" || true
+          if [[ "${{ matrix.shard }}" == a ]]; then
+            dotnet bin/Release/net10.0/Nino.Benchmark.dll --list flat --filter '*' \
+              | grep '^Nino\.Benchmark\.' > "$OUT/cases-${{ matrix.arch }}-all.txt" || true
+          fi
           dotnet run -c Release --no-build -- --filter "${PATTERNS[@]}" $BDN_ARGS
           REPORT=$(find BenchmarkDotNet.Artifacts/results -name "*-joined-*-report-github.md" | head -n1)
           if [[ -z "$REPORT" ]]; then
@@ -227,10 +240,14 @@ jobs:
       tag_name: ${{ needs.target.outputs.tag }}
       # The release asset that holds the whole Arm64 section (the docs site reads it when the body has only a link).
       ARM64_ASSET: arm64-benchmark.md
+      # The full BenchmarkDotNet reports, attached to the release: the body has the short tables of compact_report.py.
+      FULL_X64_ASSET: benchmark-x64-full.md
+      FULL_ARM64_ASSET: benchmark-arm64-full.md
+      FULL_V3_ASSET: benchmark-v3-full.md
       # Every benchmark class of src/Nino.Benchmark: one table in the Performance Report, its Type column naming the
       # class. A class missing from the table is reported as a warning.
       # The shards of the bench job's matrix, per architecture.
-      SHARDS: 5
+      SHARDS: 7
       BENCH_CLASSES: SimpleTest PolymorphicTest GenericPolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest CommonTypesTest CollectionsTest BclTypesTest
 
     steps:
@@ -277,6 +294,15 @@ jobs:
           if [[ -f "$DIR/v3.md" ]]; then
             echo "V3_REPORT=$DIR/v3.md" >> "$GITHUB_ENV"
           fi
+          # A case that no shard's filters select (a new one, say) is left out of the report: name it. MessagePack and
+          # the probes are not run on purpose.
+          if [[ -f "$DIR/cases-x64-all.txt" ]]; then
+            grep -vE '\.MessagePack|Probe' "$DIR/cases-x64-all.txt" | sort -u > "$RUNNER_TEMP/all.txt"
+            cat "$DIR"/cases-x64-[a-z].txt | sort -u > "$RUNNER_TEMP/run.txt"
+            for CASE in $(comm -23 "$RUNNER_TEMP/all.txt" "$RUNNER_TEMP/run.txt"); do
+              echo "::warning::$CASE is in no shard of report.yml: add it to the bench matrix"
+            done
+          fi
 
       - name: Update release notes with benchmark
         env:
@@ -293,7 +319,9 @@ jobs:
           grep -qF "$V3_HEADING" current_notes.md && HAS_V3=true
           grep -qF "$ARM64_HEADING" current_notes.md && HAS_ARM64=true
 
-          # The Performance Report section, in the format the docs site has always parsed: keep it as it is.
+          # The Performance Report section: the docs site reads its Method, Mean, Payload and Allocated columns. The body
+          # has the short tables (benchmarks/compact_report.py), as the release notes of a major version take most of
+          # GitHub's 125,000 characters; the full report is attached.
           : > perf_section.md
           if [[ $HAS_PERF == true ]]; then
             echo "⏭️ Performance Report already exists in release notes"
@@ -306,7 +334,9 @@ jobs:
               echo "<details>"
               echo "<summary>Click to expand benchmark results</summary>"
               echo ""
-              cat "$BENCHMARK_FILE"
+              python3 "$GITHUB_WORKSPACE/benchmarks/compact_report.py" "$BENCHMARK_FILE"
+              echo ""
+              echo "Median, Min, Max and the GC counts: [${FULL_X64_ASSET}](https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/${FULL_X64_ASSET})."
               echo ""
               echo "</details>"
               echo ""
@@ -315,7 +345,7 @@ jobs:
             } > perf_section.md
           fi
 
-          # The v3 section: the compare.py table (v4 against v3) and the v3 report.
+          # The v3 section: the compare.py table (v4 against v3) and the v3 run's environment; the v3 report is attached.
           : > v3_section.md
           V3_REPORT=${V3_REPORT:-}
           if [[ $HAS_V3 == true ]]; then
@@ -339,9 +369,11 @@ jobs:
               python3 "$GITHUB_WORKSPACE/benchmarks/v3/compare.py" "$V3_REPORT" "$BENCHMARK_FILE" \
                 || echo "compare.py could not read the reports."
               echo ""
-              echo "### v3 3.3.13 report"
+              # The v3 run's environment block (the docs site names its machine from it); the report is attached.
+              echo "### v3 3.3.13 runner"
               echo ""
-              cat "$V3_REPORT"
+              awk '/^\|/{exit} {print}' "$V3_REPORT"
+              echo "The v3 report: [${FULL_V3_ASSET}](https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/${FULL_V3_ASSET})."
               echo ""
               echo "</details>"
             } > v3_section.md
@@ -366,7 +398,9 @@ jobs:
               echo "(\`${BDN_ARGS}\`), on GitHub's \`ubuntu-24.04-arm\` runners. Compare Nino with MemoryPack within"
               echo "this table: the runners differ from the x64 ones, so times across the two tables say little."
               echo ""
-              cat "$ARM64_REPORT"
+              python3 "$GITHUB_WORKSPACE/benchmarks/compact_report.py" "$ARM64_REPORT"
+              echo ""
+              echo "Median, Min, Max and the GC counts: [${FULL_ARM64_ASSET}](https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/${FULL_ARM64_ASSET})."
               echo ""
               echo "</details>"
             } > arm64_section.md
@@ -385,12 +419,6 @@ jobs:
           v3 = open("v3_section.md", encoding="utf-8").read().strip("\n")
           arm64 = open("arm64_section.md", encoding="utf-8").read().strip("\n")
           perf = open("perf_section.md", encoding="utf-8").read().strip("\n")
-          # BenchmarkDotNet pads every cell to its column's width, which doubles the tables (rc.7's body went past
-          # GitHub's limit): one space each side is the same Markdown, and every parser trims the cells anyway.
-          def compact(text):
-              return re.sub(r"(?m)^\|.*\|[ \t]*$", lambda m: "|" + "|".join(
-                  f" {c.strip()} " if c.strip() else " " for c in m.group(0).strip().strip("|").split("|")) + "|", text)
-          v3, arm64, perf = compact(v3), compact(arm64), compact(perf)
           match = re.search(r"^.*Performance Report", body, re.MULTILINE)
           if match:  # the report is already there: put the v3 section in front of its heading
               head, tail = body[:match.start()].rstrip("\n"), body[match.start():]
@@ -398,10 +426,7 @@ jobs:
               head, tail = body, perf
           # The Arm64 section goes before the Performance Report too, for the same reason.
           text = "\n\n".join(part for part in (head, v3, arm64, tail) if part) + "\n"
-          if len(text) > 125000:  # GitHub's limit for a release body: drop the raw v3 reports, keep the tables
-              v3 = re.sub(r"\n### v3 3\.3\.13 report.*?(?=\n</details>)", "\n\n(The raw v3 reports are in the workflow artifacts.)", v3, flags=re.S)
-              text = "\n\n".join(part for part in (head, v3, arm64, tail) if part) + "\n"
-          if len(text) > 125000 and arm64:  # still too long: the Arm64 section is attached as ARM64_ASSET instead
+          if len(text) > 125000 and arm64:  # GitHub's limit for a release body: the Arm64 section is attached instead
               arm64 = "\n\n".join((os.environ["ARM64_HEADING"],
                   f"The Arm64 report is attached to this release: [{os.environ['ARM64_ASSET']}]"
                   f"(https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/"
@@ -411,10 +436,22 @@ jobs:
           EOF
 
           # The whole Arm64 section is attached to the release too, where the docs site reads it when the body has
-          # only a link to it.
+          # only a link to it, and so are the full reports the body links to.
           if [[ -s arm64_section.md ]]; then
             cp arm64_section.md "$ARM64_ASSET"
             gh release upload "$TAG_NAME" "$ARM64_ASSET" --clobber
+          fi
+          if [[ -s perf_section.md ]]; then
+            cp "$BENCHMARK_FILE" "$FULL_X64_ASSET"
+            gh release upload "$TAG_NAME" "$FULL_X64_ASSET" --clobber
+          fi
+          if [[ -s arm64_section.md ]]; then
+            cp "$ARM64_REPORT" "$FULL_ARM64_ASSET"
+            gh release upload "$TAG_NAME" "$FULL_ARM64_ASSET" --clobber
+          fi
+          if [[ -s v3_section.md ]]; then
+            cp "$V3_REPORT" "$FULL_V3_ASSET"
+            gh release upload "$TAG_NAME" "$FULL_V3_ASSET" --clobber
           fi
 
           # Update the release
