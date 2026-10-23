@@ -45,11 +45,6 @@ namespace Hot
     /// </param>
     private static Assembly CompileWithoutInitializers(bool slowRegistry = false, string source = Source)
     {
-        var parse = new CSharpParseOptions(LanguageVersion.Latest);
-        var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
-            .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p)).ToList();
-        refs.Add(MetadataReference.CreateFromFile(typeof(NinoTypeAttribute).Assembly.Location));
-        refs.Add(MetadataReference.CreateFromFile(typeof(HotUpdateAssemblyTests).Assembly.Location));
         string name = "Hot" + Guid.NewGuid().ToString("N");
         var sources = new[] { source };
         if (slowRegistry)
@@ -73,12 +68,11 @@ namespace HotSlow
             };
         }
 
-        var compilation = CSharpCompilation.Create(name,
-            sources.Select(source => CSharpSyntaxTree.ParseText(source, parse)), refs,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
+        var compilation = TestCompilation.Create(name,
+            sources.Select(source => CSharpSyntaxTree.ParseText(source, TestCompilation.Parse)),
+            extraReferences: new[] { MetadataReference.CreateFromFile(typeof(HotUpdateAssemblyTests).Assembly.Location) });
 
-        var run = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator()).RunGenerators(compilation)
-            .GetRunResult();
+        var run = TestCompilation.Generate(compilation);
         // What a hot-update runtime skips: drop the entry points that would register eagerly.
         var generated = run.GeneratedTrees.Select(t =>
         {
@@ -86,15 +80,13 @@ namespace HotSlow
                 .Replace("[global::System.Runtime.CompilerServices.ModuleInitializer]", "");
             if (slowRegistry)
                 text = text.Replace("[assembly: global::Nino.Core.NinoGenerated(", "// [assembly: global::Nino.Core.NinoGenerated(");
-            return CSharpSyntaxTree.ParseText(text, parse, t.FilePath);
+            return CSharpSyntaxTree.ParseText(text, TestCompilation.Parse, t.FilePath);
         });
         var output = compilation.AddSyntaxTrees(generated);
 
-        using var stream = new MemoryStream();
-        var result = output.Emit(stream);
-        Assert.IsTrue(result.Success, string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+        var assembly = TestCompilation.EmitAndLoad(output);
         StringAssert.Contains(string.Concat(run.GeneratedTrees.Select(t => t.ToString())), "[assembly: global::Nino.Core.NinoGenerated(");
-        return Assembly.Load(stream.ToArray());
+        return assembly;
     }
 
     [TestMethod]

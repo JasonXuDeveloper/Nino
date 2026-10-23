@@ -85,15 +85,8 @@ namespace Top
 
     private static Assembly Compile()
     {
-        var parse = new CSharpParseOptions(LanguageVersion.Latest);
-        var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
-            .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p)).ToList();
-        refs.Add(MetadataReference.CreateFromFile(typeof(NinoTypeAttribute).Assembly.Location));
-        var compilation = CSharpCompilation.Create("Top" + Guid.NewGuid().ToString("N"),
-            new[] { CSharpSyntaxTree.ParseText(Source, parse) }, refs,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
-        var run = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator()).RunGenerators(compilation)
-            .GetRunResult();
+        var compilation = TestCompilation.Create("Top", new[] { Source });
+        var run = TestCompilation.Generate(compilation);
         var sources = run.GeneratedTrees.ToDictionary(t => Path.GetFileName(t.FilePath), t => t.ToString());
         // Sealed classes only. Small bodies are inlined into the twin; Big has three formatter members, so its twin
         // calls the regular body (skipping only the depth check).
@@ -104,11 +97,7 @@ namespace Top
             "=> default(Top_BigFormatter).WriteBody(value, ref writer);");
         Assert.IsFalse(sources["NinoGen.Top_PairFormatter.g.cs"].Contains("__Top"));
 
-        using var stream = new MemoryStream();
-        var result = compilation.AddSyntaxTrees(run.GeneratedTrees).Emit(stream);
-        Assert.IsTrue(result.Success,
-            string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
-        return Assembly.Load(stream.ToArray());
+        return TestCompilation.EmitAndLoad(compilation.AddSyntaxTrees(run.GeneratedTrees));
     }
 
     [TestMethod]
