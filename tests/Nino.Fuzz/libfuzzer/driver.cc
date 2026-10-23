@@ -15,6 +15,7 @@
 // Usage: nino-libfuzzer --target_path=<program> [--target_arg=<arguments, space separated>] [libFuzzer flags] [corpus]
 // (libFuzzer ignores flags that start with two dashes.)
 
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -45,10 +46,24 @@ static void die(const char *what) {
   exit(1);
 }
 
+// libFuzzer's timers (SIGALRM, for -timeout) interrupt blocking calls: retry on EINTR.
 static bool read_all(int fd, void *buf, size_t n) {
   auto *p = static_cast<uint8_t *>(buf);
   while (n > 0) {
     ssize_t r = read(fd, p, n);
+    if (r < 0 && errno == EINTR) continue;
+    if (r <= 0) return false;
+    p += r;
+    n -= static_cast<size_t>(r);
+  }
+  return true;
+}
+
+static bool write_all(int fd, const void *buf, size_t n) {
+  auto *p = static_cast<const uint8_t *>(buf);
+  while (n > 0) {
+    ssize_t r = write(fd, p, n);
+    if (r < 0 && errno == EINTR) continue;
     if (r <= 0) return false;
     p += r;
     n -= static_cast<size_t>(r);
@@ -58,7 +73,9 @@ static bool read_all(int fd, void *buf, size_t n) {
 
 static void child_died() {
   int status = 0;
-  if (child > 0 && waitpid(child, &status, 0) == child) {
+  pid_t r;
+  do r = child > 0 ? waitpid(child, &status, 0) : -1; while (r < 0 && errno == EINTR);
+  if (r == child) {
     if (WIFSIGNALED(status))
       fprintf(stderr, "nino-libfuzzer: the target died of signal %d\n", WTERMSIG(status));
     else if (WIFEXITED(status))
@@ -139,7 +156,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   if (size > kMaxInput) return 0;
   memcpy(shared + kMapSize, data, size);
   int32_t length = static_cast<int32_t>(size);
-  if (write(control_fd, &length, sizeof length) != sizeof length) child_died();
+  if (!write_all(control_fd, &length, sizeof length)) child_died();
   int32_t status;
   if (!read_all(status_fd, &status, sizeof status)) child_died();
   memcpy(extra_counters, shared, kMapSize);

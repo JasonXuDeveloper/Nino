@@ -11,8 +11,9 @@ namespace Nino.Fuzz
         const string Usage = @"Nino.Fuzz: fuzzes Nino's deserializer (README.md).
 
   fuzz [options]                 fuzz every target (or --targets) in worker processes, then run the probes
-  repro <target> <file> [--placement end|start|heap] [--reuse] [--prime <file>]
-                                 run one input as the fuzzer did; exit 1 when it is still a finding
+  repro <target> <file> [--placement end|start|heap] [--reuse] [--prime <file>] [--minimize]
+                                 run one input as the fuzzer did; exit 1 when it is still a finding;
+                                 --minimize writes the smallest input with the same finding to <file>.min
   probes [name ...] [--strict-known]
                                  run the hand-made probes (stack depth, hash collisions)
   list                           list the targets and probes
@@ -119,7 +120,7 @@ Exit code: 0 no findings, 1 findings (or failed probes), 2 bad arguments.";
             var target = Targets.Find(args[0]);
             var data = File.ReadAllBytes(args[1]);
             var placement = Placement.End;
-            bool reuse = false, quiet = false;
+            bool reuse = false, quiet = false, minimize = false;
             byte[] prime = null;
             for (int i = 2; i < args.Count; i++)
             {
@@ -129,6 +130,7 @@ Exit code: 0 no findings, 1 findings (or failed probes), 2 bad arguments.";
                     case "--reuse": reuse = true; break;
                     case "--prime": prime = File.ReadAllBytes(args[++i]); reuse = true; break;
                     case "--quiet": quiet = true; break;
+                    case "--minimize": minimize = true; break;
                     default: throw new ArgumentException("unknown option " + args[i]);
                 }
             }
@@ -138,6 +140,16 @@ Exit code: 0 no findings, 1 findings (or failed probes), 2 bad arguments.";
                 Console.WriteLine($"  {Findings.Environment()}");
             }
             var outcome = Executor.Run(target, data, placement, reuse, prime, new Limits());
+            if (minimize && outcome.Kind == OutcomeKind.Finding)
+            {
+                var signature = outcome.Signature;
+                var min = Findings.Minimize(data, d => Executor.Run(target, d, placement, reuse, prime, new Limits()) is { Kind: OutcomeKind.Finding } r && r.Signature == signature,
+                    TimeSpan.FromSeconds(60), 20000, out var note);
+                var path = args[1] + ".min";
+                File.WriteAllBytes(path, min);
+                Console.WriteLine($"minimized to {min.Length} bytes {note}: {path}\n{(min.Length <= 4096 ? Convert.ToHexString(min) : "")}");
+                outcome = Executor.Run(target, min, placement, reuse, prime, new Limits());
+            }
             if (!quiet)
             {
                 Console.WriteLine(outcome.Kind == OutcomeKind.Finding ? $"FINDING {outcome.Signature}\n{outcome.Details}" :

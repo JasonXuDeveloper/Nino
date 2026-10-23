@@ -33,8 +33,10 @@ For each input, the fuzzer:
   - `INVARIANT`: a collection in the result that breaks its own invariants through its public API (`Invariants.cs`:
     Count against enumeration, every item found again by lookup, sorted collections in order, linked lists without
     loops). These catch collections Nino builds from their internals;
-  - `WRITE`, `REREAD`, `REWRITE`, `ROUNDTRIP`: Nino cannot write what it read, or cannot read that back to the same
-    bytes.
+  - `WRITE`, `REREAD`, `REWRITE`, `ROUNDTRIP`: Nino cannot write what it read, or what it reads back differs. The
+    comparison is of the bytes, then, when they differ, of the values with the items of hash sets and dictionaries
+    sorted: a rebuilt `ConcurrentDictionary` enumerates in another order (it depends on its growth), and that is
+    not a finding.
 
 Each finding is minimized (chunks removed, then bytes zeroed, while the same signature still shows) and saved once per
 signature in `findings/<target>/<kind>-<hash>/`:
@@ -84,7 +86,8 @@ dotnet run -c Release --project tests/Nino.Fuzz -- repro Colls tests/Nino.Fuzz/f
 
 `repro` runs the input once with the same checks and prints the outcome with the full exception; a crash kills the
 process as it did in the worker. Options: `--placement end|start|heap`, `--reuse` (read into a fresh sample),
-`--prime prime.bin` (read into the value of that input). To keep a finding fixed, copy the hex from `info.txt` into a
+`--prime prime.bin` (read into the value of that input), `--minimize` (writes the smallest input with the same
+finding next to the file, as `<file>.min`: for libFuzzer's crash files). To keep a finding fixed, copy the hex from `info.txt` into a
 unit test in `src/Nino.UnitTests/UntrustedInputTests.cs`.
 
 ## Known open bugs

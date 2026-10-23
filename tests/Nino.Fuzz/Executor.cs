@@ -126,14 +126,16 @@ namespace Nino.Fuzz
                 catch (Exception e) { return Finding("REREAD " + Describe(e), e); }
                 try { second = target.Write(back); }
                 catch (Exception e) { return Finding("REWRITE " + Describe(e), e); }
-                if (!first.AsSpan().SequenceEqual(second))
+                // Hash collections may enumerate in another order once rebuilt (ConcurrentDictionary's order depends
+                // on its growth): bytes that differ only by that are fine.
+                if (!first.AsSpan().SequenceEqual(second) && Invariants.Fingerprint(value) != Invariants.Fingerprint(back))
                 {
                     int at = 0;
                     while (at < first.Length && at < second.Length && first[at] == second[at]) at++;
                     return new Outcome
                     {
-                        Kind = OutcomeKind.Finding, Signature = "ROUNDTRIP bytes differ",
-                        Details = $"write(read(input)) has {first.Length} bytes, write(read(write(read(input)))) {second.Length}; first difference at {at}\n" +
+                        Kind = OutcomeKind.Finding, Signature = "ROUNDTRIP value differs",
+                        Details = $"the values differ (not only by the order of hash collections); write(read(input)) has {first.Length} bytes, write(read(write(read(input)))) {second.Length}; first difference at {at}\n" +
                                   $"first:  {Hex(first, at)}\nsecond: {Hex(second, at)}",
                     };
                 }

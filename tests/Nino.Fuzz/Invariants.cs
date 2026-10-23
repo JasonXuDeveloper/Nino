@@ -74,6 +74,73 @@ namespace Nino.Fuzz
             }
         }
 
+        /// <summary>
+        /// A text that two equal values share: members in order, sequences in order, and the items of unordered
+        /// collections (hash sets and dictionaries, whose enumeration order depends on their history) sorted. Objects
+        /// met again (cycles, shared references) are written as a back reference.
+        /// </summary>
+        public static string Fingerprint(object root)
+        {
+            var sb = new System.Text.StringBuilder();
+            Print(root, sb, new HashSet<object>(ReferenceEqualityComparer.Instance), 0);
+            return sb.ToString();
+        }
+
+        static void Print(object o, System.Text.StringBuilder sb, HashSet<object> seen, int depth)
+        {
+            if (o == null) { sb.Append("null"); return; }
+            var t = o.GetType();
+            if (o is string str) { sb.Append('"').Append(str.Replace("\\", "\\\\").Replace("\"", "\\\"")).Append('"'); return; }
+            if (t.IsPrimitive || t.IsEnum || o is decimal) { sb.Append(Convert.ToString(o, System.Globalization.CultureInfo.InvariantCulture)); return; }
+            if (depth > MaxDepth) { sb.Append("..."); return; }
+            if (!t.IsValueType && !seen.Add(o)) { sb.Append("<ref ").Append(Name(t)).Append('>'); return; }
+            if (IsDefaultStruct(o)) { sb.Append("default"); return; }
+            sb.Append(Name(t));
+            if (o is IEnumerable e)
+            {
+                var items = new List<string>();
+                foreach (var x in e)
+                {
+                    var item = new System.Text.StringBuilder();
+                    Print(x, item, seen, depth + 1);
+                    items.Add(item.ToString());
+                }
+                if (IsUnordered(t)) items.Sort(StringComparer.Ordinal);
+                sb.Append('[').Append(string.Join(",", items)).Append(']');
+                return;
+            }
+            if (IsOwnType(t) || IsTupleLike(t) || t.IsGenericType && t.GetGenericTypeDefinition() == typeof(KeyValuePair<,>))
+            {
+                sb.Append('{');
+                foreach (var f in t.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    sb.Append(f.Name).Append('=');
+                    Print(f.GetValue(o), sb, seen, depth + 1);
+                    sb.Append(';');
+                }
+                sb.Append('}');
+                return;
+            }
+            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Lazy<>))
+            {
+                sb.Append('(');
+                Print(t.GetProperty("Value").GetValue(o), sb, seen, depth + 1);
+                sb.Append(')');
+                return;
+            }
+            sb.Append('(').Append(Convert.ToString(o, System.Globalization.CultureInfo.InvariantCulture)).Append(')');
+        }
+
+        static bool IsUnordered(Type t)
+        {
+            if (t.Name.StartsWith("Sorted", StringComparison.Ordinal) || t.Name.StartsWith("ImmutableSorted", StringComparison.Ordinal)) return false;
+            if (typeof(IDictionary).IsAssignableFrom(t)) return true;
+            return t.GetInterfaces().Any(i => i.IsGenericType &&
+                (i.GetGenericTypeDefinition() == typeof(ISet<>) || i.GetGenericTypeDefinition() == typeof(IReadOnlySet<>) ||
+                 i.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>))) ||
+                t.IsGenericType && t.GetGenericTypeDefinition() == typeof(System.Collections.Concurrent.ConcurrentBag<>);
+        }
+
         static bool IsOwnType(Type t) =>
             t.Assembly == typeof(Invariants).Assembly || t.Assembly == typeof(Golden.GoldenCorpus).Assembly;
 
