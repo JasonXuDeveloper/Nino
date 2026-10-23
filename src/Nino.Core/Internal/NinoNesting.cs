@@ -60,7 +60,7 @@ namespace Nino.Core
             {
                 // A [NinoType] (class Tree : List<Tree>, generated) counts its own body already.
                 if (next == type)
-                    return !NinoFormatterResolver.IsNinoType(type);
+                    return !NinoReflection.IsNinoType(type);
                 if (!Ends(next) && seen.Add(next))
                     pending.Push(next);
                 return false;
@@ -74,7 +74,7 @@ namespace Nino.Core
 
         /// <summary>The element types of the <c>IEnumerable&lt;T&gt;</c>s <paramref name="type"/> implements.</summary>
         [UnconditionalSuppressMessage("Trimming", "IL2070",
-            Justification = NinoFormatterResolver.InterfacesJustification)]
+            Justification = NinoReflection.InterfacesJustification)]
         private static IEnumerable<Type> Elements(Type type)
         {
             if (type.IsInterface && type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>))

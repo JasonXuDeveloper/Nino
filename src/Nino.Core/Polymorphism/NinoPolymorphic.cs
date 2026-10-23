@@ -280,14 +280,14 @@ namespace Nino.Core
             Justification = NinoFormatterResolver.ValueTypeConstraintJustification)]
         private static bool RegisterGeneric(Type type)
         {
-            if (!NinoFormatterResolver.IsNinoType(type))
+            if (!NinoReflection.IsNinoType(type))
                 return false;
 
             // The formatter definition of a generic [NinoType] is an [assembly: NinoFormatter] registration.
             var formatter = NinoFormatterResolver.GetFormatterType(type);
             if (formatter == null || !typeof(INinoBodyFormatter<>).MakeGenericType(type).IsAssignableFrom(formatter))
                 return false;
-            var handler = !type.IsValueType && IsTracked(type)
+            var handler = !type.IsValueType && NinoReflection.IsTracked(type)
                 ? typeof(TrackedSubtypeHandler<,>)
                 : typeof(SubtypeHandler<,>);
             NinoPolymorphic<object>.Register((NinoSubtypeHandler)Activator.CreateInstance(
@@ -304,37 +304,12 @@ namespace Nino.Core
             foreach (var type in NinoFormatterCache.RegisteredTypes)
             {
                 if (type.IsGenericType && !type.IsAbstract && !type.IsInterface &&
-                    NinoTypeId.Of(type) == id && NinoFormatterResolver.IsNinoType(type))
+                    NinoTypeId.Of(type) == id && NinoReflection.IsNinoType(type))
                     return Register(type);
             }
 
             return false;
         }
-
-        /// <summary>Whether the type, a base class or an interface is marked <c>trackReferences</c> (as in the generator).</summary>
-        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = NinoFormatterResolver.InterfacesJustification)]
-        private static bool IsTracked(Type type)
-        {
-            for (var t = type; t != null; t = t.BaseType)
-            {
-                if (TrackReferences(t))
-                    return true;
-            }
-
-            foreach (var i in type.GetInterfaces())
-            {
-                if (TrackReferences(i))
-                    return true;
-            }
-
-            return false;
-        }
-
-        private static bool TrackReferences(Type type) =>
-            System.Attribute.GetCustomAttribute(type, typeof(NinoTypeAttribute), false) is NinoTypeAttribute
-            {
-                TrackReferences: true
-            };
     }
 
     /// <summary>

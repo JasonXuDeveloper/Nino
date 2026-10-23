@@ -20,7 +20,7 @@ public struct PredicateNinoStruct
 
 /// <summary>
 /// NativeAOT decides which unregistered unmanaged types are raw with the resolver's own rule
-/// (NinoFormatterResolver.IsRawShape), so a type is raw with or without dynamic code.
+/// (NinoReflection.IsRawShape), so a type is raw with or without dynamic code.
 /// </summary>
 [TestClass]
 public class RawPredicateTests
@@ -36,12 +36,12 @@ public class RawPredicateTests
         };
         foreach (var type in raw)
         {
-            Assert.IsTrue(NinoFormatterResolver.IsRawShape(type), type.Name);
-            Assert.IsTrue(NinoFormatterResolver.IsRawUnmanaged(type), type.Name);
+            Assert.IsTrue(NinoReflection.IsRawShape(type), type.Name);
+            Assert.IsTrue(NinoReflection.IsRawUnmanaged(type), type.Name);
         }
 
         foreach (var type in notRaw)
-            Assert.IsFalse(NinoFormatterResolver.IsRawShape(type), type.Name);
+            Assert.IsFalse(NinoReflection.IsRawShape(type), type.Name);
         // Generic structs that are not [NinoType]s were left out under NativeAOT only; the resolver writes them raw.
         var pair = new PlainGenericPair<int> { A = 1, B = 2 };
         CollectionAssert.AreEqual(new byte[] { 1, 0, 0, 0, 2, 0, 0, 0 },

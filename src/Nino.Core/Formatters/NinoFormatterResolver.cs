@@ -36,14 +36,6 @@ namespace Nino.Core
             NinoUnload.With(new HashSet<Assembly>(), assembly => RemoveAssembly(assembly));
         private static Rules _rules = Rules.Empty.With(typeof(NinoFormatterResolver).Assembly);
 
-        // Every ValueTuple definition (8 = with a nested TRest): tuples have their own format, never raw.
-        private static readonly HashSet<Type> ValueTuples = new HashSet<Type>
-        {
-            typeof(ValueTuple<>), typeof(ValueTuple<,>), typeof(ValueTuple<,,>), typeof(ValueTuple<,,,>),
-            typeof(ValueTuple<,,,,>), typeof(ValueTuple<,,,,,>), typeof(ValueTuple<,,,,,,>),
-            typeof(ValueTuple<,,,,,,,>)
-        };
-
         /// <summary>Adds the formatter registrations of <paramref name="assembly"/> (once).</summary>
         internal static void AddAssembly(Assembly assembly)
         {
@@ -74,49 +66,11 @@ namespace Nino.Core
             }
         }
 
-        /// <summary>
-        /// Whether <paramref name="type"/> is a <c>[NinoType]</c>, directly or through the nearest attributed base type
-        /// or an attributed interface that allows inheritance (as in the generator).
-        /// </summary>
-        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = InterfacesJustification)]
-        internal static bool IsNinoType(Type type)
-        {
-            if (Attribute(type) != null)
-                return true;
-            for (var t = type.BaseType; t != null; t = t.BaseType)
-            {
-                if (Attribute(t) is { } attribute)
-                {
-                    if (attribute.AllowInheritance)
-                        return true;
-                    break;
-                }
-            }
-
-            foreach (var i in type.GetInterfaces())
-            {
-                if (Attribute(i) is { AllowInheritance: true })
-                    return true;
-            }
-
-            return false;
-        }
-
-        /// <summary>Why reading the interfaces of a runtime type is safe after trimming.</summary>
-        internal const string InterfacesJustification =
-            "Looks for interfaces of a type the program uses (it holds a value of it or names it). The trimmer keeps " +
-            "an interface implementation on every instantiated type whose interface is kept; the interfaces that " +
-            "matter here are kept: a [NinoType] interface by its generated formatter, the collection interfaces " +
-            "that formatter constraints name by Nino.Core's formatters.";
-
         /// <summary>Why the struct and unmanaged constraints of Nino's own generic types are met after trimming.</summary>
         internal const string ValueTypeConstraintJustification =
             "The struct (or unmanaged) constraint makes the trimmer ask for the public parameterless constructor of " +
             "the type argument, a value type here. A value type is always creatable without one, and Nino only uses " +
             "these arguments as default(T) and as unmanaged values, never through a constructor.";
-
-        private static NinoTypeAttribute Attribute(Type type) =>
-            (NinoTypeAttribute)System.Attribute.GetCustomAttribute(type, typeof(NinoTypeAttribute), false);
 
         /// <summary>
         /// Returns a struct type implementing <c>INinoFormatter&lt;type&gt;</c>, or null if Nino cannot format the
@@ -139,7 +93,7 @@ namespace Nino.Core
             var registered = NinoFormatterCache.Get(type);
             if (registered?.StructType != null)
                 return registered.StructType;
-            if (registered != null || IsNinoType(type))
+            if (registered != null || NinoReflection.IsNinoType(type))
                 return typeof(CachedFormatter<>).MakeGenericType(type);
             // A collection of itself (class Tree : List<Tree>) reaches its own type again while its formatter is
             // built: resolved at run time there, as the generator does.
@@ -150,53 +104,6 @@ namespace Nino.Core
 
         /// <summary>The types whose formatter this thread is building (<see cref="Build"/>).</summary>
         [ThreadStatic] private static HashSet<Type> t_building;
-
-        /// <summary>
-        /// Whether values of <paramref name="type"/> are written as their raw bytes, as the generator decides it
-        /// (RawRules.IsRawUnmanaged): a formatter parameter marked <see cref="NinoRawAttribute"/> binds the same types
-        /// here as in generated code, so both write the same bytes (a <c>T?[]</c> of a raw <c>[NinoType]</c> struct at
-        /// its fixed stride, for one).
-        /// </summary>
-        internal static bool IsRawUnmanaged(Type type)
-        {
-            if (type.IsPointer || type.IsGenericParameter || !NinoUnsafe.IsUnmanaged(type))
-                return false;
-            return IsNinoType(type) ? IsRawStruct(type) : IsRawShape(type);
-        }
-
-        /// <summary>
-        /// <see cref="IsRawUnmanaged"/> of an unmanaged type that is not a <c>[NinoType]</c>, and false for a
-        /// <c>[NinoType]</c>: the rule NativeAOT applies too (NinoFormatterCache's CreateWithoutDynamicCode), where an
-        /// unmanaged type that generated code did not register can only be raw. Pointer-sized values are written as 8
-        /// bytes, and Nullable, KeyValuePair, the value tuples and DateTimeOffset have formats of their own.
-        /// </summary>
-        internal static bool IsRawShape(Type type)
-        {
-            if (type == typeof(IntPtr) || type == typeof(UIntPtr) || type == typeof(DateTimeOffset) || IsNinoType(type))
-                return false;
-            if (type.IsGenericType)
-            {
-                var definition = type.GetGenericTypeDefinition();
-                if (definition == typeof(Nullable<>) || definition == typeof(KeyValuePair<,>) ||
-                    ValueTuples.Contains(definition))
-                    return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Whether a <c>[NinoType]</c> struct is written as its raw memory: its generated formatter says so
-        /// (<see cref="INinoRawFormatter"/>, which the generator declares for the structs it copies as one block).
-        /// </summary>
-        private static bool IsRawStruct(Type type)
-        {
-            if (!type.IsValueType)
-                return false;
-            NinoRegistry.RegisterType(type);
-            var formatter = NinoFormatterCache.Get(type)?.StructType;
-            return formatter != null && typeof(INinoRawFormatter).IsAssignableFrom(formatter);
-        }
 
         [RequiresDynamicCode(DynamicCodeMessage)]
         private static Type Build(Type type, bool topLevel)
@@ -242,9 +149,9 @@ namespace Nino.Core
             if (registered != null)
                 return registered;
 
-            if (IsNinoType(type))
+            if (NinoReflection.IsNinoType(type))
                 return null; // use the registered formatter through CachedFormatter<T>
-            if (IsRawUnmanaged(type))
+            if (NinoReflection.IsRawUnmanaged(type))
                 return typeof(UnmanagedFormatter<>).MakeGenericType(type);
             return FirstMatch(rules.Open, type);
         }
@@ -413,7 +320,7 @@ namespace Nino.Core
                 // `unmanaged` is C#'s; [NinoRaw] means "copied as raw memory", which is stricter.
                 if (IsUnmanagedConstrained(parameter) && (!type.IsValueType || !NinoUnsafe.IsUnmanaged(type)))
                     return false;
-                if (parameter.IsDefined(typeof(NinoRawAttribute), false) && !IsRawUnmanaged(type))
+                if (parameter.IsDefined(typeof(NinoRawAttribute), false) && !NinoReflection.IsRawUnmanaged(type))
                     return false;
                 if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0 &&
                     !type.IsValueType && (type.IsAbstract || type.GetConstructor(Type.EmptyTypes) == null))
@@ -574,7 +481,7 @@ namespace Nino.Core
 
             public Type BaseType(Type type) => type.BaseType;
 
-            [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = InterfacesJustification)]
+            [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = NinoReflection.InterfacesJustification)]
             public IEnumerable<Type> Interfaces(Type type) => type.GetInterfaces();
 
             // MakeArray and Construct are only reached from Rule.Bind (RequiresDynamicCode); the checks state it for

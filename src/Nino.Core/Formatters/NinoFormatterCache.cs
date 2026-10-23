@@ -98,11 +98,11 @@ namespace Nino.Core
             if (typeof(T) == typeof(object))
                 return (NinoFormatter<T>)(object)new StructFormatter<object, ObjectFormatter>();
             // A constant per T: reference types (and structs holding references) compile none of this. The rest by
-            // the resolver's rule (NinoFormatterResolver.IsRawShape), so a type is raw here exactly when it is with
+            // the resolver's rule (NinoReflection.IsRawShape), so a type is raw here exactly when it is with
             // dynamic code: [NinoType] structs (registered by their generated code, RegisterType above, when they
             // exist), pointer-sized values and the types with a format of their own are left out; other generic
             // structs are raw, as everywhere else.
-            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoFormatterResolver.IsRawShape(typeof(T)))
+            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoReflection.IsRawShape(typeof(T)))
                 return new StructFormatter<T, RawValueFormatter<T>>();
             return null;
         }
