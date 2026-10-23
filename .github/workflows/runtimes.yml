@@ -22,6 +22,7 @@ on:
       - 'conformance/**'
       - '.github/workflows/runtimes.yml'
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -122,3 +123,60 @@ jobs:
           name: go-fuzz-failures-${{ matrix.go }}
           path: runtimes/go/**/testdata/fuzz
           if-no-files-found: ignore
+
+  rust:
+    name: Rust
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: runtimes/rust
+    env:
+      CARGO_TERM_COLOR: always
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Toolchains (stable, and the MSRV from Cargo.toml)
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup default stable
+          msrv=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)
+          rustup toolchain install "$msrv" --profile minimal
+          echo "MSRV=$msrv" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            runtimes/rust/target
+          key: rust-${{ hashFiles('runtimes/rust/Cargo.lock') }}
+          restore-keys: rust-
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-features --all-targets --locked -- -D warnings
+
+      # A missing corpus fails the conformance tests once the corpus is in the repository.
+      - name: Corpus
+        run: |
+          if [ -d ../../conformance/corpus ]; then echo "NINO_CORPUS_REQUIRED=1" >> "$GITHUB_ENV"; fi
+
+      - name: Test
+        run: cargo test --workspace --all-features --locked
+
+      - name: Test without features
+        run: cargo test -p nino-runtime --locked --lib --test spec --test values
+
+      # The crate has no unsafe code (#![forbid(unsafe_code)]), so there is nothing for Miri to check. The fuzz is
+      # the mutational one in tests/conformance.rs (cargo-fuzz needs nightly), longer and optimized here.
+      - name: Fuzz (short)
+        env:
+          NINO_FUZZ_ITERATIONS: 20000
+        run: cargo test --release --all-features --locked --test conformance mutational_fuzz -- --nocapture
+
+      - name: MSRV
+        run: cargo +"$MSRV" check --workspace --all-features --all-targets --locked
