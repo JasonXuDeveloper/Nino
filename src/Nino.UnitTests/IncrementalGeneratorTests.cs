@@ -102,6 +102,37 @@ public class IncrementalGeneratorTests
     }
 
     [TestMethod]
+    public void CallsThroughAliasesAndUsingStaticAreRegistered()
+    {
+        // The receiver is matched by symbol: an alias (here or global, in another file) or using static names it too.
+        var compilation = Create(
+            ("Global.cs", "global using G = Nino.Core.NinoDeserializer;"),
+            ("Calls.cs", @"using S = Nino.Core.NinoSerializer;
+using static Nino.Core.NinoDeserializer;
+using System.Collections.Generic;
+namespace Inc {
+public static class Calls
+{
+    public static byte[] Write(List<int> x) => S.Serialize(x);
+    public static List<long> Read(byte[] b) => Deserialize<List<long>>(b);
+    public static List<short> ReadGlobal(byte[] b) => G.Deserialize<List<short>>(b);
+    public static List<byte> NotNino(byte[] b) => Other.Deserialize<List<byte>>(b);
+}
+public static class Other { public static T Deserialize<T>(byte[] b) => default; }
+}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
+        var usages = driver.GetRunResult().Results[0].GeneratedSources
+            .Single(s => s.HintName == "NinoGen.Usages.g.cs").SourceText.ToString();
+        StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<int>>");
+        StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<long>>");
+        StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<short>>");
+        Assert.IsFalse(usages.Contains("List<byte>"), usages);
+    }
+
+    [TestMethod]
     public void SubtypesOfAliasedNinoTypesAreGenerated()
     {
         var compilation = Create(

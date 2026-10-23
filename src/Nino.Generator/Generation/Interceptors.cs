@@ -83,8 +83,11 @@ internal static class Interceptors
             return null;
         string attribute = $"{location.Version}, \"{location.Data}\"";
 #else
-        var access = (MemberAccessExpressionSyntax)invocation.Expression;
-        var position = access.Name.Identifier.GetLocation().GetLineSpan().StartLinePosition;
+        // The method name: after the receiver, or alone (using static).
+        var name = invocation.Expression is MemberAccessExpressionSyntax access
+            ? access.Name
+            : (SimpleNameSyntax)invocation.Expression;
+        var position = name.Identifier.GetLocation().GetLineSpan().StartLinePosition;
         string path = invocation.SyntaxTree.FilePath;
         if (path.Length == 0)
             return null;

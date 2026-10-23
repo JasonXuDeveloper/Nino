@@ -105,16 +105,11 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 x.Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)));
 
         // The top-level NinoSerializer/NinoDeserializer calls, bound once for what they register and (Roslyn 4.8+)
-        // how they are intercepted. Receiver checked syntactically too: binding every Serialize call of other
-        // libraries (JsonSerializer...) on each edit is not free.
+        // how they are intercepted. Narrowed by syntax first (binding every Serialize call of other libraries on each
+        // edit is not free), to the receivers that may name them: NinoSerializer or NinoDeserializer, an identifier
+        // (a using alias), or none (using static); the bound method decides.
         var calls = context.SyntaxProvider.CreateSyntaxProvider(
-                static (node, _) => node is InvocationExpressionSyntax
-                {
-                    Expression: MemberAccessExpressionSyntax
-                    {
-                        Name.Identifier.ValueText: "Serialize" or "Deserialize"
-                    } access
-                } && IsNinoReceiver(access.Expression),
+                static (node, _) => node is InvocationExpressionSyntax invocation && MayCallNino(invocation),
                 static (ctx, ct) => TransformCall(ctx, ct))
             .WithTrackingName("TopLevelCall")
             .Where(static c => c != null)
@@ -238,6 +233,23 @@ public sealed class NinoGenerator : IIncrementalGenerator
         Func<UsageRegistration, IEnumerable<T>> fromUsage, Func<IEnumerable<T>, IEnumerable<T>> order) =>
         usages.Combine(models).Select((x, _) => new EquatableArray<T>(
             order(x.Left.SelectMany(fromUsage).Concat(x.Right.SelectMany(static a => a)).Distinct())));
+
+    /// <summary>
+    /// Whether <paramref name="invocation"/> may call <c>NinoSerializer.Serialize</c> or
+    /// <c>NinoDeserializer.Deserialize</c>, from syntax alone: the method is named so, and is called on a type named
+    /// <c>NinoSerializer</c> or <c>NinoDeserializer</c> (qualified or not), on an identifier (which may be a
+    /// <c>using</c> alias of one, declared in any file), or without a receiver (<c>using static</c>).
+    /// </summary>
+    private static bool MayCallNino(InvocationExpressionSyntax invocation) => invocation.Expression switch
+    {
+        MemberAccessExpressionSyntax { Name: var name, Expression: var receiver } =>
+            IsTopLevelMethod(name) && (receiver is IdentifierNameSyntax || IsNinoReceiver(receiver)),
+        SimpleNameSyntax name => IsTopLevelMethod(name),
+        _ => false,
+    };
+
+    private static bool IsTopLevelMethod(SimpleNameSyntax name) =>
+        name.Identifier.ValueText is "Serialize" or "Deserialize";
 
     private static bool IsNinoReceiver(ExpressionSyntax receiver)
     {
