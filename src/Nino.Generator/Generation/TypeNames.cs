@@ -384,45 +384,4 @@ internal static class TypeNames
 
     /// <summary>The suffix that names a formatter's <c>__Shallow</c> twin (<c>TypeModel.Shallow</c>).</summary>
     public const string Shallow = ".__Shallow";
-
-    /// <summary>
-    /// <paramref name="formatter"/> with the generated formatters in <paramref name="tops"/> replaced by their
-    /// <c>__Top</c> twins and those in <paramref name="shallow"/> by their <c>__Shallow</c> twins (see
-    /// <see cref="WithTwin"/>).
-    /// </summary>
-    internal static string WithTwins(string formatter, HashSet<string> tops, HashSet<string> shallow) =>
-        WithTwin(WithTwin(formatter, tops, Top), shallow, Shallow);
-
-    /// <summary>
-    /// <paramref name="formatter"/> with the generated formatters in <paramref name="names"/> replaced by their nested
-    /// twin <paramref name="suffix"/> (<c>.__Top</c>, <c>.__Shallow</c>): the formatter itself, or the element
-    /// formatters it is composed of (whole type arguments of built-in collection, nullable and tuple formatters;
-    /// generated formatters take no formatter type arguments, and a generic one is never replaced).
-    /// </summary>
-    internal static string WithTwin(string formatter, HashSet<string> names, string suffix)
-    {
-        if (names.Count == 0)
-            return formatter;
-        if (names.Contains(formatter))
-            return formatter + suffix;
-        var result = new StringBuilder(formatter.Length);
-        int i = 0;
-        while (true)
-        {
-            int start = formatter.IndexOf(Gen, i, System.StringComparison.Ordinal);
-            if (start < 0)
-                break;
-            int end = start + Gen.Length;
-            while (end < formatter.Length && (char.IsLetterOrDigit(formatter[end]) || formatter[end] == '_'))
-                end++;
-            result.Append(formatter, i, end - i);
-            // A whole type argument: followed by ',' or '>' (not a generic formatter or a nested name).
-            if (end < formatter.Length && formatter[end] is ',' or '>' &&
-                names.Contains(formatter.Substring(start, end - start)))
-                result.Append(suffix);
-            i = end;
-        }
-
-        return result.Append(formatter, i, formatter.Length - i).ToString();
-    }
 }

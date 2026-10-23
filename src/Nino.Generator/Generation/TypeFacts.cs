@@ -332,14 +332,14 @@ internal sealed class TypeFacts
     /// <paramref name="formatter"/> (resolved as <paramref name="resolved"/>) with the generated formatters it is
     /// composed of replaced by their twins (<see cref="ShallowTwin"/>).
     /// </summary>
-    public string ShallowFormatter(string formatter, ResolvedFormatter resolved, bool utf8)
+    public FormatterRef ShallowFormatter(FormatterRef formatter, ResolvedFormatter resolved, bool utf8)
     {
         if (!resolved.OpensBodies)
             return formatter;
         var tops = new HashSet<string>();
         var shallow = new HashSet<string>();
         CollectShallow(resolved, utf8, tops, shallow, 0);
-        return TypeNames.WithTwins(formatter, tops, shallow);
+        return formatter.WithTwins(tops, shallow);
     }
 
     private void CollectShallow(ResolvedFormatter resolved, bool utf8, HashSet<string> tops, HashSet<string> shallow,
@@ -351,7 +351,7 @@ internal sealed class TypeFacts
         {
             var twin = ShallowTwin(body);
             if (twin != null)
-                (twin == TypeNames.Top ? tops : shallow).Add(resolved.Code);
+                (twin == TypeNames.Top ? tops : shallow).Add(resolved.Code.Name);
             return;
         }
 

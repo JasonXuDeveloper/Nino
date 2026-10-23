@@ -54,7 +54,7 @@ internal static class Interceptors
         if (raw && SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer) &&
             method.Name == "Deserialize" && method.Parameters.Length == 1 &&
             method.Parameters[0].Type is INamedTypeSymbol { Name: "ReadOnlySpan" })
-            return Intercept(ctx, invocation, method, type, "DeserializeRaw", "", ct);
+            return Intercept(ctx, invocation, method, type, "DeserializeRaw", null, ct);
         if (raw || type is IArrayTypeSymbol { ElementType: var element } && facts.Raw.IsRawUnmanaged(element))
             return null;
         // Only the formatters known here: a cached one is what the regular call uses anyway.
@@ -72,11 +72,11 @@ internal static class Interceptors
 
     /// <summary>
     /// The interceptor of <paramref name="invocation"/>: a call to the <c>NinoDirect</c> method
-    /// <paramref name="target"/> with <paramref name="formatter"/> (none when empty), passing the arguments on. Only
+    /// <paramref name="target"/> with <paramref name="formatter"/> (none when null), passing the arguments on. Only
     /// a call to the method of the same name may use the <c>__Top</c> twins (<see cref="InterceptedCall.Inlinable"/>).
     /// </summary>
     private static InterceptedCall? Intercept(GeneratorSyntaxContext ctx, InvocationExpressionSyntax invocation,
-        IMethodSymbol method, ITypeSymbol type, string target, string formatter, CancellationToken ct)
+        IMethodSymbol method, ITypeSymbol type, string target, FormatterRef? formatter, CancellationToken ct)
     {
 #if ROSLYN4_12
         if (ctx.SemanticModel.GetInterceptableLocation(invocation, ct) is not { } location)
@@ -136,7 +136,7 @@ internal static class Interceptors
 
     /// <summary>
     /// The call of an <see cref="InterceptedCall.Inlinable"/> call with the twins of its formatter
-    /// (<see cref="TypeNames.WithTwins"/>): the formatter itself, or the element formatters it is composed of (type
+    /// (<see cref="FormatterRef.WithTwins"/>): the formatter itself, or the element formatters it is composed of (type
     /// arguments of built-in collection, nullable and tuple formatters). Those are called with no class body open, as
     /// the formatter is, since only generated bodies open one and generated formatters take no formatter type
     /// arguments; and a <c>__Top</c> twin writes and reads the same bytes as its formatter wherever no class body is
@@ -148,14 +148,16 @@ internal static class Interceptors
     /// </summary>
     private static string WithTopCall(InterceptedCall c, HashSet<string> tops, HashSet<string> shallow)
     {
-        string method = !tops.Contains(c.Formatter) ? c.Method : c.Method switch
+        string method = c.Formatter is not { Generated: true, Args.Length: 0 } f || !tops.Contains(f.Name)
+            ? c.Method
+            : c.Method switch
         {
             "Serialize" => "SerializeTop",
             // Deserialize(data) returning a new value; not Deserialize(data, ref value), which reads into an instance.
             "Deserialize" when c.Arguments == "a0" => "DeserializeTop",
             _ => c.Method,
         };
-        return c.CallWith(method, TypeNames.WithTwins(c.Formatter, tops, shallow));
+        return c.CallWith(method, c.Formatter?.WithTwins(tops, shallow));
     }
 
     /// <summary>

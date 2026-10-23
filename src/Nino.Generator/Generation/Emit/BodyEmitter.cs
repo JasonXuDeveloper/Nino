@@ -61,7 +61,7 @@ internal sealed class BodyEmitter
         _names.Use(_shallow ? member.ShallowFormatter : member.Formatter);
 
     private string CollectionFormatter => _m.Need(_shallow ? _m.ShallowCollectionFormatter : _m.CollectionFormatter,
-        nameof(_m.CollectionFormatter));
+        nameof(_m.CollectionFormatter)).ToString();
 
     private string BaseFormatter => _m.Need(_m.BaseFormatter, nameof(_m.BaseFormatter));
 
@@ -173,7 +173,7 @@ internal sealed class BodyEmitter
         }
 
         string signature = BodySignature("WriteBody", Signature.WriteParameters(T));
-        if (_m.EmitMembers && !_shallow && !Region && _m.CollectionFormatter.Length == 0)
+        if (_m.EmitMembers && !_shallow && !Region && !_m.IsCollection)
         {
             _w.Line($"{signature} => WriteMembers(value, ref writer);");
             _w.Line();
@@ -189,7 +189,7 @@ internal sealed class BodyEmitter
             // first, as positional ones).
             if (_m.Keyed)
                 _w.Line("int __length = writer.BeginRegion();");
-            if (_m.CollectionFormatter.Length != 0)
+            if (_m.IsCollection)
                 _w.Line($"default({CollectionFormatter}).Serialize(value, ref writer);");
             if (Tolerant)
                 _w.Line("int __length = writer.BeginRegion();");
@@ -328,7 +328,7 @@ internal sealed class BodyEmitter
     /// </summary>
     private bool TryEmitRegionWithBlock()
     {
-        if (Delegates || _m.CollectionFormatter.Length != 0)
+        if (Delegates || _m.IsCollection)
             return false;
         var groups = RawBlock.Groups(OwnMembers);
         if (groups.Count == 0 || groups[0][0].Raw == null)
@@ -631,7 +631,7 @@ internal sealed class BodyEmitter
         {
             string create = Create(_m);
             // The instance in a local (a collection formatter may replace value, so not for collections).
-            if (_m.CollectionFormatter.Length == 0)
+            if (!_m.IsCollection)
             {
                 ReadIntoLocal(create);
             }
@@ -655,7 +655,7 @@ internal sealed class BodyEmitter
         string outer = r;
         if (_m.Keyed)
             r = BeginRegionRead(r);
-        if (_m.CollectionFormatter.Length != 0)
+        if (_m.IsCollection)
             _w.Line($"default({CollectionFormatter}).Deserialize(ref value, ref {r});");
         if (Tolerant)
             r = BeginRegionRead(r);

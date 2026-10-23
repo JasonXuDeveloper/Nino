@@ -111,7 +111,7 @@ internal static class ModelBuilder
         var collection = kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate
             ? shape.Collection
             : null;
-        string collectionFormatter = collection?.Code ?? "";
+        var collectionFormatter = collection?.Code;
         if (collection is { } c)
             factories.AddRange(c.Factories);
 
@@ -188,6 +188,7 @@ internal static class ModelBuilder
         bool instantiable = kind is FormatterKind.Class or FormatterKind.SealedClass;
         return new TypeModel(
             TypeName: Global(type),
+            OpenTypeName: generic ? OpenName(type) : Global(type),
             FormatterName: FormatterName(type),
             TypeParameters: new EquatableArray<string>(typeParameters.Select(p => p.Name)),
             Constraints: Constraints(typeParameters),
@@ -235,7 +236,7 @@ internal static class ModelBuilder
             FixedSize: !rawStruct && facts.IsFixedSize(type),
             DepthBound: bound,
             Shallow: shallow,
-            ShallowCollectionFormatter: collection is { } sc ? facts.ShallowFormatter(sc.Code, sc, false) : "",
+            ShallowCollectionFormatter: collection is { } sc ? facts.ShallowFormatter(sc.Code, sc, false) : null,
             FreshRead: kind == FormatterKind.SealedClass && !construction.Recreate &&
                        construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
                        !attr.Keyed && members.Skip(baseMemberCount).Any(static m => m.Fresh) &&
@@ -261,7 +262,7 @@ internal static class ModelBuilder
         if (baseSymbols.Count > symbols.Count ||
             !baseSymbols.Select((x, i) => SymbolEqualityComparer.Default.Equals(x, symbols[i])).All(x => x))
             return 0;
-        baseFormatter = FormatterResolver.GeneratedFormatter(baseType);
+        baseFormatter = FormatterResolver.GeneratedFormatter(baseType).ToString();
         return baseSymbols.Count;
     }
 
@@ -428,9 +429,9 @@ internal static class ModelBuilder
             return null;
         var known = facts.Symbols;
 
-        string? formatter;
+        FormatterRef? formatter;
         string encoding = "";
-        string? shallowFormatter = null;
+        FormatterRef? shallowFormatter = null;
         bool registered = false;
         bool readsLoop = false;
         FormatterTraits traits;
@@ -439,8 +440,8 @@ internal static class ModelBuilder
         {
             if (!known.IsCustomFormatterOf(customType, memberType))
                 return null; // NINO008, reported by the analyzer
-            formatter = Global(customType);
-            encoding = WireEncoding.Formatter(formatter);
+            formatter = FormatterRef.Of(customType);
+            encoding = WireEncoding.Formatter(formatter.ToString());
             traits = FormatterTraitsOf.Of(customType);
         }
         else

@@ -15,20 +15,22 @@ internal sealed class FormatterNames
     /// </summary>
     private const int MinAliasedLength = 48;
 
-    private readonly Dictionary<string, string> _aliases = new();
-    private readonly HashSet<string> _used = new();
+    private readonly Dictionary<FormatterRef, string> _aliases = new();
+    private readonly HashSet<FormatterRef> _used = new();
     private string? _selfAlias, _self;
     private bool _inline;
 
     public FormatterNames(TypeModel m)
     {
         int index = 0;
-        // Formatters mentioning the type's own type parameters cannot be aliased outside the type.
-        foreach (var formatter in m.Members.Select(x => x.Formatter)
-                     .Concat(m.ShallowBodies ? m.Members.Select(x => x.ShallowFormatter) : Enumerable.Empty<string>())
-                     .Where(f => f.Length > MinAliasedLength && !MentionsAny(f, m.TypeParameters))
+        // Formatters naming the type's own type parameters (FormatterRef.Open) cannot be aliased outside the type.
+        foreach (var (formatter, _) in m.Members.Select(x => x.Formatter)
+                     .Concat(m.ShallowBodies ? m.Members.Select(x => x.ShallowFormatter) : Enumerable.Empty<FormatterRef>())
+                     .Where(f => !f.Open)
                      .Distinct()
-                     .OrderByDescending(f => f.Length))
+                     .Select(f => (f, Text: f.ToString()))
+                     .Where(f => f.Text.Length > MinAliasedLength)
+                     .OrderByDescending(f => f.Text.Length))
             _aliases[formatter] = "__NinoF" + index++;
     }
 
@@ -53,10 +55,10 @@ internal sealed class FormatterNames
     }
 
     /// <summary>The name to write for <paramref name="formatter"/>: its alias when it has one.</summary>
-    public string Use(string formatter)
+    public string Use(FormatterRef formatter)
     {
         if (!_aliases.TryGetValue(formatter, out var alias))
-            return formatter;
+            return formatter.ToString();
         _used.Add(formatter);
         return alias;
     }
@@ -83,24 +85,4 @@ internal sealed class FormatterNames
             sb.Append($"    using {pair.Value} = {pair.Key};\n");
         sb.Append('\n');
     }
-
-    private static bool MentionsAny(string text, IEnumerable<string> identifiers)
-    {
-        foreach (var id in identifiers)
-        {
-            int i = 0;
-            while ((i = text.IndexOf(id, i, System.StringComparison.Ordinal)) >= 0)
-            {
-                bool start = i == 0 || !IsIdentifierChar(text[i - 1]);
-                bool end = i + id.Length == text.Length || !IsIdentifierChar(text[i + id.Length]);
-                if (start && end)
-                    return true;
-                i += id.Length;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsIdentifierChar(char c) => char.IsLetterOrDigit(c) || c == '_' || c == '@';
 }

@@ -67,7 +67,7 @@ internal sealed record MemberModel(
     // Keys of its [NinoFormerName]s (keyed bodies only), also accepted when reading.
     EquatableArray<int> FormerKeys,
     string TypeName,
-    string Formatter,
+    FormatterRef Formatter,
     // Which formatter it is (FormatterTraits): strings are read and written directly, flat ones on local copies.
     FormatterTraits Traits,
     // How the member is written, for its published layout (ResolvedFormatter.Encoding, WireEncoding).
@@ -87,7 +87,7 @@ internal sealed record MemberModel(
     int TypeId,
     // The formatter with the generated formatters it is composed of replaced by their shallow twins (see
     // TypeFacts.ShallowTwin), for shallow bodies; the formatter itself when none has one.
-    string ShallowFormatter,
+    FormatterRef ShallowFormatter,
     // Whether a new instance (TypeModel.FreshRead) holds null in this member, which a Nino.Core formatter then reads
     // from a null local rather than from the member: a field or auto-property of a reference type without an
     // initializer, in a type whose constructors set nothing.
@@ -110,6 +110,8 @@ internal sealed record ConstructionModel(
 internal sealed record TypeModel(
     // Fully qualified type, e.g. "global::Ns.Outer.Box<T>".
     string TypeName,
+    // The type for typeof: a generic type as its open definition, e.g. "global::Ns.Outer.Box<>".
+    string OpenTypeName,
     // Formatter type name without type parameters, e.g. "Ns_Outer_Box_1Formatter".
     string FormatterName,
     // Type parameter names, outermost containing type first; empty for non-generic types.
@@ -129,8 +131,9 @@ internal sealed record TypeModel(
     bool TrackReferences,
     // Unmanaged struct written as its raw memory.
     bool RawStruct,
-    // For [NinoType] collections: the formatter of the elements, written before the members, and how it writes them.
-    string CollectionFormatter,
+    // For [NinoType] collections: the formatter of the elements, written before the members, and how it writes them;
+    // null for any other type.
+    FormatterRef? CollectionFormatter,
     string CollectionEncoding,
     // Whether static WriteMembers/ReadMembers are emitted so derived types can reuse them (classes whose
     // members are all directly accessible).
@@ -181,7 +184,7 @@ internal sealed record TypeModel(
     // its __Top twin as that, TypeFacts.ShallowTwin).
     bool Shallow,
     // CollectionFormatter with its element formatters' shallow twins.
-    string ShallowCollectionFormatter,
+    FormatterRef? ShallowCollectionFormatter,
     // Whether ReadBody reads a new instance (created by `new T()`, not taken from a pool or a factory) apart from
     // an existing one: its members are known to be null there (MemberModel.Fresh), so their formatters' reuse
     // paths fold away. Only for types whose members read no loop in the body (MemberModel.ReadsLoop): a second copy
@@ -216,6 +219,13 @@ internal sealed record TypeModel(
     public string Need(string value, string name) =>
         value.Length != 0 ? value : throw new System.InvalidOperationException($"{name} of {TypeName} is empty");
 
+    /// <inheritdoc cref="Need(string, string)"/>
+    public FormatterRef Need(FormatterRef? value, string name) =>
+        value ?? throw new System.InvalidOperationException($"{name} of {TypeName} is empty");
+
+    /// <summary>Whether the type is a <c>[NinoType]</c> collection, its elements written before its members.</summary>
+    public bool IsCollection => CollectionFormatter != null;
+
     /// <summary>Whether this type's formatter holds the dispatch of its hierarchy (emitted with the registry).</summary>
     public bool IsDispatchRoot => DispatchesSubtypes && DispatchRoot.Length == 0;
 
@@ -226,7 +236,7 @@ internal sealed record TypeModel(
     /// <summary>
     /// Whether the body is compiled on its own (it calls formatters): see <c>BodyEmitter</c>.
     /// </summary>
-    public bool OutOfLineBody => Members.Any(static x => x.Raw == null) || CollectionFormatter.Length != 0;
+    public bool OutOfLineBody => Members.Any(static x => x.Raw == null) || IsCollection;
 
     /// <summary>
     /// Whether the formatter has a <c>__Top</c> twin for the intercepted top-level calls, whose body is inlined into
@@ -246,7 +256,7 @@ internal sealed record TypeModel(
     /// </summary>
     public bool InlineBody => !IsGeneric && !TrackReferences && !RawStruct && !Nests &&
                               Kind is FormatterKind.Class or FormatterKind.SealedClass && !Keyed && !Tolerant &&
-                              BaseFormatter.Length == 0 && !SharedBase && CollectionFormatter.Length == 0 &&
+                              BaseFormatter.Length == 0 && !SharedBase && !IsCollection &&
                               Members.Length <= 8 && Members.Count(static x => x.Raw == null) is 1 or 2;
 
     /// <summary>
@@ -286,7 +296,7 @@ internal sealed record TypeModel(
     /// into the same reservation (one capacity check instead of two).
     /// </summary>
     public bool RawBody => Kind is FormatterKind.Class or FormatterKind.SealedClass && !RawStruct && !VersionTolerant &&
-                           !Keyed && !TrackReferences && CollectionFormatter.Length == 0 && Members.Length != 0 &&
+                           !Keyed && !TrackReferences && !IsCollection && Members.Length != 0 &&
                            Members.All(static x => x.Raw != null);
 
     /// <summary>
@@ -306,7 +316,7 @@ internal sealed record TypeModel(
     /// any other member would take its address or need a copy of it around the call, which costs more than the loads
     /// and stores the local saves.
     /// </summary>
-    public bool LocalWriter => LocalReader && CollectionFormatter.Length == 0 &&
+    public bool LocalWriter => LocalReader && !IsCollection &&
                                Members.All(static x => x.Raw != null || (x.Traits & FormatterTraits.Flat) != 0);
 
     /// <summary>
@@ -335,7 +345,7 @@ internal sealed record TypeModel(
 }
 
 // Id: runtime type id of the closed type (NinoTypeId), the key of lazy registration.
-internal sealed record FormatterRegistration(string TypeName, string Formatter, int Id);
+internal sealed record FormatterRegistration(string TypeName, FormatterRef Formatter, int Id);
 
 // A NinoActivator<T> creator: Creator is a lambda ("static () => new global::Ns.Bag()"); Id as above.
 internal sealed record FactoryRegistration(string TypeName, string Creator, int Id);
@@ -372,12 +382,12 @@ internal sealed record TopLevelCall(UsageRegistration? Usage, InterceptedCall? I
 /// formatter, or of the element formatters of a built-in collection (<c>List&lt;Small&gt;</c>,
 /// <c>Dictionary&lt;int, Small&gt;</c>), whose elements are read and written there too.
 /// </summary>
-internal sealed record InterceptedCall(string Signature, string Method, string TypeName, string Formatter,
+internal sealed record InterceptedCall(string Signature, string Method, string TypeName, FormatterRef? Formatter,
     string Arguments, string Location, bool Inlinable = false, string Where = "")
 {
     /// <summary>A call of the <c>NinoDirect</c> method <paramref name="method"/> with <paramref name="formatter"/>, and this call's type and arguments.</summary>
-    public string CallWith(string method, string formatter) =>
-        $"{method}<{TypeName}{(formatter.Length != 0 ? ", " + formatter : "")}>({Arguments})";
+    public string CallWith(string method, FormatterRef? formatter) =>
+        $"{method}<{TypeName}{(formatter != null ? ", " + formatter : "")}>({Arguments})";
 
     /// <summary>The <c>NinoDirect</c> call, without the class name.</summary>
     public string Call => CallWith(Method, Formatter);

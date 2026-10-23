@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 using static Nino.Generator.Generation.TypeNames;
 
 namespace Nino.Generator.Generation.Emit;
@@ -15,8 +14,6 @@ namespace Nino.Generator.Generation.Emit;
 /// </summary>
 internal static class LayoutEmitter
 {
-    private static readonly Regex TypeArguments = new(@"<([^<>]*)>", RegexOptions.CultureInvariant);
-
     public static string Emit(TypeModel m)
     {
         string format = m.Keyed ? "Keyed" : m.VersionTolerant ? "VersionTolerant" : "Positional";
@@ -26,7 +23,7 @@ internal static class LayoutEmitter
             FormatterKind.SealedClass => "NullFlag",
             _ => "TypeId",
         };
-        return $"[assembly: {Core}NinoTypeLayout(typeof({OpenType(m)}), {Core}NinoFormat.{format}, " +
+        return $"[assembly: {Core}NinoTypeLayout(typeof({m.OpenTypeName}), {Core}NinoFormat.{format}, " +
                $"{Core}NinoHeader.{header}, {Bool(m.TrackReferences)}, {Bool(m.RawStruct)}, " +
                $"{m.TypeId.ToString(CultureInfo.InvariantCulture)}, \"{Members(m)}\"" +
                (m.PublishesDeferrable ? $", Deferrable = {Bool(m.Deferrable)}" : "") + ")]\n";
@@ -38,7 +35,7 @@ internal static class LayoutEmitter
         var sb = new StringBuilder();
         if (m.RawStruct)
             sb.Append(m.RawLayout);
-        if (m.CollectionFormatter.Length != 0)
+        if (m.IsCollection)
             sb.Append("[elements]::").Append(m.CollectionEncoding);
         foreach (var member in m.Members)
         {
@@ -57,19 +54,6 @@ internal static class LayoutEmitter
     }
 
     private static string Hex(int key) => "0x" + key.ToString("X8", CultureInfo.InvariantCulture);
-
-    /// <summary>The type for <c>typeof</c>: generic types as their open definition (<c>Box&lt;&gt;</c>).</summary>
-    private static string OpenType(TypeModel m)
-    {
-        if (!m.IsGeneric)
-            return m.TypeName;
-        var parameters = m.TypeParameters.ToArray();
-        return TypeArguments.Replace(m.TypeName, match =>
-        {
-            var names = match.Groups[1].Value.Split(',').Select(s => s.Trim()).ToArray();
-            return names.All(n => parameters.Contains(n)) ? "<" + new string(',', names.Length - 1) + ">" : match.Value;
-        });
-    }
 
     private static string Bool(bool value) => value ? "true" : "false";
 }

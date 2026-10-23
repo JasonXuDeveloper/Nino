@@ -135,7 +135,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var registrations = Merge(usages, CollectAll(models, static m => m.UsedFormatters),
             static u => u.Formatter is { } f ? new[] { f } : Array.Empty<FormatterRegistration>(),
             static all => all.OrderBy(u => u.TypeName, StringComparer.Ordinal)
-                .ThenBy(u => u.Formatter, StringComparer.Ordinal));
+                .ThenBy(u => u.Formatter.ToString(), StringComparer.Ordinal));
         var factories = Merge(usages, CollectAll(models, static m => m.UsedFactories), static u => u.Factories,
             static all => all.OrderBy(f => f.TypeName, StringComparer.Ordinal));
         var generics = Merge(usages, CollectAll(models, static m => m.UsedGenericTypes), static u => u.GenericTypes,
