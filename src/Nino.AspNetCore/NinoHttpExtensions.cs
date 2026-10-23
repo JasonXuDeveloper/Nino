@@ -16,18 +16,37 @@ namespace Nino.AspNetCore
         /// </summary>
         /// <exception cref="InvalidOperationException">The request's content type is not <see cref="NinoMediaTypes.Application"/>.</exception>
         /// <exception cref="BadHttpRequestException">The body is not a valid <typeparamref name="T"/> (status 400).</exception>
-        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-        public static async ValueTask<T> ReadFromNinoAsync<T>(this HttpRequest request,
+        public static ValueTask<T> ReadFromNinoAsync<T>(this HttpRequest request,
             CancellationToken cancellationToken = default)
         {
-            ArgumentNullException.ThrowIfNull(request);
+            // A body that is already in the pipe is read without an async method, so nothing is allocated in any
+            // build; a body still arriving is awaited by a pooled one. Every exception still comes out of the task.
+            if (request is null)
+                return ValueTask.FromException<T>(new ArgumentNullException(nameof(request)));
             if (!request.HasNinoContentType())
-                throw new InvalidOperationException(
-                    $"Unsupported content type '{request.ContentType}'; expected '{NinoMediaTypes.Application}'.");
+                return ValueTask.FromException<T>(new InvalidOperationException(
+                    $"Unsupported content type '{request.ContentType}'; expected '{NinoMediaTypes.Application}'."));
+            ValueTask<T> read;
             try
             {
-                return await NinoBodyReader.ReadAsync<T>(request.BodyReader, request.ContentLength, cancellationToken)
-                    .ConfigureAwait(false);
+                read = NinoBodyReader.ReadAsync<T>(request.BodyReader, request.ContentLength, cancellationToken);
+            }
+            catch (Exception e)
+            {
+                // Through the async method, so an OperationCanceledException cancels the task as it always did.
+                read = ValueTask.FromException<T>(e);
+            }
+
+            return read.IsCompletedSuccessfully ? read : AwaitBodyAsync(read);
+        }
+
+        /// <summary>Awaits a body that has not fully arrived, turning data Nino cannot read into a 400.</summary>
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+        private static async ValueTask<T> AwaitBodyAsync<T>(ValueTask<T> read)
+        {
+            try
+            {
+                return await read.ConfigureAwait(false);
             }
             catch (Exception e) when (NinoBodyReader.IsInvalidData(e))
             {

@@ -26,57 +26,69 @@ namespace Nino.AspNetCore
         public static bool IsInvalidData(Exception exception) =>
             exception is InvalidOperationException or OverflowException or IndexOutOfRangeException;
 
-        // The async methods take their state machines from a pool: a body that has not fully arrived when the
-        // request is read allocates nothing either.
-        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-        public static async ValueTask<T> ReadAsync<T>(PipeReader reader, long? length, CancellationToken cancellationToken)
+        // A body that is already in the pipe (the common case: small bodies arrive with the headers) is read without
+        // an async method, so nothing is allocated whether or not the compiler made its state machines structs (it
+        // makes them classes, allocated on every call, in a build without optimizations). A body that has not fully
+        // arrived is awaited by an async method whose state machine comes from a pool, so it allocates nothing either.
+        // Data Nino cannot read throws synchronously on the first path and from the task on the second.
+        public static ValueTask<T> ReadAsync<T>(PipeReader reader, long? length, CancellationToken cancellationToken) =>
+            ReadBodyAsync(reader, length, typeof(T), static (data, _) => NinoDeserializer.Deserialize<T>(data),
+                cancellationToken);
+
+        public static ValueTask<object> ReadBoxedAsync(PipeReader reader, long? length, Type type,
+            CancellationToken cancellationToken) =>
+            ReadBodyAsync(reader, length, type, static (data, t) => NinoDeserializer.DeserializeBoxed(data, t),
+                cancellationToken);
+
+        private static ValueTask<TResult> ReadBodyAsync<TResult>(PipeReader reader, long? length, Type type,
+            SpanReader<TResult> read, CancellationToken cancellationToken)
         {
-            var body = await ReadToEndAsync(reader, length, cancellationToken).ConfigureAwait(false);
-            try
-            {
-                return Read(body, typeof(T), static (data, _) => NinoDeserializer.Deserialize<T>(data));
-            }
-            finally
-            {
-                reader.AdvanceTo(body.End);
-            }
+            var pending = StartRead(reader, length, cancellationToken);
+            if (!pending.IsCompletedSuccessfully)
+                return ReadRestAsync(reader, length, type, read, pending, cancellationToken);
+            var result = pending.Result;
+            return IsWhole(result, length)
+                ? new ValueTask<TResult>(ReadAndAdvance(reader, result.Buffer, type, read))
+                : ReadRestAsync(reader, length, type, read, new ValueTask<ReadResult>(result), cancellationToken);
         }
 
-        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-        public static async ValueTask<object> ReadBoxedAsync(PipeReader reader, long? length, Type type,
-            CancellationToken cancellationToken)
-        {
-            var body = await ReadToEndAsync(reader, length, cancellationToken).ConfigureAwait(false);
-            try
-            {
-                return Read(body, type, static (data, t) => NinoDeserializer.DeserializeBoxed(data, t));
-            }
-            finally
-            {
-                reader.AdvanceTo(body.End);
-            }
-        }
+        /// <summary>With a <c>Content-Length</c>, waits for that many bytes at once instead of waking on every segment.</summary>
+        private static ValueTask<ReadResult> StartRead(PipeReader reader, long? length,
+            CancellationToken cancellationToken) =>
+            length is > 0 and <= int.MaxValue
+                ? reader.ReadAtLeastAsync((int)length.Value, cancellationToken)
+                : reader.ReadAsync(cancellationToken);
 
-        /// <summary>
-        /// Buffers the body in the pipe until it is complete; the caller advances past it. With a
-        /// <c>Content-Length</c> it waits for that many bytes at once instead of waking on every segment.
-        /// </summary>
+        /// <summary>Buffers the body in the pipe until it is complete, then reads it.</summary>
         [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-        private static async ValueTask<ReadOnlySequence<byte>> ReadToEndAsync(PipeReader reader, long? length,
-            CancellationToken cancellationToken)
+        private static async ValueTask<TResult> ReadRestAsync<TResult>(PipeReader reader, long? length, Type type,
+            SpanReader<TResult> read, ValueTask<ReadResult> pending, CancellationToken cancellationToken)
         {
-            var result = length is > 0 and <= int.MaxValue
-                ? await reader.ReadAtLeastAsync((int)length.Value, cancellationToken).ConfigureAwait(false)
-                : await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
             while (true)
             {
-                var buffer = result.Buffer;
-                if (result.IsCompleted || buffer.Length >= length)
-                    return buffer;
+                var result = await pending.ConfigureAwait(false);
+                if (IsWhole(result, length))
+                    return ReadAndAdvance(reader, result.Buffer, type, read);
                 if (result.IsCanceled)
                     throw new OperationCanceledException(cancellationToken);
-                reader.AdvanceTo(buffer.Start, buffer.End);
-                result = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+                reader.AdvanceTo(result.Buffer.Start, result.Buffer.End);
+                pending = reader.ReadAsync(cancellationToken);
+            }
+        }
+
+        private static bool IsWhole(in ReadResult result, long? length) =>
+            result.IsCompleted || result.Buffer.Length >= length;
+
+        private static TResult ReadAndAdvance<TResult>(PipeReader reader, in ReadOnlySequence<byte> body, Type type,
+            SpanReader<TResult> read)
+        {
+            try
+            {
+                return Read(body, type, read);
+            }
+            finally
+            {
+                reader.AdvanceTo(body.End);
             }
         }
 

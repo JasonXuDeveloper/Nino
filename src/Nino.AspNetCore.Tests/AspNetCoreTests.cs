@@ -228,6 +228,59 @@ namespace Nino.AspNetCore.Tests
             }
         }
 
+        // ReadFromNinoAsync reads a body already in the pipe without an async method and awaits one still arriving:
+        // both give the value, and report errors through the task (never thrown by the call itself).
+        [TestMethod]
+        public async Task ReadFromNinoOnBothPaths()
+        {
+            var bytes = NinoSerializer.Serialize(new Point { X = 3, Y = 4 });
+            foreach (bool arrived in new[] { true, false })
+            {
+                var (context, pipe) = BufferedRequest(NinoMediaTypes.Application, bytes.Length);
+                if (arrived)
+                    await pipe.Writer.WriteAsync(bytes);
+                var task = context.Request.ReadFromNinoAsync<Point>();
+                Assert.AreEqual(arrived, task.IsCompletedSuccessfully);
+                if (!arrived)
+                    await pipe.Writer.WriteAsync(bytes);
+                Assert.AreEqual(4, (await task).Y);
+            }
+
+            foreach (bool arrived in new[] { true, false })
+            {
+                var (context, pipe) = BufferedRequest(NinoMediaTypes.Application, 2);
+                if (arrived)
+                    await pipe.Writer.WriteAsync(new byte[] { 1, 2 });
+                var task = context.Request.ReadFromNinoAsync<Point>();
+                if (!arrived)
+                    await pipe.Writer.WriteAsync(new byte[] { 1, 2 });
+                var e = await Assert.ThrowsExactlyAsync<BadHttpRequestException>(async () => await task);
+                Assert.AreEqual(StatusCodes.Status400BadRequest, e.StatusCode);
+            }
+
+            var (json, _) = BufferedRequest("application/json", 2);
+            var wrongType = json.Request.ReadFromNinoAsync<Point>();
+            Assert.IsTrue(wrongType.IsFaulted);
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () => await wrongType);
+        }
+
+        private static (DefaultHttpContext, System.IO.Pipelines.Pipe) BufferedRequest(string contentType, long length)
+        {
+            var pipe = new System.IO.Pipelines.Pipe();
+            var context = new DefaultHttpContext();
+            context.Features.Set<Microsoft.AspNetCore.Http.Features.IRequestBodyPipeFeature>(
+                new RequestBodyPipeFeature(pipe.Reader));
+            context.Request.ContentType = contentType;
+            context.Request.ContentLength = length;
+            return (context, pipe);
+        }
+
+        private sealed class RequestBodyPipeFeature : Microsoft.AspNetCore.Http.Features.IRequestBodyPipeFeature
+        {
+            public RequestBodyPipeFeature(System.IO.Pipelines.PipeReader reader) => Reader = reader;
+            public System.IO.Pipelines.PipeReader Reader { get; }
+        }
+
         [TestMethod]
         public void IsSupported()
         {
