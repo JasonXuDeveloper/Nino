@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -12,8 +13,10 @@ namespace Nino.Generator.Generation;
 /// <summary>Turns a <c>[NinoType]</c> symbol into an equatable <see cref="TypeModel"/>.</summary>
 internal static class ModelBuilder
 {
+    /// <param name="ct">Cancels the build (its syntax lookups).</param>
     /// <param name="diagnostics">Receives problems found on the way (the analyzer's); null when generating.</param>
-    public static TypeModel? Build(INamedTypeSymbol type, TypeFacts facts, DiagnosticSink? diagnostics = null)
+    public static TypeModel? Build(INamedTypeSymbol type, TypeFacts facts, CancellationToken ct,
+        DiagnosticSink? diagnostics = null)
     {
         type = type.OriginalDefinition;
         if (!Visibility.IsEligible(type))
@@ -60,7 +63,7 @@ internal static class ModelBuilder
             for (int i = 0; i < symbols.Count; i++)
             {
                 var member = BuildMember(type, attr.Keyed, symbols, i, facts, memberDiagnostics,
-                    ref needsPartialAccessor, factories);
+                    ref needsPartialAccessor, factories, ct);
                 if (member == null)
                     continue;
                 members.Add(member);
@@ -169,7 +172,7 @@ internal static class ModelBuilder
         var partialDeclarations = new List<string>();
         if (needsPartialAccessor || pooled)
         {
-            if (!IsPartialChain(type))
+            if (!IsPartialChain(type, ct))
             {
                 pooled = false;
                 diagnostics?.Report(NinoDiagnostics.NotPartial, type, type.ToDisplayString());
@@ -243,7 +246,7 @@ internal static class ModelBuilder
             FreshRead: kind == FormatterKind.SealedClass && !construction.Recreate &&
                        construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
                        !attr.Keyed && members.Skip(baseMemberCount).Any(static m => m.Fresh) &&
-                       !members.Skip(baseMemberCount).Any(static m => m.ReadsLoop) && ConstructsDefaults(type),
+                       !members.Skip(baseMemberCount).Any(static m => m.ReadsLoop) && ConstructsDefaults(type, ct),
             LayoutTypes: LayoutTypes.ToArray(layoutTypes),
             RawLayout: rawStruct ? RawLayout.Describe(type) : "");
     }
@@ -413,7 +416,7 @@ internal static class ModelBuilder
         return $"partial {keyword} {type.Name}{args}";
     }
 
-    private static bool IsPartialChain(INamedTypeSymbol type)
+    private static bool IsPartialChain(INamedTypeSymbol type, CancellationToken ct)
     {
         for (var t = type; t != null; t = t.ContainingType)
         {
@@ -421,7 +424,7 @@ internal static class ModelBuilder
                 return false;
             foreach (var reference in t.DeclaringSyntaxReferences)
             {
-                if (reference.GetSyntax() is TypeDeclarationSyntax syntax &&
+                if (reference.GetSyntax(ct) is TypeDeclarationSyntax syntax &&
                     !syntax.Modifiers.Any(SyntaxKind.PartialKeyword))
                     return false;
             }
@@ -432,7 +435,7 @@ internal static class ModelBuilder
 
     private static MemberModel? BuildMember(INamedTypeSymbol type, bool keyed, MemberList symbols, int index,
         TypeFacts facts, DiagnosticSink? diagnostics, ref bool needsPartialAccessor,
-        List<FactoryRegistration> factories)
+        List<FactoryRegistration> factories, CancellationToken ct)
     {
         var symbol = symbols[index];
         var memberType = MemberCollector.MemberType(symbol)?.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
@@ -533,7 +536,7 @@ internal static class ModelBuilder
             symbol is IPropertySymbol, access, Global(declaring), declaring.IsValueType,
             Visibility.IsConstructionOnly(symbol), false, typeId, opensBodies, shallowFormatter ?? formatter,
             custom == null && memberType.IsReferenceType && (traits & FormatterTraits.Core) != 0 &&
-            (traits & replaces) == 0 && StartsDefault(symbol),
+            (traits & replaces) == 0 && StartsDefault(symbol, ct),
             raw == null && readsLoop);
     }
 
@@ -543,7 +546,7 @@ internal static class ModelBuilder
     /// source with an empty body and no arguments to the constructor it chains to. Field initializers cannot touch
     /// other members; those of the members themselves are checked by <see cref="StartsDefault"/>.
     /// </summary>
-    private static bool ConstructsDefaults(INamedTypeSymbol type)
+    private static bool ConstructsDefaults(INamedTypeSymbol type, CancellationToken ct)
     {
         for (var t = type; t != null && t.SpecialType != SpecialType.System_Object; t = t.BaseType)
         {
@@ -556,7 +559,7 @@ internal static class ModelBuilder
                 return false;
             foreach (var reference in constructor.DeclaringSyntaxReferences)
             {
-                if (reference.GetSyntax() is not ConstructorDeclarationSyntax syntax ||
+                if (reference.GetSyntax(ct) is not ConstructorDeclarationSyntax syntax ||
                     syntax.ExpressionBody != null || syntax.Body is not { Statements.Count: 0 } ||
                     syntax.Initializer is { } init &&
                     (!init.IsKind(SyntaxKind.BaseConstructorInitializer) || init.ArgumentList.Arguments.Count != 0))
@@ -572,13 +575,13 @@ internal static class ModelBuilder
     /// auto-property declared in source without an initializer. A property with accessor bodies may compute its
     /// value, so its getter is called as before.
     /// </summary>
-    private static bool StartsDefault(ISymbol member)
+    private static bool StartsDefault(ISymbol member, CancellationToken ct)
     {
         if (member.DeclaringSyntaxReferences.Length == 0)
             return false;
         foreach (var reference in member.DeclaringSyntaxReferences)
         {
-            switch (reference.GetSyntax())
+            switch (reference.GetSyntax(ct))
             {
                 case VariableDeclaratorSyntax { Initializer: null } when member is IFieldSymbol:
                     continue;

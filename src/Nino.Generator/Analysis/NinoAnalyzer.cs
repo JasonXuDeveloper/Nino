@@ -81,7 +81,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         if (!Visibility.IsEligible(type))
             sink.Report(NinoDiagnostics.InaccessibleType, type, type.ToDisplayString());
         else
-            ModelBuilder.Build(type, facts, sink);
+            ModelBuilder.Build(type, facts, context.CancellationToken, sink);
 
         if (NinoSymbols.Has(type, facts.Symbols.Pooled))
         {

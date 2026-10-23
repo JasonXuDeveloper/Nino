@@ -131,19 +131,13 @@ internal static class Interceptors
     }
 
     /// <summary>
-    /// <paramref name="formatter"/> with the <c>__Top</c> twins of the generated formatters in <paramref name="tops"/>,
-    /// and the <c>__Shallow</c> twins of the others in <paramref name="shallow"/>: the formatter itself, or the element
-    /// formatters it is composed of (type arguments of built-in collection, nullable and tuple formatters). Those are
-    /// called with no class body open, as the formatter is, since only generated bodies open one and generated
-    /// formatters take no formatter type arguments; and a <c>__Top</c> twin writes and reads the same bytes as its
-    /// formatter wherever no class body is open (its body opens none), a <c>__Shallow</c> twin wherever its nesting
-    /// bound stays below <c>NinoDepth.Inline</c> (<see cref="TypeFacts.DepthBound"/>), which it does with none open.
-    /// </summary>
-    internal static string WithTop(string formatter, HashSet<string> tops, HashSet<string> shallow) =>
-        TypeNames.WithTwins(formatter, tops, shallow);
-
-    /// <summary>
-    /// The call of an <see cref="InterceptedCall.Inlinable"/> call with the twins of <see cref="WithTop"/>. A write of a
+    /// The call of an <see cref="InterceptedCall.Inlinable"/> call with the twins of its formatter
+    /// (<see cref="TypeNames.WithTwins"/>): the formatter itself, or the element formatters it is composed of (type
+    /// arguments of built-in collection, nullable and tuple formatters). Those are called with no class body open, as
+    /// the formatter is, since only generated bodies open one and generated formatters take no formatter type
+    /// arguments; and a <c>__Top</c> twin writes and reads the same bytes as its formatter wherever no class body is
+    /// open (its body opens none), a <c>__Shallow</c> twin wherever its nesting bound stays below
+    /// <c>NinoDepth.Inline</c> (<see cref="TypeFacts.DepthBound"/>), which it does with none open. A write of a
     /// formatter that has a <c>__Top</c> twin goes through <c>NinoDirect.SerializeTop</c>, which hands the twin the
     /// buffer to create its writer in (<c>INinoTopFormatter</c>), and a read of a new value through
     /// <c>NinoDirect.DeserializeTop</c>, which hands it the data to create its reader on.
@@ -157,7 +151,7 @@ internal static class Interceptors
             "Deserialize" when c.Arguments == "a0" => "DeserializeTop",
             _ => c.Method,
         };
-        return c.CallWith(method, WithTop(c.Formatter, tops, shallow));
+        return c.CallWith(method, TypeNames.WithTwins(c.Formatter, tops, shallow));
     }
 
     /// <summary>

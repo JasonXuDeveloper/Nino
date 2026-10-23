@@ -300,7 +300,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var compilation = semanticModel.Compilation;
         var options = semanticModel.SyntaxTree.Options;
         return ModelCache.GetOrBuild(symbol, compilation, options,
-            () => ModelBuilder.Build(symbol, TypeFacts.For(compilation, options)));
+            () => ModelBuilder.Build(symbol, TypeFacts.For(compilation, options), ct));
     }
 
     private static TopLevelCall? TransformCall(GeneratorSyntaxContext ctx, CancellationToken ct)
