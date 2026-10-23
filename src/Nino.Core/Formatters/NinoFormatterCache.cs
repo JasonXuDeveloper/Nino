@@ -220,6 +220,26 @@ namespace Nino.Core
         }
     }
 
+    /// <summary>
+    /// The formatter of <typeparamref name="T"/> when it is an array of raw elements (null otherwise). A static
+    /// readonly field: Tier1 code knows its exact type and calls it directly (inlined, with the element size a
+    /// constant), without a type guard or interface dispatch. Arrays are reference types, so code that is not
+    /// inlined into a caller of the exact type is shared, and this field is a generic dictionary lookup there.
+    /// </summary>
+    internal static class NinoRawArray<T>
+    {
+        public static readonly INinoRawArrayFormatter Formatter = Create();
+
+        private static INinoRawArrayFormatter Create()
+        {
+            // A big-endian host takes the formatter, whose writer or reader rejects it.
+            if (!typeof(T).IsArray || typeof(T).GetArrayRank() != 1 || !BitConverter.IsLittleEndian)
+                return null;
+            // Through the snapshot (a use of T's formatter); null without a formatter: the regular path reports it.
+            return NinoTopFormatter<T>.Formatter?.RawArray;
+        }
+    }
+
     internal static class NinoRaw
     {
         /// <summary>

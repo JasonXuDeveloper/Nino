@@ -21,7 +21,7 @@ namespace Nino.Core
             if (NinoRaw.Is<T>())
                 return ReadRaw<T>(data);
             // Arrays of raw elements: read by code specialized for the element type, as the serializer writes them.
-            if (NinoSerializer.RawArray<T>.Formatter is { } raw)
+            if (NinoRawArray<T>.Formatter is { } raw)
             {
                 object array = raw.Read(data, null);
                 return Unsafe.As<object, T>(ref array);
@@ -49,7 +49,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (NinoSerializer.RawArray<T>.Formatter is { } raw)
+            if (NinoRawArray<T>.Formatter is { } raw)
             {
                 object array = raw.Read(data, Unsafe.As<T, Array>(ref value));
                 value = Unsafe.As<object, T>(ref array);

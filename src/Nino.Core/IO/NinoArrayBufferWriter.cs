@@ -24,7 +24,7 @@ namespace Nino.Core
         internal int Index;
 
         /// <summary>
-        /// <see cref="NinoSerializer"/>'s per-thread scratch buffer: <see cref="ScratchIdle"/> or
+        /// <see cref="NinoScratch"/>'s per-thread scratch buffer: <see cref="ScratchIdle"/> or
         /// <see cref="ScratchInUse"/> while it is cached, 0 otherwise (any other instance).
         /// </summary>
         internal byte ScratchState;

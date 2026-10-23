@@ -20,7 +20,7 @@ namespace Nino.Core
         public static byte[] Serialize<T, TFormatter>(in T value) where TFormatter : struct, INinoFormatter<T> =>
             NinoSized.Is<T, TFormatter>() && NinoSized.Serialize<T, TFormatter>(value) is { } sized
                 ? sized
-                : SerializeToArray<T, TFormatter>(value);
+                : NinoScratch.ToArray(value, default(DirectWriter<T, TFormatter>));
 
         /// <summary>
         /// <see cref="NinoSerializer.Serialize{T}(in T)"/> of a value whose size is fixed: the result is allocated at
@@ -46,18 +46,20 @@ namespace Nino.Core
             return bytes;
         }
 
-        private static byte[] SerializeToArray<T, TFormatter>(in T value) where TFormatter : struct, INinoFormatter<T>
+        /// <summary>Writes with <typeparamref name="TFormatter"/> (<see cref="NinoScratch"/>).</summary>
+        private readonly struct DirectWriter<T, TFormatter> : INinoScratchWriter<T>
+            where TFormatter : struct, INinoFormatter<T>
         {
-            var buffer = NinoSerializer.RentScratch();
-            try
-            {
-                Write<T, TFormatter>(value, buffer);
-                return buffer.ToArray();
-            }
-            finally
-            {
-                NinoSerializer.ReturnScratch(buffer);
-            }
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Write(T value, NinoArrayBufferWriter buffer) => Write<T, TFormatter>(value, buffer);
+        }
+
+        /// <summary>Writes with the <c>__Top</c> twin <typeparamref name="TFormatter"/> (<see cref="NinoScratch"/>).</summary>
+        private readonly struct TopWriter<T, TFormatter> : INinoScratchWriter<T>
+            where TFormatter : struct, INinoTopFormatter<T>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Write(T value, NinoArrayBufferWriter buffer) => default(TFormatter).Write(value, buffer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -79,19 +81,10 @@ namespace Nino.Core
         /// <see cref="Serialize{T,TFormatter}(in T)"/> with a <c>__Top</c> twin that creates its own writer
         /// (<see cref="INinoTopFormatter{T}"/>). The bytes are the same.
         /// </summary>
-        public static byte[] SerializeTop<T, TFormatter>(in T value) where TFormatter : struct, INinoTopFormatter<T>
-        {
-            var buffer = NinoSerializer.RentScratch();
-            try
-            {
-                default(TFormatter).Write(value, buffer);
-                return buffer.ToArray();
-            }
-            finally
-            {
-                NinoSerializer.ReturnScratch(buffer);
-            }
-        }
+        // Inlined: the caller calls the out-of-line scratch write directly.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte[] SerializeTop<T, TFormatter>(in T value) where TFormatter : struct, INinoTopFormatter<T> =>
+            NinoScratch.ToArray(value, default(TopWriter<T, TFormatter>));
 
         /// <summary>
         /// <see cref="Serialize{T,TFormatter}(in T, IBufferWriter{byte})"/> with a <c>__Top</c> twin that creates its own

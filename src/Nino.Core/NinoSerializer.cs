@@ -8,58 +8,6 @@ namespace Nino.Core
     /// <summary>Serializes values to Nino binary data. All methods are thread safe.</summary>
     public static class NinoSerializer
     {
-        [ThreadStatic] private static NinoArrayBufferWriter t_scratch;
-
-        /// <summary>Largest scratch buffer kept per thread between calls.</summary>
-        private const int MaxRetainedScratch = 1024 * 1024;
-
-        // The thread's scratch buffer stays in its slot and is marked in use (a byte store on the instance) instead
-        // of being taken out and put back: returning it then neither reads the thread-static again nor stores a
-        // reference into it (a write barrier). A nested call on the same thread (from a custom formatter) finds it in
-        // use and gets a buffer of its own.
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static NinoArrayBufferWriter RentScratch()
-        {
-            var buffer = t_scratch;
-            if (buffer == null || buffer.ScratchState != NinoArrayBufferWriter.ScratchIdle)
-                return RentOther();
-            buffer.ScratchState = NinoArrayBufferWriter.ScratchInUse;
-            buffer.Index = 0;
-            return buffer;
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static NinoArrayBufferWriter RentOther()
-        {
-            var buffer = new NinoArrayBufferWriter();
-            if (t_scratch == null)
-            {
-                buffer.ScratchState = NinoArrayBufferWriter.ScratchInUse;
-                t_scratch = buffer;
-            }
-
-            return buffer;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void ReturnScratch(NinoArrayBufferWriter buffer)
-        {
-            if (buffer.ScratchState == NinoArrayBufferWriter.ScratchInUse && buffer.Buffer.Length <= MaxRetainedScratch)
-                buffer.ScratchState = NinoArrayBufferWriter.ScratchIdle;
-            else
-                ReleaseScratch(buffer);
-        }
-
-        /// <summary>A buffer that is not kept: one a nested call created, or the scratch buffer grown too large.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReleaseScratch(NinoArrayBufferWriter buffer)
-        {
-            if (ReferenceEquals(t_scratch, buffer))
-                t_scratch = null;
-            buffer.ScratchState = 0;
-            buffer.Dispose();
-        }
-
         /// <summary>Serializes <paramref name="value"/> into a new byte array.</summary>
         /// <remarks>
         /// <typeparamref name="T"/> is the static type of the argument. For a polymorphic value, pass the common
@@ -79,7 +27,7 @@ namespace Nino.Core
                 return SerializeRaw(in value);
 
             // The formatter is a static readonly field: Tier1 code calls (and inlines) it as its exact type.
-            if (RawArray<T>.Formatter is { } raw && value != null)
+            if (NinoRawArray<T>.Formatter is { } raw && value != null)
                 return raw.Serialize(Unsafe.As<Array>(value));
 
             // A value of fixed size: written into an array of that size (a constant check in Tier1 code).
@@ -92,7 +40,7 @@ namespace Nino.Core
                 sizedFormatter.SerializeSized(value) is { } sized)
                 return sized;
 
-            return SerializeToArray(value, NinoTopFormatter<T>.Get);
+            return NinoScratch.ToArray(value, new FormatterWriter<T>(NinoTopFormatter<T>.Get));
         }
 
         /// <summary>
@@ -117,44 +65,21 @@ namespace Nino.Core
             return bytes;
         }
 
-        private static byte[] SerializeToArray<T>(T value, NinoFormatter<T> formatter)
-        {
-            var buffer = RentScratch();
-            try
-            {
-                WriteFormatted(value, buffer, formatter);
-                return buffer.ToArray();
-            }
-            finally
-            {
-                ReturnScratch(buffer);
-            }
-        }
-
         /// <summary>Writes <paramref name="value"/> with its formatter, then ends the call's reference tracking.</summary>
         // The formatter creates the writer (NinoFormatter.Write): a writer created here would reach its call by address.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteFormatted<T>(T value, NinoArrayBufferWriter buffer, NinoFormatter<T> formatter) =>
             formatter.Write(value, buffer);
 
-        /// <summary>
-        /// The formatter of <typeparamref name="T"/> when it is an array of raw elements (null otherwise). A static
-        /// readonly field: Tier1 code knows its exact type and calls it directly (inlined, with the element size a
-        /// constant), without a type guard or interface dispatch. Arrays are reference types, so code that is not
-        /// inlined into a caller of the exact type is shared, and this field is a generic dictionary lookup there.
-        /// </summary>
-        internal static class RawArray<T>
+        /// <summary>Writes with a formatter known only as <see cref="NinoFormatter{T}"/> (<see cref="NinoScratch"/>).</summary>
+        private readonly struct FormatterWriter<T> : INinoScratchWriter<T>
         {
-            public static readonly INinoRawArrayFormatter Formatter = Create();
+            private readonly NinoFormatter<T> _formatter;
 
-            private static INinoRawArrayFormatter Create()
-            {
-                // A big-endian host takes the formatter, whose writer or reader rejects it.
-                if (!typeof(T).IsArray || typeof(T).GetArrayRank() != 1 || !BitConverter.IsLittleEndian)
-                    return null;
-                // Through the snapshot (a use of T's formatter); null without a formatter: the regular path reports it.
-                return NinoTopFormatter<T>.Formatter?.RawArray;
-            }
+            public FormatterWriter(NinoFormatter<T> formatter) => _formatter = formatter;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Write(T value, NinoArrayBufferWriter buffer) => WriteFormatted(value, buffer, _formatter);
         }
 
         /// <summary>
@@ -170,7 +95,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (RawArray<T>.Formatter is { } raw)
+            if (NinoRawArray<T>.Formatter is { } raw)
             {
                 // An array of raw elements: one capacity check and one block copy, inlined with the element size
                 // a constant (the formatter is a static readonly field: Tier1 code knows its exact type).
@@ -199,16 +124,7 @@ namespace Nino.Core
                 return;
             }
 
-            var buffer = RentScratch();
-            try
-            {
-                WriteFormatted(value, buffer, formatter);
-                bufferWriter.Write(buffer.WrittenSpan);
-            }
-            finally
-            {
-                ReturnScratch(buffer);
-            }
+            NinoScratch.CopyTo(value, new FormatterWriter<T>(formatter), bufferWriter);
         }
 
         /// <summary>Serializes <paramref name="value"/> with an existing writer.</summary>
