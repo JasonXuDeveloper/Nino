@@ -16,8 +16,41 @@ namespace Nino.AspNetCore
 
         private delegate TResult SpanReader<TResult>(ReadOnlySpan<byte> data, Type type);
 
-        /// <summary><see cref="NinoSerializer.IsSupported"/>, cached: MVC asks for every request.</summary>
-        public static bool IsSupported(Type type) => Supported.GetOrAdd(type, static t => NinoSerializer.IsSupported(t));
+        /// <summary>
+        /// <see cref="NinoSerializer.IsSupported"/>, cached: MVC asks for every request. A type from a collectible
+        /// assembly is not cached, so the cache never keeps its <c>AssemblyLoadContext</c> from unloading.
+        /// </summary>
+        public static bool IsSupported(Type type) =>
+            Supported.TryGetValue(type, out bool supported) ? supported : CheckSupported(type);
+
+        private static bool CheckSupported(Type type)
+        {
+            bool supported = NinoSerializer.IsSupported(type);
+            if (!MentionsCollectible(type))
+                Supported.TryAdd(type, supported);
+            return supported;
+        }
+
+        /// <summary>Whether <paramref name="type"/>, its element type or a type argument is in a collectible assembly.</summary>
+        internal static bool MentionsCollectible(Type type)
+        {
+            if (type.Assembly.IsCollectible)
+                return true;
+            if (type.HasElementType)
+                return MentionsCollectible(type.GetElementType()!);
+            if (type.IsGenericType)
+            {
+                foreach (var argument in type.GetGenericArguments())
+                {
+                    if (MentionsCollectible(argument))
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        internal static bool IsCached(Type type) => Supported.ContainsKey(type);
 
         /// <summary>
         /// Whether <paramref name="exception"/> is what Nino throws for data it cannot read (truncated, corrupt or
