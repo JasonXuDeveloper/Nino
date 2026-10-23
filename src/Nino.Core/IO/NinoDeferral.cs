@@ -22,12 +22,8 @@ namespace Nino.Core
         /// <summary>Open class bodies after which the next one is deferred.</summary>
         public const int Inline = 128;
 
-        /// <summary>
-        /// Open class bodies after which reading or writing fails, for types that cannot be deferred: types built by
-        /// their constructor (a slot cannot hold them before their members are read) and types compared by value
-        /// (hashed or sorted collections would see them before their members are read).
-        /// </summary>
-        public const int Max = 512;
+        // Open class bodies after which reading or writing fails, for types that cannot be deferred (built by their
+        // constructor, or compared by value): NinoSettings.MaxDepth (NinoLimits.MaxDepth), 512 by default.
 
         /// <summary>Set in the length of a region followed by a section of deferred bodies.</summary>
         public const int SectionFlag = int.MinValue;
@@ -43,7 +39,7 @@ namespace Nino.Core
         /// <summary>
         /// Whether the stack has room for more nesting (the runtime's own check, which keeps about 64 KB, 128 KB on
         /// 64-bit .NET, for what follows). Reads past <see cref="Inline"/> that cannot be deferred check it: up to
-        /// <see cref="Max"/> bodies of a large type take more than a small stack (256 KB IIS or mobile threads) has.
+        /// <see cref="NinoSettings.MaxDepth"/> bodies of a large type take more than a small stack (256 KB IIS or mobile threads) has.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static bool StackLeft()

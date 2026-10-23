@@ -286,7 +286,7 @@ namespace Nino.Core
         /// <summary>
         /// Generated code: opens the body of a struct that can hold itself (through a collection, a nullable, a
         /// <c>Lazy</c> or an interface). No class body counts such nesting (<see cref="NinoDepth"/>), so it is counted
-        /// here, with the open class bodies, up to <see cref="NinoDepth.Max"/>, and the stack is checked every 16
+        /// here, with the open class bodies, up to <see cref="NinoSettings.MaxDepth"/>, and the stack is checked every 16
         /// levels: deeply nested data throws instead of overflowing the stack. Call <see cref="ExitStruct"/> after the
         /// body. Out of line, as these bodies are: the reader's address reaches a call there already. A body that
         /// throws leaves the count raised, in a context the failed call drops. Collections that hold themselves count
@@ -298,7 +298,7 @@ namespace Nino.Core
         {
             var context = _context ??= NinoReadContext.Rent();
             int open = ++context.Structs;
-            if (open + Depth > NinoDepth.Max || ((open & 15) == 0 && !NinoDepth.StackLeft()))
+            if (open + Depth > NinoLimits.MaxDepth || ((open & 15) == 0 && !NinoDepth.StackLeft()))
                 NinoThrow.TooDeep(type);
         }
 
@@ -658,7 +658,7 @@ namespace Nino.Core
                 return false;
             }
 
-            if ((ulong)(uint)length * (uint)minElementSize > (uint)Avail)
+            if ((ulong)(uint)length * (uint)minElementSize > (uint)Avail || NinoLimits.TooLong(length))
                 NinoThrow.InvalidLength(length);
             return true;
         }

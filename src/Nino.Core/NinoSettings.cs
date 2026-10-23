@@ -25,6 +25,100 @@ namespace Nino.Core
     {
         internal const int DefaultPoolMaxRetainedValue = 256;
 
+        /// <summary>Default of <see cref="MaxDepth"/>.</summary>
+        public const int DefaultMaxDepth = 512;
+
+        private static readonly object Lock = new object();
+        private static bool _frozen;
+        private static int _maxDepth = DefaultMaxDepth;
+        private static int _maxCollectionLength = int.MaxValue;
+
+        /// <summary>
+        /// How deep objects may nest in data being read or written before Nino throws (a
+        /// <see cref="NinoDataException"/> when reading, an <see cref="InvalidOperationException"/> when writing).
+        /// Counted are class bodies, struct bodies that can hold themselves and collections that hold themselves.
+        /// Class bodies past 128 levels that Nino can create before reading their members are read and written later,
+        /// from a shallow point (they use no stack, and need no limit); this bounds everything else. Default
+        /// <see cref="DefaultMaxDepth"/> (512); at least 128. The thread's stack is checked as well: a small stack
+        /// fails earlier.
+        /// <para>
+        /// <b>Set before first use</b>, like every limit here: read and write paths take it as a constant, so it is
+        /// frozen the first time one of them looks at it, and setting it afterwards throws
+        /// <see cref="InvalidOperationException"/>.
+        /// </para>
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">The value is below 128.</exception>
+        /// <exception cref="InvalidOperationException">Nino has already used the setting.</exception>
+        public static int MaxDepth
+        {
+            get => _maxDepth;
+            set
+            {
+                if (value < NinoDepth.Inline)
+                    throw new ArgumentOutOfRangeException(nameof(value), value,
+                        $"Nino: the depth limit must be at least {NinoDepth.Inline}.");
+                lock (Lock)
+                {
+                    CheckNotFrozen(nameof(MaxDepth));
+                    _maxDepth = value;
+                }
+            }
+        }
+
+        /// <summary>
+        /// The most elements (or key/value pairs) one collection or array in the data may claim;
+        /// a longer one throws <see cref="NinoDataException"/> before anything is allocated for it. For a
+        /// multi-dimensional array it is the total element count. Default <see cref="int.MaxValue"/>: no limit
+        /// besides the data itself (every length is already checked against the bytes left, so a few bytes cannot
+        /// claim a large collection). Lower it to bound the memory a valid but large payload may take.
+        /// <b>Set before first use</b> (see <see cref="MaxDepth"/>).
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">The value is negative.</exception>
+        /// <exception cref="InvalidOperationException">Nino has already used the setting.</exception>
+        public static int MaxCollectionLength
+        {
+            get => _maxCollectionLength;
+            set
+            {
+                if (value < 0)
+                    throw new ArgumentOutOfRangeException(nameof(value), value,
+                        "Nino: the collection length limit cannot be negative.");
+                lock (Lock)
+                {
+                    CheckNotFrozen(nameof(MaxCollectionLength));
+                    _maxCollectionLength = value;
+                }
+            }
+        }
+
+        private static void CheckNotFrozen(string name)
+        {
+            if (_frozen)
+                throw new InvalidOperationException(
+                    $"Nino: NinoSettings.{name} must be set before the first serialization or deserialization: " +
+                    "read and write paths have already taken it as a constant.");
+        }
+
+        /// <summary>The limits as they are now, from now on fixed (<see cref="NinoLimits"/>).</summary>
+        internal static Snapshot Freeze()
+        {
+            lock (Lock)
+            {
+                _frozen = true;
+                return new Snapshot
+                {
+                    MaxDepth = _maxDepth,
+                    MaxCollectionLength = _maxCollectionLength,
+                };
+            }
+        }
+
+        internal sealed class Snapshot
+        {
+            public int MaxDepth;
+            public int MaxCollectionLength;
+        }
+
         private static int _defaultPoolMaxRetained = DefaultPoolMaxRetainedValue;
 
         /// <summary>

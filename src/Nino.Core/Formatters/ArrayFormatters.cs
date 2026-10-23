@@ -521,6 +521,14 @@ namespace Nino.Core
             return bytes;
         }
 
+        /// <summary>
+        /// Whether a length read as it is (-1 for null included) is past <see cref="NinoSettings.MaxCollectionLength"/>:
+        /// -1 is then too, and takes the cold path that tells null from invalid.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TooLong(int length) =>
+            NinoLimits.LengthCapped && (uint)length > (uint)NinoLimits.MaxCollectionLength;
+
         /// <summary>The length prefix and <paramref name="length"/> elements, in bytes.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int WireSize(int length)
@@ -554,7 +562,7 @@ namespace Nino.Core
             ref byte start = ref MemoryMarshal.GetReference(data);
             int length = NinoUnsafe.Read<int>(ref start);
             uint size = (uint)Unsafe.SizeOf<T>();
-            if ((ulong)(uint)length * size > (uint)(data.Length - NinoWire.LengthSize))
+            if ((ulong)(uint)length * size > (uint)(data.Length - NinoWire.LengthSize) || TooLong(length))
             {
                 if (length != NinoWire.NullLength)
                     NinoThrow.InvalidLength(length);
@@ -583,7 +591,7 @@ namespace Nino.Core
             // unsigned size and takes the cold path.
             int length = reader.UnsafeRead<int>();
             uint size = (uint)Unsafe.SizeOf<T>();
-            if ((ulong)(uint)length * size > (uint)reader.Remaining)
+            if ((ulong)(uint)length * size > (uint)reader.Remaining || TooLong(length))
             {
                 if (length != NinoWire.NullLength)
                     NinoThrow.InvalidLength(length);
@@ -804,7 +812,7 @@ namespace Nino.Core
             // The last product times the fewest bytes an element takes (NinoElements.MinWireSize, under 2^31):
             // under 2^63.
             if ((total *= b) > uint.MaxValue || (total *= c) > uint.MaxValue || (total *= d) > uint.MaxValue ||
-                total * minElementSize > reader.Remaining)
+                total * minElementSize > reader.Remaining || NinoLimits.LengthCapped && total > NinoLimits.MaxCollectionLength)
                 NinoThrow.InvalidLength((int)Math.Min(total, int.MaxValue));
             shape.Total = (int)total;
             return true;

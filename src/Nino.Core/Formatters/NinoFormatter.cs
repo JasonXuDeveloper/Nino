@@ -384,7 +384,7 @@ namespace Nino.Core
 
     /// <summary>
     /// The formatter of a type that can hold itself through collections (<see cref="NinoNesting"/>): each read
-    /// counts toward <see cref="NinoDepth.Max"/>, as a class body does, so data nested deeper throws instead of
+    /// counts toward <see cref="NinoSettings.MaxDepth"/>, as a class body does, so data nested deeper throws instead of
     /// overflowing the stack. Each level of such data passes through here: a type reached again inside its own
     /// formatter is read through <see cref="CachedFormatter{T}"/> (the generator's and the resolver's rule), and
     /// <see cref="StructType"/> is null, so the resolver does not inline the formatter as an element's. Writes

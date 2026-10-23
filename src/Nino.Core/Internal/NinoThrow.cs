@@ -140,7 +140,7 @@ namespace Nino.Core
             throw new InvalidOperationException(DeepMessage(type));
 
         private static string DeepMessage(Type type) =>
-            $"Nino: {type.FullName} is nested more than {NinoDepth.Max} objects deep, or deeper than the stack has " +
+            $"Nino: {type.FullName} is nested more than {NinoLimits.MaxDepth} objects deep, or deeper than the stack has " +
             $"room for. Objects deeper than " +
             $"{NinoDepth.Inline} are written later, from a shallow point, except those built by their constructor " +
             "or compared by value (records, types overriding GetHashCode or implementing IComparable), and " +

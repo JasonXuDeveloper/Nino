@@ -262,14 +262,14 @@ namespace Nino.Core
             writer = deep;
         }
 
-        /// <summary>A body that cannot be deferred, written in place up to <see cref="NinoDepth.Max"/>.</summary>
+        /// <summary>A body that cannot be deferred, written in place up to <see cref="NinoSettings.MaxDepth"/>.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void WriteTooDeep<T, TFormatter>(T value, ref Writer writer)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
             int depth = writer.Depth;
-            if (depth >= NinoDepth.Max || !NinoDepth.StackLeft())
+            if (depth >= NinoLimits.MaxDepth || !NinoDepth.StackLeft())
                 NinoThrow.WriteTooDeep(typeof(T));
             writer.Depth = depth + 1;
             default(TFormatter).WriteBody(value, ref writer);
@@ -325,7 +325,7 @@ namespace Nino.Core
             reader.ExitBody(depth);
         }
 
-        /// <summary>A body that cannot be deferred, read in place up to <see cref="NinoDepth.Max"/>.</summary>
+        /// <summary>A body that cannot be deferred, read in place up to <see cref="NinoSettings.MaxDepth"/>.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadTooDeep<T, TFormatter>(ref T value, ref Reader reader)
             where T : class
@@ -334,7 +334,7 @@ namespace Nino.Core
             int depth = reader.Depth;
             // Struct bodies that can hold themselves count too (Reader.EnterStruct), and the stack is checked: this
             // many bodies of a large type take more than a small stack has.
-            if (depth + reader.OpenStructs >= NinoDepth.Max || !NinoDepth.StackLeft())
+            if (depth + reader.OpenStructs >= NinoLimits.MaxDepth || !NinoDepth.StackLeft())
                 NinoThrow.TooDeep(typeof(T));
             reader.Depth = depth + 1;
             default(TFormatter).ReadBody(ref value, ref reader);
