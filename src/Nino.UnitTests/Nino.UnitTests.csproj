@@ -5,7 +5,6 @@
         <!-- Annotations only: the generator is tested on nullable types, but the test fixtures leave members unset
              and pass null on purpose, so the flow-analysis warnings would be noise. -->
         <Nullable>annotations</Nullable>
-        <IsPackable>false</IsPackable>
         <!-- C# 11, not latest: the oldest version the test types compile with (required members), and the one from
              which the generator makes its interceptors file-local. Generated code must not need anything newer
              (Unity and older SDKs compile it at lower versions), and this build would catch it. -->
@@ -15,7 +14,7 @@
         <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
         <ReportAnalyzer>true</ReportAnalyzer>
         <EnableNETAnalyzers>false</EnableNETAnalyzers>
-        <NoWarn>RS1022;NU1608</NoWarn>
+        <NoWarn>$(NoWarn);RS1022;NU1608</NoWarn>
         <!-- The Roslyn test libraries bring in packages with security advisories: the patched versions in
              Directory.Packages.props replace them. -->
         <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
@@ -30,12 +29,10 @@
         <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
     </PropertyGroup>
 
-    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
-      <DefineConstants>TRACE;WEAK_VERSION_TOLERANCE</DefineConstants>
-    </PropertyGroup>
-
-    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
-      <DefineConstants>TRACE;WEAK_VERSION_TOLERANCE</DefineConstants>
+    <!-- WEAK_VERSION_TOLERANCE: the generator makes the types of this assembly version tolerant (those of
+         Nino.UnitTests.Subset, built without it, are not). Appended: the configuration's DEBUG stays. -->
+    <PropertyGroup>
+      <DefineConstants>$(DefineConstants);WEAK_VERSION_TOLERANCE</DefineConstants>
     </PropertyGroup>
 
     <!-- The netstandard builds of Nino.Core have no PriorityQueue formatter (netstandard has no PriorityQueue). -->

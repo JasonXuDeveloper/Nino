@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>netstandard2.1</TargetFramework>
@@ -11,9 +11,9 @@
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' == ''"/>
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' != ''"
                           SetTargetFramework="TargetFramework=$(NinoCoreTfm)"/>
+        <!-- The Roslyn 4.3 build, as in Unity: no interceptors. -->
         <ProjectReference Include="..\Nino.Generator\Nino.Generator.csproj"
-                          OutputItemType="Analyzer"
-                          ReferenceOutputAssembly="true"/>
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
 

@@ -10,7 +10,6 @@
         <Version>0.0.0.0</Version>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
-        <IsPackable>false</IsPackable>
         <NoWarn>$(NoWarn);CA1051;CA1716;CA1720;CA1815;CA1819;CA2225;IDE1006</NoWarn>
     </PropertyGroup>
 
