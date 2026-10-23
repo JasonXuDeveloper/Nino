@@ -298,7 +298,7 @@ namespace Conformance
                 new Label { Name = "root", Weight = 9 }, "struct");
             Add("struct-root-keyed", "A keyed struct at the top level.", new KeyedStruct { A = -1, B = 0.25 },
                 "keyed", "struct");
-            Add("struct-root-empty", "A struct without members at the top level: no bytes at all.", new EmptyStruct(),
+            Add("struct-root-empty", "A struct without members at the top level: raw, one zero byte (its size in memory).", new EmptyStruct(),
                 "raw-struct");
             Add("nested-objects", "Sealed classes three levels deep.", new Outer
             {

@@ -1,6 +1,6 @@
 {
   "case": "struct-root-empty",
-  "description": "A struct without members at the top level: no bytes at all.",
+  "description": "A struct without members at the top level: raw, one zero byte (its size in memory).",
   "type": "Conformance.EmptyStruct",
   "features": [
     "raw-struct"
