@@ -92,10 +92,12 @@ jobs:
           go vet ./...
           (cd bench && go vet ./...)
 
+      # A staticcheck release reads the export data of the Go releases out when it was made: bump it when a new Go
+      # becomes 'stable' and this step fails with "export data version ... is greater than maximum supported".
       - name: Staticcheck
         if: matrix.go == 'stable'
         run: |
-          if go install honnef.co/go/tools/cmd/staticcheck@2025.1.1; then
+          if go install honnef.co/go/tools/cmd/staticcheck@2026.2.2; then
             "$(go env GOPATH)/bin/staticcheck" ./...
             (cd bench && "$(go env GOPATH)/bin/staticcheck" ./...)
           else
