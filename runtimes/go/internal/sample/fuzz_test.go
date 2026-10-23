@@ -115,3 +115,73 @@ func seeds() []seed {
 	add("Conformance.TreeHolder", b, err)
 	return out
 }
+
+// FuzzTaggedDecode is FuzzDecode through the struct-tag path (nino.Unmarshal into the tagged Go types): reading
+// must never panic and must fail with an *Error; whatever it accepts must write back to bytes that read and write
+// again to the same bytes.
+func FuzzTaggedDecode(f *testing.F) {
+	registerTagged(f)
+	var names []string
+	for name, typ := range tagRoots {
+		if typ != nil {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	index := make(map[string]byte, len(names))
+	for i, name := range names {
+		index[name] = byte(i)
+	}
+	for _, seed := range seeds() {
+		if i, ok := index[seed.typ]; ok {
+			f.Add(append([]byte{i}, seed.data...))
+		}
+	}
+	if dir := os.Getenv("NINO_CONFORMANCE_CORPUS"); dir != "" {
+		for _, sub := range []string{"valid", "malicious"} {
+			files, _ := filepath.Glob(filepath.Join(dir, sub, "*.json"))
+			for _, file := range files {
+				var c struct {
+					Type string `json:"type"`
+				}
+				meta, err := os.ReadFile(file)
+				if err != nil || json.Unmarshal(meta, &c) != nil {
+					continue
+				}
+				i, ok := index[c.Type]
+				if !ok {
+					continue
+				}
+				data, err := os.ReadFile(file[:len(file)-len(".json")] + ".bin")
+				if err == nil && len(data) < 1<<16 {
+					f.Add(append([]byte{i}, data...))
+				}
+			}
+		}
+	}
+	f.Fuzz(func(t *testing.T, input []byte) {
+		if len(input) == 0 {
+			return
+		}
+		typ := tagRoots[names[int(input[0])%len(names)]]
+		v := reflect.New(typ)
+		if err := nino.Unmarshal(input[1:], v.Interface()); err != nil {
+			if _, ok := err.(*nino.Error); !ok {
+				t.Fatalf("error of type %T: %v", err, err)
+			}
+			return
+		}
+		once, err := marshalAs(typ, v.Elem())
+		if err != nil {
+			t.Fatalf("a value read did not write back: %v", err)
+		}
+		again := reflect.New(typ)
+		if err := nino.UnmarshalExact(once, again.Interface()); err != nil {
+			t.Fatalf("written bytes did not read back: %v", err)
+		}
+		twice, err := marshalAs(typ, again.Elem())
+		if err != nil || string(once) != string(twice) {
+			t.Fatalf("not stable through a write and a read (%v)", err)
+		}
+	})
+}

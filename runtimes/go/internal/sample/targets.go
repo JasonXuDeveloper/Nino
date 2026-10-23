@@ -9,7 +9,7 @@ import (
 // Target is one of the small sealed classes (namespace Conformance.Targets) the corpus forges invalid data against:
 // a presence byte, then one member.
 type Target[T any] struct {
-	Value T
+	Value T `nino:"0" json:"value" yaml:"value"`
 }
 
 // TargetCodec reads and writes a Target whose member is read by read and written by write.
