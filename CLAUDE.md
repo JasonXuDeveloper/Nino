@@ -94,6 +94,25 @@ every method it lists. What has gone wrong before:
 - Generated registration code may call back into Nino.Core (`NinoPolymorphic.Register(Type)`), which asks every
   registry again: anything a registry calls must be re-entrant (`NinoRegistry.RegisterType` guards it per thread).
 
+## Go runtime
+
+`runtimes/go` (package `nino`, see its README.md) reads and writes the wire format for Go; `internal/sample` holds the
+corpus's types with codecs in the style a generator would write. Both performance and safety on untrusted input are
+requirements:
+- Never panic on any input, and never rely on `recover`: check every bound, and keep errors sticky (after a failure
+  the reader returns zeros, empty slices and null, so every loop ends). Check a length against the bytes left
+  before allocating, with .NET's caps (`SliceCap`, `capacity`); grow, never presize, what the data only claims.
+- Count depth exactly as .NET does (`ReadClass`, `WriteClass`, regions and sections): the bytes must match, and
+  the stack must stay bounded however deep the data. A polymorphic slot accepts only the ids of the types it allows.
+- Hot paths: no reflection, no boxing into `any` outside polymorphic slots; a run of fixed-size members is one
+  `Take`/`Extend` and `binary.LittleEndian` at constant offsets; blocks of primitives are one copy (guarded for
+  big-endian hosts). Keep rare paths (`Fail`, growth, deferral) in `//go:noinline` functions. Check
+  `go build -gcflags=-d=ssa/check_bce/debug=1` and `-gcflags=-m` on what you change, and keep writing a value free
+  of allocations (`bench`, `-benchmem`).
+- Before committing: `go vet ./...`, `go test -race ./...` with the conformance corpus present, a short run of
+  `FuzzReader` and `FuzzDecode`, and the benchmarks back to back against the previous commit for a change to a
+  read or write path. The runtime's module has no dependencies; competitors live in the `bench` module.
+
 ## Commit messages and release notes
 
 - Conventional Commits: `type(scope): summary`, plus a body that says why. Types: `feat`, `fix`, `perf`,
