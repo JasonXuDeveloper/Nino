@@ -3,7 +3,6 @@
     <PropertyGroup>
         <TargetFramework>netstandard2.1</TargetFramework>
         <Nullable>disable</Nullable>
-        <LangVersion>default</LangVersion>
     </PropertyGroup>
 
 

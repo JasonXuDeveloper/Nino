@@ -4,7 +4,6 @@
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
         <TargetFrameworks>netstandard2.0;netstandard2.1;net8.0;net10.0</TargetFrameworks>
-        <LangVersion>latest</LangVersion>
         <AnalysisLevel>latest-recommended</AnalysisLevel>
         <PackageId>Nino.Serialization</PackageId>
         <Description>The fastest binary serializer for C#. General-purpose, source-generated, zero-allocation and thread-safe: for services, RPC, messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.</Description>

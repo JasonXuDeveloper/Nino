@@ -6,7 +6,6 @@
         <TargetFramework>netstandard2.0</TargetFramework>
         <AnalysisLevel>latest-recommended</AnalysisLevel>
         <Nullable>enable</Nullable>
-        <LangVersion>preview</LangVersion>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <EnableNETAnalyzers>true</EnableNETAnalyzers>
         <IsRoslynComponent>true</IsRoslynComponent>

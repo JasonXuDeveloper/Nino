@@ -6,6 +6,9 @@
              and pass null on purpose, so the flow-analysis warnings would be noise. -->
         <Nullable>annotations</Nullable>
         <IsPackable>false</IsPackable>
+        <!-- C# 11, not latest: the oldest version the test types compile with (required members), and the one from
+             which the generator makes its interceptors file-local. Generated code must not need anything newer
+             (Unity and older SDKs compile it at lower versions), and this build would catch it. -->
         <LangVersion>11</LangVersion>
         <OutputType>Library</OutputType>
         <TargetFrameworks>net8.0;net10.0;netstandard2.1</TargetFrameworks>

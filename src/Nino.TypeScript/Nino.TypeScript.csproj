@@ -9,7 +9,6 @@
         <RootNamespace>Nino.TypeScript</RootNamespace>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
         <AnalysisLevel>latest-recommended</AnalysisLevel>
         <PackageId>Nino.TypeScript</PackageId>
         <Description>TypeScript for Nino: after each build, writes TypeScript classes and codecs that read and write the bytes the project's [NinoType]s are serialized to, read from the layouts the Nino generator published in the built assembly, plus the nino.ts runtime.</Description>
