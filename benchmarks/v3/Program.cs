@@ -7,7 +7,8 @@ namespace Nino.Benchmark
 {
     public class Program
     {
-        // Same as v4's Program.cs, plus a `--verify` quick-check mode that does not start BenchmarkDotNet.
+        // v4's Program.cs without its probes and fixed units: `--verify` checks the cases (Verify.cs) and does not
+        // start BenchmarkDotNet; anything else runs BenchmarkDotNet, with one joined summary.
         public static int Main(string[] args)
         {
             if (args.Contains("--verify"))
