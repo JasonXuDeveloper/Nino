@@ -4,6 +4,9 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Project Path="../conformance/Nino.Conformance/Nino.Conformance.csproj" />
+  <Project Path="../tests/Nino.Fuzz/Golden/Nino.Fuzz.Golden.csproj" />
+  <Project Path="../tests/Nino.Fuzz/Nino.Fuzz.csproj" />
   <Project Path="Nino.AotTests/Nino.AotTests.csproj" />
   <Project Path="Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj" />
   <Project Path="Nino.AspNetCore/Nino.AspNetCore.csproj" />
