@@ -192,8 +192,11 @@ the result objects.
   and stores (`ldp`/`stp`), 64 bytes a step from an aligned source address, which beats the C library's `memcpy`
   there (with only 16-byte vectors on x64 with SSE and WebAssembly, `memmove` from 65 bytes); beyond, with `memmove`, which is far slower on some
   CPUs (8,000 bytes in 236 ns on GitHub's EPYC 9V74 runners and 2.8 µs on their EPYC 7763 ones, against 83 to 85 ns for
-  the vector loop). Reads of 6 KB or more use
-  `memmove`, whose `rep movsb` writes fresh cache lines without reading them first.
+  the vector loop). Reads of 6 KB or more into a new array use
+  `memmove`, whose `rep movsb` writes fresh cache lines without reading them first, except on AMD CPUs, where it is
+  slower than vector stores there too (1,000 `KeyValuePair<int, int>` read in 418 ns instead of 465 ns on GitHub's
+  EPYC 7763 runners); a list of up to 64 bytes read in place calls `memmove` directly, cheaper than the out-of-line
+  copy for so few bytes.
 * **Zeroing only where it pays.** A new array that one block copy fills is allocated uninitialized from 6 KB: below,
   the runtime's uninitialized allocation costs more than zeroing (on GitHub's runners, 1.1x the time at 4 KB, 1.4x to
   2.2x at 2 KB).
