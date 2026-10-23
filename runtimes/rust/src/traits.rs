@@ -76,17 +76,32 @@ pub trait NinoWrite {
     }
 }
 
-/// The body of a `[NinoType]` class: what follows its header (presence byte or type id). Generated for every class;
-/// [`Reader::read_class`] and [`Writer::write_class`] count the open bodies and defer the deep ones.
-pub trait NinoBody: Default + 'static {
+/// Reading the body of a `[NinoType]` class: what follows its header (presence byte or type id). Generated for every
+/// class (`#[derive(NinoRead)]` or the templates); [`Reader::read_class`] counts the open bodies and defers the deep
+/// ones.
+pub trait NinoReadBody: Default + 'static {
     /// Whether .NET creates the object before reading its members, so a body nested 128 deep is written later
     /// (the specification, 7.10.1): false for types built by a constructor taking member values (records with a
     /// primary constructor, init-only or read-only members) and types compared by value (records, `GetHashCode`
-    /// overrides, `IComparable`). It must be what .NET decides for the type, or deep data is read wrongly.
+    /// overrides, `IComparable`). It must be what .NET decides for the type, or deep data is read wrongly. The same
+    /// value as [`NinoWriteBody::DEFERRABLE`].
     const DEFERRABLE: bool = true;
+
+    /// The type id written before the body where the declared type is polymorphic (0 when the type has none).
+    const TYPE_ID: i32 = 0;
 
     /// Reads the members into `self` (a new `Default` instance).
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()>;
+}
+
+/// Writing the body of a `[NinoType]` class (see [`NinoReadBody`]); [`Writer::write_class`] counts the open bodies
+/// and defers the deep ones.
+pub trait NinoWriteBody: 'static {
+    /// As [`NinoReadBody::DEFERRABLE`].
+    const DEFERRABLE: bool = true;
+
+    /// As [`NinoReadBody::TYPE_ID`].
+    const TYPE_ID: i32 = 0;
 
     /// Writes the members.
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()>;

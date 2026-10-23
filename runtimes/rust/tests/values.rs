@@ -245,12 +245,17 @@ impl Deep {
     }
 }
 
-impl NinoBody for Deep {
+impl NinoReadBody for Deep {
     const DEFERRABLE: bool = false;
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.next = r.read()?;
         Ok(())
     }
+}
+
+impl NinoWriteBody for Deep {
+    const DEFERRABLE: bool = false;
+
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.next)
     }

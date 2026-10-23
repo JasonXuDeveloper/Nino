@@ -3,7 +3,7 @@
 
 use core::any::Any;
 
-use nino::{field, Error, ErrorKind, NinoBody, NinoRead, NinoWrite, Reader, Result, Step, Writer};
+use nino::{field, Error, ErrorKind, NinoRead, NinoReadBody, NinoWrite, NinoWriteBody, Reader, Result, Step, Writer};
 use serde_json::{Map, Value};
 
 use super::json::{hex, Visit, J};
@@ -15,13 +15,15 @@ pub struct BigValues {
     pub version: Option<nino::Version>,
 }
 
-impl NinoBody for BigValues {
+impl NinoReadBody for BigValues {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.big = r.read()?;
         self.version = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for BigValues {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.big)?;
         w.write(&self.version)?;
@@ -73,14 +75,16 @@ pub struct BlueLink {
     pub note: Option<String>,
 }
 
-impl NinoBody for BlueLink {
+impl NinoReadBody for BlueLink {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read()?;
         self.next = r.read_in(field!(Self, next))?;
         self.note = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for BlueLink {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         w.write(&self.next)?;
@@ -134,14 +138,16 @@ pub struct Bytes {
     pub signed: Option<Vec<i8>>,
 }
 
-impl NinoBody for Bytes {
+impl NinoReadBody for Bytes {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.array = r.read()?;
         self.list = r.read()?;
         self.signed = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Bytes {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.array)?;
         w.write(&self.list)?;
@@ -194,13 +200,15 @@ pub struct Cat {
     pub lives: f32,
 }
 
-impl NinoBody for Cat {
+impl NinoReadBody for Cat {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.name = r.read()?;
         self.lives = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Cat {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.name)?;
         w.write(&self.lives)?;
@@ -251,13 +259,15 @@ pub struct Chain {
     pub next: Option<Box<Chain>>,
 }
 
-impl NinoBody for Chain {
+impl NinoReadBody for Chain {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read()?;
         self.next = r.read_in(field!(Self, next))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Chain {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         w.write(&self.next)?;
@@ -308,13 +318,15 @@ pub struct Circle {
     pub radius: f64,
 }
 
-impl NinoBody for Circle {
+impl NinoReadBody for Circle {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.area = r.read()?;
         self.radius = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Circle {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.area)?;
         w.write(&self.radius)?;
@@ -362,7 +374,7 @@ pub struct Collections {
     pub string_grid: Option<nino::Grid<Option<String>, 2>>,
 }
 
-impl NinoBody for Collections {
+impl NinoReadBody for Collections {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.ints = r.read()?;
         self.int_list = r.read()?;
@@ -387,7 +399,9 @@ impl NinoBody for Collections {
         self.string_grid = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Collections {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.ints)?;
         w.write(&self.int_list)?;
@@ -478,7 +492,7 @@ pub struct Dates {
     pub offset: nino::DateTimeOffset,
 }
 
-impl NinoBody for Dates {
+impl NinoReadBody for Dates {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.utc = r.read()?;
         self.local = r.read()?;
@@ -486,7 +500,9 @@ impl NinoBody for Dates {
         self.offset = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Dates {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.utc)?;
         w.write(&self.local)?;
@@ -541,13 +557,15 @@ pub struct Dog {
     pub bones: i32,
 }
 
-impl NinoBody for Dog {
+impl NinoReadBody for Dog {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.name = r.read()?;
         self.bones = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Dog {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.name)?;
         w.write(&self.bones)?;
@@ -578,7 +596,7 @@ pub struct Empties {
     pub classes: Option<Vec<Option<Box<Empty>>>>,
 }
 
-impl NinoBody for Empties {
+impl NinoReadBody for Empties {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.class = r.read_in(field!(Self, class))?;
         self.r#struct = r.read()?;
@@ -586,7 +604,9 @@ impl NinoBody for Empties {
         self.classes = r.read_in(field!(Self, classes))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Empties {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.class)?;
         w.write(&self.r#struct)?;
@@ -638,12 +658,14 @@ impl J for Empties {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Empty {}
 
-impl NinoBody for Empty {
+impl NinoReadBody for Empty {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let _ = r;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Empty {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let _ = w;
         Ok(())
@@ -700,7 +722,7 @@ pub struct Enums {
     pub array: Option<Vec<i32>>,
 }
 
-impl NinoBody for Enums {
+impl NinoReadBody for Enums {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.a = r.read()?;
         self.b = r.read()?;
@@ -715,7 +737,9 @@ impl NinoBody for Enums {
         self.array = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Enums {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.a)?;
         w.write(&self.b)?;
@@ -785,14 +809,16 @@ pub struct Floats {
     pub f64: f64,
 }
 
-impl NinoBody for Floats {
+impl NinoReadBody for Floats {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.f16 = r.read()?;
         self.f32 = r.read()?;
         self.f64 = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Floats {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.f16)?;
         w.write(&self.f32)?;
@@ -846,14 +872,16 @@ pub struct Inner {
     pub point: Option<Box<Point>>,
 }
 
-impl NinoBody for Inner {
+impl NinoReadBody for Inner {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read()?;
         self.text = r.read()?;
         self.point = r.read_in(field!(Self, point))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Inner {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         w.write(&self.text)?;
@@ -914,7 +942,7 @@ pub struct Integers {
     pub u128: u128,
 }
 
-impl NinoBody for Integers {
+impl NinoReadBody for Integers {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.i8 = r.read()?;
         self.u8 = r.read()?;
@@ -928,7 +956,9 @@ impl NinoBody for Integers {
         self.u128 = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Integers {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.i8)?;
         w.write(&self.u8)?;
@@ -995,7 +1025,7 @@ pub struct KeyedChain {
     pub next: Option<Box<KeyedChain>>,
 }
 
-impl NinoBody for KeyedChain {
+impl NinoReadBody for KeyedChain {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         while r.has_more() {
@@ -1014,7 +1044,9 @@ impl NinoBody for KeyedChain {
         r.end_region(body, self)?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for KeyedChain {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.i32(0xC373233Eu32 as i32);
@@ -1074,14 +1106,16 @@ pub struct KeyedHolder {
     pub array: Option<Vec<Option<Box<KeyedV1>>>>,
 }
 
-impl NinoBody for KeyedHolder {
+impl NinoReadBody for KeyedHolder {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.keyed = r.read_in(field!(Self, keyed))?;
         self.r#struct = r.read()?;
         self.array = r.read_in(field!(Self, array))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for KeyedHolder {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.keyed)?;
         w.write(&self.r#struct)?;
@@ -1148,7 +1182,7 @@ impl NinoWrite for KeyedStruct {
     }
 }
 
-impl NinoBody for KeyedStruct {
+impl NinoReadBody for KeyedStruct {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         while r.has_more() {
@@ -1167,7 +1201,9 @@ impl NinoBody for KeyedStruct {
         r.end_region(body, self)?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for KeyedStruct {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.i32(0x6AD58324u32 as i32);
@@ -1202,7 +1238,7 @@ pub struct KeyedV1 {
     pub score: i64,
 }
 
-impl NinoBody for KeyedV1 {
+impl NinoReadBody for KeyedV1 {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         while r.has_more() {
@@ -1223,7 +1259,9 @@ impl NinoBody for KeyedV1 {
         r.end_region(body, self)?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for KeyedV1 {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.i32(0x99A16761u32 as i32);
@@ -1294,7 +1332,7 @@ pub struct KeyedV2 {
     pub level: i32,
 }
 
-impl NinoBody for KeyedV2 {
+impl NinoReadBody for KeyedV2 {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         while r.has_more() {
@@ -1315,7 +1353,9 @@ impl NinoBody for KeyedV2 {
         r.end_region(body, self)?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for KeyedV2 {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.i32(0x044AB14Du32 as i32);
@@ -1398,13 +1438,15 @@ impl NinoWrite for Label {
     }
 }
 
-impl NinoBody for Label {
+impl NinoReadBody for Label {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.name = r.read()?;
         self.weight = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Label {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.name)?;
         w.write(&self.weight)?;
@@ -1430,14 +1472,16 @@ pub struct Middle {
     pub inner: Option<Box<Inner>>,
 }
 
-impl NinoBody for Middle {
+impl NinoReadBody for Middle {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.first = r.read_in(field!(Self, first))?;
         self.second = r.read_in(field!(Self, second))?;
         self.inner = r.read_in(field!(Self, inner))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Middle {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.first)?;
         w.write(&self.second)?;
@@ -1501,7 +1545,7 @@ pub struct Nullables {
     pub map: Option<indexmap::IndexMap<i32, Option<i32>>>,
 }
 
-impl NinoBody for Nullables {
+impl NinoReadBody for Nullables {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.int = r.read()?;
         self.long = r.read()?;
@@ -1518,7 +1562,9 @@ impl NinoBody for Nullables {
         self.map = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Nullables {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.int)?;
         w.write(&self.long)?;
@@ -1592,14 +1638,16 @@ pub struct Outer {
     pub middle: Option<Box<Middle>>,
 }
 
-impl NinoBody for Outer {
+impl NinoReadBody for Outer {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.name = r.read()?;
         self.point = r.read_in(field!(Self, point))?;
         self.middle = r.read_in(field!(Self, middle))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Outer {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.name)?;
         w.write(&self.point)?;
@@ -1651,12 +1699,14 @@ pub struct Plain {
     pub value: i32,
 }
 
-impl NinoBody for Plain {
+impl NinoReadBody for Plain {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Plain {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -1683,13 +1733,15 @@ pub struct Point {
     pub y: i32,
 }
 
-impl NinoBody for Point {
+impl NinoReadBody for Point {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.x = r.read()?;
         self.y = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Point {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.x)?;
         w.write(&self.y)?;
@@ -1741,14 +1793,16 @@ pub struct Puppy {
     pub sleepy: bool,
 }
 
-impl NinoBody for Puppy {
+impl NinoReadBody for Puppy {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.name = r.read()?;
         self.bones = r.read()?;
         self.sleepy = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Puppy {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.name)?;
         w.write(&self.bones)?;
@@ -1801,7 +1855,7 @@ pub struct RecordChain {
     pub next: Option<Box<RecordChain>>,
 }
 
-impl NinoBody for RecordChain {
+impl NinoReadBody for RecordChain {
     const DEFERRABLE: bool = false;
 
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
@@ -1809,6 +1863,10 @@ impl NinoBody for RecordChain {
         self.next = r.read_in(field!(Self, next))?;
         Ok(())
     }
+}
+
+impl NinoWriteBody for RecordChain {
+    const DEFERRABLE: bool = false;
 
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
@@ -1860,13 +1918,15 @@ pub struct RedLink {
     pub next: Option<LinkRef>,
 }
 
-impl NinoBody for RedLink {
+impl NinoReadBody for RedLink {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read()?;
         self.next = r.read_in(field!(Self, next))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for RedLink {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         w.write(&self.next)?;
@@ -1922,7 +1982,7 @@ pub struct Scalars {
     pub time: nino::TimeOnly,
 }
 
-impl NinoBody for Scalars {
+impl NinoReadBody for Scalars {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.flag = r.read()?;
         self.char = r.read()?;
@@ -1933,7 +1993,9 @@ impl NinoBody for Scalars {
         self.time = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Scalars {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.flag)?;
         w.write(&self.char)?;
@@ -1994,13 +2056,15 @@ pub struct Square {
     pub side: f64,
 }
 
-impl NinoBody for Square {
+impl NinoReadBody for Square {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.area = r.read()?;
         self.side = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Square {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.area)?;
         w.write(&self.side)?;
@@ -2054,7 +2118,7 @@ pub struct StringCollections {
     pub utf8_b: Option<nino::Utf8>,
 }
 
-impl NinoBody for StringCollections {
+impl NinoReadBody for StringCollections {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.array = r.read()?;
         self.list = r.read()?;
@@ -2063,7 +2127,9 @@ impl NinoBody for StringCollections {
         self.utf8_b = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for StringCollections {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.array)?;
         w.write(&self.list)?;
@@ -2120,13 +2186,15 @@ pub struct Strings {
     pub utf8: Option<nino::Utf8>,
 }
 
-impl NinoBody for Strings {
+impl NinoReadBody for Strings {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.text = r.read()?;
         self.utf8 = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Strings {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.text)?;
         w.write(&self.utf8)?;
@@ -2189,7 +2257,7 @@ pub struct Structs {
     pub pair: (Option<String>, Vec2),
 }
 
-impl NinoBody for Structs {
+impl NinoReadBody for Structs {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.vec = r.read()?;
         self.padded = r.read()?;
@@ -2207,7 +2275,9 @@ impl NinoBody for Structs {
         self.pair = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Structs {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.vec)?;
         w.write(&self.padded)?;
@@ -2281,12 +2351,14 @@ pub struct TAnimalSlot {
     pub value: Option<AnimalRef>,
 }
 
-impl NinoBody for TAnimalSlot {
+impl NinoReadBody for TAnimalSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read_in(field!(Self, value))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TAnimalSlot {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -2334,12 +2406,14 @@ pub struct TBigSlot {
     pub value: nino::BigInteger,
 }
 
-impl NinoBody for TBigSlot {
+impl NinoReadBody for TBigSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TBigSlot {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -2387,12 +2461,14 @@ pub struct TBoolArray {
     pub values: Option<Vec<bool>>,
 }
 
-impl NinoBody for TBoolArray {
+impl NinoReadBody for TBoolArray {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TBoolArray {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -2440,12 +2516,14 @@ pub struct TBoolValue {
     pub value: bool,
 }
 
-impl NinoBody for TBoolValue {
+impl NinoReadBody for TBoolValue {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TBoolValue {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -2493,12 +2571,14 @@ pub struct TByteArray {
     pub values: Option<Vec<u8>>,
 }
 
-impl NinoBody for TByteArray {
+impl NinoReadBody for TByteArray {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TByteArray {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -2546,12 +2626,14 @@ pub struct TDogSlot {
     pub value: Option<DogRef>,
 }
 
-impl NinoBody for TDogSlot {
+impl NinoReadBody for TDogSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read_in(field!(Self, value))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TDogSlot {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -2599,12 +2681,14 @@ pub struct TGrid {
     pub values: Option<nino::Grid<i32, 2>>,
 }
 
-impl NinoBody for TGrid {
+impl NinoReadBody for TGrid {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TGrid {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -2652,12 +2736,14 @@ pub struct TIntArray {
     pub values: Option<Vec<i32>>,
 }
 
-impl NinoBody for TIntArray {
+impl NinoReadBody for TIntArray {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TIntArray {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -2705,12 +2791,14 @@ pub struct TIntMap {
     pub values: Option<indexmap::IndexMap<i32, i32>>,
 }
 
-impl NinoBody for TIntMap {
+impl NinoReadBody for TIntMap {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TIntMap {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -2758,12 +2846,14 @@ pub struct TIntSet {
     pub values: Option<indexmap::IndexSet<i32>>,
 }
 
-impl NinoBody for TIntSet {
+impl NinoReadBody for TIntSet {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TIntSet {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -2811,12 +2901,14 @@ pub struct TLongList {
     pub values: Option<Vec<i64>>,
 }
 
-impl NinoBody for TLongList {
+impl NinoReadBody for TLongList {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TLongList {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -2864,12 +2956,14 @@ pub struct TMaybeInt {
     pub value: Option<i32>,
 }
 
-impl NinoBody for TMaybeInt {
+impl NinoReadBody for TMaybeInt {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TMaybeInt {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -2917,12 +3011,14 @@ pub struct TMaybeIntArray {
     pub values: Option<nino::RawNullables<i32>>,
 }
 
-impl NinoBody for TMaybeIntArray {
+impl NinoReadBody for TMaybeIntArray {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TMaybeIntArray {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -2970,12 +3066,14 @@ pub struct TObjectSlot {
     pub value: Option<AnyObject>,
 }
 
-impl NinoBody for TObjectSlot {
+impl NinoReadBody for TObjectSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read_in(field!(Self, value))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TObjectSlot {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -3023,12 +3121,14 @@ pub struct TPaddedArray {
     pub values: Option<Vec<Padded>>,
 }
 
-impl NinoBody for TPaddedArray {
+impl NinoReadBody for TPaddedArray {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TPaddedArray {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -3076,12 +3176,14 @@ pub struct TPointList {
     pub values: Option<Vec<Option<Box<Point>>>>,
 }
 
-impl NinoBody for TPointList {
+impl NinoReadBody for TPointList {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read_in(field!(Self, values))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TPointList {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -3129,12 +3231,14 @@ pub struct TShapeSlot {
     pub value: Option<IShapeRef>,
 }
 
-impl NinoBody for TShapeSlot {
+impl NinoReadBody for TShapeSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read_in(field!(Self, value))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TShapeSlot {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -3182,12 +3286,14 @@ pub struct TSortedMap {
     pub values: Option<indexmap::IndexMap<i32, i32>>,
 }
 
-impl NinoBody for TSortedMap {
+impl NinoReadBody for TSortedMap {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TSortedMap {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -3235,12 +3341,14 @@ pub struct TStringList {
     pub values: Option<Vec<Option<String>>>,
 }
 
-impl NinoBody for TStringList {
+impl NinoReadBody for TStringList {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TStringList {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -3288,12 +3396,14 @@ pub struct TStringMap {
     pub values: Option<indexmap::IndexMap<String, i32>>,
 }
 
-impl NinoBody for TStringMap {
+impl NinoReadBody for TStringMap {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TStringMap {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -3341,12 +3451,14 @@ pub struct TStringSet {
     pub values: Option<indexmap::IndexSet<String>>,
 }
 
-impl NinoBody for TStringSet {
+impl NinoReadBody for TStringSet {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.values = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TStringSet {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -3394,12 +3506,14 @@ pub struct TTextValue {
     pub value: Option<String>,
 }
 
-impl NinoBody for TTextValue {
+impl NinoReadBody for TTextValue {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TTextValue {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -3447,12 +3561,14 @@ pub struct TUtf8Value {
     pub value: Option<nino::Utf8>,
 }
 
-impl NinoBody for TUtf8Value {
+impl NinoReadBody for TUtf8Value {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TUtf8Value {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -3500,12 +3616,14 @@ pub struct TVersionSlot {
     pub value: Option<nino::Version>,
 }
 
-impl NinoBody for TVersionSlot {
+impl NinoReadBody for TVersionSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TVersionSlot {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -3553,7 +3671,7 @@ pub struct TolerantBase {
     pub a: i32,
 }
 
-impl NinoBody for TolerantBase {
+impl NinoReadBody for TolerantBase {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -3562,7 +3680,9 @@ impl NinoBody for TolerantBase {
         r.end_region(body, self)?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TolerantBase {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.write(&self.a)?;
@@ -3591,7 +3711,7 @@ pub struct TolerantChain {
     pub next: Option<Box<TolerantChain>>,
 }
 
-impl NinoBody for TolerantChain {
+impl NinoReadBody for TolerantChain {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -3603,7 +3723,9 @@ impl NinoBody for TolerantChain {
         r.end_region(body, self)?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TolerantChain {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.write(&self.value)?;
@@ -3653,13 +3775,15 @@ impl J for TolerantChain {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct TolerantEmpty {}
 
-impl NinoBody for TolerantEmpty {
+impl NinoReadBody for TolerantEmpty {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         r.end_region(body, self)?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TolerantEmpty {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.end_region(body)?;
@@ -3710,7 +3834,7 @@ pub struct TolerantHolder {
     pub after: i32,
 }
 
-impl NinoBody for TolerantHolder {
+impl NinoReadBody for TolerantHolder {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.first = r.read_in(field!(Self, first))?;
         self.polymorphic = r.read_in(field!(Self, polymorphic))?;
@@ -3718,7 +3842,9 @@ impl NinoBody for TolerantHolder {
         self.after = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TolerantHolder {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.first)?;
         w.write(&self.polymorphic)?;
@@ -3773,7 +3899,7 @@ pub struct TolerantLeaf {
     pub b: i32,
 }
 
-impl NinoBody for TolerantLeaf {
+impl NinoReadBody for TolerantLeaf {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -3785,7 +3911,9 @@ impl NinoBody for TolerantLeaf {
         r.end_region(body, self)?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TolerantLeaf {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.write(&self.a)?;
@@ -3839,7 +3967,7 @@ pub struct TolerantRoot {
     pub after: i32,
 }
 
-impl NinoBody for TolerantRoot {
+impl NinoReadBody for TolerantRoot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -3854,7 +3982,9 @@ impl NinoBody for TolerantRoot {
         r.end_region(body, self)?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TolerantRoot {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.write(&self.name)?;
@@ -3909,7 +4039,7 @@ pub struct TolerantV1 {
     pub b: Option<String>,
 }
 
-impl NinoBody for TolerantV1 {
+impl NinoReadBody for TolerantV1 {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -3921,7 +4051,9 @@ impl NinoBody for TolerantV1 {
         r.end_region(body, self)?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TolerantV1 {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.write(&self.a)?;
@@ -3976,7 +4108,7 @@ pub struct TolerantV2 {
     pub d: Option<Vec<i32>>,
 }
 
-impl NinoBody for TolerantV2 {
+impl NinoReadBody for TolerantV2 {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -3994,7 +4126,9 @@ impl NinoBody for TolerantV2 {
         r.end_region(body, self)?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TolerantV2 {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.write(&self.a)?;
@@ -4051,13 +4185,15 @@ pub struct TreeHolder {
     pub dict_tree: Option<DictTree>,
 }
 
-impl NinoBody for TreeHolder {
+impl NinoReadBody for TreeHolder {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.tree = r.read_in(field!(Self, tree))?;
         self.dict_tree = r.read_in(field!(Self, dict_tree))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TreeHolder {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.tree)?;
         w.write(&self.dict_tree)?;
@@ -4108,13 +4244,15 @@ pub struct TreeNode {
     pub children: Option<Vec<Option<Box<TreeNode>>>>,
 }
 
-impl NinoBody for TreeNode {
+impl NinoReadBody for TreeNode {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.read()?;
         self.children = r.read_in(field!(Self, children))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for TreeNode {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.value)?;
         w.write(&self.children)?;
@@ -4172,7 +4310,7 @@ pub struct Zoo {
     pub by_name: Option<indexmap::IndexMap<String, Option<AnimalRef>>>,
 }
 
-impl NinoBody for Zoo {
+impl NinoReadBody for Zoo {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.star = r.read_in(field!(Self, star))?;
         self.dog = r.read_in(field!(Self, dog))?;
@@ -4185,7 +4323,9 @@ impl NinoBody for Zoo {
         self.by_name = r.read_in(field!(Self, by_name))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Zoo {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.star)?;
         w.write(&self.dog)?;
@@ -4250,13 +4390,15 @@ pub struct BoxOfVec2 {
     pub value: Vec2,
 }
 
-impl NinoBody for BoxOfVec2 {
+impl NinoReadBody for BoxOfVec2 {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.name = r.read()?;
         self.value = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for BoxOfVec2 {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.name)?;
         w.write(&self.value)?;
@@ -4307,13 +4449,15 @@ pub struct BoxOfListOfPoint {
     pub value: Option<Vec<Option<Box<Point>>>>,
 }
 
-impl NinoBody for BoxOfListOfPoint {
+impl NinoReadBody for BoxOfListOfPoint {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.name = r.read()?;
         self.value = r.read_in(field!(Self, value))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for BoxOfListOfPoint {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.name)?;
         w.write(&self.value)?;
@@ -4364,13 +4508,15 @@ pub struct BoxOfInt32 {
     pub value: i32,
 }
 
-impl NinoBody for BoxOfInt32 {
+impl NinoReadBody for BoxOfInt32 {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.name = r.read()?;
         self.value = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for BoxOfInt32 {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.name)?;
         w.write(&self.value)?;
@@ -4421,13 +4567,15 @@ pub struct BoxOfString {
     pub value: Option<String>,
 }
 
-impl NinoBody for BoxOfString {
+impl NinoReadBody for BoxOfString {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.name = r.read()?;
         self.value = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for BoxOfString {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.name)?;
         w.write(&self.value)?;

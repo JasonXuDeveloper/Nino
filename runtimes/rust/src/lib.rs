@@ -3,7 +3,7 @@
 //!
 //! The runtime is what generated code calls: [`Reader`] and [`Writer`] for the primitives, strings and regions,
 //! the [`NinoRead`]/[`NinoWrite`] traits (implemented here for primitives, strings, `Option`, `Box`, tuples and the
-//! std collections, and by generated code for each `[NinoType]`), and [`NinoBody`] for classes.
+//! std collections, and by generated code for each `[NinoType]`), and [`NinoReadBody`]/[`NinoWriteBody`] for classes.
 //!
 //! ```
 //! let bytes = nino::serialize(&vec![1i32, 2]).unwrap();
@@ -41,7 +41,7 @@ pub use defer::Step;
 pub use error::{Error, ErrorKind, Result};
 pub use impls::dyn_step;
 pub use reader::{Reader, Region, DEPTH_INLINE, DEPTH_MAX};
-pub use traits::{NinoBody, NinoRead, NinoWrite};
+pub use traits::{NinoRead, NinoReadBody, NinoWrite, NinoWriteBody};
 pub use types::{
     BigInteger, BitArray, DateOnly, DateTime, DateTimeKind, DateTimeOffset, Decimal, Grid, Guid, Half, Raw,
     RawNullables, Rune, TimeOnly, TimeSpan, Utf8, Version, WideString, MAX_TICKS, TICKS_PER_DAY, UNIX_EPOCH_TICKS,

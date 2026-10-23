@@ -9,7 +9,7 @@ use core::any::Any;
 
 use crate::defer::{ReadDeferrals, Step};
 use crate::error::{Error, ErrorKind, Result};
-use crate::traits::{NinoBody, NinoRead};
+use crate::traits::{NinoRead, NinoReadBody};
 
 /// Open class bodies after which the next deferrable one is deferred (`NinoDepth.Inline`).
 pub const DEPTH_INLINE: u32 = 128;
@@ -355,7 +355,7 @@ impl<'d> Reader<'d> {
 
     /// Reads the body of the class `T` (after its header), counting it as an open body: or, `128` bodies deep,
     /// creates the instance and reads its body later (see the specification, 7.10), when `T` can be deferred.
-    pub fn read_class<T: NinoBody>(&mut self) -> Result<T> {
+    pub fn read_class<T: NinoReadBody>(&mut self) -> Result<T> {
         let depth = self.depth;
         if depth >= DEPTH_INLINE {
             if T::DEFERRABLE {
@@ -380,7 +380,7 @@ impl<'d> Reader<'d> {
 
     /// Reads a sealed class: its presence byte (0 = null), then its body ([`Reader::read_class`]).
     #[inline]
-    pub fn read_sealed<T: NinoBody>(&mut self) -> Result<Option<T>> {
+    pub fn read_sealed<T: NinoReadBody>(&mut self) -> Result<Option<T>> {
         if self.present()? {
             self.read_class().map(Some)
         } else {
@@ -390,7 +390,7 @@ impl<'d> Reader<'d> {
 
     /// Reads a sealed class that must not be null (an error when its presence byte is 0).
     #[inline]
-    pub fn read_sealed_value<T: NinoBody>(&mut self) -> Result<T> {
+    pub fn read_sealed_value<T: NinoReadBody>(&mut self) -> Result<T> {
         if self.present()? {
             self.read_class()
         } else {

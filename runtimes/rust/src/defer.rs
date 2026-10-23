@@ -21,7 +21,7 @@ use std::rc::Rc;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::reader::{take_i32, Reader, Region, DEPTH_INLINE};
-use crate::traits::NinoBody;
+use crate::traits::{NinoReadBody, NinoWriteBody};
 use crate::writer::Writer;
 
 /// How to reach a value from the object or container it was read into. Generated code passes
@@ -79,13 +79,13 @@ pub(crate) struct ReadDeferrals {
     top_active: bool,
 }
 
-fn read_deferred<T: NinoBody>(r: &mut Reader<'_>) -> Result<Box<dyn Any>> {
+fn read_deferred<T: NinoReadBody>(r: &mut Reader<'_>) -> Result<Box<dyn Any>> {
     let mut value = T::default();
     value.read_body(r)?;
     Ok(Box::new(value))
 }
 
-fn attach<T: NinoBody>(slot: &mut dyn Any, item: Box<dyn Any>) -> Result<()> {
+fn attach<T: NinoReadBody>(slot: &mut dyn Any, item: Box<dyn Any>) -> Result<()> {
     let slot = slot.downcast_mut::<T>().ok_or_else(misplaced)?;
     *slot = *item.downcast::<T>().map_err(|_| misplaced())?;
     Ok(())
@@ -106,7 +106,7 @@ impl ReadDeferrals {
         self.log.len()
     }
 
-    pub(crate) fn defer<T: NinoBody>(&mut self, position: usize, _regions: u32) {
+    pub(crate) fn defer<T: NinoReadBody>(&mut self, position: usize, _regions: u32) {
         self.pending.push(Pending {
             position,
             read: read_deferred::<T>,
@@ -320,7 +320,7 @@ pub(crate) struct WriteDeferrals<'a> {
     current_generation: u32,
 }
 
-fn write_deferred<'a, T: NinoBody>(value: &'a dyn Any, w: &mut Writer<'a>) -> Result<()> {
+fn write_deferred<'a, T: NinoWriteBody>(value: &'a dyn Any, w: &mut Writer<'a>) -> Result<()> {
     value.downcast_ref::<T>().ok_or_else(misplaced)?.write_body(w)
 }
 
@@ -337,7 +337,7 @@ impl<'a> WriteDeferrals<'a> {
     /// Queues the body of `value`, in the top queue outside regions, else in the region's. Fails on a cycle: each
     /// deferred object is compared with the one whose body it was found in and with the one at the last power of two
     /// of that chain, so any repetition is found in steps proportional to its length.
-    pub(crate) fn defer<T: NinoBody>(&mut self, value: &'a T, position: usize, regions: u32) -> Result<()> {
+    pub(crate) fn defer<T: NinoWriteBody>(&mut self, value: &'a T, position: usize, regions: u32) -> Result<()> {
         let generation = self.current_generation;
         let anchor = if generation != 0 && generation.is_power_of_two() { self.current } else { self.current_anchor };
         let id = identity(value);

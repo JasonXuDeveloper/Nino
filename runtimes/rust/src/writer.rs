@@ -3,7 +3,7 @@
 use crate::defer::WriteDeferrals;
 use crate::error::{Error, ErrorKind, Result};
 use crate::reader::{DEPTH_INLINE, DEPTH_MAX};
-use crate::traits::{NinoBody, NinoWrite};
+use crate::traits::{NinoWrite, NinoWriteBody};
 
 /// Writes values in Nino's format into a growing buffer (amortized doubling, as `Vec` grows), with no allocation
 /// per value once the buffer is large enough.
@@ -214,7 +214,7 @@ impl<'a> Writer<'a> {
 
     /// Writes the body of the class `T` (after its header), counting it as an open body: or, 128 bodies deep,
     /// queues it to be written later when `T` can be deferred (see the specification, 7.10).
-    pub fn write_class<T: NinoBody>(&mut self, value: &'a T) -> Result<()> {
+    pub fn write_class<T: NinoWriteBody>(&mut self, value: &'a T) -> Result<()> {
         let depth = self.depth;
         if depth >= DEPTH_INLINE {
             if T::DEFERRABLE {
@@ -236,7 +236,7 @@ impl<'a> Writer<'a> {
 
     /// Writes a sealed class: its presence byte, then its body ([`Writer::write_class`]).
     #[inline]
-    pub fn write_sealed<T: NinoBody>(&mut self, value: Option<&'a T>) -> Result<()> {
+    pub fn write_sealed<T: NinoWriteBody>(&mut self, value: Option<&'a T>) -> Result<()> {
         match value {
             Some(v) => {
                 self.present(true);

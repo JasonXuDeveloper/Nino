@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Writes tests/conformance/types.rs: Rust codecs for the conformance corpus's sample types, from the `layouts` of
-the corpus's cases, in the shape the shared templates are to generate (one struct per [NinoType], NinoBody for class
+the corpus's cases, in the shape the shared templates are to generate (one struct per [NinoType], NinoReadBody/NinoWriteBody for class
 bodies, an enum per polymorphic declared type restricted to its subtypes), plus their JSON form for the test.
 
     python3 tests/conformance/gen.py <corpus dir> > tests/conformance/types.rs
@@ -406,7 +406,7 @@ class Gen:
 
     def emit_body(self, name, rust, members, fmt, deferrable):
         o = self.out
-        o.append(f"impl NinoBody for {rust} {{")
+        o.append(f"impl NinoReadBody for {rust} {{")
         if not deferrable:
             o.append("    const DEFERRABLE: bool = false;")
             o.append("")
@@ -448,7 +448,12 @@ class Gen:
             o.append("        r.end_region(body, self)?;")
         o.append("        Ok(())")
         o.append("    }")
+        o.append("}")
         o.append("")
+        o.append(f"impl NinoWriteBody for {rust} {{")
+        if not deferrable:
+            o.append("    const DEFERRABLE: bool = false;")
+            o.append("")
         o.append("    fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {")
         if fmt == "Positional":
             for m in members:
@@ -764,7 +769,7 @@ def main():
     print()
     print("use core::any::Any;")
     print()
-    print("use nino::{field, Error, ErrorKind, NinoBody, NinoRead, NinoWrite, Reader, Result, Step, Writer};")
+    print("use nino::{field, Error, ErrorKind, NinoRead, NinoReadBody, NinoWrite, NinoWriteBody, Reader, Result, Step, Writer};")
     print("use serde_json::{Map, Value};")
     print()
     print("use super::json::{hex, Visit, J};")

@@ -2,7 +2,10 @@
 //! types of the specification's examples (namespace `Spec`), so their bytes can be checked against it.
 #![allow(dead_code)]
 
-use nino::{field, type_id, Error, ErrorKind, NinoBody, NinoRead, NinoWrite, Reader, Result, Step, Utf8, Writer};
+use nino::{
+    field, type_id, Error, ErrorKind, NinoRead, NinoReadBody, NinoWrite, NinoWriteBody, Reader, Result, Step, Utf8,
+    Writer,
+};
 
 // ---------------------------------------------------------------------- [NinoType] sealed class Small
 
@@ -13,13 +16,15 @@ pub struct Small {
     pub b: Option<String>,
 }
 
-impl NinoBody for Small {
+impl NinoReadBody for Small {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.a = r.i32()?;
         self.b = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Small {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.i32(self.a);
         w.write(&self.b)
@@ -59,7 +64,7 @@ pub struct Mixed {
     pub f: i16,
 }
 
-impl NinoBody for Mixed {
+impl NinoReadBody for Mixed {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         // A run of fixed-size members: one length check.
         let run = r.array::<13>()?;
@@ -72,7 +77,9 @@ impl NinoBody for Mixed {
         self.f = i16::from_le_bytes([run[2], run[3]]);
         Ok(())
     }
+}
 
+impl NinoWriteBody for Mixed {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.i32(self.a);
         w.u8(self.b);
@@ -136,14 +143,16 @@ impl Square {
     pub const TYPE_ID: i32 = type_id("Spec.Square");
 }
 
-impl NinoBody for Circle {
+impl NinoReadBody for Circle {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let run = r.array::<8>()?;
         self.id = i32::from_le_bytes([run[0], run[1], run[2], run[3]]);
         self.r = f32::from_le_bytes([run[4], run[5], run[6], run[7]]);
         Ok(())
     }
+}
 
+impl NinoWriteBody for Circle {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.i32(self.id);
         w.f32(self.r);
@@ -151,13 +160,15 @@ impl NinoBody for Circle {
     }
 }
 
-impl NinoBody for Square {
+impl NinoReadBody for Square {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.id = r.i32()?;
         self.side = r.f32()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Square {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.i32(self.id);
         w.f32(self.side);
@@ -267,7 +278,7 @@ impl Keyed {
     const SCORE: i32 = type_id("Score");
 }
 
-impl NinoBody for Keyed {
+impl NinoReadBody for Keyed {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         while r.has_more() {
@@ -286,7 +297,9 @@ impl NinoBody for Keyed {
         }
         r.end_region(body, self)
     }
+}
 
+impl NinoWriteBody for Keyed {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.i32(Self::ID);
@@ -336,7 +349,7 @@ impl TolLeaf {
     pub const TYPE_ID: i32 = type_id("Spec.TolLeaf");
 }
 
-impl NinoBody for TolLeaf {
+impl NinoReadBody for TolLeaf {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -347,7 +360,9 @@ impl NinoBody for TolLeaf {
         }
         r.end_region(body, self)
     }
+}
 
+impl NinoWriteBody for TolLeaf {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.i32(self.a);
@@ -382,7 +397,7 @@ pub struct TolBaseOnly {
     pub a: i32,
 }
 
-impl NinoBody for TolBaseOnly {
+impl NinoReadBody for TolBaseOnly {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -390,7 +405,9 @@ impl NinoBody for TolBaseOnly {
         }
         r.end_region(body, self)
     }
+}
 
+impl NinoWriteBody for TolBaseOnly {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.i32(self.a);
@@ -459,13 +476,15 @@ pub struct Strings {
     pub u8: Option<Utf8>,
 }
 
-impl NinoBody for Strings {
+impl NinoReadBody for Strings {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.def = r.read()?;
         self.u8 = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Strings {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.def)?;
         w.write(&self.u8)
@@ -532,13 +551,15 @@ impl Drop for LinkFirst {
     }
 }
 
-impl NinoBody for LinkFirst {
+impl NinoReadBody for LinkFirst {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.next = r.read_in(field!(Self, next))?;
         self.v = r.i32()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for LinkFirst {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.next)?;
         w.i32(self.v);
@@ -603,7 +624,7 @@ impl Drop for LinkTol {
     }
 }
 
-impl NinoBody for LinkTol {
+impl NinoReadBody for LinkTol {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -614,7 +635,9 @@ impl NinoBody for LinkTol {
         }
         r.end_region(body, self)
     }
+}
 
+impl NinoWriteBody for LinkTol {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.i32(self.v);
@@ -683,7 +706,7 @@ impl Drop for LinkKeyed {
     }
 }
 
-impl NinoBody for LinkKeyed {
+impl NinoReadBody for LinkKeyed {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         while r.has_more() {
@@ -701,7 +724,9 @@ impl NinoBody for LinkKeyed {
         }
         r.end_region(body, self)
     }
+}
 
+impl NinoWriteBody for LinkKeyed {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let body = w.begin_region();
         w.i32(Self::NEXT);
@@ -761,13 +786,15 @@ impl Tree {
     }
 }
 
-impl NinoBody for Tree {
+impl NinoReadBody for Tree {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.i32()?;
         self.children = r.read_in(field!(Self, children))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Tree {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.i32(self.value);
         w.write(&self.children)
@@ -890,13 +917,15 @@ impl NinoWrite for Node {
     }
 }
 
-impl NinoBody for Link {
+impl NinoReadBody for Link {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.id = r.i32()?;
         self.next = r.read_in(field!(Self, next))?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Link {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.i32(self.id);
         w.write(&self.next)
@@ -915,13 +944,15 @@ impl NinoRead for Link {
     }
 }
 
-impl NinoBody for Leaf {
+impl NinoReadBody for Leaf {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.id = r.i32()?;
         self.name = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Leaf {
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.i32(self.id);
         w.write(&self.name)
@@ -963,13 +994,17 @@ impl Drop for Rec {
     }
 }
 
-impl NinoBody for Rec {
+impl NinoReadBody for Rec {
     const DEFERRABLE: bool = false;
 
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.next = r.read()?;
         Ok(())
     }
+}
+
+impl NinoWriteBody for Rec {
+    const DEFERRABLE: bool = false;
 
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write(&self.next)

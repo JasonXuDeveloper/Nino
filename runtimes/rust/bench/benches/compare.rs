@@ -6,7 +6,7 @@
 use std::hint::black_box;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use nino::{NinoBody, NinoRead, NinoWrite, Reader, Result, Writer};
+use nino::{NinoRead, NinoReadBody, NinoWrite, NinoWriteBody, Reader, Result, Writer};
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------------------------- the values
@@ -56,7 +56,7 @@ impl NinoWrite for Point {
     }
 }
 
-impl NinoBody for Record {
+impl NinoReadBody for Record {
     #[inline]
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.id = r.i32()?;
@@ -73,7 +73,9 @@ impl NinoBody for Record {
         self.origin = r.read()?;
         Ok(())
     }
+}
 
+impl NinoWriteBody for Record {
     #[inline]
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.i32(self.id);
