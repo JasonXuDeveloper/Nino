@@ -136,6 +136,21 @@ namespace Nino.TypeScript.Tests
         }
 
         [TestMethod]
+        public void TakesDeferrabilityFromTheLayouts()
+        {
+            // Every layout says whether its type is deferrable: nothing is guessed.
+            Assert.IsFalse(_output.Contains("deferrable"), _output);
+            string types = File.ReadAllText(Path.Combine(_directory, "Nino.TypeScript.Tests.ts"));
+            // A record is built by its constructor: never deferred, nested in place up to 512 bodies.
+            int record = types.IndexOf("function readRecordChain(", StringComparison.Ordinal);
+            Assert.IsTrue(record >= 0);
+            StringAssert.Contains(types.Substring(record, 300), "return r.deep(");
+            int chain = types.IndexOf("function readChain(", StringComparison.Ordinal);
+            Assert.IsTrue(chain >= 0);
+            StringAssert.Contains(types.Substring(chain, 300), "return r.defer(");
+        }
+
+        [TestMethod]
         public void RoundTripsTheBytesDotNetWrites()
         {
             var cases = new List<(string, byte[])>

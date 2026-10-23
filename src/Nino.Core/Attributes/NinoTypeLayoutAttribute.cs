@@ -87,6 +87,26 @@ namespace Nino.Core
         /// </summary>
         public string Members { get; }
 
+        private bool _deferrable, _deferrableSet;
+
+        /// <summary>
+        /// Whether a body of this type nested too deep is deferred (written after the outermost body, or in the
+        /// section of the outermost region) instead of written in place: a class Nino creates before reading its
+        /// members, not abstract, not built through a constructor or factory taking member values, and not compared
+        /// by value. A reader in another language needs it to read data nested deeper than <c>NinoDepth.Inline</c>
+        /// class bodies (wire-format spec §7.10). The generator always sets it; a layout written by an older generator
+        /// does not (it is then missing from the attribute's named arguments and from <see cref="ToString"/>).
+        /// </summary>
+        public bool Deferrable
+        {
+            get => _deferrable;
+            set
+            {
+                _deferrable = value;
+                _deferrableSet = true;
+            }
+        }
+
         /// <summary>Used by generated code, which passes every property in order.</summary>
         public NinoTypeLayoutAttribute(Type type, NinoFormat format, NinoHeader header, bool trackReferences,
             bool raw, int typeId, string members)
@@ -100,9 +120,15 @@ namespace Nino.Core
             Members = members;
         }
 
-        /// <summary>The whole layout in one line, for textual comparison.</summary>
+        /// <summary>
+        /// The whole layout in one line, for textual comparison:
+        /// <c>format=...; header=...; trackReferences=...; raw=...; typeId=0x...; deferrable=...; members=...</c>,
+        /// with <c>deferrable</c> only when <see cref="Deferrable"/> was set.
+        /// </summary>
         public override string ToString() =>
             $"format={Format}; header={Header}; trackReferences={(TrackReferences ? "true" : "false")}; " +
-            $"raw={(Raw ? "true" : "false")}; typeId=0x{Id:X8}; members={Members}";
+            $"raw={(Raw ? "true" : "false")}; typeId=0x{Id:X8}; " +
+            (_deferrableSet ? (_deferrable ? "deferrable=true; " : "deferrable=false; ") : "") +
+            $"members={Members}";
     }
 }

@@ -68,7 +68,7 @@ namespace Messages
             StringAssert.Contains(metadata, "NinoHeader.None, false, true, ");
             StringAssert.EndsWith(metadata, "\"raw(32){Flags:byte@0:raw(1)," +
                 "Session:Contracts.ClientSession@8:raw(16){Node:ulong@0:raw(8),Id:long@8:raw(8)}," +
-                "At:Contracts.Position@24:raw(4){X:int@0:raw(4)}}\")]");
+                "At:Contracts.Position@24:raw(4){X:int@0:raw(4)}}\", Deferrable = false)]");
         }
 
         [TestMethod]

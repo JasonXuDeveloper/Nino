@@ -20,6 +20,11 @@ namespace Nino.TypeScript
         public bool Raw;
         public int Id;
         public string MembersText = "";
+        /// <summary>
+        /// Whether a body nested too deep is deferred (<c>Deferrable</c>, a named argument), or null for a layout
+        /// from a generator that does not publish it.
+        /// </summary>
+        public bool? Deferrable;
         /// <summary>Set for a <c>[NinoType]</c> collection (its elements come before the members).</summary>
         public WireEncoding? Elements;
         public List<MemberLayout> Members = new();
@@ -51,6 +56,7 @@ namespace Nino.TypeScript
     internal sealed class LayoutReader : IDisposable
     {
         internal const string LayoutAttribute = "Nino.Core.NinoTypeLayoutAttribute";
+        internal const string DeferrableProperty = "Deferrable";
         private readonly MetadataLoadContext _context;
 
         public LayoutReader(string assemblyPath, IEnumerable<string> references)
@@ -132,6 +138,12 @@ namespace Nino.TypeScript
                     Id = (int)args[5].Value!,
                     MembersText = (string)args[6].Value!,
                 };
+                foreach (var named in attribute.NamedArguments)
+                {
+                    if (named.MemberName == DeferrableProperty && named.TypedValue.Value is bool deferrable)
+                        layout.Deferrable = deferrable;
+                }
+
                 Parse(layout);
                 yield return layout;
             }

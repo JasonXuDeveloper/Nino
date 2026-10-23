@@ -100,15 +100,41 @@ namespace Layout
 
         /// <summary>
         /// Whether a class body can be deferred (read after its instance is in its slot) is published as
-        /// <c>Deferrable</c> where the referenced Nino.Core's attribute has that property, and left out where it has
-        /// not (this one): a stand-in Nino.Core with the property shows what the generator writes.
+        /// <c>Deferrable</c>, and <c>ToString</c> writes it before the members.
         /// </summary>
         [TestMethod]
-        public void PublishesDeferrabilityWhereNinoCoreCanHoldIt()
+        public void PublishesDeferrability()
         {
-            Assert.IsNull(typeof(NinoTypeLayoutAttribute).GetProperty("Deferrable"));
-            Assert.IsFalse(CornerCompiler.Compile(Types).GeneratedCode.Contains("Deferrable ="));
+            var assembly = Compile(@"
+using Nino.Core;
+namespace Deferral
+{
+    [NinoType] public sealed class Node { public Node Next; }
+    [NinoType] public sealed record Point(int X, int Y);
+    [NinoType] public abstract class Shape { public int Id; }
+    [NinoType] public struct Pair { public int A; public int B; }
+}");
+            var node = Layout(assembly, "Deferral.Node");
+            Assert.IsTrue(node.Deferrable);
+            StringAssert.Contains(node.ToString(), "; typeId=0x" + node.Id.ToString("X8") + "; deferrable=true; members=");
+            // Re-created through its constructor, compared by value, never created, a struct: never deferred.
+            foreach (string type in new[] { "Deferral.Point", "Deferral.Shape", "Deferral.Pair" })
+            {
+                Assert.IsFalse(Layout(assembly, type).Deferrable, type);
+                StringAssert.Contains(Layout(assembly, type).ToString(), "; deferrable=false; members=", type);
+            }
 
+            // Set only by the generator: a layout without it says nothing.
+            Assert.IsFalse(new NinoTypeLayoutAttribute(typeof(int), NinoFormat.Positional, NinoHeader.None, false,
+                true, 0, "raw(4)").ToString().Contains("deferrable"));
+        }
+
+        /// <summary>
+        /// A referenced Nino.Core whose attribute has no <c>Deferrable</c> (older than 4.0) gets layouts without it.
+        /// </summary>
+        [TestMethod]
+        public void LeavesDeferrabilityOutWhereNinoCoreCannotHoldIt()
+        {
             const string stand = @"
 namespace Nino.Core
 {
@@ -125,7 +151,6 @@ namespace Nino.Core
     {
         public NinoTypeLayoutAttribute(System.Type type, NinoFormat format, NinoHeader header, bool trackReferences,
             bool raw, int typeId, string members) { }
-        public bool Deferrable { get; set; }
     }
 }";
             var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
@@ -143,21 +168,15 @@ using Nino.Core;
 namespace Deferral
 {
     [NinoType] public sealed class Node { public Node Next; }
-    [NinoType] public sealed record Point(int X, int Y);
-    [NinoType] public abstract class Shape { public int Id; }
-    [NinoType] public struct Pair { public int A; public int B; }
 }"),
                 }, refs, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
             var generated = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator())
                 .RunGenerators(user).GetRunResult().GeneratedTrees.Select(t => t.ToString()).ToList();
 
-            string Layout(string type) => generated.SelectMany(t => t.Split('\n'))
-                .Single(l => l.Contains($"NinoTypeLayout(typeof(global::Deferral.{type})"));
-            StringAssert.EndsWith(Layout("Node"), ", Deferrable = true)]");
-            // Re-created through its constructor, compared by value, never created, a struct: never deferred.
-            StringAssert.EndsWith(Layout("Point"), ", Deferrable = false)]");
-            StringAssert.EndsWith(Layout("Shape"), ", Deferrable = false)]");
-            StringAssert.EndsWith(Layout("Pair"), ", Deferrable = false)]");
+            string layout = generated.SelectMany(t => t.Split('\n'))
+                .Single(l => l.Contains("NinoTypeLayout(typeof(global::Deferral.Node)"));
+            StringAssert.EndsWith(layout, "\")]");
+            Assert.IsFalse(layout.Contains("Deferrable"));
         }
 
         [TestMethod]

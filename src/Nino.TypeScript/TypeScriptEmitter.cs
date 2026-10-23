@@ -624,77 +624,23 @@ namespace Nino.TypeScript
             return false;
         }
 
-        private Dictionary<Type, bool>? _deferrable;
+        private readonly HashSet<Type> _warnedDeferrable = new();
 
         /// <summary>
         /// Whether .NET defers the body of the class <paramref name="type"/> past 128 open bodies (else it reads and
-        /// writes it in place, up to 512): <c>NinoBody.Deferrable</c> in the <c>Traits</c> of its generated formatter.
-        /// A class built by its constructor, or compared by value, is not deferred.
+        /// writes it in place, up to 512): <c>Deferrable</c> in its published layout. A class built by its
+        /// constructor, or compared by value, is not deferred. A layout from a generator older than the property
+        /// leaves it out: such a class is taken to be deferred, as most are.
         /// </summary>
         private bool Deferrable(Type type)
         {
-            if (_deferrable == null)
-            {
-                _deferrable = new Dictionary<Type, bool>();
-                foreach (var assembly in _layouts.Keys.Select(t => t.Assembly).Distinct())
-                {
-                    Type?[] types;
-                    try
-                    {
-                        types = assembly.GetTypes();
-                    }
-                    catch (ReflectionTypeLoadException e)
-                    {
-                        types = e.Types;
-                    }
-
-                    foreach (var formatter in types)
-                    {
-                        if (formatter == null || !formatter.IsValueType || formatter.IsNested)
-                            continue;
-                        var body = formatter.GetInterfaces().FirstOrDefault(i => i.IsGenericType &&
-                            i.GetGenericTypeDefinition().FullName == "Nino.Core.INinoBodyFormatter`1");
-                        if (body != null && Traits(formatter) is { } traits)
-                            _deferrable[body.GetGenericArguments()[0]] = (traits & 2) != 0;
-                    }
-                }
-            }
-
-            if (_deferrable.TryGetValue(type, out bool deferrable))
+            if (_layouts.TryGetValue(type, out var layout) && layout.Deferrable is { } deferrable)
                 return deferrable;
-            Warnings.Add($"{type.FullName}: the traits of its formatter were not found; its bodies are taken to be " +
-                         "deferred past 128 nested bodies, as most classes are.");
-            return _deferrable[type] = true;
-        }
-
-        /// <summary>The constant the formatter's <c>Traits</c> getter returns (<c>=&gt; 3;</c>), from its IL.</summary>
-        private static int? Traits(Type formatter)
-        {
-            byte[]? il;
-            try
-            {
-                il = formatter.GetProperty("Traits", BindingFlags.Public | BindingFlags.Instance)?.GetGetMethod()
-                    ?.GetMethodBody()?.GetILAsByteArray();
-            }
-            catch (Exception e) when (e is NotSupportedException or InvalidOperationException or BadImageFormatException)
-            {
-                return null;
-            }
-
-            if (il == null)
-                return null;
-            int i = 0;
-            while (i < il.Length && il[i] == 0x00) // nop
-                i++;
-            if (i >= il.Length)
-                return null;
-            return il[i] switch
-            {
-                >= 0x15 and <= 0x1e => il[i] - 0x16, // ldc.i4.m1 .. ldc.i4.8
-                0x1f when i + 1 < il.Length => (sbyte)il[i + 1], // ldc.i4.s
-                0x20 when i + 4 < il.Length => BitConverter.ToInt32(il, i + 1), // ldc.i4
-                _ => null,
-            };
+            if (_warnedDeferrable.Add(type))
+                Warnings.Add($"{type.FullName}: its layout does not say whether it is deferrable (built with an " +
+                             "older Nino); its bodies are taken to be deferred past 128 nested bodies, as most " +
+                             "classes are.");
+            return true;
         }
 
         // ---------------------------------------------------------------- CLR helpers

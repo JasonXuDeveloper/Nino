@@ -915,8 +915,10 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   each inherited member is compiled once per hierarchy rather than once per subtype (about a third less code for
   deep hierarchies). The bytes are unchanged. Delegation is skipped when raw members on both sides of the
   boundary would otherwise be written as one block, since splitting that block costs an extra reservation.
-* `[assembly: NinoTypeLayout(typeof(T), format, header, trackReferences, raw, typeId, "members")]` publishes
-  what the formatter writes (issue #197): each member as `name:type:encoding` (keyed members add `:key=0x...`).
+* `[assembly: NinoTypeLayout(typeof(T), format, header, trackReferences, raw, typeId, "members", Deferrable = ...)]`
+  publishes what the formatter writes (issue #197): whether a body nested past `NinoDepth.Inline` is deferred (the
+  formatter's `NinoBody.Deferrable` trait, which readers in other languages need), and each member as
+  `name:type:encoding` (keyed members add `:key=0x...`).
   The encoding describes the bytes, not the formatter class (`WireEncoding`, computed by `FormatterResolver` next
   to each formatter): `string`, `utf8`, `object`, `type(T)` for a `[NinoType]`, `nullable(E)`, `seq(E)`,
   `map(K,V)`, `pair(K,V)`, `tuple(E,...)`, `grid(rank,E)`, a few named BCL encodings (`datetimeoffset`, `bigint`,

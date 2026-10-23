@@ -733,8 +733,10 @@ When a class body is about to open while `D >= 128` (`NinoDepth.Inline`):
   constructor, init-only or read-only members);
 - types compared by value (records, types that override `GetHashCode`, types that implement `IComparable`).
 
-Deferrability is **not published** in the layout metadata (§10, item 5). A reader MUST decide it exactly as the
-writer did.
+The layout metadata publishes it as `deferrable=true|false` (§8): readers and writers in other languages MUST
+take it from there, not work it out from the rules above. Struct bodies are never deferred (`deferrable=false`).
+Layouts written by an older generator (from before Nino.Core had the property) leave it out; a type is then
+deferrable exactly when the rules above say so.
 
 #### 7.10.2 Deferred bodies outside regions
 
@@ -831,16 +833,20 @@ assembly:
 
 ```
 NinoTypeLayout(Type type, NinoFormat format, NinoHeader header, bool trackReferences, bool raw, int typeId,
-               string members)
+               string members) { Deferrable = bool }
 NinoFormat:  Positional = 0, VersionTolerant = 1, Keyed = 2
 NinoHeader:  None = 0, NullFlag = 1, TypeId = 2
 ```
+
+`Deferrable` is a named argument (a settable property): whether a body of the type nested too deep is deferred
+(§7.10.1). The generator always sets it; layouts from an older generator (from before Nino.Core had the property) do not,
+and their `ToString()` has no `deferrable` part.
 
 Tools can read it through reflection or straight from metadata (`Nino.TypeScript` uses `MetadataLoadContext`). It is
 the intended input for code generators in other languages. Its `ToString()`:
 
 ```
-format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0xA333A1B0; members=Id:int:raw(4):key=0x98C41948;Name:string:string:key=0x3085B3E2:former=0x93A29D95;Score:long:raw(8):key=0x044AB14D
+format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0xA333A1B0; deferrable=true; members=Id:int:raw(4):key=0x98C41948;Name:string:string:key=0x3085B3E2:former=0x93A29D95;Score:long:raw(8):key=0x044AB14D
 ```
 
 ### 8.1 Grammar (EBNF, ISO 14977 style)
@@ -848,7 +854,8 @@ format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0xA333A1
 ```ebnf
 layout        = "format=" , format , "; header=" , header ,
                 "; trackReferences=" , bool , "; raw=" , bool ,
-                "; typeId=0x" , hex8 , "; members=" , members ;
+                "; typeId=0x" , hex8 , [ "; deferrable=" , bool ] ,
+                "; members=" , members ;                (* left out only by older generators *)
 format        = "Positional" | "VersionTolerant" | "Keyed" ;
 header        = "None" | "NullFlag" | "TypeId" ;
 bool          = "true" | "false" ;
@@ -1075,10 +1082,9 @@ know about them, and the next format revision should resolve them.
    (`LayoutKind.Auto` with several fields) fall back to the host's memory layout. Writers in other languages SHOULD
    NOT produce either.
 4. **`TimeZoneInfo` custom zones** carry .NET's `ToSerializedString()` text, which no other runtime defines.
-5. **Deferrability is not published.** §7.10 needs to know which types are deferrable, and the layout does not say.
-   An implementation can only reconstruct it from the rules in §7.10.1. The TypeScript runtime ignores bit 31 of
-   region lengths and does not implement deferral, so it cannot read payloads nested more than 128 class bodies deep.
-   Suggested fix: publish `deferrable=true|false` in the layout.
+5. **Deferrability was not published** (resolved): layouts now carry `deferrable=true|false` (§7.10.1,
+   §8). Layouts from an older generator leave it out, and a reader can then only reconstruct it from the rules in
+   §7.10.1.
 6. **Presence bytes and `bool` are lenient** in .NET (§9.3) and strict in TypeScript.
 7. **Repeated keyed entries are accepted** in .NET, and the last one wins (§9.8).
 8. **Trailing bytes are ignored** (§2.2, §9.12).

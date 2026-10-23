@@ -35,6 +35,16 @@ namespace Nino.TypeScript.Tests
         }
 
         [TestMethod]
+        public void DeferrableIsASettableBool()
+        {
+            // LayoutReader.Read takes it from the attribute's named arguments, by name.
+            var property = typeof(NinoTypeLayoutAttribute).GetProperty(LayoutReader.DeferrableProperty);
+            Assert.IsNotNull(property);
+            Assert.AreEqual(typeof(bool), property.PropertyType);
+            Assert.IsNotNull(property.GetSetMethod());
+        }
+
+        [TestMethod]
         public void FormatValuesMatch() =>
             // Every value, by name: a new NinoFormat needs TypeLayout and the emitter to handle it.
             CollectionAssert.AreEquivalent(
