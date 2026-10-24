@@ -6,7 +6,7 @@ using Nino.Core;
 namespace Nino.UnitTests
 {
     [TestClass]
-    public class MultiThreadSerializationTest
+    public class MultiThreadSerializationTests
     {
         [TestMethod]
         public void MultiThreadCodeGenSerialize()

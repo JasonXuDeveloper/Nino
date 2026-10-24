@@ -323,7 +323,7 @@ namespace C
     }
 }");
             Assert.AreEqual(0, compiled.Errors.Length, compiled.ErrorText);
-            // Base-private _x is not part of L2's layout (as documented by InheritanceDelegationTests); protected is.
+            // Base-private _x is not part of L2's layout (as documented by InheritanceTests); protected is.
             Assert.AreEqual("0|2,2s|4t", compiled.Assembly.GetType("C.Api")!.GetMethod("Run")!.Invoke(null, null));
         }
 
@@ -548,7 +548,7 @@ namespace C
         [TestMethod]
         public void SameNamedPrivateFieldsOfBasesAreNotPartOfDerivedLayout()
         {
-            // Documented by InheritanceDelegationTests: private base members are not serialized with a subtype.
+            // Documented by InheritanceTests: private base members are not serialized with a subtype.
             var l3 = new PrivLevel3();
             l3.SetX1(1);
             l3.SetX2(2);

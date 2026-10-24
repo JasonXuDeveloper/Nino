@@ -12,7 +12,7 @@ namespace Nino.UnitTests
     }
 
     [TestClass]
-    public class PrimitivesSerializationTest
+    public class PrimitivesSerializationTests
     {
         [NinoType]
         public struct EmptyStruct

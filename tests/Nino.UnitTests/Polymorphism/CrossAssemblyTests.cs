@@ -7,7 +7,7 @@ using Nino.UnitTests.Subset;
 namespace Nino.UnitTests;
 
 [TestClass]
-public class CrossRefTests
+public class CrossAssemblyTests
 {
     [TestMethod]
     public void TestSimpleCrossRef()
