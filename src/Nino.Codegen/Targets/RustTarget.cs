@@ -17,7 +17,7 @@ namespace Nino.Codegen.Targets
 
         /// <summary>
         /// Strings as <c>nino::WideString</c> (UTF-16, keeps lone surrogates, as .NET does) instead of <c>String</c>
-        /// (which fails to read a string holding one).
+        /// (which reads one as U+FFFD).
         /// </summary>
         public bool WideStrings { get; set; }
     }
