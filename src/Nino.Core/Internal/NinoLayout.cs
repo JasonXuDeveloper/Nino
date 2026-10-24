@@ -46,8 +46,8 @@ namespace Nino.Core
         private static readonly int DecimalAlign = Unsafe.SizeOf<DecimalProbe>() - 16;
 
         /// <summary>
-        /// Alignment of <c>Int128</c> and <c>UInt128</c> inside structs on this runtime: 16 on .NET 8 and later (also
-        /// 32-bit and Mono), 8 on .NET 7. The canonical layout aligns them to 16, as CoreCLR does on 64-bit.
+        /// Alignment of <c>Int128</c> and <c>UInt128</c> inside structs on this runtime, probed: 16 on .NET 8 and later
+        /// on 64-bit, 8 on Arm32 and on .NET 7. The canonical layout aligns them to 16, as CoreCLR does on 64-bit.
         /// </summary>
         internal static readonly int WideAlign = ProbeWideAlign();
 
