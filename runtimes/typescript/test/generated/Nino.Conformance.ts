@@ -136,7 +136,7 @@ function readNested(r: NinoReader, at: number): Nested {
   v.Inner = readPadded(r, at);
   v.Position = readVec2(r, at + 16);
   v.Kind = r.view.getUint8(at + 24) as EU8;
-  v.Flag = r.view.getUint8(at + 25) !== 0;
+  v.Flag = r.boolAt(at + 25);
   return v;
 }
 
@@ -2316,7 +2316,7 @@ function readBody$Puppy(r: NinoReader, v: Puppy): void {
   v.Name = r.string();
   const at = r.take(5);
   v.Bones = r.view.getInt32(at, true);
-  v.Sleepy = r.view.getUint8(at + 4) !== 0;
+  v.Sleepy = r.boolAt(at + 4);
 }
 
 function writeBody$Puppy(w: NinoWriter, v: Puppy): void {
@@ -2951,7 +2951,7 @@ function read$0(r: NinoReader): boolean[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<boolean>(length);
-  for (let i = 0, at = r.take(length * 1); i < length; i++, at += 1) values[i] = r.view.getUint8(at) !== 0;
+  for (let i = 0, at = r.take(length * 1); i < length; i++, at += 1) values[i] = r.boolAt(at);
   return values;
 }
 
@@ -3146,7 +3146,7 @@ function read$18(r: NinoReader): (number | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<number | null>(length);
-  for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) values[i] = (r.view.getUint8(at) !== 0 ? r.view.getInt32(at + 4, true) : null);
+  for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) values[i] = (r.flagAt(at) ? r.view.getInt32(at + 4, true) : null);
   return values;
 }
 
@@ -3168,7 +3168,7 @@ function read$20(r: NinoReader): (bigint | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<bigint | null>(length);
-  for (let i = 0, at = r.take(length * 16); i < length; i++, at += 16) values[i] = (r.view.getUint8(at) !== 0 ? r.view.getBigInt64(at + 8, true) : null);
+  for (let i = 0, at = r.take(length * 16); i < length; i++, at += 16) values[i] = (r.flagAt(at) ? r.view.getBigInt64(at + 8, true) : null);
   return values;
 }
 
@@ -3176,7 +3176,7 @@ function read$21(r: NinoReader): (Padded | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<Padded | null>(length);
-  for (let i = 0, at = r.take(length * 24); i < length; i++, at += 24) values[i] = (r.view.getUint8(at) !== 0 ? readPadded(r, at + 8) : null);
+  for (let i = 0, at = r.take(length * 24); i < length; i++, at += 24) values[i] = (r.flagAt(at) ? readPadded(r, at + 8) : null);
   return values;
 }
 
