@@ -326,10 +326,12 @@ public class MadeList : System.Collections.Generic.List<Made> { }
     {
         var compilation = Create(
             ("A.cs", Usings + "[NinoType] public class A { public int X; public System.Action Bad; }\n}"),
-            ("B.cs", Usings + "[NinoType(containNonPublicMembers: true)] public partial class B { private int _y; }\n}"));
+            ("B.cs", Usings + "[NinoType(containNonPublicMembers: true)] public partial class B { private int _y; }\n}"),
+            ("C.cs", Usings + "public static class C { public static byte[] W(System.Collections.Generic.List<A> a) => NinoSerializer.Serialize(a); }\n}"));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new Generator.Generation.NinoGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
         driver = driver.RunGenerators(compilation);
+        var first = driver.GetRunResult().Results[0];
 
         // Lines inserted above both types move every location; models carry none, so nothing is re-emitted.
         compilation = Edit(compilation, "A.cs", "[NinoType]", "\n\n// moved\n[NinoType]");
@@ -339,9 +341,54 @@ public class MadeList : System.Collections.Generic.List<Made> { }
         Assert.AreEqual(0, result.Diagnostics.Length, "the generator reports nothing; the analyzer does");
         foreach (var output in result.TrackedOutputSteps.SelectMany(s => s.Value).SelectMany(s => s.Outputs))
             Assert.AreEqual(IncrementalStepRunReason.Cached, output.Reason);
-        foreach (var output in result.TrackedSteps["NinoType"].SelectMany(s => s.Outputs))
-            Assert.IsTrue(output.Reason is IncrementalStepRunReason.Unchanged or IncrementalStepRunReason.Cached,
-                output.Reason.ToString());
+        // The models, the calls and every step that collects them or reads the whole compilation.
+        foreach (var step in new[]
+                 {
+                     "NinoType", "TopLevelCall", "ProjectFacts", "ClashingNames", "RegistryEntries",
+                     "Usages", "FormatterRegistrations", "FactoryRegistrations", "GenericTypeRegistrations", "LayoutTypes",
+                     "Dispatch",
+                 })
+        {
+            // Every step runs the first time; a step whose inputs are all cached is not run (nor listed) again.
+            Assert.IsTrue(first.TrackedSteps.ContainsKey(step), step + " not in " + string.Join(", ", first.TrackedSteps.Keys));
+            if (!result.TrackedSteps.TryGetValue(step, out var runs))
+                continue;
+            foreach (var output in runs.SelectMany(s => s.Outputs))
+                Assert.IsTrue(output.Reason is IncrementalStepRunReason.Unchanged or IncrementalStepRunReason.Cached,
+                    $"{step}: {output.Reason}");
+        }
+    }
+
+    [TestMethod]
+    public void CallsFollowEditsToTheirTypes()
+    {
+        // A top-level call is reused while its file and its type are unchanged (ModelCache.GetOrBuildCall): an edit to
+        // the type in another file changes what it registers.
+        var compilation = Create(
+            ("Box.cs", Usings + "[NinoType] public class Box<T> { public T V; }\n}"),
+            ("Calls.cs", Usings + "public static class Calls { public static byte[] W() => NinoSerializer.Serialize<Box<int>>(null); }\n}"),
+            ("Other.cs", Usings + "public static class Other { }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGenerators(compilation);
+        string Usages() => driver.GetRunResult().Results[0].GeneratedSources
+            .Single(s => s.HintName == "NinoGen.Usages.g.cs").SourceText.ToString();
+        const string registered = "NinoPolymorphic.Register<global::Inc.Box<int>";
+        StringAssert.Contains(Usages(), registered);
+
+        // An unrelated edit: the call is reused, with the same result.
+        compilation = Edit(compilation, "Other.cs", "{ }", "{ public static int N; }");
+        driver = driver.RunGenerators(compilation);
+        StringAssert.Contains(Usages(), registered);
+
+        // The type becomes abstract: it has no instances to register under its id.
+        compilation = Edit(compilation, "Box.cs", "public class Box", "public abstract class Box");
+        driver = driver.RunGenerators(compilation);
+        Assert.IsFalse(Usages().Contains(registered), Usages());
+
+        // The call now names another type, in the same file.
+        compilation = Edit(compilation, "Calls.cs", "Box<int>", "Box<long>");
+        driver = driver.RunGenerators(compilation);
+        StringAssert.Contains(Usages(), "global::Inc.Box<long>");
     }
 
     [TestMethod]

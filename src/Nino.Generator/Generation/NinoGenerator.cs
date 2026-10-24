@@ -28,8 +28,11 @@ public sealed class NinoGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var enabled = context.CompilationProvider.Select(static (c, _) =>
-            c.ReferencedAssemblyNames.Any(static a => a.Name == NinoNames.CoreAssembly));
+        // Everything read from the whole compilation, in one step: it runs on every change (a keystroke), and each
+        // part below only changes when its value does.
+        var project = context.CompilationProvider.Select(static (c, ct) => ProjectFacts.Of(c, ct))
+            .WithTrackingName("ProjectFacts");
+        var enabled = project.Select(static (p, _) => p.Enabled);
 
         // Types marked [NinoType] directly.
         var marked = context.SyntaxProvider.ForAttributeWithMetadataName(
@@ -50,8 +53,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 })
             .Where(static d => d != null)
             .Collect();
-        var referencedNinoTypes = context.CompilationProvider
-            .Select(static (c, ct) => InheritedCandidates.ReferencedNinoTypes(c, ct));
+        var referencedNinoTypes = project.Select(static (p, _) => p.ReferencedNinoTypes);
         // Names of the types marked [NinoType], as the compiler binds the attribute: unlike the syntactic check
         // above, this sees aliases (using NT = Nino.Core.NinoTypeAttribute), so their subtypes are found too.
         var markedNames = context.SyntaxProvider.ForAttributeWithMetadataName(
@@ -60,7 +62,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 static (ctx, _) => ((TypeDeclarationSyntax)ctx.TargetNode).Identifier.ValueText)
             .Collect();
         var candidates = declarations.Combine(referencedNinoTypes).Combine(markedNames)
-            .Select(static (x, _) => InheritedCandidates.Find(x.Left.Left!, x.Left.Right, x.Right));
+            .Select(static (x, _) => InheritedCandidates.Find(x.Left.Left!, x.Left.Right, x.Right))
+            .WithTrackingName("InheritedCandidates");
 
         var inherited = candidates.Combine(context.CompilationProvider)
             .SelectMany(static (x, ct) =>
@@ -95,22 +98,18 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var clashing = CollectAll(models, static m => m.FormatterName)
             .Select(static (names, _) => new EquatableArray<string>(names.Distinct()
                 .GroupBy(n => n, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1)
-                .SelectMany(g => g).OrderBy(n => n, StringComparer.Ordinal)));
+                .SelectMany(g => g).OrderBy(n => n, StringComparer.Ordinal)))
+            .WithTrackingName("ClashingNames");
         foreach (var stream in models)
             context.RegisterImplementationSourceOutput(stream.Combine(clashing),
                 static (spc, x) => Emit(spc, x.Left, x.Right.Contains(x.Left.FormatterName)));
 
-        var options = context.CompilationProvider.Select(static (c, _) => new GeneratorOptions(
-            c.AssemblyName ?? "Assembly",
-            TypeNames.CanName(c, "System.Runtime.CompilerServices.ModuleInitializerAttribute"),
-            TypeNames.CanName(c, "UnityEngine.RuntimeInitializeOnLoadMethodAttribute"),
-            TypeNames.CanName(c, "UnityEditor.InitializeOnLoadMethodAttribute"),
-            new EquatableArray<string>(FormatterRules.RegisteringReferences(c)
-                .OrderBy(n => n, StringComparer.Ordinal).ToArray())));
+        var options = project.Select(static (p, _) => p.Options);
 
         var entries = CollectAll(models, static m => ToEntry(m))
             .Select(static (x, _) => new EquatableArray<RegistryEntry>(
-                x.Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)));
+                x.Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)))
+            .WithTrackingName("RegistryEntries");
 
         // The top-level NinoSerializer/NinoDeserializer calls, bound once for what they register and (Roslyn 4.8+)
         // how they are intercepted. Narrowed by syntax first (binding every Serialize call of other libraries on each
@@ -125,7 +124,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
         // Built-in generic types used directly with the top-level APIs (e.g. NinoSerializer.Serialize(list)):
         // register closed formatters so AOT platforms have them and generator-only formatters are found.
-        var usages = calls.Where(static c => c.Usage != null).Select(static (c, _) => c.Usage!).Collect();
+        var usages = calls.Where(static c => c.Usage != null).Select(static (c, _) => c.Usage!).Collect()
+            .WithTrackingName("Usages");
 
         // Closed built-in formatters used by members: registered once per assembly here rather than by every
         // type that uses them (the same List<int> formatter is typically used by many types); creators of the
@@ -135,21 +135,25 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var registrations = Merge(usages, CollectAll(models, static m => m.Registrations.Formatters),
             static u => u.Formatter is { } f ? new[] { f } : Array.Empty<FormatterRegistration>(),
             static all => all.OrderBy(u => u.TypeName, StringComparer.Ordinal)
-                .ThenBy(u => u.Formatter.ToString(), StringComparer.Ordinal));
+                .ThenBy(u => u.Formatter.ToString(), StringComparer.Ordinal))
+            .WithTrackingName("FormatterRegistrations");
         var factories = Merge(usages, CollectAll(models, static m => m.Registrations.Factories), static u => u.Factories,
-            static all => all.OrderBy(f => f.TypeName, StringComparer.Ordinal));
+            static all => all.OrderBy(f => f.TypeName, StringComparer.Ordinal))
+            .WithTrackingName("FactoryRegistrations");
         var generics = Merge(usages, CollectAll(models, static m => m.Registrations.GenericTypes), static u => u.GenericTypes,
-            static all => all.OrderBy(g => g.TypeName, StringComparer.Ordinal));
+            static all => all.OrderBy(g => g.TypeName, StringComparer.Ordinal))
+            .WithTrackingName("GenericTypeRegistrations");
 
         // Structs whose layout the runtime measures: their field metadata is kept for NativeAOT (LayoutTypes), where
         // the compilation can name [DynamicDependency].
         var memberLayouts = CollectAll(models, static m => m.Registrations.LayoutTypes);
-        var canKeepLayouts = context.CompilationProvider.Select(static (c, _) => LayoutTypes.CanEmit(c));
+        var canKeepLayouts = project.Select(static (p, _) => p.CanKeepLayouts);
         var layouts = usages.Combine(memberLayouts).Combine(canKeepLayouts)
             .Select(static (x, _) => x.Right
                 ? LayoutTypes.ToArray(x.Left.Left.SelectMany(static u => u.LayoutTypes)
                     .Concat(x.Left.Right.SelectMany(static a => a)))
-                : EquatableArray<string>.Empty);
+                : EquatableArray<string>.Empty)
+            .WithTrackingName("LayoutTypes");
 
         context.RegisterImplementationSourceOutput(
             registrations.Combine(factories).Combine(generics).Combine(layouts).Combine(enabled),
@@ -167,13 +171,14 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .Collect()
             .Select(static (x, _) => new EquatableArray<InterceptedCall>(x.Distinct()
                 .OrderBy(c => c.Signature, StringComparer.Ordinal).ThenBy(c => c.Call, StringComparer.Ordinal)
-                .ThenBy(c => c.Location, StringComparer.Ordinal)));
+                .ThenBy(c => c.Location, StringComparer.Ordinal)))
+            .WithTrackingName("InterceptedCalls");
         var fileLocal = context.ParseOptionsProvider.Select(static (o, _) =>
             o is CSharpParseOptions { LanguageVersion: >= LanguageVersion.CSharp11 });
         // Formatters with a __Top twin for these calls (see TypeModel.HasTop), and with a __Shallow twin
         // (see DepthModel.Shallow).
-        var top = NamesWhere(models, static m => m.HasTop);
-        var shallow = NamesWhere(models, static m => m.Depth.Shallow);
+        var top = NamesWhere(models, static m => m.HasTop).WithTrackingName("TopTwins");
+        var shallow = NamesWhere(models, static m => m.Depth.Shallow).WithTrackingName("ShallowTwins");
         context.RegisterImplementationSourceOutput(
             intercepted.Combine(fileLocal).Combine(enabled).Combine(top).Combine(shallow),
             static (spc, x) =>
@@ -189,7 +194,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 m.TypeParameterList, m.TypeId, m.IsDispatchRoot, m.IsDispatchTarget, m.Inheritance.NinoBaseClasses,
                 m.Inheritance.NinoInterfaces, m.Inheritance.NinoGenericAncestors, m.RawBody))
             .Select(static (x, _) => new EquatableArray<DispatchEntry>(x.Where(static e => e.IsBase || e.IsTarget)
-                .Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)));
+                .Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)))
+            .WithTrackingName("Dispatch");
         context.RegisterImplementationSourceOutput(dispatch.Combine(enabled), static (spc, x) =>
         {
             if (x.Right)
@@ -313,13 +319,16 @@ public sealed class NinoGenerator : IIncrementalGenerator
         if (!SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Serializer) &&
             !SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer))
             return null;
-        var usage = TransformUsage(method, facts);
+        return ModelCache.GetOrBuildCall(ctx.Node, method, ctx.SemanticModel.Compilation, () =>
+        {
+            var usage = TransformUsage(method, facts);
 #if ROSLYN4_8
-        var intercepted = Interceptors.Enabled(options) ? Interceptors.Transform(ctx, method, facts, ct) : null;
+            var intercepted = Interceptors.Enabled(options) ? Interceptors.Transform(ctx, method, facts, ct) : null;
 #else
-        InterceptedCall? intercepted = null;
+            InterceptedCall? intercepted = null;
 #endif
-        return usage == null && intercepted == null ? null : new TopLevelCall(usage, intercepted);
+            return usage == null && intercepted == null ? null : new TopLevelCall(usage, intercepted);
+        });
     }
 
     private static UsageRegistration? TransformUsage(IMethodSymbol method, TypeFacts facts)
