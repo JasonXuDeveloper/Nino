@@ -5,7 +5,10 @@ using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation.Emit;
 
-/// <summary>Access to non-public members: <c>[UnsafeAccessor]</c> externs (.NET 8+) or a partial accessor class.</summary>
+/// <summary>
+/// Access to non-public members: <c>[UnsafeAccessor]</c> externs (.NET 8+; in a generic formatter .NET 9+, whose type
+/// parameters the runtime matches with the type's) or a partial accessor class.
+/// </summary>
 internal static class AccessorEmitter
 {
     /// <summary><c>[UnsafeAccessor]</c> declarations inside the formatter.</summary>

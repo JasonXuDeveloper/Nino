@@ -26,7 +26,10 @@ internal enum MemberAccess
     /// <summary><c>value.Member</c>.</summary>
     Direct,
 
-    /// <summary><c>[UnsafeAccessor]</c> declared in the formatter (.NET 8+, non-generic declaring type).</summary>
+    /// <summary>
+    /// <c>[UnsafeAccessor]</c> declared in the formatter (.NET 8+; generic types .NET 9+, see
+    /// <c>ModelBuilder.UnsafeAccessorReaches</c>).
+    /// </summary>
     UnsafeAccessor,
 
     /// <summary>Accessor class generated inside the (partial) declaring type.</summary>

@@ -52,9 +52,13 @@ Generated formatters live outside the type, so the type and every type containin
 
 ### NINO002
 
-Before .NET 8 there is no `[UnsafeAccessor]` (and generic types never use it), so non-public members are reached
-through an accessor generated inside the type. `[NinoPooled]` classes get generated members as well. Either way the
-type and every type containing it must be `partial`. 🔧 Make them partial.
+Where generated code cannot reach a non-public member through `[UnsafeAccessor]`, it reaches it through an accessor
+generated inside the type: before .NET 8 (Unity, .NET Framework, `netstandard`), for generic types before .NET 9
+(the compilation defines no `NET9_0_OR_GREATER`), and on .NET 9+ for a member a generic type inherits from a generic
+base whose type arguments are not the type's own first type parameters in order (`class D<T> : Base<List<T>>`,
+`class D<T> : Base<int>`; `class D<T, U> : Base<T>` is fine), since the runtime matches the accessor against the
+member's declaration. `[NinoPooled]` classes get generated members as well. Either way the type and every type
+containing it must be `partial`. 🔧 Make them partial.
 
 ### NINO003
 
@@ -142,8 +146,8 @@ index. 🔧 Use the next free index.
 ### NINO022
 
 A non-public base member is hidden by a member of the same name (`new`) declared by a subtype. Both are
-serialized, but generated code can only reach the hidden one through `[UnsafeAccessor]` (.NET 8+, non-generic
-types): the partial accessor class inside the type would name the hiding member, and cannot reach a `protected`
+serialized, but generated code can only reach the hidden one through `[UnsafeAccessor]` (.NET 8+; generic types
+.NET 9+, as NINO002 describes): the partial accessor class inside the type would name the hiding member, and cannot reach a `protected`
 base member through a cast. The hidden member is skipped. Rename one of the members, or make it public.
 
 ### NINO023

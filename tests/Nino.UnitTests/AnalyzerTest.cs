@@ -253,7 +253,7 @@ public class PublicMembersOnly
 }
 ";
 
-        // The containing type must be partial too, and generic types never use [UnsafeAccessor].
+        // The containing type must be partial too; generic types use [UnsafeAccessor] only on .NET 9+ (GenericAccessorTests).
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO002").WithLocation(0).WithArguments("Outer.Pooled"),
             Verify.Diagnostic("NINO002").WithLocation(1).WithArguments("Box<T>")).RunAsync();
