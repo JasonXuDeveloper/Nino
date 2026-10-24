@@ -16,16 +16,8 @@ internal static class FormatterEmitter
         EmitFormatter(w, m, names);
         string body = m.IsGeneric ? w.ToString() : WithSelfAlias(w.ToString(), m.TypeName, names);
 
-        var sb = new StringBuilder(body.Length + 1024);
-        sb.Append(GeneratedCode.Header);
-        sb.Append(LayoutEmitter.Emit(m)).Append('\n');
-        sb.Append("namespace " + GenNamespace + "\n{\n");
-        names.WriteAliases(sb);
-        sb.Append(body);
-        sb.Append("}\n");
-        if (m.Partial.Declarations.Length > 0)
-            sb.Append(AccessorEmitter.EmitPartial(m));
-        return sb.ToString();
+        string file = GeneratedCode.File(LayoutEmitter.Emit(m) + "\n", names.Declarations(), body);
+        return m.Partial.Declarations.Length > 0 ? file + AccessorEmitter.EmitPartial(m) : file;
     }
 
     /// <summary>The alias of a non-generic model's own type in its formatter's file (<see cref="WithSelfAlias"/>).</summary>
@@ -183,7 +175,7 @@ internal static class FormatterEmitter
     private static void EmitTop(CodeWriter w, TypeModel m, FormatterNames names, BodyEmitter body)
     {
         string t = m.TypeName;
-        string top = m.FormatterName + ".__Top";
+        string top = m.Self + ".__Top";
         // An out-of-line body on a local writer (TypeModel.LocalWriter, not inlined at the top): the presence
         // byte is written there too, on the local, rather than by the caller on a writer whose address the call
         // takes (each write a load and store of its cursor in memory). The top-level calls that create their writer
@@ -247,13 +239,13 @@ internal static class FormatterEmitter
     {
         w.Open($"internal struct {name} : {interfaces}");
         w.Line("public int TypeId => Id;");
-        w.Line($"public int Traits => default({m.FormatterName}).Traits;");
-        w.Line($"public {m.TypeName} Create() => default({m.FormatterName}).Create();");
+        w.Line($"public int Traits => default({m.Self}).Traits;");
+        w.Line($"public {m.TypeName} Create() => default({m.Self}).Create();");
     }
 
     /// <summary>A twin's <c>Serialize</c>: the null flag, then the body with no depth check.</summary>
     private static string SerializeTop(TypeModel m, string twin) => m.RawBody
-        ? $"{Core}NinoObject.SerializeTopRaw<{m.TypeName}, {m.FormatterName}>(value, ref writer)"
+        ? $"{Core}NinoObject.SerializeTopRaw<{m.TypeName}, {m.Self}>(value, ref writer)"
         : $"{Core}NinoObject.SerializeTop<{m.TypeName}, {twin}>(value, ref writer)";
 
     /// <summary>
@@ -264,7 +256,7 @@ internal static class FormatterEmitter
     {
         w.Line(names.Inline);
         w.Line(body == null
-            ? $"{Signature.WriteBody(m.TypeName)} => default({m.FormatterName}).WriteBody(value, ref writer);"
+            ? $"{Signature.WriteBody(m.TypeName)} => default({m.Self}).WriteBody(value, ref writer);"
             : $"{Signature.WriteBody(m.TypeName)} => {body}({BodyEmitter.ValueArgument(m)}, ref writer);");
     }
 
@@ -272,7 +264,7 @@ internal static class FormatterEmitter
     private static void ForwardReadBody(CodeWriter w, TypeModel m, FormatterNames names, string? body)
     {
         w.Line(names.Inline);
-        w.Line($"{Signature.ReadBody(m.TypeName)} => {body ?? $"default({m.FormatterName}).ReadBody"}(ref value, ref reader);");
+        w.Line($"{Signature.ReadBody(m.TypeName)} => {body ?? $"default({m.Self}).ReadBody"}(ref value, ref reader);");
     }
 
     /// <summary>The null flag and the body of <c>value</c>, on the local writer <c>__w</c>.</summary>
@@ -411,12 +403,12 @@ internal static class FormatterEmitter
             : $"{rootFormatter}.__ReadSubtype(id, ref {Core}NinoObject.AsBaseSlot<{t}, {rootType}>(ref value), ref reader); {Core}NinoObject.EnsureSubtype<{t}>(value);";
         w.Line($"{Signature.Serialize(t)}");
         w.Indented(() => w.Line(ownId
-            ? $"{{ if (!{Core}NinoObject.TryWriteOwn{Raw(m)}<{t}, {self}>(value, ref writer)) {write}; }}"
-            : $"{{ if (value == null) writer.UnsafeWrite({NinoWire.NullTypeId}); else {write}; }}"));
+            ? $$"""{ if (!{{Core}}NinoObject.TryWriteOwn{{Raw(m)}}<{{t}}, {{self}}>(value, ref writer)) {{write}}; }"""
+            : $$"""{ if (value == null) writer.UnsafeWrite({{NinoWire.NullTypeId}}); else {{write}}; }"""));
         w.Line();
         w.Line($"{Signature.Deserialize(t)}");
         w.Indented(() => w.Line(ownId
-            ? $"{{ int id = reader.UnsafeRead<int>(); if (!{Core}NinoObject.TryReadOwn<{t}, {self}>(id, ref value, ref reader)) {{ {read} }} }}"
-            : $"{{ int id = reader.UnsafeRead<int>(); {read} }}"));
+            ? $$"""{ int id = reader.UnsafeRead<int>(); if (!{{Core}}NinoObject.TryReadOwn<{{t}}, {{self}}>(id, ref value, ref reader)) { {{read}} } }"""
+            : $$"""{ int id = reader.UnsafeRead<int>(); {{read}} }"""));
     }
 }

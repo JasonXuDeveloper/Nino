@@ -39,11 +39,13 @@ internal static class RegistryEmitter
             w.Line($"[assembly: {Core}NinoFormatter(typeof({Gen}{entry.FormatterName}<{new string(',', entry.Arity - 1)}>))]");
         w.Line();
         w.Open($"namespace {GenNamespace}");
-        w.Line("/// <summary>");
-        w.Line("/// Registers the Nino formatters generated for this assembly, lazily: a lookup that misses asks for the");
-        w.Line("/// type id it needs, so startup does not touch types that are never used.");
-        w.Line("/// </summary>");
-        w.Line(HiddenAttribute);
+        w.Lines($$"""
+            /// <summary>
+            /// Registers the Nino formatters generated for this assembly, lazily: a lookup that misses asks for the
+            /// type id it needs, so startup does not touch types that are never used.
+            /// </summary>
+            {{HiddenAttribute}}
+            """);
         w.Open($"internal sealed class {name} : {Core}INinoRegistry");
 
         w.Block($"static {name}()", () =>
@@ -107,7 +109,7 @@ internal static class RegistryEmitter
             w.Line();
         }
 
-        w.Line("/// <summary>Registers the closed built-in formatters whose type has id <paramref name=\"id\"/>.</summary>");
+        w.Line("""/// <summary>Registers the closed built-in formatters whose type has id <paramref name="id"/>.</summary>""");
         // Formatters first, then creators, then closed generic [NinoType]s, each in their own (sorted) order.
         var statements = usages
             .Select(u => (u.Id, Code: $"{Core}NinoFormatterCache<{u.TypeName}>.TryRegister<{u.Formatter}>();"))

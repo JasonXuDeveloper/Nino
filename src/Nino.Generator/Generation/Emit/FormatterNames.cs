@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace Nino.Generator.Generation.Emit;
 
@@ -67,22 +66,21 @@ internal sealed class FormatterNames
     public void Alias(string alias, string type) => (_selfAlias, _self) = (alias, type);
 
     /// <summary>
-    /// The alias declarations for the names used, the inlining attribute aliases when used, and the type's own
-    /// (<see cref="Alias"/>).
+    /// The alias declarations: the inlining attribute aliases when used, the type's own (<see cref="Alias"/>), and
+    /// those of the formatter names used.
     /// </summary>
-    public void WriteAliases(StringBuilder sb)
+    public IEnumerable<string> Declarations()
     {
         if (_inline)
         {
             foreach (var alias in GeneratedCode.InlineAliases)
-                sb.Append("    ").Append(alias).Append('\n');
+                yield return alias;
         }
 
         if (_selfAlias != null)
-            sb.Append($"    using {_selfAlias} = {_self};\n");
+            yield return $"using {_selfAlias} = {_self};";
 
         foreach (var pair in _aliases.Where(p => _used.Contains(p.Key)).OrderBy(p => p.Value.Length).ThenBy(p => p.Value))
-            sb.Append($"    using {pair.Value} = {pair.Key};\n");
-        sb.Append('\n');
+            yield return $"using {pair.Value} = {pair.Key};";
     }
 }

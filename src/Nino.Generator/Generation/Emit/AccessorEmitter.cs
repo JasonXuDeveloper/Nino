@@ -96,54 +96,56 @@ internal static class AccessorEmitter
         string t = m.TypeName;
         string pool = $"{Core}NinoPool<{t}>";
         const string exchange = "global::System.Threading.Interlocked.Exchange(ref";
-        w.Line("/// <summary>Instances to pool before Nino first deserializes this type; runs once.</summary>");
-        w.Line($"private static partial global::System.Collections.Generic.IEnumerable<{t}> {PoolHooks.Warmup}();");
-        w.Line();
-        w.Line("/// <summary>Releases what must not outlive this use of the instance; called by <see cref=\"ReturnToPool\"/>.</summary>");
-        w.Line($"private partial void {PoolHooks.Return}();");
-        w.Line();
-        w.Line($"private static readonly {pool} s_ninoPool = {pool}.Shared;");
-        w.Line("[global::System.ThreadStatic]");
-        w.Line($"private static {pool}.PerThread t_ninoPool;");
-        w.Line($"[{Core}NinoIgnore]");
-        w.Line("private int _ninoPooled; // 1 while in the pool");
-        w.Line();
-        w.Line("/// <summary>");
-        w.Line("/// Returns the instance to its pool: the next deserialization of this type reuses it, with the lists, arrays");
-        w.Line("/// and objects it holds. Do not use it afterwards. Throws when it is already in the pool.");
-        w.Line("/// </summary>");
-        w.Block("public void ReturnToPool()", () =>
-        {
-            w.Line($"if ({exchange} _ninoPooled, 1) != 0)");
-            w.Indented(() => w.Line($"{pool}.ThrowReturnedTwice();"));
-            w.Line($"{PoolHooks.Return}();");
-            w.Line("s_ninoPool.Add(this, ref t_ninoPool);");
-        });
-        w.Line();
-        // Left to the JIT's own heuristics: forced inline into every read of the type, the take (still a call) only
-        // grew those reads. The warmup, run once, is out of line.
-        w.Line(HiddenAttribute);
-        w.Block($"internal static {t} RentFromNinoPool()", () =>
-        {
-            w.Line("if (s_ninoPool.BeginWarmup())");
-            w.Indented(() => w.Line("__NinoPoolWarmup();"));
-            // Nothing pooled yet (as when every read makes new instances): no thread-local access.
-            w.Line("if (!s_ninoPool.EverFilled)");
-            w.Indented(() => w.Line("return null;"));
-            w.Line("var value = s_ninoPool.TryTake(ref t_ninoPool);");
-            w.Line("if (value != null)");
-            w.Indented(() => w.Line("value._ninoPooled = 0;"));
-            w.Line("return value;");
-        });
-        w.Line();
-        w.Line(NoInlineAttribute);
-        w.Block("private static void __NinoPoolWarmup()", () =>
-        {
-            w.Line($"foreach (var item in {PoolHooks.Warmup}() ?? global::System.Linq.Enumerable.Empty<{t}>())");
-            w.Open();
-            w.Line($"if (item != null && {exchange} item._ninoPooled, 1) == 0)");
-            w.Indented(() => w.Line("s_ninoPool.Add(item, ref t_ninoPool);"));
-            w.Close();
-        });
+        // RentFromNinoPool is left to the JIT's own heuristics: forced inline into every read of the type, the take
+        // (still a call) only grew those reads. The warmup, run once, is out of line. With nothing pooled yet (as when
+        // every read makes new instances), the rent makes no thread-local access.
+        w.Lines($$"""
+            /// <summary>Instances to pool before Nino first deserializes this type; runs once.</summary>
+            private static partial global::System.Collections.Generic.IEnumerable<{{t}}> {{PoolHooks.Warmup}}();
+
+            /// <summary>Releases what must not outlive this use of the instance; called by <see cref="ReturnToPool"/>.</summary>
+            private partial void {{PoolHooks.Return}}();
+
+            private static readonly {{pool}} s_ninoPool = {{pool}}.Shared;
+            [global::System.ThreadStatic]
+            private static {{pool}}.PerThread t_ninoPool;
+            [{{Core}}NinoIgnore]
+            private int _ninoPooled; // 1 while in the pool
+
+            /// <summary>
+            /// Returns the instance to its pool: the next deserialization of this type reuses it, with the lists, arrays
+            /// and objects it holds. Do not use it afterwards. Throws when it is already in the pool.
+            /// </summary>
+            public void ReturnToPool()
+            {
+                if ({{exchange}} _ninoPooled, 1) != 0)
+                    {{pool}}.ThrowReturnedTwice();
+                {{PoolHooks.Return}}();
+                s_ninoPool.Add(this, ref t_ninoPool);
+            }
+
+            {{HiddenAttribute}}
+            internal static {{t}} RentFromNinoPool()
+            {
+                if (s_ninoPool.BeginWarmup())
+                    __NinoPoolWarmup();
+                if (!s_ninoPool.EverFilled)
+                    return null;
+                var value = s_ninoPool.TryTake(ref t_ninoPool);
+                if (value != null)
+                    value._ninoPooled = 0;
+                return value;
+            }
+
+            {{NoInlineAttribute}}
+            private static void __NinoPoolWarmup()
+            {
+                foreach (var item in {{PoolHooks.Warmup}}() ?? global::System.Linq.Enumerable.Empty<{{t}}>())
+                {
+                    if (item != null && {{exchange}} item._ninoPooled, 1) == 0)
+                        s_ninoPool.Add(item, ref t_ninoPool);
+                }
+            }
+            """);
     }
 }

@@ -24,6 +24,17 @@ internal sealed class CodeWriter
         return this;
     }
 
+    /// <summary>
+    /// Writes each line of <paramref name="text"/> (a raw string literal: its lines indented relative to each other)
+    /// at the current indentation, an empty one as a blank line.
+    /// </summary>
+    public CodeWriter Lines(string text)
+    {
+        foreach (var line in text.Split('\n'))
+            Line(line.TrimEnd('\r'));
+        return this;
+    }
+
     /// <summary>Writes <paramref name="text"/> as is (it carries its own line breaks and indentation).</summary>
     public CodeWriter Raw(string text)
     {

@@ -363,7 +363,10 @@ internal sealed record TypeModel(
     public string TypeParameterList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";
 
     /// <summary>The formatter as its own code names it: its name with the type's parameters.</summary>
-    public string Self => FormatterName + TypeParameterList;
+    public string Self => SelfOf(FormatterName, TypeParameterList);
+
+    /// <summary>A formatter as its own code names it (<see cref="Self"/>, <see cref="DispatchEntry.Self"/>).</summary>
+    public static string SelfOf(string formatterName, string typeParameterList) => formatterName + typeParameterList;
 }
 
 // Id: runtime type id of the closed type (NinoTypeId), the key of lazy registration.
@@ -420,7 +423,11 @@ internal sealed record InterceptedCall(string Signature, string Method, string T
 // block (TypeModel.RawBody), written with its type id in one reservation.
 internal sealed record DispatchEntry(string TypeName, string FormatterName, string TypeParameterList, int TypeId,
     bool IsBase, bool IsTarget, EquatableArray<string> BaseClasses, EquatableArray<string> Interfaces,
-    EquatableArray<GenericAncestor> GenericAncestors, bool RawBody);
+    EquatableArray<GenericAncestor> GenericAncestors, bool RawBody)
+{
+    /// <inheritdoc cref="TypeModel.Self"/>
+    public string Self => TypeModel.SelfOf(FormatterName, TypeParameterList);
+}
 
 // A closed generic [NinoType] ancestor (global name) and its definition (global name, as the definition's TypeModel
 // names it).

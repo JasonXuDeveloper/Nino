@@ -185,10 +185,10 @@ internal static class Interceptors
         w.Line();
         w.Open($"namespace {TypeNames.GenNamespace}");
         // Aliases: each interceptor names them, more than a thousand times in a large project.
-        w.Line($"using __NinoIntercepts = {TypeNames.CompilerServices}InterceptsLocationAttribute;");
+        w.Line(GeneratedCode.InterceptsAlias);
         foreach (var alias in GeneratedCode.InlineAliases)
             w.Line(alias);
-        w.Line($"using __NinoDirect = {TypeNames.Core}NinoDirect;");
+        w.Line(GeneratedCode.DirectAlias);
         w.Line();
         w.Open($"{scope} static class NinoInterceptors");
         int n = 0;
