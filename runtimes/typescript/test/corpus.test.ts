@@ -26,19 +26,6 @@ const notGenerated = new Set([
 /** Valid cases holding a closed generic type (Conformance.Box<int>...), whose layout .NET does not publish. */
 const closedGenerics = new Set(["polymorphism", "polymorphism-generic-root"]);
 
-/**
- * Malicious cases the TypeScript runtime and its generated code still accept, where .NET and the Go and Rust readers
- * reject them: run as todo tests (reported, not failing the suite) until the runtime checks them.
- */
-const looser = new Map<string, string>([
-  ...["deferred-offset-zero", "deferred-offset-into-members", "deferred-flag-without-section",
-    "keyed-body-section-flag"].map((n) => [n, "a malformed section of deferred bodies is read"] as [string, string]),
-  ["keyed-member-string-long", "a keyed member read past its region is not rejected"],
-  ...["duplicate-int-map", "duplicate-string-map", "duplicate-string-map-encodings", "duplicate-int-set",
-    "duplicate-string-set", "duplicate-string-set-null", "duplicate-sorted-map"].map(
-    (n) => [n, "a repeated map key or set element is read"] as [string, string]),
-]);
-
 const codecs = generated as unknown as Record<string, NinoCodec<unknown> | undefined>;
 
 /** The generated codec of a .NET type: `<Name>Codec`, named after its last part. */
@@ -93,7 +80,7 @@ describe("conformance corpus over generated code", { skip: present ? false : "no
 
   describe("malicious", () => {
     for (const { name, c } of cases("malicious")) {
-      it(name, { todo: looser.get(name) }, (t) => {
+      it(name, (t) => {
         const skip = skipReason(name, c);
         if (skip) return t.skip(skip);
         const codec = codecOf(c.type);

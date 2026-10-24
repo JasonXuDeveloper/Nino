@@ -1007,7 +1007,7 @@ the remaining bytes. Unpaired surrogates in the default encoding MUST be accepte
 - A member that runs past its region's end MUST be rejected.
 - Each keyed entry's `len` MUST fit in the remaining region, and a known member's value MUST fill it exactly (§7.6).
 
-**.NET:** done (`ReadRegion`, `SectionedRegion`, `EndMember`).
+**.NET:** done (`ReadRegion`, `SectionedRegion`, `EndMember`); so are the Go, Rust and TypeScript runtimes.
 
 ### 9.6 Type ids
 
@@ -1032,7 +1032,11 @@ reference`).
 - A dictionary or set with a key repeated under the reader's comparer MUST be rejected when it is filled from empty.
 
 **.NET:** dictionaries, `HashSet<T>` and lookups throw on a repeated key when filled from empty. When reading into a
-non-empty dictionary, the last value wins.
+non-empty dictionary, the last value wins. The Go and Rust runtimes reject a repeated key or element too. The
+TypeScript runtime compares keys as JavaScript's `Map` and `Set` do: numbers, `bigint`s, strings, booleans and null by
+value (a string in Latin-1 and the same string in UTF-16 are one key), so it rejects those repeated; keys it reads as
+objects (`DateTime` as a `Date`, structs, tuples) and `decimal`s that differ only in scale (read as their text) are
+not compared, and such a map keeps both entries.
 
 - A reader that fills a hash table from the data SHOULD bound the work each key costs. Keys built to share a hash
   bucket (hash flooding) make each insert scan all the keys before it, and the read quadratic in the data.

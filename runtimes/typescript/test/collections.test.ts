@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { deserialize, NinoError, NinoReader, NinoRegistry, NinoWriter, serialize, type NinoCodec } from "../src/nino.ts";
-import { hex, toHex } from "./codecs.ts";
+import { hex, int32, toHex } from "./codecs.ts";
 
 const i32: NinoCodec<number> = { read: (r) => r.i32(), write: (w, v) => w.i32(v) };
 const text: NinoCodec<string | null> = { read: (r) => r.string(), write: (w, v) => w.string(v) };
@@ -48,6 +48,28 @@ describe("collections", () => {
     assert.equal(plain.polluted, undefined);
     assert.equal(typeof plain.toString, "function");
     assert.equal(Object.getPrototypeOf(plain), Object.prototype);
+  });
+
+  it("rejects a key or element read twice, as .NET's dictionaries and sets do", () => {
+    const latin1 = (t: string) => [...int32(~t.length), ...[...t].map((c) => c.charCodeAt(0))];
+    const utf16 = (t: string) => [...int32(t.length), ...[...t].flatMap((c) => [c.charCodeAt(0), 0])];
+    const f64 = (x: number) => [...new Uint8Array(Float64Array.of(x).buffer)];
+    const cases: [string, number[], (r: NinoReader) => unknown][] = [
+      ["int keys", [...int32(2), ...int32(1), ...int32(5), ...int32(1), ...int32(6)], (r) => r.map(i32.read, i32.read)],
+      ["string keys", [...int32(2), ...latin1("a"), ...int32(5), ...latin1("a"), ...int32(6)],
+        (r) => r.map(text.read, i32.read)],
+      ["one key in Latin-1 and in UTF-16", [...int32(2), ...latin1("a"), ...int32(5), ...utf16("a"), ...int32(6)],
+        (r) => r.map(text.read, i32.read)],
+      ["null keys", [...int32(2), ...int32(-1), ...int32(5), ...int32(-1), ...int32(6)], (r) => r.map(text.read, i32.read)],
+      ["int elements", [...int32(3), ...int32(7), ...int32(8), ...int32(7)], (r) => r.set(i32.read)],
+      ["empty strings", [...int32(2), ...int32(0), ...int32(0)], (r) => r.set(text.read)],
+      ["null strings", [...int32(2), ...int32(-1), ...int32(-1)], (r) => r.set(text.read)],
+      ["NaN", [...int32(2), ...f64(NaN), ...f64(NaN)], (r) => r.set((r) => r.f64())],
+    ];
+    for (const [name, bytes, read] of cases)
+      assert.throws(() => read(new NinoReader(Uint8Array.from(bytes))), /repeated in a map or set/, name);
+    // Distinct keys are kept, however alike.
+    assert.equal(new NinoReader(Uint8Array.from([...int32(2), ...latin1("a"), ...latin1("A")])).set(text.read)!.size, 2);
   });
 
   it("writes and reads nullable values with a presence byte", () => {

@@ -120,6 +120,34 @@ describe("deep nesting", () => {
       assert.throws(() => deserialize(TolerantCodec, forged), NinoError);
   });
 
+  it("checks a section before reading any member, as .NET, Go and Rust do", () => {
+    const bytes = serialize(TolerantCodec, tolerant(300)), view = new DataView(bytes.buffer, bytes.byteOffset);
+    const length = view.getInt32(1, true) & 0x7fffffff, offsetAt = 5 + length - 4;
+    const members = view.getInt32(offsetAt, true), first = 5 + members;
+    const second = first + 8 + view.getInt32(first + 4, true);
+    assert.ok(second < offsetAt, "two entries at least");
+    const forge = (at: number, value: number) => {
+      const copy = bytes.slice();
+      new DataView(copy.buffer).setInt32(at, value, true);
+      return copy;
+    };
+    const cases: [string, Uint8Array, RegExp][] = [
+      ["no entry (the offset at the section's end)", forge(offsetAt, length - 4), /invalid offset of deferred bodies/],
+      ["the members read as the section", forge(offsetAt, 0), /invalid section of deferred bodies/],
+      ["an entry keyed past itself", forge(first, members + 1), /invalid section of deferred bodies/],
+      ["keys not increasing", forge(second, view.getInt32(first, true)), /invalid section of deferred bodies/],
+      ["a negative key", forge(first, -1), /invalid section of deferred bodies/],
+      ["an entry cut by the offset", forge(first + 4, offsetAt - first - 8 + 1), /invalid section of deferred bodies/],
+    ];
+    for (const [name, forged, error] of cases) assert.throws(() => deserialize(TolerantCodec, forged), error, name);
+    // A flag on a region inside another: only the outermost region holds a section.
+    const inner = serialize(TolerantCodec, tolerant(2)), at = 1 + 4 + 4 + 1;
+    const flagged = inner.slice();
+    new DataView(flagged.buffer).setInt32(at, new DataView(inner.buffer, inner.byteOffset).getInt32(at, true) | 0x80000000,
+      true);
+    assert.throws(() => deserialize(TolerantCodec, flagged), /region inside another region/);
+  });
+
   it("leaves no state behind in the shared writer when a deep value fails", () => {
     const head = chain(5000);
     let last: Chain = head;
