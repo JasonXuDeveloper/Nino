@@ -2,6 +2,7 @@
 * text=auto eol=lf
 
 # Binary files: never converted or diffed as text.
+*.bin binary
 *.dll binary
 *.png binary
 *.jpg binary
@@ -9,10 +10,31 @@
 *.nupkg binary
 *.unitypackage binary
 
-# C# diffs show the enclosing member in hunk headers.
+# Diffs show the enclosing function or member in hunk headers.
 *.cs diff=csharp
+*.go diff=golang
+*.rs diff=rust
+*.py diff=python
+*.md diff=markdown
 
-# Checked-in generated code (tools/CodeGen writes it; a test checks it is current): collapsed in pull requests.
+# Checked-in generated files (a test or a script checks each is current): collapsed in pull requests.
+# tools/CodeGen
 src/Nino.Core/Formatters/TupleFormatters.g.cs linguist-generated
+# The conformance corpus (Nino.Conformance --out) and the Rust types gen.py writes from its layouts.
+conformance/corpus/** linguist-generated
+runtimes/rust/tests/conformance/types.rs linguist-generated
+# nino-gen's output for the runtimes' tests.
+runtimes/go/internal/generated/**/nino_types.go linguist-generated
+runtimes/rust/tests/generated/*.rs linguist-generated
+runtimes/typescript/test/generated/*.ts linguist-generated
+# Protocol Buffers code the runtimes' benchmarks compare against.
+*.pb.go linguist-generated
+*_pb.ts linguist-generated
+# The README chart the release workflow draws.
+docs/assets/benchmark.svg linguist-generated
+# Lock files.
+package-lock.json linguist-generated
+Cargo.lock linguist-generated
+go.sum linguist-generated
 # The DLLs the release copies into the Unity package.
 src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/**/*.dll linguist-generated
