@@ -119,12 +119,21 @@ namespace Nino.Core
             {
                 var toWire = NinoBlock<T, TFormatter>.ToWire;
                 int last = NinoBlock<T, TFormatter>.LastVector(count, size, 16);
-                ref byte source = ref Unsafe.As<T, byte>(ref first);
-                for (; i <= last; i++)
-                    Vector128.StoreUnsafe(
-                        NinoBlock<T, TFormatter>.Shuffle(
-                            Vector128.LoadUnsafe(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>()), toWire),
-                        ref destination, (nuint)i * (nuint)size);
+                if (i <= last)
+                {
+                    // Cursors bumped by the sizes, and a count down to zero: no multiplications per value.
+                    ref byte from = ref Unsafe.As<T, byte>(ref Unsafe.Add(ref first, i));
+                    ref byte to = ref Unsafe.Add(ref destination, (nint)i * size);
+                    int n = last - i + 1;
+                    do
+                    {
+                        NinoBlock<T, TFormatter>.Shuffle(Vector128.LoadUnsafe(ref from), toWire).StoreUnsafe(ref to);
+                        from = ref Unsafe.Add(ref from, Unsafe.SizeOf<T>());
+                        to = ref Unsafe.Add(ref to, size);
+                    } while (--n != 0);
+
+                    i = last + 1;
+                }
             }
 #endif
             for (; i < count; i++)
@@ -247,11 +256,21 @@ namespace Nino.Core
             {
                 var toMemory = NinoBlock<T, TFormatter>.ToMemory;
                 int last = NinoBlock<T, TFormatter>.LastVector(count, size, 16);
-                for (; i <= last; i++)
-                    Vector128.StoreUnsafe(
-                        NinoBlock<T, TFormatter>.Shuffle(Vector128.LoadUnsafe(ref source, (nuint)i * (nuint)size),
-                            toMemory),
-                        ref destination, (nuint)i * (nuint)Unsafe.SizeOf<T>());
+                if (i <= last)
+                {
+                    // As in WriteEach.
+                    ref byte from = ref Unsafe.Add(ref source, (nint)i * size);
+                    ref byte to = ref Unsafe.As<T, byte>(ref Unsafe.Add(ref first, i));
+                    int n = last - i + 1;
+                    do
+                    {
+                        NinoBlock<T, TFormatter>.Shuffle(Vector128.LoadUnsafe(ref from), toMemory).StoreUnsafe(ref to);
+                        from = ref Unsafe.Add(ref from, size);
+                        to = ref Unsafe.Add(ref to, Unsafe.SizeOf<T>());
+                    } while (--n != 0);
+
+                    i = last + 1;
+                }
             }
 #endif
             for (; i < count; i++)
