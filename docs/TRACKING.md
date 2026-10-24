@@ -28,7 +28,7 @@
 | 线格式规范 | docs/wire-spec · wt-spec | docs/spec/wire-format.md | ✅ b870f7c（规范 4.0 草案；§10 列出 12 处不一致或未定义） |
 | 一致性语料 | test/conformance · wt-conf | conformance/：.NET 写出的 valid + malicious 语料、.NET 自测、runtimes.yml 的 conformance job | ✅ 3 个提交（66286fa、8507669、ee400b3）：109 个有效用例、149 个恶意用例 + 截断规则（37 个用例的每个前缀，共 10,441 个）。.NET 现有缺口 26 个（自嵌套栈溢出 2、bool/presence 字节 12、延迟区段偏移/标志 4、keyed 成员剩余字节 1、尾随字节 1、越界 raw 值 3…），修复后需重新生成语料。合并时：slnx 加入 Nino.Conformance；runtimes.yml 触发路径补全；TS job 接入语料；规范补“空 raw 结构体写 1 个零字节” |
 | 安全：模糊测试 | test/fuzz · wt-fuzz | tests/Nino.Fuzz（保护页变异模糊器 + SharpFuzz）、fuzz.yml（SIMD 开/关矩阵 + nightly） | ✅ 4 个提交（20b3a15、6e641fe、62cbfe2、e1c4386）；各 SIMD 模式各 300 s + libFuzzer 每个目标，无新 bug。已知 tree/dtree/hash/hash-set 默认非严格，修复后设仓库变量 NINO_FUZZ_STRICT_KNOWN=1 并删 Probes.cs 的 Known。注意：哈希修复要过探针的 1 s / 50 倍限制（只做到和 BCL 一样不够）；Golden 链接路径随目录重组改；三个新工程加进 slnx。发现生成器 bug K（类型名只差大小写 → hintName 冲突 → 整个项目没有生成代码）→ 已交 gen |
-| 安全：修复 | core 分支（B7 自嵌套、B5 负缓存）；第二阶段（哈希链上限、Untrusted、NinoDataException、限制） | | ✅ B7、B5 已合并 / ✅ 第二阶段 |
+| 安全：修复 | core 分支（B7 自嵌套、B5 负缓存）；第二阶段（哈希链上限、Untrusted、NinoDataException、限制） | | ✅ B7、B5 已合并 / ✅ 第二阶段（eb9c4a5、bfcb52f、b0a3612、52c4296、b4dab78、2223696）/ ✅ 第三阶段 phase3/sec（a62614b ConcurrentDictionary 哈希碰撞上限、1887320 写入时结构体与不可延迟类一起计深度） |
 | 目录结构 | chore/layout · wt-layout | 可重跑的重组脚本（tests/、benchmarks/、根目录 slnx 和 Directory.*.props），先在当前 main 上跑通验证，合并后再跑一次 | ✅ 175c21a tools/restructure.py（--check、--dry-run，幂等）+ 159362f 在 7dd8186 上的结果（合并后改为重跑脚本，不合并此提交）。验证：slnx 构建零警告、三种单测、AOT、Mono RuntimeTests、基准构建、6 个包文件列表不变、Unity 包不变。注意：report.yml 手动跑旧标签会失败；dependabot directories 通配需确认；nino.docs CLAUDE.md 的路径要改 |
 | AspNetCore 零分配测试 | fix/aspnetcore-alloc · wt-asp | 测试工程从未进 sln，CI 的这一步其实什么都没跑；两个零分配测试真实失败，查根因并修 | ✅ 根因：Debug 构建里 async 状态机是 class，每次调用都分配；Release 发布包本来就零分配（无用户可见 bug）。46232f0 已在管道里的请求体同步读完、不走 async 方法（本机 Release 约 225→165 ns，非完整模式数字，无尾注）；b28ac83 测试改为同步调用测量，仍是严格零分配。合并时：nino.docs aspnetcore 页（中英）第 113 行附近改说法 |
 | 文档 | docs/scan · wt-docs + nino.docs | 文档对照当前 main 全面核对（含 pitfalls 的 NinoTuple），列出进行中工作将来需要的页面 | ✅ Nino 1b65faa（未合并）；nino.docs 41cf216 已推送（NINO017 补“非泛型”）。AnalyzerReleases.Shipped.md 里 NINO003/006/009 标题已与 NinoDiagnostics.cs 一致（394d5cb，AnalyzerTest.ReleaseTrackingMatchesTheDescriptors 检查每条规则的级别和标题） |
@@ -104,7 +104,7 @@ Nino/
 ### Core 分支交回的后续项
 - ✅ Q1–Q8 已做（提交见上表 refactor/core 一行）。
 - 验证缺口：B1/B2 的 ISA 跑法当时没真跑（`env` 是空壳，改用 /usr/bin/env）；Mono/net472 和 qemu Arm 未跑 —— 集成分支上已补跑 net10 三种 ISA，Mono/Arm 待跑。
-- 写入一个百万层自嵌套集合仍会无限递归（只发生在调用方自己的对象上），未修。
+- ✅ 写入一个百万层自嵌套集合仍会无限递归 —— 第二阶段 2223696 已修（Writer.EnterStruct）；第三阶段 phase3/sec 1887320 补上：不可延迟的类（record 等）过深时把已打开的结构体层数也算进去，与读取一致（之前写得出读取会拒绝的数据）。
 - ✅ 生成器的 IsRawStruct 要与运行时的判断保持一致（原始结构体的生成格式化器是 INinoRawFormatter）。phase3/gen：RawRuleAgreementTests 在 70 种形状上比较生成器 RawRules.IsRawUnmanaged 与 Core NinoReflection.IsRawUnmanaged，查出两处不一致并在生成器里修正（c2b8ee0）：闭合的泛型 [NinoType] 结构体（`Pad<int>`）作为成员时按原始内存写（含填充 8 字节），而它的格式化器（`Box<T>` 里、它自己的注册）逐成员写（5 字节）—— 现在按定义判断，与格式化器一致（Wire-Format）；无类型参数的 `System.ValueTuple` 与 Core 一样按原始值。
 
 ### 集成时我修的
@@ -147,10 +147,10 @@ Nino/
   - TS 继续把 Kind=Unspecified 的 DateTime 读成 UTC，写进文档；
   - Go 普通 string 继续把 null 读成 ""（要保留 null 用 *string）；
   - 泛型类型在每种语言里都生成（nino-gen 生成泛型类型）；
-  - ConcurrentDictionary 也受 MaxHashCollisions 上限保护；
+  - ✅ ConcurrentDictionary 也受 MaxHashCollisions 上限保护（phase3/sec，ConcurrentTables 直接建桶并计数，各运行时读取不变慢）；
   - Rust 的映射类型改为选项：默认 indexmap，可选 std HashMap；
   - npm 包名 nino-serialization，crate 名和 Go 模块路径不变；
-  - 自嵌套集合的写入超过 MaxDepth 时抛异常（不再无限递归）
+  - ✅ 自嵌套集合的写入超过 MaxDepth 时抛异常（第二阶段 2223696；phase3/sec 1887320 补上结构体层数）
 
 ## 记录
 
