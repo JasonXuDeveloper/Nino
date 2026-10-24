@@ -182,6 +182,15 @@ namespace Nino.Core
                 return;
             }
 
+            // Elements whose buckets the set guards itself (strings on .NET) are added here, inline as before;
+            // others out of line, where each is inserted or its bucket walked (HashTables.Plan).
+            if (HashTables.Plan<T>.Inserts || HashTables.Plan<T>.Walks)
+            {
+                if (length != 0)
+                    reader = AddEach(set, length, reader);
+                return;
+            }
+
             for (int i = 0; i < length; i++)
             {
                 T item = default;
@@ -189,6 +198,39 @@ namespace Nino.Core
                 if (!set.Add(item))
                     NinoThrow.DuplicateKey(set.GetType());
             }
+        }
+
+        /// <summary>
+        /// Reads and adds <paramref name="length"/> elements, out of line with the reader by value (see
+        /// <see cref="AddRaw"/>): each added here, its bucket walked as it is, where the set is as expected (empty,
+        /// default comparer, sized for them), else added by the set and its bucket walked after (hash flooding,
+        /// <see cref="HashTables"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader AddEach(TSet set, int length, Reader reader)
+        {
+            // One loop (the formatter inlined once), the choice made per element.
+            // The plan read once, into locals (HashTables.Plan).
+            bool insert = HashTables.Plan<T>.Inserts && HashTables.CanInsert(set, length);
+            bool walk = HashTables.Plan<T>.Walks;
+            for (int i = 0; i < length; i++)
+            {
+                T item = default;
+                default(TFormatter).Deserialize(ref item, ref reader);
+                if (insert)
+                {
+                    HashTables.Insert(set, item);
+                }
+                else
+                {
+                    if (!set.Add(item))
+                        NinoThrow.DuplicateKey(set.GetType());
+                    if (walk)
+                        HashTables.Walk(set, item);
+                }
+            }
+
+            return reader;
         }
 
         /// <summary>
@@ -204,8 +246,10 @@ namespace Nino.Core
                 NinoChecks.Bools(ref src, length);
             for (int i = 0; i < length; i++)
             {
-                if (!set.Add(NinoUnsafe.Read<T>(ref src)))
+                T item = NinoUnsafe.Read<T>(ref src);
+                if (!set.Add(item))
                     NinoThrow.DuplicateKey(set.GetType());
+                HashTables.Added(set, item);
                 src = ref Unsafe.Add(ref src, size);
             }
         }

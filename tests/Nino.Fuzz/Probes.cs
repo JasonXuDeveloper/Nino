@@ -43,13 +43,11 @@ namespace Nino.Fuzz
             new Probe
             {
                 Name = "hash", What = "a Dictionary<long, int> of 50,000 keys that all hash to 0, against 50,000 spread keys",
-                Known = "a dictionary built from colliding keys takes quadratic time",
                 Run = () => Collisions(50_000, keys => new HashColl { D = keys.ToDictionary(k => k, _ => 0) }),
             },
             new Probe
             {
                 Name = "hash-set", What = "a HashSet<long> of 50,000 keys that all hash to 0, against 50,000 spread keys",
-                Known = "a hash set built from colliding keys takes quadratic time",
                 Run = () => Collisions(50_000, keys => new HashColl { H = keys.ToHashSet() }),
             },
             // Nesting through each kind of member, 100,000 levels on a 1 MB stack (a Windows or Unity thread):
@@ -127,10 +125,13 @@ namespace Nino.Fuzz
             var colliding = NinoSerializer.Serialize(make(Enumerable.Range(1, n).Select(i => ((long)i << 32) | (uint)i)));
             var spread = NinoSerializer.Serialize(make(Enumerable.Range(1, n).Select(i => (long)i)));
             NinoDeserializer.Deserialize<HashColl>(spread); // warm up
+            // Reading the colliding keys may be rejected (NinoSettings.MaxHashCollisions): then the time to the
+            // rejection counts.
             double Time(byte[] data)
             {
                 var sw = Stopwatch.StartNew();
-                NinoDeserializer.Deserialize<HashColl>(data);
+                try { NinoDeserializer.Deserialize<HashColl>(data); }
+                catch (Exception e) when (Executor.IsRejection(e)) { }
                 return sw.Elapsed.TotalMilliseconds;
             }
             double fast = Time(spread);

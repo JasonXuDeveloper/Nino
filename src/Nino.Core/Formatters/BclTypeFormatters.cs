@@ -570,11 +570,15 @@ namespace Nino.Core
         private readonly Dictionary<TKey, NinoGrouping<TKey, TElement>> _byKey;
         private NinoGrouping<TKey, TElement> _nullKey; // a Dictionary takes no null key; a lookup does
         private int _count;
+        // Keys added by HashTables.Insert, which counts the collisions as it walks the bucket; else by the dictionary,
+        // and the bucket walked after (HashTables.Added).
+        private readonly bool _insert;
 
         public NinoLookup(int count, int capacity)
         {
             _groupings = new NinoGrouping<TKey, TElement>[count];
             _byKey = new Dictionary<TKey, NinoGrouping<TKey, TElement>>(capacity);
+            _insert = Internal.HashTables.CanInsert(_byKey, count);
         }
 
         public void Add(NinoGrouping<TKey, TElement> grouping)
@@ -585,9 +589,16 @@ namespace Nino.Core
                 added = _nullKey == null;
                 _nullKey = grouping;
             }
+            else if (_insert)
+            {
+                Internal.HashTables.Insert(_byKey, grouping.Key, grouping, typeof(ILookup<TKey, TElement>));
+                added = true;
+            }
             else
             {
                 added = NinoCollections.TryAdd(_byKey, grouping.Key, grouping);
+                if (added)
+                    Internal.HashTables.Added(_byKey, grouping.Key);
             }
 
             if (!added)

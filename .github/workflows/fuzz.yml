@@ -57,9 +57,9 @@ concurrency:
 env:
   DOTNET_NOLOGO: '1'
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
-  # Known open bugs (the probes marked Known in tests/Nino.Fuzz/Probes.cs) are reported without failing the run until
-  # the repository variable NINO_FUZZ_STRICT_KNOWN is set to 1 (once their fixes are merged).
-  NINO_FUZZ_STRICT_KNOWN: ${{ vars.NINO_FUZZ_STRICT_KNOWN || '0' }}
+  # Known open bugs (the probes marked Known in tests/Nino.Fuzz/Probes.cs) fail the run; setting the repository
+  # variable NINO_FUZZ_STRICT_KNOWN to 0 reports them without failing it (none is marked Known now).
+  NINO_FUZZ_STRICT_KNOWN: ${{ vars.NINO_FUZZ_STRICT_KNOWN || '1' }}
   SECONDS_BUDGET: ${{ github.event_name == 'schedule' && '1800' || inputs.seconds || '60' }}
   LIBFUZZER_SECONDS: ${{ github.event_name == 'schedule' && '240' || inputs.libfuzzer_seconds || '10' }}
 

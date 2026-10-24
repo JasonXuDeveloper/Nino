@@ -221,6 +221,8 @@ namespace Nino.Core
             }
 
             var seen = System.Buffers.ArrayPool<TKey>.Shared.Rent(length);
+            // A new key's bucket walked after the dictionary adds it (HashTables.Plan, read once).
+            bool walk = HashTables.Plan<TKey, TValue>.Walks;
             try
             {
                 int matched = 0;
@@ -237,12 +239,17 @@ namespace Nino.Core
                         dictionary, key, out bool exists);
                     if (exists)
                         matched++;
+                    else if (walk)
+                        HashTables.Walk(dictionary, key);
                     default(TValueFormatter).Deserialize(ref slot, ref reader);
 #else
-                    if (dictionary.TryGetValue(key, out TValue item))
+                    bool exists = dictionary.TryGetValue(key, out TValue item);
+                    if (exists)
                         matched++;
                     default(TValueFormatter).Deserialize(ref item, ref reader);
                     dictionary[key] = item;
+                    if (!exists && walk)
+                        HashTables.Walk(dictionary, key);
 #endif
                 }
 
@@ -311,8 +318,9 @@ namespace Nino.Core
                 return;
             for (int i = 0; i < length; i++)
             {
-                NinoCollections.AddUnique(dictionary, NinoUnsafe.Read<TKey>(ref src),
-                    NinoUnsafe.Read<TValue>(ref src, keySize));
+                TKey key = NinoUnsafe.Read<TKey>(ref src);
+                NinoCollections.AddUnique(dictionary, key, NinoUnsafe.Read<TValue>(ref src, keySize));
+                HashTables.Added(dictionary, key);
                 src = ref Unsafe.Add(ref src, pairSize);
             }
         }
@@ -372,6 +380,15 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadPairs(Dictionary<TKey, TValue> dictionary, int length, ref Reader source)
         {
+            // Keys whose buckets the dictionary guards itself (strings on .NET) are added here, by the dictionary,
+            // in a loop with nothing else in it; others in ReadGuarded (HashTables.Plan). The calls a guarded loop
+            // makes, even never taken, kept more of this loop's state on the stack.
+            if (HashTables.Plan<TKey, TValue>.Inserts || HashTables.Plan<TKey, TValue>.Walks)
+            {
+                ReadGuarded(dictionary, length, ref source);
+                return;
+            }
+
             // A local reader, so its fields stay in registers inside the loop.
             Reader reader = default;
             source.CopyTo(ref reader);
@@ -382,6 +399,41 @@ namespace Nino.Core
                 default(TKeyFormatter).Deserialize(ref key, ref reader);
                 default(TValueFormatter).Deserialize(ref item, ref reader);
                 NinoCollections.AddUnique(dictionary, key, item);
+            }
+
+            reader.CopyTo(ref source);
+        }
+
+        /// <summary><see cref="ReadPairs"/>, each key inserted or its bucket walked (hash flooding).</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadGuarded(Dictionary<TKey, TValue> dictionary, int length, ref Reader source)
+        {
+            // A local reader, so its fields stay in registers inside the loop.
+            Reader reader = default;
+            source.CopyTo(ref reader);
+            // Each key added here, its bucket walked as it is, where the dictionary is as expected (new, sized for the
+            // pairs); else added by the dictionary, and its bucket walked after (HashTables: hash flooding).
+            // One loop (the formatters inlined once), the choice made per pair: predicted, and cheaper than a second
+            // copy of the loop, which kept more of its state on the stack.
+            // The plan read once, into locals (HashTables.Plan).
+            bool insert = HashTables.Plan<TKey, TValue>.Inserts && HashTables.CanInsert(dictionary, length);
+            bool walk = HashTables.Plan<TKey, TValue>.Walks;
+            for (int i = 0; i < length; i++)
+            {
+                TKey key = default;
+                TValue item = default;
+                default(TKeyFormatter).Deserialize(ref key, ref reader);
+                default(TValueFormatter).Deserialize(ref item, ref reader);
+                if (insert)
+                {
+                    HashTables.Insert(dictionary, key, item);
+                }
+                else
+                {
+                    NinoCollections.AddUnique(dictionary, key, item);
+                    if (walk)
+                        HashTables.Walk(dictionary, key);
+                }
             }
 
             reader.CopyTo(ref source);

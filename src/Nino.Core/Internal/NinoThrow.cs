@@ -113,6 +113,12 @@ namespace Nino.Core
                 $"Nino: the data holds the same key (or set element) twice for {type.FullName}, under its comparer.");
 
         [MethodImpl(Cold)]
+        public static void HashFlood(Type type) =>
+            throw new NinoDataException(
+                $"Nino: more than {NinoLimits.MaxHashCollisions} keys of the data share a hash bucket of {type.FullName} " +
+                "(NinoSettings.MaxHashCollisions): keys built to collide, or keys whose hash code is poor.");
+
+        [MethodImpl(Cold)]
         public static void InvalidReference(int index) =>
             throw new NinoDataException($"Nino: invalid object reference {index}.");
 

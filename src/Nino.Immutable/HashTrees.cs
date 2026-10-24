@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using Nino.Core;
 using Nino.Core.Internal;
 
 [assembly: InternalsVisibleTo("Nino.UnitTests")]
@@ -27,6 +28,72 @@ namespace Nino.Immutable
         /// collections with known contents, built both ways, through the public API.
         /// </summary>
         public static readonly bool Usable = ObjectTypes.Usable && Check();
+
+        /// <summary>
+        /// Whether the sorted <paramref name="hashes"/> are all different; throws <see cref="NinoDataException"/> when
+        /// one of them is shared by more than <see cref="NinoSettings.MaxHashCollisions"/> others. The collections
+        /// keep the items of one hash in a list, which adding to costs a scan of it: keys built to share a hash (hash
+        /// flooding) would make the read quadratic.
+        /// </summary>
+        public static bool CheckCollisions(int[] hashes, Type collection)
+        {
+            // One pass, as the check for equal hashes was: a run of equal ones is measured where it ends. A key may
+            // find MaxHashCollisions others with its hash, as in a Dictionary bucket.
+            bool distinct = true;
+            int start = 0;
+            for (int i = 1; i < hashes.Length; i++)
+            {
+                if (hashes[i] == hashes[i - 1])
+                    continue;
+                if (i - start > 1)
+                {
+                    distinct = false;
+                    if (i - start > NinoEffectiveSettings.MaxHashCollisions + 1)
+                        Flooded(collection);
+                }
+
+                start = i;
+            }
+
+            if (hashes.Length - start > 1)
+            {
+                distinct = false;
+                if (hashes.Length - start > NinoEffectiveSettings.MaxHashCollisions + 1)
+                    Flooded(collection);
+            }
+
+            return distinct;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void Flooded(Type collection) =>
+            throw new NinoDataException(
+                $"Nino: more than {NinoEffectiveSettings.MaxHashCollisions} keys of the data share a hash " +
+                $"code in {collection.FullName} (NinoSettings.MaxHashCollisions): keys built to collide, " +
+                "or keys whose hash code is poor.");
+
+        /// <summary>
+        /// <see cref="CheckCollisions(int[], Type)"/> for items about to be added to a builder one by one, where they
+        /// were not built as a tree (the default comparer's hash codes, null's 0).
+        /// </summary>
+        public static void CheckCollisions<T>(T[] items, Type collection)
+        {
+            var hashes = new int[items.Length];
+            for (int i = 0; i < hashes.Length; i++)
+                hashes[i] = items[i] == null ? 0 : EqualityComparer<T>.Default.GetHashCode(items[i]);
+            Array.Sort(hashes);
+            CheckCollisions(hashes, collection);
+        }
+
+        /// <summary>As <see cref="CheckCollisions{T}(T[], Type)"/>, for the keys of pairs.</summary>
+        public static void CheckCollisions<TKey, TValue>(KeyValuePair<TKey, TValue>[] pairs, Type collection)
+        {
+            var hashes = new int[pairs.Length];
+            for (int i = 0; i < hashes.Length; i++)
+                hashes[i] = pairs[i].Key == null ? 0 : EqualityComparer<TKey>.Default.GetHashCode(pairs[i].Key);
+            Array.Sort(hashes);
+            CheckCollisions(hashes, collection);
+        }
 
         private static bool Check()
         {
@@ -123,14 +190,15 @@ namespace Nino.Immutable
 
         /// <summary>
         /// The tree of <paramref name="items"/> under <paramref name="empty"/> (the collection's empty node, of the
-        /// type of all its nodes), or null when two of their <paramref name="hashes"/> are equal. Sorts both.
+        /// type of all its nodes), or null when two of their <paramref name="hashes"/> are equal. Sorts both. More
+        /// than <c>NinoSettings.MaxHashCollisions</c> items with one hash are invalid data
+        /// (<see cref="HashTrees.CheckCollisions"/>).
         /// </summary>
-        public static Node Build(TItem[] items, int[] hashes, Node empty)
+        public static Node Build(TItem[] items, int[] hashes, Node empty, Type collection)
         {
             Array.Sort(hashes, items);
-            for (int i = 1; i < hashes.Length; i++)
-                if (hashes[i] == hashes[i - 1])
-                    return null;
+            if (!HashTrees.CheckCollisions(hashes, collection))
+                return null;
             return Make(items, hashes, 0, items.Length - 1, empty, ObjectTypes.TypeOf(empty));
         }
 
@@ -218,7 +286,8 @@ namespace Nino.Immutable
             }
 
             var empty = ViewOf(ImmutableDictionary<TKey, TValue>.Empty);
-            var root = HashTree<KeyValuePair<TKey, TValue>>.Build(pairs, hashes, empty._root);
+            var root = HashTree<KeyValuePair<TKey, TValue>>.Build(pairs, hashes, empty._root,
+                typeof(ImmutableDictionary<TKey, TValue>));
             if (root == null)
                 return null;
             var view = new View();
@@ -267,7 +336,7 @@ namespace Nino.Immutable
             }
 
             var empty = ViewOf(ImmutableHashSet<T>.Empty);
-            var root = HashTree<T>.Build(items, hashes, empty._root);
+            var root = HashTree<T>.Build(items, hashes, empty._root, typeof(ImmutableHashSet<T>));
             if (root == null)
                 return null;
             var view = new View();

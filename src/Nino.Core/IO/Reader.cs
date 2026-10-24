@@ -909,6 +909,9 @@ namespace Nino.Core
             // Returns the bytes read.
             int keySize = Unsafe.SizeOf<TKey>();
             int pos = 0;
+            // Added here where the dictionary is as expected, else by it and the key's bucket walked after (hash
+            // flooding, HashTables).
+            bool insert = Internal.HashTables.CanInsert(dictionary, count);
             while (count-- > 0)
             {
                 if ((uint)(end - pos) < (uint)keySize)
@@ -919,7 +922,15 @@ namespace Nino.Core
                 pos += keySize;
                 string value = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, null, out int size);
                 pos += size;
-                NinoCollections.AddUnique(dictionary, key, value);
+                if (insert)
+                {
+                    Internal.HashTables.Insert(dictionary, key, value);
+                }
+                else
+                {
+                    NinoCollections.AddUnique(dictionary, key, value);
+                    Internal.HashTables.Added(dictionary, key);
+                }
             }
 
             return pos;

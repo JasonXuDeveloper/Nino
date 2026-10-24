@@ -147,6 +147,8 @@ namespace Nino.Immutable
             if (HashTrees.Usable && SetTree<T>.Create(items) is { } set)
                 return set;
 
+            // Added one by one: a hash shared by many items is checked first (hash flooding).
+            HashTrees.CheckCollisions(items, typeof(ImmutableHashSet<T>));
             var builder = ImmutableHashSet.CreateBuilder<T>();
             foreach (var item in items)
             {
@@ -347,6 +349,7 @@ namespace Nino.Immutable
             if (HashTrees.Usable && DictionaryTree<TKey, TValue>.Create(pairs) is { } dictionary)
                 return dictionary;
 
+            HashTrees.CheckCollisions(pairs, typeof(ImmutableDictionary<TKey, TValue>));
             var builder = ImmutableDictionary.CreateBuilder<TKey, TValue>();
             ImmutableCollections.AddAll(builder, pairs, typeof(ImmutableDictionary<TKey, TValue>));
             return builder.ToImmutable();
