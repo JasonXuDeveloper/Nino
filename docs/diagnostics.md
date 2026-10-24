@@ -232,9 +232,17 @@ inferable parameter (`where TList : List<T>`), or is constrained to `INinoFormat
 
 ## Code generation for other languages
 
-The tools that write other languages from a built assembly report in MSBuild's message format, outside the analyzer:
+`nino-gen` (the Nino.Codegen.Tool command, and the Nino.Codegen build package, which runs it after each compile) reports
+in MSBuild's message format, outside the analyzer:
 
-- `NINOTS001` (`nino-ts`, Nino.TypeScript) and `NINOGEN001` (`nino-gen`, Nino.Codegen): error. The arguments are
-  invalid or the assembly cannot be read; the tool exits with code 1 (Nino.TypeScript fails the build).
-- `NINOTS002` and `NINOGEN002`: warning. A type is left out because the target language cannot express it (a generic
-  type, reference tracking, a `[NinoType]` collection, ...), with the reason; see [codegen.md](codegen.md#what-is-not-generated).
+- `NINOGEN001`: error. The arguments are invalid (an unknown option, an option of another language, a value it does
+  not take) or the assembly cannot be read; the tool exits with code 1 and the build fails.
+- `NINOGEN002`: warning. A type is left out because the target language cannot express it (a generic type, reference
+  tracking, a `[NinoType]` collection, ...), with the reason; see [codegen.md](codegen.md#what-is-not-generated).
+- `NINOGEN003`: warning, from the build. The project sets Nino.TypeScript's `NinoTypeScript*` properties: without a
+  `<NinoCodegen>` item they stand for `<NinoCodegen Include="typescript" ... />`, next to one they are ignored. Declare
+  the item instead ([codegen.md](codegen.md#from-ninotypescript)).
+- `NINOGEN004`: warning, from the build. The project references Nino.Codegen but declares no `<NinoCodegen>` item, so
+  nothing is written; add one, or set `NinoCodegenEnabled` to `false`.
+
+Nino.TypeScript's `NINOTS001` and `NINOTS002` (4.0 release candidates up to rc.7) are `NINOGEN001` and `NINOGEN002`.

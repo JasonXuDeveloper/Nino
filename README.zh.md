@@ -65,9 +65,9 @@
   所有不可变集合（`Nino.Immutable`），Unity 的 `AnimationCurve`、`Gradient` 和 `RectOffset`，你自己的集合类型，其他类型则通过可插拔的格式化器支持。
   [支持的类型](https://nino.xgamedev.net/zh/docs/v4/types)。
 - **ASP.NET Core、TypeScript、Go 与 Rust。** [Nino.AspNetCore](https://nino.xgamedev.net/zh/docs/v4/advanced/aspnetcore) 为 `application/x-nino`
-  提供 MVC 格式化器以及 Minimal API 的请求体和结果；[Nino.TypeScript](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript)
-  在每次构建后为你的类型生成 TypeScript 编解码器，浏览器和 Node 读写的字节与 .NET 相同；`nino-gen` 工具（`Nino.Codegen`）
-  从构建好的程序集把你的类型生成为 TypeScript、Go 或 Rust 代码，配合 `runtimes/` 中的运行时使用（[docs/codegen.md](docs/codegen.md)）。
+  提供 MVC 格式化器以及 Minimal API 的请求体和结果；[Nino.Codegen](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen) 在每次构建后把你的类型和编解码器生成为
+  TypeScript、Go 或 Rust 代码（也可用 `nino-gen` 工具 Nino.Codegen.Tool 从构建好的程序集生成），浏览器、Node、Go 服务和
+  Rust 程序读写的字节与 .NET 相同，配合 `runtimes/` 中的运行时使用（[docs/codegen.md](docs/codegen.md)）。
 - **写代码时就发现错误。** 27 条分析器诊断（NINO001–NINO027），许多带一键修复。
 
 ## 适用场景
@@ -75,7 +75,7 @@
 | | |
 |---|---|
 | ⚙️ **[服务与进程间通信](https://nino.xgamedev.net/zh/docs/v4/advanced/high-performance)** | 紧凑的二进制数据、每次调用零分配，可在 ASP.NET Core、后台任务和 Actor 中安全并发使用。[Nino.AspNetCore](https://nino.xgamedev.net/zh/docs/v4/advanced/aspnetcore) 在 MVC 和 Minimal API 中读写 `application/x-nino` 请求体与响应。 |
-| 🧩 **[网页与 Node 客户端](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript)** | [Nino.TypeScript](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript) 在每次构建后为你的 `[NinoType]` 生成 TypeScript 类和编解码器，浏览器和 Node 读写的字节与 .NET 相同。 |
+| 🧩 **[网页、Node、Go 与 Rust](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen)** | [Nino.Codegen](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen) 在每次构建后为你的 `[NinoType]` 生成 TypeScript、Go 或 Rust 类型和编解码器，浏览器、Node、Go 和 Rust 读写的字节与 .NET 相同。 |
 | 🌐 **[RPC 与网络层](https://nino.xgamedev.net/zh/docs/v4/advanced/networking)** | 直接序列化进 `IBufferWriter<byte>`（`PipeWriter`、池化缓冲区），从 `ReadOnlySpan<byte>` 反序列化，复用池化的消息对象。多态消息无需手写标签；伪造的消息只会抛出一种异常，不会让服务端崩溃。 |
 | 📨 **[消息队列与事件流](https://nino.xgamedev.net/zh/docs/v4/advanced/message-queues)** | 多态事件类型共用一个基类型，数据小巧，生产者和消费者可以在不同时间升级。 |
 | 🗄️ **[缓存](https://nino.xgamedev.net/zh/docs/v4/advanced/caching)** | 作为 Redis、`IDistributedCache`/`HybridCache` 或进程内缓存的值格式，跨部署修改结构也没问题。 |
@@ -91,8 +91,8 @@
 dotnet add package Nino --prerelease            # .NET、Godot
 dotnet add package Nino.Immutable --prerelease  # 可选：System.Collections.Immutable 的类型
 dotnet add package Nino.AspNetCore --prerelease # 可选：ASP.NET Core MVC 格式化器与 Minimal API 请求体
-dotnet add package Nino.TypeScript --prerelease # 可选：每次构建后生成供浏览器和 Node 使用的 TypeScript 编解码器
-dotnet tool install -g Nino.Codegen --prerelease # 可选：nino-gen，把你的类型生成为 TypeScript、Go 或 Rust 代码
+dotnet add package Nino.Codegen --prerelease    # 可选：每次构建后把你的类型生成为 TypeScript、Go 或 Rust 代码
+dotnet tool install -g Nino.Codegen.Tool --prerelease # 可选：同样的功能，作为 nino-gen 命令
 openupm add com.jasonxudeveloper.nino           # Unity（已包含生成器和 Unity 类的格式化器）
 ```
 
@@ -195,8 +195,8 @@ Nino 正是为这类输入设计的：长度和分配以收到的字节数为上
 
 Nino 按值写出这三种类型，不依赖运行时的私有布局，在所有平台上都能正确往返。
 
-MemoryPack 还支持 `System.Type`（Nino 有意不支持：由数据指定要创建的类型是一种攻击手段）。Nino.TypeScript 在每次构建后，
-依据生成格式化器所用的布局生成 TypeScript，支持结构体和版本容错类型（[与 MemoryPack 的对比](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript#compared-with-memorypack)，按其 README，MemoryPack 的 TypeScript 生成将在下个版本移除），
+MemoryPack 还支持 `System.Type`（Nino 有意不支持：由数据指定要创建的类型是一种攻击手段）。Nino.Codegen 在每次构建后，
+依据生成格式化器所用的布局生成 TypeScript（以及 Go 和 Rust），支持结构体和版本容错类型（[与 MemoryPack 的对比](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript#compared-with-memorypack)，按其 README，MemoryPack 的 TypeScript 生成将在下个版本移除），
 Nino.AspNetCore 提供 MVC 格式化器和 Minimal API 请求体；浏览器客户端也可以在 [.NET WebAssembly](https://nino.xgamedev.net/zh/docs/v4/advanced/browser) 上运行同一套 C# 类型。流、异步读写、多段 `ReadOnlySequence<byte>` 输入、回调和压缩，只需在 Nino 的 `IBufferWriter<byte>`
 和 `ReadOnlySpan<byte>` API 外包几行代码，[完整对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)里有示例。
 MemoryPack 的 Union 标签是 1 字节，Nino 的类型 ID 是 4 字节，这是有意的取舍：类型 ID 由类型本身算出，子类不用打标签，
@@ -233,9 +233,9 @@ v4 新增：
   卸载（.NET 8 之前调用 `NinoRegistry.Remove`），HybridCLR 无需初始化调用。
 - **字符串**：所有字符都不超过 U+00FF（ASCII、Latin-1）的文本每个字符写一个字节，其他文本按 UTF-16 写出，
   `[NinoUtf8]` 可按成员写成 UTF-8。
-- **集成**：Nino.AspNetCore（MVC 格式化器，Minimal API 的 `NinoBody<T>` 和 `NinoResults`）、Nino.TypeScript
-  （每次构建后生成供浏览器和 Node 使用的 TypeScript 类和编解码器）和 `nino-gen`（Nino.Codegen：从构建好的程序集生成
-  同样的类型和编解码器，语言可选 TypeScript、Go 或 Rust）。
+- **集成**：Nino.AspNetCore（MVC 格式化器，Minimal API 的 `NinoBody<T>` 和 `NinoResults`）和 Nino.Codegen
+  （每次构建后把你的类型和编解码器生成为 TypeScript、Go 或 Rust 代码；也可用 Nino.Codegen.Tool 的 `nino-gen` 从构建好的
+  程序集生成）。
 - **工具**：增量生成器，以及 27 条带代码修复的分析器（NINO001–NINO027），Unity 中同样可用。
 
 详见 [v4 新特性](https://nino.xgamedev.net/zh/docs/v4/whats-new)、

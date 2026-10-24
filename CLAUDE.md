@@ -128,11 +128,11 @@ outside the input, allocate out of proportion to it, recurse without a bound or 
 
 ## TypeScript runtime (runtimes/typescript)
 
-`src/nino.ts` is the runtime Nino.Codegen embeds and writes next to the generated code (nino-gen and nino-ts). The
+`src/nino.ts` is the runtime Nino.Codegen embeds and nino-gen writes next to the generated TypeScript. The
 reader takes hostile input as the Go and Rust ones do: check bounds and lengths before allocating, count depth as .NET
 does and defer past it, never build objects whose keys come from the data on a plain object (`__proto__`): use `Map`.
 Before committing: `npm ci && npm test` (type check and the `node:test` suite) in `runtimes/typescript`, and the
-`Nino.TypeScript.Tests` and `Nino.Codegen.Tests` .NET tests.
+`Nino.Codegen.Integration.Tests` and `Nino.Codegen.Tests` .NET tests.
 
 ## Go runtime
 
@@ -187,8 +187,11 @@ requirements:
 
 ## Code generation for other languages
 
-`src/Nino.Codegen` (nino-gen; nino-ts renders through it) writes TypeScript, Go and Rust from the published layouts
-(docs/codegen.md):
+`src/Nino.Codegen` (nino-gen: packed as the Nino.Codegen build package and, through `src/Nino.Codegen.Tool`, as the
+Nino.Codegen.Tool .NET tool) writes TypeScript, Go and Rust from the published layouts (docs/codegen.md):
+- Every option is defined once, in `Options.cs` (`CodegenOptions.All`: its command-line name, the `<NinoCodegen>`
+  metadata that sets it, its language and values); `build/Nino.Codegen.targets` passes each metadata as that option,
+  and `Nino.Codegen.Integration.Tests` checks the two agree and builds projects with the targets.
 - Logic lives in the IR (`Model/`) and each target's C# (`Targets/`), never in the templates (`Templates/*/*.sbn`),
   which only assemble text from what the target hands them. A decision about the bytes goes into the IR once, for
   every language.

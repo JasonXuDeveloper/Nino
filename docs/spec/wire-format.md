@@ -878,7 +878,7 @@ NinoHeader:  None = 0, NullFlag = 1, TypeId = 2
 (§7.10.1). The generator always sets it; layouts from an older generator (from before Nino.Core had the property) do not,
 and their `ToString()` has no `deferrable` part.
 
-Tools can read it through reflection or straight from metadata (`Nino.TypeScript` uses `MetadataLoadContext`). It is
+Tools can read it through reflection or straight from metadata (`nino-gen`, in Nino.Codegen, uses `MetadataLoadContext`). It is
 the intended input for code generators in other languages. Its `ToString()`:
 
 ```
@@ -938,7 +938,7 @@ hexdigit      = digit | "A" | "B" | "C" | "D" | "E" | "F" ;
   between outer and inner type (`Spec.Outer2.In2`), unlike the `+` of type-id names.
 - Type names can contain `,`, `:`, `<`, `>`, `[` and `]`. To split a list (members on `;`, fields and arguments on
   `,`, parts on `:`), a parser MUST track nesting depth over `()`, `{}`, `<>` and `[]` and split only at depth 0.
-  This is what `src/Nino.TypeScript/WireEncoding.cs` (`SplitMembers`, `Parse`) does.
+  This is what `src/Nino.Codegen/Layouts/WireEncoding.cs` (`SplitMembers`, `Parse`) does.
 
 ### 8.3 Meaning of the encodings
 

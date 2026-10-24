@@ -28,8 +28,8 @@ API-compatible with v3 or earlier v4 betas.
 | `Nino.Immutable` | `netstandard2.0`, `net8.0` |
 | `Nino.UnityTypes` (Unity package only) | `netstandard2.1` |
 | `Nino.AspNetCore` | `net8.0`, `net10.0` |
-| `Nino.TypeScript` (`nino-ts`, a build tool) | `net8.0`, rolled forward to the SDK's runtime |
-| `Nino.Codegen` (`nino-gen`, a .NET tool) | `net8.0`, rolled forward to the SDK's runtime |
+| `Nino.Codegen` (`nino-gen`, run by the build) | `net8.0`, rolled forward to the SDK's runtime |
+| `Nino.Codegen.Tool` (`nino-gen`, a .NET tool) | `net8.0`, rolled forward to the installed runtime |
 | `Nino.Generator` | `netstandard2.0` (Roslyn 4.3+): generator, analyzer, suppressor |
 | `Nino.Generator.CodeFixes` | `netstandard2.0` (Roslyn 4.3+ Workspaces): code fixes, IDE only |
 
@@ -45,12 +45,13 @@ stacks, dictionaries and sorted dictionaries).
 
 `Nino.AspNetCore` adds MVC input and output formatters (`application/x-nino`) and Minimal API bodies and results,
 reading request bodies from the request's `PipeReader` and serializing responses into its `PipeWriter`;
-it asks `NinoSerializer.IsSupported(Type)` which types to claim. `Nino.TypeScript` is a build package: after
-`CoreCompile` its targets run `nino-ts` out of process, which reads the `[assembly: NinoTypeLayout]`s of the built
-assembly and its references with `MetadataLoadContext` (see [Generated code per type](#generated-code-per-type)) and
-writes `<Assembly>.ts` and the `nino.ts` runtime, each only when its text changes. It renders through `Nino.Codegen`,
-whose `nino-gen` tool writes the same types in TypeScript, Go or Rust from a built assembly: a language-neutral IR built
-from the layouts, and Scriban templates per language that only assemble text ([codegen.md](codegen.md)).
+it asks `NinoSerializer.IsSupported(Type)` which types to claim. `Nino.Codegen` is a build package: after
+`CoreCompile` its targets run `nino-gen` out of process, once per `<NinoCodegen>` item (TypeScript, Go or Rust), which
+reads the `[assembly: NinoTypeLayout]`s of the built assembly and its references with `MetadataLoadContext` (see
+[Generated code per type](#generated-code-per-type)) and writes the types and codecs (and, for TypeScript, the
+`nino.ts` runtime), each file only when its text changes. `Nino.Codegen.Tool` is the same `nino-gen` as a .NET tool.
+Both render through one engine: a language-neutral IR built from the layouts, and Scriban templates per language that
+only assemble text ([codegen.md](codegen.md)).
 
 Generated code is compiled in the user's project, which may be Unity (C# 9). Generated code therefore only
 uses C# 9 features: no static abstract interface members, no ref fields, no raw string literals, no

@@ -1,18 +1,42 @@
 # Code generation for other languages
 
-`nino-gen` (the `Nino.Codegen` tool) writes the `[NinoType]`s of a built .NET assembly in TypeScript, Go or Rust: one
-type per `[NinoType]`, with codecs that read and write the bytes Nino writes in .NET. It reads nothing but the
-`[assembly: NinoTypeLayout]` attributes the Nino generator publishes in every assembly it compiles
-([v4-design.md](v4-design.md#generated-code-per-type)), so it needs no source, no project and no running code: only
-the built `.dll` and the assemblies it references.
+`nino-gen` writes the `[NinoType]`s of a built .NET assembly in TypeScript, Go or Rust: one type per `[NinoType]`, with
+codecs that read and write the bytes Nino writes in .NET. It reads nothing but the `[assembly: NinoTypeLayout]`
+attributes the Nino generator publishes in every assembly it compiles
+([v4-design.md](v4-design.md#generated-code-per-type)), so it needs no source and no running code: only the built
+`.dll` and the assemblies it references.
+
+It comes in two packages, with the same options and the same output:
+
+- **Nino.Codegen**, a build package: after each compile of the project that references it, it writes what the
+  project's `<NinoCodegen>` items ask for ([In a build](#in-a-build)).
+- **Nino.Codegen.Tool**, the `nino-gen` .NET tool, for a built assembly from the command line ([Usage](#usage)).
 
 ```sh
-dotnet tool install -g Nino.Codegen --prerelease
+dotnet add package Nino.Codegen --prerelease
+```
+
+```xml
+<ItemGroup>
+  <NinoCodegen Include="typescript" Out="../web/src/model" ImportExtension=".js" />
+  <NinoCodegen Include="go" Out="../server/model" Package="model" Tags="json" />
+  <NinoCodegen Include="rust" Out="../client/src" Name="model.rs" Serde="true" />
+</ItemGroup>
+```
+
+```sh
+dotnet tool install -g Nino.Codegen.Tool --prerelease
 nino-gen --assembly bin/Release/net8.0/MyGame.Shared.dll --lang go --out ../server/protocol
 ```
 
-`Nino.TypeScript` (the `nino-ts` build package) renders through the same code: its MSBuild targets, options and
-output are unchanged ([TypeScript](#typescript)).
+Each language needs its runtime next to the generated code:
+
+- **TypeScript**: `nino.ts`, which nino-gen writes next to the generated file (unless `--runtime` names a module to
+  import it from).
+- **Go**: the module `github.com/JasonXuDeveloper/Nino/runtimes/go` (package `nino`), a dependency of your module.
+- **Rust**: the crate `nino-serialization` (`runtimes/rust`) with its `indexmap` feature, and `indexmap` itself (maps
+  and sets are `IndexMap` and `IndexSet`, which keep the wire order); with `--serde`, a `serde` feature of your crate
+  that turns on `serde` and `nino-serialization/serde`.
 
 ## Usage
 
@@ -26,7 +50,8 @@ nino-gen --assembly <dll> --lang ts|go|rust --out <dir> [--references <file>] [-
 | Option | Meaning |
 | --- | --- |
 | `--assembly` | The built assembly. Its `[NinoType]`s are generated, and the ones of the assemblies it references that it uses. |
-| `--references` | A file with one path per line: assemblies to resolve references from (the `.dll`'s directory and the running runtime are searched anyway). |
+| `--lang` | `ts` (or `typescript`), `go` or `rust`. |
+| `--references` | A file with one path per line: assemblies to resolve references from (the `.dll`'s directory and the running runtime are searched anyway). A class library's `bin/` holds no copy of its packages (`Nino.Core.dll` among them): pass them here (a build with Nino.Codegen writes this file as `obj/<configuration>/<framework>/nino-gen/references`). |
 | `--out` | The directory to write to. A file is written only when its text changes, so watchers and incremental builds see no change. |
 | `--name` | The generated file's name: `<Assembly>.ts`, `nino_types.go` or `nino_types.rs` by default. |
 | `--names` (ts) | `camel` (default) or `keep`: the property names. |
@@ -39,8 +64,62 @@ nino-gen --assembly <dll> --lang ts|go|rust --out <dir> [--references <file>] [-
 | `--serde-names` (rust) | The serde names: `camel` (default, as `System.Text.Json`), `snake` or `original`. |
 | `--strings` (rust) | `string` (default): C# strings are `String`, and a string with an unpaired surrogate fails to read. `wide`: `nino::WideString`, which keeps any UTF-16. |
 
-Warnings (a type left out, and why) are printed as `nino-gen : warning NINOGEN002: ...`; errors as
-`nino-gen : error NINOGEN001: ...` with exit code 1.
+An option that is unknown, given twice, of another language or with a value it does not take is an error, as are
+missing arguments. `--serde` may be followed by `true` or `false`. Warnings (a type left out, and why) are printed as
+`nino-gen : warning NINOGEN002: ...`; errors as `nino-gen : error NINOGEN001: ...` with exit code 1
+([diagnostics.md](diagnostics.md#code-generation-for-other-languages)).
+
+Each file is written only when its text changes. The files a run writes are listed in `.nino-gen` in the output
+directory, and the next run deletes those it no longer writes (after a renamed assembly, a new `--name`, or `--runtime`
+given). Other files in the directory are left alone.
+
+## In a build
+
+The Nino.Codegen package runs nino-gen after `CoreCompile`, once per `<NinoCodegen>` item. The item is the language
+(`typescript` or `ts`, `go`, `rust`); every other metadata is the option of the same name, in PascalCase:
+
+| Metadata | Option | Languages |
+| --- | --- | --- |
+| `Out` | `--out`: relative to the project; `ts/`, `go/` or `rust/` next to it by default | all |
+| `Name` | `--name` | all |
+| `Names`, `ImportExtension`, `Runtime` | `--names`, `--import-extension`, `--runtime` | TypeScript |
+| `Package`, `Tags`, `TagNames` | `--package`, `--tags`, `--tag-names` | Go |
+| `Serde`, `SerdeNames`, `Strings` | `--serde` (`true` or `false`), `--serde-names`, `--strings` | Rust |
+
+(MSBuild reserves the metadata name `Output`, hence `Out`.) The build passes the assembly it compiled and its references
+itself, and nino-gen checks the metadata as it checks the command line: an option of another language, or a value it
+does not take, fails the build with NINOGEN001.
+
+| Property | Meaning |
+| --- | --- |
+| `NinoCodegenTargetFramework` | The target framework whose build writes the files, when the project has several (default: the first in `TargetFrameworks`). |
+| `NinoCodegenEnabled` | `false` turns it off. |
+
+An item runs again only when the assembly, its references, the tool or the item's metadata change; a design-time build
+(an IDE loading the project) never runs it. A project that references the package without an item gets warning
+NINOGEN004. The package is a development dependency: nothing flows to the projects that reference the project, which
+declare their own items if they want their own types written.
+
+### From Nino.TypeScript
+
+Nino.TypeScript (`nino-ts`, 4.0 release candidates up to rc.7) is replaced by Nino.Codegen: replace the package
+reference, and declare the item its properties described:
+
+| Nino.TypeScript | Nino.Codegen |
+| --- | --- |
+| `<PackageReference Include="Nino.TypeScript" ... />` | `<PackageReference Include="Nino.Codegen" ... />` |
+| (always on) | `<NinoCodegen Include="typescript" Out="ts/" />` |
+| `NinoTypeScriptOutput` | `Out` |
+| `NinoTypeScriptImportExtension` | `ImportExtension` |
+| `NinoTypeScriptNames` | `Names` |
+| `NinoTypeScriptTargetFramework` | `NinoCodegenTargetFramework` |
+| `NinoTypeScriptEnabled` | `NinoCodegenEnabled` |
+
+The output is the same, except that the header comment names `nino-gen` rather than `Nino.TypeScript`; the `.nino-ts`
+manifest is taken over (and deleted) by the first run. Until the item is declared, the `NinoTypeScript*` properties
+still work: without a `<NinoCodegen>` item they stand for `<NinoCodegen Include="typescript" ... />` (with `ts/` as
+before when `NinoTypeScriptOutput` is not set), with warning NINOGEN003. The diagnostics `NINOTS001` and `NINOTS002`
+are now `NINOGEN001` and `NINOGEN002`.
 
 ## How it works
 
@@ -58,14 +137,16 @@ Warnings (a type left out, and why) are printed as `nino-gen : warning NINOGEN00
    call the target's functions; they make no decision of their own.
 
 A change to the bytes goes into the IR; a change to how a language spells something goes into its target; a template
-changes only the text around them.
+changes only the text around them. The options are defined once, in `Options.cs` (`CodegenOptions.All`): the name
+on the command line, the `<NinoCodegen>` metadata that sets it in a build, the language and the values it takes. The
+command line, its usage text and the build targets all work from that list.
 
 ## TypeScript
 
-The output is the same as `nino-ts` wrote before the port, byte for byte, with one change: the bodies of types without
-members (`readBody$Empty`, `writeBody$Empty` and the version-tolerant ones) name their parameters `_r`, `_w` and `_v`,
-so the code compiles under `noUnusedParameters`. Nothing else in the TypeScript, and none of its behavior, changed.
-See the [TypeScript guide](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) for the generated API.
+A class per type, an `as const` object per enum and a `NinoCodec` per type, with `nino.ts` next to them. The bodies of
+types without members (`readBody$Empty`, `writeBody$Empty` and the version-tolerant ones) name their parameters `_r`,
+`_w` and `_v`, so the code compiles under `noUnusedParameters`. See the
+[TypeScript guide](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) for the generated API.
 
 ## Go
 
@@ -113,7 +194,7 @@ nino-gen warns and leaves a type out when its language cannot express it, and th
   generic types are generated (in any language), nor slots that allow one.
 - **Reference tracking** (`[NinoType(trackReferences: true)]`) and **`[NinoType]` collections** (a class deriving from
   `List<T>`; the collection itself is generated as an element type when its elements can be).
-- **TypeScript**: the types `nino-ts` left out before (see the TypeScript guide).
+- **TypeScript**: the types the TypeScript guide lists.
 - **Rust**: maps and sets whose key or element is not hashable in Rust (`f32`, `f64`, and types containing them),
   raw tuples with padding, and nullable raw values outside sequences.
 - `HashSet<string>` elements and dictionary keys are non-null strings in Go and Rust, since .NET never writes a null
@@ -121,8 +202,11 @@ nino-gen warns and leaves a type out when its language cannot express it, and th
 
 ## Tests
 
-`tests/Nino.Codegen.Tests` (in Nino.slnx) checks the IR and each target, and that the generated files committed under
-the runtimes match what nino-gen writes today. Each runtime then runs its corpus check over the generated code
+`tests/Nino.Codegen.Tests` (in Nino.slnx) checks the IR, each target and the command line, and that the generated files
+committed under the runtimes match what nino-gen writes today. `tests/Nino.Codegen.Integration.Tests` runs the
+TypeScript of its samples under Node against the bytes .NET writes, and builds scratch projects with
+`build/Nino.Codegen.targets` (every language, incremental runs, the `NinoTypeScript*` properties, design-time builds,
+and that the targets pass every option `Options.cs` defines). Each runtime then runs its corpus check over the generated code
 (every valid case written back byte for byte, every malicious case and truncated prefix rejected):
 
 | Runtime | Generated files | Check |
