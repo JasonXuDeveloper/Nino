@@ -403,7 +403,7 @@ namespace Nino.Core
         private readonly byte[] _vectorMask;
         private readonly int _vectorPeriod;
 #if NET8_0_OR_GREATER
-        // The same for 64-byte vectors, where they are accelerated (see CopyVectors512).
+        // The same for 64-byte vectors, where they are accelerated (see CopyVectors).
         private readonly byte[] _mask512;
         private readonly int _period512;
 #endif
@@ -466,13 +466,13 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
             if (_mask512 != null && total >= Vector512<byte>.Count)
             {
-                CopyVectors512(ref destination, ref source, total);
+                CopyVectors<Vector512<byte>, Vectors512>(ref destination, ref source, total, _mask512, _period512);
                 return;
             }
 #endif
             if (_vectorMask != null && total >= Vector<byte>.Count)
             {
-                CopyVectors(ref destination, ref source, total);
+                CopyVectors<Vector<byte>, Vectors>(ref destination, ref source, total, _vectorMask, _vectorPeriod);
                 return;
             }
 
@@ -499,46 +499,55 @@ namespace Nino.Core
         /// <summary>
         /// Vector copy with aligned stores (aligned loads on Arm64, <see cref="AlignedSide"/>): the destination usually
         /// follows a 4-byte length, and unaligned vector stores straddle cache lines every other store. The first and
-        /// last vectors are unaligned and overlap the aligned body; the mask of each vector is loaded at its offset.
+        /// last vectors are unaligned and overlap the aligned body; the mask of each vector is loaded at its offset
+        /// in <paramref name="masks"/>, the mask repeated over <paramref name="repeat"/> bytes and one vector more.
         /// Offsets are native-sized (nuint): int offsets took a sign extension and an address add per vector, measured
-        /// on an AVX-512 Xeon as 8,000 bytes in 74 ns instead of 66 (64-byte vectors).
+        /// on an AVX-512 Xeon as 8,000 bytes in 74 ns instead of 66 (64-byte vectors). <typeparamref name="TVector"/>
+        /// is <see cref="Vector{T}"/> of bytes, or a 64-byte vector where those are accelerated (not on CPUs that slow
+        /// down for them): measured on an AVX-512 Xeon, structs of 8 bytes with a padding byte, source and destination
+        /// of different alignments, 8,000 bytes in 66 ns (97 ns with 32-byte vectors, 57 ns for a plain copy, 75 ns
+        /// Memmove), 1,200 bytes in 14 ns (19.5 ns, and 18.6 ns).
         /// </summary>
+        // Fully optimized from the first call: a profile taken on short copies (lists of a few elements) would lay
+        // out the unrolled loop as cold code for the long ones.
 #if NET8_0_OR_GREATER
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
 #endif
-        private unsafe void CopyVectors(ref byte destination, ref byte source, int total)
+        private static unsafe void CopyVectors<TVector, TOps>(ref byte destination, ref byte source, int total,
+            byte[] masks, int repeat)
+            where TVector : struct
+            where TOps : struct, IMaskVectors<TVector>
         {
-            nuint width = (nuint)Vector<byte>.Count;
-            nuint period = (nuint)_vectorPeriod;
-            ref byte mask = ref NinoUnsafe.GetArrayDataReference(_vectorMask);
-            Unsafe.WriteUnaligned(ref destination,
-                Unsafe.ReadUnaligned<Vector<byte>>(ref source) & Unsafe.ReadUnaligned<Vector<byte>>(ref mask));
+            var ops = default(TOps);
+            nuint width = (nuint)Unsafe.SizeOf<TVector>();
+            nuint period = (nuint)repeat;
+            ref byte mask = ref NinoUnsafe.GetArrayDataReference(masks);
+            ops.Store(ops.And(ops.Load(ref source, 0), ops.Load(ref mask, 0)), ref destination, 0);
 
             nuint i = width - ((nuint)Unsafe.AsPointer(ref AlignedSide(ref destination, ref source)) & (width - 1));
             nuint end = (nuint)total - width;
             nuint m = i; // i % period (i <= width <= period)
             if (period == width)
             {
-                var v = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref mask, m));
+                var v = ops.Load(ref mask, m);
 #if NET8_0_OR_GREATER
-                if (AdvSimd.Arm64.IsSupported && Vector<byte>.Count == 16)
-                    i = CopyPairs(ref destination, ref source, i, end, v.AsVector128());
+                if (AdvSimd.Arm64.IsSupported && Unsafe.SizeOf<TVector>() == 16)
+                    i = CopyPairs(ref destination, ref source, i, end, ops.Lower(v));
 #endif
                 for (; i + 3 * width <= end; i += 4 * width)
                 {
-                    var a = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i)) & v;
-                    var b = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i + width)) & v;
-                    var c = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i + 2 * width)) & v;
-                    var e = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i + 3 * width)) & v;
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i), a);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i + width), b);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i + 2 * width), c);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i + 3 * width), e);
+                    var a = ops.And(ops.Load(ref source, i), v);
+                    var b = ops.And(ops.Load(ref source, i + width), v);
+                    var c = ops.And(ops.Load(ref source, i + 2 * width), v);
+                    var e = ops.And(ops.Load(ref source, i + 3 * width), v);
+                    ops.Store(a, ref destination, i);
+                    ops.Store(b, ref destination, i + width);
+                    ops.Store(c, ref destination, i + 2 * width);
+                    ops.Store(e, ref destination, i + 3 * width);
                 }
 
                 for (; i <= end; i += width)
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i),
-                        Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i)) & v);
+                    ops.Store(ops.And(ops.Load(ref source, i), v), ref destination, i);
             }
             else
             {
@@ -546,22 +555,19 @@ namespace Nino.Core
                     m -= period;
                 for (; i <= end; i += width)
                 {
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i),
-                        Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i)) &
-                        Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref mask, m)));
+                    ops.Store(ops.And(ops.Load(ref source, i), ops.Load(ref mask, m)), ref destination, i);
                     m += width;
                     if (m >= period)
                         m -= period;
                 }
             }
 
-            Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, end),
-                Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, end)) &
-                Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref mask, TailOffset(m, i, end, period))));
+            ops.Store(ops.And(ops.Load(ref source, end), ops.Load(ref mask, TailOffset(m, i, end, period))),
+                ref destination, end);
         }
 
         /// <summary>
-        /// The side <see cref="CopyVectors"/> aligns: the destination (unaligned vector stores straddle cache lines),
+        /// The side <see cref="CopyVectors{TVector, TOps}"/> aligns: the destination (unaligned vector stores straddle cache lines),
         /// but the source on Arm64, where aligned loads beat aligned stores: on GitHub's Arm64 runners (Neoverse N2, .NET
         /// 10) a 16-byte vector copy took 0.76 to 1.00 of memcpy's time for 8,000 bytes with its loads aligned, and up to
         /// 1.31 times with its stores aligned.
@@ -578,7 +584,7 @@ namespace Nino.Core
 
 #if NET8_0_OR_GREATER
         /// <summary>
-        /// The body of <see cref="CopyVectors"/> on Arm64, 64 bytes at a time as two load pairs and two store pairs
+        /// The body of <see cref="CopyVectors{TVector, TOps}"/> on Arm64, 64 bytes at a time as two load pairs and two store pairs
         /// (ldp/stp of q registers, as the C library's memcpy copies): from <paramref name="i"/> while a whole 64
         /// bytes fits before <paramref name="end"/> + 16; returns where it stopped.
         /// </summary>
@@ -601,60 +607,61 @@ namespace Nino.Core
         }
 #endif
 
-#if NET8_0_OR_GREATER
         /// <summary>
-        /// <see cref="CopyVectors"/> with 64-byte vectors, where the runtime reports them accelerated (not on CPUs
-        /// that slow down for them). Measured on an AVX-512 Xeon, structs of 8 bytes with a padding byte, source
-        /// and destination of different alignments: 8,000 bytes in 66 ns (97 ns with 32-byte vectors, 57 ns for a
-        /// plain copy, 75 ns Memmove), 1,200 bytes in 14 ns (19.5 ns, and 18.6 ns).
+        /// The vector operations of <see cref="CopyVectors{TVector, TOps}"/> on <typeparamref name="TVector"/>: a
+        /// struct, so each call is direct and inlined.
         /// </summary>
-        // Fully optimized from the first call: a profile taken on short copies (lists of a few elements) would lay
-        // out the unrolled loop as cold code for the long ones.
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        private unsafe void CopyVectors512(ref byte destination, ref byte source, int total)
+        private interface IMaskVectors<TVector> where TVector : struct
         {
-            nuint width = (nuint)Vector512<byte>.Count;
-            nuint period = (nuint)_period512;
-            ref byte mask = ref NinoUnsafe.GetArrayDataReference(_mask512);
-            (Vector512.LoadUnsafe(ref source) & Vector512.LoadUnsafe(ref mask)).StoreUnsafe(ref destination);
+            /// <summary>The vector at <paramref name="offset"/> bytes from <paramref name="at"/>, unaligned.</summary>
+            TVector Load(ref byte at, nuint offset);
 
-            nuint i = width - ((nuint)Unsafe.AsPointer(ref destination) & (width - 1));
-            nuint end = (nuint)total - width;
-            nuint m = i; // i % period (i <= width <= period)
-            if (period == width)
-            {
-                var v = Vector512.LoadUnsafe(ref mask, m);
-                for (; i + 3 * width <= end; i += 4 * width)
-                {
-                    var a = Vector512.LoadUnsafe(ref source, i) & v;
-                    var b = Vector512.LoadUnsafe(ref source, i + width) & v;
-                    var c = Vector512.LoadUnsafe(ref source, i + 2 * width) & v;
-                    var e = Vector512.LoadUnsafe(ref source, i + 3 * width) & v;
-                    a.StoreUnsafe(ref destination, i);
-                    b.StoreUnsafe(ref destination, i + width);
-                    c.StoreUnsafe(ref destination, i + 2 * width);
-                    e.StoreUnsafe(ref destination, i + 3 * width);
-                }
+            /// <summary>Stores <paramref name="value"/> at <paramref name="offset"/> bytes from <paramref name="at"/>, unaligned.</summary>
+            void Store(TVector value, ref byte at, nuint offset);
 
-                for (; i <= end; i += width)
-                    (Vector512.LoadUnsafe(ref source, i) & v).StoreUnsafe(ref destination, i);
-            }
-            else
-            {
-                if (m >= period)
-                    m -= period;
-                for (; i <= end; i += width)
-                {
-                    (Vector512.LoadUnsafe(ref source, i) & Vector512.LoadUnsafe(ref mask, m))
-                        .StoreUnsafe(ref destination, i);
-                    m += width;
-                    if (m >= period)
-                        m -= period;
-                }
-            }
+            TVector And(TVector left, TVector right);
+#if NET8_0_OR_GREATER
 
-            (Vector512.LoadUnsafe(ref source, end) & Vector512.LoadUnsafe(ref mask, TailOffset(m, i, end, period)))
-                .StoreUnsafe(ref destination, end);
+            /// <summary>The first 16 bytes (<see cref="CopyPairs"/>, for a 16-byte vector).</summary>
+            Vector128<byte> Lower(TVector value);
+#endif
+        }
+
+        /// <summary><see cref="Vector{T}"/> of bytes, on every runtime where it is hardware accelerated.</summary>
+        private readonly struct Vectors : IMaskVectors<Vector<byte>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector<byte> Load(ref byte at, nuint offset) =>
+                Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref at, offset));
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Store(Vector<byte> value, ref byte at, nuint offset) =>
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref at, offset), value);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector<byte> And(Vector<byte> left, Vector<byte> right) => left & right;
+#if NET8_0_OR_GREATER
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Lower(Vector<byte> value) => value.AsVector128();
+#endif
+        }
+#if NET8_0_OR_GREATER
+
+        /// <summary>64-byte vectors, where the runtime reports them accelerated.</summary>
+        private readonly struct Vectors512 : IMaskVectors<Vector512<byte>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector512<byte> Load(ref byte at, nuint offset) => Vector512.LoadUnsafe(ref at, offset);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Store(Vector512<byte> value, ref byte at, nuint offset) => value.StoreUnsafe(ref at, offset);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector512<byte> And(Vector512<byte> left, Vector512<byte> right) => left & right;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Lower(Vector512<byte> value) => value.GetLower().GetLower();
         }
 #endif
 

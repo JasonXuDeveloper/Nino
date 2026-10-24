@@ -395,7 +395,7 @@ namespace Nino.Core.CompilerServices
         /// against Memmove (.NET 10), source and destination of different alignments, with 64-byte vectors: 256 bytes
         /// 5.9 ns instead of 7.9 ns, 1,200 bytes 11.9 ns instead of 18.6 ns, 4,000 bytes 34 ns instead of 48 ns.
         /// </summary>
-        // Fully optimized from the first call (see NinoMask.CopyVectors512).
+        // Fully optimized from the first call (see NinoMask.CopyVectors).
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
         private static unsafe void CopyVectors<TVector>(ref byte destination, ref byte source, uint size)
             where TVector : struct
@@ -440,7 +440,7 @@ namespace Nino.Core.CompilerServices
         /// 0.91, 8,000 in 0.76 to 1.00, 64,000 and more the same. Without aligning the loads the loop was faster than
         /// memcpy from an aligned source but up to 1.31 times slower from one 4 bytes past it.
         /// </summary>
-        // Fully optimized from the first call (see NinoMask.CopyVectors512).
+        // Fully optimized from the first call (see NinoMask.CopyVectors).
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
         private static unsafe void CopyPairs(ref byte destination, ref byte source, uint size)
         {
