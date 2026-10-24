@@ -24,6 +24,7 @@ internal sealed class TypeFacts
 
     private readonly ConcurrentDictionary<ISymbol, bool> _delegatable = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ISymbol, bool> _fixedSize = new(SymbolEqualityComparer.Default);
+    private readonly ConcurrentDictionary<ISymbol, bool> _blocks = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ITypeSymbol, int> _typeIds = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ISymbol, int> _bounds = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ISymbol, TypeShape?> _shapes = new(SymbolEqualityComparer.Default);
@@ -31,6 +32,7 @@ internal sealed class TypeFacts
     [ThreadStatic] private static HashSet<ISymbol>? t_bounding;
     private readonly Func<ISymbol, bool> _computeDelegatable;
     private readonly Func<ISymbol, bool> _computeFixedSize;
+    private readonly Func<ISymbol, bool> _computeBlock;
     private readonly ParseOptions? _options;
     private readonly string[] _symbols;
 
@@ -56,6 +58,7 @@ internal sealed class TypeFacts
         _options = options;
         _computeDelegatable = s => ComputeIsDelegatable((INamedTypeSymbol)s);
         _computeFixedSize = s => ComputeIsFixedSize((INamedTypeSymbol)s);
+        _computeBlock = s => ComputeIsBlock((INamedTypeSymbol)s);
         _computeShape = s => ((INamedTypeSymbol)s).GetNinoTypeOptions() is { } attr
             ? new TypeShape((INamedTypeSymbol)s, attr, this)
             : null;
@@ -156,8 +159,9 @@ internal sealed class TypeFacts
     /// Whether every value of <paramref name="type"/> (every non-null one, for a sealed class) is written in the same
     /// number of bytes, so its formatter implements <c>INinoFixedSizeFormatter</c>: a non-generic struct that is not
     /// raw, or a sealed class, generated in this assembly, positional (not version tolerant or keyed), not tracked and
-    /// not a collection, whose members are all raw values or such structs, without custom formatters. Computed from
-    /// symbols only, so a type that holds it as a member, the type itself and the interceptors agree.
+    /// not a collection, whose members are all raw values, such structs or value tuples and pairs of raw values
+    /// (<see cref="IsBlockItem"/>), without custom formatters. Computed from symbols only, so a type that holds it as a
+    /// member, the type itself and the interceptors agree.
     /// </summary>
     public bool IsFixedSize(INamedTypeSymbol type)
     {
@@ -181,12 +185,95 @@ internal sealed class TypeFacts
         {
             if (NinoSymbols.Has(member, Symbols.CustomFormatter) || MemberCollector.MemberType(member) is not { } memberType)
                 return false;
-            if (Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType))
+            if (Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType) || IsBlockItem(memberType))
                 continue;
             // A struct of fixed size, written by its generated formatter.
             if (memberType is not INamedTypeSymbol { TypeKind: TypeKind.Struct } nested || !IsFixedSize(nested) ||
                 Resolver.Resolve(nested, false) is not { Traits: var traits } ||
                 (traits & FormatterTraits.Generated) == 0)
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="type"/> is a value tuple (up to seven items) or a <c>KeyValuePair</c> whose items are
+    /// all raw values of the same layout on every runtime (<see cref="RawLayout.IsPortable"/>), written by Nino.Core's
+    /// formatter: its <c>INinoBlockFormatter</c> writes it as a block of the items' bytes (<c>NinoBlocks</c>), the
+    /// same bytes as its <c>Serialize</c>, of the same size on every runtime.
+    /// </summary>
+    public bool IsBlockItem(ITypeSymbol type)
+    {
+        if (type is not INamedTypeSymbol { IsGenericType: true } named || !named.IsValueType)
+            return false;
+        var definition = named.OriginalDefinition;
+        if (!(TypeNames.IsValueTuple(definition) && named.Arity <= 7 ||
+              TypeNames.HasMetadataName(definition, "System.Collections.Generic.KeyValuePair`2")))
+            return false;
+        if (Resolver.Resolve(named, false) is not { Traits: var traits } || (traits & FormatterTraits.Core) == 0)
+            return false;
+        foreach (var item in named.TypeArguments)
+        {
+            // Bound to a raw formatter: Nino.Core's for an unmanaged value, the generated one of a raw struct.
+            if (!Raw.IsRawUnmanaged(item) || !RawLayout.IsPortable(item) ||
+                Resolver.Resolve(item, false) is not { Traits: var itemTraits } ||
+                (itemTraits & (FormatterTraits.Raw | FormatterTraits.Generated)) == 0)
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether the formatter of the <c>[NinoType]</c> struct <paramref name="type"/> implements
+    /// <c>INinoBlockFormatter</c>, so collections of it are read and written as blocks (several values at a time by
+    /// vector shuffles where its <c>BlockMap</c> allows it): a struct of fixed size (<see cref="IsFixedSize"/>; raw
+    /// structs are copied whole already) whose bytes in memory are its members' (every instance field is a member, or
+    /// an auto-property's backing field) and whose members generated code reads and assigns directly, after it is
+    /// created (no <c>[NinoConstructor]</c>, no read-only or init-only member), each a raw value, a value tuple or pair
+    /// of raw values (<see cref="IsBlockItem"/>), or another such struct. Computed from symbols only, so a struct that
+    /// holds it and the struct itself agree.
+    /// </summary>
+    public bool IsBlock(INamedTypeSymbol type)
+    {
+        if (type.TypeKind != TypeKind.Struct || !IsFixedSize(type))
+            return false;
+        return _blocks.GetOrAdd(type, _computeBlock);
+    }
+
+    private bool ComputeIsBlock(INamedTypeSymbol type)
+    {
+        var shape = Shape(type)!;
+        var members = Members.Of(type, shape.Options);
+        var known = new HashSet<ISymbol>(members.Select(static m => m.OriginalDefinition), SymbolEqualityComparer.Default);
+        // No byte of a value outside its members: reads of a block overwrite all of it.
+        foreach (var field in type.GetMembers().OfType<IFieldSymbol>())
+        {
+            if (field.IsStatic || field.IsConst)
+                continue;
+            var member = field.AssociatedMember() ?? field;
+            if (!known.Contains(member.OriginalDefinition))
+                return false;
+        }
+
+        // Created as default and assigned member by member, as ReadBody does it in place.
+        if (type.InstanceConstructors.Any(c => NinoSymbols.Has(c, Symbols.Constructor)) ||
+            type.GetMembers().OfType<IMethodSymbol>().Any(m => m.IsStatic && NinoSymbols.Has(m, Symbols.Constructor)))
+            return false;
+        foreach (var member in members)
+        {
+            if (!Visibility.IsDirectlyAccessible(member) || Visibility.IsConstructionOnly(member))
+                return false;
+            // A property only as an auto-property: its setter stores the value as it is.
+            if (member is IPropertySymbol property &&
+                !type.GetMembers().OfType<IFieldSymbol>().Any(f =>
+                    SymbolEqualityComparer.Default.Equals(f.AssociatedMember(), property)))
+                return false;
+            var memberType = MemberCollector.MemberType(member)!;
+            if (Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType) || IsBlockItem(memberType))
+                continue;
+            if (memberType is not INamedTypeSymbol nested || !IsBlock(nested))
                 return false;
         }
 

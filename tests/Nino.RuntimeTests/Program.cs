@@ -14,6 +14,13 @@ public struct Padded { public int A; public short B; public bool C; public long 
 [NinoType]
 public struct Small { public int A; public short B; public bool C; }
 
+// Of fixed size, not raw (a value tuple, a pair, auto-properties): written as blocks (INinoBlockFormatter).
+[NinoType]
+public struct Waypoint { public float X; public (int Tick, short Zone) Stamp; public bool Visited; }
+
+[NinoType]
+public struct Keyed { public KeyValuePair<int, short> K { get; set; } public bool On { get; set; } }
+
 [NinoType]
 public class Item
 {
@@ -88,6 +95,8 @@ public static class Program
         foreach (int n in Enumerable.Range(0, 20).Concat(new[] { 31, 63, 64, 65, 100, 1000 }))
         {
             Case("Small[" + n + "]", Enumerable.Range(0, n).Select(i => new Small { A = i * 7, B = (short)-i, C = i % 3 == 0 }).ToArray());
+            Case("Waypoint[" + n + "]", Enumerable.Range(0, n).Select(i => new Waypoint { X = i / 3f, Stamp = (i * 5, (short)-i), Visited = i % 3 == 0 }).ToArray());
+            Case("List<Keyed>[" + n + "]", Enumerable.Range(0, n).Select(i => new Keyed { K = new KeyValuePair<int, short>(i, (short)i), On = i % 2 == 0 }).ToList());
             Case("(byte,short)[" + n + "]", Enumerable.Range(0, n).Select(i => ((byte)i, (short)(i * 3))).ToArray());
         }
         Case("(int,int)[]", ints.Select(i => (i, i * 3)).ToArray());
@@ -126,6 +135,18 @@ public static class Program
             ByName = new SortedDictionary<string, Padded> { ["a"] = padded[1], ["b"] = padded[2] },
             At = new DateTimeOffset(2026, 10, 18, 1, 2, 3, TimeSpan.FromHours(8)) });
         Case("List<Item>", Enumerable.Range(0, 20).Select(i => new Item { Id = i, Name = i % 2 == 0 ? null : "x" + i }).ToList());
+        // A bool byte other than 0 or 1 in a block, wherever the vector paths of this CPU move it: rejected.
+        var waypoints = NinoSerializer.Serialize(Enumerable.Range(0, 100).Select(i => new Waypoint { Stamp = (i, 1) }).ToArray());
+        foreach (int at in new[] { 0, 37, 99 })
+        {
+            var bad = (byte[])waypoints.Clone();
+            bad[4 + at * 11 + 10] = 2;
+            bool rejected;
+            try { NinoDeserializer.Deserialize<Waypoint[]>(bad); rejected = false; }
+            catch (NinoDataException) { rejected = true; }
+            if (!rejected) _failed++;
+            Console.WriteLine($"Waypoint[100] bool {at,-6} {(rejected ? "rejected" : "ACCEPTED")}");
+        }
         Console.WriteLine(_failed == 0 ? "ALL OK" : _failed + " FAILED");
         return _failed;
     }

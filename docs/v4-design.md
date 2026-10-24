@@ -874,6 +874,28 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   local, then the constructor's `this = default`): the constructor runs after a branch (the buffer type test or the
   scratch rent), outside the entry block where the JIT removes redundant zeroing, and storing each field instead
   measured no better (85/95 → 86/94 x64/ARM64 instructions).
+* **Block formatters.** A fixed-size generated struct (above) whose bytes can all be found in its memory (every
+  instance field a member, or an auto-property's backing field, each directly assignable, no `[NinoConstructor]`, and
+  each member raw and portable, a value tuple or `KeyValuePair` of such items, or another such struct) also implements
+  `INinoBlockFormatter<T>` (`BlockSize`, `BlockMap()`, `WriteBlock`, `ReadBlock`; the model's `TypeModel.Block`,
+  `TypeFacts.IsBlock`), as the tuple and pair formatters of Nino.Core do. Arrays, lists and spans of it then take the
+  paths of `NinoBlock<T, TFormatter>`: one bounds check for the collection, and where the block map gives every wire
+  byte one memory byte (`NinoBlockMap.Runs`) the vector shuffles and permutes (AVX-512 VBMI groups and 64-byte
+  permutes, AVX2 or SSSE3 lanes, Arm64 `tbl`, WebAssembly's swizzle; with VBMI, values of more than 16 bytes in
+  memory, which its groups and permutes do not take, are written in the AVX2 lane plan's partial groups); elsewhere (no SIMD, a map that overlaps, Mono,
+  .NET Framework and the netstandard builds of Nino.Core) the scalar loop of `WriteBlock`/`ReadBlock`, inlined, one
+  value after another. `BlockMap()` is built once per type from `NinoBlockMap` (`Raw<TItem>(memory, wire)` for a raw
+  item, `Block<TItem, TFormatter>` for a nested block, whose map is merged); the memory offset of a field is
+  `NinoBlocks.Offset`, of an auto-property's backing field (which generated code cannot name) `NinoBlocks.Find`, which
+  stores a marked value through the property. An item with padding, references or a layout other than the canonical
+  one fails the map, and the values are then moved one at a time. Nullable members are not blocks: a null value is one
+  byte, so they are not of fixed size. The bytes are those of the values written one at a time.
+* Reads of blocks keep every check a value's own read makes. The `bool` offsets of a block (`NinoBlockMap`, from its
+  `bool` items) are checked over the whole collection before the vector paths move the bytes (`NinoChecks.Bools` with
+  the block's stride, out of line, `NinoBlock.CheckBools`): the shuffles copy bytes without looking at them, so a
+  `(bool, int)[]` read as blocks accepted a bool byte of 2 on the vector paths and rejected it on the scalar ones.
+  With `NinoSettings.Untrusted`, a block with values to check (`NinoLayout<T>.Checks`, a `DateTime` member) is read
+  one value at a time through its formatter (`NinoBlock<T, TFormatter>.ReadSize` is -1), as raw structs are.
 * A sealed class with a small body that opens no class body (at most eight members, one or two of which call
   formatters) also gets a `__Top` twin of its formatter, whose body is inlined into the caller, so the reader or writer
   the top-level call creates stays in registers. Calls that create their reader or writer use it, for the type itself
@@ -912,7 +934,8 @@ Generated formatters call Nino.Core directly: `Writer`/`Reader`, the built-in fo
 `NinoFormatterCache`, `NinoActivator`, `NinoRecycler` and `NinoUnsafe`. The types that exist only for generated code
 (and Nino's own packages: Nino.Immutable, Nino.UnityTypes) live in the namespace `Nino.Core.Generated`, folder
 `Generated/`: `NinoObject`, `NinoDirect`, `NinoUnsafe`, `INinoBodyFormatter<T>`, `INinoTopFormatter<T>`,
-`INinoRawBodyFormatter<T>`, `INinoFixedSizeFormatter<T>`, `INinoRawFormatter`, `NinoBody`, `NinoPolymorphic<TBase>`
+`INinoRawBodyFormatter<T>`, `INinoFixedSizeFormatter<T>`, `INinoBlockFormatter<T>` with `NinoBlockMap` and `NinoBlocks`,
+`INinoRawFormatter`, `NinoBody`, `NinoPolymorphic<TBase>`
 and the `NinoSubtypeHandler` it returns, `[NinoGenerated]`, `INinoRegistry` and `NinoEffectiveSettings`. The name
 says who calls them: user code never needs a `using` for it, generated code names them with `global::`, and a
 namespace of their own keeps them out of completion lists and away from user types of the same name (Nino.AspNetCore's

@@ -95,6 +95,7 @@ internal static class ModelBuilder
             Registrations: BuildRegistrations(type, kind, generic, built, factories, facts,
                 namesTypes: diagnostics == null),
             FixedSize: !rawStruct && facts.IsFixedSize(type),
+            Block: !rawStruct && facts.IsBlock(type),
             FreshRead: kind == FormatterKind.SealedClass && !construction.Recreate &&
                        construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
                        !attr.Keyed && members.Skip(built.BaseMemberCount).Any(static m => m.Fresh) &&

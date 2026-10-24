@@ -20,7 +20,7 @@ namespace Nino.UnitTests.Corner
     /// reference tracking, a non-generic abstract type between the base and the subtypes, and whether the subtypes are in
     /// the base's assembly or in another one; with every kind of
     /// subtype (plain, generic, with a private member, built by a constructor, [NinoPooled], a struct and a record struct
-    /// for interfaces), each read
+    /// for interfaces, and for interfaces a struct of fixed size that is not raw, whose collections are blocks), each read
     /// through the base, the type between, itself and object, by the boxed API, alone and as a list element, plus null and data of another
     /// type. A combination nobody thought of is still in the matrix: add a dimension here when a feature adds one.
     /// </summary>
@@ -140,6 +140,25 @@ public static class P
             if (list.Count != 2 || list[0]?.GetType() != v.GetType() || !ok(list[0]) ||
                 !typeof(TB).IsValueType && list[1] != null)
                 e.Add(name + "": list"");
+        }
+        catch (Exception x) { e.Add(name + "": "" + x.GetType().Name + "": "" + x.Message); }
+    }
+
+    public static void Many<T>(List<string> e, string name, T v) where T : struct
+    {
+        try
+        {
+            var values = new T[40];
+            for (int i = 0; i < values.Length; i++)
+                values[i] = v;
+            byte[] one = NinoSerializer.Serialize(v), all = NinoSerializer.Serialize(values);
+            for (int i = 0; i < values.Length; i++)
+                if (!all.AsSpan(4 + i * one.Length, one.Length).SequenceEqual(one)) { e.Add(name + "": bytes""); return; }
+            if (all.Length != 4 + values.Length * one.Length) { e.Add(name + "": length""); return; }
+            var read = NinoDeserializer.Deserialize<T[]>(all);
+            var list = NinoDeserializer.Deserialize<List<T>>(NinoSerializer.Serialize(new List<T>(values)));
+            for (int i = 0; i < values.Length; i++)
+                if (!read[i].Equals(v) || !list[i].Equals(v)) { e.Add(name + "": values""); return; }
         }
         catch (Exception x) { e.Add(name + "": "" + x.GetType().Name + "": "" + x.Message); }
     }
@@ -306,7 +325,9 @@ namespace Other
                                   $"{{ {string.Join(" ", all.Select(m => $"this.{m.Item1} = {m.Item1.ToLowerInvariant()};"))} }} }}\n");
                     if (_kind == Kind.Interface)
                         leaves.Append($"{Attribute()} public struct {N("SLeaf")} : {parent} {{ public int W; }}\n" +
-                                      $"{Attribute()} public record struct {N("RLeaf")} : {parent} {{ public int W; }}\n");
+                                      $"{Attribute()} public record struct {N("RLeaf")} : {parent} {{ public int W; }}\n" +
+                                      // Of fixed size and not raw (a tuple member): positional, collections of it are blocks.
+                                      $"{Attribute()} public struct {N("BLeaf")} : {parent} {{ public int W; public (int, long) T; public bool B; }}\n");
                 }
 
                 if (!split && InHolder)
@@ -335,6 +356,10 @@ namespace Other
                     {
                         types.Add((N("SLeaf"), $"new {leafPrefix}{N("SLeaf")} {{ W = 7 }}", "q.W == 7"));
                         types.Add((N("RLeaf"), $"new {leafPrefix}{N("RLeaf")} {{ W = 7 }}", "q.W == 7"));
+                        string block = $"new {leafPrefix}{N("BLeaf")} {{ W = 7, T = (8, 9L), B = true }}";
+                        types.Add((N("BLeaf"), block, "q.W == 7 && q.T == (8, 9L) && q.B"));
+                        // Many of them: the vector paths, and the bytes of each one written alone.
+                        s.Append($"        P.Many(e, \"{ns} {N("BLeaf")} array\", {block});\n");
                     }
                 }
 

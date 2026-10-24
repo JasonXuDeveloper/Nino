@@ -310,13 +310,12 @@ internal sealed class BodyEmitter
     }
 
     /// <summary>
-    /// <c>FixedSize</c> and <c>WriteFixed</c> of a type of fixed size (<see cref="TypeModel.FixedSize"/>): the bytes of
-    /// <c>Serialize</c> for a non-null value (a sealed class's flag, then the members at constant offsets) written
-    /// into memory the caller sized, without a writer.
+    /// The members of a type of fixed size (<see cref="TypeModel.FixedSize"/>), each with its offset in the bytes of
+    /// <c>Serialize</c> (after a sealed class's flag), and the size of those bytes: expressions, constant sizes summed.
     /// </summary>
-    public void EmitFixed()
+    private (List<(MemberModel Member, string Offset)> Members, string Size) FixedLayout()
     {
-        int constant = 0;
+        int constant = _m.Kind == FormatterKind.SealedClass ? 1 : 0;
         var symbolic = new List<string>();
         string Offset()
         {
@@ -326,39 +325,136 @@ internal sealed class BodyEmitter
             return string.Join(" + ", parts);
         }
 
-        var lines = new List<string>();
-        if (_m.Kind == FormatterKind.SealedClass)
-        {
-            lines.Add($"destination = {NinoWire.NotNull};");
-            constant = 1;
-        }
-
-
+        var members = new List<(MemberModel, string)>();
         foreach (var member in _m.Members)
         {
-            string offset = Offset();
+            members.Add((member, Offset()));
+            if (member.Raw is { IsConstant: true } raw)
+                constant += raw.Bytes;
+            else if (member.Raw != null)
+                symbolic.Add(member.Raw.Expression);
+            else if (IsBlockItem(member))
+                symbolic.Add($"{CoreGenerated}NinoBlocks.Size<{member.TypeName}, {Formatter(member)}>()");
+            else
+                symbolic.Add($"default({Formatter(member)}).FixedSize");
+        }
+
+        return (members, Offset());
+    }
+
+    /// <summary>
+    /// Whether a member of a type of fixed size is a value tuple or pair of raw values (<c>TypeFacts.IsBlockItem</c>),
+    /// written by Nino.Core's formatter as a block (<c>NinoBlocks</c>); else, when not raw, it is a generated struct of
+    /// fixed size.
+    /// </summary>
+    private static bool IsBlockItem(MemberModel member) =>
+        member.Raw == null && (member.Traits & FormatterTraits.Generated) == 0;
+
+    /// <summary>The statements writing the members of a value of fixed size at <c>destination</c> (<see cref="FixedLayout"/>).</summary>
+    private List<string> FixedWrites()
+    {
+        var lines = new List<string>();
+        if (_m.Kind == FormatterKind.SealedClass)
+            lines.Add($"destination = {NinoWire.NotNull};");
+        foreach (var (member, offset) in FixedLayout().Members)
+        {
             if (member.Raw != null)
             {
                 lines.Add(RawWrite(member, "destination", offset));
-                if (member.Raw.IsConstant)
-                    constant += member.Raw.Bytes;
-                else
-                    symbolic.Add(member.Raw.Expression);
                 continue;
             }
 
             string formatter = Formatter(member);
-            lines.Add($"default({formatter}).WriteFixed({Get(_m, member, "value")}, ref {CoreGenerated}NinoUnsafe.Add(ref destination, {offset}));");
-            symbolic.Add($"default({formatter}).FixedSize");
+            string at = $"ref {CoreGenerated}NinoUnsafe.Add(ref destination, {offset})";
+            lines.Add(IsBlockItem(member)
+                ? $"{CoreGenerated}NinoBlocks.Write<{member.TypeName}, {formatter}>({at}, {Get(_m, member, "value")});"
+                : $"default({formatter}).WriteFixed({Get(_m, member, "value")}, {at});");
         }
 
-        _w.Line($"public int FixedSize => {Offset()};");
+        return lines;
+    }
+
+    /// <summary>
+    /// <c>FixedSize</c> and <c>WriteFixed</c> of a type of fixed size (<see cref="TypeModel.FixedSize"/>): the bytes of
+    /// <c>Serialize</c> for a non-null value (a sealed class's flag, then the members at constant offsets) written
+    /// into memory the caller sized, without a writer.
+    /// </summary>
+    public void EmitFixed()
+    {
+        _w.Line($"public int FixedSize => {FixedLayout().Size};");
         _w.Line();
         _w.Line(_names.Inline);
         _w.Block($"public void WriteFixed({T} value, ref byte destination)", () =>
         {
-            foreach (var line in lines)
+            foreach (var line in FixedWrites())
                 _w.Line(line);
+        });
+    }
+
+    /// <summary>
+    /// The <c>INinoBlockFormatter</c> of a struct of fixed size (<see cref="TypeModel.Block"/>): its blocks are the
+    /// bytes of <c>WriteFixed</c>; <c>ReadBlock</c> reads them as <c>ReadBody</c> does, with the same checks; and
+    /// <c>BlockMap</c> says where each member lies in the struct's memory (a field by its reference, an
+    /// auto-property where a marked value stored through it lands), which lets collections of it move several values
+    /// at a time by vector shuffles.
+    /// </summary>
+    public void EmitBlock()
+    {
+        string iface = $"{CoreGenerated}INinoBlockFormatter<{T}>";
+        var layout = FixedLayout();
+        _w.Line($"int {iface}.BlockSize => FixedSize;");
+        _w.Line();
+        _w.Block($"{CoreGenerated}NinoBlockMap {iface}.BlockMap()", () =>
+        {
+            _w.Line($"var __v = default({T});");
+            _w.Line($"return new {CoreGenerated}NinoBlockMap()");
+            for (int i = 0; i < layout.Members.Count; i++)
+            {
+                var (member, offset) = layout.Members[i];
+                string memory = member.IsProperty
+                    ? $"{CoreGenerated}NinoBlocks.Find<{T}>({CoreGenerated}NinoUnsafe.SizeOf<{member.TypeName}>(), () => " +
+                      $"{{ var __m = default({T}); {Set(_m, member, "__m", $"{CoreGenerated}NinoBlocks.Marked<{member.TypeName}>()")} return __m; }})"
+                    : $"{CoreGenerated}NinoBlocks.Offset(ref __v, ref {Get(_m, member, "__v")})";
+                string item = member.Raw != null
+                    ? $"Raw<{member.TypeName}>"
+                    : $"Block<{member.TypeName}, {Formatter(member)}>";
+                _w.Line($"    .{item}({memory}, {offset}){(i == layout.Members.Count - 1 ? ";" : "")}");
+            }
+        });
+        _w.Line();
+        _w.Line(_names.Inline);
+        _w.Block($"void {iface}.WriteBlock(ref byte destination, in {T} value)", () =>
+        {
+            foreach (var line in FixedWrites())
+                _w.Line(line);
+        });
+        _w.Line();
+        _w.Line(_names.Inline);
+        _w.Block($"void {iface}.ReadBlock(ref byte source, ref {T} value)", () =>
+        {
+            foreach (var (member, offset) in layout.Members)
+            {
+                // As ReadBody: a bool through its own read, which rejects a byte other than 0 or 1.
+                if (member.Raw != null)
+                {
+                    _w.Line(Set(_m, member, "value", RawRead(member, "source", offset)));
+                    continue;
+                }
+
+                string read = $"{CoreGenerated}NinoBlocks.Read<{member.TypeName}, {Formatter(member)}>(" +
+                              $"ref {CoreGenerated}NinoUnsafe.Add(ref source, {offset}), ref ";
+                if (Ref(_m, member, "value") is { } field)
+                {
+                    _w.Line($"{read}{field});");
+                    continue;
+                }
+
+                _w.Open();
+                _w.Line($"var __t = default({member.TypeName});");
+                _w.Line($"{read}__t);");
+                _w.Line(Set(_m, member, "value", "__t"));
+                _w.Close();
+            }
         });
     }
 
