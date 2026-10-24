@@ -31,7 +31,12 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 > Crafted bytes cannot crash the process, read past the input, allocate out of proportion to their size (a
 > collection allocates at most 16× the bytes left ahead of its elements) or name a type to create: the data holds
 > type ids of your declared subtypes, never type names. Every invalid input throws one exception,
-> `InvalidOperationException` with a message starting `Nino:`, so a single `catch` at the boundary handles it.
+> `NinoDataException` (an `InvalidOperationException`, message starting `Nino:`), so a single `catch` at the boundary
+> handles it. Keys built to collide in a hash table throw too (`NinoSettings.MaxHashCollisions`), and
+> `NinoSettings.MaxDepth` and `MaxCollectionLength` tighten the limits. For data from outside, set
+> `NinoSettings.Untrusted = true` at startup: the dictionaries and sets Nino creates hash integer, `char`, `Guid` and
+> `string` keys with a per-process secret, `bool`, `DateTime`, `decimal`, `DateOnly` and `TimeOnly` values are checked
+> even inside raw structs, and bytes after the value are rejected; with it off (the default) none of this costs anything.
 > Fuzzed and hand-crafted payloads were run against every built-in type, and what they found is fixed in 4.0.0-rc.7.
 > [What Nino checks, and what stays your code's job](https://nino.xgamedev.net/en/docs/v4/basic#invalid-data). (MemoryPack now
 > [recommends itself for trusted data only](https://github.com/Cysharp/MemoryPack#readme); see the [comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack#untrusted-input).)
@@ -47,7 +52,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 - **Faster than MemoryPack.** Serializing classes and polymorphic types is <!--bench:ser.range-->3.5–6.8<!--/bench-->× faster. Deserializing them is
   <!--bench:deser.range-->1.3–1.9<!--/bench-->× faster, and raw struct arrays are at least on par (a block copy in both).
 - **Safe for untrusted data.** Crafted bytes cannot crash the process, allocate out of proportion to their size or make
-  Nino create a type you did not declare; every invalid input throws one `InvalidOperationException`.
+  Nino create a type you did not declare; every invalid input throws one `NinoDataException`.
   [Invalid data](https://nino.xgamedev.net/en/docs/v4/basic#invalid-data).
 - **Zero allocation.** Serializing into a buffer (`IBufferWriter<byte>`) allocates nothing. Deserializing into existing or pooled objects
   (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either (a string whose text is unchanged is kept),
