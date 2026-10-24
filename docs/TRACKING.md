@@ -22,7 +22,7 @@
 | 方向 | 分支 · worktree | 内容 | 状态 |
 |---|---|---|---|
 | 代码优化 | refactor/build、refactor/gen、refactor/core、refactor/sat、refactor/bench | 见上表 | ✅ 全部合并 |
-| 运行时：TS | refactor/ts-perf · wt-ts | 性能、安全、单元测试、移到 runtimes/typescript | ✅ 6 个提交（856f50a 数组写入改索引循环；7ee4828 深度延迟写入，Fixed；004d9a4 移到 runtimes/typescript；ebaaf06 非法 UTF-8 抛 NinoError，Fixed；7fe6a58 node:test 81 项；e9979be __proto__ 键测试）。合并后待办：生成器在布局里发布 deferrable（gen J）后，TS 生成器改用它，不再从 IL 读 Traits；CLAUDE.md 写上 npm test；DateTime Unspecified 在 TS 里读成 UTC（既有行为，待定）；bool 字节 2–255 读成 true（与 .NET 一致，归入第二阶段严格度统一） |
+| 运行时：TS | refactor/ts-perf · wt-ts | 性能、安全、单元测试、移到 runtimes/typescript | ✅ 6 个提交（856f50a 数组写入改索引循环；7ee4828 深度延迟写入，Fixed；004d9a4 移到 runtimes/typescript；ebaaf06 非法 UTF-8 抛 NinoError，Fixed；7fe6a58 node:test 81 项；e9979be __proto__ 键测试）。合并后待办：生成器在布局里发布 deferrable（gen J）后，TS 生成器改用它，不再从 IL 读 Traits；CLAUDE.md 写上 npm test；DateTime Unspecified 在 TS 里读成 UTC（✅ 维护者决定保留，phase3/cgen 写进 docs/codegen.md 和 runtimes/typescript/README.md）；bool 字节 2–255 读成 true（与 .NET 一致，归入第二阶段严格度统一） |
 | 运行时：Go | runtime/go · wt-go | runtimes/go：读写、校验、深度延迟、零依赖、基准对比 json/msgpack、原生 fuzz、CI job | ✅ 9 个提交；一致性语料全过（引用追踪除外），fuzz 约 560 万次无 panic。合并前必须：bf8894d 误提交 5.6 MB 测试二进制，本地分支未推送，合并前改写该分支历史去掉它；runtimes.yml 与 conformance job 合并成一个文件。规范待修项 ✅ 均已写进规范（aa043a3 等；phase3/misc 对照语料与 Nino.Core 逐条核对）：§3.3/§3.4 示例日期标签、§7.6 keyed 剩余字节非法、§7.10.3 三条区段规则、§9.10 decimal/DateOnly/TimeOnly 范围、空结构体 1 字节（§5.2）、corpus README 的 sbyte[] |
 | 运行时：Rust | runtime/rust · wt-rust | runtimes/rust：默认 forbid(unsafe)、不 panic、criterion 对比 serde_json/bincode/rmp/postcard、miri、CI job | ✅ 15 个提交（含 nino-derive 过程宏、serde feature、trybuild 编译失败测试、MSRV 1.88）；语料 252 例 + 10,344 个截断前缀全过（引用追踪除外），derive 47 个类型过语料，变异 fuzz 75.6 万次无 panic。合并前必须：提交 10–15 缺 Co-Authored-By，本地改写补上；runtimes.yml 合成一个文件（conformance + go + rust + ts）。性能（phase3/rperf 4394eb1）：本机复测时字符串读取已与 bincode/postcard 持平（短字符串的耗时主要是每个 String 的分配），慢的是写入：改成按 UTF-8 字节一遍完成 ASCII 检查和 Latin-1/UTF-16 转码，1000 个 ASCII 字符串 5.9→4.0 µs（bincode 3.4），Latin-1 −50%，UTF-16 −43%（本机进程内交替测量，非发布数字）；单条记录序列化在 criterion 里与 bincode 持平（本机噪声 ±20%），指令数 −5%。规范待定项 ✅ 已写进规范：keyed 链示例与语料 deep-keyed-chain-129 一致（§7.10.3）；能自嵌套的结构体和集合计入 512 层（§9.9，§7.10.1 加了指引，99955f4）；SortedDictionary<string> 等排序集合读取保持线上顺序（§6.3） |
 | 线格式规范 | docs/wire-spec · wt-spec | docs/spec/wire-format.md | ✅ b870f7c（规范 4.0 草案；§10 列出 12 处不一致或未定义） |
@@ -44,13 +44,13 @@
 
 - ✅ docs/spec/wire-format.md：正式线格式规范（docs/wire-spec · b870f7c）。由此发现的 bug：H 生成器从引用程序集读 BCL 结构布局（_dummyPrimitive），Complex/TimeOnly/Half/Int128/Rune/int? 发布的布局错误 → gen；I 8 项及以上的 ValueTuple 成员被静默跳过（数据丢失）→ gen；J 布局里没有 deferrable 标记 → gen；B8 RawPoint?[] 生成代码与运行时解析器写出不同字节 → core（以定长 stride 为准，Wire-Format 尾注）；宽松读取（bool/presence >1、keyed 重复键、尾随字节、DateTime kind 3、ImmutableArray null 抛 BCL 异常等）→ 第二阶段统一严格度并写进规范。✅ 维护者已同意，第二阶段执行：默认就报错 —— 延迟区段偏移/标志不符、keyed 成员剩余字节、bool/presence 字节 >1；仅 Untrusted 模式报错 —— 尾随字节（Span 切片场景兼容）、越界的 decimal/DateTime/DateOnly 等 raw 值
 - ✅ TS 运行时移到 runtimes/typescript
-- ✅ 布局中间表示 + nino-gen 命令行 + Scriban 模板（src/Nino.Codegen，取代 Nino.TypeScript 里的语言相关部分；phase2/codegen）：TS/Go/Rust 三个目标，生成代码跑语料（有效/恶意/截断），docs/codegen.md。Rust 用展开代码而非 derive（布局只有曾用名的哈希）。未生成：泛型类型（只有泛型定义有布局）、trackReferences、[NinoType] 集合；TS 运行时的恶意用例已全部拒绝（phase2/ts-strict：延迟区段、keyed 成员剩余字节、重复键/元素；对象键按引用比较，查不出重复）
+- ✅ 布局中间表示 + nino-gen 命令行 + Scriban 模板（src/Nino.Codegen，取代 Nino.TypeScript 里的语言相关部分；phase2/codegen）：TS/Go/Rust 三个目标，生成代码跑语料（有效/恶意/截断），docs/codegen.md。Rust 用展开代码而非 derive（布局只有曾用名的哈希）。未生成：trackReferences、[NinoType] 集合；泛型类型 ✅ phase3/cgen 已生成（TS 泛型类 + `XCodec<T>(p0)`，Go 类型参数 + `XCodec[T](p0 NinoArg[T])`，Rust 泛型结构体；闭合用法引用泛型类型及其参数；仍不生成：写在类型 id 后面的泛型定义（非 sealed 类、抽象类、接口，id 是闭合 .NET 名的哈希）、多态槽里的闭合泛型、以其他参数持有自己的泛型、集合里的 Nullable/KeyValuePair 作类型参数）；TS 运行时的恶意用例已全部拒绝（phase2/ts-strict：延迟区段、keyed 成员剩余字节、重复键/元素；对象键按引用比较，查不出重复）
 - ✅ conformance/：.NET 写出的有效语料 + 恶意语料，所有语言共用
 - ✅ runtimes/go、runtimes/rust：运行时 + 模板 + 测试 + 基准
 - ✅ 每个运行时的性能维护：各自基准对比本生态的主流库（TS：JSON；Go：encoding/json、vmihailenco/msgpack、gob；Rust：serde_json、bincode、rmp-serde、postcard），report.yml 的 runtimes / publish-runtimes 任务把各语言结果作为发布说明末尾的独立小节（🌐 TypeScript、🐹 Go、🦀 Rust runtime benchmark，benchmarks/runtimes_report.py；ef07848，phase3/rperf 3ae1575 把 Rust 表改成每个序列化器一列并带编码大小），不影响网站解析的三个 .NET 小节；CLAUDE.md 已写各语言的性能和安全规则。TS 基准尚未对比 msgpackr
-- ✅ Go 结构体标签（runtime/go 6 个提交 fd2bd02…3693254；语料经标签结构体 103/140/35 通过；反射计划缓存，比手写编解码慢 2–5 倍，仍远快于 encoding/json）。合并时：Go 自造的 `deferrable=false` 与生成器 23abe40 发布的标记对齐成同一语法。待定：普通 string 字段把 null 读成 ""（要保留 null 用 *string）；map 按键排序写出（[]nino.Entry 保留线上顺序）。原计划：`nino:"0"` / `nino:"Name"`（keyed）/ `nino:"-"` 等，用户自己的结构体走反射 + 按类型缓存的编解码计划（同等的安全保证、fuzz）；生成的 Go 结构体带 nino 标签和可配置的 json/yaml 标签（默认 camelCase）
+- ✅ Go 结构体标签（runtime/go 6 个提交 fd2bd02…3693254；语料经标签结构体 103/140/35 通过；反射计划缓存，比手写编解码慢 2–5 倍，仍远快于 encoding/json）。合并时：Go 自造的 `deferrable=false` 与生成器 23abe40 发布的标记对齐成同一语法。✅ 维护者决定保留：普通 string 字段把 null 读成 ""（要保留 null 用 *string；phase3/cgen 写进 docs/codegen.md 和 runtimes/go/README.md）；map 按键排序写出（[]nino.Entry 保留线上顺序）。原计划：`nino:"0"` / `nino:"Name"`（keyed）/ `nino:"-"` 等，用户自己的结构体走反射 + 按类型缓存的编解码计划（同等的安全保证、fuzz）；生成的 Go 结构体带 nino 标签和可配置的 json/yaml 标签（默认 camelCase）
 - ✅ Rust 对应（runtime/rust）：`#[derive(NinoRead, NinoWrite)]` 过程宏 + `#[nino(index/key/skip/utf8)]` 属性（编译期生成，零运行时成本），可选 serde 派生（serde feature，rename_all 可配置）
-- ✅ 包名已定（2026-10-24）：npm 包名 nino-serialization；crate 名和 Go 模块路径 github.com/JasonXuDeveloper/Nino/runtimes/go（标签 runtimes/go/vX.Y.Z）不变
+- ✅ 包名确认：npm `nino-serialization`（runtimes/typescript/package.json，7a47db0 已改；README 没有安装命令，生成代码 `--runtime` 由用户指定）、crates.io `nino-serialization`（不变）、Go 模块路径 github.com/JasonXuDeveloper/Nino/runtimes/go（不变，标签 runtimes/go/vX.Y.Z）
 
 ### 目标目录结构（第一阶段合并后执行，Unity 包路径不动）
 
@@ -143,13 +143,13 @@ Nino/
 - ⬜ report.yml 8 分片拆分后的耗时，需下次发布或手动运行确认（`gh workflow run report.yml`）
 - ⬜ NuGet 可信发布：给 Nino.Codegen、Nino.Codegen.Tool 两个新包配置
 - ⬜ 首个带 Nino.Codegen 的版本发布后，在 NuGet 上把 Nino.TypeScript 标为弃用并指向 Nino.Codegen
-- ✅ 维护者已决定（2026-10-24），由其他分支实现：
-  - TS 继续把 Kind=Unspecified 的 DateTime 读成 UTC，写进文档；
-  - Go 普通 string 继续把 null 读成 ""（要保留 null 用 *string）；
-  - 泛型类型在每种语言里都生成（nino-gen 生成泛型类型）；
+- ✅ 维护者已决定（2026-10-24），均已实现（phase3/cgen、phase3/sec）：
+  - ✅ TS 继续把 Kind=Unspecified 的 DateTime 读成 UTC，写进文档；
+  - ✅ Go 普通 string 继续把 null 读成 ""（要保留 null 用 *string）；
+  - ✅ 泛型类型在每种语言里都生成（nino-gen 生成泛型类型）；
   - ✅ ConcurrentDictionary 也受 MaxHashCollisions 上限保护（phase3/sec，ConcurrentTables 直接建桶并计数，各运行时读取不变慢）；
-  - Rust 的映射类型改为选项：默认 indexmap，可选 std HashMap；
-  - npm 包名 nino-serialization，crate 名和 Go 模块路径不变；
+  - ✅ Rust 的映射类型改为选项：默认 indexmap，可选 std HashMap；
+  - ✅ npm 包名 nino-serialization，crate 名和 Go 模块路径不变；
   - ✅ 自嵌套集合的写入超过 MaxDepth 时抛异常（第二阶段 2223696；phase3/sec 1887320 补上结构体层数）
 
 ## 记录

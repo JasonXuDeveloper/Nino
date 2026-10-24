@@ -181,6 +181,10 @@ types without members (`readBody$Empty`, `writeBody$Empty` and the version-toler
 `_w` and `_v`, so the code compiles under `noUnusedParameters`. See the
 [TypeScript guide](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) for the generated API.
 
+A `Date` has no kind: the reader takes the ticks of every `DateTime` as UTC, so one written with
+`DateTimeKind.Unspecified` (or `Local`) reads as the UTC time with the same clock reading, and is written back with
+`DateTimeKind.Utc`.
+
 ## Go
 
 A struct per `[NinoType]` with `nino` tags first, then the configured tags (runtimes/go/README.md, "Tags on generated
@@ -193,6 +197,10 @@ Helper types it declares are named `NinoTuple2`..., `NinoGrid`; a user type whos
 suffix, and two types with the same simple name are prefixed with their namespace (`ShapesLeftItem`). `[NinoFormerName]`s
 are not in the `nino` tag: layouts carry only their hashes, which `NinoLayout()` keeps, so a keyed type still reads data
 written under a former name.
+
+A C# `string` member is a `*string`, so null stays null. A Go `string` has no null: where one is read
+(`Reader.String`, a `string` field of a struct with `nino` tags, dictionary keys and `HashSet<string>` elements), a
+null string reads as `""`, and `""` is written back, not null. Use `*string` to tell null from empty.
 
 ## Rust
 

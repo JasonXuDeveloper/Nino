@@ -39,6 +39,10 @@ more than the data holds:
   that differ only in scale are not compared.
 - Bytes after the value are left unread, as .NET does by default (§9.12).
 
+A `DateTime` is read as a `Date`, which has no kind: the ticks are taken as UTC whatever the kind, so a value written
+with `DateTimeKind.Unspecified` (or `Local`) reads as the UTC time with the same clock reading, and is written back
+with `DateTimeKind.Utc`.
+
 ## Tests
 
 ```sh
