@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
-namespace Nino.Core.Generated
+namespace Nino.Core.CompilerServices
 {
     /// <summary>
     /// Registry of the subtypes of <typeparamref name="TBase"/> (a non-sealed class, an interface, or

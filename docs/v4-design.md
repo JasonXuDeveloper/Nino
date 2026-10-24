@@ -832,7 +832,7 @@ and reuse deserialization and pooling work as usual (0 GC).
 On compilers that load the generator's Roslyn 4.8 or 4.12 build (.NET 8 SDK and later), the generator also intercepts each such call whose type
 argument is known at the call site and whose formatter it resolves (not raw values or arrays of raw elements,
 which the regular calls already copy directly, and not types it can only reach through `CachedFormatter<T>`):
-`NinoGen.Interceptors.g.cs` redirects it to `Nino.Core.Generated.NinoDirect`, which calls the formatter struct directly.
+`NinoGen.Interceptors.g.cs` redirects it to `Nino.Core.CompilerServices.NinoDirect`, which calls the formatter struct directly.
 `NinoDeserializer.Deserialize<T>(ReadOnlySpan<byte>)` of a raw value is intercepted too, to
 `NinoDirect.DeserializeRaw<T>`: one bounds check and one unaligned load with a single return, which the JIT keeps in
 registers (the regular method's several returns go through a stack temp).
@@ -932,8 +932,8 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 Generated formatters call Nino.Core directly: `Writer`/`Reader`, the built-in formatter structs, `NinoObject`
 (class headers and subtype dispatch), `NinoDirect` (intercepted top-level calls), `NinoPolymorphic`, `NinoRegistry`,
 `NinoFormatterCache`, `NinoActivator`, `NinoRecycler` and `NinoUnsafe`. The types that exist only for generated code
-(and Nino's own packages: Nino.Immutable, Nino.UnityTypes) live in the namespace `Nino.Core.Generated`, folder
-`Generated/`: `NinoObject`, `NinoDirect`, `NinoUnsafe`, `INinoBodyFormatter<T>`, `INinoTopFormatter<T>`,
+(and Nino's own packages: Nino.Immutable, Nino.UnityTypes) live in the namespace `Nino.Core.CompilerServices`, folder
+`CompilerServices/`: `NinoObject`, `NinoDirect`, `NinoUnsafe`, `INinoBodyFormatter<T>`, `INinoTopFormatter<T>`,
 `INinoRawBodyFormatter<T>`, `INinoFixedSizeFormatter<T>`, `INinoBlockFormatter<T>` with `NinoBlockMap` and `NinoBlocks`,
 `INinoRawFormatter`, `NinoBody`, `NinoPolymorphic<TBase>`
 and the `NinoSubtypeHandler` it returns, `[NinoGenerated]`, `INinoRegistry` and `NinoEffectiveSettings`. The name
@@ -970,8 +970,8 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   `Attributes/` (everything users put on types, members and formatter type parameters), `IO/` (`Writer`,
   `Reader`, buffers, wire constants, depth bounds, deferred bodies and the per-call contexts), `Formatters/` (the
   formatter interface, cache, resolver and every built-in formatter), `Polymorphism/` (type ids, registry, subtype
-  dispatch, reference tables), `Pooling/` (`NinoPool`, `NinoRecycler`, `NinoActivator`), `Generated/` (the API only
-  generated code calls, namespace `Nino.Core.Generated`, see above) and `Internal/` (layout, limits, untrusted
+  dispatch, reference tables), `Pooling/` (`NinoPool`, `NinoRecycler`, `NinoActivator`), `CompilerServices/` (the API only
+  generated code calls, namespace `Nino.Core.CompilerServices`, see above) and `Internal/` (layout, limits, untrusted
   reads, thread caches, the shared sources above). User code needs one `using Nino.Core`.
 * Nino.Generator: `Analysis/` (analyzer, suppressor, diagnostics), `Common/` (equatable collections, names and
   `[NinoType]` lookup shared by the analyzer, generator and code fixes), `Generation/` (symbols to models) and

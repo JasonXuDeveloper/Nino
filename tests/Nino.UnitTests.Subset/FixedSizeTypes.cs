@@ -1,6 +1,6 @@
 using System;
 using Nino.Core;
-using Nino.Core.Generated;
+using Nino.Core.CompilerServices;
 
 // Fixed-size types (NinoSerializer.GetFixedSize, NinoDirect.SerializeFixed): they need an assembly without
 // WEAK_VERSION_TOLERANCE, since a version-tolerant type is never fixed size.

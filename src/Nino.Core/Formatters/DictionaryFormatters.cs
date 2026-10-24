@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Nino.Core.Generated;
+using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
 namespace Nino.Core

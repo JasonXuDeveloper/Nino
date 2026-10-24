@@ -334,7 +334,7 @@ internal sealed class BodyEmitter
             else if (member.Raw != null)
                 symbolic.Add(member.Raw.Expression);
             else if (IsBlockItem(member))
-                symbolic.Add($"{CoreGenerated}NinoBlocks.Size<{member.TypeName}, {Formatter(member)}>()");
+                symbolic.Add($"{CoreCompilerServices}NinoBlocks.Size<{member.TypeName}, {Formatter(member)}>()");
             else
                 symbolic.Add($"default({Formatter(member)}).FixedSize");
         }
@@ -365,9 +365,9 @@ internal sealed class BodyEmitter
             }
 
             string formatter = Formatter(member);
-            string at = $"ref {CoreGenerated}NinoUnsafe.Add(ref destination, {offset})";
+            string at = $"ref {CoreCompilerServices}NinoUnsafe.Add(ref destination, {offset})";
             lines.Add(IsBlockItem(member)
-                ? $"{CoreGenerated}NinoBlocks.Write<{member.TypeName}, {formatter}>({at}, {Get(_m, member, "value")});"
+                ? $"{CoreCompilerServices}NinoBlocks.Write<{member.TypeName}, {formatter}>({at}, {Get(_m, member, "value")});"
                 : $"default({formatter}).WriteFixed({Get(_m, member, "value")}, {at});");
         }
 
@@ -400,21 +400,21 @@ internal sealed class BodyEmitter
     /// </summary>
     public void EmitBlock()
     {
-        string iface = $"{CoreGenerated}INinoBlockFormatter<{T}>";
+        string iface = $"{CoreCompilerServices}INinoBlockFormatter<{T}>";
         var layout = FixedLayout();
         _w.Line($"int {iface}.BlockSize => FixedSize;");
         _w.Line();
-        _w.Block($"{CoreGenerated}NinoBlockMap {iface}.BlockMap()", () =>
+        _w.Block($"{CoreCompilerServices}NinoBlockMap {iface}.BlockMap()", () =>
         {
             _w.Line($"var __v = default({T});");
-            _w.Line($"return new {CoreGenerated}NinoBlockMap()");
+            _w.Line($"return new {CoreCompilerServices}NinoBlockMap()");
             for (int i = 0; i < layout.Members.Count; i++)
             {
                 var (member, offset) = layout.Members[i];
                 string memory = member.IsProperty
-                    ? $"{CoreGenerated}NinoBlocks.Find<{T}>({CoreGenerated}NinoUnsafe.SizeOf<{member.TypeName}>(), () => " +
-                      $"{{ var __m = default({T}); {Set(_m, member, "__m", $"{CoreGenerated}NinoBlocks.Marked<{member.TypeName}>()")} return __m; }})"
-                    : $"{CoreGenerated}NinoBlocks.Offset(ref __v, ref {Get(_m, member, "__v")})";
+                    ? $"{CoreCompilerServices}NinoBlocks.Find<{T}>({CoreCompilerServices}NinoUnsafe.SizeOf<{member.TypeName}>(), () => " +
+                      $"{{ var __m = default({T}); {Set(_m, member, "__m", $"{CoreCompilerServices}NinoBlocks.Marked<{member.TypeName}>()")} return __m; }})"
+                    : $"{CoreCompilerServices}NinoBlocks.Offset(ref __v, ref {Get(_m, member, "__v")})";
                 string item = member.Raw != null
                     ? $"Raw<{member.TypeName}>"
                     : $"Block<{member.TypeName}, {Formatter(member)}>";
@@ -441,8 +441,8 @@ internal sealed class BodyEmitter
                     continue;
                 }
 
-                string read = $"{CoreGenerated}NinoBlocks.Read<{member.TypeName}, {Formatter(member)}>(" +
-                              $"ref {CoreGenerated}NinoUnsafe.Add(ref source, {offset}), ref ";
+                string read = $"{CoreCompilerServices}NinoBlocks.Read<{member.TypeName}, {Formatter(member)}>(" +
+                              $"ref {CoreCompilerServices}NinoUnsafe.Add(ref source, {offset}), ref ";
                 if (Ref(_m, member, "value") is { } field)
                 {
                     _w.Line($"{read}{field});");
@@ -510,8 +510,8 @@ internal sealed class BodyEmitter
         {
             if (headers)
             {
-                _w.Line($"{CoreGenerated}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i]}, {group[i].Key});");
-                _w.Line($"{CoreGenerated}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i + 1]}, {group[i].Raw!.Expression});");
+                _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i]}, {group[i].Key});");
+                _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i + 1]}, {group[i].Raw!.Expression});");
             }
 
             _w.Line(RawWrite(group[i], p, block.Offsets[i]));
@@ -560,8 +560,8 @@ internal sealed class BodyEmitter
     {
         string method = RawBlock.IsStruct(member) ? "WriteValue" : "Write";
         return WriteFrom(member) is { } field
-            ? $"{CoreGenerated}NinoUnsafe.{method}In<{member.TypeName}>(ref {p}, {offset}, in {field});"
-            : $"{CoreGenerated}NinoUnsafe.{method}<{member.TypeName}>(ref {p}, {offset}, {Get(_m, member, "value")});";
+            ? $"{CoreCompilerServices}NinoUnsafe.{method}In<{member.TypeName}>(ref {p}, {offset}, in {field});"
+            : $"{CoreCompilerServices}NinoUnsafe.{method}<{member.TypeName}>(ref {p}, {offset}, {Get(_m, member, "value")});";
     }
 
     /// <summary>
@@ -598,7 +598,7 @@ internal sealed class BodyEmitter
             string p = run != null ? EmitRawBlock(run, block, reserve) : "__p" + _blocks++;
             if (run == null)
                 _w.Line($"ref byte {p} = ref {reserve};");
-            _w.Line($"{CoreGenerated}NinoUnsafe.Write<int>(ref {p}, {block.Total}, {first.Key});");
+            _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<int>(ref {p}, {block.Total}, {first.Key});");
             run = null;
             EmitFormatterWrite(first);
             _w.Line($"writer.EndRegion({l});");
@@ -963,9 +963,9 @@ internal sealed class BodyEmitter
             or "global::System.DateOnly" or "global::System.TimeOnly";
 
     private static string RawRead(MemberModel member, string p, string offset) =>
-        IsBool(member) ? $"{CoreGenerated}NinoUnsafe.ReadBool(ref {p}, {offset})"
-        : MayCheck(member) ? $"{CoreGenerated}NinoUnsafe.ReadChecked<{member.TypeName}>(ref {p}, {offset})"
-        : $"{CoreGenerated}NinoUnsafe.Read<{member.TypeName}>(ref {p}, {offset})";
+        IsBool(member) ? $"{CoreCompilerServices}NinoUnsafe.ReadBool(ref {p}, {offset})"
+        : MayCheck(member) ? $"{CoreCompilerServices}NinoUnsafe.ReadChecked<{member.TypeName}>(ref {p}, {offset})"
+        : $"{CoreCompilerServices}NinoUnsafe.Read<{member.TypeName}>(ref {p}, {offset})";
 
     /// <summary>The raw members of <paramref name="group"/>, read from one block of <paramref name="r"/>.</summary>
     private void EmitRawBlockRead(List<MemberModel> group, RawBlock block, string r, bool inPlace)

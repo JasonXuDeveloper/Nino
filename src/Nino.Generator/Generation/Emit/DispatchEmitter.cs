@@ -74,14 +74,14 @@ internal static class DispatchEmitter
             {
                 for (int i = 0; i < closed.Count; i++)
                     w.Line($$"""if (typeof({{t}}) == typeof({{closed[i]}})) { {{classes[i]}}.__WriteSubtype(__NinoObject.SameType<{{closed[i]}}>(value), ref writer); return; }""");
-                w.Line($"{CoreGenerated}NinoPolymorphic<{t}>.Serialize(value, ref writer);");
+                w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.Serialize(value, ref writer);");
             });
             w.Line();
             w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref __NinoReader reader)", () =>
             {
                 for (int i = 0; i < closed.Count; i++)
                     w.Line($$"""if (typeof({{t}}) == typeof({{closed[i]}})) { {{classes[i]}}.__ReadSubtype(id, ref __NinoObject.SameTypeSlot<{{t}}, {{closed[i]}}>(ref value), ref reader); return; }""");
-                w.Line($"{CoreGenerated}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);");
+                w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);");
             });
             w.Close();
             w.Line();
@@ -138,14 +138,14 @@ internal static class DispatchEmitter
             // subtype costs about 2.5% more compile time on a workload of hierarchies.
             foreach (var s in subtypes.Count <= MaxWriteChain ? subtypes : new List<DispatchEntry>())
                 w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { __NinoObject.WriteExact{{(s.RawBody ? "Raw" : "")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
-            w.Line($"{CoreGenerated}NinoPolymorphic<{t}>.Serialize(value, ref writer);");
+            w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.Serialize(value, ref writer);");
         });
         w.Line();
         w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref __NinoReader reader)", () =>
         {
             if (subtypes.Count != 0)
                 EmitReadSwitch(w, subtypes);
-            w.Line($"{CoreGenerated}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);");
+            w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);");
         });
 
         // Each subtype's instance check and body, out of line in a method of this non-generic struct, where

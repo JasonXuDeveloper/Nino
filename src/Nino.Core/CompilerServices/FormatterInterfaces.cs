@@ -1,7 +1,7 @@
 using System;
 using System.ComponentModel;
 
-namespace Nino.Core.Generated
+namespace Nino.Core.CompilerServices
 {
     /// <summary>
     /// Formatter for the body of a <c>[NinoType]</c>: the members, without the null/type header.

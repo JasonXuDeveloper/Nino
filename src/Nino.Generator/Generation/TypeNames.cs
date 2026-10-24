@@ -15,10 +15,10 @@ internal static class TypeNames
     public const string Core = "global::Nino.Core.";
 
     /// <summary>
-    /// Prefix of the Nino.Core types only generated code uses (<c>Nino.Core.Generated</c>: <c>NinoObject</c>,
+    /// Prefix of the Nino.Core types only generated code uses (<c>Nino.Core.CompilerServices</c>: <c>NinoObject</c>,
     /// <c>NinoUnsafe</c>, the body formatter interfaces...).
     /// </summary>
-    public const string CoreGenerated = Core + "Generated.";
+    public const string CoreCompilerServices = Core + "CompilerServices.";
 
     /// <summary>Namespace of everything the generator emits.</summary>
     public const string GenNamespace = "NinoGen";

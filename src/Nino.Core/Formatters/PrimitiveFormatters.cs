@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
-using Nino.Core.Generated;
+using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
 namespace Nino.Core

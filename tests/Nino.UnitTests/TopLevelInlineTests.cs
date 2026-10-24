@@ -23,7 +23,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Nino.Core;
-using Nino.Core.Generated;
+using Nino.Core.CompilerServices;
 namespace Top
 {
     [NinoType] public sealed class Ints { public int Id; public int[] A; }

@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Nino.Core.Generated;
+using Nino.Core.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics;
 #endif

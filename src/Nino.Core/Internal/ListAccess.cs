@@ -2,7 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Nino.Core.Generated;
+using Nino.Core.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.InteropServices;
 #endif

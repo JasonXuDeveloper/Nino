@@ -2,7 +2,7 @@ using System.Linq;
 using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
-using Nino.Core.Generated;
+using Nino.Core.CompilerServices;
 
 #nullable disable
 namespace Nino.UnitTests;

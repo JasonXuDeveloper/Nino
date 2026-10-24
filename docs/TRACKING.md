@@ -77,7 +77,7 @@ Nino/
 - ✅ sln → slnx（refactor/build ac39d4c，先在 src/，目录重组时移到根目录）
 
 - ⬜ 合并 6 个分支，解决冲突，全量验证：net10 / net8+ns2.1 / net8+ns2.0+Roslyn4.8；AVX512=0、AVX2=0、HWIntrinsic=0；Mono net472；qemu Arm64/Arm32；AspNetCore、TypeScript 测试；asm.py compare；pack 内容对比
-- ✅ 只给生成代码用的公共成员挪到 `Nino.Core.Generated`（Core 与生成器同步；Core 里放错的类型拆到各自文件）
+- ✅ 只给生成代码用的公共成员挪到 `Nino.Core.CompilerServices`（Core 与生成器同步；Core 里放错的类型拆到各自文件）
 - ⬜ 生成代码形态审查（用户要求）：ref struct / `allows ref struct`（.NET 9+）、UnsafeAccessor、static abstract、去掉只做转发的方法（如 `__WriteSubtype`）等，可用 `#if` 区分平台，共用写法做回退；每项看机器码 + 基准，两条路径字节一致
 - ⬜ UnsafeAccessor（.NET 8/9+，#if 区分，保留探测 / 公共 API 回退）、`allows ref struct`（.NET 9+，#if）；各平台结果一致的测试
 - ⬜ 热路径项：Permute64x2 合并、Shuffles 循环改 ref 游标、Writer 上下文检查、ReadConverted、内联标记补齐、NinoMask 复制去重 —— asm.py + 三种 ISA + Arm64 qemu

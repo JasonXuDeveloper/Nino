@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace Nino.Core.Generated
+namespace Nino.Core.CompilerServices
 {
     /// <summary>
     /// For Nino's own packages (Nino.Immutable): the settings of <see cref="NinoSettings"/> that read paths check, as
