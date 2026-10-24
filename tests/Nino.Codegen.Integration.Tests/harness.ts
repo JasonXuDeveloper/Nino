@@ -2,7 +2,7 @@
 // bytes and the value as JSON, so the test compares them with what .NET wrote.
 import { readFileSync } from "node:fs";
 import { deserialize, serialize, type NinoCodec } from "./nino.ts";
-import * as types from "./Nino.TypeScript.Tests.ts";
+import * as types from "./Nino.Codegen.Integration.Tests.ts";
 
 const hex = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
 const json = (value: unknown) =>

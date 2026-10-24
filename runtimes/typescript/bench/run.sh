@@ -9,11 +9,11 @@ ROOT=$(cd "$HERE/../../.." && pwd)
 OUT=$HERE/out
 
 rm -rf "$OUT" "$HERE/gen"
-dotnet build -c Release "$ROOT/src/Nino.TypeScript" > /dev/null
+dotnet build -c Release "$ROOT/src/Nino.Codegen" > /dev/null
 dotnet build -c Release "$HERE" > /dev/null
 dotnet "$HERE/bin/Release/net10.0/Bench.dll" "$OUT/data"
-dotnet "$ROOT/src/Nino.TypeScript/bin/Release/net8.0/nino-ts.dll" --assembly "$HERE/bin/Release/net10.0/Bench.dll" \
-  --out "$HERE/gen" --import-extension .ts
+dotnet "$ROOT/src/Nino.Codegen/bin/Release/net8.0/nino-gen.dll" --assembly "$HERE/bin/Release/net10.0/Bench.dll" \
+  --lang ts --out "$HERE/gen" --import-extension .ts
 tsc --target es2022 --module es2022 --moduleResolution bundler --strict --skipLibCheck \
   --rewriteRelativeImportExtensions --outDir "$OUT/js" "$HERE/bench.ts"
 

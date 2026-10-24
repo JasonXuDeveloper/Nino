@@ -1,9 +1,10 @@
 # Nino for TypeScript
 
 `src/nino.ts` is the TypeScript runtime of Nino: it reads and writes the bytes Nino writes in .NET (the format is
-[docs/spec/wire-format.md](../../docs/spec/wire-format.md)). It is not published on its own: Nino.TypeScript writes it
-next to the classes and codecs it generates for a project's `[NinoType]`s after each build, and `nino-gen --lang ts`
-(Nino.Codegen, see [docs/codegen.md](../../docs/codegen.md)) writes the same files from a built assembly. The user
+[docs/spec/wire-format.md](../../docs/spec/wire-format.md)). It is not published on its own: `nino-gen` writes it
+next to the classes and codecs it generates for a project's `[NinoType]`s, after each build with the Nino.Codegen
+package (`<NinoCodegen Include="typescript" />`) or from a built assembly with the Nino.Codegen.Tool command
+(`nino-gen --lang ts`); see [docs/codegen.md](../../docs/codegen.md). The user
 documentation is on the [docs site](https://nino.xgamedev.net/en/docs/v4/advanced/typescript).
 
 ```ts
@@ -48,7 +49,7 @@ type-checks and runs the `node:test` suite in `test/`. `test/corpus.test.ts` run
 (`conformance/corpus`, or the directory in `NINO_CORPUS`) over the code nino-gen generates for its types
 (`test/generated`, checked by Nino.Codegen.Tests): every valid case read and written back byte for byte, every
 malicious case and every truncated prefix of a valid case rejected with a `NinoError`. After a change to the runtime
-that Nino.TypeScript embeds, also run the `Nino.TypeScript.Tests` .NET tests.
+that Nino.Codegen embeds, also run the `Nino.Codegen.Integration.Tests` .NET tests.
 
 ## Benchmarks
 

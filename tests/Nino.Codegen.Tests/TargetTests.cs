@@ -107,6 +107,70 @@ namespace Nino.Codegen.Tests
                 new[] { "--assembly", GeneratedFilesTests.Shapes, "--lang", "go", "--out", Path.GetTempPath(),
                     "--tag-names", "kebab" }, new StringWriter()));
             Assert.AreEqual(1, Program.Main(new[] { "--lang" }));
+            // Unknown options, options of another language and options given twice are errors, not ignored.
+            foreach (var extra in new[]
+                     {
+                         new[] { "--tag-name", "snake" }, new[] { "--serde" }, new[] { "--package", "a", "--package", "b" },
+                     })
+            {
+                var args = new System.Collections.Generic.List<string>
+                    { "--assembly", GeneratedFilesTests.Shapes, "--lang", "go", "--out", Path.GetTempPath() };
+                args.AddRange(extra);
+                Assert.ThrowsExactly<ArgumentException>(() => Program.Run(args.ToArray(), new StringWriter()),
+                    string.Join(" ", extra));
+            }
+
+            Assert.ThrowsExactly<ArgumentException>(() => Program.Run(
+                new[] { "--assembly", GeneratedFilesTests.Shapes, "--lang", "rust", "--out", Path.GetTempPath(),
+                    "--serde", "yes" }, new StringWriter()));
+
+            var help = new StringWriter();
+            Assert.AreEqual(0, Program.Run(new[] { "--help" }, help));
+            StringAssert.Contains(help.ToString(), "rust: [--serde] [--serde-names camel|snake|original] [--strings string|wide]");
+        }
+
+        [TestMethod]
+        public void FlagsTakeAnOptionalValue()
+        {
+            var (on, _) = Run("rust", "nino_types.rs", "--serde", "true");
+            var (flag, _) = Run("rust", "nino_types.rs", "--serde");
+            var (off, _) = Run("rust", "nino_types.rs", "--serde", "false");
+            var (none, _) = Run("rust", "nino_types.rs");
+            Assert.AreEqual(flag, on);
+            Assert.AreEqual(none, off);
+            Assert.AreNotEqual(none, on);
+        }
+
+        [TestMethod]
+        public void TheManifestDeletesFilesNoLongerWritten()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "nino-gen-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                // nino-ts's manifest, from a Nino.TypeScript build, is taken over.
+                Directory.CreateDirectory(dir);
+                File.WriteAllText(Path.Combine(dir, "Old.ts"), "");
+                File.WriteAllText(Path.Combine(dir, "Mine.ts"), "");
+                File.WriteAllText(Path.Combine(dir, ".nino-ts"), "Old.ts\nnino.ts\n");
+                string[] args = { "--assembly", GeneratedFilesTests.Shapes, "--lang", "ts", "--out", dir };
+                Assert.AreEqual(0, Program.Run(args, new StringWriter()));
+                CollectionAssert.AreEquivalent(new[] { ".nino-gen", "Mine.ts", "Nino.Codegen.Tests.ts", "nino.ts" },
+                    Array.ConvertAll(Directory.GetFiles(dir), f => Path.GetFileName(f)));
+                Assert.AreEqual("Nino.Codegen.Tests.ts\nnino.ts\n", File.ReadAllText(Path.Combine(dir, ".nino-gen")));
+
+                Assert.AreEqual(0, Program.Run(new[]
+                {
+                    "--assembly", GeneratedFilesTests.Shapes, "--lang", "ts", "--out", dir, "--name", "shapes.ts",
+                    "--runtime", "nino-serialization",
+                }, new StringWriter()));
+                CollectionAssert.AreEquivalent(new[] { ".nino-gen", "Mine.ts", "shapes.ts" },
+                    Array.ConvertAll(Directory.GetFiles(dir), f => Path.GetFileName(f)));
+            }
+            finally
+            {
+                if (Directory.Exists(dir))
+                    Directory.Delete(dir, true);
+            }
         }
 
         [TestMethod]

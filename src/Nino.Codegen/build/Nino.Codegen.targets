@@ -1,0 +1,110 @@
+<Project>
+
+    <!--
+        Nino.Codegen: after each compile, writes the project's [NinoType]s as TypeScript, Go or Rust (from the layouts the
+        Nino generator publishes in the assembly), once for each <NinoCodegen> item:
+
+          <ItemGroup>
+            <NinoCodegen Include="typescript" Out="ts/" Names="camel" ImportExtension=".js" />
+            <NinoCodegen Include="go" Out="go/model" Package="model" Tags="json" />
+            <NinoCodegen Include="rust" Out="rust/src/model" Serde="true" />
+          </ItemGroup>
+
+        The item is the language (typescript or ts, go, rust); each metadata is the nino-gen option of the same name
+        (docs/codegen.md): Out (relative to the project; default ts/, go/ or rust/ next to it), Name, and
+          typescript  Names, ImportExtension, Runtime
+          go          Package, Tags, TagNames
+          rust        Serde, SerdeNames, Strings
+        nino-gen checks them: an unknown value, or an option of another language, fails the build (NINOGEN001).
+
+          NinoCodegenTargetFramework  the target framework whose build writes them, when there are several (default:
+                                      the first)
+          NinoCodegenEnabled          false to turn it off
+
+        The NinoTypeScript* properties of Nino.TypeScript (4.0 release candidates) still work, with a warning
+        (NINOGEN003): without a NinoCodegen item they stand for <NinoCodegen Include="typescript" ... />.
+    -->
+    <PropertyGroup>
+        <NinoCodegenEnabled Condition="'$(NinoCodegenEnabled)' == ''">$(NinoTypeScriptEnabled)</NinoCodegenEnabled>
+        <NinoCodegenEnabled Condition="'$(NinoCodegenEnabled)' == ''">true</NinoCodegenEnabled>
+        <NinoCodegenTargetFramework Condition="'$(NinoCodegenTargetFramework)' == ''">$(NinoTypeScriptTargetFramework)</NinoCodegenTargetFramework>
+        <!-- The tool: nino-gen.dll in the package's tools/ (a test may point it at a build of src/Nino.Codegen). -->
+        <_NinoCodegenTool Condition="'$(_NinoCodegenTool)' == ''">$(MSBuildThisFileDirectory)../tools/nino-gen.dll</_NinoCodegenTool>
+        <_NinoCodegenHost Condition="'$(DOTNET_HOST_PATH)' != ''">$(DOTNET_HOST_PATH)</_NinoCodegenHost>
+        <_NinoCodegenHost Condition="'$(DOTNET_HOST_PATH)' == ''">dotnet</_NinoCodegenHost>
+    </PropertyGroup>
+
+    <Target Name="_NinoCodegenPrepare" AfterTargets="CoreCompile"
+            Condition="'$(NinoCodegenEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(BuildingProject)' != 'false'">
+        <PropertyGroup>
+            <_NinoCodegenFramework>$(NinoCodegenTargetFramework)</_NinoCodegenFramework>
+            <_NinoCodegenFramework Condition="'$(_NinoCodegenFramework)' == '' and '$(TargetFrameworks)' != ''">$([System.String]::Copy('$(TargetFrameworks)').Split(';')[0].Trim())</_NinoCodegenFramework>
+            <_NinoCodegenRun Condition="'$(_NinoCodegenFramework)' == '' or '$(_NinoCodegenFramework)' == '$(TargetFramework)'">true</_NinoCodegenRun>
+            <_NinoCodegenDirectory>$(IntermediateOutputPath)nino-gen/</_NinoCodegenDirectory>
+            <_NinoCodegenReferences>$(_NinoCodegenDirectory)references</_NinoCodegenReferences>
+            <_NinoCodegenLegacy Condition="'$(NinoTypeScriptOutput)$(NinoTypeScriptImportExtension)$(NinoTypeScriptNames)$(NinoTypeScriptTargetFramework)$(NinoTypeScriptEnabled)' != ''">true</_NinoCodegenLegacy>
+        </PropertyGroup>
+
+        <!-- Nino.TypeScript's properties, without an item: the item they stand for. -->
+        <Warning Condition="'$(_NinoCodegenRun)' == 'true' and '$(_NinoCodegenLegacy)' == 'true' and '@(NinoCodegen)' == ''"
+                 Code="NINOGEN003" File="$(MSBuildProjectFullPath)"
+                 Text="The NinoTypeScript* properties of Nino.TypeScript are deprecated: declare &lt;NinoCodegen Include=&quot;typescript&quot; Out=&quot;...&quot; Names=&quot;...&quot; ImportExtension=&quot;...&quot; /&gt; instead (NinoTypeScriptEnabled and NinoTypeScriptTargetFramework are NinoCodegenEnabled and NinoCodegenTargetFramework). See https://nino.xgamedev.net/en/docs/v4/advanced/codegen"/>
+        <Warning Condition="'$(_NinoCodegenRun)' == 'true' and '$(_NinoCodegenLegacy)' == 'true' and '@(NinoCodegen)' != ''"
+                 Code="NINOGEN003" File="$(MSBuildProjectFullPath)"
+                 Text="The NinoTypeScript* properties of Nino.TypeScript are ignored next to &lt;NinoCodegen&gt; items: remove them (NinoTypeScriptEnabled and NinoTypeScriptTargetFramework are NinoCodegenEnabled and NinoCodegenTargetFramework)."/>
+        <ItemGroup Condition="'$(_NinoCodegenRun)' == 'true' and '$(_NinoCodegenLegacy)' == 'true' and '@(NinoCodegen)' == ''">
+            <NinoCodegen Include="typescript">
+                <Out>$(NinoTypeScriptOutput)</Out>
+                <Names>$(NinoTypeScriptNames)</Names>
+                <ImportExtension>$(NinoTypeScriptImportExtension)</ImportExtension>
+            </NinoCodegen>
+        </ItemGroup>
+        <Warning Condition="'$(_NinoCodegenRun)' == 'true' and '@(NinoCodegen)' == ''" Code="NINOGEN004"
+                 File="$(MSBuildProjectFullPath)"
+                 Text="Nino.Codegen has nothing to write: add an item such as &lt;NinoCodegen Include=&quot;typescript&quot; Out=&quot;ts/&quot; /&gt; (typescript, go or rust), or set NinoCodegenEnabled to false. See https://nino.xgamedev.net/en/docs/v4/advanced/codegen"/>
+
+        <!--
+            One run per item. Each metadata is the nino-gen option of the same name, passed only when set; nino-gen
+            checks the values. Its arguments go to a file of their own, so a changed option runs it again.
+        -->
+        <ItemGroup Condition="'$(_NinoCodegenRun)' == 'true'">
+            <_NinoCodegenItem Include="@(NinoCodegen)"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Out)' == '' and '%(_NinoCodegenItem.Identity)' == 'typescript'" Out="ts"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Out)' == ''" Out="%(_NinoCodegenItem.Identity)"/>
+            <_NinoCodegenItem NinoOut="$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '%(_NinoCodegenItem.Out)'))).TrimEnd('/').TrimEnd('\'))"/>
+            <_NinoCodegenItem NinoArgs="--lang &quot;%(_NinoCodegenItem.Identity)&quot; --out &quot;%(_NinoCodegenItem.NinoOut)&quot;"
+                 NinoKey="$([MSBuild]::StableStringHash('%(_NinoCodegenItem.Identity)|%(_NinoCodegenItem.NinoOut)'))"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Name)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --name &quot;%(_NinoCodegenItem.Name)&quot;"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Names)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --names &quot;%(_NinoCodegenItem.Names)&quot;"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.ImportExtension)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --import-extension &quot;%(_NinoCodegenItem.ImportExtension)&quot;"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Runtime)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --runtime &quot;%(_NinoCodegenItem.Runtime)&quot;"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Package)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --package &quot;%(_NinoCodegenItem.Package)&quot;"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Tags)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --tags &quot;%(_NinoCodegenItem.Tags)&quot;"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.TagNames)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --tag-names &quot;%(_NinoCodegenItem.TagNames)&quot;"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Serde)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --serde &quot;%(_NinoCodegenItem.Serde)&quot;"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.SerdeNames)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --serde-names &quot;%(_NinoCodegenItem.SerdeNames)&quot;"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Strings)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --strings &quot;%(_NinoCodegenItem.Strings)&quot;"/>
+            <_NinoCodegenItem NinoOptions="$(_NinoCodegenDirectory)%(_NinoCodegenItem.NinoKey).options" NinoStamp="$(_NinoCodegenDirectory)%(_NinoCodegenItem.NinoKey).stamp"/>
+        </ItemGroup>
+
+        <MakeDir Condition="'$(_NinoCodegenRun)' == 'true'" Directories="$(_NinoCodegenDirectory)"/>
+        <WriteLinesToFile Condition="'$(_NinoCodegenRun)' == 'true'" File="$(_NinoCodegenReferences)"
+                          Lines="@(ReferencePath->'%(FullPath)')" Overwrite="true" WriteOnlyWhenDifferent="true"/>
+        <WriteLinesToFile Condition="'$(_NinoCodegenRun)' == 'true' and '@(_NinoCodegenItem)' != ''"
+                          File="%(_NinoCodegenItem.NinoOptions)" Lines="%(_NinoCodegenItem.NinoArgs)" Overwrite="true"
+                          WriteOnlyWhenDifferent="true"/>
+        <ItemGroup Condition="'$(_NinoCodegenRun)' == 'true'">
+            <FileWrites Include="$(_NinoCodegenReferences);@(_NinoCodegenItem->'%(NinoOptions)');@(_NinoCodegenItem->'%(NinoStamp)')"/>
+        </ItemGroup>
+    </Target>
+
+    <!-- Each item runs again only when the assembly, its references, the tool or the item's options change. -->
+    <Target Name="NinoCodegen" AfterTargets="_NinoCodegenPrepare"
+            Condition="'$(_NinoCodegenRun)' == 'true' and '@(_NinoCodegenItem)' != ''"
+            Inputs="@(IntermediateAssembly);$(_NinoCodegenReferences);$(_NinoCodegenTool);%(_NinoCodegenItem.NinoOptions)"
+            Outputs="%(_NinoCodegenItem.NinoStamp)">
+        <Exec Command="&quot;$(_NinoCodegenHost)&quot; &quot;$(_NinoCodegenTool)&quot; --assembly &quot;@(IntermediateAssembly->'%(FullPath)')&quot; --references &quot;$(_NinoCodegenReferences)&quot; %(_NinoCodegenItem.NinoArgs)"/>
+        <Touch Files="%(_NinoCodegenItem.NinoStamp)" AlwaysCreate="true"/>
+    </Target>
+
+</Project>

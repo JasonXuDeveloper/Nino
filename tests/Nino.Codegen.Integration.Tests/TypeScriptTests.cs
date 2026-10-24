@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 using Samples;
 
-namespace Nino.TypeScript.Tests
+namespace Nino.Codegen.Integration.Tests
 {
     /// <summary>
     /// Generates the TypeScript of <see cref="Samples"/>, then has Node read the bytes .NET wrote and write them back:
@@ -24,21 +24,12 @@ namespace Nino.TypeScript.Tests
         public static void Generate(TestContext _)
         {
             _directory = Path.Combine(Path.GetTempPath(), "nino-ts-" + Guid.NewGuid().ToString("N"));
-            var console = Console.Out;
             using var log = new StringWriter();
-            Console.SetOut(log);
-            try
+            Assert.AreEqual(0, Nino.Codegen.Program.Run(new[]
             {
-                Assert.AreEqual(0, Program.Run(new[]
-                {
-                    "--assembly", typeof(Player).Assembly.Location, "--out", _directory, "--import-extension", ".ts",
-                }));
-            }
-            finally
-            {
-                Console.SetOut(console);
-            }
-
+                "--assembly", typeof(Player).Assembly.Location, "--lang", "ts", "--out", _directory,
+                "--import-extension", ".ts",
+            }, log));
             _output = log.ToString();
             File.Copy(Path.Combine(AppContext.BaseDirectory, "harness.ts"), Path.Combine(_directory, "harness.ts"));
         }
@@ -128,8 +119,8 @@ namespace Nino.TypeScript.Tests
         [TestMethod]
         public void LeavesOutWhatItCannotWrite()
         {
-            StringAssert.Contains(_output, "warning NINOTS002: Samples.Node is not written to TypeScript: reference tracking");
-            string types = File.ReadAllText(Path.Combine(_directory, "Nino.TypeScript.Tests.ts"));
+            StringAssert.Contains(_output, "warning NINOGEN002: Samples.Node is not written to TypeScript: reference tracking");
+            string types = File.ReadAllText(Path.Combine(_directory, "Nino.Codegen.Integration.Tests.ts"));
             Assert.IsFalse(types.Contains("class Node"));
             StringAssert.Contains(types, "export class Player {");
             StringAssert.Contains(File.ReadAllText(Path.Combine(_directory, "nino.ts")), "export const ninoVersion = \"4.");
@@ -140,7 +131,7 @@ namespace Nino.TypeScript.Tests
         {
             // Every layout says whether its type is deferrable: nothing is guessed.
             Assert.IsFalse(_output.Contains("deferrable"), _output);
-            string types = File.ReadAllText(Path.Combine(_directory, "Nino.TypeScript.Tests.ts"));
+            string types = File.ReadAllText(Path.Combine(_directory, "Nino.Codegen.Integration.Tests.ts"));
             // A record is built by its constructor: never deferred, nested in place up to 512 bodies.
             int record = types.IndexOf("function readRecordChain(", StringComparison.Ordinal);
             Assert.IsTrue(record >= 0);
@@ -428,7 +419,7 @@ namespace Nino.TypeScript.Tests
             {
                 "--strict", "--noEmit", "--noUnusedLocals", "--noUnusedParameters", "--target", "es2022",
                 "--module", "nodenext", "--allowImportingTsExtensions", "--skipLibCheck",
-                "nino.ts", "Nino.TypeScript.Tests.ts", "fetch.ts",
+                "nino.ts", "Nino.Codegen.Integration.Tests.ts", "fetch.ts",
             })
             {
                 WorkingDirectory = _directory,
@@ -438,7 +429,7 @@ namespace Nino.TypeScript.Tests
             // The bytes serialize returns are a fetch body as they are (TypeScript 5.7+ types the buffer).
             File.WriteAllText(Path.Combine(_directory, "fetch.ts"),
                 "import { serialize } from \"./nino.ts\";\n" +
-                "import { Player, PlayerCodec } from \"./Nino.TypeScript.Tests.ts\";\n" +
+                "import { Player, PlayerCodec } from \"./Nino.Codegen.Integration.Tests.ts\";\n" +
                 "export const body: BodyInit = serialize(PlayerCodec, new Player());\n");
             Process tsc;
             try

@@ -1,36 +1,55 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+    <!--
+        nino-gen: the layouts, the IR, the TypeScript, Go and Rust targets with their templates, and the command line
+        (Program.cs, the options in Options.cs). Packed as Nino.Codegen, the build package: build/Nino.Codegen.targets
+        runs this assembly from tools/ after each compile, for the project's <NinoCodegen> items. The same command line
+        is the dotnet tool Nino.Codegen.Tool (src/Nino.Codegen.Tool), which references this project.
+    -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <!-- Run with whatever .NET runtime is installed, 8.0 or later. -->
+        <!-- Run with whatever .NET runtime is installed (the SDK's in a build), 8.0 or later. -->
         <TargetFramework>net8.0</TargetFramework>
         <RollForward>LatestMajor</RollForward>
         <AssemblyName>nino-gen</AssemblyName>
         <RootNamespace>Nino.Codegen</RootNamespace>
+        <!-- Run as `dotnet nino-gen.dll` by the targets, and referenced by Nino.Codegen.Tool: no native launcher. -->
+        <UseAppHost>false</UseAppHost>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <AnalysisLevel>latest-recommended</AnalysisLevel>
         <!-- Enum members named after the values they stand for (String, Object, Decimal...), types named XEnum. -->
         <NoWarn>$(NoWarn);CA1720;CA1711</NoWarn>
         <PackageId>Nino.Codegen</PackageId>
-        <Description>nino-gen: writes TypeScript, Go and Rust types and codecs that read and write the bytes a .NET assembly's [NinoType]s are serialized to, from the layouts the Nino generator published in the built assembly.</Description>
-        <PackageTags>Nino;Serialization;Binary;TypeScript;Go;Rust;CodeGeneration</PackageTags>
-        <PackAsTool>true</PackAsTool>
-        <ToolCommandName>nino-gen</ToolCommandName>
+        <Description>Nino.Codegen: after each build, writes TypeScript, Go or Rust types and codecs that read and write the bytes the project's [NinoType]s are serialized to, from the layouts the Nino generator published in the built assembly. Declare what to write with &lt;NinoCodegen Include="typescript|go|rust" Out="..." /&gt; items. The same generator as a command line is the dotnet tool Nino.Codegen.Tool (nino-gen).</Description>
+        <PackageTags>Nino;Serialization;Binary;TypeScript;JavaScript;Go;Rust;CodeGeneration;MSBuild</PackageTags>
+        <!-- A build tool: no lib/ assets, nothing flows to the project's dependents. -->
+        <DevelopmentDependency>true</DevelopmentDependency>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+        <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
-        <InternalsVisibleTo Include="Nino.TypeScript"/>
-        <InternalsVisibleTo Include="Nino.TypeScript.Tests"/>
         <InternalsVisibleTo Include="Nino.Codegen.Tests"/>
+        <InternalsVisibleTo Include="Nino.Codegen.Integration.Tests"/>
         <!-- The templates, by their path under Templates/ (typescript/types.sbn). -->
         <EmbeddedResource Include="Templates\**\*.sbn" LogicalName="templates/%(RecursiveDir)%(Filename)%(Extension)"/>
         <EmbeddedResource Include="..\..\runtimes\typescript\src\nino.ts" LogicalName="nino.ts" Link="Runtime\nino.ts"/>
+        <None Include="build\Nino.Codegen.targets" Pack="true" PackagePath="build\"/>
     </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Scriban"/>
         <PackageReference Include="System.Reflection.MetadataLoadContext"/>
     </ItemGroup>
+
+    <!-- The tool and every assembly it loads go to tools/ in the package, where the targets run it from. -->
+    <Target Name="PackTool" BeforeTargets="_GetPackageFiles">
+        <ItemGroup>
+            <None Include="$(OutputPath)*.dll;$(OutputPath)nino-gen.runtimeconfig.json;$(OutputPath)nino-gen.deps.json"
+                  Pack="true" PackagePath="tools"/>
+        </ItemGroup>
+    </Target>
 
 </Project>

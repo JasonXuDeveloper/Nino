@@ -1,8 +1,8 @@
-// Nino runtime for TypeScript (5.7 or later, for the typed arrays' buffer types), written by Nino.TypeScript next to the generated types: reads and writes the bytes
+// Nino runtime for TypeScript (5.7 or later, for the typed arrays' buffer types), written by nino-gen (Nino.Codegen) next to the generated types: reads and writes the bytes
 // Nino writes in .NET. Little-endian and unaligned; lengths are int32, -1 = null. Do not edit: it is overwritten on
 // every build.
 
-/** The Nino.TypeScript version that wrote this file; the generated types expect the same one. */
+/** The Nino version that wrote this file; the generated types expect the same one. */
 export const ninoVersion = "__NINO_VERSION__";
 
 /** Reads and writes one type's values. Generated for every [NinoType]. */

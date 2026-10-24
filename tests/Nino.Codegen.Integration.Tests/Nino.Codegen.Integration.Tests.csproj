@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+    <!-- Nino.Codegen in builds: TypeScriptTests runs the TypeScript generated for Samples.cs under Node against the bytes
+         .NET writes; BuildTests builds scratch projects with build/Nino.Codegen.targets, for every language. -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>disable</ImplicitUsings>
@@ -15,13 +17,18 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj"/>
-        <ProjectReference Include="..\..\src\Nino.TypeScript\Nino.TypeScript.csproj"/>
+        <ProjectReference Include="..\..\src\Nino.Codegen\Nino.Codegen.csproj"/>
         <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
                           OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
     <ItemGroup>
         <None Include="harness.ts" CopyToOutputDirectory="PreserveNewest"/>
+        <!-- What the scratch projects of BuildTests build with: nino-gen and the generator, as built here. -->
+        <AssemblyMetadata Include="NinoCodegenTool"
+                          Value="$(MSBuildThisFileDirectory)..\..\src\Nino.Codegen\bin\$(Configuration)\net8.0\nino-gen.dll"/>
+        <AssemblyMetadata Include="NinoGenerator"
+                          Value="$(MSBuildThisFileDirectory)..\..\src\Nino.Generator.Roslyn4.12\bin\$(Configuration)\netstandard2.0\Nino.Generator.dll"/>
     </ItemGroup>
 
     <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props"/>

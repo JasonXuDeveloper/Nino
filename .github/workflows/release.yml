@@ -138,7 +138,7 @@ jobs:
       id-token: write # the OIDC token NuGet exchanges for a temporary API key
     env:
       # The package ids that are packed, checked and pushed (Nino.Core's is Nino.Serialization).
-      PACKAGE_IDS: Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino.TypeScript Nino.Codegen Nino
+      PACKAGE_IDS: Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino.Codegen Nino.Codegen.Tool Nino
     steps:
       - uses: actions/checkout@v7
         with:
@@ -155,7 +155,7 @@ jobs:
         working-directory: .
         run: |
           dotnet build --configuration Release
-          for proj in Nino.Core Nino.Generator Nino.Immutable Nino.AspNetCore Nino.TypeScript Nino.Codegen Nino; do
+          for proj in Nino.Core Nino.Generator Nino.Immutable Nino.AspNetCore Nino.Codegen Nino.Codegen.Tool Nino; do
             dotnet pack "src/$proj/$proj.csproj" --no-build --configuration Release --output artifacts
           done
           ls artifacts

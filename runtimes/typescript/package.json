@@ -1,7 +1,7 @@
 {
   "name": "nino-serialization",
   "private": true,
-  "description": "The TypeScript runtime of Nino (src/nino.ts), which Nino.TypeScript writes next to the generated code, and its tests.",
+  "description": "The TypeScript runtime of Nino (src/nino.ts), which nino-gen (Nino.Codegen) writes next to the generated code, and its tests.",
   "license": "MIT",
   "type": "module",
   "engines": {
