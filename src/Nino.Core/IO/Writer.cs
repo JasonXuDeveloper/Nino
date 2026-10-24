@@ -441,6 +441,15 @@ namespace Nino.Core
             int lengthPosition)
         {
             owner.Index = pos;
+            // Only the length to patch when nothing was deferred inside the region, as when references are tracked
+            // and no body nests below NinoDepth.Inline (the context exists for the references): no writer to make.
+            var d = context.Deferrals;
+            if (d == null || d.Region.IsEmpty)
+            {
+                NinoUnsafe.Write(ref owner.Buffer[lengthPosition], pos - lengthPosition - NinoWire.LengthSize);
+                return pos;
+            }
+
             var writer = new Writer(owner) { Depth = depth, _context = context };
             writer.EndOuterRegionCore(lengthPosition);
             return writer.Pos;
