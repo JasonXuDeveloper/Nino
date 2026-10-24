@@ -9,6 +9,7 @@
     "Conformance.Targets.BoolValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x65FCB927; deferrable=true; members=Value:bool:raw(1)"
   },
   "dotnet": {
-    "outcome": "returned"
+    "outcome": "error",
+    "exception": "NinoDataException"
   }
 }

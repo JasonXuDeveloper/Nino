@@ -13,6 +13,6 @@
   },
   "dotnet": {
     "outcome": "error",
-    "exception": "InvalidOperationException"
+    "exception": "NinoDataException"
   }
 }

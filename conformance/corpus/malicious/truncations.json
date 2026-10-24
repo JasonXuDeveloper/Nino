@@ -10,7 +10,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 63
+          "NinoDataException": 63
         }
       }
     },
@@ -21,7 +21,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 1
+          "NinoDataException": 1
         }
       }
     },
@@ -32,7 +32,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 15
+          "NinoDataException": 15
         }
       }
     },
@@ -43,7 +43,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 56
+          "NinoDataException": 56
         }
       }
     },
@@ -54,7 +54,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 35
+          "NinoDataException": 35
         }
       }
     },
@@ -65,7 +65,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 56
+          "NinoDataException": 56
         }
       }
     },
@@ -76,7 +76,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 34
+          "NinoDataException": 34
         }
       }
     },
@@ -87,7 +87,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 23
+          "NinoDataException": 23
         }
       }
     },
@@ -98,7 +98,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 37
+          "NinoDataException": 37
         }
       }
     },
@@ -109,7 +109,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 43
+          "NinoDataException": 43
         }
       }
     },
@@ -120,7 +120,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 69
+          "NinoDataException": 69
         }
       }
     },
@@ -131,7 +131,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 43
+          "NinoDataException": 43
         }
       }
     },
@@ -142,7 +142,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 42
+          "NinoDataException": 42
         }
       }
     },
@@ -153,7 +153,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 387
+          "NinoDataException": 387
         }
       }
     },
@@ -164,7 +164,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 278
+          "NinoDataException": 278
         }
       }
     },
@@ -175,7 +175,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 241
+          "NinoDataException": 241
         }
       }
     },
@@ -186,7 +186,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 57
+          "NinoDataException": 57
         }
       }
     },
@@ -197,7 +197,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 17
+          "NinoDataException": 17
         }
       }
     },
@@ -208,7 +208,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 16
+          "NinoDataException": 16
         }
       }
     },
@@ -219,7 +219,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 32
+          "NinoDataException": 32
         }
       }
     },
@@ -230,7 +230,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 12
+          "NinoDataException": 12
         }
       }
     },
@@ -241,7 +241,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 32
+          "NinoDataException": 32
         }
       }
     },
@@ -252,7 +252,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 470
+          "NinoDataException": 470
         }
       }
     },
@@ -263,7 +263,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 216
+          "NinoDataException": 216
         }
       }
     },
@@ -274,7 +274,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 40
+          "NinoDataException": 40
         }
       }
     },
@@ -285,7 +285,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 40
+          "NinoDataException": 40
         }
       }
     },
@@ -296,7 +296,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 164
+          "NinoDataException": 164
         }
       }
     },
@@ -307,7 +307,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 64
+          "NinoDataException": 64
         }
       }
     },
@@ -318,7 +318,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 289
+          "NinoDataException": 289
         }
       }
     },
@@ -329,7 +329,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 19
+          "NinoDataException": 19
         }
       }
     },
@@ -340,7 +340,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 651
+          "NinoDataException": 651
         }
       }
     },
@@ -351,7 +351,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 1174
+          "NinoDataException": 1174
         }
       }
     },
@@ -362,7 +362,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 3238
+          "NinoDataException": 3238
         }
       }
     },
@@ -373,7 +373,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 1309
+          "NinoDataException": 1309
         }
       }
     },
@@ -384,7 +384,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 1030
+          "NinoDataException": 1030
         }
       }
     },
@@ -396,7 +396,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 97
+          "NinoDataException": 97
         }
       }
     },
@@ -407,7 +407,7 @@
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "InvalidOperationException": 51
+          "NinoDataException": 51
         }
       }
     }

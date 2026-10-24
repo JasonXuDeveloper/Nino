@@ -9,6 +9,7 @@
     "Conformance.TolerantChain": "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x18DAD008; deferrable=true; members=Value:int:raw(4);Next:Conformance.TolerantChain:type(Conformance.TolerantChain)"
   },
   "dotnet": {
-    "outcome": "returned"
+    "outcome": "error",
+    "exception": "NinoDataException"
   }
 }
