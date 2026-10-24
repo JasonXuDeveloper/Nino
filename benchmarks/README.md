@@ -207,19 +207,76 @@ method listed alone, in code the change does not reach, is that variation (dump 
 `DOTNET_EnableAVX2=0` for SSSE3-only code. It shows x64 (or whatever the machine is); the
 cross JIT above shows ARM64.
 
-## TypeScript
+## Runtimes outside .NET
 
-`runtimes/typescript/bench/` measures the TypeScript that nino-gen generates against `JSON.stringify` and `JSON.parse`, in
-Node and in headless Chromium (Playwright):
+Each runtime is benchmarked with its language's standard tool, against Protocol Buffers and MessagePack in every
+case, plus each language's usual serializers. Every case has a value of the same data for each serializer (the
+protobuf messages mirror the types field for field), and every serializer is checked to read back what it wrote
+before it is timed. `report.yml`'s `runtimes` job runs each as below on one runner and `runtimes_report.py` turns its
+output into the release's section: a row per case and operation, a column per serializer (Nino first), and the
+encoded sizes. Local numbers are for comparing changes back to back on one machine; never publish them.
+
+The string cases are the same in all three: 1,000 short ASCII strings (`"string 0"` to `"string 999"`), and 1,000
+strings of ASCII, Latin-1 (`"crème brûlée i"`, one byte a char in Nino) and other text (`"строка 字符串 🎉 i"`,
+UTF-16 in Nino, with a char outside the BMP) in turn.
+
+### TypeScript
+
+`runtimes/typescript/bench/` measures the TypeScript that nino-gen generates against Protocol Buffers (protobuf-es,
+code generated from `proto/bench.proto`), MessagePack (msgpackr) and `JSON`, in Node and in headless Chromium
+(Playwright), timed by [tinybench](https://github.com/tinylibs/tinybench) (warm-up, then samples for a set time; the
+mean, its relative margin of error, p75/p99 and passes per second):
 
 ```sh
 runtimes/typescript/bench/run.sh           # every scenario
 runtimes/typescript/bench/run.sh lookup    # the scenarios whose data file starts with "lookup"
+NINO_BENCH_TIME=300 runtimes/typescript/bench/run.sh strings   # 300 ms per task instead of 1,000
 ```
 
 `Program.cs` declares the types and writes each scenario's values, serialized by Nino in .NET, to
 `bench/out/data`; `nino-gen --lang ts` generates their TypeScript into `bench/gen`. Before a scenario is timed, every
-value is read and written back in TypeScript and must give exactly the bytes .NET wrote. JSON gets the same data as
-plain JSON (64-bit integers as strings, maps as objects) and is not converted back to `bigint` or `Map`, so it does
-less work than Nino. Each time is the median of 15 samples of at least 40 ms. It needs the .NET 10 SDK, Node 22.18+
-(which runs TypeScript directly), tsc 5.7+ and Playwright with Chromium.
+value is read and written back in TypeScript and must give exactly the bytes .NET wrote, and every protobuf message
+must read back equal. A task is one pass over all of a scenario's values. MessagePack (standard maps, no msgpackr
+records) gets the values Nino read, as they are (classes and `Map`s as maps, `bigint`s as 64-bit integers, read back
+as `bigint`); JSON gets them as plain JSON (64-bit integers as strings, maps as objects) and is not converted back to
+`bigint` or `Map`, so it does less work than Nino. Neither carries the type of a polymorphic value (`Zoo`, `Player.Pet`),
+which Nino and protobuf (a `oneof`) do. The bench's dependencies are in its own `package.json` and lockfile
+(`npm ci`, which run.sh does); `npm run generate:proto` regenerates `proto/bench_pb.ts` (buf and protoc-gen-es, no
+protoc). It needs the .NET 10 SDK, Node 22.18+ (which runs TypeScript directly) and, for the Chromium run, Playwright
+with Chromium; the browser gets the bench bundled by esbuild. The release's section is the Node run
+(`NINO_BENCH_JSON`).
+
+### Go
+
+`runtimes/go/bench` (a module of its own: the runtime's has no dependencies) uses `testing.B` (`b.Loop`,
+`ReportAllocs`, `SetBytes`, and the encoded size as the `wire-B` metric), summarized by benchstat:
+
+```sh
+cd runtimes/go/bench
+go test -run='^$' -bench=. -benchmem -count=6 . | tee bench.txt
+go run golang.org/x/perf/cmd/benchstat@latest bench.txt
+go test -run='^$' -bench='/^strings' -benchmem -count=6 .   # one case: Benchmark{Serialize,Deserialize}/<case>/<serializer>
+```
+
+The cases are the .NET benchmark's `SimpleClass`, a list of 100 of them and the two string cases; the serializers
+are codecs in the shape nino-gen generates (`Nino`), the struct tags (`NinoTags`), Protocol Buffers
+(google.golang.org/protobuf, `benchpb/bench.proto`, `MarshalAppend` into a reused buffer), MessagePack
+(vmihailenco/msgpack, one reused encoder), encoding/json and gob. `TestRoundTrip` checks each and logs the sizes.
+`benchpb/bench.pb.go` is generated: `protoc --go_out=. --go_opt=paths=source_relative benchpb/bench.proto`, or
+`npx @bufbuild/buf generate` with `protoc-gen-go` on `PATH` (see the `.proto`). The release job runs six counts and
+`benchstat -format csv`.
+
+### Rust
+
+`runtimes/rust/bench` uses criterion: a group per case, with the number of values as its throughput, `black_box` on
+every input and output, against Protocol Buffers (prost, messages derived in `compare.rs`: no protoc), MessagePack
+(rmp-serde), bincode, postcard and serde_json:
+
+```sh
+cd runtimes/rust
+cargo bench -p nino-bench                          # every group
+cargo bench -p nino-bench -- strings-mixed-1000    # one group
+```
+
+It prints each case's encoded sizes; the release job keeps that output and criterion's estimates
+(`target/criterion/**/new/estimates.json`) for the section.

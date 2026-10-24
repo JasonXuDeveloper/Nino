@@ -651,6 +651,8 @@ jobs:
           dotnet bin/Release/net10.0/Bench.dll out/data
           dotnet ../../../src/Nino.Codegen/bin/Release/net8.0/nino-gen.dll --assembly bin/Release/net10.0/Bench.dll \
             --lang ts --out gen --import-extension .ts
+          # tinybench, protobuf-es and msgpackr (releases before them compared with JSON only, without a lockfile).
+          if [[ -f package-lock.json ]]; then npm ci --no-audit --no-fund; fi
           NINO_BENCH_JSON="$RUNNER_TEMP/bench.json" node --no-warnings node.ts out/data
           python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" typescript "$RUNNER_TEMP/bench.json" \
             "$TAG_NAME" > "$RUNNER_TEMP/section.md"
@@ -660,8 +662,11 @@ jobs:
         working-directory: release/runtimes/go/bench
         run: |
           set -euo pipefail
-          go test -run '^$' -bench . -benchmem -count 1 . | tee "$RUNNER_TEMP/bench.txt"
-          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" go "$RUNNER_TEMP/bench.txt" \
+          # Six runs of each benchmark, summarized by benchstat (medians and their confidence intervals).
+          go install golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e
+          go test -run '^$' -bench . -benchmem -count 6 . | tee "$RUNNER_TEMP/bench.txt"
+          "$(go env GOPATH)/bin/benchstat" -format csv "$RUNNER_TEMP/bench.txt" > "$RUNNER_TEMP/bench.csv"
+          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" go "$RUNNER_TEMP/bench.csv" \
             "$TAG_NAME" > "$RUNNER_TEMP/section.md"
 
       - name: Run the Rust benchmark
