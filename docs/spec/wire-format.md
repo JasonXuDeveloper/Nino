@@ -312,7 +312,8 @@ The canonical layout is the one CoreCLR uses for the struct on a 64-bit host. Im
 follows (`NinoLayoutCore.Measure`, also given in [Appendix B.2](#b2-canonical-layout)):
 
 - **Leaves** (size, alignment): 1-byte types (1, 1). 2-byte types (2, 2). 4-byte types (4, 4). 8-byte primitives,
-  `DateTime` and `TimeSpan` (8, 8). `decimal` (16, 8). `Guid` (16, 4). Enums are their underlying type.
+  `DateTime` and `TimeSpan` (8, 8). `decimal` (16, 8). `Guid` (16, 4). `Int128` and `UInt128` (16, 16). Enums are
+  their underlying type.
   `nint`/`nuint`/pointers are (P, P), where P is the host's pointer size (§10, item 3).
 - **Structs**: fields in declaration order. The effective alignment of a field is `min(field alignment, Pack)`,
   where `Pack` comes from `[StructLayout(Pack = n)]` (0 means no limit).
@@ -336,12 +337,14 @@ follows (`NinoLayoutCore.Measure`, also given in [Appendix B.2](#b2-canonical-la
 | `Explicit, Size = 12 { [0] int A; [8] short B; }` = `{1, 2}` | `01 00 00 00 00 00 00 00 02 00 00 00` (12) |
 | `{ int A; decimal D; }` = `{1, 1m}` | `01 00 00 00 00 00 00 00 \| 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00` (24) |
 | `{ bool A; int B; }` = `{true, 2}` | `01 00 00 00 02 00 00 00` (8) |
+| `{ byte A; Int128 B; }` = `{1, -2}` | `01`, 15 × `00`, `FE`, 15 × `FF` (32) |
 | `[NinoType] { int X; byte Y; }` = `{1, 2}` | `01 00 00 00 02 00 00 00` (8) |
 
 The bytes of a raw value are copied as they are. Readers MUST NOT normalize them: a `bool` field holding `2` is
 written as `02`.
 
-Runtimes whose memory layout differs (x86 aligns 8-byte primitives to 4; Mono and IL2CPP align `decimal` to 4) convert
+Runtimes whose memory layout differs (x86 aligns 8-byte primitives to 4; Mono and IL2CPP align `decimal` to 4; .NET 7
+aligns `Int128` to 8) convert
 each value field by field into the canonical layout. The bytes on the wire are the same on every runtime.
 
 ---
@@ -1290,7 +1293,8 @@ function ninoHash(s: sequence of UTF-16 code units) -> i32:
 ```text
 function measure(t) -> (size, align, leaves):
     if t is a leaf: return (leafSize(t), leafAlign(t), [(0, leafSize(t))])
-        leaf sizes / aligns: 1/1, 2/2, 4/4, 8-byte primitives 8/8, decimal 16/8, Guid 16/4, pointer P/P
+        leaf sizes / aligns: 1/1, 2/2, 4/4, 8-byte primitives 8/8, decimal 16/8, Guid 16/4, Int128/UInt128 16/16,
+        pointer P/P
     fields = instance fields of t in declaration order
     if layoutKind(t) == Auto and count(fields) > 1: fail
     pack = Pack(t) if Pack(t) > 0 else infinity

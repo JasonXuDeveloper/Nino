@@ -44,6 +44,51 @@ namespace Nino.Core
         /// <summary>Alignment of <c>decimal</c> inside structs on this runtime.</summary>
         private static readonly int DecimalAlign = Unsafe.SizeOf<DecimalProbe>() - 16;
 
+        /// <summary>
+        /// Alignment of <c>Int128</c> and <c>UInt128</c> inside structs on this runtime: 16 on .NET 8 and later (also
+        /// 32-bit and Mono), 8 on .NET 7. The canonical layout aligns them to 16, as CoreCLR does on 64-bit.
+        /// </summary>
+        internal static readonly int WideAlign = ProbeWideAlign();
+
+#if NET8_0_OR_GREATER
+        private struct WideProbe
+        {
+#pragma warning disable CS0649
+            public byte A;
+            public Int128 B;
+#pragma warning restore CS0649
+        }
+
+        private static int ProbeWideAlign() => Unsafe.SizeOf<WideProbe>() - 16;
+#else
+        // The netstandard builds name no Int128 (it exists from .NET 7): the probe struct is made for the runtime's own.
+        private struct WideProbe<T>
+        {
+#pragma warning disable CS0649
+            public byte A;
+            public T B;
+#pragma warning restore CS0649
+        }
+
+        private static int ProbeWideAlign()
+        {
+            try
+            {
+                var wide = typeof(object).Assembly.GetType("System.Int128");
+                if (wide == null)
+                    return 16; // no Int128 on this runtime: nothing is laid out with it
+                return (int)typeof(NinoLayout).GetMethod(nameof(WideProbeSize), BindingFlags.NonPublic | BindingFlags.Static)!
+                    .MakeGenericMethod(wide).Invoke(null, null)! - 16;
+            }
+            catch
+            {
+                return 0; // unknown: a struct with one is not laid out (Measure fails, the runtime size is used)
+            }
+        }
+
+        private static int WideProbeSize<T>() => Unsafe.SizeOf<WideProbe<T>>();
+#endif
+
         private static readonly ConcurrentDictionary<Type, Info> Cache = NinoUnload.Cache<Info>();
 
         internal sealed class Info
@@ -89,14 +134,16 @@ namespace Nino.Core
         }
 
         /// <summary>Layout info as a runtime with the given alignments would see it (exposed for tests).</summary>
-        internal static Info Compute(Type type, int runtimeSize, int longAlign, int decimalAlign)
+        internal static Info Compute(Type type, int runtimeSize, int longAlign, int decimalAlign, int wideAlign = 0)
         {
             var wire = new List<NinoLayoutCore.Leaf>();
             var memory = new List<NinoLayoutCore.Leaf>();
+            if (wideAlign == 0)
+                wideAlign = WideAlign;
             if (!NinoLayoutCore.Measure<Type, RuntimeView>(default, type, 8, 8, IntPtr.Size, 0, wire,
-                    out int wireSize, out int wireAlign) ||
+                    out int wireSize, out int wireAlign, null, 16) ||
                 !NinoLayoutCore.Measure<Type, RuntimeView>(default, type, longAlign, decimalAlign, IntPtr.Size, 0,
-                    memory, out int memorySize, out _) ||
+                    memory, out int memorySize, out _, null, wideAlign) ||
                 (runtimeSize >= 0 && memorySize != runtimeSize) || wire.Count != memory.Count)
                 return new Info { Size = runtimeSize };
 
@@ -177,6 +224,11 @@ namespace Nino.Core
                     return NinoLeaf.Guid;
                 if (type.IsPointer || type == typeof(IntPtr) || type == typeof(UIntPtr))
                     return NinoLeaf.Pointer;
+                // By name: the netstandard builds name no Int128. Without a known alignment (the probe failed), its
+                // two ulongs (8-byte aligned), as before.
+                if (WideAlign > 0 && type.Assembly == typeof(object).Assembly &&
+                    (type.FullName == "System.Int128" || type.FullName == "System.UInt128"))
+                    return NinoLeaf.Wide;
                 switch (Type.GetTypeCode(type))
                 {
                     case TypeCode.Boolean:

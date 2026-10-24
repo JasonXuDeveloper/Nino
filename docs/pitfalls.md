@@ -65,8 +65,8 @@ So `struct { int a; long b; }` is 16 bytes on x64 and 12 bytes on x86 .NET/Mono.
 structs as they are, so its data is not portable between these platforms.
 
 Nino's wire layout for raw types is the **canonical** layout: the one 64-bit CoreCLR uses (primitives aligned
-to their size, `decimal` aligned to 8). `NinoLayout` measures the runtime once with two probe structs
-(`{byte; long}` and `{byte; decimal}`) and derives each type's memory layout from its fields:
+to their size, `decimal` aligned to 8, `Int128` to 16). `NinoLayout` measures the runtime once with probe structs
+(`{byte; long}`, `{byte; decimal}` and `{byte; Int128}`) and derives each type's memory layout from its fields:
 
 - Where it equals the canonical layout (every 64-bit runtime except for structs with a misaligned
   `decimal` on Mono/IL2CPP, and most 32-bit ones), values are copied as raw memory. The check is a

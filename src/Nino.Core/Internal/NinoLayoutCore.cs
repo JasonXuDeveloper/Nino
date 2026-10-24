@@ -34,6 +34,12 @@ namespace Nino.Core.Internal
 
         /// <summary><c>IntPtr</c>, <c>UIntPtr</c> and pointers: the runtime's pointer size.</summary>
         Pointer,
+
+        /// <summary>
+        /// <c>Int128</c> and <c>UInt128</c>: 16 bytes aligned to the runtime's alignment of them (16 on .NET 8 and
+        /// later, 8 on .NET 7). Only Nino.Core's view returns it; the generator treats a struct with one as not portable.
+        /// </summary>
+        Wide,
     }
 
     /// <summary>
@@ -69,12 +75,12 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Lays out <paramref name="type"/> at <paramref name="baseOffset"/> under a runtime model (alignment of 8-byte
-        /// primitives, of <c>decimal</c>, and the pointer size), collecting its leaves in field order, and the offsets
-        /// of its own fields in <paramref name="fieldOffsets"/> when given.
+        /// primitives, of <c>decimal</c>, the pointer size, and the alignment of <see cref="NinoLeaf.Wide"/>), collecting
+        /// its leaves in field order, and the offsets of its own fields in <paramref name="fieldOffsets"/> when given.
         /// </summary>
         public static bool Measure<TType, TView>(TView view, TType type, int longAlign, int decimalAlign,
             int pointerSize, int baseOffset, List<Leaf> leaves, out int size, out int align,
-            List<int>? fieldOffsets = null)
+            List<int>? fieldOffsets = null, int wideAlign = 16)
             where TView : INinoLayoutView<TType>
         {
             switch (view.Leaf(type))
@@ -96,6 +102,8 @@ namespace Nino.Core.Internal
                     return Add(16, 4, baseOffset, leaves, out size, out align);
                 case NinoLeaf.Pointer:
                     return Add(pointerSize, pointerSize, baseOffset, leaves, out size, out align);
+                case NinoLeaf.Wide:
+                    return Add(16, wideAlign, baseOffset, leaves, out size, out align);
             }
 
             size = align = 0;
@@ -113,7 +121,7 @@ namespace Nino.Core.Internal
             {
                 int start = leaves.Count;
                 if (!Measure(view, field.Key, longAlign, decimalAlign, pointerSize, 0, leaves, out int fieldSize,
-                        out int fieldAlign))
+                        out int fieldAlign, null, wideAlign))
                     return false;
                 fieldAlign = fieldAlign < pack ? fieldAlign : pack;
                 int offset;

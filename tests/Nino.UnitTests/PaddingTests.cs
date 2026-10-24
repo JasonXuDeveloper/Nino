@@ -243,3 +243,56 @@ namespace Nino.UnitTests
         }
     }
 }
+
+#if NET8_0_OR_GREATER
+namespace Nino.UnitTests
+{
+    public struct WideAfterByte
+    {
+        public byte A;
+        public System.Int128 B;
+    }
+
+    [TestClass]
+    public class WideLayoutTests
+    {
+        [TestMethod]
+        public void Int128IsAlignedToSixteenBytes()
+        {
+            var info = NinoLayout.Compute(typeof(WideAfterByte), Unsafe.SizeOf<WideAfterByte>(), 8, 8);
+            Assert.AreEqual(32, info.Size);
+            Assert.AreEqual(16, info.Align);
+            Assert.IsTrue(info.Canonical);
+            Assert.AreEqual(16, NinoLayout.WideAlign);
+
+            // A runtime that aligns it to 8 (.NET 7) has it at 8, and converts to the same 32 bytes.
+            var narrow = NinoLayout.Compute(typeof(WideAfterByte), 24, 8, 8, 8);
+            Assert.IsFalse(narrow.Canonical);
+            Assert.AreEqual(32, narrow.Size);
+            CollectionAssert.AreEqual(new[] { 0, 0, 1, 8, 16, 16 }, narrow.Map);
+        }
+
+        [TestMethod]
+        public void Int128PaddingIsCleared()
+        {
+            var value = new WideAfterByte { A = 1, B = -2 };
+            for (int i = 1; i < 16; i++)
+                Unsafe.Add(ref Unsafe.As<WideAfterByte, byte>(ref value), i) = 0xAB;
+            var bytes = NinoSerializer.Serialize(value);
+            var expected = new byte[32];
+            expected[0] = 1;
+            expected[16] = 0xFE;
+            for (int i = 17; i < 32; i++)
+                expected[i] = 0xFF;
+            CollectionAssert.AreEqual(expected, bytes);
+            var back = NinoDeserializer.Deserialize<WideAfterByte>(bytes);
+            Assert.AreEqual((byte)1, back.A);
+            Assert.AreEqual((System.Int128)(-2), back.B);
+
+            var array = NinoSerializer.Serialize(new[] { value, value });
+            CollectionAssert.DoesNotContain(array, (byte)0xAB);
+            Assert.AreEqual(4 + 64, array.Length);
+        }
+    }
+}
+#endif
