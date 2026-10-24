@@ -147,6 +147,66 @@ fn string_encodings() {
         assert_eq!(out[1..], dotnet_string(text)[..], "{text:?}");
         assert_eq!(deserialize_exact::<String>(&out[1..]).unwrap(), text);
     }
+    // The writer reads eight bytes at a time from an ASCII byte on and decodes runs of other chars in loops of their
+    // own, switching from Latin-1 to UTF-16 at the first char above U+00FF: two chars of any classes at any two
+    // positions (so every pair of classes meets across every word boundary, in either order).
+    let classes = ['a', '\u{7F}', '\u{80}', 'é', 'ÿ', 'Ā', '\u{7FF}', '\u{800}', '字', '\u{FFFF}', '\u{10000}', '😀'];
+    let check = |text: &str| {
+        let mut out = vec![0xAA; 3];
+        serialize_into(&text.to_owned(), &mut out).unwrap();
+        assert_eq!(out[3..], dotnet_string(text)[..], "{text:?}");
+        assert_eq!(deserialize_exact::<String>(&out[3..]).unwrap(), text);
+    };
+    for len in [1, 2, 7, 8, 9, 15, 16, 17, 24, 33] {
+        for p in 0..len {
+            for q in p..len {
+                for c1 in classes {
+                    for c2 in classes {
+                        let text: String = (0..len)
+                            .map(|i| match i {
+                                _ if i == q => c2,
+                                _ if i == p => c1,
+                                _ => (b'a' + (i % 26) as u8) as char,
+                            })
+                            .collect();
+                        check(&text);
+                    }
+                }
+            }
+        }
+    }
+    // Runs: k ASCII chars, then n of one class, then m ASCII chars, then n of another.
+    for k in 0..12 {
+        for n in 0..12 {
+            for m in [0, 1, 7, 8, 9] {
+                for c1 in classes {
+                    for c2 in classes {
+                        let mut text = "x".repeat(k);
+                        text.extend(core::iter::repeat_n(c1, n));
+                        text.push_str(&"y".repeat(m));
+                        text.extend(core::iter::repeat_n(c2, n));
+                        check(&text);
+                    }
+                }
+            }
+        }
+    }
+    // Text drawn at random from every class, lengths 0 to 40.
+    let mut seed = 0x2545_F491_4F6C_DD1Du64;
+    for round in 0..22_000 {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        // Then longer text, up to 600 chars.
+        let len = if round < 20_000 { (seed % 41) as usize } else { (seed % 600) as usize };
+        let text: String = (0..len)
+            .map(|i| {
+                let pick = (seed >> (i % 16 * 4)) as usize % (classes.len() * 2);
+                classes.get(pick).copied().unwrap_or((b'a' + (i % 26) as u8) as char)
+            })
+            .collect();
+        check(&text);
+    }
     // Lone surrogates read as U+FFFD; a pair reads as its char.
     assert_eq!(deserialize_exact::<String>(&hex("03000000 3DD8 00DE 00DC")).unwrap(), "😀\u{FFFD}");
     assert_eq!(deserialize_exact::<String>(&hex("02000000 3DD8 6100")).unwrap(), "\u{FFFD}a");
