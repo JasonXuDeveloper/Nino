@@ -165,7 +165,8 @@ jobs:
           # Every case reads back what the others read and writes its payload's bytes (Verify.cs).
           dotnet bin/Release/net10.0/Nino.Benchmark.dll --verify
 
-      # Nino v3 3.3.13 from nuget.org (benchmarks/v3 has its own nuget.config), the same SimpleTest. It runs once,
+      # Nino v3 3.3.13 from nuget.org, the same SimpleTest (the benchmark project built with NINO_BENCH_V3=true, into
+      # bin/v3; releases up to rc.8's development kept it in benchmarks/v3, older ones have none). It runs once,
       # directly before the v4 run, as benchmarks/run.sh does; MemoryPack runs in both, so drift of the runner shows.
       # A v3 failure never blocks the Performance Report: the v3 section is then left out.
       - name: Build v3 benchmark (Nino 3.3.13)
@@ -173,13 +174,18 @@ jobs:
         if: matrix.v3
         continue-on-error: true
         run: |
-          dotnet build -c Release benchmarks/v3
-          dotnet benchmarks/v3/bin/Release/net10.0/Nino.Benchmark.dll --verify
+          if [ -d benchmarks/v3 ]; then
+            echo "V3_DIR=benchmarks/v3" >> "$GITHUB_ENV"; echo "V3_DLL=bin/Release/net10.0/Nino.Benchmark.dll" >> "$GITHUB_ENV"
+            (cd benchmarks/v3 && dotnet build -c Release && dotnet bin/Release/net10.0/Nino.Benchmark.dll --verify)
+          else
+            echo "V3_DIR=$BENCH" >> "$GITHUB_ENV"; echo "V3_DLL=bin/v3/Release/net10.0/Nino.Benchmark.dll" >> "$GITHUB_ENV"
+            (cd "$BENCH" && NINO_BENCH_V3=true dotnet build -c Release && NINO_BENCH_V3=true dotnet bin/v3/Release/net10.0/Nino.Benchmark.dll --verify)
+          fi
 
       - name: Run v3 benchmark
         if: matrix.v3 && steps.v3_build.outcome == 'success'
         continue-on-error: true
-        working-directory: ./benchmarks/v3
+        working-directory: ${{ env.V3_DIR }}
         run: |
           # BenchmarkDotNet runs each benchmark at high priority, which a user may not set ("Failed to set up high
           # priority (Permission denied)"): raise this shell's nice limit (RLIMIT_NICE 40, down to nice -20), which
@@ -190,7 +196,8 @@ jobs:
           # Nino and MemoryPack only: nothing reads v3's MessagePack rows, and they were a third of this step.
           # This shard's half of SimpleTest (the matrix's v3 globs).
           eval "V3_PATTERNS=($V3_FILTERS)"
-          dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter "${V3_PATTERNS[@]}" $BDN_ARGS \
+          # NINO_BENCH_V3: the benchmark project's v3 build, which BenchmarkDotNet builds again for its runs.
+          NINO_BENCH_V3=true dotnet "$V3_DLL" --filter "${V3_PATTERNS[@]}" $BDN_ARGS \
             --artifacts "$V3_OUT"
           mkdir -p "$OUT"
           cp "$(find "$V3_OUT/results" -name '*-report-github.md' | head -n1)" "$OUT/v3-${{ matrix.shard }}.md"
@@ -381,14 +388,16 @@ jobs:
               echo "<summary>Nino v3 3.3.13 (NuGet) against ${TAG_NAME}, back to back on the same runners</summary>"
               echo ""
               # Never write the words "Performance Report" here: parsers find the v4 report by them.
-              echo "\`benchmarks/v3\` (the Nino and MemoryPack cases of the same \`SimpleTest\`, built against Nino 3.3.13 from nuget.org) ran directly before the v4"
+              echo "The v3 build of \`benchmarks/Nino.Benchmark\` (the Nino and MemoryPack cases of the same \`SimpleTest\`, built against Nino 3.3.13 from nuget.org) ran directly before the v4"
               echo "SimpleTest run below, its serialize and its deserialize cases each on the runner of the same v4 cases, with"
               echo "the same BenchmarkDotNet settings"
               echo "(\`${BDN_ARGS}\`). MemoryPack runs in both, so its two columns show how much the runner moved."
               echo ""
               echo "### v4 vs v3"
               echo ""
-              python3 "$GITHUB_WORKSPACE/benchmarks/v3/compare.py" "$V3_REPORT" "$BENCHMARK_FILE" \
+              COMPARE="$GITHUB_WORKSPACE/benchmarks/compare_v3.py"
+              [ -f "$COMPARE" ] || COMPARE="$GITHUB_WORKSPACE/benchmarks/v3/compare.py"
+              python3 "$COMPARE" "$V3_REPORT" "$BENCHMARK_FILE" \
                 || echo "compare.py could not read the reports."
               echo ""
               # The environment block of the first half (the docs site names its machine from it), then the

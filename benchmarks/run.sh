@@ -10,8 +10,10 @@
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${1:-$ROOT/benchmarks/results}
-V3=$ROOT/benchmarks/v3
-V4=$ROOT/benchmarks/Nino.Benchmark
+# One project for both runs: NINO_BENCH_V3=true builds it against Nino 3.3.13 into bin/v3 (see Nino.Benchmark.csproj).
+BENCH=$ROOT/benchmarks/Nino.Benchmark
+V3_DLL=bin/v3/Release/net10.0/Nino.Benchmark.dll
+V4_DLL=bin/Release/net10.0/Nino.Benchmark.dll
 FILTER=${FILTER:-*}
 read -r -a FILTERS <<< "$FILTER"
 if [[ "${QUICK:-0}" == 1 ]]; then
@@ -22,21 +24,21 @@ else
 fi
 
 mkdir -p "$OUT"
-dotnet build -c Release "$V3" > "$OUT/build_v3.log"
-dotnet build -c Release "$V4" > "$OUT/build_v4.log"
+NINO_BENCH_V3=true dotnet build -c Release "$BENCH" > "$OUT/build_v3.log"
+dotnet build -c Release "$BENCH" > "$OUT/build_v4.log"
 git -C "$ROOT" rev-parse HEAD > "$OUT/v4-commit.txt"
-dotnet "$V3/bin/Release/net10.0/Nino.Benchmark.dll" --verify | tee "$OUT/verify_v3.txt"
-dotnet "$V4/bin/Release/net10.0/Nino.Benchmark.dll" --verify | tee "$OUT/verify_v4.txt"
+(cd "$BENCH" && NINO_BENCH_V3=true dotnet "$V3_DLL" --verify) | tee "$OUT/verify_v3.txt"
+(cd "$BENCH" && dotnet "$V4_DLL" --verify) | tee "$OUT/verify_v4.txt"
 
 echo "v3 $(date)"
-(cd "$V3" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest.Nino*' '*SimpleTest.MemoryPack*' \
+(cd "$BENCH" && NINO_BENCH_V3=true dotnet "$V3_DLL" --filter '*SimpleTest.Nino*' '*SimpleTest.MemoryPack*' \
   ${ARGS[@]+"${ARGS[@]}"} \
   --artifacts "$OUT/v3" > "$OUT/v3.log")
 echo "v4 $(date)"
-(cd "$V4" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter "${FILTERS[@]}" ${ARGS[@]+"${ARGS[@]}"} \
+(cd "$BENCH" && dotnet "$V4_DLL" --filter "${FILTERS[@]}" ${ARGS[@]+"${ARGS[@]}"} \
   --artifacts "$OUT/v4" > "$OUT/v4.log")
 echo "done $(date)"
 
 V4_REPORT=$(ls "$OUT"/v4/results/*-report-github.md | head -n1)
 echo "== v3 vs v4"
-python3 "$V3/compare.py" "$OUT/v3/results/Nino.Benchmark.SimpleTest-report-github.md" "$V4_REPORT"
+python3 "$ROOT/benchmarks/compare_v3.py" "$OUT/v3/results/Nino.Benchmark.SimpleTest-report-github.md" "$V4_REPORT"

@@ -19,7 +19,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
     </ItemGroup>
-    <ItemGroup>
+    <ItemGroup Condition="'$(NinoBenchV3)' != 'true'">
         <!-- Build with -p:NinoCoreTfm=netstandard2.0 (or netstandard2.1) to benchmark a specific Nino.Core build. -->
         <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' == ''"/>
         <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' != ''"
@@ -27,10 +27,20 @@
         <ProjectReference Include="..\..\src\Nino.Immutable\Nino.Immutable.csproj"/>
         <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
                           OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+        <Compile Remove="V3/**"/>
+    </ItemGroup>
+
+    <!-- The v3 run (NINO_BENCH_V3=true, Directory.Build.props): Nino 3.3.13 from nuget.org and the same SimpleTest
+         ported to its API (V3/SimpleTest.cs), with this project's data, job, columns and checks; the two runs differ
+         only in the library they call. One project for both, so BenchmarkDotNet finds one Nino.Benchmark.csproj. -->
+    <ItemGroup Condition="'$(NinoBenchV3)' == 'true'">
+        <PackageReference Include="Nino" VersionOverride="3.3.13"/>
+        <Compile Remove="**/*.cs"/>
+        <Compile Include="Program.cs;Verify.cs;PayloadColumn.cs;NinoJobAttribute.cs;SimpleBenchmarkData.cs;V3/SimpleTest.cs"/>
     </ItemGroup>
 
     <ItemGroup>
         <Using Include="BenchmarkDotNet.Attributes"/>
     </ItemGroup>
-    <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props"/>
+    <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props" Condition="'$(NinoBenchV3)' != 'true'"/>
 </Project>

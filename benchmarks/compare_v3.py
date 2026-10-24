@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare two BenchmarkDotNet *-report-github.md files from SimpleTest: Nino v3 3.3.13 vs Nino v4.
 
-usage: python3 compare.py <v3 report-github.md> <v4 report-github.md>
+usage: python3 compare_v3.py <v3 report-github.md> <v4 report-github.md>
 
 Prints: case | v3 3.3.13 | v4 | v4 vs v3 | MemoryPack (v4 run) | MemoryPack (v3 run)
   - all times are the BDN "Mean" column, as measured, no derived values;
@@ -13,7 +13,7 @@ Prints: case | v3 3.3.13 | v4 | v4 vs v3 | MemoryPack (v4 run) | MemoryPack (v3 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bdn import FLOOR_NS, mean_ns, rows, show  # noqa: E402 (benchmarks/bdn.py)
 
 LIBS = ("Nino", "MemoryPack", "MessagePack")

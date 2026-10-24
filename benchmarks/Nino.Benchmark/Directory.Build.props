@@ -1,0 +1,13 @@
+<Project>
+    <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))"/>
+
+    <!-- NINO_BENCH_V3=true builds the v3 run of this project (Nino 3.3.13 from NuGet, see Nino.Benchmark.csproj). It
+         is an environment variable, not a property, so that the projects BenchmarkDotNet builds for its runs take the
+         same choice. Its own obj/ and bin/: the two restores have different packages. Set here because the SDK reads
+         these before the project file. -->
+    <PropertyGroup Condition="'$(NINO_BENCH_V3)' == 'true'">
+        <NinoBenchV3>true</NinoBenchV3>
+        <BaseIntermediateOutputPath>obj/v3/</BaseIntermediateOutputPath>
+        <BaseOutputPath>bin/v3/</BaseOutputPath>
+    </PropertyGroup>
+</Project>
