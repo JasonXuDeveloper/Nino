@@ -45,6 +45,11 @@ namespace Nino.Core
         }
 
 #if NET8_0_OR_GREATER
+        /// <summary>The bytes of a value and of its block matched, which every table below is read from.</summary>
+        private static readonly NinoBlockBytes Bytes = Map != null
+            ? new NinoBlockBytes(Map, NinoBlock.Size<T, TFormatter>(), Unsafe.SizeOf<T>())
+            : null;
+
         /// <summary>
         /// Whether values are moved to and from their blocks by one 16-byte shuffle each: both fit in 16 bytes, and the
         /// CPU shuffles bytes by a variable mask, an index from 0x80 up giving a zero (SSSE3, Arm64, or WebAssembly
@@ -66,21 +71,7 @@ namespace Nino.Core
 
         private static Vector128<byte> Mask(bool toWire)
         {
-            if (!Shuffles)
-                return default;
-            var mask = new byte[16];
-            mask.AsSpan().Fill(0x80);
-            for (int i = 0; i < Map.Length; i += 3)
-            for (int b = 0; b < Map[i + 2]; b++)
-            {
-                int memory = Map[i] + b, wire = Map[i + 1] + b;
-                if (toWire)
-                    mask[wire] = (byte)memory;
-                else
-                    mask[memory] = (byte)wire;
-            }
-
-            return Vector128.Create(mask);
+            return Shuffles ? Vector128.Create(Bytes.Indices(toWire, 1, 16)) : default;
         }
 
         /// <summary>
@@ -165,10 +156,7 @@ namespace Nino.Core
             var masks = new byte[vectors * width];
             for (int wire = 0; wire < vectors * width; wire++)
             {
-                int value = wire / size, offset = wire % size, memory = -1;
-                for (int i = 0; i < Map.Length; i += 3)
-                    if (offset >= Map[i + 1] && offset < Map[i + 1] + Map[i + 2])
-                        memory = value * Unsafe.SizeOf<T>() + Map[i] + offset - Map[i + 1];
+                int memory = Bytes.MemoryAt(wire);
                 // Every block byte belongs to a field; vector k reads memory vectors k and k + 1.
                 int index = memory - wire / width * width;
                 if (memory < 0 || index < 0 || index >= 2 * width)
@@ -255,11 +243,7 @@ namespace Nino.Core
                     int low = int.MaxValue;
                     for (int b = 0; b < 64; b++)
                     {
-                        int memory = phase + k * 64 + b, value = memory / memorySize, offset = memory % memorySize;
-                        int wire = -1;
-                        for (int i = 0; i < Map.Length; i += 3)
-                            if (offset >= Map[i] && offset < Map[i] + Map[i + 2])
-                                wire = value * size + Map[i + 1] + offset - Map[i];
+                        int wire = Bytes.WireAt(phase + k * 64 + b);
                         wires[b] = wire;
                         if (wire >= 0)
                             low = Math.Min(low, wire);
@@ -409,8 +393,8 @@ namespace Nino.Core
                 int width = Avx2.IsSupported ? 32 : shuffles ? 16 : 0;
                 if (width == 0)
                     return null;
-                var plan = NinoLanes.Solve(width, Map, NinoBlock.Size<T, TFormatter>(), Unsafe.SizeOf<T>(),
-                    typeof(TDirection) == typeof(NinoWrites), AdvSimd.Arm64.IsSupported, !Avx512Vbmi.IsSupported);
+                var plan = NinoLanes.Solve(width, Bytes, typeof(TDirection) == typeof(NinoWrites),
+                    AdvSimd.Arm64.IsSupported, !Avx512Vbmi.IsSupported);
                 // A value a group is what Shuffles does already, without the group loop around it.
                 return plan is { Group: 1 } && Shuffles ? null : plan;
             }
@@ -491,24 +475,7 @@ namespace Nino.Core
         }
 
         /// <summary>The indices of <see cref="ToWire64"/> or <see cref="ToMemory64"/> into all 64 bytes.</summary>
-        private static byte[] Indices64(bool toWire)
-        {
-            var mask = new byte[64];
-            mask.AsSpan().Fill(0x80);
-            int size = NinoBlock.Size<T, TFormatter>();
-            for (int e = 0; e < PerVector; e++)
-            for (int i = 0; i < Map.Length; i += 3)
-            for (int b = 0; b < Map[i + 2]; b++)
-            {
-                int memory = e * Unsafe.SizeOf<T>() + Map[i] + b, wire = e * size + Map[i + 1] + b;
-                if (toWire)
-                    mask[wire] = (byte)memory;
-                else
-                    mask[memory] = (byte)wire;
-            }
-
-            return mask;
-        }
+        private static byte[] Indices64(bool toWire) => Bytes.Indices(toWire, PerVector, 64);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector128<byte> Shuffle(Vector128<byte> value, Vector128<byte> mask) =>

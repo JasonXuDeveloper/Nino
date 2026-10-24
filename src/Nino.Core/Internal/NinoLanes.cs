@@ -34,11 +34,11 @@ namespace Nino.Core
 
         /// <summary>
         /// The plan, or null when a group would take more than four vectors or a lane draws on bytes no two windows
-        /// cover. <paramref name="map"/> is the block map (memory offset, block offset, size triples).
+        /// cover. <paramref name="bytes"/> matches the bytes of a value and its block.
         /// </summary>
-        public static NinoLanes Solve(int width, int[] map, int size, int memorySize, bool writes, bool tables,
-            bool partial)
+        public static NinoLanes Solve(int width, NinoBlockBytes bytes, bool writes, bool tables, bool partial)
         {
+            int size = bytes.Size, memorySize = bytes.MemorySize;
             int target = writes ? size : memorySize, source = writes ? memorySize : size;
             int group = width / Gcd(target, width);
             // A group whose vectors are exactly its values would take more than four (5-byte blocks: 32 values, five
@@ -56,7 +56,7 @@ namespace Nino.Core
                 for (int grid = 0; grid < (width == 32 ? 2 : 1); grid++)
                 {
                     int values = vectors * width / target;
-                    var each = values < 2 ? null : Plan(width, map, size, memorySize, writes, tables, values, grid == 1);
+                    var each = values < 2 ? null : Plan(width, bytes, writes, tables, values, grid == 1);
                     if (each != null && (best == null || (each.Cost() + 3) * best.Group < (best.Cost() + 3) * values))
                         best = each;
                 }
@@ -66,9 +66,9 @@ namespace Nino.Core
 
             int gridGroup = tables ? group / Gcd(group, 16 / Gcd(source, 16)) * (16 / Gcd(source, 16)) : group;
             var plan = tables && !writes
-                ? Plan(width, map, size, memorySize, writes, tables, gridGroup, grid: false) ??
-                  Plan(width, map, size, memorySize, writes, tables, group, grid: false)
-                : Plan(width, map, size, memorySize, writes, tables, group, grid: false);
+                ? Plan(width, bytes, writes, tables, gridGroup, grid: false) ??
+                  Plan(width, bytes, writes, tables, group, grid: false)
+                : Plan(width, bytes, writes, tables, group, grid: false);
             // AVX2 takes whichever costs less a value: windows anywhere (fewest loads when each lane's bytes follow)
             // or on a 16-byte grid (loads repeat across a group's vectors, and two lanes far apart come from them by
             // one lane permute rather than two more loads). Arm64 too, when the grid plan's windows fit one 64-byte
@@ -79,7 +79,7 @@ namespace Nino.Core
             // 1.13 us against 0.99 to 1.01 with three grid loads a group, 1,000 (int, long) into a new list).
             if (width == 32 || tables)
             {
-                var gridded = Plan(width, map, size, memorySize, writes, tables, gridGroup, grid: true);
+                var gridded = Plan(width, bytes, writes, tables, gridGroup, grid: true);
                 if (tables && gridded?.Gridded() == false)
                     gridded = null;
                 if (plan == null || gridded != null && gridded.Cost() * plan.Group < plan.Cost() * gridGroup)
@@ -96,7 +96,7 @@ namespace Nino.Core
             {
                 int most = group * Math.Max(1, 4 * width / (group * target));
                 var single = most > plan.Group
-                    ? Plan(width, map, size, memorySize, writes, tables, most, grid: false)
+                    ? Plan(width, bytes, writes, tables, most, grid: false)
                     : null;
                 if (single != null && single.OneLoad() && (single.Cost() + 3) * plan.Group < (plan.Cost() + 3) * most)
                     plan = single;
@@ -105,9 +105,9 @@ namespace Nino.Core
             return plan;
         }
 
-        private static NinoLanes Plan(int width, int[] map, int size, int memorySize, bool writes, bool tables,
-            int group, bool grid)
+        private static NinoLanes Plan(int width, NinoBlockBytes bytes, bool writes, bool tables, int group, bool grid)
         {
+            int size = bytes.Size, memorySize = bytes.MemorySize;
             int sourceSize = writes ? memorySize : size, targets = group * (writes ? size : memorySize);
             int vectors = (targets + width - 1) / width;
             if (vectors > 4)
@@ -118,7 +118,7 @@ namespace Nino.Core
                 // The source byte of each byte of the vector (-1: padding, any value).
                 var sources = new int[width];
                 for (int b = 0; b < width; b++)
-                    sources[b] = v * width + b < targets ? Source(map, size, memorySize, writes, v * width + b) : -1;
+                    sources[b] = v * width + b < targets ? Source(bytes, writes, v * width + b) : -1;
                 if (!Cover(sources, width, grid, out int[] first, out int[] second))
                     return null;
                 var a = new byte[width];
@@ -258,20 +258,8 @@ namespace Nino.Core
         }
 
         /// <summary>The source byte of byte <paramref name="at"/> of a group's targets, or -1 for padding.</summary>
-        private static int Source(int[] map, int size, int memorySize, bool writes, int at)
-        {
-            int value = at / (writes ? size : memorySize), offset = at % (writes ? size : memorySize);
-            for (int i = 0; i < map.Length; i += 3)
-            {
-                int memory = map[i], wire = map[i + 1], length = map[i + 2];
-                if (writes && offset >= wire && offset < wire + length)
-                    return value * memorySize + memory + offset - wire;
-                if (!writes && offset >= memory && offset < memory + length)
-                    return value * size + wire + offset - memory;
-            }
-
-            return -1;
-        }
+        private static int Source(NinoBlockBytes bytes, bool writes, int at) =>
+            writes ? bytes.MemoryAt(at) : bytes.WireAt(at);
 
         /// <summary>
         /// One window for each lane, or two: the first (the lowest that covers the lane's lowest byte, so it reaches
