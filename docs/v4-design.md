@@ -943,12 +943,13 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
 
 ### Source layout
 
-* Nino.Core: `NinoSerializer`/`NinoDeserializer` and `NinoSettings` at the root; `Attributes/` (everything users
-  put on types), `IO/` (`Writer`, `Reader`, buffers, wire constants), `Formatters/` (the formatter interface,
-  cache, resolver and every built-in formatter), `Polymorphism/` (type ids, registry, subtype dispatch,
-  reference tables), `Pooling/` (`NinoPool`, `NinoRecycler`, `NinoActivator`), `Generated/` (the API only generated code
-  calls, namespace `Nino.Core.Generated`, see above) and `Internal/` (layout, thread caches, the shared sources
-  above). User code needs one `using Nino.Core`.
+* Nino.Core: `NinoSerializer`/`NinoDeserializer`, `NinoSettings` and `NinoDataException` at the root;
+  `Attributes/` (everything users put on types, members and formatter type parameters), `IO/` (`Writer`,
+  `Reader`, buffers, wire constants, depth bounds, deferred bodies and the per-call contexts), `Formatters/` (the
+  formatter interface, cache, resolver and every built-in formatter), `Polymorphism/` (type ids, registry, subtype
+  dispatch, reference tables), `Pooling/` (`NinoPool`, `NinoRecycler`, `NinoActivator`), `Generated/` (the API only
+  generated code calls, namespace `Nino.Core.Generated`, see above) and `Internal/` (layout, limits, untrusted
+  reads, thread caches, the shared sources above). User code needs one `using Nino.Core`.
 * Nino.Generator: `Analysis/` (analyzer, suppressor, diagnostics), `Common/` (equatable collections, names and
   `[NinoType]` lookup shared by the analyzer, generator and code fixes), `Generation/` (symbols to models) and
   `Generation/Emit/` (models to source).
