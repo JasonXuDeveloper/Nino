@@ -149,8 +149,14 @@ jobs:
             10.0.x
             8.0.x
 
+      # Releases before the move of the benchmarks out of src/ (rc.7 and older) keep the project in src/Nino.Benchmark.
+      - name: Find the benchmark project
+        run: |
+          if [ -d benchmarks/Nino.Benchmark ]; then echo "BENCH=benchmarks/Nino.Benchmark" >> "$GITHUB_ENV"
+          else echo "BENCH=src/Nino.Benchmark" >> "$GITHUB_ENV"; fi
+
       - name: Build benchmark project
-        working-directory: ./benchmarks/Nino.Benchmark
+        working-directory: ${{ env.BENCH }}
         run: |
           dotnet build -c Release
           # Every case reads back what the others read and writes its payload's bytes (Verify.cs).
@@ -187,7 +193,7 @@ jobs:
           cp "$(find "$V3_OUT/results" -name '*-report-github.md' | head -n1)" "$OUT/v3-${{ matrix.shard }}.md"
 
       - name: Run benchmarks
-        working-directory: ./benchmarks/Nino.Benchmark
+        working-directory: ${{ env.BENCH }}
         run: |
           # BenchmarkDotNet runs each benchmark at high priority, which a user may not set ("Failed to set up high
           # priority (Permission denied)"): raise this shell's nice limit (RLIMIT_NICE 40, down to nice -20), which
@@ -231,7 +237,7 @@ jobs:
         with:
           name: benchmark-results-${{ needs.target.outputs.tag }}-${{ matrix.arch }}-${{ matrix.shard }}
           path: |
-            benchmarks/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
+            ${{ env.BENCH }}/BenchmarkDotNet.Artifacts/results
             v3-results/results
           retention-days: 90
 
