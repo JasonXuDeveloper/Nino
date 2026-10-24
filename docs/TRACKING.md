@@ -44,7 +44,7 @@
 
 - ✅ docs/spec/wire-format.md：正式线格式规范（docs/wire-spec · b870f7c）。由此发现的 bug：H 生成器从引用程序集读 BCL 结构布局（_dummyPrimitive），Complex/TimeOnly/Half/Int128/Rune/int? 发布的布局错误 → gen；I 8 项及以上的 ValueTuple 成员被静默跳过（数据丢失）→ gen；J 布局里没有 deferrable 标记 → gen；B8 RawPoint?[] 生成代码与运行时解析器写出不同字节 → core（以定长 stride 为准，Wire-Format 尾注）；宽松读取（bool/presence >1、keyed 重复键、尾随字节、DateTime kind 3、ImmutableArray null 抛 BCL 异常等）→ 第二阶段统一严格度并写进规范。✅ 维护者已同意，第二阶段执行：默认就报错 —— 延迟区段偏移/标志不符、keyed 成员剩余字节、bool/presence 字节 >1；仅 Untrusted 模式报错 —— 尾随字节（Span 切片场景兼容）、越界的 decimal/DateTime/DateOnly 等 raw 值
 - ✅ TS 运行时移到 runtimes/typescript
-- ✅ 布局中间表示 + nino-gen 命令行 + Scriban 模板（src/Nino.Codegen，取代 Nino.TypeScript 里的语言相关部分；phase2/codegen）：TS/Go/Rust 三个目标，生成代码跑语料（有效/恶意/截断），docs/codegen.md。Rust 用展开代码而非 derive（布局只有曾用名的哈希）。未生成：泛型类型（只有泛型定义有布局）、trackReferences、[NinoType] 集合；TS 运行时仍放过 18 个恶意用例（todo）
+- ✅ 布局中间表示 + nino-gen 命令行 + Scriban 模板（src/Nino.Codegen，取代 Nino.TypeScript 里的语言相关部分；phase2/codegen）：TS/Go/Rust 三个目标，生成代码跑语料（有效/恶意/截断），docs/codegen.md。Rust 用展开代码而非 derive（布局只有曾用名的哈希）。未生成：泛型类型（只有泛型定义有布局）、trackReferences、[NinoType] 集合；TS 运行时的恶意用例已全部拒绝（phase2/ts-strict：延迟区段、keyed 成员剩余字节、重复键/元素；对象键按引用比较，查不出重复）
 - ⬜ conformance/：.NET 写出的有效语料 + 恶意语料，所有语言共用
 - ⬜ runtimes/go、runtimes/rust：运行时 + 模板 + 测试 + 基准
 - ⬜ 每个运行时的性能维护：各自基准对比本生态的主流库（TS：JSON、msgpackr；Go：encoding/json、vmihailenco/msgpack；Rust：serde_json、bincode、rmp-serde、postcard），report.yml 发布各语言结果，CLAUDE.md 写各语言的性能和安全规则
@@ -86,6 +86,17 @@ Nino/
 - ⬜ CLAUDE.md：优先共用方案；平台专用快路径需记录并测试各平台结果一致；UnsafeAccessor / allows ref struct 约定；安全要求
 - ⬜ docs/pitfalls.md：删掉过时的 `NinoTuple` 说法（v3 类型，v4 已删除）
 - ⬜ 快进推送；nino.docs changelog 中英文更新（用户可见的修复和变化）
+
+### Unity 上的 SIMD（像 Burst 一样，用户要求记下，后面做）
+- 现状：Unity 包里的 Nino.Core.dll 是 netstandard2.1 版本，没有 System.Runtime.Intrinsics，所以 Unity（Mono、IL2CPP、HybridCLR）走的全是标量路径。块置换、字节序转换、ASCII 字符串这些 SIMD 快路径都用不到。
+- 思路：把这些内核写成只碰原始字节的静态函数（`byte*` 进、`byte*` 出、个数、置换表），做成 Unity 专用程序集里的 `[BurstCompile]` 函数指针（`BurstCompiler.CompileFunctionPointer`），内部用 `Unity.Burst.Intrinsics`（X86.Ssse3/Avx2、Arm.Neon，`IsXxxSupported` 分支）。Nino.Core 只看到一个可选的「块内核」钩子（启动时注册；没有就走现有标量路径），所以 Core 不依赖 Burst。
+- 要先验证：
+  - IL2CPP：Burst 函数指针在 IL2CPP 下由 Burst AOT 预编译，应该可用。要实机验证 Windows/Android/iOS，以及 WebGL（不支持，回退标量）。
+  - HybridCLR：解释执行的热更程序集调用 AOT 程序集里的 Nino.Core，Nino.Core 再调 Burst 函数指针，应该可用。热更代码自己不能被 Burst 编译，但内核在 AOT 包里，所以没关系。要验证补充元数据和泛型实例化不影响。
+  - 包依赖：com.unity.burst 设为可选（versionDefines + asmdef 的 defineConstraints），没装 Burst 时程序集不编译，自动回退。
+  - 收益：先在 Unity 里测标量 vs Burst（数组的 struct/元组、字符串），值得再做；还要比较调用函数指针的开销（小数组可能更慢，需要阈值）。
+  - Unity 6 之后若迁到 CoreCLR，netstandard 之外可能直接有 Intrinsics。届时评估直接发 net8+ 的 DLL。
+- 一致性：Burst 路径和标量路径必须写出、读出相同字节。测试要覆盖两条路径（同一套 golden bytes）。
 
 ### Core 分支交回的后续项
 - 未做 Q1–Q8（草稿：scratchpad/core/draft/ 下的 q2.py、NinoReflection.cs、split_block.py、bytemap.py、nits_block.py；NinoReflection.cs 和 q2.py 要先按新的 IsRawShape 改）。
