@@ -156,8 +156,21 @@ namespace Nino.Core
                 i = skip;
             }
 
-            for (; i <= last; i += group)
-                WriteGroup<T, TFormatter>(ref source, ref destination, i, size);
+            if (i <= last)
+            {
+                // Cursors bumped a group at a time and a count down, not two multiplications per group.
+                int n = (last - i) / group + 1;
+                ref byte from = ref Unsafe.Add(ref source, (nint)i * Unsafe.SizeOf<T>());
+                ref byte to = ref Unsafe.Add(ref destination, (nint)i * size);
+                i += n * group;
+                do
+                {
+                    Permute64x2<T, TFormatter>(ref from, 0, ref to, 0);
+                    from = ref Unsafe.Add(ref from, (nint)group * Unsafe.SizeOf<T>());
+                    to = ref Unsafe.Add(ref to, (nint)group * size);
+                } while (--n != 0);
+            }
+
             if (i < last + group)
             {
                 WriteGroup<T, TFormatter>(ref source, ref destination, last, size);
@@ -328,9 +341,21 @@ namespace Nino.Core
                 i = skip;
             }
 
-            for (; i <= last; i += group)
-                ReadGroup<T, TFormatter, TPhase>(ref source, (nuint)i * (nuint)size, ref destination,
-                    (nuint)i * (nuint)Unsafe.SizeOf<T>() + (nuint)phase, m0, m1, m2, m3);
+            if (i <= last)
+            {
+                // As in WriteGroups.
+                int n = (last - i) / group + 1;
+                ref byte from = ref Unsafe.Add(ref source, (nint)i * size);
+                ref byte to = ref Unsafe.Add(ref destination, (nint)i * Unsafe.SizeOf<T>() + phase);
+                i += n * group;
+                do
+                {
+                    ReadGroup<T, TFormatter, TPhase>(ref from, 0, ref to, 0, m0, m1, m2, m3);
+                    from = ref Unsafe.Add(ref from, (nint)group * size);
+                    to = ref Unsafe.Add(ref to, (nint)group * Unsafe.SizeOf<T>());
+                } while (--n != 0);
+            }
+
             if (i < last + group)
             {
                 ReadGroup<T, TFormatter, TPhase>(ref source, (nuint)last * (nuint)size, ref destination,
