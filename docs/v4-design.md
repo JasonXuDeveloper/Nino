@@ -140,7 +140,7 @@ The serialized members are the type's fields and properties (its own and its `[N
 * An `override` is the member it overrides, collected once with the base. A member hiding a base member with
   `new` is another member: both are serialized, the base one first. Generated code reaches the hidden one
   through a cast (`((Base)value).X`), or `[UnsafeAccessor]` when it is not public; without either (a
-  non-public hidden member of a generic type, or before .NET 8) it is skipped with warning NINO022. In keyed
+  non-public hidden member of a generic type before .NET 9, or before .NET 8) it is skipped with warning NINO022. In keyed
   types, a hidden member that is serialized next to its hiding member has the key of `Base.X`.
 
 A `[NinoType]` struct is written as its **raw memory** (one copy, and arrays/lists of it as one block) when it
@@ -976,8 +976,11 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
 * `struct <Name>Formatter : INinoFormatter<T>` with `Serialize`, `Deserialize`, `WriteBody`, `ReadBody`.
 * Generic `[NinoType]`s produce generic formatters (one per definition, not one per closed type).
   Type-parameter members use `CachedFormatter<T>`.
-* Private members use `[UnsafeAccessor]` when the compilation targets .NET 8+, and generated `partial`
-  accessors otherwise.
+* Private members use `[UnsafeAccessor]` when the compilation targets .NET 8+ (generic types: .NET 9+, declared
+  in the generic formatter, whose type parameters are the type's; a member of a generic base qualifies when the
+  base's type arguments are the type's first type parameters in order), and generated `partial` accessors
+  otherwise. The form is chosen from the compilation's preprocessor symbols (`NET8_0_OR_GREATER`,
+  `NET9_0_OR_GREATER`); the output has no `#if`.
 * Classes whose members are all directly accessible also get static `WriteMembers`/`ReadMembers`. A subtype
   whose leading members are exactly its base's members calls the base's methods instead of repeating them, so
   each inherited member is compiled once per hierarchy rather than once per subtype (about a third less code for

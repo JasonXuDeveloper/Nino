@@ -29,7 +29,7 @@ internal static class NinoDiagnostics
         "NinoType '{0}' cannot be serialized: it must be a non-static class, struct or interface, and it and every type containing it must be public or internal");
 
     public static readonly DiagnosticDescriptor NotPartial = Error("NINO002", "Type must be partial",
-        "'{0}' serializes non-public members, so it (and every type containing it) must be declared partial");
+        "'{0}' serializes non-public members that generated code reaches through an accessor inside the type (before .NET 8, and for generic types before .NET 9), or is [NinoPooled], so it (and every type containing it) must be declared partial");
 
     public static readonly DiagnosticDescriptor SubTypeWithoutNinoType = Warning("NINO003",
         "Sub-type of a NinoType should also have the NinoTypeAttribute applied",
@@ -90,7 +90,7 @@ internal static class NinoDiagnostics
         "NinoType struct '{0}' serializes no member, so it is written as zero bytes and a collection of it cannot be read back; serialize a member, or give it NinoFormat.VersionTolerant or NinoFormat.Keyed");
 
     public static readonly DiagnosticDescriptor HiddenMember = Warning("NINO022", "Hidden member cannot be serialized",
-        "Member '{0}' of '{1}' is hidden by a member of the same name in '{2}', and generated code can only reach it through [UnsafeAccessor] (.NET 8+, non-generic types); it is skipped");
+        "Member '{0}' of '{1}' is hidden by a member of the same name in '{2}', and generated code can only reach it through [UnsafeAccessor] (.NET 8+, generic types .NET 9+); it is skipped");
 
     // Features
 

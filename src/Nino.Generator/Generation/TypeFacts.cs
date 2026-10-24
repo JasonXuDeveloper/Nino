@@ -62,6 +62,7 @@ internal sealed class TypeFacts
         _symbols = SymbolsOf(options).ToArray();
         WeakTolerance = _symbols.Contains("WEAK_VERSION_TOLERANCE");
         Net8 = _symbols.Contains("NET8_0_OR_GREATER");
+        Net9 = Net8 && _symbols.Contains("NET9_0_OR_GREATER");
         Symbols = new NinoSymbols(compilation);
         Visibility = new Visibility(compilation.Assembly);
         Members = new MemberCache(Symbols);
@@ -98,6 +99,9 @@ internal sealed class TypeFacts
 
     /// <summary><c>[UnsafeAccessor]</c> is available.</summary>
     public bool Net8 { get; }
+
+    /// <summary><c>[UnsafeAccessor]</c> reaches members of generic types (declared in a generic type).</summary>
+    public bool Net9 { get; }
 
     /// <summary>Runtime type id (hash of the runtime name): many members share a type such as <c>List&lt;int&gt;</c>.</summary>
     public int TypeId(ITypeSymbol type) =>

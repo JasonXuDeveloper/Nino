@@ -541,7 +541,7 @@ internal static class ModelBuilder
                 ? MemberAccess.Cast
                 : MemberAccess.Direct;
         }
-        else if (facts.Net8 && !declaring.IsGenericType && !type.IsGenericType)
+        else if (UnsafeAccessorReaches(type, declaring, facts))
         {
             access = MemberAccess.UnsafeAccessor;
         }
@@ -600,6 +600,38 @@ internal static class ModelBuilder
             Fresh: custom == null && memberType.IsReferenceType && (traits & FormatterTraits.Core) != 0 &&
                    (traits & replaces) == 0 && StartsDefault(symbol, ct),
             ReadsLoop: raw == null && readsLoop);
+    }
+
+    /// <summary>
+    /// Whether an <c>[UnsafeAccessor]</c> extern in the formatter of <paramref name="type"/> reaches a member declared
+    /// by <paramref name="declaring"/> (the type itself or one of its bases, as the type sees it). .NET 8 has no
+    /// accessors in generic types, so both must be non-generic there. .NET 9+ declares them in the generic formatter,
+    /// whose type parameters are the type's (with the same constraints): the runtime matches the accessor's signature
+    /// against the member's as declared, type parameter by position, so <paramref name="declaring"/> must be
+    /// non-generic or have the formatter's first type parameters, in order, as its type arguments (<c>Base&lt;T&gt;</c>
+    /// from <c>D&lt;T, U&gt;</c>; not <c>Base&lt;U&gt;</c>, <c>Base&lt;List&lt;T&gt;&gt;</c> or <c>Base&lt;int&gt;</c>,
+    /// which the runtime does not find). The form follows the compilation's symbols: Unity, <c>netstandard</c> and
+    /// .NET 8 compilations keep the partial accessor class for generic types.
+    /// </summary>
+    private static bool UnsafeAccessorReaches(INamedTypeSymbol type, INamedTypeSymbol declaring, TypeFacts facts)
+    {
+        if (!facts.Net8)
+            return false;
+        if (!declaring.IsGenericType && !type.IsGenericType)
+            return true;
+        if (!facts.Net9)
+            return false;
+        var parameters = AllTypeParameters(type);
+        var arguments = AllTypeArguments(declaring);
+        if (arguments.Count > parameters.Count)
+            return false;
+        for (int i = 0; i < arguments.Count; i++)
+        {
+            if (!SymbolEqualityComparer.Default.Equals(arguments[i], parameters[i]))
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>
