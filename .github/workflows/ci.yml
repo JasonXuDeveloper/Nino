@@ -16,6 +16,7 @@ on:
       - 'nuget.config'
       - 'tests/**'
       - 'runtimes/**'
+      - 'conformance/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [ "main", "develop" ]
@@ -32,6 +33,7 @@ on:
       - 'nuget.config'
       - 'tests/**'
       - 'runtimes/**'
+      - 'conformance/**'
       - '.github/workflows/ci.yml'
   workflow_call:
 
@@ -179,10 +181,21 @@ jobs:
           npm install -g typescript@5
           dotnet test tests/Nino.TypeScript.Tests/Nino.TypeScript.Tests.csproj --no-build -c Debug --logger trx --results-directory ./TestResults
 
-      # The TypeScript runtime on its own (runtimes/typescript/test): type checks, then node:test.
+      # nino-gen (src/Nino.Codegen): its model and command line, and the generated files under runtimes/ are what
+      # it writes today (runtimes.yml compiles and runs them).
+      - name: Test the code generator
+        if: ${{ matrix.project == '' }}
+        run: >
+          dotnet test tests/Nino.Codegen.Tests/Nino.Codegen.Tests.csproj --no-build -c Debug
+          --logger trx --results-directory ./TestResults
+
+      # The TypeScript runtime on its own (runtimes/typescript/test): type checks, then node:test, the conformance
+      # corpus over the generated code included.
       - name: Test the TypeScript runtime
         if: ${{ matrix.project == '' }}
         working-directory: ./runtimes/typescript
+        env:
+          NINO_CORPUS_REQUIRED: '1'
         run: |
           npm ci
           npm test

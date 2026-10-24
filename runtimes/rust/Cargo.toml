@@ -42,6 +42,11 @@ trybuild = "1"
 name = "conformance"
 required-features = ["indexmap"]
 
+# The corpus over the code nino-gen generates (tests/generated/nino_types.rs).
+[[test]]
+name = "generated"
+required-features = ["indexmap"]
+
 # The derive against the corpus's types.
 [[test]]
 name = "derive"

@@ -1,7 +1,9 @@
 name: Runtimes
 
 # The runtimes of Nino's wire format outside .NET, each tested on its own and against the conformance corpus that
-# .NET writes (conformance/README.md), and the check that the committed corpus is what .NET writes today.
+# .NET writes (conformance/README.md), and the check that the committed corpus is what .NET writes today. Each
+# runtime's tests also run the corpus over the code nino-gen (src/Nino.Codegen) generates for the corpus's types,
+# committed under runtimes/ and checked by the codegen job to be what nino-gen writes today (docs/codegen.md).
 on:
   push:
     branches: [ "main", "develop" ]
@@ -9,6 +11,8 @@ on:
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'
       - 'src/Nino.Generator.Roslyn4.12/**'
+      - 'src/Nino.Codegen/**'
+      - 'tests/Nino.Codegen.Tests/**'
       - 'runtimes/**'
       - 'conformance/**'
       - '.github/workflows/runtimes.yml'
@@ -18,6 +22,8 @@ on:
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'
       - 'src/Nino.Generator.Roslyn4.12/**'
+      - 'src/Nino.Codegen/**'
+      - 'tests/Nino.Codegen.Tests/**'
       - 'runtimes/**'
       - 'conformance/**'
       - '.github/workflows/runtimes.yml'
@@ -61,6 +67,48 @@ jobs:
               "'dotnet run --project conformance/Nino.Conformance -c Release -- --out conformance/corpus' and commit it."
             exit 1
           fi
+
+  # The generated files committed under runtimes/ (the corpus's types and tests/Nino.Codegen.Tests/Shapes.cs in Go,
+  # Rust and TypeScript) are what nino-gen writes today; the runtime jobs below compile and run them.
+  codegen:
+    name: Code generation
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - name: Test nino-gen and check the generated files
+        run: dotnet test tests/Nino.Codegen.Tests -c Release
+
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: runtimes/typescript
+    env:
+      NINO_CORPUS_REQUIRED: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Type check and test (the corpus over the generated code included)
+        run: |
+          npm ci
+          npm test
 
   go:
     name: Go
@@ -179,6 +227,12 @@ jobs:
         env:
           NINO_FUZZ_ITERATIONS: 20000
         run: cargo test --release --all-features --locked --test conformance mutational_fuzz -- --nocapture
+
+      # The same over the code nino-gen generates (tests/generated).
+      - name: Fuzz the generated code (short)
+        env:
+          NINO_FUZZ_ITERATIONS: 3000
+        run: cargo test --release --all-features --locked --test generated generated_fuzz -- --nocapture
 
       - name: MSRV
         run: cargo +"$MSRV" check --workspace --all-features --all-targets --locked
