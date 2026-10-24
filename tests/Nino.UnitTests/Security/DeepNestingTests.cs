@@ -325,9 +325,18 @@ public class DeepNestingTests
                 nodes.Add(node);
 
             NinoDeserializer.Deserialize(bytes, ref target);
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            NinoDeserializer.Deserialize(bytes, ref target);
-            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            // The second read can count about 8 KB once, apparently while its methods change tier: seen once in 16
+            // runs of the suite with DOTNET_EnableHWIntrinsic=0, never with the test alone (0 in 30) or after a 200 ms
+            // wait (0 in 25 runs of the suite), and a program doing the same read allocated nothing at Tier0, at
+            // Tier1 or with tiering off. An allocation of the read itself would show in every attempt, so one
+            // attempt without any is enough.
+            long allocated = long.MaxValue;
+            for (int attempt = 0; attempt < 3 && allocated != 0; attempt++)
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                NinoDeserializer.Deserialize(bytes, ref target);
+                allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            }
 
             Assert.AreEqual(0, allocated);
             AssertChain(target, 100_000, seed: 7);
