@@ -706,3 +706,17 @@ func TestTagConcurrentPlans(t *testing.T) {
 		}
 	}
 }
+
+func TestParseHex32(t *testing.T) {
+	for s, want := range map[string]int32{"0x0": 0, "0x7FFFFFFF": 0x7FFFFFFF, "0x80000000": -0x80000000,
+		"0xffffffff": -1, "0xA": 10, "0X1f": 31} {
+		if got, err := parseHex32(s); err != nil || got != want {
+			t.Errorf("parseHex32(%q) = %d, %v; want %d", s, got, err, want)
+		}
+	}
+	for _, s := range []string{"", "0x", "1F", "0x100000000", "0x1G", "0x-1", "0x+1", "0x 1"} {
+		if _, err := parseHex32(s); err == nil {
+			t.Errorf("parseHex32(%q) succeeded", s)
+		}
+	}
+}

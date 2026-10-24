@@ -1,6 +1,8 @@
 package nino
 
 import (
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
@@ -336,11 +338,17 @@ func parseHex32(s string) (int32, error) {
 	if !strings.HasPrefix(s, "0x") && !strings.HasPrefix(s, "0X") {
 		return 0, layoutErr("%q is not a 0x hex number", s)
 	}
-	v, err := strconv.ParseUint(s[2:], 16, 32)
-	if err != nil {
+	// The digits are the 32 bits of an int32 (a type id or hash, written as uint32 hex): decoded into 4 bytes and
+	// reinterpreted, so ids with the top bit set come back negative, as .NET has them.
+	digits := s[2:]
+	if len(digits) == 0 || len(digits) > 8 {
 		return 0, layoutErr("%q is not a 32-bit hex number", s)
 	}
-	return int32(uint32(v)), nil
+	var b [4]byte
+	if _, err := hex.Decode(b[:], []byte(strings.Repeat("0", 8-len(digits))+digits)); err != nil {
+		return 0, layoutErr("%q is not a 32-bit hex number", s)
+	}
+	return int32(binary.BigEndian.Uint32(b[:])), nil
 }
 
 type layoutError string
