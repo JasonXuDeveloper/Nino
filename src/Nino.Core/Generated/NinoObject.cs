@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Nino.Core
+namespace Nino.Core.Generated
 {
     /// <summary>
     /// Header handling for generated class formatters. A generated formatter implements

@@ -7,6 +7,7 @@ using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
 using Nino.Core;
+using Nino.Core.Generated;
 using Perfolizer.Horology;
 
 namespace Nino.Benchmark;

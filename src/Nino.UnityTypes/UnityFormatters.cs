@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Nino.Core;
+using Nino.Core.Generated;
 using Nino.UnityTypes;
 using UnityEngine;
 

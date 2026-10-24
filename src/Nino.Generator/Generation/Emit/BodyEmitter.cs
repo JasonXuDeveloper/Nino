@@ -348,7 +348,7 @@ internal sealed class BodyEmitter
             }
 
             string formatter = Formatter(member);
-            lines.Add($"default({formatter}).WriteFixed({Get(_m, member, "value")}, ref {Core}NinoUnsafe.Add(ref destination, {offset}));");
+            lines.Add($"default({formatter}).WriteFixed({Get(_m, member, "value")}, ref {CoreGenerated}NinoUnsafe.Add(ref destination, {offset}));");
             symbolic.Add($"default({formatter}).FixedSize");
         }
 
@@ -414,8 +414,8 @@ internal sealed class BodyEmitter
         {
             if (headers)
             {
-                _w.Line($"{Core}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i]}, {group[i].Key});");
-                _w.Line($"{Core}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i + 1]}, {group[i].Raw!.Expression});");
+                _w.Line($"{CoreGenerated}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i]}, {group[i].Key});");
+                _w.Line($"{CoreGenerated}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i + 1]}, {group[i].Raw!.Expression});");
             }
 
             _w.Line(RawWrite(group[i], p, block.Offsets[i]));
@@ -464,8 +464,8 @@ internal sealed class BodyEmitter
     {
         string method = RawBlock.IsStruct(member) ? "WriteValue" : "Write";
         return WriteFrom(member) is { } field
-            ? $"{Core}NinoUnsafe.{method}In<{member.TypeName}>(ref {p}, {offset}, in {field});"
-            : $"{Core}NinoUnsafe.{method}<{member.TypeName}>(ref {p}, {offset}, {Get(_m, member, "value")});";
+            ? $"{CoreGenerated}NinoUnsafe.{method}In<{member.TypeName}>(ref {p}, {offset}, in {field});"
+            : $"{CoreGenerated}NinoUnsafe.{method}<{member.TypeName}>(ref {p}, {offset}, {Get(_m, member, "value")});";
     }
 
     /// <summary>
@@ -502,7 +502,7 @@ internal sealed class BodyEmitter
             string p = run != null ? EmitRawBlock(run, block, reserve) : "__p" + _blocks++;
             if (run == null)
                 _w.Line($"ref byte {p} = ref {reserve};");
-            _w.Line($"{Core}NinoUnsafe.Write<int>(ref {p}, {block.Total}, {first.Key});");
+            _w.Line($"{CoreGenerated}NinoUnsafe.Write<int>(ref {p}, {block.Total}, {first.Key});");
             run = null;
             EmitFormatterWrite(first);
             _w.Line($"writer.EndRegion({l});");
@@ -858,9 +858,9 @@ internal sealed class BodyEmitter
             or "global::System.DateOnly" or "global::System.TimeOnly";
 
     private static string RawRead(MemberModel member, string p, string offset) =>
-        IsBool(member) ? $"{Core}NinoUnsafe.ReadBool(ref {p}, {offset})"
-        : MayCheck(member) ? $"{Core}NinoUnsafe.ReadChecked<{member.TypeName}>(ref {p}, {offset})"
-        : $"{Core}NinoUnsafe.Read<{member.TypeName}>(ref {p}, {offset})";
+        IsBool(member) ? $"{CoreGenerated}NinoUnsafe.ReadBool(ref {p}, {offset})"
+        : MayCheck(member) ? $"{CoreGenerated}NinoUnsafe.ReadChecked<{member.TypeName}>(ref {p}, {offset})"
+        : $"{CoreGenerated}NinoUnsafe.Read<{member.TypeName}>(ref {p}, {offset})";
 
     /// <summary>The raw members of <paramref name="group"/>, read from one block of <paramref name="r"/>.</summary>
     private void EmitRawBlockRead(List<MemberModel> group, RawBlock block, string r, bool inPlace)

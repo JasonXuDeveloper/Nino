@@ -832,7 +832,7 @@ and reuse deserialization and pooling work as usual (0 GC).
 On compilers that load the generator's Roslyn 4.8 or 4.12 build (.NET 8 SDK and later), the generator also intercepts each such call whose type
 argument is known at the call site and whose formatter it resolves (not raw values or arrays of raw elements,
 which the regular calls already copy directly, and not types it can only reach through `CachedFormatter<T>`):
-`NinoGen.Interceptors.g.cs` redirects it to `Nino.Core.NinoDirect`, which calls the formatter struct directly.
+`NinoGen.Interceptors.g.cs` redirects it to `Nino.Core.Generated.NinoDirect`, which calls the formatter struct directly.
 `NinoDeserializer.Deserialize<T>(ReadOnlySpan<byte>)` of a raw value is intercepted too, to
 `NinoDirect.DeserializeRaw<T>`: one bounds check and one unaligned load with a single return, which the JIT keeps in
 registers (the regular method's several returns go through a stack temp).
@@ -909,14 +909,20 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 
 Generated formatters call Nino.Core directly: `Writer`/`Reader`, the built-in formatter structs, `NinoObject`
 (class headers and subtype dispatch), `NinoDirect` (intercepted top-level calls), `NinoPolymorphic`, `NinoRegistry`,
-`NinoFormatterCache`, `NinoActivator`, `NinoRecycler` and `NinoUnsafe`. The members that exist only for generated code
-(`NinoObject`, `NinoDirect`, `NinoUnsafe`, `NinoRegistry.Add`, `INinoRegistry`, `INinoBodyFormatter<T>`,
-`INinoTopFormatter<T>`, `INinoRawBodyFormatter<T>`, `NinoBody`,
-`INinoRawFormatter`, `NinoPolymorphic<TBase>`, `NinoPolymorphic.Register<TSub, TFormatter>`/`RegisterTracked`,
-`NinoFormatterCache<T>.TryRegister`/`TryRegisterTop`/`TryRegisterFixed`, the region, reference and unchecked value members of
-`Writer`/`Reader`, `[NinoGenerated]`, the pool's per-thread stack) are hidden from IntelliSense
-(`[EditorBrowsable(Never)]`); they stay public because generated code lives in the user's assembly. There is deliberately no forwarding facade in front of them: every call it added is a
-real call under Mono's interpreter and in HybridCLR hot-update code, which do not inline.
+`NinoFormatterCache`, `NinoActivator`, `NinoRecycler` and `NinoUnsafe`. The types that exist only for generated code
+(and Nino's own packages: Nino.Immutable, Nino.UnityTypes) live in the namespace `Nino.Core.Generated`, folder
+`Generated/`: `NinoObject`, `NinoDirect`, `NinoUnsafe`, `INinoBodyFormatter<T>`, `INinoTopFormatter<T>`,
+`INinoRawBodyFormatter<T>`, `INinoFixedSizeFormatter<T>`, `INinoRawFormatter`, `NinoBody`, `NinoPolymorphic<TBase>`
+and the `NinoSubtypeHandler` it returns, `[NinoGenerated]`, `INinoRegistry` and `NinoEffectiveSettings`. The name
+says who calls them: user code never needs a `using` for it, generated code names them with `global::`, and a
+namespace of their own keeps them out of completion lists and away from user types of the same name (Nino.AspNetCore's
+`NinoBody<T>`). `Nino.Core.Internal` is a different thing: types that are not public at all. The members of public
+types that exist only for generated code (`NinoRegistry.Add`, `NinoPolymorphic.Register<TSub, TFormatter>`/`RegisterTracked`,
+`NinoFormatterCache<T>.TryRegister`/`TryRegisterTop`/`TryRegisterFixed`, `NinoActivator<T>.TryRegister`, the region,
+reference and unchecked value members of `Writer`/`Reader`, the pool's per-thread stack) stay where they are, and
+all of them, with the types above, are hidden from IntelliSense (`[EditorBrowsable(Never)]`); they stay public
+because generated code lives in the user's assembly. There is deliberately no forwarding facade in front of them:
+every call it added is a real call under Mono's interpreter and in HybridCLR hot-update code, which do not inline.
 
 ### Sources shared with the runtime
 
@@ -940,9 +946,9 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
 * Nino.Core: `NinoSerializer`/`NinoDeserializer` and `NinoSettings` at the root; `Attributes/` (everything users
   put on types), `IO/` (`Writer`, `Reader`, buffers, wire constants), `Formatters/` (the formatter interface,
   cache, resolver and every built-in formatter), `Polymorphism/` (type ids, registry, subtype dispatch,
-  reference tables), `Pooling/` (`NinoPool`, `NinoRecycler`, `NinoActivator`) and `Internal/` (unsafe helpers,
-  layout, thread caches, the shared sources above). Namespaces stay flat (`Nino.Core`) so user code needs one
-  `using`.
+  reference tables), `Pooling/` (`NinoPool`, `NinoRecycler`, `NinoActivator`), `Generated/` (the API only generated code
+  calls, namespace `Nino.Core.Generated`, see above) and `Internal/` (layout, thread caches, the shared sources
+  above). User code needs one `using Nino.Core`.
 * Nino.Generator: `Analysis/` (analyzer, suppressor, diagnostics), `Common/` (equatable collections, names and
   `[NinoType]` lookup shared by the analyzer, generator and code fixes), `Generation/` (symbols to models) and
   `Generation/Emit/` (models to source).
