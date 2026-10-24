@@ -36,7 +36,7 @@
 > `bool`、`DateTime`、`decimal`、`DateOnly` 和 `TimeOnly` 的值（包括原始结构体内部的）都会检查，值之后多余的字节会被拒绝；
 > 关闭时（默认）这些都没有任何开销。
 > 我们用变异 fuzz 和手工构造的数据检验了每个内置类型，发现的问题都已在 4.0.0-rc.7 修复。
-> [Nino 检查什么、哪些仍需你的代码负责](https://nino.xgamedev.net/zh/docs/v4/basic#invalid-data)。（MemoryPack 现在
+> [Nino 检查什么、哪些仍需你的代码负责](https://nino.xgamedev.net/zh/docs/v4/security)。（MemoryPack 现在
 > [建议只用于可信数据](https://github.com/Cysharp/MemoryPack#readme)；参见[对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack#untrusted-input)。）
 
 <p align="center">
@@ -49,7 +49,7 @@
 
 - **比 MemoryPack 更快。** 类和多态类型的序列化快 <!--bench:ser.range-->3.5–6.8<!--/bench--> 倍，反序列化快 <!--bench:deser.range-->1.3–1.9<!--/bench--> 倍；原始结构体数组两者都是整块拷贝，性能至少持平。
 - **可读取不可信数据。** 伪造的字节无法让进程崩溃、无法分配与自身大小不成比例的内存，也无法让 Nino 创建你没有声明的类型；
-  所有无效输入都抛出同一种 `NinoDataException`。[无效数据](https://nino.xgamedev.net/zh/docs/v4/basic#invalid-data)。
+  所有无效输入都抛出同一种 `NinoDataException`。[不可信数据](https://nino.xgamedev.net/zh/docs/v4/security)。
 - **零分配。** 序列化到缓冲区（`IBufferWriter<byte>`）不分配内存。反序列化到已有对象或池化对象（`[NinoPooled]`、复用反序列化）同样不分配（内容不变的字符串直接保留），
   比 MemoryPack 的覆盖写入最多快 <!--bench:reuse.inplace-->8.7<!--/bench--> 倍。
 - **一切在编译期完成。** 源生成器为每个类型生成格式化器：没有反射、没有 IL emit、无需注册、无需初始化调用，
@@ -214,10 +214,11 @@ v4 重写了运行时和生成器。**二进制格式与 v3 不兼容。**
 | 运行生成器 | **快 3.1 倍**；改动后只重新生成该类型（**快 8.3 倍**） |
 | 生成代码 | 源码**小 14 倍**，IL **小 5 倍** |
 
-v4 新增（截至 4.0.0-rc.7）：
+v4 新增：
 
-- **不可信数据**（rc.7）：分配（在读到元素之前最多为剩余字节的 16 倍）和栈深度都有上限，所有无效输入只抛出一种
-  `InvalidOperationException`，并用 fuzz 和手工构造的数据检验过。
+- **不可信数据**：分配（在读到元素之前最多为剩余字节的 16 倍）和栈深度都有上限，所有无效输入只抛出一种
+  `NinoDataException`，拒绝 Nino 从不写出的字节，限制哈希冲突，提供 `NinoSettings.MaxDepth`、`MaxCollectionLength`
+  和 `Untrusted`，并用 fuzz 和手工构造的数据检验过。
 - **格式**：版本容错类型和 keyed 类型、引用追踪，以及每个类型的线上布局以 `[assembly: NinoTypeLayout]` 元数据发布，
   构建之间字节一有变化就能发现。
 - **分配**：复用反序列化到已有对象、`[NinoPooled]` 对象池、`[NinoFactory]`，以及可以从你自己的 `ArrayPool<byte>`

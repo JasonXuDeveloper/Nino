@@ -2,7 +2,8 @@
 
 All diagnostics are reported by the analyzer (`NinoAnalyzer`) as you type; the source generator itself reports
 nothing. Fixes marked 🔧 are offered as code fixes in the IDE (Visual Studio, Rider, VS Code) and can be applied
-to a whole document, project or solution at once.
+to a whole document, project or solution at once. The tools that generate other languages report their own
+([below](#code-generation-for-other-languages)).
 
 Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnostic.NINO006.severity = none`.
 
@@ -224,3 +225,12 @@ An `[assembly: NinoFormatter(typeof(F))]` registration Nino cannot use, so it is
 it is generic, as its open generic definition (`typeof(F<,>)`). Every type parameter of `F` must be inferable: it occurs in `P`, in a type constraint of an
 inferable parameter (`where TList : List<T>`), or is constrained to `INinoFormatter<E>` for an inferable `E`.
 `targets` only apply when `P` is a bare type parameter.
+
+## Code generation for other languages
+
+The tools that write other languages from a built assembly report in MSBuild's message format, outside the analyzer:
+
+- `NINOTS001` (`nino-ts`, Nino.TypeScript) and `NINOGEN001` (`nino-gen`, Nino.Codegen): error. The arguments are
+  invalid or the assembly cannot be read; the tool exits with code 1 (Nino.TypeScript fails the build).
+- `NINOTS002` and `NINOGEN002`: warning. A type is left out because the target language cannot express it (a generic
+  type, reference tracking, a `[NinoType]` collection, ...), with the reason; see [codegen.md](codegen.md#what-is-not-generated).
