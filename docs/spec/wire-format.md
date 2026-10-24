@@ -972,7 +972,7 @@ reader does not meet.
 ### 9.1 Bounds
 
 Every read MUST stay inside the payload, or inside the current region or entry. Data that ends early MUST be
-rejected. **.NET:** done. Running out of data throws `InvalidOperationException`, and reads never go past a
+rejected. **.NET:** done. Running out of data throws `NinoDataException`, and reads never go past a
 region's end.
 
 ### 9.2 Lengths and allocation
@@ -1064,9 +1064,10 @@ Struct bodies do not count toward `D` (§7.10.1) and are never deferred, but the
 when reading: a struct that can hold itself (through a collection, a nullable, a `Lazy` or an interface) would
 otherwise nest without bound. **.NET** counts, while reading, each open body of such a struct (`Reader.EnterStruct`,
 emitted for structs whose nesting no bound covers; collections that hold themselves count their levels the same way)
-and fails when that count plus `D` exceeds 512, or when a non-deferrable class body opens with `D` plus that count
-at 512 or more. Structs that cannot reach themselves are not counted (their nesting is bounded by their types).
-The .NET writer counts only class bodies, so it can write struct nesting its reader then rejects. Readers in other
+and fails when that count plus `D` exceeds 512 (`NinoSettings.MaxDepth`), or when a non-deferrable class body opens
+with `D` plus that count at 512 or more. Structs that cannot reach themselves are not counted (their nesting is
+bounded by their types). The .NET writer counts the same struct bodies (`Writer.EnterStruct`) and throws
+`InvalidOperationException` instead of writing nesting its reader would reject. Readers in other
 languages MUST count the same struct bodies the same way (Rust: `enter_struct`), so that they accept exactly what
 .NET reads.
 

@@ -87,16 +87,18 @@ p, err := nino.DeserializeExact(data, ReadPoint)   // ... or rejected
   unknown id is an error; nothing is ever looked up by name.
 - **One error type, no partial results.** Every failure is a `*nino.Error`. `Deserialize` returns the zero value
   with it, never part of a value.
-- **Stricter than .NET where the spec allows** (spec §9 SHOULDs; .NET accepts these):
-  - presence bytes and `bool`s other than 0 and 1, inside raw structs too;
-  - `DateTime` with kind 3 or ticks past `DateTime.MaxValue`;
+- **Strict bytes.** It rejects what .NET rejects in every mode: presence bytes and `bool`s other than 0 and 1, a
+  keyed member that does not fill its entry, a deferred body that does not fill its entry, and a section of deferred
+  bodies that is not well-formed or sits on an inner region. It also rejects what .NET rejects only with
+  `NinoSettings.Untrusted` set (spec §9 SHOULDs):
+  - `bool`s other than 0 and 1 inside raw structs;
+  - `DateTime` with ticks past `DateTime.MaxValue`;
   - `decimal` with a scale above 28 or reserved bits set;
   - `DateOnly` and `TimeOnly` out of range;
-  - a non-minimal `BigInteger`, or one with 0 bytes;
-  - a keyed member that does not fill its entry, or a key repeated;
-  - a deferred body that does not fill its entry;
-  - a section of deferred bodies that is not well-formed, or one on an inner region;
-  - bytes after the value (`DeserializeExact`).
+  - bytes after the value (`DeserializeExact`);
+
+  and some that .NET accepts in every mode: `DateTime` with kind 3, a non-minimal `BigInteger` or one with 0 bytes,
+  and a key repeated in a keyed body.
 - **Writer.** It appends to one buffer that doubles as it grows. Reused (`Writer.Reset`, or the pool behind
   `Serialize` and `Append`), writing a value allocates nothing. It rejects what a reader would reject (an
   out-of-range date, a length past `int32`), so it never writes bytes that .NET would misread.

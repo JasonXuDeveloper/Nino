@@ -63,18 +63,21 @@ The reader assumes the input may be hostile. For any input:
 
 ### Stricter than .NET
 
-The reader rejects bytes that .NET accepts but never writes. It reads everything .NET writes.
+The reader rejects bytes that .NET never writes. It reads everything .NET writes. .NET rejects some of them in
+every mode, some only with `NinoSettings.Untrusted` set, and the rest not at all:
 
-- Bools and presence bytes must be 0 or 1.
-- `DateTime`, `DateOnly`, `TimeOnly` and `DateTimeOffset` must be in .NET's range.
-- A `decimal` must have zero flag bits and a scale of 28 or less.
-- A `BitArray` must have zeros in its unused bits.
-- A `BigInteger` must be in its minimal form. A count of 0 reads as zero.
-- The padding of raw structs must be zero.
-- Sets and maps must not contain duplicate keys.
-- A keyed member must use up its whole length (`end_member`).
+- Bools and presence bytes must be 0 or 1 (.NET: in every mode, except a `bool` inside a raw struct or tuple, which
+  it checks only with `Untrusted`).
+- `DateTime`, `DateOnly`, `TimeOnly` and `DateTimeOffset` must be in .NET's range (.NET: `DateTimeOffset` always,
+  the others with `Untrusted`).
+- A `decimal` must have zero flag bits and a scale of 28 or less (.NET: with `Untrusted`).
+- A `BitArray` must have zeros in its unused bits (.NET: no).
+- A `BigInteger` must be in its minimal form. A count of 0 reads as zero (.NET: no).
+- The padding of raw structs must be zero (.NET: no).
+- Sets and maps must not contain duplicate keys (.NET: in every mode).
+- A keyed member must use up its whole length (`end_member`) (.NET: in every mode).
 - A deferred-body section must be the outermost region, must be filled exactly by its entries, and every entry's key
-  must be at or below its own offset.
+  must be at or below its own offset (.NET: in every mode).
 
 Reference tracking (`trackReferences=true`) is not supported. Values written with it fail to read.
 

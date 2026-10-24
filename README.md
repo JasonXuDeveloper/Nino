@@ -38,7 +38,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 > `string` keys with a per-process secret, `bool`, `DateTime`, `decimal`, `DateOnly` and `TimeOnly` values are checked
 > even inside raw structs, and bytes after the value are rejected; with it off (the default) none of this costs anything.
 > Fuzzed and hand-crafted payloads were run against every built-in type, and what they found is fixed in 4.0.0-rc.7.
-> [What Nino checks, and what stays your code's job](https://nino.xgamedev.net/en/docs/v4/basic#invalid-data). (MemoryPack now
+> [What Nino checks, and what stays your code's job](https://nino.xgamedev.net/en/docs/v4/security). (MemoryPack now
 > [recommends itself for trusted data only](https://github.com/Cysharp/MemoryPack#readme); see the [comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack#untrusted-input).)
 
 <p align="center">
@@ -53,7 +53,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
   <!--bench:deser.range-->1.3–1.9<!--/bench-->× faster, and raw struct arrays are at least on par (a block copy in both).
 - **Safe for untrusted data.** Crafted bytes cannot crash the process, allocate out of proportion to their size or make
   Nino create a type you did not declare; every invalid input throws one `NinoDataException`.
-  [Invalid data](https://nino.xgamedev.net/en/docs/v4/basic#invalid-data).
+  [Untrusted data](https://nino.xgamedev.net/en/docs/v4/security).
 - **Zero allocation.** Serializing into a buffer (`IBufferWriter<byte>`) allocates nothing. Deserializing into existing or pooled objects
   (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either (a string whose text is unchanged is kept),
   and is up to <!--bench:reuse.inplace-->8.7<!--/bench-->× faster than MemoryPack's overwrite mode.
@@ -238,10 +238,11 @@ v4 is a rewrite of the runtime and the generator. **Its binary format is not com
 | Running the generator | **3.1× faster**; after an edit, only that type is re-generated (**8.3× faster**) |
 | Generated code | **14× smaller** source, **5× smaller** IL |
 
-New in v4, through 4.0.0-rc.7:
+New in v4:
 
-- **Untrusted data** (rc.7): bounded allocation (at most 16× the bytes left ahead of the elements) and stack depth,
-  one `InvalidOperationException` for every invalid input, checked with fuzzed and hand-crafted payloads.
+- **Untrusted data**: bounded allocation (at most 16× the bytes left ahead of the elements) and stack depth,
+  one `NinoDataException` for every invalid input, bytes Nino never writes rejected, a bound on hash collisions,
+  `NinoSettings.MaxDepth`, `MaxCollectionLength` and `Untrusted`, checked with fuzzed and hand-crafted payloads.
 - **Formats**: version-tolerant and keyed types, reference tracking, and the wire layout of every type published as
   `[assembly: NinoTypeLayout]` metadata, so a change in the bytes shows up between builds.
 - **Allocation**: reuse deserialization into existing objects, `[NinoPooled]` pools, `[NinoFactory]`, and
