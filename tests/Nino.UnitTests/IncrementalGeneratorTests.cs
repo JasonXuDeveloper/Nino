@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -19,17 +18,9 @@ public class IncrementalGeneratorTests
     private static CSharpCompilation Create(params (string Path, string Text)[] files) =>
         CreateNamed("Inc" + Guid.NewGuid().ToString("N"), files);
 
-    private static CSharpCompilation CreateNamed(string name, params (string Path, string Text)[] files)
-    {
-        var parse = new CSharpParseOptions(LanguageVersion.Latest);
-        var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
-            .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p)).ToList();
-        refs.Add(MetadataReference.CreateFromFile(typeof(NinoTypeAttribute).Assembly.Location));
-        // A unique assembly name per test keeps the generator's cache entries apart.
-        return CSharpCompilation.Create(name,
-            files.Select(f => CSharpSyntaxTree.ParseText(f.Text, parse, f.Path)), refs,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
-    }
+    // A unique assembly name per test keeps the generator's cache entries apart.
+    private static CSharpCompilation CreateNamed(string name, params (string Path, string Text)[] files) =>
+        TestCompilation.Create(name, files.Select(f => CSharpSyntaxTree.ParseText(f.Text, TestCompilation.Parse, f.Path)));
 
     private static CSharpCompilation Edit(CSharpCompilation compilation, string path, string find, string replace)
     {

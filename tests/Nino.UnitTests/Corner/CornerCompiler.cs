@@ -44,15 +44,9 @@ internal static class CornerCompiler
     private static Result Compile(string source, bool allowUnsafe, bool load, string[] preprocessorSymbols,
         System.Collections.Generic.IEnumerable<MetadataReference> extraReferences)
     {
-        var parse = new CSharpParseOptions(LanguageVersion.Latest, preprocessorSymbols: preprocessorSymbols);
-        var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
-            .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p)).ToList();
-        refs.Add(MetadataReference.CreateFromFile(typeof(NinoTypeAttribute).Assembly.Location));
-        refs.AddRange(extraReferences);
-        var compilation = CSharpCompilation.Create("Corner" + Guid.NewGuid().ToString("N"),
-            new[] { CSharpSyntaxTree.ParseText(source, parse) }, refs,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: allowUnsafe,
-                nullableContextOptions: NullableContextOptions.Disable));
+        var compilation = TestCompilation.Create("Corner" + Guid.NewGuid().ToString("N"),
+            new[] { CSharpSyntaxTree.ParseText(source, TestCompilation.ParseWith(preprocessorSymbols)) }, allowUnsafe,
+            extraReferences);
 
         var run = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator())
             .RunGenerators(compilation).GetRunResult();

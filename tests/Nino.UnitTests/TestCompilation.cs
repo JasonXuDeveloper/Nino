@@ -20,6 +20,10 @@ internal static class TestCompilation
 {
     public static readonly CSharpParseOptions Parse = new CSharpParseOptions(LanguageVersion.Latest);
 
+    /// <summary><see cref="Parse"/> with <paramref name="preprocessorSymbols"/> defined (none: <see cref="Parse"/>).</summary>
+    public static CSharpParseOptions ParseWith(IEnumerable<string> preprocessorSymbols) =>
+        preprocessorSymbols == null ? Parse : Parse.WithPreprocessorSymbols(preprocessorSymbols);
+
     // Created once: a MetadataReference is immutable, and reading every platform assembly per test is slow.
     private static readonly Lazy<MetadataReference[]> Platform = new Lazy<MetadataReference[]>(() =>
         ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
