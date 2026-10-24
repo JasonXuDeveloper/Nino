@@ -188,7 +188,8 @@ Anything the wire format cannot express is a compile error, and the message name
 ## serde
 
 The `serde` feature implements serde for the runtime's value types, so a struct with Nino codecs can also derive serde
-and be written as JSON, YAML, or any other serde format. Generated types (`nino-gen --lang rust --serde`, and
+and be written as JSON, YAML, or any other serde format. Generated types (`nino-gen --lang rust --serde`, or
+`<NinoCodegen Include="rust" Serde="true" />` with the Nino.Codegen package, and
 `tests/conformance/gen.py`) and the derive tests add:
 
 ```rust

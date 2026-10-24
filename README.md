@@ -78,10 +78,9 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
   [Supported types](https://nino.xgamedev.net/en/docs/v4/types).
 - **ASP.NET Core, TypeScript, Go and Rust.** [Nino.AspNetCore](https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore)
   adds MVC formatters and Minimal API bodies and results for `application/x-nino`;
-  [Nino.TypeScript](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) generates TypeScript codecs for your types
-  after each build, so browsers and Node read and write the same bytes as .NET; and the `nino-gen` tool (`Nino.Codegen`)
-  writes your types as TypeScript, Go or Rust from a built assembly, for the runtimes in `runtimes/`
-  ([docs/codegen.md](docs/codegen.md)).
+  [Nino.Codegen](https://nino.xgamedev.net/en/docs/v4/advanced/codegen) writes your types and their codecs as TypeScript, Go or Rust after each build (or from a built
+  assembly with the `nino-gen` tool, Nino.Codegen.Tool), so browsers, Node, Go services and Rust programs read and
+  write the same bytes as .NET, with the runtimes in `runtimes/` ([docs/codegen.md](docs/codegen.md)).
 - **Mistakes caught while you type.** 27 analyzer diagnostics (NINO001–NINO027), many with a one-click fix.
 
 ## Built for
@@ -89,7 +88,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 | | |
 |---|---|
 | ⚙️ **[Services & IPC](https://nino.xgamedev.net/en/docs/v4/advanced/high-performance)** | Compact binary payloads, no per-call allocations, and safe concurrent use from ASP.NET Core, workers and actors. [Nino.AspNetCore](https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore) reads and writes `application/x-nino` bodies in MVC and Minimal APIs. |
-| 🧩 **[Web & Node clients](https://nino.xgamedev.net/en/docs/v4/advanced/typescript)** | [Nino.TypeScript](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) generates TypeScript classes and codecs for your `[NinoType]`s after each build, so browsers and Node read and write the same bytes as .NET. |
+| 🧩 **[Web, Node, Go & Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)** | [Nino.Codegen](https://nino.xgamedev.net/en/docs/v4/advanced/codegen) generates TypeScript, Go or Rust types and codecs for your `[NinoType]`s after each build, so browsers, Node, Go and Rust read and write the same bytes as .NET. |
 | 🌐 **[RPC & networking](https://nino.xgamedev.net/en/docs/v4/advanced/networking)** | Serialize straight into an `IBufferWriter<byte>` (a `PipeWriter`, a pooled buffer), deserialize from a `ReadOnlySpan<byte>`, and reuse pooled message objects. Polymorphic messages need no tags, and a crafted message throws one exception instead of taking the server down. |
 | 📨 **[Message queues & event streams](https://nino.xgamedev.net/en/docs/v4/advanced/message-queues)** | Polymorphic event types behind one base type, small payloads, and formats that let producers and consumers upgrade at different times. |
 | 🗄️ **[Caching](https://nino.xgamedev.net/en/docs/v4/advanced/caching)** | Values for Redis, `IDistributedCache`/`HybridCache` or in-process caches, with schema changes across deployments. |
@@ -105,8 +104,8 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 dotnet add package Nino --prerelease            # .NET, Godot
 dotnet add package Nino.Immutable --prerelease  # optional: System.Collections.Immutable types
 dotnet add package Nino.AspNetCore --prerelease # optional: ASP.NET Core MVC formatters and Minimal API bodies
-dotnet add package Nino.TypeScript --prerelease # optional: TypeScript codecs for browsers and Node, after each build
-dotnet tool install -g Nino.Codegen --prerelease # optional: nino-gen, your types as TypeScript, Go or Rust
+dotnet add package Nino.Codegen --prerelease    # optional: your types as TypeScript, Go or Rust, after each build
+dotnet tool install -g Nino.Codegen.Tool --prerelease # optional: the same as the nino-gen command
 openupm add com.jasonxudeveloper.nino           # Unity (generator and Unity class formatters included)
 ```
 
@@ -214,7 +213,7 @@ We round-trip every value through MemoryPack 1.21.4 before timing it. These fail
 Nino writes all three by their values, not by the runtime's private layout, so they round-trip everywhere.
 
 MemoryPack still has `System.Type` (left out of Nino on purpose: data that names the types to create is an attack
-vector). Nino.TypeScript generates TypeScript from the layouts the formatters are generated from, after each build,
+vector). Nino.Codegen generates TypeScript (and Go and Rust) from the layouts the formatters are generated from, after each build,
 structs and version-tolerant types included
 ([compared with MemoryPack's](https://nino.xgamedev.net/en/docs/v4/advanced/typescript#compared-with-memorypack),
 which its README says will be removed in its next release),
@@ -259,9 +258,9 @@ New in v4:
   HybridCLR without an init call.
 - **Strings**: text whose chars are all at most U+00FF (ASCII, Latin-1) is written in one byte a char, other text as
   UTF-16, and `[NinoUtf8]` writes UTF-8 per member.
-- **Integrations**: Nino.AspNetCore (MVC formatters, Minimal API `NinoBody<T>` and `NinoResults`), Nino.TypeScript
-  (TypeScript classes and codecs for browsers and Node, generated after each build) and `nino-gen` (Nino.Codegen: the
-  same types and codecs in TypeScript, Go or Rust, from a built assembly).
+- **Integrations**: Nino.AspNetCore (MVC formatters, Minimal API `NinoBody<T>` and `NinoResults`) and Nino.Codegen
+  (your types and codecs in TypeScript, Go or Rust, generated after each build; or from a built assembly with
+  Nino.Codegen.Tool's `nino-gen`).
 - **Tooling**: an incremental generator and 27 analyzers (NINO001–NINO027) with code fixes, in Unity too.
 
 See [what's new](https://nino.xgamedev.net/en/docs/v4/whats-new), the

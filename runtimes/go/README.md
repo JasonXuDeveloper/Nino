@@ -219,7 +219,8 @@ goes through its bits, as a conversion through `float64` would lose a signaling 
 ## Tags on generated structs
 
 Generated Go structs carry the same tags as hand-tagged ones, so the two have the same shape and either path reads
-either's data. `nino-gen --lang go` (docs/codegen.md; `--tags`, `--tag-names`) emits, for every `[NinoType]`:
+either's data. `nino-gen --lang go` (docs/codegen.md; `--tags`, `--tag-names`; in a build, the Nino.Codegen package's
+`<NinoCodegen Include="go" Tags="..." TagNames="..." />`) emits, for every `[NinoType]`:
 
 - **the `nino` tag first** on every serialized field: the member's position (`nino:"3"`) for positional and
   version-tolerant types, the C# member name (`nino:"Health"`) for keyed ones, plus `,utf8` for a `[NinoUtf8]`

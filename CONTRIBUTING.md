@@ -19,8 +19,8 @@ dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoGeneratorBuild=4.8   # the .NE
 CI (`.github/workflows/ci.yml`) runs the unit tests on net10.0 (the whole solution is built there), on Nino.Core
 netstandard2.1 without interceptors (what Unity runs), on netstandard2.0 with the Roslyn 4.8 generator, on Arm64
 (net10.0 and net8.0), on x64 without AVX-512, without AVX2 and without SIMD (`DOTNET_EnableAVX512=0`,
-`DOTNET_EnableAVX2=0`, `DOTNET_EnableHWIntrinsic=0`) and on Windows; it also runs the ASP.NET Core and TypeScript tests
-(`Nino.AspNetCore.Tests`, `Nino.TypeScript.Tests`, Node 22.18+), publishes `Nino.AotTests` trimmed and Native AOT,
+`DOTNET_EnableAVX2=0`, `DOTNET_EnableHWIntrinsic=0`) and on Windows; it also runs the ASP.NET Core tests and those of Nino.Codegen in builds
+(`Nino.AspNetCore.Tests`, `Nino.Codegen.Integration.Tests`, Node 22.18+), publishes `Nino.AotTests` trimmed and Native AOT,
 runs `Nino.RuntimeTests` (net472) under Mono against .NET, and runs the Unity tests (`src/Nino.Unity`, Unity 2022.3).
 
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) also needs

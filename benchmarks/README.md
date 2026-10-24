@@ -162,7 +162,7 @@ cross JIT above shows ARM64.
 
 ## TypeScript
 
-`runtimes/typescript/bench/` measures the TypeScript that Nino.TypeScript generates against `JSON.stringify` and `JSON.parse`, in
+`runtimes/typescript/bench/` measures the TypeScript that nino-gen generates against `JSON.stringify` and `JSON.parse`, in
 Node and in headless Chromium (Playwright):
 
 ```sh
@@ -171,7 +171,7 @@ runtimes/typescript/bench/run.sh lookup    # the scenarios whose data file start
 ```
 
 `Program.cs` declares the types and writes each scenario's values, serialized by Nino in .NET, to
-`bench/out/data`; `nino-ts` generates their TypeScript into `bench/gen`. Before a scenario is timed, every
+`bench/out/data`; `nino-gen --lang ts` generates their TypeScript into `bench/gen`. Before a scenario is timed, every
 value is read and written back in TypeScript and must give exactly the bytes .NET wrote. JSON gets the same data as
 plain JSON (64-bit integers as strings, maps as objects) and is not converted back to `bigint` or `Map`, so it does
 less work than Nino. Each time is the median of 15 samples of at least 40 ms. It needs the .NET 10 SDK, Node 22.18+
