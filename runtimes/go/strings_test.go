@@ -84,6 +84,11 @@ var stringKinds = []string{
 	"\xed\xa0\x80", "\xed\xbf\xbf", "\xed\xa0\xbd\xed\xb8\x80", "\xed\x9f\xbf",
 	"\xff", "\x80", "\xc3", "\xe4\xb8", "\xf0\x9f\x98", "\xc0\x80", "\xc1\xbf", "\xe0\x80\x80", "\xe0\x9f\xbf",
 	"\xf0\x80\x80\x80", "\xf4\x90\x80\x80",
+	// The bounds of the writer's four-at-a-time paths: Latin-1 pairs (C2, C3) against other 2-byte chars (C4 on,
+	// Cyrillic), two 3-byte chars in a word (U+E000, U+FFFD; a second one cut or with a bad continuation), 4-byte
+	// leads past F4.
+	"ж", "\xc4\x80", "\xc2\xc2", "\xdf\x80", "\xee\x80\x80", "\xef\xbf\xbd", "\xe4\xb8\xad\xe4\xb8",
+	"\xe4\xb8\xad\xe4\x41\xad", "\xe0\xa0", "\xf5\x80\x80\x80", "\xf7\xbf\xbf\xbf", "\xf0\x90\x80",
 }
 
 // TestStringEncodings writes every string of up to 40 chars of one filler with one char of each kind at each
@@ -108,7 +113,7 @@ func TestStringEncodings(t *testing.T) {
 			t.Fatalf("%q: read back %q", s, got)
 		}
 	}
-	for _, filler := range []string{"a", "é", "中", "😀"} {
+	for _, filler := range []string{"a", "é", "ж", "中", "😀"} {
 		for n := 0; n <= 40; n++ {
 			check(strings.Repeat(filler, n))
 			for _, kind := range stringKinds {
@@ -141,8 +146,10 @@ func TestStringEncodings(t *testing.T) {
 // TestStringReadUnits reads strings of code units of every kind, unpaired surrogates included, against the
 // reference: up to 40 units, and longer ones (converted on the heap rather than on the stack).
 func TestStringReadUnits(t *testing.T) {
+	// Also the bounds of the reader's four-at-a-time paths: units of two UTF-8 bytes (0x80 to 0x7FF) against
+	// units that differ from them in one bit (0x8000, 0x80C2, 0xF800, 0x0780).
 	kinds := []uint16{'a', 0x7F, 0x80, 0xE9, 0xFF, 0x100, 0x7FF, 0x800, 0x4E2D, 0xFFFF, 0xD83D, 0xDE00, 0xD800,
-		0xDBFF, 0xDC00, 0xDFFF}
+		0xDBFF, 0xDC00, 0xDFFF, 0x436, 0x780, 0x8000, 0x80C2, 0xF800}
 	rnd := rand.New(rand.NewSource(2))
 	for i := 0; i < 50000; i++ {
 		n := rnd.Intn(41)
