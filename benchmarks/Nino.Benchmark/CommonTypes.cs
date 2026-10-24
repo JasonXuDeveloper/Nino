@@ -25,6 +25,20 @@ public partial struct InventoryItem
     public bool Bound;
 }
 
+/// <summary>
+/// A point of a recorded path: of fixed size but not raw (a value tuple member, laid out in memory with padding the
+/// wire leaves out), 4 + 4 + 6 + 1 = 15 bytes, 20 in memory.
+/// </summary>
+[NinoType]
+[MemoryPackable]
+public partial struct Waypoint
+{
+    public float X;
+    public float Y;
+    public (int Tick, short Zone) Stamp;
+    public bool Visited;
+}
+
 /// <summary>A game save record: scalars, an enum, a nullable, a struct list, a string dictionary, bytes and strings.</summary>
 [NinoType]
 [MemoryPackable]
