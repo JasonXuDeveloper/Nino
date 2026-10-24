@@ -674,7 +674,7 @@ jobs:
       TAG_NAME: ${{ needs.target.outputs.tag }}
     steps:
       - name: Download the sections
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: runtime-section-*
           path: sections
