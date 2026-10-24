@@ -204,6 +204,7 @@ EXTRA_CASES = [("Graph", "Object graph, 200 tracked nodes"), ("TolerantClass", "
                ("Players", "`List<Player>`, 100"), ("Orders", "`List<Order>`, 100"),
                ("Shapes", "`List<Shape>`, 1,000 (abstract base)"), ("Tree", "`TreeNode`, 1,365 nodes"),
                ("Inventory", "`InventoryItem[1000]` (padded struct)"),
+               ("Waypoints", "`Waypoint[1000]` (fixed size, not raw)"),
                ("StringDictionary", "`Dictionary<string, string>`, 1,000")]
 
 

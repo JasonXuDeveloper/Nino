@@ -12,7 +12,8 @@ namespace Nino.Benchmark;
 /// <summary>
 /// Data shaped like that of common applications (CommonTypes.cs), each serialized to a reused buffer writer and
 /// deserialized into new instances: 100 players, 100 orders, 1,000 shapes through their abstract base, a tree of
-/// 1,365 nodes, 1,000 padded structs and a dictionary of 1,000 string pairs.
+/// 1,365 nodes, 1,000 padded structs, 1,000 structs of fixed size that are not raw and a dictionary of 1,000 string
+/// pairs.
 /// </summary>
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
@@ -32,6 +33,8 @@ public class CommonTypesTest
     private static readonly TreeNode Tree = TreeNode.Create(new Random(7), 5);
     private static readonly InventoryItem[] Inventory = Enumerable.Range(0, 1000)
         .Select(i => new InventoryItem { ItemId = i, Count = (short)(i % 100), Bound = i % 3 == 0 }).ToArray();
+    private static readonly Waypoint[] Waypoints = Enumerable.Range(0, 1000)
+        .Select(i => new Waypoint { X = i * 0.5f, Y = -i, Stamp = (i * 16, (short)(i % 7)), Visited = i % 4 == 0 }).ToArray();
     private static readonly Dictionary<string, string> Strings = Enumerable.Range(0, 1000)
         .ToDictionary(i => "key" + i, i => "value" + i * 7);
 
@@ -45,6 +48,8 @@ public class CommonTypesTest
     private static readonly byte[] MemoryPackTree = MemoryPackSerializer.Serialize(Tree);
     private static readonly byte[] NinoInventory = NinoSerializer.Serialize(Inventory);
     private static readonly byte[] MemoryPackInventory = MemoryPackSerializer.Serialize(Inventory);
+    private static readonly byte[] NinoWaypoints = NinoSerializer.Serialize(Waypoints);
+    private static readonly byte[] MemoryPackWaypoints = MemoryPackSerializer.Serialize(Waypoints);
     private static readonly byte[] NinoStrings = NinoSerializer.Serialize(Strings);
     private static readonly byte[] MemoryPackStrings = MemoryPackSerializer.Serialize(Strings);
 
@@ -63,6 +68,8 @@ public class CommonTypesTest
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTree), MemoryPackTree.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeInventory), NinoInventory.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeInventory), MemoryPackInventory.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeWaypoints), NinoWaypoints.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeWaypoints), MemoryPackWaypoints.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeStringDictionary), NinoStrings.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeStringDictionary), MemoryPackStrings.Length);
     }
@@ -154,6 +161,22 @@ public class CommonTypesTest
         return _memoryPackBuffer.WrittenCount;
     }
 
+    [Benchmark(Baseline = true), BenchmarkCategory("WaypointsSerialize")]
+    public int NinoSerializeWaypoints()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(Waypoints, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("WaypointsSerialize")]
+    public int MemoryPackSerializeWaypoints()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, Waypoints);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("StringDictionarySerialize")]
     public int NinoSerializeStringDictionary()
     {
@@ -200,6 +223,13 @@ public class CommonTypesTest
     [Benchmark, BenchmarkCategory("InventoryDeserialize")]
     public InventoryItem[] MemoryPackDeserializeInventory() =>
         MemoryPackSerializer.Deserialize<InventoryItem[]>(MemoryPackInventory);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("WaypointsDeserialize")]
+    public Waypoint[] NinoDeserializeWaypoints() => NinoDeserializer.Deserialize<Waypoint[]>(NinoWaypoints);
+
+    [Benchmark, BenchmarkCategory("WaypointsDeserialize")]
+    public Waypoint[] MemoryPackDeserializeWaypoints() =>
+        MemoryPackSerializer.Deserialize<Waypoint[]>(MemoryPackWaypoints);
 
     [Benchmark(Baseline = true), BenchmarkCategory("StringDictionaryDeserialize")]
     public Dictionary<string, string> NinoDeserializeStringDictionary() =>
