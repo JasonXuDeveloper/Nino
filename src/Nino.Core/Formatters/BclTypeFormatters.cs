@@ -10,7 +10,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using Nino.Core.Generated;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Core
 {

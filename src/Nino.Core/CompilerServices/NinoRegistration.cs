@@ -2,7 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Nino.Core.Generated
+namespace Nino.Core.CompilerServices
 {
     /// <summary>
     /// Marks an assembly that contains generated Nino code. <see cref="Registry"/> is a static class whose static

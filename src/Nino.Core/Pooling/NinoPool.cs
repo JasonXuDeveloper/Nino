@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
-using Nino.Core.Generated;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Core
 {

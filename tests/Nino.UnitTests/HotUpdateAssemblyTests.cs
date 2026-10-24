@@ -53,7 +53,7 @@ namespace Hot
             sources = new[]
             {
                 Source.Replace("namespace Hot", "namespace HotSlow"), $@"
-[assembly: Nino.Core.Generated.NinoGenerated(typeof(HotSlow.SlowRegistry))]
+[assembly: Nino.Core.CompilerServices.NinoGenerated(typeof(HotSlow.SlowRegistry))]
 namespace HotSlow
 {{
     static class SlowRegistry
@@ -79,13 +79,13 @@ namespace HotSlow
             var text = t.GetText().ToString()
                 .Replace("[global::System.Runtime.CompilerServices.ModuleInitializer]", "");
             if (slowRegistry)
-                text = text.Replace("[assembly: global::Nino.Core.Generated.NinoGenerated(", "// [assembly: global::Nino.Core.Generated.NinoGenerated(");
+                text = text.Replace("[assembly: global::Nino.Core.CompilerServices.NinoGenerated(", "// [assembly: global::Nino.Core.CompilerServices.NinoGenerated(");
             return CSharpSyntaxTree.ParseText(text, TestCompilation.Parse, t.FilePath);
         });
         var output = compilation.AddSyntaxTrees(generated);
 
         var assembly = TestCompilation.EmitAndLoad(output);
-        StringAssert.Contains(string.Concat(run.GeneratedTrees.Select(t => t.ToString())), "[assembly: global::Nino.Core.Generated.NinoGenerated(");
+        StringAssert.Contains(string.Concat(run.GeneratedTrees.Select(t => t.ToString())), "[assembly: global::Nino.Core.CompilerServices.NinoGenerated(");
         return assembly;
     }
 

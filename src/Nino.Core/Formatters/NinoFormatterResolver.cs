@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using Nino.Core.Generated;
+using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
 namespace Nino.Core

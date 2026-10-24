@@ -152,7 +152,7 @@ internal static class RawLayout
         };
         return bytes != 0
             ? RawSize.Constant(bytes)
-            : new RawSize(0, $"{TypeNames.CoreGenerated}NinoUnsafe.SizeOf<{TypeNames.Global(type)}>()");
+            : new RawSize(0, $"{TypeNames.CoreCompilerServices}NinoUnsafe.SizeOf<{TypeNames.Global(type)}>()");
     }
 
     /// <summary>A struct's field as laid out: its name (its property's for a backing field), type and symbol.</summary>

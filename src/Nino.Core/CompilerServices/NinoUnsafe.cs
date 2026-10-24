@@ -10,7 +10,7 @@ using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.X86;
 #endif
 
-namespace Nino.Core.Generated
+namespace Nino.Core.CompilerServices
 {
     /// <summary>
     /// Low-level unaligned memory access used by <see cref="Writer"/>, <see cref="Reader"/> and generated code.

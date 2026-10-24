@@ -9,7 +9,7 @@ using System.Runtime.Intrinsics.Wasm;
 #endif
 using System.Runtime.Intrinsics.X86;
 #endif
-using Nino.Core.Generated;
+using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
 namespace Nino.Core

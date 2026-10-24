@@ -5,7 +5,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Nino.Core;
-using Nino.Core.Generated;
+using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
 [assembly: InternalsVisibleTo("Nino.UnitTests")]

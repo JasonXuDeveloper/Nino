@@ -1,6 +1,6 @@
 using System;
 
-namespace Nino.Core.Generated
+namespace Nino.Core.CompilerServices
 {
     /// <summary>
     /// Writes and reads one registered type. Also the registry entry: the registry stores handler references, so

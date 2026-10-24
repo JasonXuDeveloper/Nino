@@ -25,7 +25,7 @@ namespace Nino.CodeGen
             sb.Append("// </auto-generated>\n");
             sb.Append("using System;\n");
             sb.Append("using System.Runtime.CompilerServices;\n");
-            sb.Append("using Nino.Core.Generated;\n");
+            sb.Append("using Nino.Core.CompilerServices;\n");
             sb.Append("\n");
             sb.Append("namespace Nino.Core\n");
             sb.Append("{\n");
