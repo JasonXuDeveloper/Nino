@@ -47,6 +47,16 @@ namespace Nino.Core
             throw new NinoDataException($"Nino: invalid bool byte {value} (only 0 and 1 are bools).");
 
         [MethodImpl(Cold)]
+        public static void TrailingBytes(int count) =>
+            throw new NinoDataException(
+                $"Nino: {count} bytes after the value (NinoSettings.Untrusted rejects bytes the value does not take).");
+
+        [MethodImpl(Cold)]
+        public static void InvalidValue(Type type, int offset) =>
+            throw new NinoDataException(
+                $"Nino: invalid value of {type} (the field at byte {offset} holds bytes no constructor makes).");
+
+        [MethodImpl(Cold)]
         public static void InvalidPresence(int value) =>
             throw new NinoDataException($"Nino: invalid presence byte {value} (only 0, null, and 1, a value).");
 

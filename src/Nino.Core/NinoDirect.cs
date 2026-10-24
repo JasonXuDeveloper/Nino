@@ -122,6 +122,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T, TFormatter>(ReadOnlySpan<byte> data) where TFormatter : struct, INinoFormatter<T>
         {
+            // NinoSettings.Untrusted: a constant once compiled, and its own path (NinoUntrusted).
+            if (NinoLimits.Untrusted)
+                return NinoUntrusted.Read<T, TFormatter>(data);
             var reader = new Reader(data);
             T value = default;
             default(TFormatter).Deserialize(ref value, ref reader);
@@ -136,7 +139,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T DeserializeTop<T, TFormatter>(ReadOnlySpan<byte> data)
             where TFormatter : struct, INinoTopFormatter<T> =>
-            default(TFormatter).Read(data);
+            NinoLimits.Untrusted ? NinoUntrusted.Read<T, TFormatter>(data) : default(TFormatter).Read(data);
 
         /// <summary>
         /// <see cref="NinoDeserializer.Deserialize{T}(ReadOnlySpan{byte})"/> of a value the generator found is copied
@@ -149,8 +152,9 @@ namespace Nino.Core
         public static T DeserializeRaw<T>(ReadOnlySpan<byte> data)
         {
             ref byte source = ref MemoryMarshal.GetReference(data);
-            // Folded to one of the two branches.
-            if (!NinoRaw.IsRead<T>())
+            // Folded to one of the two branches (NinoSettings.Untrusted: the other, which checks the value and the
+            // length).
+            if (!NinoRaw.IsRead<T>() || NinoLimits.Untrusted)
                 source = ref DeserializeOther<T>(data);
             else if (data.Length < Unsafe.SizeOf<T>())
                 NinoThrow.EndOfData();
@@ -169,6 +173,12 @@ namespace Nino.Core
         public static void Deserialize<T, TFormatter>(ReadOnlySpan<byte> data, ref T value)
             where TFormatter : struct, INinoFormatter<T>
         {
+            if (NinoLimits.Untrusted)
+            {
+                NinoUntrusted.Read<T, TFormatter>(data, ref value);
+                return;
+            }
+
             var reader = new Reader(data);
             default(TFormatter).Deserialize(ref value, ref reader);
             reader.ReleaseReferences();

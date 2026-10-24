@@ -577,7 +577,9 @@ namespace Nino.Core
         public NinoLookup(int count, int capacity)
         {
             _groupings = new NinoGrouping<TKey, TElement>[count];
-            _byKey = new Dictionary<TKey, NinoGrouping<TKey, TElement>>(capacity);
+            _byKey = NinoLimits.Untrusted
+                ? Internal.NinoSeededHash.NewDictionary<TKey, NinoGrouping<TKey, TElement>>(capacity)
+                : new Dictionary<TKey, NinoGrouping<TKey, TElement>>(capacity);
             _insert = Internal.HashTables.CanInsert(_byKey, count);
         }
 

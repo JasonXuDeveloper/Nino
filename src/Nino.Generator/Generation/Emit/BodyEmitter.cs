@@ -821,6 +821,20 @@ internal sealed class BodyEmitter
     /// <summary>Whether <paramref name="member"/> is a <c>bool</c>, which is read with a check of its byte.</summary>
     private static bool IsBool(MemberModel member) => member.TypeName is "bool" or "global::System.Boolean";
 
+    /// <summary>
+    /// Whether the raw <paramref name="member"/> may hold values no constructor makes, which Nino.Core checks in
+    /// <c>NinoSettings.Untrusted</c> mode (<c>ReadChecked</c>): a struct (not a primitive or enum, whose sizes are
+    /// constants), or a <c>DateTime</c>, <c>decimal</c>, <c>DateOnly</c> or <c>TimeOnly</c>.
+    /// </summary>
+    private static bool MayCheck(MemberModel member) =>
+        !member.Raw!.IsConstant || member.TypeName is "global::System.DateTime" or "decimal" or "global::System.Decimal"
+            or "global::System.DateOnly" or "global::System.TimeOnly";
+
+    private static string RawRead(MemberModel member, string p, string offset) =>
+        IsBool(member) ? $"{Core}NinoUnsafe.ReadBool(ref {p}, {offset})"
+        : MayCheck(member) ? $"{Core}NinoUnsafe.ReadChecked<{member.TypeName}>(ref {p}, {offset})"
+        : $"{Core}NinoUnsafe.Read<{member.TypeName}>(ref {p}, {offset})";
+
     /// <summary>The raw members of <paramref name="group"/>, read from one block of <paramref name="r"/>.</summary>
     private void EmitRawBlockRead(List<MemberModel> group, RawBlock block, string r, bool inPlace)
     {
@@ -828,10 +842,9 @@ internal sealed class BodyEmitter
         _w.Line($"ref byte {p} = ref {r}.ReadBlock({block.Total});");
         for (int i = 0; i < group.Count; i++)
         {
-            // A bool through its own read, which rejects a byte other than 0 or 1.
-            _w.Line(Store(_m, group[i], inPlace, IsBool(group[i])
-                ? $"{Core}NinoUnsafe.ReadBool(ref {p}, {block.Offsets[i]})"
-                : $"{Core}NinoUnsafe.Read<{group[i].TypeName}>(ref {p}, {block.Offsets[i]})", _mode.Target));
+            // A bool through its own read, which rejects a byte other than 0 or 1; types with values to check in
+            // Untrusted mode through theirs.
+            _w.Line(Store(_m, group[i], inPlace, RawRead(group[i], p, block.Offsets[i]), _mode.Target));
         }
     }
 
@@ -841,7 +854,9 @@ internal sealed class BodyEmitter
         if (member.Raw != null)
         {
             _w.Line(Store(_m, member, inPlace,
-                IsBool(member) ? $"{r}.ReadBool()" : $"{r}.UnsafeRead<{member.TypeName}>()", _mode.Target));
+                IsBool(member) ? $"{r}.ReadBool()"
+                : MayCheck(member) ? $"{r}.ReadChecked<{member.TypeName}>()"
+                : $"{r}.UnsafeRead<{member.TypeName}>()", _mode.Target));
             return;
         }
 

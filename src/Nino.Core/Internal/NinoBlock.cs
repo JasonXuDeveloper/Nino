@@ -24,6 +24,15 @@ namespace Nino.Core
         public static int Size<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             !NinoUnsafe.IsReferenceOrContainsReferences<T>() ? NinoBlock<T, TFormatter>.Size : -1;
 
+        /// <summary>
+        /// <see cref="Size{T, TFormatter}"/> for reads: -1 in <see cref="NinoSettings.Untrusted"/> mode for values with
+        /// fields to check (<see cref="NinoLayout{T}.Checks"/>), which are then read one by one through their
+        /// formatter, and checked there.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int ReadSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            !NinoUnsafe.IsReferenceOrContainsReferences<T>() ? NinoBlock<T, TFormatter>.ReadSize : -1;
+
         /// <summary>The byte offset of <paramref name="field"/> inside <paramref name="value"/>.</summary>
         public static int Offset<T, TField>(ref T value, ref TField field) =>
             (int)Unsafe.ByteOffset(ref Unsafe.As<T, byte>(ref value), ref Unsafe.As<TField, byte>(ref field));

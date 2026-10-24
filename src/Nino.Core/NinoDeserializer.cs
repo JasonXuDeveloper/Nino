@@ -17,6 +17,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T>(ReadOnlySpan<byte> data)
         {
+            // NinoSettings.Untrusted: a constant once compiled, and its own path (NinoUntrusted).
+            if (NinoLimits.Untrusted)
+                return NinoUntrusted.Read<T>(data);
             // Raw values inline into the caller as a length check and a load.
             if (NinoRaw.IsRead<T>())
                 return ReadRaw<T>(data);
@@ -43,6 +46,12 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(ReadOnlySpan<byte> data, ref T value)
         {
+            if (NinoLimits.Untrusted)
+            {
+                NinoUntrusted.Read(data, ref value);
+                return;
+            }
+
             if (NinoRaw.IsRead<T>())
             {
                 value = ReadRaw<T>(data);
@@ -131,6 +140,12 @@ namespace Nino.Core
         {
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
+            if (NinoLimits.Untrusted)
+            {
+                NinoUntrusted.ReadBoxed(data, ref value, type);
+                return;
+            }
+
             var reader = new Reader(data);
             BoxedFormatter.Get(type).Deserialize(ref value, ref reader);
             reader.ReleaseReferences();

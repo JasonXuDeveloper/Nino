@@ -155,7 +155,7 @@ namespace Nino.Core
             bool created = value == null && typeof(TSet) == typeof(HashSet<T>);
             // InterfaceSetFormatter reads into a plain HashSet<T>, which no generated code registers a creator for.
             var set = value ??= typeof(TSet) == typeof(HashSet<T>)
-                ? (TSet)new HashSet<T>()
+                ? (TSet)(NinoLimits.Untrusted ? NinoSeededHash.NewSet<T>() : new HashSet<T>())
                 : NinoActivator<TSet>.Create();
             if (NinoRecycler.DiscardAll(set, set.Count))
                 set.Clear();
@@ -242,8 +242,8 @@ namespace Nino.Core
         private static void AddRaw(TSet set, ref byte src, int length)
         {
             int size = Unsafe.SizeOf<T>();
-            if (typeof(T) == typeof(bool))
-                NinoChecks.Bools(ref src, length);
+            if (!NinoLayout<T>.CopiesAsIs)
+                NinoChecks.Values<T>(ref src, length, size);
             for (int i = 0; i < length; i++)
             {
                 T item = NinoUnsafe.Read<T>(ref src);

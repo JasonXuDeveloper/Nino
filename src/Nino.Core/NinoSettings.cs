@@ -37,6 +37,7 @@ namespace Nino.Core
         private static int _maxDepth = DefaultMaxDepth;
         private static int _maxCollectionLength = int.MaxValue;
         private static int _maxHashCollisions = DefaultMaxHashCollisions;
+        private static bool _untrusted;
 
         /// <summary>
         /// How deep objects may nest in data being read or written before Nino throws (a
@@ -130,6 +131,45 @@ namespace Nino.Core
             }
         }
 
+        /// <summary>
+        /// Whether the data read may come from someone who would craft it: checks that cost time on every read, which
+        /// trusted data does not need, are made too. Off by default; every check of the default mode stays (each
+        /// invalid input throws <see cref="NinoDataException"/>, bounded allocation, depth and hash collisions,
+        /// bools and presence bytes of 0 or 1). On:
+        /// <list type="bullet">
+        /// <item>The dictionaries and hash sets Nino creates (also for <c>IDictionary</c>, <c>ISet</c> and lookups)
+        /// hash integer, <c>char</c>, <see cref="Guid"/> and <see cref="string"/> keys with a comparer keyed by a
+        /// secret drawn once per process (SipHash-1-3): their <c>Comparer</c> is not the default one, but equality
+        /// is. Keys built to share a bucket then do not, where without it they could fill buckets up to
+        /// <see cref="MaxHashCollisions"/> each. Collections passed in keep their comparer; other key types, and
+        /// <c>ImmutableDictionary</c> and <c>ImmutableHashSet</c>, rely on <see cref="MaxHashCollisions"/>.</item>
+        /// <item>Values copied as their bytes are checked as their own constructors would: a <c>bool</c> inside a
+        /// struct or tuple other than 0 or 1, a <see cref="DateTime"/> past <see cref="DateTime.MaxValue"/> (all four
+        /// kinds are valid: .NET keeps a fourth for local times in the repeated hour of a daylight saving change),
+        /// a <c>decimal</c> whose flags have bits other than the sign and a scale up to 28 set, a <c>DateOnly</c> or
+        /// <c>TimeOnly</c> out of range. Enums are not checked: any value of the underlying type is a valid enum
+        /// (flags combine, and a newer version may add members). <see cref="TimeSpan"/>, <see cref="Guid"/>, <c>char</c>
+        /// and the numbers have no invalid values.</item>
+        /// <item>Bytes after the top-level value (and the bodies deferred after it) are invalid data, for the APIs
+        /// that take the data as a span; reads from a <see cref="Reader"/> leave the rest to the caller.</item>
+        /// </list>
+        /// Off, none of this costs anything: the read paths test it as a constant. <b>Set before first use</b> (see
+        /// <see cref="MaxDepth"/>).
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Nino has already used the setting.</exception>
+        public static bool Untrusted
+        {
+            get => _untrusted;
+            set
+            {
+                lock (Lock)
+                {
+                    CheckNotFrozen(nameof(Untrusted));
+                    _untrusted = value;
+                }
+            }
+        }
+
         private static void CheckNotFrozen(string name)
         {
             if (_frozen)
@@ -149,6 +189,7 @@ namespace Nino.Core
                     MaxDepth = _maxDepth,
                     MaxCollectionLength = _maxCollectionLength,
                     MaxHashCollisions = _maxHashCollisions,
+                    Untrusted = _untrusted,
                 };
             }
         }
@@ -158,6 +199,7 @@ namespace Nino.Core
             public int MaxDepth;
             public int MaxCollectionLength;
             public int MaxHashCollisions;
+            public bool Untrusted;
         }
 
         private static int _defaultPoolMaxRetained = DefaultPoolMaxRetainedValue;

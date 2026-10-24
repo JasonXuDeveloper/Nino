@@ -171,6 +171,20 @@ namespace Nino.Core
             return value != 0;
         }
 
+        /// <summary>
+        /// Generated code: <see cref="Read{T}(ref byte, int)"/> of a raw member whose type may hold values no
+        /// constructor makes (a struct, <see cref="DateTime"/>, <c>decimal</c>...): checked in
+        /// <see cref="NinoSettings.Untrusted"/> mode (<see cref="NinoLayout{T}.Checks"/>), out of line; otherwise the
+        /// same load.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T ReadChecked<T>(ref byte source, int offset)
+        {
+            T value = Read<T>(ref source, offset);
+            return NinoLayout<T>.Checks == null ? value : NinoChecks.Checked(value);
+        }
+
         /// <summary><paramref name="source"/> + <paramref name="offset"/> bytes.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref byte Add(ref byte source, int offset) => ref Unsafe.Add(ref source, offset);

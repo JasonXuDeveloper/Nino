@@ -24,6 +24,9 @@ namespace Nino.Core
         /// <summary><see cref="NinoSettings.MaxHashCollisions"/>.</summary>
         public static readonly int MaxHashCollisions = Frozen.MaxHashCollisions;
 
+        /// <summary><see cref="NinoSettings.Untrusted"/>.</summary>
+        public static readonly bool Untrusted = Frozen.Untrusted;
+
         /// <summary>Whether <see cref="MaxCollectionLength"/> is lower than any length (its default, int.MaxValue).</summary>
         public static readonly bool LengthCapped = Frozen.MaxCollectionLength != int.MaxValue;
 

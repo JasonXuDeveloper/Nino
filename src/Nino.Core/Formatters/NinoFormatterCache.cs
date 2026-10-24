@@ -178,10 +178,12 @@ namespace Nino.Core
         public static readonly bool IsRaw = Compute();
 
         /// <summary>
-        /// <see cref="IsRaw"/>, but not for a <c>bool</c>: the top-level reads take its formatter, which checks the
-        /// byte (0 or 1), so that the raw reads of the other types stay a length check and a load.
+        /// <see cref="IsRaw"/>, but not for values that are checked (<see cref="NinoLayout{T}.CopiesAsIs"/>: a
+        /// <c>bool</c>, and in <see cref="NinoSettings.Untrusted"/> mode types with fields to check): the top-level
+        /// reads take their formatter, which checks them, so that the raw reads of the other types stay a length
+        /// check and a load.
         /// </summary>
-        public static readonly bool IsRawRead = IsRaw && typeof(T) != typeof(bool);
+        public static readonly bool IsRawRead = IsRaw && NinoLayout<T>.CopiesAsIs;
 
         private static bool Compute()
         {
