@@ -138,6 +138,14 @@ namespace Nino.Codegen.Integration.Tests
                 Assert.AreEqual("ok " + Hex(cases[i].Bytes), lines[i], $"case {i} ({cases[i].Type})");
         }
 
+        /// <summary>A tool the test needs is not on the PATH: inconclusive locally, a failure in CI (which sets it up).</summary>
+        internal static void Missing(string tool)
+        {
+            if (Environment.GetEnvironmentVariable("CI") == "true")
+                Assert.Fail(tool + " is not on the PATH (CI sets it up: .github/workflows/ci.yml).");
+            Assert.Inconclusive(tool + " is not on the PATH.");
+        }
+
         internal static void Delete(string dir)
         {
             if (dir != null && Directory.Exists(dir))
@@ -219,7 +227,7 @@ func main() {
                 var vet = GenericSamples.Run(dir, "go", "vet", "./...");
                 if (vet == null)
                 {
-                    Assert.Inconclusive("go is not on the PATH.");
+                    GenericSamples.Missing("go");
                     return;
                 }
 
@@ -304,7 +312,7 @@ fn main() {
                 var run = GenericSamples.Run(dir, "cargo", "run", "--quiet", "--", "cases.txt");
                 if (run == null)
                 {
-                    Assert.Inconclusive("cargo is not on the PATH.");
+                    GenericSamples.Missing("cargo");
                     return;
                 }
 

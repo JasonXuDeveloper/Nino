@@ -177,6 +177,33 @@ jobs:
         with:
           node-version: 22
 
+      # Go and Rust run the generated code against the bytes .NET writes (GoTests, RustTests; without them on the
+      # PATH those tests are inconclusive). Set up as runtimes.yml does: go.mod's version, rustup's stable.
+      - name: Set up Go
+        if: ${{ matrix.project == '' }}
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: runtimes/go/go.mod
+          cache-dependency-path: runtimes/go/bench/go.sum
+
+      - name: Set up Rust
+        if: ${{ matrix.project == '' }}
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          echo "CARGO_TARGET_DIR=${{ runner.temp }}/nino-codegen-cargo" >> "$GITHUB_ENV"
+
+      - name: Cache Cargo
+        if: ${{ matrix.project == '' }}
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ runner.temp }}/nino-codegen-cargo
+          key: codegen-rust-${{ runner.os }}-${{ hashFiles('runtimes/rust/Cargo.lock') }}
+          restore-keys: codegen-rust-${{ runner.os }}-
+
       - name: Test Nino.Codegen in builds
         if: ${{ matrix.project == '' }}
         run: |

@@ -246,7 +246,8 @@ nino-gen warns and leaves a type out when its language cannot express it, and th
 `tests/Nino.Codegen.Tests` (in Nino.slnx) checks the IR, each target and the command line, and that the generated files
 committed under the runtimes match what nino-gen writes today. `tests/Nino.Codegen.Integration.Tests` runs the
 TypeScript of its samples under Node against the bytes .NET writes, round-trips its generic samples through the
-generated Go (`go run`) and Rust (`cargo run`, with each `--maps`) when those tools are on the PATH, and builds scratch projects with
+generated Go (`go run`) and Rust (`cargo run`, with each `--maps`) (inconclusive without `go` or `cargo` on the
+PATH, a failure in CI, which sets them up), and builds scratch projects with
 `build/Nino.Codegen.targets` (every language, incremental runs, the `NinoTypeScript*` properties, design-time builds,
 and that the targets pass every option `Options.cs` defines). Each runtime then runs its corpus check over the generated code
 (every valid case written back byte for byte, every malicious case and truncated prefix rejected):
