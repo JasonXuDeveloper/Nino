@@ -203,6 +203,30 @@ internal sealed class BodyEmitter
         }
 
         string signature = EmitForwardersReturningSignature("WriteBody", Signature.WriteParameters(T));
+        if (CountsStructDepth)
+        {
+            // As the read body: a struct that can hold itself opens no class body, so the writer counts its nesting
+            // here, and an object graph nested too deep (or holding itself through a collection) throws before the
+            // stack runs out.
+            _w.Block(signature, () =>
+            {
+                _w.Line($"writer.EnterStruct(typeof({T}));");
+                _w.Open("try");
+                EmitWriteBodyContents();
+                _w.Close();
+                _w.Open("finally");
+                _w.Line("writer.ExitStruct();");
+                _w.Close();
+            });
+            if (_m.Inheritance.EmitMembers && !_mode.Shallow)
+            {
+                _w.Line();
+                EmitMembersMethods();
+            }
+
+            return;
+        }
+
         if (_m.Inheritance.EmitMembers && !_mode.Shallow && !Region && !_m.IsCollection)
         {
             _w.Line($"{signature} => WriteMembers(value, ref writer);");
@@ -211,31 +235,34 @@ internal sealed class BodyEmitter
             return;
         }
 
-        _w.Block(signature, () =>
-        {
-            if (Region && !(_m.Inheritance.EmitMembers && !_mode.Shallow) && TryEmitRegionWithBlock())
-                return;
-            // Keyed: the region holds everything; version tolerant: the members (the elements of a collection come
-            // first, as positional ones).
-            if (_m.Keyed)
-                _w.Line("int __length = writer.BeginRegion();");
-            if (_m.IsCollection)
-                _w.Line($"default({CollectionFormatter}).Serialize(value, ref writer);");
-            if (Tolerant)
-                _w.Line("int __length = writer.BeginRegion();");
-            if (_m.Inheritance.EmitMembers && !_mode.Shallow)
-                _w.Line("WriteMembers(value, ref writer);");
-            else
-                EmitMemberWrites();
-            if (Region)
-                _w.Line("writer.EndRegion(__length);");
-        });
+        _w.Block(signature, EmitWriteBodyContents);
 
         if (_m.Inheritance.EmitMembers && !_mode.Shallow)
         {
             _w.Line();
             EmitMembersMethods();
         }
+    }
+
+    /// <summary>The writes of a body (<see cref="EmitWriteBody"/>).</summary>
+    private void EmitWriteBodyContents()
+    {
+        if (Region && !(_m.Inheritance.EmitMembers && !_mode.Shallow) && TryEmitRegionWithBlock())
+            return;
+        // Keyed: the region holds everything; version tolerant: the members (the elements of a collection come
+        // first, as positional ones).
+        if (_m.Keyed)
+            _w.Line("int __length = writer.BeginRegion();");
+        if (_m.IsCollection)
+            _w.Line($"default({CollectionFormatter}).Serialize(value, ref writer);");
+        if (Tolerant)
+            _w.Line("int __length = writer.BeginRegion();");
+        if (_m.Inheritance.EmitMembers && !_mode.Shallow)
+            _w.Line("WriteMembers(value, ref writer);");
+        else
+            EmitMemberWrites();
+        if (Region)
+            _w.Line("writer.EndRegion(__length);");
     }
 
     /// <summary>

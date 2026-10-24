@@ -236,11 +236,15 @@ namespace Nino.Core
 
         public NinoReferenceWriteTable Refs;
 
+        /// <summary>Open bodies of structs and collections that can hold themselves (<see cref="Writer.EnterStruct"/>).</summary>
+        public int Structs;
+
         public static NinoWriteContext Rent() => NinoThreadCache.Take(ref t_cached) ?? new NinoWriteContext();
 
         public static void Return(NinoWriteContext context)
         {
             context.ReturnDeferrals();
+            context.Structs = 0;
 
             if (context.Refs != null)
             {
