@@ -1,21 +1,25 @@
 #!/usr/bin/env bash
-# Nino's generated TypeScript against JSON, in Node and in headless Chromium, on data written by Nino in .NET.
+# Nino's generated TypeScript against Protocol Buffers (protobuf-es), MessagePack (msgpackr) and JSON, timed by
+# tinybench, in Node and in headless Chromium, on data written by Nino in .NET.
 #
 # usage: runtimes/typescript/bench/run.sh [scenario]   (e.g. lookup; default: all)
-# Requires the .NET 10 SDK, Node 22.18+ (it runs TypeScript directly), tsc 5.7+ and Playwright with Chromium.
+# NINO_BENCH_TIME: tinybench's time per task in milliseconds (default 1000).
+# Requires the .NET 10 SDK, Node 22.18+ (it runs TypeScript directly) and, for the Chromium run, Playwright with
+# Chromium (global: NODE_PATH); the rest comes from package-lock.json.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../.." && pwd)
 OUT=$HERE/out
 
 rm -rf "$OUT" "$HERE/gen"
+(cd "$HERE" && npm ci --no-audit --no-fund > /dev/null)
 dotnet build -c Release "$ROOT/src/Nino.Codegen" > /dev/null
 dotnet build -c Release "$HERE" > /dev/null
 dotnet "$HERE/bin/Release/net10.0/Bench.dll" "$OUT/data"
 dotnet "$ROOT/src/Nino.Codegen/bin/Release/net8.0/nino-gen.dll" --assembly "$HERE/bin/Release/net10.0/Bench.dll" \
   --lang ts --out "$HERE/gen" --import-extension .ts
-tsc --target es2022 --module es2022 --moduleResolution bundler --strict --skipLibCheck \
-  --rewriteRelativeImportExtensions --outDir "$OUT/js" "$HERE/bench.ts"
+(cd "$HERE" && npx tsc -p . && npx esbuild bench.ts --bundle --format=esm --platform=browser --log-level=warning \
+  --outfile="$OUT/js/bench.js")
 
 echo "## Node $(node --version)"
 node --no-warnings "$HERE/node.ts" "$OUT/data" "${1:-}"

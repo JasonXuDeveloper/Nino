@@ -1,0 +1,105 @@
+// The TypeScript benchmark's types (Program.cs) as Protocol Buffers messages, field for field. Subtypes of Animal
+// are a oneof, which carries the type as Nino's type id does. Signed values that are often negative or span the
+// whole range use sint32 and sfixed64, as a protobuf schema for such data would.
+//
+// Regenerate bench_pb.ts: `npm run generate:proto` in runtimes/typescript/bench (buf and protoc-gen-es from
+// package.json; no protoc needed).
+syntax = "proto3";
+
+package nino.bench;
+
+message Vec3 {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+message Animal {
+  string name = 1;
+  oneof kind {
+    Dog dog = 2;
+    Cat cat = 3;
+    Puppy puppy = 4;
+  }
+}
+
+message Dog {
+  int32 bones = 1;
+}
+
+message Cat {
+  float lives = 1;
+}
+
+message Puppy {
+  int32 bones = 1;
+  bool sleepy = 2;
+}
+
+message Player {
+  int64 id = 1;
+  string name = 2;
+  int32 level = 3;
+  double score = 4;
+  bool online = 5;
+  Vec3 position = 6;
+  repeated int32 unlocked = 7;
+  map<string, int32> inventory = 8;
+  Animal pet = 9;
+}
+
+message Zoo {
+  repeated Animal animals = 1;
+}
+
+message Order {
+  int32 id = 1;
+  string sku = 2;
+  string customer = 3;
+  int32 quantity = 4;
+  double price = 5;
+  bool paid = 6;
+  uint32 status = 7;
+}
+
+message OrderBook {
+  repeated Order orders = 1;
+}
+
+message Article {
+  string title = 1;
+  string author = 2;
+  string body = 3;
+  string summary = 4;
+  repeated string tags = 5;
+  int32 views = 6;
+}
+
+message Mesh {
+  string name = 1;
+  repeated Vec3 vertices = 2;
+  repeated Vec3 normals = 3;
+  repeated int32 indices = 4;
+}
+
+message Samples {
+  repeated double values = 1;
+  repeated sint32 counts = 2;
+  repeated float weights = 3;
+}
+
+message Lookup {
+  map<string, int32> counts = 1;
+  map<int32, string> names = 2;
+}
+
+message Event {
+  int64 at = 1;
+  int64 user_id = 2;
+  int32 kind = 3;
+  repeated sfixed64 refs = 4;
+}
+
+message Strings {
+  repeated string values = 1;
+}

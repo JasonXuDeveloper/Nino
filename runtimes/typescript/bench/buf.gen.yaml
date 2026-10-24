@@ -1,0 +1,10 @@
+# `npm run generate:proto` writes proto/bench_pb.ts from proto/bench.proto.
+version: v2
+inputs:
+  - directory: proto
+plugins:
+  - local: protoc-gen-es
+    out: proto
+    opt:
+      - target=ts
+      - import_extension=ts

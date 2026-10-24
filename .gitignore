@@ -52,3 +52,4 @@ runtimes/typescript/bench/gen/
 
 # The TypeScript runtime's dev dependencies
 runtimes/typescript/node_modules/
+runtimes/typescript/bench/node_modules/

@@ -57,6 +57,8 @@ that Nino.Codegen embeds, also run the `Nino.Codegen.Integration.Tests` .NET tes
 
 ## Benchmarks
 
-`bench/run.sh [scenario]` compares the generated code with `JSON` in Node and in headless Chromium, on data written by
-Nino in .NET (it needs the .NET 10 SDK, `tsc` and Playwright with Chromium). Compare before and after a change on one
-machine; do not publish the numbers.
+`bench/run.sh [scenario]` compares the generated code with Protocol Buffers (protobuf-es), MessagePack (msgpackr) and
+`JSON` in Node and in headless Chromium, timed by tinybench, on data written by Nino in .NET (it needs the .NET 10 SDK
+and, for Chromium, Playwright; the bench's own dependencies come from `bench/package-lock.json`, never this package's).
+See benchmarks/README.md ("Runtimes outside .NET"). Compare before and after a change on one machine; do not publish
+the numbers.

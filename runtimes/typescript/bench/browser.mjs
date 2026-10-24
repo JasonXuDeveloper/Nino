@@ -1,5 +1,6 @@
 // The benchmark in headless Chromium (Playwright): node browser.mjs <compiled directory> <data directory> [scenario]
-// The page loads the compiled bench.js and the data from a route, so nothing else is served.
+// The page loads the bundled bench.js (esbuild, run.sh) and the data from a route, so nothing else is served.
+// NINO_BENCH_TIME: tinybench's time per task in milliseconds.
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createRequire } from "node:module";
@@ -21,8 +22,10 @@ await page.route("http://bench/**", async (route) => {
 });
 await page.goto("http://bench/");
 console.log(`${await browser.version()}`);
-console.log(await page.evaluate(async (only) => {
+const time = Number(process.env.NINO_BENCH_TIME) || undefined;
+console.log(await page.evaluate(async ([only, time]) => {
   const { run, table } = await import("/bench.js");
-  return table(await run(async (name) => new Uint8Array(await (await fetch(`/data/${name}.bin`)).arrayBuffer()), only));
-}, only));
+  const read = async (name) => new Uint8Array(await (await fetch(`/data/${name}.bin`)).arrayBuffer());
+  return table(await run(read, only, { time }));
+}, [only, time]));
 await browser.close();

@@ -1,0 +1,22 @@
+{
+  "name": "nino-typescript-bench",
+  "private": true,
+  "description": "The benchmark of Nino's generated TypeScript against Protocol Buffers (protobuf-es), MessagePack (msgpackr) and JSON (see run.sh). Its dependencies are the benchmark's only, never the runtime's.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "generate:proto": "buf generate"
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "^1.59.0",
+    "@bufbuild/protobuf": "^2.10.0",
+    "@bufbuild/protoc-gen-es": "^2.10.0",
+    "esbuild": "^0.25.0",
+    "msgpackr": "^1.11.0",
+    "tinybench": "^6.2.2",
+    "typescript": "^5.9.3"
+  }
+}

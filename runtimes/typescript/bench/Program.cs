@@ -49,6 +49,9 @@ namespace Bench
 
     [NinoType] public sealed class Event { public long At; public long UserId; public int Kind; public long[] Refs; }
 
+    /// <summary>Text only: the string cases of the Go and Rust benchmarks.</summary>
+    [NinoType] public sealed class Strings { public string[] Values; }
+
     /// <summary>Writes each scenario's values, serialized by Nino, to &lt;dir&gt;/&lt;name&gt;.bin.</summary>
     public static class Program
     {
@@ -115,6 +118,22 @@ namespace Bench
                 At = 1760790645123L * 10000 + i, UserId = rng.NextInt64(1L << 40), Kind = rng.Next(10),
                 Refs = Enumerable.Range(0, 4).Select(_ => rng.NextInt64()).ToArray(),
             }));
+
+            // The Go and Rust benchmarks' strings: 1,000 short ASCII strings, and 1,000 of ASCII, Latin-1 (one byte a
+            // char in Nino) and other text (UTF-16 in Nino: Cyrillic, CJK and a char outside the BMP) in turn.
+            Write(dir, "strings", new[] { new Strings { Values = Enumerable.Range(0, 1000).Select(i => "string " + i).ToArray() } });
+            Write(dir, "strings-mixed", new[]
+            {
+                new Strings
+                {
+                    Values = Enumerable.Range(0, 1000).Select(i => (i % 3) switch
+                    {
+                        0 => "string " + i,
+                        1 => "crème brûlée " + i,
+                        _ => "строка 字符串 🎉 " + i,
+                    }).ToArray(),
+                },
+            });
         }
 
         /// <summary>The count, then each value's length and bytes.</summary>
