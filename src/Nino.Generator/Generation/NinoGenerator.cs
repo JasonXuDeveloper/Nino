@@ -352,23 +352,24 @@ public sealed class NinoGenerator : IIncrementalGenerator
     /// Emits the formatter of <paramref name="model"/>; <paramref name="clashes"/>: another formatter's name differs
     /// from its own only by case, so its hint name carries the hash of its exact name.
     /// </summary>
-    private static void Emit(SourceProductionContext spc, TypeModel model, bool clashes)
+    private static void Emit(SourceProductionContext spc, TypeModel model, bool clashes) =>
+        spc.AddSource(HintName(model.FormatterName, clashes), EmittedFormatters.Get(model, EmitSource));
+
+    /// <summary>The source of the formatter of <paramref name="model"/>.</summary>
+    private static string EmitSource(TypeModel model)
     {
-        string source;
         try
         {
-            source = FormatterEmitter.Emit(model);
+            return FormatterEmitter.Emit(model);
         }
         catch (Exception e)
         {
             // A rule that emits code the model has no name for (TypeModel.Need), or any other generator bug: one
             // build error naming the type, instead of a generator warning and no formatter, or code that does not
             // compile at all.
-            source = $"#error Nino generator failed on {model.TypeName} ({e.GetType().Name}: " +
-                     $"{e.Message.Replace('\n', ' ').Replace('\r', ' ')}). Please report it at https://github.com/JasonXuDeveloper/Nino/issues\n";
+            return $"#error Nino generator failed on {model.TypeName} ({e.GetType().Name}: " +
+                   $"{e.Message.Replace('\n', ' ').Replace('\r', ' ')}). Please report it at https://github.com/JasonXuDeveloper/Nino/issues\n";
         }
-
-        spc.AddSource(HintName(model.FormatterName, clashes), source);
     }
 
     /// <summary>The hint name of a formatter's file (see <see cref="Emit"/>).</summary>

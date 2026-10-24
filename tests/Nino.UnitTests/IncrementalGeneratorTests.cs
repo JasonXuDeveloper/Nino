@@ -345,6 +345,33 @@ public class MadeList : System.Collections.Generic.List<Made> { }
     }
 
     [TestMethod]
+    public void InsertingATypeEmitsOnlyItsFormatter()
+    {
+        // Roslyn matches the models to the previous run's by position: the types after the inserted one (in its file
+        // and, on Roslyn 4.3, in every file) reach the output step again. Their models are equal to before, so their
+        // files are the same texts, not emitted again. (Step tracking stays off: Roslyn 4.3 throws recording a step
+        // whose cached input gets new outputs, which is this case.)
+        var compilation = Create(
+            ("A.cs", Usings + "[NinoType] public class A1 { public int X; }\n[NinoType] public class A2 { public string Y; }\n}"),
+            ("B.cs", Usings + "[NinoType] public class B1 { public long Z; }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGenerators(compilation);
+        var before = driver.GetRunResult().Results[0].GeneratedSources
+            .Where(s => s.HintName.EndsWith("Formatter.g.cs", StringComparison.Ordinal))
+            .ToDictionary(s => s.HintName, s => s.SourceText);
+        Assert.AreEqual(3, before.Count);
+
+        compilation = Edit(compilation, "A.cs", "[NinoType] public class A1",
+            "[NinoType] public class A0 { public int W; }\n[NinoType] public class A1");
+        driver = driver.RunGenerators(compilation);
+        var after = driver.GetRunResult().Results[0].GeneratedSources.ToDictionary(s => s.HintName, s => s.SourceText);
+        foreach (var pair in before)
+            Assert.AreSame(pair.Value, after[pair.Key], pair.Key);
+        StringAssert.Contains(after["NinoGen.Inc_A0Formatter.g.cs"].ToString(), "Inc.A0");
+        StringAssert.Contains(after["NinoGen.Registry.g.cs"].ToString(), "Inc_A0Formatter");
+    }
+
+    [TestMethod]
     public void NamesDifferingOnlyByCaseGetTheirOwnFiles()
     {
         // Hint names are compared ignoring case: two of them that differ only by case fail the whole generator run
