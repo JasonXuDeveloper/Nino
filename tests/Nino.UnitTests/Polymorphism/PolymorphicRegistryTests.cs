@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 
 namespace Nino.UnitTests
 {
@@ -111,24 +114,22 @@ namespace Nino.UnitTests
             start.Set();
             Task.WaitAll(tasks);
         }
-    }
-}
 
-namespace Nino.UnitTests
-{
-    [TestClass]
-    public class CrossAssemblyInheritanceTests
-    {
+        // Only Nino.Core creates and registers subtype handlers: a handler from elsewhere could claim any type id for
+        // any type, and polymorphic reads trust what a handler reads.
         [TestMethod]
-        public void UnmarkedSubtypesOfReferencedNinoTypeAreGenerated()
+        public void HandlersCannotBeMadeOrRegisteredOutsideNinoCore()
         {
-            var value = new CrossAssemblyInherited2 { Name = "n", Extra = 3, More = "m" };
-            var result = NinoDeserializer.Deserialize<Nino.UnitTests.Subset.SubsetClassWithPrivateField>(
-                NinoSerializer.Serialize<Nino.UnitTests.Subset.SubsetClassWithPrivateField>(value));
-            var typed = (CrossAssemblyInherited2)result;
-            Assert.AreEqual("n", typed.Name);
-            Assert.AreEqual(3, typed.Extra);
-            Assert.AreEqual("m", typed.More);
+            var constructors = typeof(NinoSubtypeHandler).GetConstructors(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.IsTrue(constructors.Length > 0);
+            foreach (var constructor in constructors)
+                Assert.IsTrue(constructor.IsFamilyAndAssembly || constructor.IsAssembly || constructor.IsPrivate,
+                    "a subclass outside Nino.Core could call " + constructor);
+
+            var register = typeof(NinoPolymorphic<object>).GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .Where(m => m.Name == "Register" && m.GetParameters().Any(p => p.ParameterType == typeof(NinoSubtypeHandler)));
+            Assert.IsFalse(register.Any(), "Register(NinoSubtypeHandler) is public");
         }
     }
 }
