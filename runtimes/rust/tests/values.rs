@@ -107,6 +107,51 @@ fn strings() {
     round(0xD800u16, "00D8");
 }
 
+/// What .NET writes for a string: Latin-1 when every char is at most U+00FF, else UTF-16 (the reference the
+/// writer's one-pass transcoding is checked against).
+fn dotnet_string(text: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    if text.chars().all(|c| u32::from(c) <= 0xFF) {
+        let n = text.chars().count() as i32;
+        out.extend_from_slice(&(if n == 0 { 0 } else { !n }).to_le_bytes());
+        out.extend(text.chars().map(|c| u32::from(c) as u8));
+    } else {
+        let units: Vec<u16> = text.encode_utf16().collect();
+        out.extend_from_slice(&(units.len() as i32).to_le_bytes());
+        units.iter().for_each(|u| out.extend_from_slice(&u.to_le_bytes()));
+    }
+    out
+}
+
+#[test]
+fn string_encodings() {
+    // Every length up to 40 (the ASCII check reads words of 8 and 4 bytes, and loops past 16), with the char that
+    // decides the encoding at each position.
+    for len in 0..40 {
+        for at in 0..=len {
+            for c in ['a', '\u{7F}', '\u{80}', 'é', 'ÿ', 'Ā', '字', '\u{FFFF}', '😀'] {
+                let text: String =
+                    (0..len).map(|i| if i == at { c } else { (b'a' + (i % 26) as u8) as char }).collect();
+                let bytes = serialize(&text).unwrap();
+                assert_eq!(bytes, dotnet_string(&text), "{text:?}");
+                assert_eq!(deserialize_exact::<String>(&bytes).unwrap(), text);
+            }
+        }
+    }
+    // Every Latin-1 char, every char of each UTF-8 length, and mixes, after other text in the buffer.
+    let latin1: String = (0..=0xFFu8).map(char::from).collect();
+    let mixed = "a\u{80}\u{7FF}\u{800}\u{FFFF}\u{10000}\u{10FFFF}é字😀z";
+    for text in [latin1.as_str(), mixed, "\u{10FFFF}", "ÿÿ", "Āa", "é字"] {
+        let mut out = vec![0xAA];
+        serialize_into(&text.to_owned(), &mut out).unwrap();
+        assert_eq!(out[1..], dotnet_string(text)[..], "{text:?}");
+        assert_eq!(deserialize_exact::<String>(&out[1..]).unwrap(), text);
+    }
+    // Lone surrogates read as U+FFFD; a pair reads as its char.
+    assert_eq!(deserialize_exact::<String>(&hex("03000000 3DD8 00DE 00DC")).unwrap(), "😀\u{FFFD}");
+    assert_eq!(deserialize_exact::<String>(&hex("02000000 3DD8 6100")).unwrap(), "\u{FFFD}a");
+}
+
 #[test]
 fn bcl_values() {
     round(Decimal::new(123_456, 4, true).unwrap(), "00000480 00000000 40E2010000000000");

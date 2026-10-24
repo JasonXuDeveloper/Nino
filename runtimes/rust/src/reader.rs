@@ -271,21 +271,27 @@ impl<'d> Reader<'d> {
     #[inline]
     fn latin1_bytes(&mut self, header: i32) -> Result<&'d [u8]> {
         let size = !header as u32 as usize;
-        if size > self.rest.len() {
-            return Err(Error::length(header));
-        }
-        self.take(size)
+        self.take_or(size, header)
     }
 
     /// The bytes of `count` (> 0) UTF-16 code units.
     #[inline]
     fn utf16_units(&mut self, count: i32) -> Result<&'d [[u8; 2]]> {
         let size = (count as u32 as usize).checked_mul(2).ok_or_else(|| Error::length(count))?;
-        if size > self.rest.len() {
-            return Err(Error::length(count));
+        Ok(self.take_or(size, count)?.as_chunks::<2>().0)
+    }
+
+    /// Moves past `n` bytes and returns them, or fails with [`ErrorKind::InvalidLength`] for `length` (the length
+    /// the count came from) when fewer are left.
+    #[inline]
+    fn take_or(&mut self, n: usize, length: i32) -> Result<&'d [u8]> {
+        match self.rest.split_at_checked(n) {
+            Some((head, tail)) => {
+                self.rest = tail;
+                Ok(head)
+            }
+            None => Err(Error::length(length)),
         }
-        let bytes = self.take(size)?;
-        Ok(bytes.as_chunks::<2>().0)
     }
 
     /// A string written as UTF-8 (`[NinoUtf8]`): the char count (-1 null, 0 empty), then the byte count and the bytes.

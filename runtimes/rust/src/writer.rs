@@ -70,6 +70,31 @@ impl<'a> Writer<'a> {
         self.buf.get_mut(start..).unwrap_or_default()
     }
 
+    /// A length or header, then `bytes`: one capacity check for both (a string).
+    #[inline]
+    pub(crate) fn header_bytes(&mut self, header: i32, bytes: &[u8]) {
+        self.buf.reserve(bytes.len().saturating_add(4));
+        self.buf.extend_from_slice(&header.to_le_bytes());
+        self.buf.extend_from_slice(bytes);
+    }
+
+    /// Ends a string started at `at` with a zero header and followed by its chars: writes the header (the chars
+    /// written: bytes for Latin-1, code units for UTF-16).
+    #[inline]
+    pub(crate) fn end_header(&mut self, at: usize, latin1: bool) -> Result<()> {
+        let size = self.buf.len().saturating_sub(at).saturating_sub(4);
+        let count = if latin1 { size } else { size / 2 };
+        let header = i32::try_from(count).map_err(|_| Error::too_large())?;
+        self.patch_i32(at, if latin1 { !header } else { header });
+        Ok(())
+    }
+
+    /// The buffer, to append to directly.
+    #[inline]
+    pub(crate) fn buffer(&mut self) -> &mut Vec<u8> {
+        &mut self.buf
+    }
+
     /// Makes room for at least `additional` more bytes.
     #[inline]
     pub fn reserve_capacity(&mut self, additional: usize) {
