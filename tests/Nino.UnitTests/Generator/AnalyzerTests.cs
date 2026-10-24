@@ -9,7 +9,7 @@ using Verify = Microsoft.CodeAnalysis.CSharp.Testing.CSharpAnalyzerVerifier<
 namespace Nino.UnitTests;
 
 [TestClass]
-public class AnalyzerTest
+public class AnalyzerTests
 {
     private CSharpAnalyzerTest<Generator.Analysis.NinoAnalyzer, DefaultVerifier> SetUpAnalyzerTest(string code,
         params DiagnosticResult[] diagnostics)

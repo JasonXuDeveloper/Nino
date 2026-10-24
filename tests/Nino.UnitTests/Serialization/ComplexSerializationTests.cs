@@ -93,7 +93,7 @@ namespace Nino.UnitTests
     }
 
     [TestClass]
-    public class ComplexSerializationTest
+    public class ComplexSerializationTests
     {
         [TestMethod]
         public void TestNonGenericNoCodeGen()

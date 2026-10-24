@@ -64,7 +64,7 @@ namespace Nino.UnitTests
     }
 
     [TestClass]
-    public class InheritanceDelegationTests
+    public class InheritanceTests
     {
         [TestMethod]
         public void MultiLevelRoundTrip()

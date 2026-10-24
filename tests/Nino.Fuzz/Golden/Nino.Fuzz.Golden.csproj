@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <!-- The golden-bytes corpus of the unit tests (tests/Nino.UnitTests/GoldenBytesTests.cs), compiled as it is there:
-         with WEAK_VERSION_TOLERANCE, which makes every type of this assembly version tolerant. That is why it is an
-         assembly of its own: the fuzzer's own types keep their positional, keyed and raw formats. -->
+    <!-- The golden-bytes corpus of the unit tests (tests/Nino.UnitTests/Serialization/GoldenBytesTests.cs), compiled
+         as it is there: with WEAK_VERSION_TOLERANCE, which makes every type of this assembly version tolerant. That is
+         why it is an assembly of its own: the fuzzer's own types keep their positional, keyed and raw formats. -->
     <PropertyGroup>
         <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
         <ImplicitUsings>disable</ImplicitUsings>
@@ -14,7 +14,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="../../Nino.UnitTests/GoldenBytesTests.cs" Link="GoldenBytesTests.cs"/>
+        <Compile Include="../../Nino.UnitTests/Serialization/GoldenBytesTests.cs" Link="GoldenBytesTests.cs"/>
     </ItemGroup>
 
     <ItemGroup>

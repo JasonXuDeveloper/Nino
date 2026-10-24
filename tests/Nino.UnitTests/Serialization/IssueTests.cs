@@ -6,14 +6,14 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 using Nino.UnitTests;
 
-[assembly: NinoFormatter(typeof(IssueTest.Issue144.ReadOnlyArrayFormatter<,>))]
+[assembly: NinoFormatter(typeof(IssueTests.Issue144.ReadOnlyArrayFormatter<,>))]
 
 namespace Nino.UnitTests
 {
     [TestClass]
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [SuppressMessage("ReSharper", "SpecifyACultureInStringConversionExplicitly")]
-    public class IssueTest
+    public class IssueTests
     {
         [TestClass]
         public abstract class IssueTestTemplate

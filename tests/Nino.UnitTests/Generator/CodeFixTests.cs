@@ -10,7 +10,7 @@ using VerifyCF = Microsoft.CodeAnalysis.CSharp.Testing.CSharpCodeFixVerifier<
 namespace Nino.UnitTests;
 
 [TestClass]
-public class CodeFixTest
+public class CodeFixTests
 {
     private CSharpCodeFixTest<Generator.Analysis.NinoAnalyzer, Generator.NinoCodeFixProvider, DefaultVerifier>
         SetUpCodeFixTest(string code, string fixedCode, params DiagnosticResult[] diagnostics)
