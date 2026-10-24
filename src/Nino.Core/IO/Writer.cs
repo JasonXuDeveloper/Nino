@@ -479,15 +479,10 @@ namespace Nino.Core
             return writer.Pos;
         }
 
+        /// <summary>The section of <see cref="EndOuterRegion"/>, which returned already when nothing was deferred.</summary>
         private void EndOuterRegionCore(int lengthPosition)
         {
             var d = _context.Deferrals;
-            if (d == null || d.Region.IsEmpty)
-            {
-                PatchLength(lengthPosition);
-                return;
-            }
-
             int start = lengthPosition + NinoWire.LengthSize;
             int section = Pos;
             int depth = Depth;
