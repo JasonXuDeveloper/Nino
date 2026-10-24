@@ -216,6 +216,14 @@ func slot_functions(c)
       $o = $o + "\t\treturn nino.ReadClass(r, &" + lower($t.name) + "Class)\n"
     end
   end
+  for $k in c.allowed_closed
+    $o = $o + "\tcase " + $k.id + ":\n"
+    if $k.is_struct
+      $o = $o + "\t\treturn " + $k.name + ".read(r)\n"
+    else
+      $o = $o + "\t\treturn nino.ReadClass(r, &" + $k.name + ".class)\n"
+    end
+  end
   $o = $o + "\tdefault:\n\t\tr.UnknownType(id)\n\t\treturn nil\n\t}\n}\n\n"
   if !c.interface_slot
     # A class without subtypes: a *T, nil or the class itself.
@@ -229,7 +237,19 @@ func slot_functions(c)
       $o = $o + "\tcase *" + $t.name + ":\n\t\tnino.WriteTyped(w, " + $t.id + ", v, &" + lower($t.name) + "Class)\n"
     end
   end
+  for $k in c.allowed_closed
+    if $k.is_struct
+      $o = $o + "\tcase " + closed_type($k) + ":\n\t\tw.TypeID(" + $k.id + ")\n\t\t" + $k.name + ".write(w, v)\n"
+    else
+      $o = $o + "\tcase *" + closed_type($k) + ":\n\t\tnino.WriteTyped(w, " + $k.id + ", v, &" + $k.name + ".class)\n"
+    end
+  end
   ret $o + "\tdefault:\n\t\tw.Fail(nino.CodeUnknownType, \"not a type the slot allows\")\n\t}\n}\n"
+end
+
+# A closed generic type in a slot: Box[int32].
+func closed_type(k)
+  ret type_of(k.shape.type).name + "[" + join_types(k.shape.items) + "]"
 end
 
 # A generic type: its struct, and its codec (`boxCodec[T]`), which holds the codecs of its type arguments (p0...),
@@ -241,7 +261,16 @@ func generic_type(c)
   $recv = "func (c *" + $codec + c.type_args + ") "
   $o = "// " + c.name + " is `" + c.runtime_name + "`.\n" + struct_decl(c.name + c.type_params, c.members, c.format == "keyed") + "\n"
   $o = $o + "func (" + $self + ") NinoLayout() string {\n\treturn " + go_string(c.layout) + "\n}\n\n"
-  $o = $o + "func (" + $self + ") NinoTypeName() string {\n\treturn " + go_string(c.runtime_name) + "\n}\n\n"
+  if c.closed.size != 0
+    # The .NET name of the closed types the assembly names; the definition's for any other.
+    $o = $o + "func (v " + $self + ") NinoTypeName() string {\n\tswitch any(v).(type) {\n"
+    for $k in c.closed
+      $o = $o + "\tcase " + closed_type($k) + ":\n\t\treturn " + go_string($k.runtime_name) + "\n"
+    end
+    $o = $o + "\t}\n\treturn " + go_string(c.runtime_name) + "\n}\n\n"
+  else
+    $o = $o + "func (" + $self + ") NinoTypeName() string {\n\treturn " + go_string(c.runtime_name) + "\n}\n\n"
+  end
   $names = []
   $kinds = []
   if c.kind == "class"
@@ -273,7 +302,19 @@ func generic_type(c)
   end
   $o = $o + "}\n\n"
   $o = $o + "// " + c.name + "Codec returns the codec of " + $self + " (as a member of its type is written) from the codec of each\n// type argument, in order.\n"
-  $o = $o + "func " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + ") NinoArg[" + $value + "] {\n"
+  $closed = c.closed
+  if $closed.size != 0
+    # Its closed types in slots keep their codecs (their class bodies), so the codec is built apart.
+    $o = $o + "func " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + ") NinoArg[" + $value + "] {\n"
+    $pnames = []
+    for $p in c.parameters
+      $pnames = array.add $pnames ("p" + for.index)
+    end
+    $o = $o + "\treturn new" + c.name + "Codec(" + (array.join $pnames ", ") + ").self\n}\n\n"
+    $o = $o + "func new" + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + ") *" + $codec + c.type_args + " {\n"
+  else
+    $o = $o + "func " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + ") NinoArg[" + $value + "] {\n"
+  end
   $fields = []
   for $p in c.parameters
     $fields = array.add $fields ("p" + for.index + ": p" + for.index)
@@ -292,7 +333,19 @@ func generic_type(c)
       $o = $o + "\tc." + $d.name + " = NinoArg[" + gotype($d.shape) + "]{Read: c.read" + upper_first($d.name) + ", Write: c.write" + upper_first($d.name) + ", MinSize: " + $d.shape.min + "}\n"
     end
   end
-  $o = $o + "\treturn c.self\n}\n\n"
+  $o = $o + ($closed.size != 0 ? "\treturn c\n}\n\n" : "\treturn c.self\n}\n\n")
+  if $closed.size != 0
+    $recv0 = c.kind == "struct" ? "v " + $self : "v *" + $self
+    $o = $o + "// NinoTypeID returns the id of the closed type: one the assembly names, else 0 (no slot allows it).\n"
+    $o = $o + "func (" + $recv0 + ") NinoTypeID() int32 {\n\tswitch any(v).(type) {\n"
+    for $k in $closed
+      $o = $o + "\tcase " + (c.kind == "struct" ? "" : "*") + closed_type($k) + ":\n\t\treturn " + $k.id + "\n"
+    end
+    $o = $o + "\t}\n\treturn 0\n}\n\n"
+    for $slot in c.slots
+      $o = $o + "func (" + (c.kind == "struct" ? $self : "*" + $self) + ") is" + $slot.slot_name + "() {\n}\n\n"
+    end
+  end
   if c.kind == "class"
     $o = $o + $recv + "read(r *nino.Reader) " + $value + " {\n\treturn nino.ReadSealed(r, &c.class)\n}\n\n"
     $o = $o + $recv + "write(w *nino.Writer, v " + $value + ") {\n\tnino.WriteSealed(w, v, &c.class)\n}\n\n"
@@ -398,7 +451,7 @@ for c in types
     $classes = array.add $classes c
   end
 end
-if $classes.size != 0 || closed.size != 0
+if $classes.size != 0 || closed.size != 0 || slot_closed.size != 0
   $names = []
   $kinds = []
   for c in $classes
@@ -408,6 +461,10 @@ if $classes.size != 0 || closed.size != 0
   for $k in closed
     $names = array.add $names $k.name
     $kinds = array.add $kinds ("NinoArg[" + gotype($k.shape) + "]")
+  end
+  for $k in slot_closed
+    $names = array.add $names $k.name
+    $kinds = array.add $kinds ("*" + lower(type_of($k.shape.type).name) + "Codec[" + join_types($k.shape.items) + "]")
   end
   if uses_object
     $names = array.add $names "objects"
@@ -431,6 +488,9 @@ if $classes.size != 0 || closed.size != 0
   for $k in closed
     "\t" + $k.name + " = " + type_of($k.shape.type).name + "Codec(" + args($k.shape.items) + ")\n"
   end
+  for $k in slot_closed
+    "\t" + $k.name + " = new" + type_of($k.shape.type).name + "Codec(" + args($k.shape.items) + ")\n"
+  end
   if uses_object
     # What a slot declared as object allows: every type here (an explicit allow-list, where .NET accepts any type
     # it can find).
@@ -440,6 +500,13 @@ if $classes.size != 0 || closed.size != 0
         "\t\tnino.StructType(" + o.id + ", func(r *nino.Reader, v *" + o.name + ") { *v = Read" + o.name + "(r) }, func(w *nino.Writer, v *" + o.name + ") { Write" + o.name + "(w, *v) }),\n"
       else
         "\t\tnino.ClassType(" + o.id + ", &" + lower(o.name) + "Class),\n"
+      end
+    end
+    for $k in slot_closed
+      if $k.is_struct
+        "\t\tnino.StructType(" + $k.id + ", func(r *nino.Reader, v *" + closed_type($k) + ") { *v = " + $k.name + ".read(r) }, func(w *nino.Writer, v *" + closed_type($k) + ") { " + $k.name + ".write(w, *v) }),\n"
+      else
+        "\t\tnino.ClassType(" + $k.id + ", &" + $k.name + ".class),\n"
       end
     end
     "\t)\n"

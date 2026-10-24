@@ -26,10 +26,6 @@ use nino::{NinoRead, NinoWrite};
 use nino_types::{with_nino_type, NinoVisit};
 use serde_json::Value;
 
-/// Valid cases holding a closed generic type (`Conformance.Box<int>`...) in a polymorphic slot, behind the type id of
-/// its closed .NET name: nino-gen generates `Box<T>` but no slot variant for it (docs/codegen.md, "Generic types").
-const CLOSED_GENERICS: [&str; 2] = ["polymorphism", "polymorphism-generic-root"];
-
 // ---------------------------------------------------------------------------------------------- allocation tracking
 
 struct Counting;
@@ -144,7 +140,7 @@ fn run() {
         let name = name.as_str().unwrap();
         let case = read_json(&dir.join(format!("valid/{name}.json")));
         let ty = case["type"].as_str().unwrap();
-        if optional(&case) || CLOSED_GENERICS.contains(&name) {
+        if optional(&case) {
             skipped.push(name.to_string());
             continue;
         }
@@ -206,7 +202,7 @@ fn run() {
     for entry in truncations["cases"].as_array().unwrap() {
         let name = entry["case"].as_str().unwrap();
         let ty = entry["type"].as_str().unwrap();
-        if optional(entry) || CLOSED_GENERICS.contains(&name) {
+        if optional(entry) {
             skipped.push(format!("{name} prefixes"));
             continue;
         }

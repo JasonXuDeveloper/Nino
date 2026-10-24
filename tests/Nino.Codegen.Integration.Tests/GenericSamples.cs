@@ -52,6 +52,23 @@ namespace Nino.Codegen.Integration.Tests
             },
         };
 
+        /// <summary>Closed generic types in polymorphic slots, among the other types the slots allow.</summary>
+        internal static Pens Pens() => new()
+        {
+            Star = new Crate<int> { Name = "int crate", Content = 42 },
+            Animals = new List<Animal>
+            {
+                new Crate<string> { Name = "string crate", Content = "s" },
+                new Cat { Name = "Tom", Lives = 9 },
+                null,
+                new Crate<List<Tag>> { Content = new List<Tag> { new() { Name = "tag", Weight = 1 } } },
+                new Crate<Box<long>> { Name = "boxed", Content = new Box<long> { Label = "box", Value = -7 } },
+            },
+            Shape = new Patch<string> { Area = 1.5, Value = "patch" },
+            Shapes = new List<IShape> { new Square { Area = 4, Side = 2 }, new Patch<int> { Area = 2, Value = -3 }, null },
+            Anything = new Crate<int> { Name = "anything", Content = 1 },
+        };
+
         /// <summary><see cref="Full"/> with at most one entry in each map: written in the same order by any map.</summary>
         internal static Generics SingleEntries()
         {
@@ -73,6 +90,8 @@ namespace Nino.Codegen.Integration.Tests
                 ("Samples.Generics", NinoSerializer.Serialize(new Generics())),
                 ("Samples.Generics", NinoSerializer.Serialize<Generics>(null)),
                 ("Samples.Tag", NinoSerializer.Serialize(new Tag { Name = "tag", Weight = -1 })),
+                ("Samples.Pens", NinoSerializer.Serialize(Pens())),
+                ("Samples.Pens", NinoSerializer.Serialize(new Pens { Anything = new Patch<int> { Value = 5 } })),
             };
             if (ordered)
                 cases.Add(("Samples.Generics", NinoSerializer.Serialize(Full())));

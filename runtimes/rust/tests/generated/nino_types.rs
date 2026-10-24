@@ -4615,6 +4615,14 @@ pub enum AnimalRef {
     Cat(Box<Cat>),
     Dog(Box<Dog>),
     Puppy(Box<Puppy>),
+    /// `Conformance.Box<Conformance.Vec2>`.
+    BoxVec2(Box<BoxType<Vec2>>),
+    /// `Conformance.Box<System.Collections.Generic.List<Conformance.Point>>`.
+    BoxListPoint(Box<BoxType<Option<Vec<Option<Box<Point>>>>>>),
+    /// `Conformance.Box<System.Int32>`.
+    BoxInt32(Box<BoxType<i32>>),
+    /// `Conformance.Box<System.String>`.
+    BoxString(Box<BoxType<Option<nino::WideString>>>),
 }
 
 impl AnimalRef {
@@ -4623,6 +4631,10 @@ impl AnimalRef {
             Self::Cat(v) => &mut **v,
             Self::Dog(v) => &mut **v,
             Self::Puppy(v) => &mut **v,
+            Self::BoxVec2(v) => &mut **v,
+            Self::BoxListPoint(v) => &mut **v,
+            Self::BoxInt32(v) => &mut **v,
+            Self::BoxString(v) => &mut **v,
         }
     }
 }
@@ -4645,6 +4657,10 @@ impl NinoRead for AnimalRef {
             Cat::TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
             Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
             Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
+            -1580784064 => Self::BoxVec2(Box::new(r.read_class()?)),
+            -1116656767 => Self::BoxListPoint(Box::new(r.read_class()?)),
+            -794599344 => Self::BoxInt32(Box::new(r.read_class()?)),
+            -110345065 => Self::BoxString(Box::new(r.read_class()?)),
             _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
         };
         r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<AnimalRef>()?.body())));
@@ -4665,6 +4681,22 @@ impl NinoWrite for AnimalRef {
             }
             Self::Puppy(v) => {
                 w.i32(Puppy::TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::BoxVec2(v) => {
+                w.i32(-1580784064);
+                w.write_class(&**v)
+            }
+            Self::BoxListPoint(v) => {
+                w.i32(-1116656767);
+                w.write_class(&**v)
+            }
+            Self::BoxInt32(v) => {
+                w.i32(-794599344);
+                w.write_class(&**v)
+            }
+            Self::BoxString(v) => {
+                w.i32(-110345065);
                 w.write_class(&**v)
             }
         }
@@ -4761,6 +4793,14 @@ pub enum AnyObject {
     Vec2(Box<Vec2>),
     VersionSlot(Box<VersionSlot>),
     Zoo(Box<Zoo>),
+    /// `Conformance.Box<Conformance.Vec2>`.
+    BoxVec2(Box<BoxType<Vec2>>),
+    /// `Conformance.Box<System.Collections.Generic.List<Conformance.Point>>`.
+    BoxListPoint(Box<BoxType<Option<Vec<Option<Box<Point>>>>>>),
+    /// `Conformance.Box<System.Int32>`.
+    BoxInt32(Box<BoxType<i32>>),
+    /// `Conformance.Box<System.String>`.
+    BoxString(Box<BoxType<Option<nino::WideString>>>),
 }
 
 impl AnyObject {
@@ -4842,6 +4882,10 @@ impl AnyObject {
             Self::Vec2(v) => &mut **v,
             Self::VersionSlot(v) => &mut **v,
             Self::Zoo(v) => &mut **v,
+            Self::BoxVec2(v) => &mut **v,
+            Self::BoxListPoint(v) => &mut **v,
+            Self::BoxInt32(v) => &mut **v,
+            Self::BoxString(v) => &mut **v,
         }
     }
 }
@@ -4937,6 +4981,10 @@ impl NinoRead for AnyObject {
             Vec2::TYPE_ID => Self::Vec2(Box::new(r.read()?)),
             VersionSlot::TYPE_ID => Self::VersionSlot(Box::new(r.read_class()?)),
             Zoo::TYPE_ID => Self::Zoo(Box::new(r.read_class()?)),
+            -1580784064 => Self::BoxVec2(Box::new(r.read_class()?)),
+            -1116656767 => Self::BoxListPoint(Box::new(r.read_class()?)),
+            -794599344 => Self::BoxInt32(Box::new(r.read_class()?)),
+            -110345065 => Self::BoxString(Box::new(r.read_class()?)),
             _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
         };
         r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<AnyObject>()?.body())));
@@ -5249,6 +5297,22 @@ impl NinoWrite for AnyObject {
             }
             Self::Zoo(v) => {
                 w.i32(Zoo::TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::BoxVec2(v) => {
+                w.i32(-1580784064);
+                w.write_class(&**v)
+            }
+            Self::BoxListPoint(v) => {
+                w.i32(-1116656767);
+                w.write_class(&**v)
+            }
+            Self::BoxInt32(v) => {
+                w.i32(-794599344);
+                w.write_class(&**v)
+            }
+            Self::BoxString(v) => {
+                w.i32(-110345065);
                 w.write_class(&**v)
             }
         }

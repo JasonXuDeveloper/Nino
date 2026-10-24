@@ -129,6 +129,8 @@ are now `NINOGEN001` and `NINOGEN002`.
 
 1. **Layouts** (`Layouts/`): `LayoutReader` reads the `NinoTypeLayout` attributes with `MetadataLoadContext`, and
    `WireEncoding` parses each member's encoding (`raw(4)`, `seq(string)`, `map(K,V)`, `type(T)`, ...).
+   `ClosedTypeScan` reads the closed generic types the assembly's metadata names ([Closed generic types in
+   slots](#closed-generic-types-in-slots)).
 2. **The IR** (`Model/`): `CodegenModel` turns the layouts into a language-neutral model: each type's kind (raw struct,
    struct, sealed or open class, interface or abstract slot), format (positional, version-tolerant, keyed), header,
    deferral, members with their value shapes, the subtypes a slot allows, enums, and the generic definitions. Every
@@ -163,13 +165,34 @@ type with its arguments; inside a generic type, its parameters may appear anywhe
 
 Not generated, with a warning (NINOGEN002):
 
-- A generic type written behind a type id (a non-sealed class, an abstract class or an interface): the id is the hash
-  of the closed type's .NET name (`Box<System.Int32>`), and a closed generic type in a polymorphic or `object` slot is
-  not generated either.
+- A generic type written behind a type id wherever it is declared (a non-sealed class, an abstract class or an
+  interface): a member declared as `Base<int>` would be a slot of its own per closed type, which no target builds.
 - A generic type that holds itself with other arguments (`Node<T>` holding `Node<List<T>>`), directly or through
   another generic type: its codecs would be built without end.
 - A member whose type argument is a `Nullable<T>` or `KeyValuePair` inside a collection (`Box<int?[]>`), or any type
   not in the list above.
+
+### Closed generic types in slots
+
+A generic subtype (`sealed class Box<T> : Animal`, or a generic struct implementing a `[NinoType]` interface) is written
+in a polymorphic or `object` slot behind the hash of its closed .NET name (`Conformance.Box<System.Int32>`). Another
+language cannot form that name from the definition, and the layouts carry only the definition (`Box<T>`), so nino-gen
+reads the closed types from the assembly's metadata instead: every closed type a signature, a type specification
+(`new Box<int>()`, `typeof(Box<int>)`) or a generic method's arguments (`NinoPolymorphic.Register<Box<int>>()`) name.
+The ones whose definition is a concrete generic `[NinoType]` are cases of the slots they are assignable to (`object`
+slots take them all), each read and written with the codecs of its arguments:
+
+| | `Box<int>` in an `Animal` slot |
+| --- | --- |
+| TypeScript | `class BoxInt32 extends Box<number> {}`: the slot's writer switches on the constructor, so values to write are `new BoxInt32()`, and a codec of `Box<int>` reads `BoxInt32`s (`BoxCodec` takes the class to build) |
+| Go | a case `*Box[int32]` in `ReadAnimal`/`WriteAnimal`, through a `*boxCodec[int32]` built in `init`; `Box[T]` gets `NinoTypeID()`, `NinoTypeName()` (the closed name) and the slots' marker methods |
+| Rust | a variant `AnimalRef::BoxInt32(Box<BoxType<i32>>)` (and in `AnyObject`) |
+
+A closed type no code in the assembly names cannot be read: its id is unknown to every target, as it is to .NET in a
+process that never registered or wrote it. The other way round, the targets accept every closed type the assembly
+names, where .NET in a fresh process accepts only those it has registered or already written: data .NET would reject
+for an id it has not seen yet can read. With its `NinoPolymorphic.Register<...>()` calls made, .NET accepts the same
+set.
 
 A closed unmanaged generic struct used directly as a member (`Pair<byte, int>`) is raw in .NET, and is generated as its
 own raw struct (`PairByteInt32`), as before. As a type argument it is written member by member, as .NET does.
@@ -231,8 +254,8 @@ mod protocol;
 
 nino-gen warns and leaves a type out when its language cannot express it, and the types that use it with it:
 
-- **Some generic types**: those written behind a type id, those that hold themselves with other arguments, and closed
-  generic types in polymorphic slots ([Generic types](#generic-types)).
+- **Some generic types**: those written behind a type id, those that hold themselves with other arguments
+  ([Generic types](#generic-types)), and, in slots, closed generic types the assembly does not name.
 - **Reference tracking** (`[NinoType(trackReferences: true)]`) and **`[NinoType]` collections** (a class deriving from
   `List<T>`; the collection itself is generated as an element type when its elements can be).
 - **TypeScript**: the types the TypeScript guide lists.

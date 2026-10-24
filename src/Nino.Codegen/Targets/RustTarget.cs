@@ -67,6 +67,7 @@ namespace Nino.Codegen.Targets
         public string Render(string source)
         {
             ResolveSupported();
+            ResolveClosed();
             var types = _model.Types.Where(_supported.Contains).ToList();
             // A raw type no member holds (one only a polymorphic slot can hold) is declared too.
             foreach (var raw in types.Where(t => t.Raw))
@@ -79,9 +80,10 @@ namespace Nino.Codegen.Targets
             var rawStructs = _rawStructs.Select(s => new RustRawStruct(this, s)).ToList();
 
             var refs = types.Where(t => t.Header == HeaderKind.TypeId && !t.Raw)
-                .Select(t => new RustRef(Name(t) + "Ref", t.FullName, Allowed(t))).ToList();
+                .Select(t => new RustRef(Name(t) + "Ref", t.FullName, Variants(Allowed(t), t.ClosedAssignable)))
+                .ToList();
             if (_usesObject)
-                refs.Add(new RustRef("AnyObject", "object", ObjectTypes().ToList()));
+                refs.Add(new RustRef("AnyObject", "object", Variants(ObjectTypes(), _closed.Keys)));
 
             var renderer = new TemplateRenderer("rust");
             renderer.Set("source", source);
@@ -133,6 +135,46 @@ namespace Nino.Codegen.Targets
             }
 
             Reset();
+        }
+
+        /// <summary>
+        /// The closed generic types the assembly names that Rust can write (<see cref="CodegenModel.ClosedTypes"/>),
+        /// with their shapes: a variant each in the slots that allow them.
+        /// </summary>
+        private readonly Dictionary<ClosedTypeModel, RustShape> _closed = new();
+
+        private void ResolveClosed()
+        {
+            _closed.Clear();
+            foreach (var closed in _model.ClosedTypes.Where(c => _supported.Contains(c.Definition)))
+            {
+                try
+                {
+                    _closed[closed] = Shape(closed.Value, false);
+                }
+                catch (UnsupportedException e)
+                {
+                    Warnings.Add($"{closed.RuntimeName} is left out of the polymorphic slots in Rust: {e.Message}.");
+                }
+            }
+        }
+
+        /// <summary>The variants of a slot: its types with layouts, then its closed generic types, by name.</summary>
+        private List<RustVariant> Variants(IEnumerable<TypeModel> types, IEnumerable<ClosedTypeModel> closed)
+        {
+            var variants = types.Select(t => new RustVariant(Name(t), t, null, Name(t) + "::TYPE_ID", t.IsValueType))
+                .ToList();
+            var taken = new HashSet<string>(variants.Select(v => v.Name), StringComparer.Ordinal);
+            foreach (var c in closed.Where(_closed.ContainsKey).OrderBy(c => c.RuntimeName, StringComparer.Ordinal))
+            {
+                string name = GoTarget.ClosedName(c.Clr);
+                while (!taken.Add(name))
+                    name += "_";
+                variants.Add(new RustVariant(name, null, _closed[c],
+                    c.TypeId.ToString(CultureInfo.InvariantCulture), c.IsValueType) { RuntimeName = c.RuntimeName });
+            }
+
+            return variants;
         }
 
         private void Reset()
@@ -825,7 +867,7 @@ namespace Nino.Codegen.Targets
     /// <summary>A slot written behind a type id: the enum of the types it allows.</summary>
     public sealed class RustRef
     {
-        internal RustRef(string name, string declared, List<TypeModel> allowed)
+        internal RustRef(string name, string declared, List<RustVariant> allowed)
         {
             Name = name;
             Declared = declared;
@@ -837,6 +879,37 @@ namespace Nino.Codegen.Targets
         /// <summary>The declared .NET type (<c>object</c> for any).</summary>
         public string Declared { get; }
 
-        public List<TypeModel> Allowed { get; }
+        public List<RustVariant> Allowed { get; }
+    }
+
+    /// <summary>
+    /// A type a slot allows: a type with a layout (<see cref="Type"/>), or a closed generic type (<see cref="Shape"/>,
+    /// the generic type with its arguments) behind the id of its closed .NET name.
+    /// </summary>
+    public sealed class RustVariant
+    {
+        internal RustVariant(string name, TypeModel? type, RustShape? shape, string id, bool isValueType)
+        {
+            Name = name;
+            Type = type;
+            Shape = shape;
+            Id = id;
+            IsValueType = isValueType;
+        }
+
+        /// <summary>The enum variant's name.</summary>
+        public string Name { get; }
+
+        public TypeModel? Type { get; }
+
+        public RustShape? Shape { get; }
+
+        /// <summary>Its type id, as a Rust expression (<c>Cat::TYPE_ID</c>, or the closed type's id).</summary>
+        public string Id { get; }
+
+        public bool IsValueType { get; }
+
+        /// <summary>The closed type's .NET name, for a closed generic type.</summary>
+        public string? RuntimeName { get; internal set; }
     }
 }

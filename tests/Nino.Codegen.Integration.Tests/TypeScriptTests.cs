@@ -230,7 +230,11 @@ namespace Nino.Codegen.Integration.Tests
             string types = File.ReadAllText(Path.Combine(_directory, "Nino.Codegen.Integration.Tests.ts"));
             StringAssert.Contains(types, "export class Box<T> {");
             StringAssert.Contains(types, "export class Duo<TFirst, TSecond> {");
-            StringAssert.Contains(types, "export function BoxCodec<T>(p0: NinoCodec<T>): NinoCodec<Box<T> | null> {");
+            StringAssert.Contains(types,
+                "export function BoxCodec<T>(p0: NinoCodec<T>, type: new () => Box<T> = Box): NinoCodec<Box<T> | null> {");
+            // A closed generic type a slot holds: a subclass the slots' writers tell apart by its constructor.
+            StringAssert.Contains(types, "export class CrateInt32 extends Crate<number> {}");
+            StringAssert.Contains(types, "export class BoxInt32Array extends Box<number[] | null> {}");
         }
 
         [TestMethod]

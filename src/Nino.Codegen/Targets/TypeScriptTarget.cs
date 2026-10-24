@@ -47,6 +47,8 @@ namespace Nino.Codegen.Targets
         private readonly Dictionary<TypeModel, List<TsDerived>> _derived = new();
         private readonly Dictionary<string, TsDerived> _closedByKey = new(StringComparer.Ordinal);
         private readonly List<TsDerived> _closed = new();
+        private readonly HashSet<ClosedTypeModel> _closedSupported = new();
+        private readonly List<TsSlotClosed> _slotClosed = new();
         private TypeModel? _context;
 
         public List<string> Warnings { get; } = new();
@@ -86,8 +88,10 @@ namespace Nino.Codegen.Targets
         public string Render(string source)
         {
             ResolveSupported();
+            ResolveClosed();
             var layouts = _model.Types.Where(_supported.Contains).ToList();
             AssignNames(layouts.Select(t => (object)t).Concat(_enums).Concat(_rawStructs.Select(r => r.Struct)));
+            NameClosed(layouts);
 
             var enums = _enums.OrderBy(e => Name(e), StringComparer.Ordinal)
                 .Select(e => new TsEnum(Name(e), e, e.Underlying is PrimitiveKind.I64 or PrimitiveKind.U64)).ToList();
@@ -107,6 +111,11 @@ namespace Nino.Codegen.Targets
             // Every member shaped, so every codec the module and the generic codecs build is known.
             foreach (var c in classes.Concat(generics))
                 _ = c.Derived;
+            foreach (var slot in _slotClosed)
+                slot.Shape = ClosedShape(slot.Closed);
+            // A closed codec of a type a slot holds builds its subclass, so the values it reads can sit in the slot.
+            foreach (var closed in _closed)
+                closed.Subclass = _slotClosed.FirstOrDefault(c => c.Shape!.Identity == closed.Key)?.Name;
 
             string module = _options.RuntimeModule ?? "./nino" + _options.ImportExtension;
             var renderer = new TemplateRenderer("typescript");
@@ -120,6 +129,7 @@ namespace Nino.Codegen.Targets
             renderer.Set("codecs", codecs);
             renderer.Set("generics", generics);
             renderer.Set("closed", _closed);
+            renderer.Set("slot_closed", _slotClosed);
             renderer.Function("name", new Func<object, string>(Name));
             renderer.Function("helper", new Func<TsShape, string, string>(Helper));
             renderer.Function("helper_count", new Func<int>(() => _helpers.Count));
@@ -164,6 +174,68 @@ namespace Nino.Codegen.Targets
             _closed.Clear();
             _structOpens.Clear();
         }
+
+        /// <summary>
+        /// The closed generic types the assembly names (<see cref="CodegenModel.ClosedTypes"/>) that TypeScript can
+        /// write behind their type ids, in the polymorphic slots (and the registry) they are assignable to.
+        /// </summary>
+        private void ResolveClosed()
+        {
+            foreach (var closed in _model.ClosedTypes)
+            {
+                if (!_supported.Contains(closed.Definition))
+                    continue;
+                try
+                {
+                    ClosedShape(closed);
+                    _closedSupported.Add(closed);
+                }
+                catch (UnsupportedException e)
+                {
+                    Warnings.Add(
+                        $"{closed.RuntimeName} is left out of the polymorphic slots in TypeScript: {e.Message}.");
+                }
+            }
+
+            _derived.Clear();
+            _closedByKey.Clear();
+            _closed.Clear();
+            _structOpens.Clear();
+        }
+
+        /// <summary>A closed generic type in a slot: the shapes of its arguments (its codecs built in the module).</summary>
+        private TsShape ClosedShape(ClosedTypeModel closed) => new("generic")
+        {
+            Type = closed.Definition, Items = closed.Value.Arguments.Select(Shape).ToList(), Opens = true,
+            Header = closed.Definition.Header == HeaderKind.None ? "none" : "null",
+        };
+
+        /// <summary>
+        /// Names the closed types a slot can hold (an <c>object</c> slot any, a typed slot those assignable to its
+        /// type): a subclass each (<c>BoxInt32</c>), as TypeScript erases type arguments and a writer tells types
+        /// apart by their constructors.
+        /// </summary>
+        private void NameClosed(List<TypeModel> layouts)
+        {
+            bool usesObject = layouts.Any(t => !t.Raw && t.Members.Any(m => m.Value.Walk().Any(v => v.Kind == ValueKind.Object)));
+            var used = new HashSet<string>(_names.Values, StringComparer.Ordinal);
+            foreach (var closed in _model.ClosedTypes.Where(c => _closedSupported.Contains(c) && (usesObject ||
+                         layouts.Any(t => t.Header == HeaderKind.TypeId && t.ClosedAssignable.Contains(c)))))
+            {
+                string name = GoTarget.ClosedName(closed.Clr);
+                while (!used.Add(name))
+                    name += "_";
+                _slotClosed.Add(new TsSlotClosed(name, "closed$" + _slotClosed.Count, closed));
+            }
+        }
+
+        /// <summary>The closed generic types a slot declared as <paramref name="type"/> allows.</summary>
+        internal List<TsSlotClosed> AllowedClosed(TypeModel type) =>
+            _slotClosed.Where(c => type.ClosedAssignable.Contains(c.Closed)).ToList();
+
+        /// <summary>The closed types of a generic definition that sit in a slot.</summary>
+        internal List<TsSlotClosed> ClosedOf(TypeModel definition) =>
+            _slotClosed.Where(c => c.Closed.Definition == definition).ToList();
 
         /// <summary>Why a type cannot be written, or null.</summary>
         private string? Check(TypeModel type)
@@ -863,6 +935,38 @@ namespace Nino.Codegen.Targets
 
         /// <summary>The generic type with its arguments.</summary>
         public TsShape Shape { get; }
+
+        /// <summary>The subclass the codec builds, for a closed type a slot holds (<c>BoxInt32</c>), else null.</summary>
+        public string? Subclass { get; internal set; }
+    }
+
+    /// <summary>
+    /// A closed generic type in a polymorphic slot: a subclass (<c>BoxInt32 extends Box&lt;number&gt;</c>) whose
+    /// constructor the writers switch on, and its codecs (<c>closed$0</c>) built in the module, read and written behind
+    /// the id of its closed .NET name.
+    /// </summary>
+    public sealed class TsSlotClosed
+    {
+        internal TsSlotClosed(string name, string codecs, ClosedTypeModel closed)
+        {
+            Name = name;
+            Codecs = codecs;
+            Closed = closed;
+        }
+
+        /// <summary>The subclass.</summary>
+        public string Name { get; }
+
+        /// <summary>The variable of its codecs (an <c>X$Codecs</c>).</summary>
+        public string Codecs { get; }
+
+        public ClosedTypeModel Closed { get; }
+
+        public TsShape? Shape { get; internal set; }
+
+        public int Id => Closed.TypeId;
+
+        public string RuntimeName => Closed.RuntimeName;
     }
 
     public sealed class TsMember
@@ -1059,5 +1163,11 @@ namespace Nino.Codegen.Targets
         /// <summary>The concrete types written behind this type's id.</summary>
         public List<TsClass> Assignable =>
             _target.RegisteredAssignable(Model).Select(t => new TsClass(_target, t)).ToList();
+
+        /// <summary>The closed generic types a slot declared as this type allows.</summary>
+        public List<TsSlotClosed> AssignableClosed => _target.AllowedClosed(Model);
+
+        /// <summary>A generic definition's closed types that sit in a slot: its codecs then build their subclasses.</summary>
+        public List<TsSlotClosed> Closed => _target.ClosedOf(Model);
     }
 }

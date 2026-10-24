@@ -129,6 +129,13 @@ namespace Nino.Codegen.Model
         /// </summary>
         public List<TypeModel> Assignable { get; } = new();
 
+        /// <summary>
+        /// The closed generic types (<c>Box&lt;int&gt;</c>) a value written behind this type's id can be, of those the
+        /// assembly names (<see cref="CodegenModel.ClosedTypes"/>), ordered by name. Empty for a type that is not
+        /// written behind a type id.
+        /// </summary>
+        public List<ClosedTypeModel> ClosedAssignable { get; } = new();
+
         /// <summary>Whether a value of <paramref name="other"/> can sit where this type is declared.</summary>
         public bool IsAssignableFrom(TypeModel other) => Clr.IsAssignableFrom(other.Clr);
 
@@ -169,5 +176,37 @@ namespace Nino.Codegen.Model
         public TypeModel? DeclaringType { get; internal set; }
 
         public override string ToString() => $"{Name}: {Value}";
+    }
+
+    /// <summary>
+    /// A closed generic <c>[NinoType]</c> the assembly names (<c>Box&lt;int&gt;</c>, from <c>new Box&lt;int&gt;()</c>
+    /// or <c>NinoPolymorphic.Register&lt;Box&lt;int&gt;&gt;()</c>): written behind its own type id, the hash of its
+    /// closed .NET name, where a polymorphic slot holds it. Its body is its definition's with these arguments.
+    /// </summary>
+    public sealed class ClosedTypeModel
+    {
+        internal ClosedTypeModel(Type clr, ValueModel value)
+        {
+            Clr = clr;
+            Value = value;
+            RuntimeName = TypeNames.Runtime(clr);
+            TypeId = TypeNames.Hash(RuntimeName);
+        }
+
+        public Type Clr { get; }
+
+        /// <summary>The definition with its arguments (<see cref="ValueKind.Generic"/>).</summary>
+        public ValueModel Value { get; }
+
+        public TypeModel Definition => Value.Type!;
+
+        /// <summary>The runtime-form name its type id hashes (<c>Conformance.Box&lt;System.Int32&gt;</c>).</summary>
+        public string RuntimeName { get; }
+
+        public int TypeId { get; }
+
+        public bool IsValueType => Clr.IsValueType;
+
+        public override string ToString() => RuntimeName;
     }
 }

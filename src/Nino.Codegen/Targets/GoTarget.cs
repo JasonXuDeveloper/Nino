@@ -50,6 +50,8 @@ namespace Nino.Codegen.Targets
         private readonly Dictionary<TypeModel, GoGeneric> _generics = new();
         private readonly Dictionary<string, GoClosed> _closedByKey = new(StringComparer.Ordinal);
         private readonly List<GoClosed> _closed = new();
+        private readonly HashSet<ClosedTypeModel> _closedSupported = new();
+        private readonly List<GoSlotClosed> _slotClosed = new();
         private GoGeneric? _context;
         private bool _usesObject;
         private bool _usesGrid;
@@ -72,6 +74,7 @@ namespace Nino.Codegen.Targets
         public string Render(string source)
         {
             ResolveSupported();
+            ResolveClosed();
             var types = _model.Types.Where(_supported.Contains).ToList();
             // A raw type no member holds (one only a polymorphic slot can hold) is declared too.
             foreach (var raw in types.Where(t => t.Raw))
@@ -82,6 +85,11 @@ namespace Nino.Codegen.Targets
             // Shape every member once more, so every helper, tuple and enum is known before the template asks.
             foreach (var c in classes)
                 _ = c.Members;
+            // Those a slot can hold: an object slot any, a typed slot those assignable to its type.
+            foreach (var closed in _model.ClosedTypes.Where(c => _closedSupported.Contains(c) && (_usesObject ||
+                         types.Any(t => t.Header == HeaderKind.TypeId && t.ClosedAssignable.Contains(c)))))
+                _slotClosed.Add(new GoSlotClosed(
+                    "typeV" + _slotClosed.Count.ToString(CultureInfo.InvariantCulture), closed, ClosedShape(closed)));
 
             var renderer = new TemplateRenderer("go");
             renderer.Set("source", source);
@@ -100,6 +108,7 @@ namespace Nino.Codegen.Targets
             renderer.Set("closed", _closed.ToList());
             renderer.Set("uses_args", _closed.Count != 0 || types.Any(t => t.IsGenericDefinition));
             renderer.Set("objects", ObjectTypes().Select(t => new GoType(this, t)).ToList());
+            renderer.Set("slot_closed", _slotClosed.ToList());
             renderer.Function("helper", new Func<GoShape, string, string>(Helper));
             renderer.Function("helper_count", new Func<int>(() => _helpers.Count));
             renderer.Function("helper_at", new Func<int, GoHelper>(i => _helpers[i]));
@@ -153,6 +162,45 @@ namespace Nino.Codegen.Targets
 
             Reset();
         }
+
+        /// <summary>
+        /// The closed generic types the assembly names (<see cref="CodegenModel.ClosedTypes"/>) that Go can write
+        /// behind their type ids, in the polymorphic slots they are assignable to.
+        /// </summary>
+        private void ResolveClosed()
+        {
+            foreach (var closed in _model.ClosedTypes)
+            {
+                if (!_supported.Contains(closed.Definition))
+                    continue;
+                try
+                {
+                    ClosedShape(closed);
+                    _closedSupported.Add(closed);
+                }
+                catch (UnsupportedException e)
+                {
+                    Warnings.Add($"{closed.RuntimeName} is left out of the polymorphic slots in Go: {e.Message}.");
+                }
+            }
+
+            Reset();
+        }
+
+        /// <summary>A closed generic type in a slot: the shapes of its arguments, its codec built in <c>init</c>.</summary>
+        private GoShape ClosedShape(ClosedTypeModel closed) => new("generic")
+        {
+            Type = closed.Definition, Items = closed.Value.Arguments.Select(a => Shape(a, false)).ToList(),
+            MinSize = closed.IsValueType ? 0 : 1,
+        };
+
+        /// <summary>The closed generic types a slot declared as <paramref name="type"/> allows.</summary>
+        internal List<GoSlotClosed> AllowedClosed(TypeModel type) =>
+            _slotClosed.Where(c => type.ClosedAssignable.Contains(c.Closed)).ToList();
+
+        /// <summary>The closed types of a generic definition that sit in a slot.</summary>
+        internal List<GoSlotClosed> ClosedOf(TypeModel definition) =>
+            _slotClosed.Where(c => c.Closed.Definition == definition).ToList();
 
         private void Reset()
         {
@@ -267,9 +315,10 @@ namespace Nino.Codegen.Targets
 
         /// <summary>The slots (types written behind a type id with more than themselves) a type can sit in.</summary>
         internal List<TypeModel> SlotsOf(TypeModel type) =>
-            type.IsGenericDefinition ? new List<TypeModel>() :
             _model.Types.Where(t => _supported.Contains(t) && t.Header == HeaderKind.TypeId && IsInterfaceSlot(t) &&
-                                    t.IsAssignableFrom(type))
+                                    (type.IsGenericDefinition
+                                        ? t.ClosedAssignable.Any(c => c.Definition == type && _closedSupported.Contains(c))
+                                        : t.IsAssignableFrom(type)))
                 .OrderBy(Name, StringComparer.Ordinal).ToList();
 
         /// <summary>
@@ -279,7 +328,8 @@ namespace Nino.Codegen.Targets
         internal bool IsInterfaceSlot(TypeModel type)
         {
             var allowed = Allowed(type);
-            return !(allowed.Count == 1 && allowed[0] == type);
+            return !(allowed.Count == 1 && allowed[0] == type &&
+                     !type.ClosedAssignable.Any(_closedSupported.Contains));
         }
 
         /// <summary>
@@ -601,6 +651,13 @@ namespace Nino.Codegen.Targets
 
         private static readonly char[] Underscore = { '_' };
 
+        /// <summary>
+        /// The name of a closed generic type in a slot, as each language names one (<c>BoxInt32</c>,
+        /// <c>BoxInt32Array</c> for <c>Box&lt;int[]&gt;</c>): an identifier in every one.
+        /// </summary>
+        internal static string ClosedName(Type type) => Go(new string(TypeNames.Simple(type).Replace("[", "Array_")
+            .Where(c => char.IsAsciiLetterOrDigit(c) || c == '_').ToArray()));
+
         internal string Name(object type) =>
             _names.TryGetValue(Clr(type), out var name) ? name : Go(SimpleName(Clr(type)));
 
@@ -817,6 +874,32 @@ namespace Nino.Codegen.Targets
         public string Name { get; }
 
         public GoShape Shape { get; }
+    }
+
+    /// <summary>
+    /// A closed generic type in a polymorphic slot: its codec (<c>typeVn</c>, a <c>*boxCodec[int32]</c>) is built in
+    /// <c>init</c>, and the slots' dispatches read and write it behind the id of its closed .NET name.
+    /// </summary>
+    public sealed class GoSlotClosed
+    {
+        internal GoSlotClosed(string name, ClosedTypeModel closed, GoShape shape)
+        {
+            Name = name;
+            Closed = closed;
+            Shape = shape;
+        }
+
+        public string Name { get; }
+
+        public ClosedTypeModel Closed { get; }
+
+        public GoShape Shape { get; }
+
+        public int Id => Closed.TypeId;
+
+        public bool IsStruct => Closed.IsValueType;
+
+        public string RuntimeName => Closed.RuntimeName;
     }
 
     public sealed class GoHelper
@@ -1079,6 +1162,12 @@ namespace Nino.Codegen.Targets
 
         /// <summary>The concrete types a slot declared as this type allows.</summary>
         public List<GoType> Allowed => _target.Allowed(Model).Select(t => new GoType(_target, t)).ToList();
+
+        /// <summary>The closed generic types a slot declared as this type allows.</summary>
+        public List<GoSlotClosed> AllowedClosed => _target.AllowedClosed(Model);
+
+        /// <summary>A generic definition's closed types that sit in a slot (their ids, in its <c>NinoTypeID</c>).</summary>
+        public List<GoSlotClosed> Closed => _target.ClosedOf(Model);
 
         /// <summary>The interface slots this type can sit in (their marker methods).</summary>
         public List<GoType> Slots => _target.SlotsOf(Model).Select(t => new GoType(_target, t)).ToList();

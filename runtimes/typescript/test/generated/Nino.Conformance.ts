@@ -2120,7 +2120,7 @@ export class Box<T> extends Animal {
 }
 
 function readBox<T>(r: NinoReader, c: Box$Codecs<T>): Box<T> {
-  const v = new Box<T>(), depth = r.depth;
+  const v = new c.type(), depth = r.depth;
   if (depth >= 128) return r.defer(v, (r, v) => readBody$Box(r, v, c));
   r.depth = depth + 1;
   readBody$Box(r, v, c);
@@ -2444,6 +2444,18 @@ types.add(1240460566, Utf8Value, readUtf8Value, writeUtf8Value);
 types.add(1393705508, Vec2, (r) => readVec2(r, r.take(8)), (w, v) => writeVec2(w, w.reserve(8), v));
 types.add(1854703100, Zoo, readZoo, writeZoo);
 
+/** `Conformance.Box<Conformance.Vec2>`. */
+export class BoxVec2 extends Box<Vec2> {}
+
+/** `Conformance.Box<System.Collections.Generic.List<Conformance.Point>>`. */
+export class BoxListPoint extends Box<(Point | null)[] | null> {}
+
+/** `Conformance.Box<System.Int32>`. */
+export class BoxInt32 extends Box<number> {}
+
+/** `Conformance.Box<System.String>`. */
+export class BoxString extends Box<string | null> {}
+
 export const AnimalCodec: NinoCodec<Animal | null> = {
   read: (r) => {
     const id = r.i32();
@@ -2456,6 +2468,14 @@ export const AnimalCodec: NinoCodec<Animal | null> = {
         return readDog(r);
       case -1808724502:
         return readPuppy(r);
+      case -1580784064:
+        return readBox(r, closed$0);
+      case -1116656767:
+        return readBox(r, closed$1);
+      case -794599344:
+        return readBox(r, closed$2);
+      case -110345065:
+        return readBox(r, closed$3);
     }
     throw types.unreadable(id);
   },
@@ -2476,6 +2496,22 @@ export const AnimalCodec: NinoCodec<Animal | null> = {
       case Puppy:
         w.i32(-1808724502);
         writePuppy(w, v as Puppy);
+        return;
+      case BoxVec2:
+        w.i32(-1580784064);
+        writeBox(w, v as BoxVec2, closed$0);
+        return;
+      case BoxListPoint:
+        w.i32(-1116656767);
+        writeBox(w, v as BoxListPoint, closed$1);
+        return;
+      case BoxInt32:
+        w.i32(-794599344);
+        writeBox(w, v as BoxInt32, closed$2);
+        return;
+      case BoxString:
+        w.i32(-110345065);
+        writeBox(w, v as BoxString, closed$3);
         return;
     }
     throw types.unwritable(v);
@@ -3002,12 +3038,17 @@ export const ZooCodec: NinoCodec<Zoo | null> = {
 
 interface Box$Codecs<T> {
   p0: NinoCodec<T>;
+  type: new () => Box<T>;
   self: NinoCodec<Box<T> | null>;
 }
 
 /** The codec of `Conformance.Box<T>` with the codecs of its type arguments. */
-export function BoxCodec<T>(p0: NinoCodec<T>): NinoCodec<Box<T> | null> {
-  const c = { p0 } as Box$Codecs<T>;
+export function BoxCodec<T>(p0: NinoCodec<T>, type: new () => Box<T> = Box): NinoCodec<Box<T> | null> {
+  return Box$codecs(p0, type).self;
+}
+
+function Box$codecs<T>(p0: NinoCodec<T>, type: new () => Box<T>): Box$Codecs<T> {
+  const c = { p0, type } as Box$Codecs<T>;
   c.self = {
     read: (r) => (r.notNull() ? readBox(r, c) : null),
     write: (w, v) => {
@@ -3018,8 +3059,17 @@ export function BoxCodec<T>(p0: NinoCodec<T>): NinoCodec<Box<T> | null> {
       }
     },
   };
-  return c.self;
+  return c;
 }
+
+const closed$0 = Box$codecs<Vec2>({ read: (r) => readVec2(r, r.take(8)), write: (w, v) => { writeVec2(w, w.reserve(8), v); } }, BoxVec2);
+const closed$1 = Box$codecs<(Point | null)[] | null>({ read: (r) => read$28(r), write: (w, v) => { write$29(w, v); } }, BoxListPoint);
+const closed$2 = Box$codecs<number>({ read: (r) => r.i32(), write: (w, v) => { w.i32(v); } }, BoxInt32);
+const closed$3 = Box$codecs<string | null>({ read: (r) => r.string(), write: (w, v) => { w.string(v); } }, BoxString);
+types.add(-1580784064, BoxVec2, (r) => readBox(r, closed$0), (w, v) => writeBox(w, v, closed$0));
+types.add(-1116656767, BoxListPoint, (r) => readBox(r, closed$1), (w, v) => writeBox(w, v, closed$1));
+types.add(-794599344, BoxInt32, (r) => readBox(r, closed$2), (w, v) => writeBox(w, v, closed$2));
+types.add(-110345065, BoxString, (r) => readBox(r, closed$3), (w, v) => writeBox(w, v, closed$3));
 
 function read$0(r: NinoReader): boolean[] | null {
   const length = r.length();

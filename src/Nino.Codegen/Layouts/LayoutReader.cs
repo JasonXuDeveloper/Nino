@@ -95,10 +95,26 @@ namespace Nino.Codegen.Layouts
             foreach (var path in paths)
                 byName.TryAdd(Path.GetFileName(path), path);
             _context = new MetadataLoadContext(new PathAssemblyResolver(byName.Values));
-            Assembly = _context.LoadFromAssemblyPath(Path.GetFullPath(assemblyPath));
+            _path = Path.GetFullPath(assemblyPath);
+            Assembly = _context.LoadFromAssemblyPath(_path);
         }
 
+        private readonly string _path;
+
         public Assembly Assembly { get; }
+
+        /// <summary>The closed generic types <see cref="Assembly"/>'s metadata names (<see cref="ClosedTypeScan"/>).</summary>
+        public IReadOnlyCollection<Type> ClosedTypes() => ClosedTypeScan.Scan(_path, Assembly, name =>
+        {
+            try
+            {
+                return _context.LoadFromAssemblyName(name);
+            }
+            catch (FileNotFoundException)
+            {
+                return null;
+            }
+        });
 
         public void Dispose() => _context.Dispose();
 

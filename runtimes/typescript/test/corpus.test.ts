@@ -23,12 +23,6 @@ const notGenerated = new Set([
   "Conformance.Tracked", "Conformance.TrackedLeaf", "Conformance.TrackedHolder",
 ]);
 
-/**
- * Valid cases holding a closed generic type (Conformance.Box<int>...) in a polymorphic slot, behind the type id of its
- * closed .NET name: nino-gen generates Box<T> but not as a subtype a slot allows (docs/codegen.md, "Generic types").
- */
-const closedGenerics = new Set(["polymorphism", "polymorphism-generic-root"]);
-
 const codecs = generated as unknown as Record<string, NinoCodec<unknown> | undefined>;
 
 /** The generated codec of a .NET type: `<Name>Codec`, named after its last part. */
@@ -56,9 +50,8 @@ function cases(group: "valid" | "malicious"): { name: string; c: any }[] {
   return (index[group] as string[]).map((name) => ({ name, c: json(join(corpus, group, name + ".json")) }));
 }
 
-function skipReason(name: string, c: any): string | null {
+function skipReason(c: any): string | null {
   if (c.optional) return `optional: ${c.optional}`;
-  if (closedGenerics.has(name)) return "holds a closed generic type in a polymorphic slot";
   if (notGenerated.has(c.type)) {
     assert.equal(codecOf(c.type), undefined, `${c.type} is generated now: take it out of notGenerated`);
     return `${c.type} is not generated for TypeScript`;
@@ -70,7 +63,7 @@ describe("conformance corpus over generated code", { skip: present ? false : "no
   describe("valid", () => {
     for (const { name, c } of cases("valid")) {
       it(name, (t) => {
-        const skip = skipReason(name, c);
+        const skip = skipReason(c);
         if (skip) return t.skip(skip);
         const codec = codecOf(c.type);
         assert.ok(codec, `no generated codec for ${c.type}`);
@@ -84,7 +77,7 @@ describe("conformance corpus over generated code", { skip: present ? false : "no
   describe("malicious", () => {
     for (const { name, c } of cases("malicious")) {
       it(name, (t) => {
-        const skip = skipReason(name, c);
+        const skip = skipReason(c);
         if (skip) return t.skip(skip);
         const codec = codecOf(c.type);
         assert.ok(codec, `no generated codec for ${c.type}`);
@@ -106,7 +99,7 @@ describe("conformance corpus over generated code", { skip: present ? false : "no
     const list = present ? json(join(corpus, "malicious", "truncations.json")) : { cases: [] };
     for (const c of list.cases as { case: string; type: string; optional?: string }[]) {
       it(c.case, (t) => {
-        const skip = skipReason(c.case, c);
+        const skip = skipReason(c);
         if (skip) return t.skip(skip);
         const codec = codecOf(c.type)!;
         const data = new Uint8Array(readFileSync(join(corpus, "valid", c.case + ".bin")));

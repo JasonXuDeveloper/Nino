@@ -104,11 +104,6 @@ func unsupported(typeName string) string {
 	return ""
 }
 
-// closedGenerics are the valid cases holding a closed generic type (Conformance.Box<int>...) in a polymorphic slot,
-// behind the type id of its closed .NET name: nino-gen generates Box[T] but not as a type a slot allows
-// (docs/codegen.md, "Generic types").
-var closedGenerics = map[string]bool{"polymorphism": true, "polymorphism-generic-root": true}
-
 // codecs looks up the generated codec of a .NET type.
 var codecs = codecMap{}
 
@@ -133,9 +128,6 @@ func TestConformanceValid(t *testing.T) {
 			readJSON(t, filepath.Join(dir, "valid", name+".json"), &c)
 			if reason := unsupported(c.Type); reason != "" {
 				t.Skipf("%s (optional feature %q)", reason, c.Optional)
-			}
-			if closedGenerics[name] {
-				t.Skip("holds a closed generic type in a polymorphic slot, which nino-gen does not generate")
 			}
 			k, ok := codecs.lookup(c.Type)
 			if !ok {
@@ -245,9 +237,6 @@ func TestConformanceTruncations(t *testing.T) {
 		t.Run(c.Case, func(t *testing.T) {
 			if reason := unsupported(c.Type); reason != "" {
 				t.Skip(reason)
-			}
-			if closedGenerics[c.Case] {
-				t.Skip("holds a closed generic type in a polymorphic slot, which nino-gen does not generate")
 			}
 			k, ok := codecs.lookup(c.Type)
 			if !ok {

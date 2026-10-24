@@ -31,6 +31,12 @@ namespace Nino.Codegen.Model
         /// <summary>Every <c>[NinoType]</c> with a layout, in the order the layouts were read.</summary>
         public List<TypeModel> Types { get; } = new();
 
+        /// <summary>
+        /// The closed generic <c>[NinoType]</c>s the assembly names that can be created (not abstract, not
+        /// interfaces), by name: what a polymorphic slot can hold besides the types with layouts.
+        /// </summary>
+        public List<ClosedTypeModel> ClosedTypes { get; } = new();
+
         /// <summary>The enums the values hold, in the order they were met.</summary>
         public IEnumerable<EnumModel> Enums => _enums.Values;
 
@@ -53,7 +59,7 @@ namespace Nino.Codegen.Model
             try
             {
                 var model = new CodegenModel(reader);
-                model.Build(reader.ReadAll());
+                model.Build(reader.ReadAll(), reader.ClosedTypes());
                 return model;
             }
             catch
@@ -111,7 +117,7 @@ namespace Nino.Codegen.Model
 
         // ---------------------------------------------------------------- building
 
-        private void Build(Dictionary<Type, TypeLayout> layouts)
+        private void Build(Dictionary<Type, TypeLayout> layouts, IReadOnlyCollection<Type> closedTypes)
         {
             foreach (var layout in layouts.Values)
             {
@@ -171,6 +177,20 @@ namespace Nino.Codegen.Model
             foreach (var type in Types.Where(t => t.Header == HeaderKind.TypeId))
                 type.Assignable.AddRange(Types.Where(t =>
                     t.TypeId != 0 && t.IsConcrete && type.Clr.IsAssignableFrom(t.Clr)));
+
+            // The closed generic types the assembly names whose definitions have layouts and can be created.
+            foreach (var clr in closedTypes.Where(t => !t.ContainsGenericParameters))
+            {
+                var definition = Find(clr.GetGenericTypeDefinition());
+                if (definition == null || !definition.IsConcrete || definition.Raw)
+                    continue;
+                ClosedTypes.Add(new ClosedTypeModel(clr,
+                    Generic(clr, definition, "type(" + TypeNames.Runtime(clr) + ")")));
+            }
+
+            ClosedTypes.Sort((a, b) => string.CompareOrdinal(a.RuntimeName, b.RuntimeName));
+            foreach (var type in Types.Where(t => t.Header == HeaderKind.TypeId))
+                type.ClosedAssignable.AddRange(ClosedTypes.Where(c => type.Clr.IsAssignableFrom(c.Clr)));
         }
 
         private static ValueModel Unsupported(Type clr, string encoding, string problem) =>

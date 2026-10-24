@@ -17,6 +17,24 @@ namespace Nino.Codegen.Tests
             return (files[file], output);
         }
 
+        /// <summary>
+        /// The closed generic types the shapes name (Box&lt;int&gt;...) sit in no slot (no slot's type is assignable
+        /// from them, and no member is an object): no target builds a dispatch case or a subclass for them.
+        /// </summary>
+        [TestMethod]
+        public void ClosedTypesNoSlotHoldsAreLeftOutOfTheDispatch()
+        {
+            var (go, _) = Run("go", "nino_types.go");
+            StringAssert.Contains(go, "func BoxCodec[T any](");
+            Assert.IsFalse(go.Contains("newBoxCodec", StringComparison.Ordinal));
+            Assert.IsFalse(go.Contains("typeV0", StringComparison.Ordinal));
+            var (ts, _) = Run("ts", "Nino.Codegen.Tests.ts");
+            Assert.IsFalse(ts.Contains("type: new () =>", StringComparison.Ordinal));
+            Assert.IsFalse(ts.Contains("closed$0", StringComparison.Ordinal));
+            var (rust, _) = Run("rust", "nino_types.rs");
+            Assert.IsFalse(rust.Contains("BoxInt32", StringComparison.Ordinal));
+        }
+
         [TestMethod]
         public void RustCountsAStructHoldingItself()
         {

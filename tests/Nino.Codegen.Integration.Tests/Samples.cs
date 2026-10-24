@@ -265,6 +265,35 @@ namespace Samples
         public Many<int> Ints;
     }
 
+    /// <summary>
+    /// A generic subtype: written behind the id of its closed .NET name (Crate&lt;int&gt;), so a slot allows the closed
+    /// types the assembly names (<see cref="Pens"/>'s values, in GenericSamples).
+    /// </summary>
+    [NinoType]
+    public sealed class Crate<T> : Animal
+    {
+        public T Content;
+    }
+
+    /// <summary>A generic struct behind an interface: its closed types sit in the slots of IShape and object.</summary>
+    [NinoType]
+    public struct Patch<T> : IShape
+    {
+        public double Area { get; set; }
+        public T Value;
+    }
+
+    /// <summary>Slots holding closed generic types next to the other types they allow.</summary>
+    [NinoType]
+    public sealed class Pens
+    {
+        public Animal Star;
+        public List<Animal> Animals;
+        public IShape Shape;
+        public List<IShape> Shapes;
+        public object Anything;
+    }
+
     /// <summary>Left out of TypeScript (reference tracking), with a warning.</summary>
     [NinoType(trackReferences: true)]
     public sealed class Node

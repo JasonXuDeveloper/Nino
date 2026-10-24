@@ -3,6 +3,23 @@
 # registry of the types written behind a type id, a codec per type, then the functions values of one shape share.
 include "shapes.sbn"
 
+# The type arguments of a closed generic type, and their codecs.
+func closed_args(s)
+  $types = []
+  for $item in s.items
+    $types = array.add $types (ts($item))
+  end
+  ret array.join $types ", "
+end
+
+func closed_codecs(s)
+  $args = []
+  for $item in s.items
+    $args = array.add $args (codec($item))
+  end
+  ret array.join $args ", "
+end
+
 # A class body (`readBody$X`, `writeBody$X`) or a struct (`readX`, `writeX`): its members, without the header.
 func body(c)
   $n = c.name
@@ -18,6 +35,8 @@ func body(c)
   $v = $empty ? "_v" : "v"
   $cs = $empty ? (string.replace c.codecs ", c:" ", _c:") : c.codecs
   $readBody = "readBody$" + $n
+  # A generic type some of whose closed types sit in slots: its codecs name the class to build (their subclass).
+  $new = c.closed.size != 0 ? "c.type" : $t
   $writeBody = "writeBody$" + $n
   if $ca != ""
     $readBody = "(r, v) => readBody$" + $n + "(r, v, c)"
@@ -26,10 +45,10 @@ func body(c)
   if c.is_class_body
     $o = $o + "function read" + $n + $tp + "(r: NinoReader" + c.codecs + "): " + $t + " {\n"
     if c.nests
-      $o = $o + "  const v = new " + $t + "(), depth = r.depth;\n  if (depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
+      $o = $o + "  const v = new " + $new + "(), depth = r.depth;\n  if (depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
       $o = $o + "  r.depth = depth + 1;\n  readBody$" + $n + "(r, v" + $ca + ");\n  r.exit(depth);\n"
     else
-      $o = $o + "  const v = new " + $t + "();\n  if (r.depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
+      $o = $o + "  const v = new " + $new + "();\n  if (r.depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
       $o = $o + "  readBody$" + $n + "(r, v" + $ca + ");\n"
     end
     $o = $o + "  return v;\n}\n\n"
@@ -47,7 +66,7 @@ func body(c)
     if c.counted
       $o = $o + "  r.enterStruct();\n"
     end
-    $o = $o + "  const v = new " + $t + "();\n"
+    $o = $o + "  const v = new " + $new + "();\n"
   end
 
   if c.format == "keyed"
@@ -305,6 +324,11 @@ for c in registered
 end
 "\n"
 
+# A class per closed generic type a slot holds: TypeScript erases type arguments, writers switch on constructors.
+for $k in slot_closed
+  "/** `" + $k.runtime_name + "`. */\nexport class " + $k.name + " extends " + name($k.shape.type) + "<" + closed_args($k.shape) + "> {}\n\n"
+end
+
 # XCodec: the type with its header, as a member of its type or NinoSerializer writes it.
 for c in codecs
   "export const " + c.name + "Codec: NinoCodec<" + c.name
@@ -321,9 +345,16 @@ for c in codecs
     for $t in $assignable
       "      case " + $t.model.type_id + ":\n        return " + read_body($t) + ";\n"
     end
+    $closed = c.assignable_closed
+    for $k in $closed
+      "      case " + $k.id + ":\n        return read" + name($k.shape.type) + "(r, " + $k.codecs + ");\n"
+    end
     "    }\n    throw types.unreadable(id);\n  },\n  write: (w, v) => {\n    if (v === null || v === undefined) {\n      w.i32(0);\n      return;\n    }\n    switch (v.constructor) {\n"
     for $t in $assignable
       "      case " + $t.name + ":\n        w.i32(" + $t.model.type_id + ");\n        " + stmt(write_body($t, "v as " + $t.name)) + "\n        return;\n"
+    end
+    for $k in $closed
+      "      case " + $k.name + ":\n        w.i32(" + $k.id + ");\n        write" + name($k.shape.type) + "(w, v as " + $k.name + ", " + $k.codecs + ");\n        return;\n"
     end
     "    }\n    throw types.unwritable(v);\n  },\n};\n"
   end
@@ -339,9 +370,13 @@ for c in generics
   for $p in c.parameters
     $params = array.add $params ("p" + for.index + ": NinoCodec<" + $p + ">")
   end
+  $typed = c.closed.size != 0
   "interface " + c.name + "$Codecs" + c.type_params + " {\n"
   for $p in c.parameters
     "  p" + for.index + ": NinoCodec<" + $p + ">;\n"
+  end
+  if $typed
+    "  type: new () => " + c.self + ";\n"
   end
   "  self: NinoCodec<" + $self + ">;\n"
   for $d in c.derived
@@ -349,10 +384,18 @@ for c in generics
   end
   "}\n\n"
   "/** The codec of `" + c.model.runtime_name + "` with the codecs of its type arguments. */\n"
-  "export function " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + "): NinoCodec<" + $self + "> {\n"
   $names = []
   for $p in c.parameters
     $names = array.add $names ("p" + for.index)
+  end
+  if $typed
+    # `type`: the class it reads, a subclass for a closed type a slot holds (BoxInt32).
+    "export function " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + ", type: new () => " + c.self + " = " + c.name + "): NinoCodec<" + $self + "> {\n"
+    "  return " + c.name + "$codecs(" + (array.join $names ", ") + ", type).self;\n}\n\n"
+    "function " + c.name + "$codecs" + c.type_params + "(" + (array.join $params ", ") + ", type: new () => " + c.self + "): " + c.name + "$Codecs" + c.type_params + " {\n"
+    $names = array.add $names "type"
+  else
+    "export function " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + "): NinoCodec<" + $self + "> {\n"
   end
   "  const c = { " + (array.join $names ", ") + " } as " + c.name + "$Codecs" + c.type_params + ";\n"
   if c.header == "null"
@@ -363,14 +406,30 @@ for c in generics
   for $d in c.derived
     "  c." + $d.name + " = " + generic_codec($d.shape) + ";\n"
   end
-  "  return c.self;\n}\n\n"
+  "  return " + ($typed ? "c" : "c.self") + ";\n}\n\n"
 end
 
 # The codecs of the generic types the types above hold with their arguments, arguments first.
 for $d in closed
-  "const " + $d.name + " = " + generic_codec($d.shape) + ";\n"
+  if $d.subclass
+    $g = generic_codec($d.shape)
+    "const " + $d.name + " = " + (string.slice $g 0 ($g.size - 1)) + ", " + $d.subclass + ");\n"
+  else
+    "const " + $d.name + " = " + generic_codec($d.shape) + ";\n"
+  end
 end
 if closed.size != 0
+  "\n"
+end
+
+# The codecs of the closed generic types the slots hold, and the registry's entries for them.
+for $k in slot_closed
+  "const " + $k.codecs + " = " + name($k.shape.type) + "$codecs" + "<" + closed_args($k.shape) + ">(" + closed_codecs($k.shape) + ", " + $k.name + ");\n"
+end
+for $k in slot_closed
+  "types.add(" + $k.id + ", " + $k.name + ", (r) => read" + name($k.shape.type) + "(r, " + $k.codecs + "), (w, v) => write" + name($k.shape.type) + "(w, v, " + $k.codecs + "));\n"
+end
+if slot_closed.size != 0
   "\n"
 end
 

@@ -124,6 +124,26 @@ namespace Nino.Codegen.Tests
         }
 
         [TestMethod]
+        public void ClosedGenericTypesAreThoseTheAssemblyNames()
+        {
+            using var model = Load(GeneratedFilesTests.Conformance);
+            var names = model.ClosedTypes.Select(c => c.RuntimeName).ToList();
+            // Registered (NinoPolymorphic.Register<Box<int>>()) and created (new Box<int>) by the corpus's code.
+            CollectionAssert.IsSubsetOf(new[]
+            {
+                "Conformance.Box<System.Int32>", "Conformance.Box<System.String>", "Conformance.Box<Conformance.Vec2>",
+                "Conformance.Box<System.Collections.Generic.List<Conformance.Point>>",
+            }, names);
+            // A closed type no code names is not one (the corpus's malicious case generic-not-in-use).
+            CollectionAssert.DoesNotContain(names, "Conformance.Box<System.Guid>");
+            var box = model.ClosedTypes.Single(c => c.RuntimeName == "Conformance.Box<System.Int32>");
+            Assert.AreEqual(TypeNames.Hash("Conformance.Box<System.Int32>"), box.TypeId);
+            Assert.AreEqual("Conformance.Box`1", box.Definition.FullName);
+            CollectionAssert.Contains(Type(model, "Conformance.Animal").ClosedAssignable, box);
+            CollectionAssert.DoesNotContain(Type(model, "Conformance.IShape").ClosedAssignable, box);
+        }
+
+        [TestMethod]
         public void RecordsAreNotDeferrable()
         {
             using var model = Load(GeneratedFilesTests.Conformance);

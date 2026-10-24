@@ -24,6 +24,14 @@ func bare(s)
   end
 end
 
+# The Rust type of a type a slot allows: a type with a layout, or a generic type with its arguments.
+func variant_type(a)
+  if a.shape
+    ret generic(a.shape)
+  end
+  ret name(a.type)
+end
+
 # A generic type with its arguments.
 func generic(s)
   $parts = []
@@ -379,7 +387,10 @@ impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
 /// A `{{ x.declared }}` slot: a type id, then the body of one of these types.
 {{ derive_enum("Debug, Clone, PartialEq") }}pub enum {{ x.name }} {
 {{~ for a in x.allowed ~}}
-    {{ name(a) }}(Box<{{ name(a) }}>),
+{{~ if a.shape ~}}
+    /// `{{ a.runtime_name }}`.
+{{~ end ~}}
+    {{ a.name }}(Box<{{ variant_type(a) }}>),
 {{~ end ~}}
 }
 
@@ -390,7 +401,7 @@ impl {{ x.name }} {
 {{~ else ~}}
         match self {
 {{~ for a in x.allowed ~}}
-            Self::{{ name(a) }}(v) => &mut **v,
+            Self::{{ a.name }}(v) => &mut **v,
 {{~ end ~}}
         }
 {{~ end ~}}
@@ -414,9 +425,9 @@ impl NinoRead for {{ x.name }} {
         let value = match id {
 {{~ for a in x.allowed ~}}
 {{~ if a.is_value_type ~}}
-            {{ name(a) }}::TYPE_ID => Self::{{ name(a) }}(Box::new(r.read()?)),
+            {{ a.id }} => Self::{{ a.name }}(Box::new(r.read()?)),
 {{~ else ~}}
-            {{ name(a) }}::TYPE_ID => Self::{{ name(a) }}(Box::new(r.read_class()?)),
+            {{ a.id }} => Self::{{ a.name }}(Box::new(r.read_class()?)),
 {{~ end ~}}
 {{~ end ~}}
             _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
@@ -434,8 +445,8 @@ impl NinoWrite for {{ x.name }} {
 {{~ else ~}}
         match self {
 {{~ for a in x.allowed ~}}
-            Self::{{ name(a) }}(v) => {
-                w.i32({{ name(a) }}::TYPE_ID);
+            Self::{{ a.name }}(v) => {
+                w.i32({{ a.id }});
 {{~ if a.is_value_type ~}}
                 w.write(&**v)
 {{~ else ~}}
