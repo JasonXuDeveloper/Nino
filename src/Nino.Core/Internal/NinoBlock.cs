@@ -17,6 +17,16 @@ namespace Nino.Core
     /// <summary>Collections of values written by an <see cref="INinoBlockFormatter{T}"/>.</summary>
     internal static class NinoBlock
     {
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// The bits of an Arm64 lookup plan (<see cref="NinoBlock{T, TFormatter}.WireTables64"/>): from bit
+        /// <see cref="TableBits"/> times q, quarter q's table (two bits its first quarter, two its quarters less one);
+        /// bit <see cref="Written"/> + q, whether quarter q is stored; bit <see cref="Loaded"/> + k, whether quarter
+        /// k is loaded.
+        /// </summary>
+        internal const int TableBits = 4, Written = 16, Loaded = 20;
+
+#endif
         /// <summary>
         /// The <see cref="INinoBlockFormatter{T}.BlockSize"/> of <typeparamref name="TFormatter"/>, -1 when it does not
         /// implement it. A JIT-time constant; -1 without a lookup for references (shared code).
@@ -775,26 +785,26 @@ namespace Nino.Core
             }
 
             Vector128<byte> t0 = default, t1 = default, t2 = default, t3 = default;
-            if ((tables & 1 << 20) != 0)
+            if ((tables & 1 << Loaded) != 0)
                 t0 = Vector128.LoadUnsafe(ref source);
-            if ((tables & 1 << 21) != 0)
+            if ((tables & 1 << Loaded + 1) != 0)
                 t1 = Vector128.LoadUnsafe(ref source, 16);
-            if ((tables & 1 << 22) != 0)
+            if ((tables & 1 << Loaded + 2) != 0)
                 t2 = Vector128.LoadUnsafe(ref source, 32);
-            if ((tables & 1 << 23) != 0)
+            if ((tables & 1 << Loaded + 3) != 0)
                 t3 = Vector128.LoadUnsafe(ref source, 48);
             // All lookups before the stores, so the JIT pairs them (stp).
             var r0 = Table64(t0, t1, t2, t3, tables, q0);
-            var r1 = Table64(t0, t1, t2, t3, tables >> 4, q1);
-            var r2 = Table64(t0, t1, t2, t3, tables >> 8, q2);
-            var r3 = Table64(t0, t1, t2, t3, tables >> 12, q3);
-            if ((tables & 1 << 16) != 0)
+            var r1 = Table64(t0, t1, t2, t3, tables >> TableBits, q1);
+            var r2 = Table64(t0, t1, t2, t3, tables >> 2 * TableBits, q2);
+            var r3 = Table64(t0, t1, t2, t3, tables >> 3 * TableBits, q3);
+            if ((tables & 1 << Written) != 0)
                 r0.StoreUnsafe(ref destination);
-            if ((tables & 1 << 17) != 0)
+            if ((tables & 1 << Written + 1) != 0)
                 r1.StoreUnsafe(ref destination, 16);
-            if ((tables & 1 << 18) != 0)
+            if ((tables & 1 << Written + 2) != 0)
                 r2.StoreUnsafe(ref destination, 32);
-            if ((tables & 1 << 19) != 0)
+            if ((tables & 1 << Written + 3) != 0)
                 r3.StoreUnsafe(ref destination, 48);
         }
 

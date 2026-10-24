@@ -462,7 +462,8 @@ namespace Nino.Core
         /// on Neoverse cores (1,000 (byte, int), five bytes each and 40 a group, written as 64 bytes by four 4-register
         /// lookups, took twice as long as (short, int)), and only the quarters within the values' bytes are written.
         /// Bits 4q and 4q + 1: the first quarter of quarter q's table, 4q + 2 and 4q + 3: its quarters less one;
-        /// 16 + q: whether quarter q is written; 20 + k: whether quarter k is loaded. 0 with AVX-512 VBMI.
+        /// 16 + q: whether quarter q is written; 20 + k: whether quarter k is loaded (<see cref="NinoBlock.TableBits"/>,
+        /// <see cref="NinoBlock.Written"/>, <see cref="NinoBlock.Loaded"/>). 0 with AVX-512 VBMI.
         /// </summary>
         public static readonly int WireTables64 = Tables64(toWire: true);
 
@@ -477,7 +478,7 @@ namespace Nino.Core
             int tables = Tables64(toWire);
             for (int b = 0; b < 64; b++)
                 if (mask[b] < 64)
-                    mask[b] -= (byte)(16 * (tables >> 4 * (b / 16) & 3));
+                    mask[b] -= (byte)(16 * (tables >> NinoBlock.TableBits * (b / 16) & 3));
             return Vector512.Create(mask);
         }
 
@@ -500,9 +501,9 @@ namespace Nino.Core
 
                 if (first > last)
                     first = last = 0;
-                tables |= (first | (last - first) << 2) << 4 * q | 1 << 16 + q;
+                tables |= (first | (last - first) << 2) << NinoBlock.TableBits * q | 1 << NinoBlock.Written + q;
                 for (int k = first; k <= last; k++)
-                    tables |= 1 << 20 + k;
+                    tables |= 1 << NinoBlock.Loaded + k;
             }
 
             return tables;

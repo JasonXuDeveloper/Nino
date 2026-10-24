@@ -29,6 +29,12 @@ namespace Nino.Core
         /// <summary>For each vector, load and lane, where its window starts from the group's first value.</summary>
         public readonly int[] Windows = new int[16];
 
+        /// <summary>
+        /// Where lane <paramref name="lane"/> of load <paramref name="load"/> of vector <paramref name="vector"/> starts:
+        /// its slot in <see cref="Windows"/>, laid out as LanePlan's W0 to W15.
+        /// </summary>
+        private ref int Window(int vector, int load, int lane) => ref Windows[vector * 4 + load * 2 + lane];
+
         // For each vector and load, the shuffle index of each byte (0x80 for none); Arm64: both loads in the first.
         private byte[][] _masks;
 
@@ -141,8 +147,8 @@ namespace Nino.Core
                 plan._masks[v * 2 + 1] = c;
                 for (int lane = 0; lane < 2; lane++)
                 {
-                    plan.Windows[v * 4 + lane] = lane < width / 16 ? first[lane] : first[0] + 16;
-                    plan.Windows[v * 4 + 2 + lane] =
+                    plan.Window(v, 0, lane) = lane < width / 16 ? first[lane] : first[0] + 16;
+                    plan.Window(v, 1, lane) =
                         second == null ? None : lane < width / 16 ? second[lane] : second[0] + 16;
                 }
             }
@@ -171,7 +177,7 @@ namespace Nino.Core
                 return false;
             for (int v = 0; v < Vectors; v++)
             {
-                int first = Windows[v * 4], second = Windows[v * 4 + 2];
+                int first = Window(v, 0, 0), second = Window(v, 1, 0);
                 if (first < 0 || first % 16 != 0 || first + (second == None ? 16 : 32) > 64 ||
                     second != None && second != first + 16)
                     return false;
@@ -184,7 +190,7 @@ namespace Nino.Core
         private bool OneLoad()
         {
             for (int v = 0; v < Vectors; v++)
-                if (Windows[v * 4 + 2] != None)
+                if (Window(v, 1, 0) != None)
                     return false;
             return true;
         }
@@ -195,9 +201,9 @@ namespace Nino.Core
             int loads = 0;
             for (int v = 0; v < Vectors; v++)
             {
-                loads |= 1 << (Windows[v * 4] / 16);
-                if (Windows[v * 4 + 2] != None)
-                    loads |= 1 << (Windows[v * 4 + 2] / 16);
+                loads |= 1 << (Window(v, 0, 0) / 16);
+                if (Window(v, 1, 0) != None)
+                    loads |= 1 << (Window(v, 1, 0) / 16);
             }
 
             return loads;
@@ -215,7 +221,7 @@ namespace Nino.Core
             for (int v = 0; v < Vectors; v++)
             for (int load = 0; load < 2; load++)
             {
-                int low = Windows[v * 4 + load * 2], high = Windows[v * 4 + load * 2 + 1];
+                int low = Window(v, load, 0), high = Window(v, load, 1);
                 if (low == None)
                     continue;
                 if (Width == 16 || high == low + 16)
@@ -249,7 +255,7 @@ namespace Nino.Core
             for (int v = 0; v < Vectors; v++)
             for (int load = 0; load < 2; load++)
             {
-                int low = Windows[v * 4 + load * 2], high = Windows[v * 4 + load * 2 + 1];
+                int low = Window(v, load, 0), high = Window(v, load, 1);
                 if (low != None && high != low + 16)
                     cost += Paired(low, high) ? 3 : 2;
             }
