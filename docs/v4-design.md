@@ -698,7 +698,7 @@ CreateSyntaxProvider(names + base names, syntax only) ─► Collect ─┐     
 referenced NinoType names (cached per reference set) ─────────────┴► candidates ┘          │
                                     (inherited NinoType)                                   │
                                                                          └─► formatter names ─► Collect ─► registry source
-CompilationProvider.Select(GeneratorOptions)  ──────────────────────────────┘ (assembly name, symbols, Unity)
+CompilationProvider.Select(ProjectFacts)  ──────────────────────────────────┘ (Nino.Core referenced, options, Unity)
 ```
 
 * All symbol work happens inside the transform, which converts symbols into an **equatable model** made
@@ -720,8 +720,18 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
   swept whenever a project's entry count doubles, so the cache stays bounded without a per-edit scan. Each type's direct dependencies are looked up once per compilation and shared by all
   models that reach it, so collecting them does not measurably slow a full build. With 1,100 NinoTypes in 1,200 files, an edit went from about 350 ms to about
   100 ms, close to the 60-100 ms a no-op generator with the same attribute lookup costs.
+* Everything read from the whole compilation (whether it references Nino.Core, the registry's options, the
+  referenced NinoTypes, whether NativeAOT's attributes exist) is one `ProjectFacts` step, which runs on every
+  change; each part is selected from it, so what uses one part runs again only when that part changes.
+* The top-level `NinoSerializer`/`NinoDeserializer` calls are bound again on every change too. What a call
+  registers and how it is intercepted is kept by file and position (`ModelCache.GetOrBuildCall`) and reused
+  while its tree, the method it binds to and the trees its type argument reaches are unchanged.
 * The generator reports no diagnostics; the analyzer does (below). Models therefore hold no locations, and
   an edit that only moves code (a line inserted above a type) leaves every model equal and re-emits nothing.
+* Roslyn matches the values of a step to the previous run's by position, not by value: a type inserted ahead
+  of others (earlier in its file) shifts them, and they reach the output step again with equal models. Their
+  files come from `EmittedFormatters`, which keeps recent ones by model value: the same text, not emitted
+  again, and the same instance, so the compiler keeps the tree it parsed.
 * Every output is registered with `RegisterImplementationSourceOutput`: user code never references generated
   code, so the IDE skips the emitters while typing and only builds run them.
 * Facts shared between types (each type's serialized members, raw layout, whether its formatter can be
