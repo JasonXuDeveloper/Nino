@@ -122,10 +122,11 @@ namespace Nino.UnitTests
             var info = NinoLayout.Compute(typeof(WideAfterByte), Unsafe.SizeOf<WideAfterByte>(), 8, 8);
             Assert.AreEqual(32, info.Size);
             Assert.AreEqual(16, info.Align);
-            Assert.IsTrue(info.Canonical);
-            Assert.AreEqual(16, NinoLayout.WideAlign);
+            // CoreCLR on 64-bit aligns it to 16, as the canonical layout does; Arm32 aligns it to 8 and converts.
+            Assert.IsTrue(NinoLayout.WideAlign == 16 || NinoLayout.WideAlign == 8);
+            Assert.AreEqual(NinoLayout.WideAlign == 16, info.Canonical);
 
-            // A runtime that aligns it to 8 (.NET 7) has it at 8, and converts to the same 32 bytes.
+            // A runtime that aligns it to 8 (Arm32, .NET 7) has it at 8, and converts to the same 32 bytes.
             var narrow = NinoLayout.Compute(typeof(WideAfterByte), 24, 8, 8, 8);
             Assert.IsFalse(narrow.Canonical);
             Assert.AreEqual(32, narrow.Size);
@@ -136,7 +137,10 @@ namespace Nino.UnitTests
         public void Int128PaddingIsCleared()
         {
             var value = new WideAfterByte { A = 1, B = -2 };
-            for (int i = 1; i < 16; i++)
+            // The padding before B: 15 bytes where Int128 is aligned to 16, 7 where it is aligned to 8 (Arm32).
+            int padEnd = (int)Unsafe.ByteOffset(ref Unsafe.As<WideAfterByte, byte>(ref value),
+                ref Unsafe.As<System.Int128, byte>(ref value.B));
+            for (int i = 1; i < padEnd; i++)
                 Unsafe.Add(ref Unsafe.As<WideAfterByte, byte>(ref value), i) = 0xAB;
             var bytes = NinoSerializer.Serialize(value);
             var expected = new byte[32];
