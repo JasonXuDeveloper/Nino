@@ -9,6 +9,7 @@ using System.Runtime.Intrinsics.Wasm;
 #endif
 using System.Runtime.Intrinsics.X86;
 #endif
+using Nino.Core.Generated;
 using Nino.Core.Internal;
 
 namespace Nino.Core
@@ -27,12 +28,26 @@ namespace Nino.Core
             ? ((INinoBlockFormatter<T>)default(TFormatter)).BlockSize
             : -1;
 
-        /// <summary><see cref="NinoBlock.ReadSize{T, TFormatter}"/>.</summary>
-        public static readonly int ReadSize = Size > 0 && NinoLimits.Untrusted && NinoLayout<T>.Checks != null ? -1 : Size;
-
-        private static readonly int[] Map = NinoBlock.Size<T, TFormatter>() > 0
+        /// <summary>Where the bytes of a block lie in a value's memory, as the formatter describes it (null: not known).</summary>
+        private static readonly NinoBlockMap Description = NinoBlock.Size<T, TFormatter>() > 0
             ? ((INinoBlockFormatter<T>)default(TFormatter)).BlockMap()
             : null;
+
+        /// <summary>
+        /// <see cref="NinoBlock.ReadSize{T, TFormatter}"/>: -1 in <see cref="NinoSettings.Untrusted"/> mode for values
+        /// with fields to check, by their layout (<see cref="NinoLayout{T}.Checks"/>) or their items'
+        /// (<see cref="NinoBlockMap.Checked"/>).
+        /// </summary>
+        public static readonly int ReadSize =
+            Size > 0 && NinoLimits.Untrusted && (NinoLayout<T>.Checks != null || Description?.Checked == true)
+                ? -1
+                : Size;
+
+        /// <summary>
+        /// (memory offset, block offset, size) triples covering every byte of a block once (see
+        /// <see cref="NinoBlockMap"/>), or null: values are then moved one at a time.
+        /// </summary>
+        private static readonly int[] Map = Description?.Runs(NinoBlock.Size<T, TFormatter>(), Unsafe.SizeOf<T>());
 
         /// <summary>Whether a value's memory is its block: a collection of them is one copy.</summary>
         public static readonly bool IsMemory = ComputeIsMemory();
@@ -46,6 +61,17 @@ namespace Nino.Core
                     return false;
             return true;
         }
+
+        /// <summary>
+        /// The block offsets of the <c>bool</c>s of a block that reads move without <see cref="INinoBlockFormatter{T}.ReadBlock"/>
+        /// (as one copy where <see cref="IsMemory"/>, or by the vector paths), and so check first
+        /// (<see cref="NinoBlock"/>.ReadAll); null for none.
+        /// </summary>
+#if NET8_0_OR_GREATER
+        public static readonly int[] Bools = Map != null ? Description.Bools : null;
+#else
+        public static readonly int[] Bools = IsMemory ? Description.Bools : null;
+#endif
 
 #if NET8_0_OR_GREATER
         /// <summary>The bytes of a value and of its block matched, which every table below is read from.</summary>

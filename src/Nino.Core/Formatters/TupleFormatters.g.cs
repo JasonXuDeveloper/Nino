@@ -5,6 +5,7 @@
 // </auto-generated>
 using System;
 using System.Runtime.CompilerServices;
+using Nino.Core.Generated;
 
 namespace Nino.Core
 {
@@ -30,15 +31,13 @@ namespace Nino.Core
             get => RawFormatter.Is<T1, TF1>() ? NinoLayout<T1>.Size : -1;
         }
 
-        int[] INinoBlockFormatter<ValueTuple<T1>>.BlockMap()
+        NinoBlockMap INinoBlockFormatter<ValueTuple<T1>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>()) || NinoLayout<T1>.HasPadding)
+            if (!(RawFormatter.Is<T1, TF1>()))
                 return null;
             var value = default(ValueTuple<T1>);
-            return new[]
-            {
-                NinoBlock.Offset(ref value, ref value.Item1), 0, NinoLayout<T1>.Size,
-            };
+            return new NinoBlockMap()
+                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -120,16 +119,14 @@ namespace Nino.Core
             get => RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() ? NinoLayout<T1>.Size + NinoLayout<T2>.Size : -1;
         }
 
-        int[] INinoBlockFormatter<ValueTuple<T1, T2>>.BlockMap()
+        NinoBlockMap INinoBlockFormatter<ValueTuple<T1, T2>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>()) || NinoLayout<T1>.HasPadding || NinoLayout<T2>.HasPadding)
+            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>()))
                 return null;
             var value = default(ValueTuple<T1, T2>);
-            return new[]
-            {
-                NinoBlock.Offset(ref value, ref value.Item1), 0, NinoLayout<T1>.Size,
-                NinoBlock.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size, NinoLayout<T2>.Size,
-            };
+            return new NinoBlockMap()
+                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0)
+                .Raw<T2>(NinoBlocks.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -222,17 +219,15 @@ namespace Nino.Core
             get => RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() ? NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size : -1;
         }
 
-        int[] INinoBlockFormatter<ValueTuple<T1, T2, T3>>.BlockMap()
+        NinoBlockMap INinoBlockFormatter<ValueTuple<T1, T2, T3>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>()) || NinoLayout<T1>.HasPadding || NinoLayout<T2>.HasPadding || NinoLayout<T3>.HasPadding)
+            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>()))
                 return null;
             var value = default(ValueTuple<T1, T2, T3>);
-            return new[]
-            {
-                NinoBlock.Offset(ref value, ref value.Item1), 0, NinoLayout<T1>.Size,
-                NinoBlock.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size, NinoLayout<T2>.Size,
-                NinoBlock.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size, NinoLayout<T3>.Size,
-            };
+            return new NinoBlockMap()
+                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0)
+                .Raw<T2>(NinoBlocks.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size)
+                .Raw<T3>(NinoBlocks.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -336,18 +331,16 @@ namespace Nino.Core
             get => RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() ? NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size : -1;
         }
 
-        int[] INinoBlockFormatter<ValueTuple<T1, T2, T3, T4>>.BlockMap()
+        NinoBlockMap INinoBlockFormatter<ValueTuple<T1, T2, T3, T4>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>()) || NinoLayout<T1>.HasPadding || NinoLayout<T2>.HasPadding || NinoLayout<T3>.HasPadding || NinoLayout<T4>.HasPadding)
+            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>()))
                 return null;
             var value = default(ValueTuple<T1, T2, T3, T4>);
-            return new[]
-            {
-                NinoBlock.Offset(ref value, ref value.Item1), 0, NinoLayout<T1>.Size,
-                NinoBlock.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size, NinoLayout<T2>.Size,
-                NinoBlock.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size, NinoLayout<T3>.Size,
-                NinoBlock.Offset(ref value, ref value.Item4), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size, NinoLayout<T4>.Size,
-            };
+            return new NinoBlockMap()
+                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0)
+                .Raw<T2>(NinoBlocks.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size)
+                .Raw<T3>(NinoBlocks.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size)
+                .Raw<T4>(NinoBlocks.Offset(ref value, ref value.Item4), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -462,19 +455,17 @@ namespace Nino.Core
             get => RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() ? NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size : -1;
         }
 
-        int[] INinoBlockFormatter<ValueTuple<T1, T2, T3, T4, T5>>.BlockMap()
+        NinoBlockMap INinoBlockFormatter<ValueTuple<T1, T2, T3, T4, T5>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>()) || NinoLayout<T1>.HasPadding || NinoLayout<T2>.HasPadding || NinoLayout<T3>.HasPadding || NinoLayout<T4>.HasPadding || NinoLayout<T5>.HasPadding)
+            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>()))
                 return null;
             var value = default(ValueTuple<T1, T2, T3, T4, T5>);
-            return new[]
-            {
-                NinoBlock.Offset(ref value, ref value.Item1), 0, NinoLayout<T1>.Size,
-                NinoBlock.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size, NinoLayout<T2>.Size,
-                NinoBlock.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size, NinoLayout<T3>.Size,
-                NinoBlock.Offset(ref value, ref value.Item4), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size, NinoLayout<T4>.Size,
-                NinoBlock.Offset(ref value, ref value.Item5), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size, NinoLayout<T5>.Size,
-            };
+            return new NinoBlockMap()
+                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0)
+                .Raw<T2>(NinoBlocks.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size)
+                .Raw<T3>(NinoBlocks.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size)
+                .Raw<T4>(NinoBlocks.Offset(ref value, ref value.Item4), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size)
+                .Raw<T5>(NinoBlocks.Offset(ref value, ref value.Item5), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -600,20 +591,18 @@ namespace Nino.Core
             get => RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>() ? NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size : -1;
         }
 
-        int[] INinoBlockFormatter<ValueTuple<T1, T2, T3, T4, T5, T6>>.BlockMap()
+        NinoBlockMap INinoBlockFormatter<ValueTuple<T1, T2, T3, T4, T5, T6>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>()) || NinoLayout<T1>.HasPadding || NinoLayout<T2>.HasPadding || NinoLayout<T3>.HasPadding || NinoLayout<T4>.HasPadding || NinoLayout<T5>.HasPadding || NinoLayout<T6>.HasPadding)
+            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>()))
                 return null;
             var value = default(ValueTuple<T1, T2, T3, T4, T5, T6>);
-            return new[]
-            {
-                NinoBlock.Offset(ref value, ref value.Item1), 0, NinoLayout<T1>.Size,
-                NinoBlock.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size, NinoLayout<T2>.Size,
-                NinoBlock.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size, NinoLayout<T3>.Size,
-                NinoBlock.Offset(ref value, ref value.Item4), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size, NinoLayout<T4>.Size,
-                NinoBlock.Offset(ref value, ref value.Item5), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size, NinoLayout<T5>.Size,
-                NinoBlock.Offset(ref value, ref value.Item6), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size, NinoLayout<T6>.Size,
-            };
+            return new NinoBlockMap()
+                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0)
+                .Raw<T2>(NinoBlocks.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size)
+                .Raw<T3>(NinoBlocks.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size)
+                .Raw<T4>(NinoBlocks.Offset(ref value, ref value.Item4), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size)
+                .Raw<T5>(NinoBlocks.Offset(ref value, ref value.Item5), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size)
+                .Raw<T6>(NinoBlocks.Offset(ref value, ref value.Item6), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -750,21 +739,19 @@ namespace Nino.Core
             get => RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>() && RawFormatter.Is<T7, TF7>() ? NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size + NinoLayout<T7>.Size : -1;
         }
 
-        int[] INinoBlockFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>.BlockMap()
+        NinoBlockMap INinoBlockFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>() && RawFormatter.Is<T7, TF7>()) || NinoLayout<T1>.HasPadding || NinoLayout<T2>.HasPadding || NinoLayout<T3>.HasPadding || NinoLayout<T4>.HasPadding || NinoLayout<T5>.HasPadding || NinoLayout<T6>.HasPadding || NinoLayout<T7>.HasPadding)
+            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>() && RawFormatter.Is<T7, TF7>()))
                 return null;
             var value = default(ValueTuple<T1, T2, T3, T4, T5, T6, T7>);
-            return new[]
-            {
-                NinoBlock.Offset(ref value, ref value.Item1), 0, NinoLayout<T1>.Size,
-                NinoBlock.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size, NinoLayout<T2>.Size,
-                NinoBlock.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size, NinoLayout<T3>.Size,
-                NinoBlock.Offset(ref value, ref value.Item4), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size, NinoLayout<T4>.Size,
-                NinoBlock.Offset(ref value, ref value.Item5), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size, NinoLayout<T5>.Size,
-                NinoBlock.Offset(ref value, ref value.Item6), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size, NinoLayout<T6>.Size,
-                NinoBlock.Offset(ref value, ref value.Item7), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size, NinoLayout<T7>.Size,
-            };
+            return new NinoBlockMap()
+                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0)
+                .Raw<T2>(NinoBlocks.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size)
+                .Raw<T3>(NinoBlocks.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size)
+                .Raw<T4>(NinoBlocks.Offset(ref value, ref value.Item4), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size)
+                .Raw<T5>(NinoBlocks.Offset(ref value, ref value.Item5), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size)
+                .Raw<T6>(NinoBlocks.Offset(ref value, ref value.Item6), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size)
+                .Raw<T7>(NinoBlocks.Offset(ref value, ref value.Item7), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

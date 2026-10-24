@@ -25,6 +25,7 @@ namespace Nino.CodeGen
             sb.Append("// </auto-generated>\n");
             sb.Append("using System;\n");
             sb.Append("using System.Runtime.CompilerServices;\n");
+            sb.Append("using Nino.Core.Generated;\n");
             sb.Append("\n");
             sb.Append("namespace Nino.Core\n");
             sb.Append("{\n");
@@ -119,16 +120,15 @@ namespace Nino.CodeGen
             sb.Append($"            get => {allRaw} ? {Sum(arity, arity)} : -1;\n");
             sb.Append("        }\n");
             sb.Append("\n");
-            sb.Append($"        int[] INinoBlockFormatter<{type}>.BlockMap()\n");
+            sb.Append($"        NinoBlockMap INinoBlockFormatter<{type}>.BlockMap()\n");
             sb.Append("        {\n");
-            sb.Append($"            if (!({allRaw}) || {string.Join(" || ", Items(arity).Select(i => $"NinoLayout<T{i}>.HasPadding"))})\n");
+            sb.Append($"            if (!({allRaw}))\n");
             sb.Append("                return null;\n");
             sb.Append($"            var value = default({type});\n");
-            sb.Append("            return new[]\n");
-            sb.Append("            {\n");
+            sb.Append("            return new NinoBlockMap()");
             foreach (int i in Items(arity))
-                sb.Append($"                NinoBlock.Offset(ref value, ref value.Item{i}), {(i == 1 ? "0" : Sum(i - 1, i - 1))}, NinoLayout<T{i}>.Size,\n");
-            sb.Append("            };\n");
+                sb.Append($"\n                .Raw<T{i}>(NinoBlocks.Offset(ref value, ref value.Item{i}), {(i == 1 ? "0" : Sum(i - 1, i - 1))})");
+            sb.Append(";\n");
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");

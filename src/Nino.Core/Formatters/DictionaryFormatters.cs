@@ -637,17 +637,15 @@ namespace Nino.Core
         }
 
         // Its fields are private: found by marking each item's bytes.
-        int[] INinoBlockFormatter<KeyValuePair<TKey, TValue>>.BlockMap()
+        NinoBlockMap INinoBlockFormatter<KeyValuePair<TKey, TValue>>.BlockMap()
         {
-            if (!Raw || NinoLayout<TKey>.HasPadding || NinoLayout<TValue>.HasPadding)
+            if (!Raw)
                 return null;
-            int key = NinoBlock.Find(NinoLayout<TKey>.Size,
-                () => new KeyValuePair<TKey, TValue>(NinoBlock.Marked<TKey>(), default));
-            int value = NinoBlock.Find(NinoLayout<TValue>.Size,
-                () => new KeyValuePair<TKey, TValue>(default, NinoBlock.Marked<TValue>()));
-            if (key < 0 || value < 0)
-                return null;
-            return new[] { key, 0, NinoLayout<TKey>.Size, value, NinoLayout<TKey>.Size, NinoLayout<TValue>.Size };
+            int key = NinoBlocks.Find(NinoLayout<TKey>.Size,
+                () => new KeyValuePair<TKey, TValue>(NinoBlocks.Marked<TKey>(), default));
+            int value = NinoBlocks.Find(NinoLayout<TValue>.Size,
+                () => new KeyValuePair<TKey, TValue>(default, NinoBlocks.Marked<TValue>()));
+            return new NinoBlockMap().Raw<TKey>(key, 0).Raw<TValue>(value, NinoLayout<TKey>.Size);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

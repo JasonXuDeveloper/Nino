@@ -118,6 +118,36 @@ namespace Nino.Core.Generated
     }
 
     /// <summary>
+    /// Formatters whose values take <see cref="BlockSize"/> bytes each when it is not -1 (a JIT-time constant): value
+    /// tuples and pairs of raw items, and generated <c>[NinoType]</c> structs of a fixed size that are not raw. A
+    /// collection of them reserves or bounds-checks its whole block once and writes or reads each value at its position
+    /// with no check of its own; where <see cref="BlockMap"/> says where each byte of a block lies in a value's memory,
+    /// several values at a time by vector shuffles and permutes (<c>NinoBlock</c>).
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoBlockFormatter<T>
+    {
+        /// <summary>The bytes of every value, or -1 when values are not written as blocks.</summary>
+        int BlockSize { get; }
+
+        /// <summary>
+        /// Where the bytes of a block lie in a value's memory (<see cref="NinoBlockMap"/>), or null (or a map that
+        /// failed) when that is not known, or values hold bytes no block byte gives them (padding inside an item):
+        /// values are then moved one at a time, by <see cref="WriteBlock"/> and <see cref="ReadBlock"/>. Called once.
+        /// </summary>
+        NinoBlockMap BlockMap();
+
+        /// <summary>Writes <paramref name="value"/> into the <see cref="BlockSize"/> bytes at <paramref name="destination"/>.</summary>
+        void WriteBlock(ref byte destination, in T value);
+
+        /// <summary>
+        /// Reads the value in the <see cref="BlockSize"/> bytes at <paramref name="source"/>, with the checks a read of
+        /// it does otherwise (a <c>bool</c> other than 0 or 1 is invalid data).
+        /// </summary>
+        void ReadBlock(ref byte source, ref T value);
+    }
+
+    /// <summary>
     /// Marker for struct formatters whose output is exactly the in-memory bytes of the value
     /// (<c>Unsafe.SizeOf&lt;T&gt;()</c> bytes). The top-level APIs copy such values directly.
     /// </summary>
