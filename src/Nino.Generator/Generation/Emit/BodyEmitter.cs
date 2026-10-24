@@ -563,16 +563,20 @@ internal sealed class BodyEmitter
         _w.Close();
     }
 
-    /// <summary>The reads of a body, on a local copy of the reader when <paramref name="local"/>.</summary>
-    private void EmitReadBodyContents(bool fresh, bool local)
+    /// <summary>
+    /// The reads of a body, on a local copy of the reader when <paramref name="local"/>. <paramref name="present"/>:
+    /// <c>value</c> is never null here (the reuse body of a <see cref="TypeModel.SplitFresh"/> type, which only its
+    /// <c>ReadBody</c> calls, after sending a null slot to the new-instance body), so no instance is created.
+    /// </summary>
+    private void EmitReadBodyContents(bool fresh, bool local, bool present = false)
     {
         if (local)
-            OnLocalCopy(_w, reader: true, () => EmitReads(fresh, "__r"));
+            OnLocalCopy(_w, reader: true, () => EmitReads(fresh, "__r", present));
         else
-            EmitReads(fresh, "reader");
+            EmitReads(fresh, "reader", present);
     }
 
-    private void EmitReads(bool fresh, string r)
+    private void EmitReads(bool fresh, string r, bool present)
     {
         if (fresh)
         {
@@ -587,7 +591,7 @@ internal sealed class BodyEmitter
         else if (_m.Construction.Recreate)
             EmitRecreatingRead(r);
         else
-            EmitInPlaceRead(r);
+            EmitInPlaceRead(r, present);
     }
 
     /// <summary>
@@ -655,16 +659,18 @@ internal sealed class BodyEmitter
             _w.Line();
         }
 
+        // Private: the forwarder above (or the __Shallow twin's, nested in this struct) is the only caller, and
+        // sends a null slot to {body}Fresh, so value is never null here.
         _w.Line(_names.NoInline);
-        _w.Open($"internal static void {body}({parameters})");
-        EmitReadBodyContents(fresh: false, local: LocalReader && !_mode.Shallow);
+        _w.Open($"private static void {body}({parameters})");
+        EmitReadBodyContents(fresh: false, local: LocalReader && !_mode.Shallow, present: true);
         _w.Close();
         _w.Line();
         _w.Line(_names.NoInline);
         if (ReadTop)
         {
             // The new-instance read is also __ReadTop's: inlinable, called here on a local copy of the reader.
-            _w.Block($"internal static void {body}Fresh({parameters})",
+            _w.Block($"private static void {body}Fresh({parameters})",
                 () => OnLocalCopy(_w, reader: true, () => _w.Line($"{body}FreshInline(ref value, ref __r);")));
             _w.Line();
             _w.Line(_names.Inline);
@@ -674,12 +680,12 @@ internal sealed class BodyEmitter
             return;
         }
 
-        _w.Open($"internal static void {body}Fresh({parameters})");
+        _w.Open($"private static void {body}Fresh({parameters})");
         EmitReadBodyContents(fresh: true, local: LocalReader && !_mode.Shallow);
         _w.Close();
     }
 
-    private void EmitInPlaceRead(string r)
+    private void EmitInPlaceRead(string r, bool present)
     {
         if (_m.Kind != FormatterKind.Struct)
         {
@@ -687,7 +693,10 @@ internal sealed class BodyEmitter
             // The instance in a local (a collection formatter may replace value, so not for collections).
             if (!_m.IsCollection)
             {
-                ReadIntoLocal(create);
+                if (present)
+                    _w.Line("var __v = value;");
+                else
+                    ReadIntoLocal(create);
                 In(_mode with { Target = "__v" }, () => EmitInPlaceMembers(r));
                 return;
             }
