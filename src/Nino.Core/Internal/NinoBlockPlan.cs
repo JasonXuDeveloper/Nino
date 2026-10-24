@@ -422,8 +422,13 @@ namespace Nino.Core
                 int width = Avx2.IsSupported ? 32 : shuffles ? 16 : 0;
                 if (width == 0)
                     return null;
-                var plan = NinoLanes.Solve(width, Bytes, typeof(TDirection) == typeof(NinoWrites),
-                    AdvSimd.Arm64.IsSupported, !Avx512Vbmi.IsSupported);
+                bool writes = typeof(TDirection) == typeof(NinoWrites);
+                // Partial groups where nothing else moves several values at a time: without AVX-512 VBMI, and with it
+                // for values its group and 64-byte permutes do not take (more than 16 bytes in memory: 1,000 values of
+                // 24 bytes, 15-byte blocks, took 1.7 us written one at a time on an AVX-512 Xeon, 0.43 us in groups).
+                bool others = Permutes || (writes ? Groups : ReadPlan<NinoPhase0>.Enabled);
+                var plan = NinoLanes.Solve(width, Bytes, writes, AdvSimd.Arm64.IsSupported,
+                    !Avx512Vbmi.IsSupported || !others);
                 // A value a group is what Shuffles does already, without the group loop around it.
                 return plan is { Group: 1 } && Shuffles ? null : plan;
             }
