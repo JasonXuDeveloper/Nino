@@ -27,6 +27,9 @@ namespace Nino.Core
             ? ((INinoBlockFormatter<T>)default(TFormatter)).BlockSize
             : -1;
 
+        /// <summary><see cref="NinoBlock.ReadSize{T, TFormatter}"/>.</summary>
+        public static readonly int ReadSize = Size > 0 && NinoLimits.Untrusted && NinoLayout<T>.Checks != null ? -1 : Size;
+
         private static readonly int[] Map = NinoBlock.Size<T, TFormatter>() > 0
             ? ((INinoBlockFormatter<T>)default(TFormatter)).BlockMap()
             : null;

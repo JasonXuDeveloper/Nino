@@ -183,6 +183,127 @@ namespace Nino.Core
             return info;
         }
 
+        // Kinds of ValueChecks.
+        private const int CheckBool = 1, CheckDateTime = 2, CheckDecimal = 3, CheckDateOnly = 4, CheckTimeOnly = 5;
+
+        // DateTime: the ticks of its 64 bits (the top two are its kind), at most DateTime.MaxValue's. DateOnly: day
+        // numbers up to DateOnly.MaxValue's. TimeOnly: ticks below one day.
+        private const ulong DateTimeTicksMask = 0x3FFF_FFFF_FFFF_FFFF;
+        private const long MaxDateTimeTicks = 3155378975999999999;
+        private const int MaxDayNumber = 3652058;
+        private const long TicksPerDay = 864000000000;
+
+        /// <summary>
+        /// The fields of <paramref name="type"/> (an unmanaged struct, or one of the types below itself) that can
+        /// hold bytes no constructor makes, as pairs of their offset in memory on this runtime and kind: <c>bool</c>,
+        /// <see cref="DateTime"/>, <c>decimal</c>, <c>DateOnly</c>, <c>TimeOnly</c>, at any depth of nested structs.
+        /// Values are checked once read (in memory): where the wire layout is the memory layout, also before. Null for
+        /// none, or when the fields cannot be read (then nothing is checked, as nothing is converted: see
+        /// <see cref="Create"/>).
+        /// </summary>
+        internal static int[] ValueChecks(Type type)
+        {
+            try
+            {
+                var checks = new List<int>();
+                return AddChecks(type, 0, checks) && checks.Count != 0 ? checks.ToArray() : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = FieldsJustification)]
+        private static bool AddChecks(Type type, int offset, List<int> checks)
+        {
+            int kind = CheckOf(type);
+            if (kind != 0)
+            {
+                checks.Add(offset);
+                checks.Add(kind);
+                return true;
+            }
+
+            if (type.IsEnum || type.IsPrimitive || type.IsPointer || !type.IsValueType || type == typeof(Guid) ||
+                type == typeof(TimeSpan))
+                return true;
+            // The offsets of its own fields in memory, in the order RuntimeView.Struct lists them.
+            var offsets = new List<int>();
+            if (!NinoLayoutCore.Measure<Type, RuntimeView>(default, type, LongAlign, DecimalAlign, IntPtr.Size, 0,
+                    new List<NinoLayoutCore.Leaf>(), out _, out _, offsets))
+                return false;
+            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (fields.Length != offsets.Count)
+                return false;
+            for (int i = 0; i < fields.Length; i++)
+                if (!AddChecks(fields[i].FieldType, offset + offsets[i], checks))
+                    return false;
+            return true;
+        }
+
+        private static int CheckOf(Type type)
+        {
+            if (type == typeof(bool))
+                return CheckBool;
+            if (type == typeof(DateTime))
+                return CheckDateTime;
+            if (type == typeof(decimal))
+                return CheckDecimal;
+            // By name: netstandard has neither.
+            if (type.FullName == "System.DateOnly" && type.Assembly == typeof(object).Assembly)
+                return CheckDateOnly;
+            if (type.FullName == "System.TimeOnly" && type.Assembly == typeof(object).Assembly)
+                return CheckTimeOnly;
+            return 0;
+        }
+
+        /// <summary>
+        /// Checks the fields <paramref name="checks"/> lists (<see cref="ValueChecks"/>) of <paramref name="count"/>
+        /// values of <paramref name="type"/> in memory (or in the data, where it lays them out the same),
+        /// <paramref name="stride"/> bytes apart, at <paramref name="first"/>: invalid data throws
+        /// <see cref="NinoDataException"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static void Check(int[] checks, ref byte first, int count, int stride, Type type)
+        {
+            ref byte value = ref first;
+            for (int n = 0; n < count; n++, value = ref Unsafe.Add(ref value, stride))
+            {
+                for (int i = 0; i < checks.Length; i += 2)
+                {
+                    ref byte field = ref Unsafe.Add(ref value, checks[i]);
+                    bool valid;
+                    switch (checks[i + 1])
+                    {
+                        case CheckBool:
+                            valid = field <= 1;
+                            break;
+                        case CheckDateTime:
+                            valid = (long)(Unsafe.ReadUnaligned<ulong>(ref field) & DateTimeTicksMask) <= MaxDateTimeTicks;
+                            break;
+                        case CheckDecimal:
+                        {
+                            // Flags first in every runtime's decimal: the sign (bit 31), the scale (bits 16 to 23,
+                            // at most 28), nothing else.
+                            uint flags = Unsafe.ReadUnaligned<uint>(ref field);
+                            valid = (flags & 0x7F00_FFFF) == 0 && (flags >> 16 & 0xFF) <= 28;
+                            break;
+                        }
+                        case CheckDateOnly:
+                            valid = (uint)Unsafe.ReadUnaligned<int>(ref field) <= MaxDayNumber;
+                            break;
+                        default:
+                            valid = Unsafe.ReadUnaligned<ulong>(ref field) < TicksPerDay;
+                            break;
+                    }
+
+                    if (!valid)
+                        NinoThrow.InvalidValue(type, checks[i]);
+                }
+            }
+        }
+
         /// <summary>Copies a value between its memory layout and its wire layout using <see cref="Info.Map"/>.</summary>
         internal static void Convert(Info info, ref byte memory, ref byte wire, bool toWire)
         {
@@ -612,12 +733,23 @@ namespace Nino.Core
         public static readonly bool IsCanonical = Info.Canonical;
 
         /// <summary>
+        /// In <see cref="NinoSettings.Untrusted"/> mode, the fields of <typeparamref name="T"/> with invalid values
+        /// (<see cref="NinoLayout.ValueChecks"/>: offset and kind pairs in the wire layout); null otherwise, and for a
+        /// type without such fields. Declared before <see cref="CopiesAsIs"/>, which reads it.
+        /// </summary>
+        internal static readonly int[] Checks = NinoLimits.Untrusted && typeof(T) != typeof(bool) &&
+                                                !NinoUnsafe.IsReferenceOrContainsReferences<T>()
+            ? NinoLayout.ValueChecks(typeof(T))
+            : null;
+
+        /// <summary>
         /// Whether values are read as their bytes, one (<see cref="Read"/>) or a block of them (arrays, lists): canonical,
-        /// and not a <c>bool</c>, whose byte is checked (0 or 1). The read paths test this field where they tested
+        /// not a <c>bool</c>, whose byte is checked (0 or 1), and without <see cref="Checks"/>. The read paths test this field where they tested
         /// <see cref="IsCanonical"/> and take their other path for the rest, so the check costs the other types nothing,
         /// not even code to fold (in a large method the inliner counts that too).
         /// </summary>
-        internal static readonly bool CopiesAsIs = Info.Canonical && typeof(T) != typeof(bool);
+        internal static readonly bool CopiesAsIs = Info.Canonical && typeof(T) != typeof(bool) && Checks == null;
+
 
         private static readonly NinoMask Mask = Info.Mask == null ? null : NinoMask.Create(Info.Mask);
 
@@ -725,7 +857,12 @@ namespace Nino.Core
         private static T ReadConverted(ref byte source)
         {
             T value = default;
-            NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref value), ref source, false);
+            if (Info.Canonical)
+                value = NinoUnsafe.Read<T>(ref source);
+            else
+                NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref value), ref source, false);
+            if (Checks != null)
+                NinoLayout.Check(Checks, ref Unsafe.As<T, byte>(ref value), 1, 0, typeof(T));
             return value;
         }
     }

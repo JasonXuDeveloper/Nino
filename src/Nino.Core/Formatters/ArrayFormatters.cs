@@ -367,7 +367,7 @@ namespace Nino.Core
                 return;
             }
 
-            int block = NinoBlock.Size<T, TFormatter>();
+            int block = NinoBlock.ReadSize<T, TFormatter>();
             if (block > 0)
             {
                 NinoBlock.ReadAll<T, TFormatter>(ref reader.ReadElements(values.Length, block),

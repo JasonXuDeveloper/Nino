@@ -598,6 +598,18 @@ namespace Nino.Core
         }
 
         /// <summary>
+        /// Generated code: <see cref="UnsafeRead{T}"/> of a raw member whose type may hold values no constructor makes,
+        /// as <see cref="NinoUnsafe.ReadChecked{T}"/>.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T ReadChecked<T>()
+        {
+            T value = UnsafeRead<T>();
+            return NinoLayout<T>.Checks == null ? value : NinoChecks.Checked(value);
+        }
+
+        /// <summary>
         /// Reads an unmanaged value written by <see cref="Writer.WriteValue{T}"/> (converted on runtimes that lay
         /// the type out differently). <typeparamref name="T"/> must not contain references.
         /// </summary>
@@ -816,8 +828,7 @@ namespace Nino.Core
             {
                 int count = destination.Length;
                 ref byte src = ref reader.ReadElements(count, Unsafe.SizeOf<T>());
-                if (typeof(T) == typeof(bool))
-                    NinoChecks.Bools(ref src, count);
+                NinoChecks.Values<T>(ref src, count, Unsafe.SizeOf<T>());
                 NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)), ref src,
                     (uint)count * (uint)Unsafe.SizeOf<T>());
                 return reader;
@@ -916,8 +927,8 @@ namespace Nino.Core
             {
                 if ((uint)(end - pos) < (uint)keySize)
                     NinoThrow.EndOfData();
-                if (typeof(TKey) == typeof(bool) && Unsafe.Add(ref data, pos) > 1)
-                    NinoThrow.InvalidBool(Unsafe.Add(ref data, pos));
+                if (!NinoLayout<TKey>.CopiesAsIs)
+                    NinoChecks.Values<TKey>(ref Unsafe.Add(ref data, pos), 1, keySize);
                 TKey key = NinoUnsafe.Read<TKey>(ref Unsafe.Add(ref data, pos));
                 pos += keySize;
                 string value = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, null, out int size);

@@ -104,9 +104,12 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static bool TryFill<T>(HashSet<T> set, ref byte source, int count, int size)
         {
-            // A bool other than 0 or 1 is invalid data.
-            if (typeof(T) == typeof(bool))
-                NinoChecks.Bools(ref source, count);
+            // A set with its own comparer (Untrusted mode's) is not hashed here.
+            if (!ReferenceEquals(set.Comparer, EqualityComparer<T>.Default))
+                return false;
+            // A bool other than 0 or 1, and in Untrusted mode other values no constructor makes, are invalid data.
+            if (!NinoLayout<T>.CopiesAsIs)
+                NinoChecks.Values<T>(ref source, count, size);
             return Fill(set, ref source, count, size, SetMask, SetBias);
         }
 

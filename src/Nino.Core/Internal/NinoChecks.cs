@@ -64,6 +64,39 @@ namespace Nino.Core
                 NinoThrow.InvalidBool(any);
         }
 
+        /// <summary>
+        /// Checks <paramref name="count"/> raw values of <typeparamref name="T"/> at <paramref name="first"/>,
+        /// <paramref name="stride"/> bytes apart, laid out as in memory: a <c>bool</c> other than 0 or 1, and in
+        /// <see cref="NinoSettings.Untrusted"/> mode the fields of <see cref="NinoLayout{T}.Checks"/>. For the raw
+        /// paths that copy values (<see cref="NinoLayout{T}.CopiesAsIs"/> false: call only then).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void Values<T>(ref byte first, int count, int stride)
+        {
+            if (typeof(T) == typeof(bool))
+            {
+                if (stride == 1)
+                    Bools(ref first, count);
+                else
+                    Bools(ref first, count, stride);
+            }
+            else if (NinoLayout<T>.Checks is { } checks)
+            {
+                NinoLayout.Check(checks, ref first, count, stride, typeof(T));
+            }
+        }
+
+        /// <summary>
+        /// <paramref name="value"/>, after its fields of <see cref="NinoLayout{T}.Checks"/> are checked (generated code,
+        /// in <see cref="NinoSettings.Untrusted"/> mode). By value: the caller's copy never has its address taken.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static T Checked<T>(T value)
+        {
+            NinoLayout.Check(NinoLayout<T>.Checks, ref Unsafe.As<T, byte>(ref value), 1, 0, typeof(T));
+            return value;
+        }
+
         // Branch-free: the bytes are or-ed together.
         private static int Strided(ref byte first, int count, int stride)
         {

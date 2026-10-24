@@ -309,10 +309,11 @@ namespace Nino.Core
             // A cursor rather than an int offset, which every access would sign-extend.
             int keySize = Unsafe.SizeOf<TKey>();
             int pairSize = keySize + Unsafe.SizeOf<TValue>();
-            if (typeof(TKey) == typeof(bool))
-                NinoChecks.Bools(ref src, length, pairSize);
-            if (typeof(TValue) == typeof(bool))
-                NinoChecks.Bools(ref Unsafe.Add(ref src, keySize), length, pairSize);
+            // A bool other than 0 or 1, and in Untrusted mode other values no constructor makes, are invalid data.
+            if (!NinoLayout<TKey>.CopiesAsIs)
+                NinoChecks.Values<TKey>(ref src, length, pairSize);
+            if (!NinoLayout<TValue>.CopiesAsIs)
+                NinoChecks.Values<TValue>(ref Unsafe.Add(ref src, keySize), length, pairSize);
             // The dictionary is new and sized for the pairs (Read's only caller): filled directly where it can be.
             if (HashTables.Map && HashTables.TryFill(dictionary, ref src, length, keySize, pairSize))
                 return;
@@ -487,8 +488,11 @@ namespace Nino.Core
             if (value == null && typeof(TDictionary) == typeof(Dictionary<TKey, TValue>))
             {
                 // A new plain dictionary, sized for the pairs: filled without the merge of Refill.
-                var created = new Dictionary<TKey, TValue>(
-                    NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Capacity(length, reader.Remaining));
+                int capacity = NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Capacity(length, reader.Remaining);
+                // NinoSettings.Untrusted (a constant): seeded comparers, out of line.
+                var created = NinoLimits.Untrusted
+                    ? NinoSeededHash.NewDictionary<TKey, TValue>(capacity)
+                    : new Dictionary<TKey, TValue>(capacity);
                 value = Unsafe.As<TDictionary>(created);
                 NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Read(created, length, ref reader);
                 return;
