@@ -366,7 +366,13 @@ func TestDates(t *testing.T) {
 	if got := r.DateTime(); got.Kind() != KindUtc || !got.Time().Equal(when) {
 		t.Fatal(got.Time())
 	}
-	expectCode(t, hx("80C0BF7A3F0BDCC8"), CodeInvalidData, func(r *Reader) { r.DateTime() })
+	// Kind 3: .NET's local time in the repeated hour of a daylight saving change (2024-11-03 01:30 in New York, from
+	// ToLocalTime), read and written back as it is.
+	ambiguous := encode(t, func(w *Writer) { w.DateTime(NewReader(hx("80C0BF7A3F0BDCC8")).DateTime()) })
+	expectBytes(t, ambiguous, "80C0BF7A3F0BDCC8")
+	if got := NewReader(ambiguous).DateTime(); got.Kind() != 3 || got.Ticks() != d.Ticks() {
+		t.Fatal(got.Kind(), got.Ticks())
+	}
 	expectCode(t, hx("FFFFFFFFFFFFFF3F"), CodeInvalidData, func(r *Reader) { r.DateTime() })
 
 	// DateTimeOffset: UTC ticks, then minutes.

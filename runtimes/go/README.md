@@ -97,7 +97,7 @@ p, err := nino.DeserializeExact(data, ReadPoint)   // ... or rejected
   - `DateOnly` and `TimeOnly` out of range;
   - bytes after the value (`DeserializeExact`);
 
-  and some that .NET accepts in every mode: `DateTime` with kind 3, a non-minimal `BigInteger` or one with 0 bytes,
+  and some that .NET accepts in every mode: a non-minimal `BigInteger` or one with 0 bytes,
   and a key repeated in a keyed body.
 - **Writer.** It appends to one buffer that doubles as it grows. Reused (`Writer.Reset`, or the pool behind
   `Serialize` and `Append`), writing a value allocates nothing. It rejects what a reader would reject (an

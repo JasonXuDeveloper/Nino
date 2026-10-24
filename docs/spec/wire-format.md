@@ -183,8 +183,10 @@ One `u64`. Bits 0–61 are the ticks (100 ns since 0001-01-01T00:00:00). Bits 62
                     Local        80 C0 BF 7A 3F 0B DC 88
 ```
 
-A `Local` value is written with the ticks of its local time. Readers MUST NOT convert it. Writers MUST NOT set the
-kind to `3`. See §9.10 for what readers check.
+A `Local` value is written with the ticks of its local time. Readers MUST NOT convert it. Kind `3` is a `Local` value in
+the repeated hour of a daylight saving change: .NET marks such a time when `ToLocalTime` produces it, writes the mark,
+and reads it back as `DateTimeKind.Local`. Readers MUST accept it and treat it as `Local`, and SHOULD keep the mark so
+that writing the value back gives the same bytes. See §9.10 for what readers check.
 
 ### 3.4 `DateTimeOffset`
 
@@ -743,7 +745,8 @@ When a class body is about to open while `D >= 128` (`NinoDepth.Inline`):
 - If the runtime type is **deferrable**, the header (presence byte, type id or reference header) is written as
   usual, **but the body is not**. The object is queued instead.
 - Otherwise the body is written inline. Writers and readers MUST fail when a body would open at `D >= 512`
-  (`NinoDepth.Max`). The .NET implementation may also fail earlier, when its thread runs low on stack.
+  (`NinoDepth.Max`). **.NET:** the limit is `NinoSettings.MaxDepth` (512 by default, at least 128); it may also fail
+  earlier, when its thread runs low on stack.
 
 **Deferrable**: a class that Nino creates before reading its members. That excludes:
 
@@ -1057,11 +1060,11 @@ is not what writers produce:
 - Inside a region, it MUST be rejected (no matching section entry).
 - Outside a region, the .NET reader treats it as deferred bodies, which keeps the stack bounded.
 
-Non-deferrable bodies MUST NOT exceed depth 512. **.NET:** done. It also fails early when its thread is low on
-stack.
+Non-deferrable bodies MUST NOT exceed depth 512. **.NET:** done, with `NinoSettings.MaxDepth` in place of 512 (the
+default). It also fails early when its thread is low on stack.
 
-Struct bodies do not count toward `D` (§7.10.1) and are never deferred, but they do count toward the limit of 512
-when reading: a struct that can hold itself (through a collection, a nullable, a `Lazy` or an interface) would
+Struct bodies do not count toward `D` (§7.10.1) and are never deferred, but they do count toward the limit of 512,
+when reading and when writing: a struct that can hold itself (through a collection, a nullable, a `Lazy` or an interface) would
 otherwise nest without bound. **.NET** counts, while reading, each open body of such a struct (`Reader.EnterStruct`,
 emitted for structs whose nesting no bound covers; collections that hold themselves count their levels the same way)
 and fails when that count plus `D` exceeds 512 (`NinoSettings.MaxDepth`), or when a non-deferrable class body opens
