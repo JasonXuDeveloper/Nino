@@ -11,7 +11,7 @@
 | 分支 / worktree | 范围 | 状态 |
 |---|---|---|
 | refactor/build · /workspace/wt-build | csproj/props/sln/global.json、集中包版本、生成器共享 props 与按目标路径打包、LangVersion、包校验、CI 警告即错误、单一版本来源、UnitTests.csproj 修正、AspNetCore.Tests 入 sln、Immutable 的 IsTrimmable/IsAotCompatible + AotTests | ✅ 9 个提交（556dee1…ac39d4c：元数据集中、中央包版本、生成器共享 props + GetTargetPath 打包、LangVersion latest + global.json、单一版本来源、测试工程 defines/NoWarn、包校验 + CI 警告即错误、Immutable 可裁剪/AOT、Nino.slnx）。nupkg 文件列表不变（只少了从未发布的 .symbols.nupkg）。合并时处理：CONTRIBUTING.md:51 仍提 Version.cs；global.json rollForward 改 latestMajor 以便 vars.DOTNET_VERSION 测新 SDK；AspNetCore 两个零分配测试本机失败但 main 的 CI 通过（容器环境问题） |
-| refactor/gen · /workspace/wt-gen | 生成器 bug A–G（缓存漏 assembly NinoFormatter、别名/using static 接收者、SourceName、TypeFacts 缓存、LatestState 增长、泛型 FormerName 类型 id 冲突诊断、ShapeMatrix 维度）；规则统一、增量缓存、GeneratedFile、FormatterRef、TypeModel/BodyEmitter 拆分、CodeFix、原始字符串；输出变化：4.12 拦截器位置注释、每文件类型别名 | ✅ 17 个提交已合并（修复 A、B、E、H、I、K，D 编译性能，F NINO027，G ShapeMatrix，Q3 部分、Q6、Q8、Q9、Q10）；未做 Q1、Q2、Q4、Q5、Q7、Q11（见下“生成器分支交回的后续项”） |
+| refactor/gen · /workspace/wt-gen | 生成器 bug A–G（缓存漏 assembly NinoFormatter、别名/using static 接收者、SourceName、TypeFacts 缓存、LatestState 增长、泛型 FormerName 类型 id 冲突诊断、ShapeMatrix 维度）；规则统一、增量缓存、GeneratedFile、FormatterRef、TypeModel/BodyEmitter 拆分、CodeFix、原始字符串；输出变化：4.12 拦截器位置注释、每文件类型别名 | ✅ 17 个提交已合并（修复 A、B、E、H、I、K，D 编译性能，F NINO027，G ShapeMatrix，Q3 部分、Q6、Q8、Q9、Q10）；Q1–Q5、Q7、Q11 后来在 main 上补完（db8e667、4fbbc24、43cfc20、5d8d010、72d2d5f、2c30ac4），第三阶段 phase3/gen 核对并收尾（见下“生成器分支交回的后续项”） |
 | refactor/core · /workspace/wt-core | Core bug B1–B6（卸载程序集重注册、Boxed null、raw 快路径大端、raw 规则两份、未知类型 id 负缓存、NinoSubtypeHandler 可见性）；NinoScratch、卸载钩子、NinoReflection、目录整理、NinoBlock 拆分 + 单一字节映射、具名布局结构、多维数组代码生成、#if 统一、杂项 | ✅ 10 个提交已合并（B1–B8 全部修复，Q9、Q10、Q11）；未做 Q1–Q8（草稿在 scratchpad/core/draft/）；合并时改回 NinoTypeLayoutAttribute 构造参数名 typeId（公开 API） |
 | refactor/sat · /workspace/wt-sat | Immutable（ref writer、内联、DuplicateKey、ArrayPool 清空）、AspNetCore（泛型缓存、OpenAPI 状态码）、TypeScript 常量契约测试、测试辅助去重（RoundTrip、编译设置）、UnityTypes | ✅ 6 个提交（4f6c6c0 TS 布局契约测试；4db3936 UnityTypes 用 NinoUnsafe；5aaaa89 AspNetCore Status 的 OpenAPI 说明；1cce82e 共用 RoundTrip；3b83db3 共用 TestCompilation；585c1f3 Immutable 按值传 writer）。合并时：Immutable.csproj 加 AllowUnsafeBlocks + SkipLocalsInit，链接 NinoThrow.cs 并删掉 DuplicateKey 副本；IncrementalGeneratorTests 和 CornerCompiler 改用 TestCompilation（需加 nullable/预处理符号选项）；AspNetCore 的类型缓存接入 Core 的卸载钩子；Gradient 读到 -1 抛 OverflowException 而不是 Nino 异常（归入安全：只抛 Nino 异常） |
 | refactor/bench · /workspace/wt-bench | Benchmark 工程与 benchmarks/ 脚本清理；类名/方法名/参数不变，payload 字节不变，被测方法机器码不变 | ✅ 4 个提交（163bd66 删已结束的 probe，保留 CopyGapProbe/CopyProbe 等；74e0859；79831e5；2ed2c76 报表脚本共用 bdn.span）。遗留两项已在 phase3/misc 修好：GenericPolymorphicTest 登记 payload 大小（234f685）；单类报告（BenchmarkDotNet 不写 Type 列）由 merge_reports.py / compact_report.py 从文件名取类名，不再出现“### -”（b7e012b） |
@@ -105,7 +105,7 @@ Nino/
 - 未做 Q1–Q8（草稿：scratchpad/core/draft/ 下的 q2.py、NinoReflection.cs、split_block.py、bytemap.py、nits_block.py；NinoReflection.cs 和 q2.py 要先按新的 IsRawShape 改）。
 - 验证缺口：B1/B2 的 ISA 跑法当时没真跑（`env` 是空壳，改用 /usr/bin/env）；Mono/net472 和 qemu Arm 未跑 —— 集成分支上已补跑 net10 三种 ISA，Mono/Arm 待跑。
 - 写入一个百万层自嵌套集合仍会无限递归（只发生在调用方自己的对象上），未修。
-- 生成器的 IsRawStruct 要与运行时的判断保持一致（原始结构体的生成格式化器是 INinoRawFormatter）。
+- ✅ 生成器的 IsRawStruct 要与运行时的判断保持一致（原始结构体的生成格式化器是 INinoRawFormatter）。phase3/gen：RawRuleAgreementTests 在 70 种形状上比较生成器 RawRules.IsRawUnmanaged 与 Core NinoReflection.IsRawUnmanaged，查出两处不一致并在生成器里修正（c2b8ee0）：闭合的泛型 [NinoType] 结构体（`Pad<int>`）作为成员时按原始内存写（含填充 8 字节），而它的格式化器（`Box<T>` 里、它自己的注册）逐成员写（5 字节）—— 现在按定义判断，与格式化器一致（Wire-Format）；无类型参数的 `System.ValueTuple` 与 Core 一样按原始值。
 
 ### 集成时我修的
 - netstandard2.1 测试构建：Convert.FromHexString → Rt.FromHex。
@@ -115,12 +115,12 @@ Nino/
 - asm.py compare：23 个"变差"都已解释（Immutable 按值传 writer 是有意的；多态/Pooled/HashSet 单独重跑无变差；拦截器 SerializeNNN 编号因删除 TupleProbe 错位）。
 
 ### 生成器分支交回的后续项（合并后处理）
-- J：Core 的 `NinoTypeLayoutAttribute` 加 `public bool Deferrable { get; set; }`（保留 7 参构造），ToString 在 members 前加 `; deferrable=true|false`（仅设置时）；规范 §8.1/§7.10.1/§10 第 5 条同步；TS LayoutReader 读 NamedArguments["Deferrable"]；Go 对齐。
+- ✅（已在 main）J：Core 的 `NinoTypeLayoutAttribute` 加 `public bool Deferrable { get; set; }`（保留 7 参构造），ToString 在 members 前加 `; deferrable=true|false`（仅设置时）；规范 §8.1/§7.10.1/§10 第 5 条同步；TS LayoutReader 读 NamedArguments["Deferrable"]；Go 对齐。
 - Core 的 NinoLayout 未建模 Int128/UInt128 在 .NET 8+ 的 16 字节对齐（生成器已把含 Int128 的结构视为不可移植）。
-- 可选：Core 加 ValueTuple`8（TRest）格式化器，之后生成器可去掉 LongTupleFormatter。
-- docs/diagnostics.md 加 NINO027；NinoFormerNameAttribute 注释提到 NINO027；nino.docs 诊断页同步。
-- Q11：在已有类型前插入类型会让之后的格式化器全部重新输出（Combine 展平所致），输出正确，只是增量缓存失效；未修。
-- 未做：Q1、Q2、Q4、Q5、Q7，Q3 余下部分。
+- ✅ 可选：Core 加 ValueTuple`8（TRest）格式化器，之后生成器可去掉 LongTupleFormatter。phase3/gen（2505e80）：TupleFormatters.g.cs 模板加八参数的 ValueTupleFormatter（逐项写，与 LongTupleFormatter 字节相同，不做块格式化器），生成器改用它并删掉 LongTupleFormatter；运行时解析 8 项以上的元组（泛型 `Box<T>` 里）以前抛“no formatter”，现在可用（Fixed）。
+- ✅（已在 main）docs/diagnostics.md 加 NINO027；NinoFormerNameAttribute 注释提到 NINO027；nino.docs 诊断页同步。
+- ✅ Q11：在已有类型前插入类型会让之后的格式化器全部重新输出（Combine 展平所致），输出正确，只是增量缓存失效。2c30ac4 按值缓存格式化器文件（插入时之后的类型拿回同一个 SourceText，不再重新输出；Roslyn 按位置匹配本身无法改）；phase3/gen 加 AddingATypeLeavesTheOtherOutputsCached（0f8c74c）（开启步骤跟踪：在文件末尾或新文件里加类型，其他模型 Cached/Unchanged，只多输出它自己的文件和注册表/分派）。
+- ✅ Q1（db8e667 TypeShape：每类型一次的记忆化事实，TypeRules 统一 HasTop/DispatchesSubtypes）、Q2（4fbbc24 ProjectFacts 一步读整个编译、调用按文件和位置缓存、WithTrackingName）、Q3（43cfc20 GeneratedCode.File 与别名常量、TypeModel.Self/DispatchEntry.Self 同一规则）、Q4（5d8d010 FormatterRef）、Q5（72d2d5f TypeModel 子记录、MemberModel 具名参数、Build 拆成 BuildMembers/BuildPartial/BuildDispatch/BuildRegistrations、不可变 BodyMode、BodySignature 改名 EmitForwardersReturningSignature）、Q7（43cfc20 原始字符串；phase3/gen 把最后一处 `{{ }}` 转义模板也改成原始字符串，d026e19，输出不变）均已完成。
 - Immutable：链接 Core 的 NinoThrow 不可行（Immutable 也对 UnitTests 开放内部成员，且 NinoThrow 依赖 NinoDepth）；SkipLocalsInit 留到第二阶段和 asm 对比一起做。
 
 ## 文档规则（每项用户可见的改动都要做）
@@ -158,4 +158,5 @@ Nino/
 - 2026-10-23：启动第一阶段四个分支；追加 bench、ts-perf、FFI 调研、安全审计；FFI 报告完成；TS 追加单元测试和目录整理。
 - 2026-10-23：集成分支 integrate 摘入 11 个分支 + gen 分支 17 个提交；补 slnx/global.json、Gradient -1、AspNetCore 可回收类型缓存、CLAUDE.md（共用优先、TS 一节）。单测整套在容器里因 OOM 中断（多代理同时跑），需分段跑。
 - 2026-10-23：gen、core 分支合入 integrate；全量验证（三种配置、三种 ISA、AspNetCore、TS、Go、Rust、一致性语料）通过；跑完目录重组脚本；nino.docs 写好 rc.8 更新日志。
+- 2026-10-24：phase3/gen：生成器后续项核对完毕（Q1–Q5、Q7、Q11、J、NINO027 已在 main）；修生成器与运行时 raw 判断的两处不一致（闭合泛型 [NinoType] 结构体，Wire-Format）；Core 加八参数 ValueTupleFormatter，生成器删 LongTupleFormatter。
 - 2026-10-24：命名空间定为 Nino.Core.CompilerServices；Nino.Codegen 统一 TS/Go/Rust；benchmarks/v3 并入；单元测试按领域整理；Mono/Arm 跨运行时验证，修 Arm32 上 Int128 布局测试。
