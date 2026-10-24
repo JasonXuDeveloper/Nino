@@ -612,7 +612,7 @@ jobs:
         with:
           node-version: 22
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         if: matrix.lang == 'go'
         with:
           go-version: stable
