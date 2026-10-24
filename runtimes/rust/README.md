@@ -263,14 +263,16 @@ cargo bench -p nino-bench                # every group
 cargo bench -p nino-bench -- record      # one group
 ```
 
-`bench/benches/compare.rs` compares Nino with serde_json, bincode, rmp-serde (MessagePack) and postcard on the same
-values. Each group covers serialize and deserialize, and prints every format's encoded size:
+`bench/benches/compare.rs` compares Nino with Protocol Buffers (prost, messages derived in the bench: no protoc),
+MessagePack (rmp-serde), bincode, postcard and serde_json on the same values, with criterion. Each group covers
+serialize and deserialize, and prints every format's encoded size:
 
 - a record;
 - 1,000 records;
 - 10,000 `i32`;
 - 10,000 `f64`;
-- 1,000 strings.
+- 1,000 ASCII strings;
+- 1,000 strings of ASCII, Latin-1 and other text in turn (the same as the Go and TypeScript benchmarks').
 
 The Nino codecs there are written in the shape the templates generate. Compare changes back to back on one machine;
 local numbers are not published. Each release's notes get a "🦀 Rust runtime benchmark" section from one run of

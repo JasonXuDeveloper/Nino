@@ -1,4 +1,5 @@
-//! Nino against serde_json, bincode, rmp-serde (MessagePack) and postcard on the same values.
+//! Nino against Protocol Buffers (prost), MessagePack (rmp-serde), bincode, postcard and serde_json on the same
+//! values. The protobuf messages mirror the values field for field (`proto` below), derived with prost: no protoc.
 //!
 //! `cargo bench -p nino-bench` (add a filter: `cargo bench -p nino-bench -- record`). Numbers are local and rough:
 //! compare them on one machine, back to back.
@@ -124,20 +125,112 @@ fn record(i: i32) -> Record {
     }
 }
 
+// ---------------------------------------------------------------------------------------------- protobuf
+
+/// The values as Protocol Buffers messages, field for field (as a `.proto` would declare them):
+/// `message Point { int32 x = 1; int32 y = 2; }`,
+/// `message Record { int32 id = 1; string name = 2; int64 score = 3; double ratio = 4; bool active = 5;
+/// repeated int32 tags = 6; Point origin = 7; }`, and a message of one repeated field for each list.
+mod proto {
+    #[derive(Clone, PartialEq, prost::Message)]
+    pub struct Point {
+        #[prost(int32, tag = "1")]
+        pub x: i32,
+        #[prost(int32, tag = "2")]
+        pub y: i32,
+    }
+
+    #[derive(Clone, PartialEq, prost::Message)]
+    pub struct Record {
+        #[prost(int32, tag = "1")]
+        pub id: i32,
+        #[prost(string, tag = "2")]
+        pub name: String,
+        #[prost(int64, tag = "3")]
+        pub score: i64,
+        #[prost(double, tag = "4")]
+        pub ratio: f64,
+        #[prost(bool, tag = "5")]
+        pub active: bool,
+        #[prost(int32, repeated, tag = "6")]
+        pub tags: Vec<i32>,
+        #[prost(message, optional, tag = "7")]
+        pub origin: Option<Point>,
+    }
+
+    #[derive(Clone, PartialEq, prost::Message)]
+    pub struct Records {
+        #[prost(message, repeated, tag = "1")]
+        pub values: Vec<Record>,
+    }
+
+    #[derive(Clone, PartialEq, prost::Message)]
+    pub struct I32s {
+        #[prost(int32, repeated, tag = "1")]
+        pub values: Vec<i32>,
+    }
+
+    #[derive(Clone, PartialEq, prost::Message)]
+    pub struct F64s {
+        #[prost(double, repeated, tag = "1")]
+        pub values: Vec<f64>,
+    }
+
+    #[derive(Clone, PartialEq, prost::Message)]
+    pub struct Strings {
+        #[prost(string, repeated, tag = "1")]
+        pub values: Vec<String>,
+    }
+
+    pub fn record(r: &super::Record) -> Record {
+        Record {
+            id: r.id,
+            name: r.name.clone().unwrap_or_default(),
+            score: r.score,
+            ratio: r.ratio,
+            active: r.active,
+            tags: r.tags.clone().unwrap_or_default(),
+            origin: Some(Point { x: r.origin.x, y: r.origin.y }),
+        }
+    }
+}
+
+/// 1,000 strings of three kinds in turn: ASCII, Latin-1 (one byte a char in Nino) and other text (UTF-16 in Nino:
+/// Cyrillic, CJK and a char outside the BMP). The Go and TypeScript benchmarks use the same strings.
+fn mixed_strings() -> Vec<String> {
+    (0..1000)
+        .map(|i| match i % 3 {
+            0 => format!("string {i}"),
+            1 => format!("crème brûlée {i}"),
+            _ => format!("строка 字符串 🎉 {i}"),
+        })
+        .collect()
+}
+
 // ---------------------------------------------------------------------------------------------- the harness
 
+/// One group per case: serialize and deserialize with each serializer, Nino first. `$elements` is the number of
+/// values in the case (criterion's throughput); `$proto` is the case as a protobuf message of type `$p`.
 macro_rules! formats {
-    ($c:expr, $group:literal, $value:expr, $t:ty) => {{
+    ($c:expr, $group:literal, $elements:expr, $value:expr, $t:ty, $proto:expr, $p:ty) => {{
         let value: $t = $value;
+        let message: $p = $proto(&value);
         let mut g = $c.benchmark_group($group);
         let nino_bytes = nino::serialize(&value).unwrap();
-        g.throughput(Throughput::Bytes(nino_bytes.len() as u64));
+        g.throughput(Throughput::Elements($elements));
 
         let mut out = Vec::with_capacity(nino_bytes.len());
         g.bench_function(BenchmarkId::new("serialize", "nino"), |b| {
             b.iter(|| {
                 out.clear();
                 nino::serialize_into(black_box(&value), &mut out).unwrap();
+                black_box(out.len())
+            })
+        });
+        g.bench_function(BenchmarkId::new("serialize", "prost"), |b| {
+            b.iter(|| {
+                out.clear();
+                prost::Message::encode(black_box(&message), &mut out).unwrap();
                 black_box(out.len())
             })
         });
@@ -170,10 +263,14 @@ macro_rules! formats {
         let postcard_bytes = postcard::to_allocvec(&value).unwrap();
         let rmp_bytes = rmp_serde::to_vec(&value).unwrap();
         let json_bytes = serde_json::to_vec(&value).unwrap();
+        let prost_bytes = prost::Message::encode_to_vec(&message);
+        assert_eq!(<$p as prost::Message>::decode(&prost_bytes[..]).unwrap(), message);
+        assert_eq!(nino::deserialize::<$t>(&nino_bytes).unwrap(), value);
         eprintln!(
-            "{}: {} bytes nino, {} bincode, {} postcard, {} rmp-serde, {} serde_json",
+            "{}: {} bytes nino, {} prost, {} bincode, {} postcard, {} rmp-serde, {} serde_json",
             $group,
             nino_bytes.len(),
+            prost_bytes.len(),
             bincode_bytes.len(),
             postcard_bytes.len(),
             rmp_bytes.len(),
@@ -181,6 +278,9 @@ macro_rules! formats {
         );
         g.bench_function(BenchmarkId::new("deserialize", "nino"), |b| {
             b.iter(|| black_box(nino::deserialize::<$t>(black_box(&nino_bytes)).unwrap()))
+        });
+        g.bench_function(BenchmarkId::new("deserialize", "prost"), |b| {
+            b.iter(|| black_box(<$p as prost::Message>::decode(black_box(&prost_bytes[..])).unwrap()))
         });
         g.bench_function(BenchmarkId::new("deserialize", "bincode"), |b| {
             b.iter(|| black_box(bincode::deserialize::<$t>(black_box(&bincode_bytes)).unwrap()))
@@ -199,11 +299,33 @@ macro_rules! formats {
 }
 
 fn benches(c: &mut Criterion) {
-    formats!(c, "record", Some(record(42)), Option<Record>);
-    formats!(c, "records-1000", (0..1000).map(|i| Some(record(i))).collect(), Vec<Option<Record>>);
-    formats!(c, "i32-10000", (0..10_000).map(|i| i * 7919).collect(), Vec<i32>);
-    formats!(c, "f64-10000", (0..10_000).map(|i| f64::from(i) * 0.5).collect(), Vec<f64>);
-    formats!(c, "strings-1000", (0..1000).map(|i| format!("string {i}")).collect(), Vec<String>);
+    let one = |v: &Option<Record>| proto::record(v.as_ref().unwrap());
+    let many = |v: &Vec<Option<Record>>| proto::Records { values: v.iter().flatten().map(proto::record).collect() };
+    formats!(c, "record", 1, Some(record(42)), Option<Record>, one, proto::Record);
+    formats!(
+        c,
+        "records-1000",
+        1000,
+        (0..1000).map(|i| Some(record(i))).collect(),
+        Vec<Option<Record>>,
+        many,
+        proto::Records
+    );
+    let i32s = |v: &Vec<i32>| proto::I32s { values: v.clone() };
+    formats!(c, "i32-10000", 10_000, (0..10_000).map(|i| i * 7919).collect(), Vec<i32>, i32s, proto::I32s);
+    let f64s = |v: &Vec<f64>| proto::F64s { values: v.clone() };
+    formats!(c, "f64-10000", 10_000, (0..10_000).map(|i| f64::from(i) * 0.5).collect(), Vec<f64>, f64s, proto::F64s);
+    let strings = |v: &Vec<String>| proto::Strings { values: v.clone() };
+    formats!(
+        c,
+        "strings-1000",
+        1000,
+        (0..1000).map(|i| format!("string {i}")).collect(),
+        Vec<String>,
+        strings,
+        proto::Strings
+    );
+    formats!(c, "strings-mixed-1000", 1000, mixed_strings(), Vec<String>, strings, proto::Strings);
 }
 
 criterion_group! {
