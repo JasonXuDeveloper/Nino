@@ -31,6 +31,7 @@ namespace Nino.Core
         /// Writes <paramref name="value"/> at <paramref name="destination"/>, which has room for
         /// <see cref="MaxSize"/> bytes. Returns the bytes written.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Write(ref byte destination, string value)
         {
             if (value == null)
@@ -46,6 +47,7 @@ namespace Nino.Core
         /// Writes the <paramref name="length"/> chars at <paramref name="chars"/> like a string of them, at
         /// <paramref name="destination"/> (room for <c>4 + 2 * length</c> bytes). Returns the bytes written.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int WriteChars(ref byte destination, ref char chars, int length)
         {
             ref byte body = ref Unsafe.Add(ref destination, NinoWire.LengthSize);
@@ -111,30 +113,21 @@ namespace Nino.Core
 
         /// <summary>
         /// Narrows the <paramref name="length"/> chars at <paramref name="source"/> to bytes at
-        /// <paramref name="destination"/>; false (with part of them written) when one is above U+00FF.
+        /// <paramref name="destination"/>; false (with part of them written) when one is above U+00FF. Inline up to
+        /// 16 chars; longer text out of line (see <see cref="Widen"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool Narrow(ref char source, ref byte destination, int length)
         {
             nuint n = (uint)length;
-            nuint i = 0;
 #if NET8_0_OR_GREATER
             if (Vector128.IsHardwareAccelerated && n >= 8)
             {
-                if (n > 16)
-                    return NarrowVector(ref Unsafe.As<char, ushort>(ref source), ref destination, n);
-                // 8 to 16 chars (most names and ids), inline: the first eight and the last eight.
-                ref ushort chars = ref Unsafe.As<char, ushort>(ref source);
-                var first = Vector128.LoadUnsafe(ref chars);
-                var last = Vector128.LoadUnsafe(ref chars, n - 8);
-                if (((first | last) & Vector128.Create((ushort)0xFF00)) != Vector128<ushort>.Zero)
-                    return false;
-                var bytes = Vector128.Narrow(first, last).AsUInt64();
-                NinoUnsafe.Write(ref destination, bytes.ToScalar());
-                NinoUnsafe.Write(ref Unsafe.Add(ref destination, (nint)(n - 8)), bytes.GetElement(1));
-                return true;
+                return n > 16
+                    ? NarrowVector(ref Unsafe.As<char, ushort>(ref source), ref destination, n)
+                    : Narrow8To16(ref Unsafe.As<char, ushort>(ref source), ref destination, n);
             }
-
+#endif
             if (n - 4 < 4)
             {
                 // 4 to 7 chars: the first four and the last four.
@@ -146,8 +139,43 @@ namespace Nino.Core
                 NinoUnsafe.Write(ref Unsafe.Add(ref destination, (nint)(n - 4)), Pack4(tail));
                 return true;
             }
+
+            if (n >= 8)
+                return NarrowWords(ref source, ref destination, n); // without vectors
+
+            for (nuint i = 0; i < n; i++)
+            {
+                char c = Unsafe.Add(ref source, (nint)i);
+                if (c > 0xFF)
+                    return false;
+                Unsafe.Add(ref destination, (nint)i) = (byte)c;
+            }
+
+            return true;
+        }
+
+#if NET8_0_OR_GREATER
+        // 8 to 16 chars (most names and ids), inline: the first eight and the last eight. A method of its own, so that
+        // no part of Narrow is large for the JIT's inlining budget (see NinoUnsafe.Copy).
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool Narrow8To16(ref ushort chars, ref byte destination, nuint n)
+        {
+            var first = Vector128.LoadUnsafe(ref chars);
+            var last = Vector128.LoadUnsafe(ref chars, n - 8);
+            if (((first | last) & Vector128.Create((ushort)0xFF00)) != Vector128<ushort>.Zero)
+                return false;
+            var bytes = Vector128.Narrow(first, last).AsUInt64();
+            NinoUnsafe.Write(ref destination, bytes.ToScalar());
+            NinoUnsafe.Write(ref Unsafe.Add(ref destination, (nint)(n - 8)), bytes.GetElement(1));
+            return true;
+        }
 #endif
-            // Without vectors: four chars at a time.
+
+        // n >= 8 without vectors: four chars at a time, then the rest.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool NarrowWords(ref char source, ref byte destination, nuint n)
+        {
+            nuint i = 0;
             for (; i + 4 <= n; i += 4)
             {
                 ulong four = NinoUnsafe.Read<ulong>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref source, (nint)i)));
@@ -276,39 +304,23 @@ namespace Nino.Core
             return (chars | (chars << 8)) & 0x00FF00FF00FF00FF;
         }
 
-        private static unsafe void Widen(ref byte source, ref ushort destination, nuint n)
+        /// <summary>
+        /// Widens the <paramref name="n"/> Latin-1 chars at <paramref name="source"/> to UTF-16 at
+        /// <paramref name="destination"/>. Inline up to 15 chars (most names, ids and keys), as <see cref="Narrow"/>;
+        /// longer text in <see cref="WidenVector"/> or <see cref="WidenWords"/>, out of line: the loops inlined into
+        /// every string read (the JIT inlines this method on its profile data even without the attribute) took the
+        /// inlining budget of large generated bodies, which then left helpers such as Reader.Skip as calls.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Widen(ref byte source, ref ushort destination, nuint n)
         {
-            nuint i = 0;
 #if NET8_0_OR_GREATER
             if (Vector128.IsHardwareAccelerated && n >= 8)
             {
-                if (Vector256.IsHardwareAccelerated && n >= 32)
-                {
-                    while (true)
-                    {
-                        var (lower, upper) = Vector256.Widen(Vector256.LoadUnsafe(ref source, i));
-                        lower.StoreUnsafe(ref destination, i);
-                        upper.StoreUnsafe(ref destination, i + 16);
-                        if (i + 32 == n)
-                            return;
-                        // After the first 32 chars, on to the next 32-byte boundary of the string's chars (an
-                        // even address, so a whole number of chars away), as in NarrowVector.
-                        nuint next = i == 0 ? (32 - ((nuint)Unsafe.AsPointer(ref destination) & 31)) / 2 : i + 32;
-                        i = next + 32 <= n ? next : n - 32;
-                    }
-                }
-
                 if (n >= 16)
                 {
-                    while (true)
-                    {
-                        var (lower, upper) = Vector128.Widen(Vector128.LoadUnsafe(ref source, i));
-                        lower.StoreUnsafe(ref destination, i);
-                        upper.StoreUnsafe(ref destination, i + 8);
-                        if (i + 16 == n)
-                            return;
-                        i = i + 32 <= n ? i + 16 : n - 16;
-                    }
+                    WidenVector(ref source, ref destination, n);
+                    return;
                 }
 
                 // 8 to 15 bytes: the first eight and the last eight.
@@ -319,7 +331,7 @@ namespace Nino.Core
                     .StoreUnsafe(ref destination, n - 8);
                 return;
             }
-
+#endif
             if (n - 4 < 4)
             {
                 // 4 to 7 chars: the first four and the last four.
@@ -329,8 +341,57 @@ namespace Nino.Core
                     Spread4(NinoUnsafe.Read<uint>(ref Unsafe.Add(ref source, (nint)(n - 4)))));
                 return;
             }
+
+            if (n >= 8)
+            {
+                // Without vectors.
+                WidenWords(ref source, ref destination, n);
+                return;
+            }
+
+            for (nuint i = 0; i < n; i++)
+                Unsafe.Add(ref destination, (nint)i) = Unsafe.Add(ref source, (nint)i);
+        }
+
+#if NET8_0_OR_GREATER
+        // n >= 16, 16-byte vectors accelerated. Whole vectors, then the last one again overlapping the previous.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe void WidenVector(ref byte source, ref ushort destination, nuint n)
+        {
+            nuint i = 0;
+            if (Vector256.IsHardwareAccelerated && n >= 32)
+            {
+                while (true)
+                {
+                    var (lower, upper) = Vector256.Widen(Vector256.LoadUnsafe(ref source, i));
+                    lower.StoreUnsafe(ref destination, i);
+                    upper.StoreUnsafe(ref destination, i + 16);
+                    if (i + 32 == n)
+                        return;
+                    // After the first 32 chars, on to the next 32-byte boundary of the string's chars (an
+                    // even address, so a whole number of chars away), as in NarrowVector.
+                    nuint next = i == 0 ? (32 - ((nuint)Unsafe.AsPointer(ref destination) & 31)) / 2 : i + 32;
+                    i = next + 32 <= n ? next : n - 32;
+                }
+            }
+
+            while (true)
+            {
+                var (lower, upper) = Vector128.Widen(Vector128.LoadUnsafe(ref source, i));
+                lower.StoreUnsafe(ref destination, i);
+                upper.StoreUnsafe(ref destination, i + 8);
+                if (i + 16 == n)
+                    return;
+                i = i + 32 <= n ? i + 16 : n - 16;
+            }
+        }
 #endif
-            // Without vectors: four chars at a time.
+
+        // n >= 8 without vectors: four chars at a time, then the rest.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WidenWords(ref byte source, ref ushort destination, nuint n)
+        {
+            nuint i = 0;
             for (; i + 4 <= n; i += 4)
             {
                 NinoUnsafe.Write(ref Unsafe.As<ushort, byte>(ref Unsafe.Add(ref destination, (nint)i)),

@@ -40,6 +40,10 @@ namespace Nino.Core
         private NinoWriteContext _context;
 
         /// <exception cref="PlatformNotSupportedException">The host is big-endian.</exception>
+        // AggressiveInlining, as everything a top-level call inlines: the JIT counts what it inlines into a method
+        // without being told to against the method's inlining budget, together with everything that inlines into
+        // it in turn, and with the budget spent leaves even the helpers marked AggressiveInlining as calls.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Writer(NinoArrayBufferWriter buffer)
         {
             // A JIT-time constant on CoreCLR, NativeAOT and Mono: the check folds away.

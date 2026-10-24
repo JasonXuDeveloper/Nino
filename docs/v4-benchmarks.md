@@ -259,9 +259,13 @@ the result objects.
   and lets the array formatter, compiled for the element type, do the write.
 * **Rare paths out of line.** A top-level call inlines its whole formatter chain into one method, under one
   inlining budget, and the JIT compiles a branch whose condition is a method call even for the types where it is
-  dead. So only the common path is inline: vector loops of block copies, element-by-element loops, the copy of a
-  raw read, UTF-16 strings and recycling are calls (`NoInlining`), and checks made of several helper calls are one
-  `static readonly` field. `benchmarks/asm.py compare` lists every method whose machine code changed against a
+  dead. So only the common path is inline: vector loops of block copies, copies of more than 64 bytes,
+  element-by-element loops, the copy of a raw read, UTF-16 strings and recycling are calls (`NoInlining`), and checks
+  made of several helper calls are one `static readonly` field. The JIT checks an inline against the budget by the
+  callee's whole IL, and counts a method it inlines on its own judgement (on profile data), with everything inlined
+  into it, against the caller's budget: so the formatters' and the generated code's entry points are
+  `AggressiveInlining` too, and the larger helpers (the copy, Latin-1 widening and narrowing) are split into small
+  parts. `benchmarks/asm.py compare` lists every method whose machine code changed against a
   base commit, and the signs of a spent budget (`Reader:Skip` or `NinoUnsafe:Read` as calls, the cursor kept in
   memory), so a change cannot slow down the types it does not touch unnoticed.
 * **No checks the JIT cannot drop.** Element loops (array and list fallbacks, in-place reads, the padding mask,

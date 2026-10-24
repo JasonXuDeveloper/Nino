@@ -23,8 +23,10 @@ namespace Nino.Core
 
         /// <summary>
         /// Writes <paramref name="value"/> with <paramref name="writer"/> into the scratch buffer and returns a copy of
-        /// the bytes. Out of line in the top-level calls (their callers inline them).
+        /// the bytes. AggressiveInlining: the JIT counts the inlines under a method it inlined without the attribute
+        /// against the caller's budget, which left the copies and writes under it as calls.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] ToArray<T, TWriter>(T value, TWriter writer) where TWriter : struct, INinoScratchWriter<T>
         {
             var buffer = Rent();

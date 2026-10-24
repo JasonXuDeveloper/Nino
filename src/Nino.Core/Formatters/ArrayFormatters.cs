@@ -462,9 +462,11 @@ namespace Nino.Core
     public struct ArrayFormatter<T, TFormatter> : INinoFormatter<T[]>, INinoSizedFormatter<T[]>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int INinoSizedFormatter<T[]>.Size(T[] value) =>
             NinoElements.SizedBytes<T, TFormatter>(value == null ? -1 : value.Length);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void INinoSizedFormatter<T[]>.WriteSized(T[] value, ref byte destination) =>
             NinoElements.WriteSized<T, TFormatter>(ref destination, value, value == null);
 
@@ -758,6 +760,7 @@ namespace Nino.Core
     public struct ArraySegmentFormatter<T, TFormatter> : INinoFormatter<ArraySegment<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ArraySegment<T> value, ref Writer writer)
         {
             if (!writer.TryWriteNullLength(value.Array))

@@ -18,6 +18,7 @@ namespace Nino.Core
     internal static class BclCollections<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
     {
         /// <summary>Writes <paramref name="value"/> (not null) if it is one of these collections.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryWrite(ICollection<T> value, ref Writer writer)
         {
             switch (value)
@@ -197,6 +198,7 @@ namespace Nino.Core
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
         /// <summary>Writes <paramref name="value"/> (not null) if it is one of these dictionaries.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryWrite(IDictionary<TKey, TValue> value, ref Writer writer)
         {
             switch (value)
@@ -808,6 +810,7 @@ namespace Nino.Core
         /// <see cref="ICollection{T}.CopyTo"/> puts them, as an array is written (raw elements as one block): copied
         /// out of the <see cref="SortedSet{T}"/> tree under <paramref name="root"/> when it is not null.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteCopied<T, TFormatter>(ICollection<T> source, object root, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
@@ -893,6 +896,7 @@ namespace Nino.Core
         /// <see cref="WriteCopied{T,TFormatter}"/> for pairs, as
         /// <see cref="KeyValuePairFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/> writes them.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteCopiedPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(
             ICollection<KeyValuePair<TKey, TValue>> source, object root, ref Writer writer)
             where TKeyFormatter : struct, INinoFormatter<TKey>
@@ -902,6 +906,7 @@ namespace Nino.Core
                 source, root, ref writer);
 
         /// <summary><see cref="ReadRented{T,TFormatter}"/> for pairs.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static KeyValuePair<TKey, TValue>[] ReadPairsRented<TKey, TValue, TKeyFormatter, TValueFormatter>(
             int length, ref Reader reader)
             where TKeyFormatter : struct, INinoFormatter<TKey>
@@ -910,6 +915,7 @@ namespace Nino.Core
                 KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(
                 length, ref reader);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ReturnRented<T>(T[] array) =>
             ArrayPool<T>.Shared.Return(array, NinoUnsafe.IsReferenceOrContainsReferences<T>());
     }

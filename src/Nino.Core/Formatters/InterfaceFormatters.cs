@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
 
 namespace Nino.Core
 {
@@ -14,6 +15,7 @@ namespace Nino.Core
         where TInterface : class, IEnumerable<T>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TInterface value, ref Writer writer) =>
             NinoCollections.WriteInterface<T, TFormatter>(value, ref writer);
 
@@ -73,6 +75,7 @@ namespace Nino.Core
         /// Writes a collection declared as an interface: count (-1 = null), then the elements. Lists and arrays
         /// take their own (block-copying) paths.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteInterface<T, TFormatter>(IEnumerable<T> value, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {

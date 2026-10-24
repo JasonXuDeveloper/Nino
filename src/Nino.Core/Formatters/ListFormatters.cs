@@ -15,9 +15,11 @@ namespace Nino.Core
         where TList : List<T>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int INinoSizedFormatter<TList>.Size(TList value) =>
             NinoElements.SizedBytes<T, TFormatter>(value == null ? -1 : value.Count);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void INinoSizedFormatter<TList>.WriteSized(TList value, ref byte destination) =>
             NinoElements.WriteSized<T, TFormatter>(ref destination,
                 value == null ? default : (ReadOnlySpan<T>)ListAccess.AsSpan<T>(value), value == null);
@@ -70,6 +72,7 @@ namespace Nino.Core
         where T : unmanaged
     {
         // The layout of Writer.Write(ReadOnlySpan<T>) where T's memory is its wire layout.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int INinoSizedFormatter<TList>.Size(TList value) =>
             !NinoLayout<T>.IsCanonical ? -1
             : value == null ? NinoWire.LengthSize
@@ -77,6 +80,7 @@ namespace Nino.Core
                 ? (int)size
                 : -1;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void INinoSizedFormatter<TList>.WriteSized(TList value, ref byte destination)
         {
             if (value == null)

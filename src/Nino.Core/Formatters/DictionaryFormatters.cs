@@ -480,6 +480,7 @@ namespace Nino.Core
                 NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Write(value, ref writer);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref TDictionary value, ref Reader reader)
         {
             if (!reader.TryReadLengthOrDiscard(ref value,
@@ -519,6 +520,7 @@ namespace Nino.Core
         where TKeyFormatter : struct, INinoFormatter<TKey>
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TDictionary value, ref Writer writer)
         {
             if (writer.TryWriteNullLength(value))

@@ -17,6 +17,7 @@ namespace Nino.Core
     /// <summary><c>BigInteger</c>: byte count, then its two's complement bytes, least significant first.</summary>
     public struct BigIntegerFormatter : INinoFormatter<BigInteger>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(BigInteger value, ref Writer writer)
         {
 #if NETSTANDARD2_0
@@ -30,6 +31,7 @@ namespace Nino.Core
 #endif
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref BigInteger value, ref Reader reader)
         {
             int count = reader.ReadLength();
@@ -46,8 +48,10 @@ namespace Nino.Core
     /// <summary><c>Uri</c>: its original string (null for null), read back relative or absolute.</summary>
     public struct UriFormatter : INinoFormatter<Uri>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(Uri value, ref Writer writer) => writer.Write(value?.OriginalString);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Uri value, ref Reader reader)
         {
             string text = reader.ReadString();
@@ -183,6 +187,7 @@ namespace Nino.Core
             ArrayPool<byte>.Shared.Return(bytes);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref BitArray value, ref Reader reader)
         {
             if (!reader.TryReadLengthOrDiscard(ref value, 0, out int count))
@@ -197,8 +202,10 @@ namespace Nino.Core
     /// <summary><c>CultureInfo</c>: its name (null for null; "" is the invariant culture), read back read-only.</summary>
     public struct CultureInfoFormatter : INinoFormatter<CultureInfo>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(CultureInfo value, ref Writer writer) => writer.Write(value?.Name);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref CultureInfo value, ref Reader reader)
         {
             string name = reader.ReadString();
@@ -229,6 +236,7 @@ namespace Nino.Core
     /// </summary>
     public struct TimeZoneInfoFormatter : INinoFormatter<TimeZoneInfo>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TimeZoneInfo value, ref Writer writer)
         {
             if (writer.TryWriteNullLength(value))
@@ -238,6 +246,7 @@ namespace Nino.Core
             writer.Write(IsSystemZone(value) ? null : value.ToSerializedString());
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref TimeZoneInfo value, ref Reader reader)
         {
             string id = reader.ReadString();
@@ -299,6 +308,7 @@ namespace Nino.Core
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] T, TFormatter> : INinoFormatter<Lazy<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(Lazy<T> value, ref Writer writer)
         {
             if (writer.WritePresence(value))
@@ -332,6 +342,7 @@ namespace Nino.Core
     public struct MemoryFormatter<T, TFormatter> : INinoFormatter<Memory<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(Memory<T> value, ref Writer writer) =>
             NinoCollections.WriteSpan<T, TFormatter>(value.Span, ref writer);
 
@@ -368,9 +379,11 @@ namespace Nino.Core
     public struct ReadOnlyMemoryFormatter<T, TFormatter> : INinoFormatter<ReadOnlyMemory<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ReadOnlyMemory<T> value, ref Writer writer) =>
             NinoCollections.WriteSpan<T, TFormatter>(value.Span, ref writer);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref ReadOnlyMemory<T> value, ref Reader reader) =>
             value = NinoCollections.ReadArray<T, TFormatter>(ref reader);
     }
@@ -382,6 +395,7 @@ namespace Nino.Core
     public struct ReadOnlySequenceFormatter<T, TFormatter> : INinoFormatter<ReadOnlySequence<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ReadOnlySequence<T> value, ref Writer writer)
         {
             if (value.IsSingleSegment)
@@ -390,11 +404,20 @@ namespace Nino.Core
                 return;
             }
 
+            writer = WriteSegments(value, writer);
+        }
+
+        /// <summary>The length, then each segment's elements: out of line, the writer by value and returned.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteSegments(ReadOnlySequence<T> value, Writer writer)
+        {
             writer.WriteLength(checked((int)value.Length));
             foreach (var segment in value)
                 NinoElements.Write<T, TFormatter>(segment.Span, ref writer);
+            return writer;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref ReadOnlySequence<T> value, ref Reader reader)
         {
             var array = NinoCollections.ReadArray<T, TFormatter>(ref reader);
@@ -523,6 +546,7 @@ namespace Nino.Core
     public struct BlockingCollectionFormatter<T, TFormatter> : INinoFormatter<BlockingCollection<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(BlockingCollection<T> value, ref Writer writer)
         {
             if (writer.TryWriteNullLength(value))
@@ -531,6 +555,7 @@ namespace Nino.Core
             NinoCollections.WriteSpan<T, TFormatter>(value.ToArray(), ref writer);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref BlockingCollection<T> value, ref Reader reader)
         {
             NinoRecycler.Discard(ref value);
@@ -651,6 +676,7 @@ namespace Nino.Core
         }
 
         /// <summary>Reads a new <c>T[]</c> (null for a null length).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T[] ReadArray<T, TFormatter>(ref Reader reader) where TFormatter : struct, INinoFormatter<T>
         {
             T[] array = null;

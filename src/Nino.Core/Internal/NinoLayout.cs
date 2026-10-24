@@ -460,6 +460,10 @@ namespace Nino.Core
         }
 
         /// <summary>Copies <paramref name="count"/> masked elements (the mask's length each).</summary>
+        // Out of line: one call per collection, around loops for any count. Inlined (the JIT did, on its profile
+        // data), its loops took the inlining budget of the generated body writing the collection, which then left
+        // helpers such as Writer.SetBuffer as calls.
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public void Copy(ref byte destination, ref byte source, int count)
         {
             int total = checked(count * _mask.Length);

@@ -17,6 +17,7 @@ namespace Nino.Core
         where TCollection : class, ICollection<T>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TCollection value, ref Writer writer)
         {
             if (writer.TryWriteNullLength(value))
@@ -59,6 +60,7 @@ namespace Nino.Core
         where TSet : HashSet<T>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TSet value, ref Writer writer)
         {
             if (writer.TryWriteNullLength(value))
@@ -260,9 +262,11 @@ namespace Nino.Core
     public struct QueueFormatter<T, TFormatter> : INinoFormatter<Queue<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(Queue<T> value, ref Writer writer) =>
             default(QueueFormatter<Queue<T>, T, TFormatter>).Serialize(value, ref writer);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Queue<T> value, ref Reader reader) =>
             default(QueueFormatter<Queue<T>, T, TFormatter>).Deserialize(ref value, ref reader);
     }
@@ -275,6 +279,7 @@ namespace Nino.Core
         where TQueue : Queue<T>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TQueue value, ref Writer writer)
         {
             if (writer.TryWriteNullLength(value))
@@ -293,9 +298,20 @@ namespace Nino.Core
                 return;
             }
 
+            writer = WriteEnumerated(value, writer);
+        }
+
+        /// <summary>
+        /// The count and the elements through the enumerator, where the queue's fields are not known: out of line,
+        /// the writer by value and returned.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteEnumerated(TQueue value, Writer writer)
+        {
             writer.WriteLength(value.Count);
             foreach (var item in value)
                 default(TFormatter).Serialize(item, ref writer);
+            return writer;
         }
 
         public void Deserialize(ref TQueue value, ref Reader reader)
@@ -340,9 +356,11 @@ namespace Nino.Core
     public struct StackFormatter<T, TFormatter> : INinoFormatter<Stack<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(Stack<T> value, ref Writer writer) =>
             default(StackFormatter<Stack<T>, T, TFormatter>).Serialize(value, ref writer);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Stack<T> value, ref Reader reader) =>
             default(StackFormatter<Stack<T>, T, TFormatter>).Deserialize(ref value, ref reader);
     }
@@ -355,6 +373,7 @@ namespace Nino.Core
         where TStack : Stack<T>
         where TFormatter : struct, INinoFormatter<T>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TStack value, ref Writer writer)
         {
             if (writer.TryWriteNullLength(value))
@@ -373,8 +392,17 @@ namespace Nino.Core
                 return;
             }
 
-            // Enumeration is top to bottom; write bottom to top so reading is a sequence of pushes: the snapshot
-            // reversed, then written as a span (a block for elements of a fixed size).
+            writer = WriteReversed(value, count, writer);
+        }
+
+        /// <summary>
+        /// Enumeration is top to bottom; written bottom to top so reading is a sequence of pushes: the snapshot
+        /// reversed, then written as a span (a block for elements of a fixed size). Out of line, where the stack's
+        /// fields are not known, the writer by value and returned.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteReversed(TStack value, int count, Writer writer)
+        {
             var buffer = ArrayPool<T>.Shared.Rent(count);
             try
             {
@@ -387,6 +415,8 @@ namespace Nino.Core
             {
                 NinoCollections.ReturnRented(buffer);
             }
+
+            return writer;
         }
 
         public void Deserialize(ref TStack value, ref Reader reader)

@@ -206,74 +206,109 @@ namespace Nino.Core.CompilerServices
         /// <summary>
         /// Copies <paramref name="size"/> bytes. Up to 64 (most strings) inline, as overlapping loads and stores of the
         /// largest width that fits (33 to 64 bytes: two 32-byte vectors where they are accelerated, else four 16-byte
-        /// moves), and 65 to 128 as four 32-byte vectors where they are accelerated: a block copy of a size that is not a
-        /// constant calls Memmove. Beyond, up to 32 KB with 64-byte vectors where they are accelerated, else from 256
+        /// moves); more out of line (<see cref="CopyOver64"/>, as every size in a 32-bit process), 65 to 128 as four
+        /// 32-byte vectors where they are accelerated: a block copy of a size that is not a constant calls Memmove.
+        /// Beyond, up to 32 KB with 64-byte vectors where they are accelerated, else from 256
         /// bytes to 16 KB with 32-byte ones (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an
         /// AVX-512 Xeon (.NET 10, source and destination of different alignments), with AVX-512 on or off: 33 to 64
         /// bytes in 4.0 to 4.5 ns instead of 4.7 to 5.4 (Memmove), 65 to 128 in about 4.2 ns instead of 5.4 to 6.6. A
         /// loop of 16-byte vectors (WebAssembly, SSE only) is slower than Memmove from 2 KB, so those CPUs call Memmove
         /// from 65 bytes; Arm64 copies up to 64 KB with <see cref="CopyPairs"/>, out of line.
         /// </summary>
+        // In parts, each AggressiveInlining: the JIT checks an inline against the caller's inlining budget by the
+        // callee's whole IL, before the branches the sizes and the CPU decide fold away. Copy in one method (662 bytes
+        // of IL) was over the budget of every caller of less than 30 bytes (a generated body that forwards to its
+        // members' writes) and stayed a call there; inline, its parts for more than 64 bytes took a large share of the
+        // budget of every method that copies (a collection of an Immutable or polymorphic element, ...) for the sizes
+        // where a call costs least. The inline parts have at most 173 bytes of IL.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Copy(ref byte destination, ref byte source, uint size)
         {
             if (Is64Bit && size <= 64)
             {
                 if (size > 32)
-                {
-#if NET8_0_OR_GREATER
-                    if (Vector256.IsHardwareAccelerated)
-                    {
-                        var head = Vector256.LoadUnsafe(ref source);
-                        var tail = Vector256.LoadUnsafe(ref Unsafe.Add(ref source, (nint)size - 32));
-                        head.StoreUnsafe(ref destination);
-                        tail.StoreUnsafe(ref Unsafe.Add(ref destination, (nint)size - 32));
-                        return;
-                    }
-#endif
-                    var a = Unsafe.ReadUnaligned<Bytes16>(ref source);
-                    var b = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, 16));
-                    var c = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, (nint)size - 32));
-                    var d = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, (nint)size - 16));
-                    Unsafe.WriteUnaligned(ref destination, a);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, 16), b);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 32), c);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 16), d);
-                }
+                    Copy33To64(ref destination, ref source, size);
                 else if (size >= 16)
-                {
-                    var head = Unsafe.ReadUnaligned<Bytes16>(ref source);
-                    var tail = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, (nint)size - 16));
-                    Unsafe.WriteUnaligned(ref destination, head);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 16), tail);
-                }
-                else if (size >= 8)
-                {
-                    ulong head = Unsafe.ReadUnaligned<ulong>(ref source);
-                    ulong tail = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, (nint)size - 8));
-                    Unsafe.WriteUnaligned(ref destination, head);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 8), tail);
-                }
-                else if (size >= 4)
-                {
-                    uint head = Unsafe.ReadUnaligned<uint>(ref source);
-                    uint tail = Unsafe.ReadUnaligned<uint>(ref Unsafe.Add(ref source, (nint)size - 4));
-                    Unsafe.WriteUnaligned(ref destination, head);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 4), tail);
-                }
-                else if (size != 0)
-                {
-                    // 1 to 3 bytes: the first, the middle and the last (some the same).
-                    byte first = source, middle = Unsafe.Add(ref source, (nint)(size >> 1)),
-                        last = Unsafe.Add(ref source, (nint)size - 1);
-                    destination = first;
-                    Unsafe.Add(ref destination, (nint)(size >> 1)) = middle;
-                    Unsafe.Add(ref destination, (nint)size - 1) = last;
-                }
-
+                    Copy16To32(ref destination, ref source, size);
+                else
+                    CopyUpTo15(ref destination, ref source, size);
                 return;
             }
 
+            CopyOver64(ref destination, ref source, size);
+        }
+
+        /// <summary>33 to 64 bytes: two 32-byte vectors where they are accelerated, else four 16-byte moves.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Copy33To64(ref byte destination, ref byte source, uint size)
+        {
+#if NET8_0_OR_GREATER
+            if (Vector256.IsHardwareAccelerated)
+            {
+                var head = Vector256.LoadUnsafe(ref source);
+                var tail = Vector256.LoadUnsafe(ref Unsafe.Add(ref source, (nint)size - 32));
+                head.StoreUnsafe(ref destination);
+                tail.StoreUnsafe(ref Unsafe.Add(ref destination, (nint)size - 32));
+                return;
+            }
+#endif
+            var a = Unsafe.ReadUnaligned<Bytes16>(ref source);
+            var b = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, 16));
+            var c = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, (nint)size - 32));
+            var d = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, (nint)size - 16));
+            Unsafe.WriteUnaligned(ref destination, a);
+            Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, 16), b);
+            Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 32), c);
+            Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 16), d);
+        }
+
+        /// <summary>16 to 32 bytes: two overlapping 16-byte moves.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Copy16To32(ref byte destination, ref byte source, uint size)
+        {
+            var head = Unsafe.ReadUnaligned<Bytes16>(ref source);
+            var tail = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, (nint)size - 16));
+            Unsafe.WriteUnaligned(ref destination, head);
+            Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 16), tail);
+        }
+
+        /// <summary>0 to 15 bytes: two overlapping moves of the largest width that fits.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void CopyUpTo15(ref byte destination, ref byte source, uint size)
+        {
+            if (size >= 8)
+            {
+                ulong head = Unsafe.ReadUnaligned<ulong>(ref source);
+                ulong tail = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, (nint)size - 8));
+                Unsafe.WriteUnaligned(ref destination, head);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 8), tail);
+            }
+            else if (size >= 4)
+            {
+                uint head = Unsafe.ReadUnaligned<uint>(ref source);
+                uint tail = Unsafe.ReadUnaligned<uint>(ref Unsafe.Add(ref source, (nint)size - 4));
+                Unsafe.WriteUnaligned(ref destination, head);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 4), tail);
+            }
+            else if (size != 0)
+            {
+                // 1 to 3 bytes: the first, the middle and the last (some the same).
+                byte first = source, middle = Unsafe.Add(ref source, (nint)(size >> 1)),
+                    last = Unsafe.Add(ref source, (nint)size - 1);
+                destination = first;
+                Unsafe.Add(ref destination, (nint)(size >> 1)) = middle;
+                Unsafe.Add(ref destination, (nint)size - 1) = last;
+            }
+        }
+
+        /// <summary>
+        /// More than 64 bytes (any size in a 32-bit process): 65 to 128 as four 32-byte vectors where they are
+        /// accelerated, then <see cref="CopyVectors{TVector}"/> or <see cref="CopyBlock"/>. Out of line (see
+        /// <see cref="Copy"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CopyOver64(ref byte destination, ref byte source, uint size)
+        {
 #if NET8_0_OR_GREATER
             if (Vector256.IsHardwareAccelerated)
             {
