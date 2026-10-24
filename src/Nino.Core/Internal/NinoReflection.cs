@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using Nino.Core.Generated;
 
 namespace Nino.Core
 {

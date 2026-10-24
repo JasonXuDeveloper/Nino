@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using Nino.Core.Generated;
 
 namespace Nino.Core
 {

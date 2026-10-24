@@ -31,7 +31,7 @@ internal static class RegistryEmitter
             .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_').ToArray());
         var w = new CodeWriter();
         w.Raw(GeneratedCode.Header);
-        w.Line($"[assembly: {Core}NinoGenerated(typeof({Gen}{name}))]");
+        w.Line($"[assembly: {CoreGenerated}NinoGenerated(typeof({Gen}{name}))]");
         var list = entries.ToList();
         // Generic [NinoType]s are closed at runtime: their formatter definitions are ordinary formatter
         // registrations (each implements INinoFormatter<Box<T>> in exactly the type's own parameters).
@@ -46,7 +46,7 @@ internal static class RegistryEmitter
             /// </summary>
             {{HiddenAttribute}}
             """);
-        w.Open($"internal sealed class {name} : {Core}INinoRegistry");
+        w.Open($"internal sealed class {name} : {CoreGenerated}INinoRegistry");
 
         w.Block($"static {name}()", () =>
         {

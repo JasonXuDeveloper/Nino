@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using Nino.Core.Generated;
 
 namespace Nino.Core
 {

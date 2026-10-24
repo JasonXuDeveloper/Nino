@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using Nino.Core.Generated;
 using Nino.UnitTests.Corner.Elsewhere;
 
 #nullable disable

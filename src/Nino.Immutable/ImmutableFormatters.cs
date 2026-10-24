@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core;
+using Nino.Core.Generated;
 using Nino.Immutable;
 
 // Registered like Nino.Core's own BCL formatters: generated code and the runtime resolver both read these.

@@ -13,7 +13,7 @@ namespace Nino.Generator.Generation;
 
 /// <summary>
 /// Interceptors for the generic <c>NinoSerializer</c>/<c>NinoDeserializer</c> calls whose type argument is known
-/// at the call site: they call the resolved formatter directly (<c>Nino.Core.NinoDirect</c>) instead of through
+/// at the call site: they call the resolved formatter directly (<c>Nino.Core.Generated.NinoDirect</c>) instead of through
 /// the formatter cache, a virtual call. Emitted only by the Roslyn 4.8 and 4.12 builds of the generator, and only
 /// where the project enables interceptors in the <c>NinoGen</c> namespace (the package's build props do). Roslyn
 /// 4.12+ locates a call by an opaque version and data; Roslyn 4.8-4.11 only know the preview form, the file path
