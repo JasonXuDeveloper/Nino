@@ -1048,10 +1048,11 @@ not compared, and such a map keeps both entries.
   bucket (hash flooding) make each insert scan all the keys before it, and the read quadratic in the data.
 
 **.NET:** a key that finds more than `NinoSettings.MaxHashCollisions` (default 100) keys in its bucket throws
-`NinoDataException`, in `Dictionary<TKey, TValue>`, `HashSet<T>`, lookups, `ImmutableDictionary` and `ImmutableHashSet`
-(more than that many keys with one hash code). Nino walks the bucket as it adds a key to a new table, and walks it
-after the table adds a key itself; string keys of tables that switch to a randomized comparer on their own (.NET's,
-and .NET Framework's `Dictionary`) are left to them. `ConcurrentDictionary` is not covered.
+`NinoDataException`, in `Dictionary<TKey, TValue>`, `HashSet<T>`, lookups, `ConcurrentDictionary<TKey, TValue>`,
+`ImmutableDictionary` and `ImmutableHashSet` (more than that many keys with one hash code). Nino walks the bucket as
+it adds a key to a new table, and walks it after the table adds a key itself; string keys of tables that switch to a
+randomized comparer on their own (.NET's, and .NET Framework's `Dictionary` and `ConcurrentDictionary`) are left to
+them.
 
 Note: the .NET reader currently accepts a keyed body with a repeated key, and the last entry wins (verified).
 

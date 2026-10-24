@@ -58,7 +58,8 @@ every method it lists. What has gone wrong before:
   Mono and the `linux-arm` and `linux-arm64` builds under qemu, and keep the fallback (the enumerator) out of line.
 - Building a runtime's own objects without its public API (`Nino.Immutable/HashTrees.cs`: an `ImmutableDictionary`
   or `ImmutableHashSet` built as its tree, instead of one builder `Add` at a time; `SortedSetNodes` in Nino.Core: a
-  `SortedSet<T>`'s red-black tree; `ReadLinked`: a `LinkedList<T>`'s ring of nodes): one way for every runtime where
+  `SortedSet<T>`'s red-black tree; `ReadLinked`: a `LinkedList<T>`'s ring of nodes; `ConcurrentTables.Builder`: a
+  `ConcurrentDictionary`'s bucket chains): one way for every runtime where
   one works, and a separate way per runtime (behind `#if` or a startup check) only where none does. What works
   everywhere so far:
   - Mirror classes that declare the fields of the real class in its order, read and written through `Unsafe.As`:
@@ -104,8 +105,8 @@ outside the input, allocate out of proportion to it, recurse without a bound or 
   not match their region. A raw block copy of a type with a `bool` in it goes through `NinoLayout<T>.CopiesAsIs`,
   never `IsCanonical` alone.
 - A hash table Nino fills counts the keys in each bucket against `NinoSettings.MaxHashCollisions` (`HashTables`:
-  `TryFill`, `Insert`, or `Added`/`Walk` after the table's own add, as `HashTables.Plan` says). A new path that adds
-  keys from the data to a hash table does one of these.
+  `TryFill`, `Insert`, or `Added`/`Walk` after the table's own add, as `HashTables.Plan` says; `ConcurrentTables` for
+  `ConcurrentDictionary`). A new path that adds keys from the data to a hash table does one of these.
 - `NinoSettings.Untrusted` holds the checks that cost time on every read (seeded comparers, value checks of raw
   structs, trailing bytes). It is a constant once frozen (`NinoLimits.Untrusted`): keep each test of it a single
   `if` on the field, with the work out of line, so the default path compiles to what it was; prove it with

@@ -99,7 +99,8 @@ namespace Nino.Core
 
         /// <summary>
         /// The most keys a key read from the data may find in its hash bucket when Nino adds it to a hash table it
-        /// fills: <see cref="Dictionary{TKey,TValue}"/>, <see cref="HashSet{T}"/>, <c>ILookup</c>, and (with
+        /// fills: <see cref="Dictionary{TKey,TValue}"/>, <see cref="HashSet{T}"/>, <c>ILookup</c>,
+        /// <see cref="System.Collections.Concurrent.ConcurrentDictionary{TKey,TValue}"/>, and (with
         /// Nino.Immutable) <c>ImmutableDictionary</c> and <c>ImmutableHashSet</c>, where it is the most keys with one
         /// hash code. More throws <see cref="NinoDataException"/>: data built to make every key collide (hash
         /// flooding) would otherwise take time quadratic in its size to read. Default
@@ -109,8 +110,10 @@ namespace Nino.Core
         /// share one). At least 1. The counting is free: Nino walks the bucket anyway. Where the runtime fills the
         /// table itself (a collection read into an existing one), Nino walks the new key's bucket after adding it.
         /// String keys are left to the tables that switch to a randomized comparer after 100 collisions on their own
-        /// (.NET's <c>Dictionary</c> and <c>HashSet</c>, .NET Framework's <c>Dictionary</c>).
-        /// <c>ConcurrentDictionary</c> is not covered: it keeps its buckets to itself.
+        /// (.NET's <c>Dictionary</c>, <c>HashSet</c> and <c>ConcurrentDictionary</c>, .NET Framework's <c>Dictionary</c>
+        /// and <c>ConcurrentDictionary</c>). Nino walks a bucket through the table's own fields, found at startup for
+        /// each runtime it knows (.NET, Mono and Unity, .NET Framework); on another, the runtime's table is filled as
+        /// before, without the count.
         /// <b>Set before first use</b> (see <see cref="MaxDepth"/>).
         /// </summary>
         /// <exception cref="ArgumentOutOfRangeException">The value is below 1.</exception>
@@ -142,7 +145,8 @@ namespace Nino.Core
         /// secret drawn once per process (SipHash-1-3): their <c>Comparer</c> is not the default one, but equality
         /// is. Keys built to share a bucket then do not, where without it they could fill buckets up to
         /// <see cref="MaxHashCollisions"/> each. Collections passed in keep their comparer; other key types, and
-        /// <c>ImmutableDictionary</c> and <c>ImmutableHashSet</c>, rely on <see cref="MaxHashCollisions"/>.</item>
+        /// <c>ConcurrentDictionary</c>, <c>ImmutableDictionary</c> and <c>ImmutableHashSet</c>, rely on
+        /// <see cref="MaxHashCollisions"/>.</item>
         /// <item>Values copied as their bytes are checked as their own constructors would: a <c>bool</c> inside a
         /// struct or tuple other than 0 or 1, a <see cref="DateTime"/> past <see cref="DateTime.MaxValue"/> (all four
         /// kinds are valid: .NET keeps a fourth for local times in the repeated hour of a daylight saving change),

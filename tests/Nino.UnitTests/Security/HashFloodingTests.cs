@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using Nino.Core.Internal;
 
 namespace Nino.UnitTests;
 
@@ -138,6 +140,125 @@ public class HashFloodingTests
         var flood = NinoSerializer.Serialize(Colliding(50_000).ToDictionary(k => k, k => 1));
         watch.Restart();
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Dictionary<long, int>>(flood));
+        Assert.IsTrue(watch.Elapsed < TimeSpan.FromSeconds(2), $"{watch.Elapsed}");
+    }
+
+    [TestMethod]
+    public void ConcurrentDictionariesAreCheckedToo()
+    {
+        // Its buckets are walked through its private table, where this runtime's layout was found (.NET 8+ here).
+        Assert.IsTrue(ConcurrentTables.Plan<long, int>.Walks);
+        Assert.IsTrue(ConcurrentTables.Plan<FloodKey, int>.Walks);
+        // String keys are left to the runtime, which switches to a randomized comparer itself.
+        Assert.IsFalse(ConcurrentTables.Plan<string, int>.Walks);
+        // A new one is built here, its buckets counted as they fill.
+        Assert.IsTrue(ConcurrentTables.Plan<long, int>.Builds);
+        Assert.IsTrue(ConcurrentTables.Plan<long, string>.Builds);
+        Assert.IsTrue(ConcurrentTables.Plan<FloodKey, int>.Builds);
+        Assert.IsFalse(ConcurrentTables.Plan<string, int>.Builds);
+
+        var keys = Colliding(Max + 1).ToArray();
+        var back = RoundTrip(new ConcurrentDictionary<long, int>(keys.ToDictionary(k => k, k => (int)k)));
+        Assert.AreEqual(Max + 1, back.Count);
+        foreach (long key in keys)
+            Assert.AreEqual((int)key, back[key]);
+        var flood = Enumerable.Range(0, Max + 1).Select(i => new FloodKey { Id = i * 7 }).ToArray();
+        var keyed = RoundTrip(new ConcurrentDictionary<FloodKey, int>(flood.ToDictionary(k => k, k => k.Id)));
+        Assert.AreEqual(Max + 1, keyed.Count);
+        Assert.AreEqual(14, keyed[new FloodKey { Id = 14 }]);
+        // Still a dictionary that grows and takes concurrent writers as one built by its constructor does.
+        for (int i = 0; i < 1000; i++)
+            back.TryAdd(-i - 1, i);
+        Assert.AreEqual(Max + 1001, back.Count);
+
+        keys = Colliding(Max + 2).ToArray();
+        Rejected(new ConcurrentDictionary<long, int>(keys.ToDictionary(k => k, k => 0)));
+        Rejected(new ConcurrentDictionary<long, string>(keys.ToDictionary(k => k, k => k.ToString())));
+        flood = Enumerable.Range(0, Max + 2).Select(i => new FloodKey { Id = i * 7 }).ToArray();
+        Rejected(new ConcurrentDictionary<FloodKey, int>(flood.ToDictionary(k => k, k => 0)));
+
+        // Read into an existing one (through its TryAdd), also with its own comparer.
+        var data = NinoSerializer.Serialize(new ConcurrentDictionary<long, int>(keys.ToDictionary(k => k, k => 1)));
+        var existing = new ConcurrentDictionary<long, int>(new LongComparer()) { [5] = 5 };
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(data, ref existing));
+        var plain = new ConcurrentDictionary<long, int> { [5] = 5 };
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(data, ref plain));
+        // As an interface the existing instance is read through.
+        IDictionary<long, int> asInterface = new ConcurrentDictionary<long, int>();
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(data, ref asInterface));
+    }
+
+    [TestMethod]
+    public void ConcurrentDictionariesCountBucketsNotOnlyEqualHashCodes()
+    {
+        // Distinct hash codes, one bucket: multiples of the bucket count the dictionary is made with for that many.
+        int buckets = ConcurrentTables.BucketsOf(ConcurrentTables.Create<int, int>(Max + 1)).Length;
+        var keys = Enumerable.Range(0, Max + 1).Select(i => i * buckets).ToArray();
+        Assert.AreEqual(Max + 1, RoundTrip(new ConcurrentDictionary<int, int>(keys.ToDictionary(k => k, k => k))).Count);
+        buckets = ConcurrentTables.BucketsOf(ConcurrentTables.Create<int, int>(Max + 2)).Length;
+        keys = Enumerable.Range(0, Max + 2).Select(i => i * buckets).ToArray();
+        Rejected(new ConcurrentDictionary<int, int>(keys.ToDictionary(k => k, k => k)));
+    }
+
+    [TestMethod]
+    public void ConcurrentDictionariesBuiltHereWorkAsBuiltByTheirConstructor()
+    {
+        // A key repeated far into the data, with references in the nodes.
+        var pairs = Enumerable.Range(0, 60).Select(i => new KeyValuePair<long, string>(i, "v" + i)).ToList();
+        pairs.Add(new KeyValuePair<long, string>(37, "again"));
+        var e = Assert.ThrowsExactly<NinoDataException>(() =>
+            NinoDeserializer.Deserialize<ConcurrentDictionary<long, string>>(NinoSerializer.Serialize(pairs.ToArray())));
+        StringAssert.Contains(e.Message, "twice");
+
+        const int count = 5000;
+        var source = new ConcurrentDictionary<long, string>(
+            Enumerable.Range(0, count).ToDictionary(i => (long)i * 31, i => "v" + i));
+        var data = NinoSerializer.Serialize(source);
+        var built = new List<ConcurrentDictionary<long, string>>();
+        for (int i = 0; i < 20; i++)
+        {
+            built.Add(NinoDeserializer.Deserialize<ConcurrentDictionary<long, string>>(data));
+            GC.Collect(2, GCCollectionMode.Forced, true, true);
+        }
+
+        foreach (var dictionary in built)
+        {
+            Assert.AreEqual(count, dictionary.Count);
+            CollectionAssert.AreEquivalent(source.ToList(), dictionary.ToList());
+        }
+
+        // Removes, updates and concurrent adds that grow the table.
+        var read = built[0];
+        for (long i = 0; i < count; i += 2)
+            Assert.IsTrue(read.TryRemove(i * 31, out var removed) && removed == "v" + i);
+        read.AddOrUpdate(31, "new", (_, _) => "updated");
+        Assert.AreEqual("updated", read[31]);
+        System.Threading.Tasks.Parallel.For(0, 40_000, i => Assert.IsTrue(read.TryAdd(-i - 1, "n" + i)));
+        GC.Collect(2, GCCollectionMode.Forced, true, true);
+        Assert.AreEqual(count / 2 + 40_000, read.Count);
+        for (long i = 0; i < count; i++)
+            Assert.AreEqual(i % 2 == 1, read.ContainsKey(i * 31));
+        for (int i = 0; i < 40_000; i++)
+            Assert.AreEqual("n" + i, read[-i - 1]);
+    }
+
+    [TestMethod]
+    public void ConcurrentDictionaryInFullBucketsReadsInLinearTime()
+    {
+        const int perHash = Max + 1, hashes = 495;
+        var keys = Enumerable.Range(0, hashes).SelectMany(h => Colliding(perHash, h)).ToArray();
+        var map = NinoSerializer.Serialize(new ConcurrentDictionary<long, int>(keys.ToDictionary(k => k, k => 1)));
+        NinoDeserializer.Deserialize<ConcurrentDictionary<long, int>>(map);
+        var watch = Stopwatch.StartNew();
+        Assert.AreEqual(keys.Length, NinoDeserializer.Deserialize<ConcurrentDictionary<long, int>>(map).Count);
+        Assert.IsTrue(watch.Elapsed < TimeSpan.FromSeconds(10), $"{watch.Elapsed}");
+
+        // All in one bucket: rejected after Max + 2 keys, at once (not after 50,000 keys walked 25,000 each). A
+        // dictionary's bytes are a concurrent one's.
+        var flood = NinoSerializer.Serialize(Colliding(50_000).ToDictionary(k => k, k => 1));
+        watch.Restart();
+        Assert.ThrowsExactly<NinoDataException>(() =>
+            NinoDeserializer.Deserialize<ConcurrentDictionary<long, int>>(flood));
         Assert.IsTrue(watch.Elapsed < TimeSpan.FromSeconds(2), $"{watch.Elapsed}");
     }
 

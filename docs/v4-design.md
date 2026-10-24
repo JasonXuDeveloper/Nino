@@ -725,7 +725,16 @@ table adds a key itself (an existing table, a layout not found, netstandard2.0),
 bucket afterwards, out of line (`HashTables.Plan` decides per key and value type whether a loop inserts or walks).
 String keys of .NET's tables, which switch to a randomized comparer after 100 collisions, are left to them;
 `ImmutableDictionary` and `ImmutableHashSet` count equal hash codes in the sorted hashes their trees are built from.
-`ConcurrentDictionary` keeps its buckets to itself and is not covered.
+`ConcurrentDictionary` keeps its buckets in a private table: `ConcurrentTables` finds it, and the nodes of a bucket's
+chain, through mirror classes per runtime (.NET 8+, Mono and Unity, .NET Framework) checked at startup. A new one is
+built there, as `SortedSetNodes` builds a `SortedSet<T>`: created empty by its constructor from a collection that only
+reports the count (sized and configured as before; where that constructor starts at 31 buckets, Mono and .NET
+Framework, made with a bucket per pair), then each pair's node, made as `ObjectTypes` makes objects, put at the head
+of its bucket without locks, as the constructor puts it, after the chain is searched for the key and counted. Its
+constructor from the pairs leaves no point between two pairs to count at, and `TryAdd` takes a lock per pair; built
+this way the read is faster than through the constructor on every runtime (no enumerator, lock or resize check per
+pair). An existing one (or one whose build fails its startup check) is filled through `TryAdd`, and the new key's
+bucket is walked after each add. Where no layout matches, the constructor fills it, uncounted.
 
 `NinoSettings.Untrusted` adds what costs time on every read, all behind `NinoLimits.Untrusted`, which Tier1 code
 folds, so trusted reads keep their code:

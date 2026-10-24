@@ -72,6 +72,12 @@ public static class Program
         if (views != null)
             Console.WriteLine("# views: " + string.Join(" ", views.GetFields(BindingFlags.Public | BindingFlags.Static)
                 .Select(f => f.Name + "=" + f.GetValue(null))));
+        var concurrent = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.ConcurrentTables");
+        if (concurrent != null)
+            Console.WriteLine("# concurrent: " + string.Join(" ", concurrent
+                .GetFields(BindingFlags.NonPublic | BindingFlags.Static)
+                .Where(f => f.FieldType == typeof(bool) || f.FieldType == typeof(int))
+                .Select(f => f.Name + "=" + f.GetValue(null))));
         Console.WriteLine("# 64-bit: " + Environment.Is64BitProcess + ", runtime: " +
                           System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription);
 
@@ -146,6 +152,43 @@ public static class Program
             catch (NinoDataException) { rejected = true; }
             if (!rejected) _failed++;
             Console.WriteLine($"Waypoint[100] bool {at,-6} {(rejected ? "rejected" : "ACCEPTED")}");
+        }
+        // Keys built to share a hash bucket: up to NinoSettings.MaxHashCollisions others per key are read, more are
+        // rejected, where this runtime's table layout was found (here: .NET 8+ and Mono).
+        foreach (int count in new[] { 101, 102 })
+        {
+            var colliding = new ConcurrentDictionary<long, int>(Enumerable.Range(1, count)
+                .ToDictionary(i => (long)i << 32 | (uint)i, i => i));
+            var data = NinoSerializer.Serialize(colliding);
+            string outcome;
+            try { outcome = NinoDeserializer.Deserialize<ConcurrentDictionary<long, int>>(data).Count == count ? "read" : "WRONG"; }
+            catch (NinoDataException) { outcome = "rejected"; }
+            if (outcome != (count == 101 ? "read" : "rejected")) _failed++;
+            Console.WriteLine($"ConcurrentDict flood {count,-4} {outcome}");
+        }
+        // Built from its nodes where this runtime's layout was found: many of them, through compacting collections,
+        // then used through the public API (removes, adds that grow the table).
+        {
+            var source = new ConcurrentDictionary<long, string>(Enumerable.Range(0, 3000)
+                .ToDictionary(i => (long)i * 31, i => "v" + i));
+            var data = NinoSerializer.Serialize(source);
+            var built = new List<ConcurrentDictionary<long, string>>();
+            for (int i = 0; i < 10; i++)
+            {
+                built.Add(NinoDeserializer.Deserialize<ConcurrentDictionary<long, string>>(data));
+                GC.Collect(2, GCCollectionMode.Forced, true, true);
+            }
+
+            bool same = built.All(d => d.Count == source.Count && source.All(p => d.TryGetValue(p.Key, out var v) && v == p.Value));
+            var first = built[0];
+            for (long i = 0; i < 3000; i += 2)
+                same &= first.TryRemove(i * 31, out _);
+            for (int i = 0; i < 20_000; i++)
+                same &= first.TryAdd(-i - 1, "n" + i);
+            GC.Collect(2, GCCollectionMode.Forced, true, true);
+            same &= first.Count == 21_500 && first[-20_000] == "n19999" && first[31] == "v1" && !first.ContainsKey(62);
+            if (!same) _failed++;
+            Console.WriteLine($"ConcurrentDict built 3000 {(same ? "ok" : "WRONG")}");
         }
         Console.WriteLine(_failed == 0 ? "ALL OK" : _failed + " FAILED");
         return _failed;

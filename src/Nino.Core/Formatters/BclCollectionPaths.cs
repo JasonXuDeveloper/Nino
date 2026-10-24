@@ -255,6 +255,12 @@ namespace Nino.Core
         /// </summary>
         private static ConcurrentDictionary<TKey, TValue> CreateConcurrent(int length, ref Reader reader)
         {
+            // Where its table is known, built here instead, each key's bucket counted as it is filled
+            // (ConcurrentTables): the constructor gives no point between two pairs to count the keys in a bucket at.
+            if (ConcurrentTables.Plan<TKey, TValue>.Builds)
+                return CreateConcurrentBuilt(length, ref reader);
+            if (ConcurrentTables.Plan<TKey, TValue>.Walks)
+                return CreateConcurrentWalked(length, ref reader);
             var pairs = NinoCollections.ReadPairsRented<TKey, TValue, TKeyFormatter, TValueFormatter>(length,
                 ref reader);
             try
@@ -276,6 +282,73 @@ namespace Nino.Core
             {
                 NinoCollections.ReturnRented(pairs);
             }
+        }
+
+        /// <summary>
+        /// A new dictionary sized and configured as its constructor from the pairs makes it, its table filled as that
+        /// constructor fills it, without locks (<see cref="ConcurrentTables.Builder{TKey,TValue}"/>), each key's
+        /// bucket counted (hash flooding, <see cref="NinoSettings.MaxHashCollisions"/>). The first pair of the first
+        /// dictionary of these types is added through its public API, to learn the type of its nodes.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ConcurrentDictionary<TKey, TValue> CreateConcurrentBuilt(int length, ref Reader reader)
+        {
+            var concurrent = ConcurrentTables.Create<TKey, TValue>(length);
+            IntPtr nodes = ConcurrentTables.Plan<TKey, TValue>.NodeType;
+            var builder = nodes != IntPtr.Zero
+                ? new ConcurrentTables.Builder<TKey, TValue>(concurrent, nodes)
+                : default;
+            Reader local = default;
+            reader.CopyTo(ref local);
+            for (int i = 0; i < length; i++)
+            {
+                TKey key = default;
+                TValue item = default;
+                default(TKeyFormatter).Deserialize(ref key, ref local);
+                default(TValueFormatter).Deserialize(ref item, ref local);
+                if (key == null)
+                    NinoThrow.NullKey(concurrent);
+                if (nodes == IntPtr.Zero)
+                {
+                    // Empty, so it cannot hold the key yet.
+                    concurrent.TryAdd(key, item);
+                    nodes = ConcurrentTables.TypeOfNodes(concurrent, key);
+                    ConcurrentTables.Plan<TKey, TValue>.NodeType = nodes;
+                    builder = new ConcurrentTables.Builder<TKey, TValue>(concurrent, nodes);
+                }
+                else if (!builder.Add(key, item))
+                    NinoThrow.DuplicateKey(concurrent.GetType());
+            }
+
+            local.CopyTo(ref reader);
+            return concurrent;
+        }
+
+        /// <summary>
+        /// Where the table can be read but not built: a pair at a time through TryAdd (a lock per pair), each key's
+        /// bucket walked after it is added.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ConcurrentDictionary<TKey, TValue> CreateConcurrentWalked(int length, ref Reader reader)
+        {
+            var concurrent = ConcurrentTables.Create<TKey, TValue>(length);
+            Reader local = default;
+            reader.CopyTo(ref local);
+            for (int i = 0; i < length; i++)
+            {
+                TKey key = default;
+                TValue item = default;
+                default(TKeyFormatter).Deserialize(ref key, ref local);
+                default(TValueFormatter).Deserialize(ref item, ref local);
+                if (key == null)
+                    NinoThrow.NullKey(concurrent);
+                if (!concurrent.TryAdd(key, item))
+                    NinoThrow.DuplicateKey(concurrent.GetType());
+                ConcurrentTables.Walk(concurrent, key);
+            }
+
+            local.CopyTo(ref reader);
+            return concurrent;
         }
 
         /// <summary>From its two arrays.</summary>
@@ -338,6 +411,7 @@ namespace Nino.Core
                     NinoThrow.NullKey(concurrent);
                 if (!concurrent.TryAdd(key, item))
                     NinoThrow.DuplicateKey(concurrent.GetType());
+                ConcurrentTables.Added(concurrent, key);
             }
 
             local.CopyTo(ref reader);
