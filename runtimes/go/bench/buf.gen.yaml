@@ -1,0 +1,8 @@
+# `npx @bufbuild/buf generate` writes benchpb/bench.pb.go (protoc-gen-go v1.36.11 on PATH; see benchpb/bench.proto).
+version: v2
+inputs:
+  - directory: .
+plugins:
+  - local: protoc-gen-go
+    out: .
+    opt: paths=source_relative

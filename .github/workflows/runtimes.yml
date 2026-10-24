@@ -136,9 +136,12 @@ jobs:
           cache-dependency-path: runtimes/go/bench/go.sum
 
       - name: Vet
-        run: |
-          go vet ./...
-          (cd bench && go vet ./...)
+        run: go vet ./...
+
+      # The benchmark module needs Go 1.24 (testing.B.Loop): on 'stable' only.
+      - name: Vet the benchmark module
+        if: matrix.go == 'stable'
+        run: (cd bench && go vet ./...)
 
       # A staticcheck release reads the export data of the Go releases out when it was made: bump it when a new Go
       # becomes 'stable' and this step fails with "export data version ... is greater than maximum supported".
@@ -156,6 +159,7 @@ jobs:
         run: go test -race -count=1 ./...
 
       - name: Test the benchmark module
+        if: matrix.go == 'stable'
         run: (cd bench && go test -count=1 ./...)
 
       - name: Fuzz (short)

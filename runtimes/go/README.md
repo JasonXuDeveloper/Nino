@@ -292,16 +292,19 @@ Checks of the generated machine code: `go build -gcflags=-d=ssa/check_bce/debug=
 
 ## Benchmarks
 
-`bench` is a separate module, so the runtime's own module has no dependencies. It compares Nino with
-`encoding/json`, `github.com/vmihailenco/msgpack/v5` and `encoding/gob` on the data of the .NET benchmark's
-`SimpleClass`:
+`bench` is a separate module, so the runtime's own module has no dependencies. It compares Nino with Protocol Buffers
+(google.golang.org/protobuf), `github.com/vmihailenco/msgpack/v5`, `encoding/json` and `encoding/gob` on the data of
+the .NET benchmark's `SimpleClass` (one, and a list of 100) and on 1,000 strings (ASCII; and ASCII, Latin-1 and other
+text in turn), with `testing.B`; summarize several counts with benchstat:
 
 ```sh
 cd runtimes/go/bench
-go test -run='^$' -bench=. -benchmem -count=5
+go test -run='^$' -bench=. -benchmem -count=6 . | tee bench.txt
+go run golang.org/x/perf/cmd/benchstat@latest bench.txt
 ```
 
-`NinoTags` and `NinoTagsList` are the struct-tag path on the same struct. `go test -run='^$' -bench=Tagged .` in
+The benchmarks are `Benchmark{Serialize,Deserialize}/<case>/<serializer>`; see benchmarks/README.md.
+`NinoTags` is the struct-tag path on the same values. `go test -run='^$' -bench=Tagged .` in
 `runtimes/go` compares the tag path with a hand-written codec of one type, and its address access with reflect's
 setters.
 

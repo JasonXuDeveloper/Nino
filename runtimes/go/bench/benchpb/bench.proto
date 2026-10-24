@@ -1,0 +1,33 @@
+// The Go benchmark's values as Protocol Buffers messages, field for field (simple.go, strings.go): SimpleClass, a list of them
+// and a list of strings. A DateTime is its 8 bytes as .NET writes them (ticks and kind), a Guid its 16 bytes.
+//
+// Regenerate bench.pb.go (in runtimes/go/bench, with protoc-gen-go v1.36.11 on PATH):
+//   go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+//   protoc --go_out=. --go_opt=paths=source_relative benchpb/bench.proto
+// or, without protoc, `npx @bufbuild/buf generate` with buf.gen.yaml.
+syntax = "proto3";
+
+package nino.bench;
+
+option go_package = "github.com/JasonXuDeveloper/Nino/runtimes/go/bench/benchpb";
+
+message SimpleClass {
+  int32 id = 1;
+  bool tag = 2;
+  bytes guid = 3;
+  fixed64 create_time = 4;
+  string name = 5;
+  string desc = 6;
+  repeated int32 numbers = 7;
+  repeated fixed64 dates = 8;
+  map<int32, string> map1 = 9;
+  map<int32, int32> map2 = 10;
+}
+
+message SimpleClasses {
+  repeated SimpleClass values = 1;
+}
+
+message Strings {
+  repeated string values = 1;
+}
