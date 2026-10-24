@@ -188,6 +188,29 @@ namespace Nino.Core
             return index == 0;
         }
 
+        /// <summary>
+        /// Generated code: opens the body of a struct that can hold itself (through a collection, a nullable, a
+        /// <c>Lazy</c> or an interface), which no class body counts, and each level of a collection that holds itself
+        /// (<see cref="NestingFormatter{T,TFormatter}"/>): with the class bodies, more than
+        /// <see cref="NinoSettings.MaxDepth"/> levels, or a stack running low, throw
+        /// <see cref="InvalidOperationException"/> (the object graph is nested too deep, or holds itself) instead of
+        /// overflowing the stack. Call <see cref="ExitStruct"/> after the body. Out of line, as these bodies are.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public void EnterStruct(Type type)
+        {
+            var context = _context ??= NinoWriteContext.Rent();
+            int open = ++context.Structs;
+            if (open + Depth > NinoLimits.MaxDepth || ((open & 15) == 0 && !NinoDepth.StackLeft()))
+                NinoThrow.WriteTooDeep(type);
+        }
+
+        /// <summary>Generated code: closes a body opened by <see cref="EnterStruct"/>.</summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ExitStruct() => _context.Structs--;
+
         /// <summary>Absolute position in the underlying buffer.</summary>
         public int Position
         {

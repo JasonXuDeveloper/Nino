@@ -387,13 +387,19 @@ namespace Nino.Core
     /// counts toward <see cref="NinoSettings.MaxDepth"/>, as a class body does, so data nested deeper throws instead of
     /// overflowing the stack. Each level of such data passes through here: a type reached again inside its own
     /// formatter is read through <see cref="CachedFormatter{T}"/> (the generator's and the resolver's rule), and
-    /// <see cref="StructType"/> is null, so the resolver does not inline the formatter as an element's. Writes
-    /// are not counted: they follow the caller's own objects.
+    /// <see cref="StructType"/> is null, so the resolver does not inline the formatter as an element's. Writes count
+    /// too (<see cref="Writer.EnterStruct"/>): an object graph nested too deep, or a collection that holds itself,
+    /// throws <see cref="InvalidOperationException"/> instead of overflowing the stack.
     /// </summary>
     internal sealed class NestingFormatter<T, TFormatter> : NinoFormatter<T>
         where TFormatter : struct, INinoFormatter<T>
     {
-        public override void Serialize(T value, ref Writer writer) => default(TFormatter).Serialize(value, ref writer);
+        public override void Serialize(T value, ref Writer writer)
+        {
+            writer.EnterStruct(typeof(T));
+            default(TFormatter).Serialize(value, ref writer);
+            writer.ExitStruct();
+        }
 
         public override void Deserialize(ref T value, ref Reader reader)
         {
