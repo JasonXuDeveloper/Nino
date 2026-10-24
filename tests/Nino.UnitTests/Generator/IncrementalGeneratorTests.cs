@@ -410,6 +410,45 @@ public class MadeList : System.Collections.Generic.List<Made> { }
     }
 
     [TestMethod]
+    public void AddingATypeLeavesTheOtherOutputsCached()
+    {
+        // A type added after the others (in a file of its own, or at the end of one) moves none of them: with the
+        // steps tracked, every model but its own is Cached or Unchanged, and so is every formatter file but its own.
+        // (A type inserted before others moves them, InsertingATypeEmitsOnlyItsFormatter. In this order: Roslyn 4.3
+        // throws recording the steps when the first run after the first one adds a file.)
+        var compilation = Create(
+            ("A.cs", Usings + "[NinoType] public class A1 { public int X; }\n[NinoType] public class A2 { public string Y; }\n}"),
+            ("B.cs", Usings + "[NinoType] public class B1 { public long Z; }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new Generator.Generation.NinoGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
+        driver = driver.RunGenerators(compilation);
+
+        compilation = Edit(compilation, "B.cs", "public long Z; }", "public long Z; }\n[NinoType] public class B2 { public int V; }");
+        driver = driver.RunGenerators(compilation);
+        AssertOnlyAddedOutputs(driver.GetRunResult().Results[0], "B2");
+
+        var parse = (CSharpParseOptions)compilation.SyntaxTrees.First().Options;
+        compilation = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(
+            Usings + "[NinoType] public class C1 { public int W; }\n}", parse, "C.cs"));
+        driver = driver.RunGenerators(compilation);
+        AssertOnlyAddedOutputs(driver.GetRunResult().Results[0], "C1");
+    }
+
+    private static void AssertOnlyAddedOutputs(GeneratorRunResult result, string added)
+    {
+        Assert.AreEqual(0, result.Diagnostics.Length, string.Join("\n", result.Diagnostics));
+        var models = result.TrackedSteps["NinoType"].SelectMany(s => s.Outputs).ToList();
+        Assert.AreEqual(1, models.Count(o => o.Reason is IncrementalStepRunReason.New or IncrementalStepRunReason.Modified),
+            string.Join(", ", models.Select(o => o.Reason)));
+        Assert.IsTrue(models.Count(o => o.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged) >= 2);
+        // The formatter file of the added type is new; the registry and the dispatch list it. Nothing else is emitted.
+        var emitted = result.TrackedOutputSteps.SelectMany(s => s.Value).SelectMany(s => s.Outputs)
+            .Where(o => o.Reason != IncrementalStepRunReason.Cached).ToList();
+        Assert.IsTrue(emitted.Count <= 3, $"{emitted.Count} outputs emitted: {string.Join(", ", emitted.Select(o => o.Reason))}");
+        Assert.IsTrue(result.GeneratedSources.Any(s => s.HintName == $"NinoGen.Inc_{added}Formatter.g.cs"), added);
+    }
+
+    [TestMethod]
     public void NamesDifferingOnlyByCaseGetTheirOwnFiles()
     {
         // Hint names are compared ignoring case: two of them that differ only by case fail the whole generator run
