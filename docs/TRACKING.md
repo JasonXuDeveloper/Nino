@@ -44,7 +44,7 @@
 
 - ✅ docs/spec/wire-format.md：正式线格式规范（docs/wire-spec · b870f7c）。由此发现的 bug：H 生成器从引用程序集读 BCL 结构布局（_dummyPrimitive），Complex/TimeOnly/Half/Int128/Rune/int? 发布的布局错误 → gen；I 8 项及以上的 ValueTuple 成员被静默跳过（数据丢失）→ gen；J 布局里没有 deferrable 标记 → gen；B8 RawPoint?[] 生成代码与运行时解析器写出不同字节 → core（以定长 stride 为准，Wire-Format 尾注）；宽松读取（bool/presence >1、keyed 重复键、尾随字节、DateTime kind 3、ImmutableArray null 抛 BCL 异常等）→ 第二阶段统一严格度并写进规范。✅ 维护者已同意，第二阶段执行：默认就报错 —— 延迟区段偏移/标志不符、keyed 成员剩余字节、bool/presence 字节 >1；仅 Untrusted 模式报错 —— 尾随字节（Span 切片场景兼容）、越界的 decimal/DateTime/DateOnly 等 raw 值
 - ✅ TS 运行时移到 runtimes/typescript
-- ⬜ 布局中间表示 + nino-gen 命令行 + Scriban 模板（src/Nino.Codegen，取代 Nino.TypeScript 里的语言相关部分）
+- ✅ 布局中间表示 + nino-gen 命令行 + Scriban 模板（src/Nino.Codegen，取代 Nino.TypeScript 里的语言相关部分；phase2/codegen）：TS/Go/Rust 三个目标，生成代码跑语料（有效/恶意/截断），docs/codegen.md。Rust 用展开代码而非 derive（布局只有曾用名的哈希）。未生成：泛型类型（只有泛型定义有布局）、trackReferences、[NinoType] 集合；TS 运行时仍放过 18 个恶意用例（todo）
 - ⬜ conformance/：.NET 写出的有效语料 + 恶意语料，所有语言共用
 - ⬜ runtimes/go、runtimes/rust：运行时 + 模板 + 测试 + 基准
 - ⬜ 每个运行时的性能维护：各自基准对比本生态的主流库（TS：JSON、msgpackr；Go：encoding/json、vmihailenco/msgpack；Rust：serde_json、bincode、rmp-serde、postcard），report.yml 发布各语言结果，CLAUDE.md 写各语言的性能和安全规则

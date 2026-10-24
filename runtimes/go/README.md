@@ -217,11 +217,12 @@ goes through its bits, as a conversion through `float64` would lose a signaling 
 ## Tags on generated structs
 
 Generated Go structs carry the same tags as hand-tagged ones, so the two have the same shape and either path reads
-either's data. A generator (the Scriban templates) emits, for every `[NinoType]`:
+either's data. `nino-gen --lang go` (docs/codegen.md; `--tags`, `--tag-names`) emits, for every `[NinoType]`:
 
 - **the `nino` tag first** on every serialized field: the member's position (`nino:"3"`) for positional and
   version-tolerant types, the C# member name (`nino:"Health"`) for keyed ones, plus `,utf8` for a `[NinoUtf8]`
-  string and `,former=Old` for each `[NinoFormerName]`. The `nino` name is the C# name as is; the naming policy
+  string. A hand-tagged struct may add `,former=Old` for each `[NinoFormerName]`; nino-gen leaves it out, since a
+  layout carries only the former names' hashes, which `NinoLayout()` keeps. The `nino` name is the C# name as is; the naming policy
   below never applies to it.
 - **extra tags**, configurable, by default `json` and `yaml`, with the member name under a naming policy:
   - `camel` (default): the leading run of capitals lower-cased, keeping the last one when a lower-case letter
@@ -231,12 +232,14 @@ either's data. A generator (the Scriban templates) emits, for every `[NinoType]`
   - `original`: the C# name as is.
   Tag order: `nino`, then the extra tags in the configured order: ``Health int32 `nino:"Health" json:"health" yaml:"health"` ``.
 - **`NinoLayout()`** returning the layout string .NET publishes for the type, unchanged (its `deferrable=` part
-  included). A closed generic type (layout `typeId=0`) gets
-  `NinoTypeID()` returning `TypeID` of its .NET name.
+  included). A closed generic type (layout `typeId=0`) written by hand gets `NinoTypeID()` returning `TypeID` of
+  its .NET name; nino-gen does not generate generic types (only their definitions have layouts).
 - **`NinoTypeID()`** on the pointer type of every class that can sit behind a type id.
+- **`NinoTypeName()`** returning the .NET full name.
 
 `internal/sample` follows these conventions (camel policy, `json` and `yaml`); its `layouts.go` is what the
-generator's `NinoLayout` methods look like.
+generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen's output for the corpus's types (and
+`internal/generated/shapes` for `tests/Nino.Codegen.Tests`' shapes), run against the corpus like the sample.
 
 ## Strings
 

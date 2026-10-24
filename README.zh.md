@@ -60,9 +60,10 @@
 - **你已在用的类型。** 基元类型、字符串、元组、所有 BCL 集合、`BigInteger`、`Uri`、`Version`、`Memory<T>`、`ILookup<,>`、`Lazy<T>` 等，
   所有不可变集合（`Nino.Immutable`），Unity 的 `AnimationCurve`、`Gradient` 和 `RectOffset`，你自己的集合类型，其他类型则通过可插拔的格式化器支持。
   [支持的类型](https://nino.xgamedev.net/zh/docs/v4/types)。
-- **ASP.NET Core 与 TypeScript。** [Nino.AspNetCore](https://nino.xgamedev.net/zh/docs/v4/advanced/aspnetcore) 为 `application/x-nino`
+- **ASP.NET Core、TypeScript、Go 与 Rust。** [Nino.AspNetCore](https://nino.xgamedev.net/zh/docs/v4/advanced/aspnetcore) 为 `application/x-nino`
   提供 MVC 格式化器以及 Minimal API 的请求体和结果；[Nino.TypeScript](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript)
-  在每次构建后为你的类型生成 TypeScript 编解码器，浏览器和 Node 读写的字节与 .NET 相同。
+  在每次构建后为你的类型生成 TypeScript 编解码器，浏览器和 Node 读写的字节与 .NET 相同；`nino-gen` 工具（`Nino.Codegen`）
+  从构建好的程序集把你的类型生成为 TypeScript、Go 或 Rust 代码，配合 `runtimes/` 中的运行时使用（[docs/codegen.md](docs/codegen.md)）。
 - **写代码时就发现错误。** 27 条分析器诊断（NINO001–NINO027），许多带一键修复。
 
 ## 适用场景
@@ -87,6 +88,7 @@ dotnet add package Nino --prerelease            # .NET、Godot
 dotnet add package Nino.Immutable --prerelease  # 可选：System.Collections.Immutable 的类型
 dotnet add package Nino.AspNetCore --prerelease # 可选：ASP.NET Core MVC 格式化器与 Minimal API 请求体
 dotnet add package Nino.TypeScript --prerelease # 可选：每次构建后生成供浏览器和 Node 使用的 TypeScript 编解码器
+dotnet tool install -g Nino.Codegen --prerelease # 可选：nino-gen，把你的类型生成为 TypeScript、Go 或 Rust 代码
 openupm add com.jasonxudeveloper.nino           # Unity（已包含生成器和 Unity 类的格式化器）
 ```
 
@@ -226,8 +228,9 @@ v4 新增（截至 4.0.0-rc.7）：
   卸载（.NET 8 之前调用 `NinoRegistry.Remove`），HybridCLR 无需初始化调用。
 - **字符串**：所有字符都不超过 U+00FF（ASCII、Latin-1）的文本每个字符写一个字节，其他文本按 UTF-16 写出，
   `[NinoUtf8]` 可按成员写成 UTF-8。
-- **集成**：Nino.AspNetCore（MVC 格式化器，Minimal API 的 `NinoBody<T>` 和 `NinoResults`）和 Nino.TypeScript
-  （每次构建后生成供浏览器和 Node 使用的 TypeScript 类和编解码器）。
+- **集成**：Nino.AspNetCore（MVC 格式化器，Minimal API 的 `NinoBody<T>` 和 `NinoResults`）、Nino.TypeScript
+  （每次构建后生成供浏览器和 Node 使用的 TypeScript 类和编解码器）和 `nino-gen`（Nino.Codegen：从构建好的程序集生成
+  同样的类型和编解码器，语言可选 TypeScript、Go 或 Rust）。
 - **工具**：增量生成器，以及 27 条带代码修复的分析器（NINO001–NINO027），Unity 中同样可用。
 
 详见 [v4 新特性](https://nino.xgamedev.net/zh/docs/v4/whats-new)、

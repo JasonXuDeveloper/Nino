@@ -29,6 +29,7 @@ API-compatible with v3 or earlier v4 betas.
 | `Nino.UnityTypes` (Unity package only) | `netstandard2.1` |
 | `Nino.AspNetCore` | `net8.0`, `net10.0` |
 | `Nino.TypeScript` (`nino-ts`, a build tool) | `net8.0`, rolled forward to the SDK's runtime |
+| `Nino.Codegen` (`nino-gen`, a .NET tool) | `net8.0`, rolled forward to the SDK's runtime |
 | `Nino.Generator` | `netstandard2.0` (Roslyn 4.3+): generator, analyzer, suppressor |
 | `Nino.Generator.CodeFixes` | `netstandard2.0` (Roslyn 4.3+ Workspaces): code fixes, IDE only |
 
@@ -47,7 +48,9 @@ reading request bodies from the request's `PipeReader` and serializing responses
 it asks `NinoSerializer.IsSupported(Type)` which types to claim. `Nino.TypeScript` is a build package: after
 `CoreCompile` its targets run `nino-ts` out of process, which reads the `[assembly: NinoTypeLayout]`s of the built
 assembly and its references with `MetadataLoadContext` (see [Generated code per type](#generated-code-per-type)) and
-writes `<Assembly>.ts` and the `nino.ts` runtime, each only when its text changes.
+writes `<Assembly>.ts` and the `nino.ts` runtime, each only when its text changes. It renders through `Nino.Codegen`,
+whose `nino-gen` tool writes the same types in TypeScript, Go or Rust from a built assembly: a language-neutral IR built
+from the layouts, and Scriban templates per language that only assemble text ([codegen.md](codegen.md)).
 
 Generated code is compiled in the user's project, which may be Unity (C# 9). Generated code therefore only
 uses C# 9 features: no static abstract interface members, no ref fields, no raw string literals, no
@@ -933,8 +936,8 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   The encoding describes the bytes, not the formatter class (`WireEncoding`, computed by `FormatterResolver` next
   to each formatter): `string`, `utf8`, `object`, `type(T)` for a `[NinoType]`, `nullable(E)`, `seq(E)`,
   `map(K,V)`, `pair(K,V)`, `tuple(E,...)`, `grid(rank,E)`, a few named BCL encodings (`datetimeoffset`, `bigint`,
-  ...) and `formatter(F)` for a custom or third-party formatter, so a tool such as the TypeScript generator reads
-  and writes the bytes without knowing Nino.Core's formatters. A value copied as raw memory is its canonical layout
+  ...) and `formatter(F)` for a custom or third-party formatter, so a tool such as `nino-gen` ([codegen.md](codegen.md))
+  reads and writes the bytes without knowing Nino.Core's formatters. A value copied as raw memory is its canonical layout
   from `NinoLayoutCore`: `raw(n)` for a primitive, `raw(n){name:type@offset:encoding,...}` for a struct
   (issue #202), so a field, `Pack`, `Size` or explicit offset anywhere inside a raw value shows, `[NinoType]` or
   not. It comes from the same

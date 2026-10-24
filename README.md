@@ -71,10 +71,12 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
   `Memory<T>`, `ILookup<,>`, `Lazy<T>` and more, every immutable collection (`Nino.Immutable`), Unity's `AnimationCurve`,
   `Gradient` and `RectOffset`, your own collection types, and anything else through a pluggable formatter.
   [Supported types](https://nino.xgamedev.net/en/docs/v4/types).
-- **ASP.NET Core and TypeScript.** [Nino.AspNetCore](https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore) adds MVC
-  formatters and Minimal API bodies and results for `application/x-nino`;
+- **ASP.NET Core, TypeScript, Go and Rust.** [Nino.AspNetCore](https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore)
+  adds MVC formatters and Minimal API bodies and results for `application/x-nino`;
   [Nino.TypeScript](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) generates TypeScript codecs for your types
-  after each build, so browsers and Node read and write the same bytes as .NET.
+  after each build, so browsers and Node read and write the same bytes as .NET; and the `nino-gen` tool (`Nino.Codegen`)
+  writes your types as TypeScript, Go or Rust from a built assembly, for the runtimes in `runtimes/`
+  ([docs/codegen.md](docs/codegen.md)).
 - **Mistakes caught while you type.** 27 analyzer diagnostics (NINO001–NINO027), many with a one-click fix.
 
 ## Built for
@@ -99,6 +101,7 @@ dotnet add package Nino --prerelease            # .NET, Godot
 dotnet add package Nino.Immutable --prerelease  # optional: System.Collections.Immutable types
 dotnet add package Nino.AspNetCore --prerelease # optional: ASP.NET Core MVC formatters and Minimal API bodies
 dotnet add package Nino.TypeScript --prerelease # optional: TypeScript codecs for browsers and Node, after each build
+dotnet tool install -g Nino.Codegen --prerelease # optional: nino-gen, your types as TypeScript, Go or Rust
 openupm add com.jasonxudeveloper.nino           # Unity (generator and Unity class formatters included)
 ```
 
@@ -250,8 +253,9 @@ New in v4, through 4.0.0-rc.7:
   HybridCLR without an init call.
 - **Strings**: text whose chars are all at most U+00FF (ASCII, Latin-1) is written in one byte a char, other text as
   UTF-16, and `[NinoUtf8]` writes UTF-8 per member.
-- **Integrations**: Nino.AspNetCore (MVC formatters, Minimal API `NinoBody<T>` and `NinoResults`) and Nino.TypeScript
-  (TypeScript classes and codecs for browsers and Node, generated after each build).
+- **Integrations**: Nino.AspNetCore (MVC formatters, Minimal API `NinoBody<T>` and `NinoResults`), Nino.TypeScript
+  (TypeScript classes and codecs for browsers and Node, generated after each build) and `nino-gen` (Nino.Codegen: the
+  same types and codecs in TypeScript, Go or Rust, from a built assembly).
 - **Tooling**: an incremental generator and 27 analyzers (NINO001–NINO027) with code fixes, in Unity too.
 
 See [what's new](https://nino.xgamedev.net/en/docs/v4/whats-new), the
