@@ -194,8 +194,9 @@ names, where .NET in a fresh process accepts only those it has registered or alr
 for an id it has not seen yet can read. With its `NinoPolymorphic.Register<...>()` calls made, .NET accepts the same
 set.
 
-A closed unmanaged generic struct used directly as a member (`Pair<byte, int>`) is raw in .NET, and is generated as its
-own raw struct (`PairByteInt32`), as before. As a type argument it is written member by member, as .NET does.
+A closed generic `[NinoType]` struct (`Pair<byte, int>`) is written member by member wherever it appears, as a member,
+an element or a type argument, as .NET's formatter for its definition writes it: a field of a type parameter is never
+copied as raw memory, whatever the arguments.
 
 ## TypeScript
 

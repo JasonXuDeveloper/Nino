@@ -71,100 +71,6 @@ impl Gappy {
     pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x82B9FBC0; deferrable=false; members=raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)}";
 }
 
-/// `Shapes.Generic.Pair<System.Int32,System.Int32>`: raw, 8 bytes.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct PairInt32Int32 {
-    pub key: i32,
-    pub value: i32,
-}
-
-impl nino::Raw for PairInt32Int32 {
-    const SIZE: usize = 8;
-    const ALIGN: usize = 4;
-
-    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
-        let b = b.get(..8).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
-        Ok(Self {
-            key: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
-            value: <i32 as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
-        })
-    }
-
-    fn encode_raw(&self, out: &mut [u8]) {
-        if let Some(o) = out.get_mut(0..) {
-            nino::Raw::encode_raw(&self.key, o);
-        }
-        if let Some(o) = out.get_mut(4..) {
-            nino::Raw::encode_raw(&self.value, o);
-        }
-    }
-}
-
-impl NinoRead for PairInt32Int32 {
-    const MIN_SIZE: usize = 8;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
-    }
-}
-
-impl NinoWrite for PairInt32Int32 {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 8];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
-}
-
-/// `Shapes.Generic.RawPair<System.Int32>`: raw, 8 bytes.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct RawPairInt32 {
-    pub a: i32,
-    pub b: i32,
-}
-
-impl nino::Raw for RawPairInt32 {
-    const SIZE: usize = 8;
-    const ALIGN: usize = 4;
-
-    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
-        let b = b.get(..8).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
-        Ok(Self {
-            a: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
-            b: <i32 as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
-        })
-    }
-
-    fn encode_raw(&self, out: &mut [u8]) {
-        if let Some(o) = out.get_mut(0..) {
-            nino::Raw::encode_raw(&self.a, o);
-        }
-        if let Some(o) = out.get_mut(4..) {
-            nino::Raw::encode_raw(&self.b, o);
-        }
-    }
-}
-
-impl NinoRead for RawPairInt32 {
-    const MIN_SIZE: usize = 8;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
-    }
-}
-
-impl NinoWrite for RawPairInt32 {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 8];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
-}
-
 /// `Shapes.ThingStruct`: raw, 16 bytes.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -1229,8 +1135,8 @@ pub struct Uses {
     pub thing: Option<Box<BoxType<Option<IThingRef>>>>,
     pub array: Option<Box<BoxType<Option<Vec<i32>>>>>,
     pub complex: Pair<Option<Box<BoxType<i32>>>, Option<indexmap::IndexMap<i32, Option<String>>>>,
-    pub pairs: Option<indexmap::IndexMap<String, PairInt32Int32>>,
-    pub raw: RawPairInt32,
+    pub pairs: Option<indexmap::IndexMap<String, Pair<i32, i32>>>,
+    pub raw: RawPair<i32>,
     pub tuple: Option<Box<BoxType<(i32, Option<String>)>>>,
     pub maybe: Option<Box<BoxType<Option<i32>>>>,
     pub entry: Option<Box<BoxType<(i32, Option<String>)>>>,
@@ -1252,8 +1158,8 @@ impl NinoReadBody for Uses {
         self.thing = r.read_in(nino::field!(Self, thing))?;
         self.array = r.read_in(nino::field!(Self, array))?;
         self.complex = r.read_in(nino::field!(Self, complex))?;
-        self.pairs = r.read()?;
-        self.raw = r.read()?;
+        self.pairs = r.read_in(nino::field!(Self, pairs))?;
+        self.raw = r.read_in(nino::field!(Self, raw))?;
         self.tuple = r.read_in(nino::field!(Self, tuple))?;
         self.maybe = r.read_in(nino::field!(Self, maybe))?;
         self.entry = r.read_in(nino::field!(Self, entry))?;
@@ -1317,7 +1223,7 @@ impl Uses {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Uses";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCF00B9E0; deferrable=true; members=Number:Shapes.Generic.Box<int>:type(Shapes.Generic.Box<int>);Text:Shapes.Generic.Box<string>:type(Shapes.Generic.Box<string>);Pair:Shapes.Generic.Pair<int, string>:type(Shapes.Generic.Pair<int, string>);Nested:Shapes.Generic.Box<Shapes.Generic.Box<int>>:type(Shapes.Generic.Box<Shapes.Generic.Box<int>>);Mixed:Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>:type(Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<int>>:seq(type(Shapes.Generic.Box<int>));Bag:Shapes.Generic.Bag<Shapes.Generic.Box<long>>:type(Shapes.Generic.Bag<Shapes.Generic.Box<long>>);Chain:Shapes.Generic.Node<string>:type(Shapes.Generic.Node<string>);Thing:Shapes.Generic.Box<Shapes.IThing>:type(Shapes.Generic.Box<Shapes.IThing>);Array:Shapes.Generic.Box<int[]>:type(Shapes.Generic.Box<int[]>);Complex:Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>:type(Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>);Pairs:System.Collections.Generic.Dictionary<string, Shapes.Generic.Pair<int, int>>:map(string,raw(8){Key:int@0:raw(4),Value:int@4:raw(4)});Raw:Shapes.Generic.RawPair<int>:raw(8){A:int@0:raw(4),B:int@4:raw(4)};Tuple:Shapes.Generic.Box<System.ValueTuple<int, string>>:type(Shapes.Generic.Box<System.ValueTuple<int, string>>);Maybe:Shapes.Generic.Box<System.Nullable<int>>:type(Shapes.Generic.Box<System.Nullable<int>>);Entry:Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>:type(Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>);Set:Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>:type(Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>);IntKeys:Shapes.Generic.Keys<int>:type(Shapes.Generic.Keys<int>);StringKeys:Shapes.Generic.Keys<string>:type(Shapes.Generic.Keys<string>)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCF00B9E0; deferrable=true; members=Number:Shapes.Generic.Box<int>:type(Shapes.Generic.Box<int>);Text:Shapes.Generic.Box<string>:type(Shapes.Generic.Box<string>);Pair:Shapes.Generic.Pair<int, string>:type(Shapes.Generic.Pair<int, string>);Nested:Shapes.Generic.Box<Shapes.Generic.Box<int>>:type(Shapes.Generic.Box<Shapes.Generic.Box<int>>);Mixed:Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>:type(Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<int>>:seq(type(Shapes.Generic.Box<int>));Bag:Shapes.Generic.Bag<Shapes.Generic.Box<long>>:type(Shapes.Generic.Bag<Shapes.Generic.Box<long>>);Chain:Shapes.Generic.Node<string>:type(Shapes.Generic.Node<string>);Thing:Shapes.Generic.Box<Shapes.IThing>:type(Shapes.Generic.Box<Shapes.IThing>);Array:Shapes.Generic.Box<int[]>:type(Shapes.Generic.Box<int[]>);Complex:Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>:type(Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>);Pairs:System.Collections.Generic.Dictionary<string, Shapes.Generic.Pair<int, int>>:map(string,type(Shapes.Generic.Pair<int, int>));Raw:Shapes.Generic.RawPair<int>:type(Shapes.Generic.RawPair<int>);Tuple:Shapes.Generic.Box<System.ValueTuple<int, string>>:type(Shapes.Generic.Box<System.ValueTuple<int, string>>);Maybe:Shapes.Generic.Box<System.Nullable<int>>:type(Shapes.Generic.Box<System.Nullable<int>>);Entry:Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>:type(Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>);Set:Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>:type(Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>);IntKeys:Shapes.Generic.Keys<int>:type(Shapes.Generic.Keys<int>);StringKeys:Shapes.Generic.Keys<string>:type(Shapes.Generic.Keys<string>)";
 }
 
 /// A `Shapes.IThing` slot: a type id, then the body of one of these types.

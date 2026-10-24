@@ -114,8 +114,9 @@ namespace Nino.Codegen.Tests
             var complex = Member("Complex");
             Assert.AreEqual(2, complex.Arguments.Count);
             Assert.AreEqual(ValueKind.Map, complex.Arguments[1].Kind);
-            // A closed unmanaged generic struct as a member is raw, as before.
-            Assert.AreEqual(ValueKind.RawStruct, Member("Raw").Kind);
+            // A closed generic [NinoType] struct as a member is written by its formatter, member by member, even when
+            // its arguments are unmanaged: its definition has fields of a type parameter, so it is never raw.
+            Assert.AreEqual(ValueKind.Generic, Member("Raw").Kind);
 
             Assert.IsNull(CodegenModel.GenericProblem(bag));
             Assert.IsNull(CodegenModel.GenericProblem(node));

@@ -56,62 +56,6 @@ func writeGappy(w *nino.Writer, v Gappy) {
 	writeRaw(w, v, 8, encodeGappy)
 }
 
-// PairInt32Int32 is `Shapes.Generic.Pair<System.Int32,System.Int32>`, copied as raw memory (8 bytes).
-type PairInt32Int32 struct {
-	Key   int32 `nino:"0" json:"key" yaml:"key"`
-	Value int32 `nino:"1" json:"value" yaml:"value"`
-}
-
-func decodePairInt32Int32(r *nino.Reader, b []byte) PairInt32Int32 {
-	_ = b[7]
-	var v PairInt32Int32
-	v.Key = int32(le.Uint32(b))
-	v.Value = int32(le.Uint32(b[4:]))
-	return v
-}
-
-func encodePairInt32Int32(b []byte, v PairInt32Int32) {
-	_ = b[7]
-	le.PutUint32(b, uint32(v.Key))
-	le.PutUint32(b[4:], uint32(v.Value))
-}
-
-func readPairInt32Int32(r *nino.Reader) PairInt32Int32 {
-	return readRaw(r, 8, decodePairInt32Int32)
-}
-
-func writePairInt32Int32(w *nino.Writer, v PairInt32Int32) {
-	writeRaw(w, v, 8, encodePairInt32Int32)
-}
-
-// RawPairInt32 is `Shapes.Generic.RawPair<System.Int32>`, copied as raw memory (8 bytes).
-type RawPairInt32 struct {
-	A int32 `nino:"0" json:"a" yaml:"a"`
-	B int32 `nino:"1" json:"b" yaml:"b"`
-}
-
-func decodeRawPairInt32(r *nino.Reader, b []byte) RawPairInt32 {
-	_ = b[7]
-	var v RawPairInt32
-	v.A = int32(le.Uint32(b))
-	v.B = int32(le.Uint32(b[4:]))
-	return v
-}
-
-func encodeRawPairInt32(b []byte, v RawPairInt32) {
-	_ = b[7]
-	le.PutUint32(b, uint32(v.A))
-	le.PutUint32(b[4:], uint32(v.B))
-}
-
-func readRawPairInt32(r *nino.Reader) RawPairInt32 {
-	return readRaw(r, 8, decodeRawPairInt32)
-}
-
-func writeRawPairInt32(w *nino.Writer, v RawPairInt32) {
-	writeRaw(w, v, 8, encodeRawPairInt32)
-}
-
 // ThingStruct is `Shapes.ThingStruct`, copied as raw memory (16 bytes).
 type ThingStruct struct {
 	Id    int32 `nino:"0" json:"id" yaml:"id"`
@@ -187,12 +131,14 @@ var (
 	codecV10             NinoArg[*Box[IThing]]
 	codecV11             NinoArg[*Box[[]int32]]
 	codecV12             NinoArg[Pair[*Box[int32], []nino.Entry[int32, *string]]]
-	codecV13             NinoArg[*Box[NinoTuple2[int32, *string]]]
-	codecV14             NinoArg[*Box[*int32]]
-	codecV15             NinoArg[*Box[nino.Entry[int32, *string]]]
-	codecV16             NinoArg[*Box[[]*string]]
-	codecV17             NinoArg[*Keys[int32]]
-	codecV18             NinoArg[*Keys[*string]]
+	codecV13             NinoArg[Pair[int32, int32]]
+	codecV14             NinoArg[RawPair[int32]]
+	codecV15             NinoArg[*Box[NinoTuple2[int32, *string]]]
+	codecV16             NinoArg[*Box[*int32]]
+	codecV17             NinoArg[*Box[nino.Entry[int32, *string]]]
+	codecV18             NinoArg[*Box[[]*string]]
+	codecV19             NinoArg[*Keys[int32]]
+	codecV20             NinoArg[*Keys[*string]]
 )
 
 func init() {
@@ -221,12 +167,14 @@ func init() {
 	codecV10 = BoxCodec(NinoArg[IThing]{Read: ReadIThing, Write: WriteIThing, MinSize: 4})
 	codecV11 = BoxCodec(NinoArg[[]int32]{Read: nino.ReadPrimitives[int32], Write: nino.WritePrimitives[int32], MinSize: 4})
 	codecV12 = PairCodec(codecV2, NinoArg[[]nino.Entry[int32, *string]]{Read: readV2, Write: writeV3, MinSize: 4})
-	codecV13 = BoxCodec(NinoArg[NinoTuple2[int32, *string]]{Read: readV4, Write: writeV5, MinSize: 8})
-	codecV14 = BoxCodec(NinoArg[*int32]{Read: readV6, Write: writeV7, MinSize: 1})
-	codecV15 = BoxCodec(NinoArg[nino.Entry[int32, *string]]{Read: readV8, Write: writeV9, MinSize: 8})
-	codecV16 = BoxCodec(NinoArg[[]*string]{Read: readV10, Write: writeV11, MinSize: 4})
-	codecV17 = KeysCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
-	codecV18 = KeysCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+	codecV13 = PairCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4}, NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
+	codecV14 = RawPairCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
+	codecV15 = BoxCodec(NinoArg[NinoTuple2[int32, *string]]{Read: readV4, Write: writeV5, MinSize: 8})
+	codecV16 = BoxCodec(NinoArg[*int32]{Read: readV6, Write: writeV7, MinSize: 1})
+	codecV17 = BoxCodec(NinoArg[nino.Entry[int32, *string]]{Read: readV8, Write: writeV9, MinSize: 8})
+	codecV18 = BoxCodec(NinoArg[[]*string]{Read: readV10, Write: writeV11, MinSize: 4})
+	codecV19 = KeysCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
+	codecV20 = KeysCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
 }
 
 // Bag is `Shapes.Generic.Bag<T>`.
@@ -1239,8 +1187,8 @@ type Uses struct {
 	Thing      *Box[IThing]                                    `nino:"8" json:"thing" yaml:"thing"`
 	Array      *Box[[]int32]                                   `nino:"9" json:"array" yaml:"array"`
 	Complex    Pair[*Box[int32], []nino.Entry[int32, *string]] `nino:"10" json:"complex" yaml:"complex"`
-	Pairs      []nino.Entry[string, PairInt32Int32]            `nino:"11" json:"pairs" yaml:"pairs"`
-	Raw        RawPairInt32                                    `nino:"12" json:"raw" yaml:"raw"`
+	Pairs      []nino.Entry[string, Pair[int32, int32]]        `nino:"11" json:"pairs" yaml:"pairs"`
+	Raw        RawPair[int32]                                  `nino:"12" json:"raw" yaml:"raw"`
 	Tuple      *Box[NinoTuple2[int32, *string]]                `nino:"13" json:"tuple" yaml:"tuple"`
 	Maybe      *Box[*int32]                                    `nino:"14" json:"maybe" yaml:"maybe"`
 	Entry      *Box[nino.Entry[int32, *string]]                `nino:"15" json:"entry" yaml:"entry"`
@@ -1250,7 +1198,7 @@ type Uses struct {
 }
 
 func (Uses) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCF00B9E0; deferrable=true; members=Number:Shapes.Generic.Box<int>:type(Shapes.Generic.Box<int>);Text:Shapes.Generic.Box<string>:type(Shapes.Generic.Box<string>);Pair:Shapes.Generic.Pair<int, string>:type(Shapes.Generic.Pair<int, string>);Nested:Shapes.Generic.Box<Shapes.Generic.Box<int>>:type(Shapes.Generic.Box<Shapes.Generic.Box<int>>);Mixed:Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>:type(Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<int>>:seq(type(Shapes.Generic.Box<int>));Bag:Shapes.Generic.Bag<Shapes.Generic.Box<long>>:type(Shapes.Generic.Bag<Shapes.Generic.Box<long>>);Chain:Shapes.Generic.Node<string>:type(Shapes.Generic.Node<string>);Thing:Shapes.Generic.Box<Shapes.IThing>:type(Shapes.Generic.Box<Shapes.IThing>);Array:Shapes.Generic.Box<int[]>:type(Shapes.Generic.Box<int[]>);Complex:Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>:type(Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>);Pairs:System.Collections.Generic.Dictionary<string, Shapes.Generic.Pair<int, int>>:map(string,raw(8){Key:int@0:raw(4),Value:int@4:raw(4)});Raw:Shapes.Generic.RawPair<int>:raw(8){A:int@0:raw(4),B:int@4:raw(4)};Tuple:Shapes.Generic.Box<System.ValueTuple<int, string>>:type(Shapes.Generic.Box<System.ValueTuple<int, string>>);Maybe:Shapes.Generic.Box<System.Nullable<int>>:type(Shapes.Generic.Box<System.Nullable<int>>);Entry:Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>:type(Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>);Set:Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>:type(Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>);IntKeys:Shapes.Generic.Keys<int>:type(Shapes.Generic.Keys<int>);StringKeys:Shapes.Generic.Keys<string>:type(Shapes.Generic.Keys<string>)"
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCF00B9E0; deferrable=true; members=Number:Shapes.Generic.Box<int>:type(Shapes.Generic.Box<int>);Text:Shapes.Generic.Box<string>:type(Shapes.Generic.Box<string>);Pair:Shapes.Generic.Pair<int, string>:type(Shapes.Generic.Pair<int, string>);Nested:Shapes.Generic.Box<Shapes.Generic.Box<int>>:type(Shapes.Generic.Box<Shapes.Generic.Box<int>>);Mixed:Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>:type(Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<int>>:seq(type(Shapes.Generic.Box<int>));Bag:Shapes.Generic.Bag<Shapes.Generic.Box<long>>:type(Shapes.Generic.Bag<Shapes.Generic.Box<long>>);Chain:Shapes.Generic.Node<string>:type(Shapes.Generic.Node<string>);Thing:Shapes.Generic.Box<Shapes.IThing>:type(Shapes.Generic.Box<Shapes.IThing>);Array:Shapes.Generic.Box<int[]>:type(Shapes.Generic.Box<int[]>);Complex:Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>:type(Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>);Pairs:System.Collections.Generic.Dictionary<string, Shapes.Generic.Pair<int, int>>:map(string,type(Shapes.Generic.Pair<int, int>));Raw:Shapes.Generic.RawPair<int>:type(Shapes.Generic.RawPair<int>);Tuple:Shapes.Generic.Box<System.ValueTuple<int, string>>:type(Shapes.Generic.Box<System.ValueTuple<int, string>>);Maybe:Shapes.Generic.Box<System.Nullable<int>>:type(Shapes.Generic.Box<System.Nullable<int>>);Entry:Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>:type(Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>);Set:Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>:type(Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>);IntKeys:Shapes.Generic.Keys<int>:type(Shapes.Generic.Keys<int>);StringKeys:Shapes.Generic.Keys<string>:type(Shapes.Generic.Keys<string>)"
 }
 
 func (Uses) NinoTypeName() string {
@@ -1282,13 +1230,13 @@ func readUsesBody(r *nino.Reader, v *Uses) {
 	v.Array = codecV11.Read(r)
 	v.Complex = codecV12.Read(r)
 	v.Pairs = readV25(r)
-	v.Raw = readRawPairInt32(r)
-	v.Tuple = codecV13.Read(r)
-	v.Maybe = codecV14.Read(r)
-	v.Entry = codecV15.Read(r)
-	v.Set = codecV16.Read(r)
-	v.IntKeys = codecV17.Read(r)
-	v.StringKeys = codecV18.Read(r)
+	v.Raw = codecV14.Read(r)
+	v.Tuple = codecV15.Read(r)
+	v.Maybe = codecV16.Read(r)
+	v.Entry = codecV17.Read(r)
+	v.Set = codecV18.Read(r)
+	v.IntKeys = codecV19.Read(r)
+	v.StringKeys = codecV20.Read(r)
 }
 
 func writeUsesBody(w *nino.Writer, v *Uses) {
@@ -1304,13 +1252,13 @@ func writeUsesBody(w *nino.Writer, v *Uses) {
 	codecV11.Write(w, v.Array)
 	codecV12.Write(w, v.Complex)
 	writeV27(w, v.Pairs)
-	writeRawPairInt32(w, v.Raw)
-	codecV13.Write(w, v.Tuple)
-	codecV14.Write(w, v.Maybe)
-	codecV15.Write(w, v.Entry)
-	codecV16.Write(w, v.Set)
-	codecV17.Write(w, v.IntKeys)
-	codecV18.Write(w, v.StringKeys)
+	codecV14.Write(w, v.Raw)
+	codecV15.Write(w, v.Tuple)
+	codecV16.Write(w, v.Maybe)
+	codecV17.Write(w, v.Entry)
+	codecV18.Write(w, v.Set)
+	codecV19.Write(w, v.IntKeys)
+	codecV20.Write(w, v.StringKeys)
 }
 
 func readV0(r *nino.Reader) []Forest {
@@ -1450,16 +1398,16 @@ func readV24(r *nino.Reader) []*Box[int32] {
 	return nino.ReadSlice(r, 1, codecV2.Read)
 }
 
-func readV25(r *nino.Reader) []nino.Entry[string, PairInt32Int32] {
-	return nino.ReadUniqueEntries(r, 12, keyString, readPairInt32Int32)
+func readV25(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
+	return nino.ReadUniqueEntries(r, 4, keyString, codecV13.Read)
 }
 
 func writeV26(w *nino.Writer, v []*Box[int32]) {
 	nino.WriteSlice(w, v, codecV2.Write)
 }
 
-func writeV27(w *nino.Writer, v []nino.Entry[string, PairInt32Int32]) {
-	nino.WriteEntries(w, v, (*nino.Writer).String, writePairInt32Int32)
+func writeV27(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
+	nino.WriteEntries(w, v, (*nino.Writer).String, codecV13.Write)
 }
 
 // NinoTuple2 is a ValueTuple or Tuple of 2 items.

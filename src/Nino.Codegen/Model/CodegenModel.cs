@@ -347,8 +347,8 @@ namespace Nino.Codegen.Model
         /// The encoding of a value of a type argument: what Nino.Core's formatter for the type writes at run time
         /// (<c>CachedFormatter&lt;T&gt;</c>), which a generic type's formatter calls for its type parameters. It
         /// differs from a member's encoding where the generator copies a member as raw memory: a closed generic
-        /// struct, a <c>ValueTuple</c>, a <c>KeyValuePair</c> or a <c>T?</c> is written item by item as a type
-        /// argument, and as raw memory as a member. Null for a type whose formatter is not known here (a collection of
+        /// struct that is not a [NinoType], a <c>ValueTuple</c>, a <c>KeyValuePair</c> or a <c>T?</c> is written
+        /// item by item as a type argument, and as raw memory as a member. Null for a type whose formatter is not known here (a collection of
         /// <c>T?</c> or of <c>KeyValuePair</c>, which .NET may copy as raw memory, a <c>Tuple</c>, a type of another
         /// library): the generic type is then left out where it has that argument.
         /// </summary>
