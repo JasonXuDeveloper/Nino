@@ -14,7 +14,7 @@
 | refactor/gen · /workspace/wt-gen | 生成器 bug A–G（缓存漏 assembly NinoFormatter、别名/using static 接收者、SourceName、TypeFacts 缓存、LatestState 增长、泛型 FormerName 类型 id 冲突诊断、ShapeMatrix 维度）；规则统一、增量缓存、GeneratedFile、FormatterRef、TypeModel/BodyEmitter 拆分、CodeFix、原始字符串；输出变化：4.12 拦截器位置注释、每文件类型别名 | ✅ 17 个提交已合并（修复 A、B、E、H、I、K，D 编译性能，F NINO027，G ShapeMatrix，Q3 部分、Q6、Q8、Q9、Q10）；未做 Q1、Q2、Q4、Q5、Q7、Q11（见下“生成器分支交回的后续项”） |
 | refactor/core · /workspace/wt-core | Core bug B1–B6（卸载程序集重注册、Boxed null、raw 快路径大端、raw 规则两份、未知类型 id 负缓存、NinoSubtypeHandler 可见性）；NinoScratch、卸载钩子、NinoReflection、目录整理、NinoBlock 拆分 + 单一字节映射、具名布局结构、多维数组代码生成、#if 统一、杂项 | ✅ 10 个提交已合并（B1–B8 全部修复，Q9、Q10、Q11）；未做 Q1–Q8（草稿在 scratchpad/core/draft/）；合并时改回 NinoTypeLayoutAttribute 构造参数名 typeId（公开 API） |
 | refactor/sat · /workspace/wt-sat | Immutable（ref writer、内联、DuplicateKey、ArrayPool 清空）、AspNetCore（泛型缓存、OpenAPI 状态码）、TypeScript 常量契约测试、测试辅助去重（RoundTrip、编译设置）、UnityTypes | ✅ 6 个提交（4f6c6c0 TS 布局契约测试；4db3936 UnityTypes 用 NinoUnsafe；5aaaa89 AspNetCore Status 的 OpenAPI 说明；1cce82e 共用 RoundTrip；3b83db3 共用 TestCompilation；585c1f3 Immutable 按值传 writer）。合并时：Immutable.csproj 加 AllowUnsafeBlocks + SkipLocalsInit，链接 NinoThrow.cs 并删掉 DuplicateKey 副本；IncrementalGeneratorTests 和 CornerCompiler 改用 TestCompilation（需加 nullable/预处理符号选项）；AspNetCore 的类型缓存接入 Core 的卸载钩子；Gradient 读到 -1 抛 OverflowException 而不是 Nino 异常（归入安全：只抛 Nino 异常） |
-| refactor/bench · /workspace/wt-bench | Benchmark 工程与 benchmarks/ 脚本清理；类名/方法名/参数不变，payload 字节不变，被测方法机器码不变 | ✅ 4 个提交（163bd66 删已结束的 probe，保留 CopyGapProbe/CopyProbe 等；74e0859；79831e5；2ed2c76 报表脚本共用 bdn.span）。遗留：GenericPolymorphicTest 未登记 payload 大小（补上会给报告加数据，待定）；单类报告标题“### -”合并时核对 |
+| refactor/bench · /workspace/wt-bench | Benchmark 工程与 benchmarks/ 脚本清理；类名/方法名/参数不变，payload 字节不变，被测方法机器码不变 | ✅ 4 个提交（163bd66 删已结束的 probe，保留 CopyGapProbe/CopyProbe 等；74e0859；79831e5；2ed2c76 报表脚本共用 bdn.span）。遗留两项已在 phase3/misc 修好：GenericPolymorphicTest 登记 payload 大小（234f685）；单类报告（BenchmarkDotNet 不写 Type 列）由 merge_reports.py / compact_report.py 从文件名取类名，不再出现“### -”（b7e012b） |
 | refactor/ts-perf · /workspace/wt-ts | TS 运行时与生成代码性能（Node + Chromium 实测）；安全（边界检查、先校验长度再分配、深度限制、类型 id 白名单、保持 class + Map 设计、`__proto__` 键测试）；深度延迟写入缺口（>128 层）验证并修复；node:test 单元测试套件；TS 目录整理 | ✅ 已合并 |
 
 ## 子代理分工（并行，每个独立 worktree 和分支，不推送）
@@ -23,15 +23,15 @@
 |---|---|---|---|
 | 代码优化 | refactor/build、refactor/gen、refactor/core、refactor/sat、refactor/bench | 见上表 | ✅ 全部合并 |
 | 运行时：TS | refactor/ts-perf · wt-ts | 性能、安全、单元测试、移到 runtimes/typescript | ✅ 6 个提交（856f50a 数组写入改索引循环；7ee4828 深度延迟写入，Fixed；004d9a4 移到 runtimes/typescript；ebaaf06 非法 UTF-8 抛 NinoError，Fixed；7fe6a58 node:test 81 项；e9979be __proto__ 键测试）。合并后待办：生成器在布局里发布 deferrable（gen J）后，TS 生成器改用它，不再从 IL 读 Traits；CLAUDE.md 写上 npm test；DateTime Unspecified 在 TS 里读成 UTC（既有行为，待定）；bool 字节 2–255 读成 true（与 .NET 一致，归入第二阶段严格度统一） |
-| 运行时：Go | runtime/go · wt-go | runtimes/go：读写、校验、深度延迟、零依赖、基准对比 json/msgpack、原生 fuzz、CI job | ✅ 9 个提交；一致性语料全过（引用追踪除外），fuzz 约 560 万次无 panic。合并前必须：bf8894d 误提交 5.6 MB 测试二进制，本地分支未推送，合并前改写该分支历史去掉它；runtimes.yml 与 conformance job 合并成一个文件。规范待修：§3.3/§3.4 示例日期标签错、§7.6 keyed 剩余字节应为非法、§7.10.3 补三条区段规则、§9.10 补 decimal/DateOnly/TimeOnly 范围、空结构体 1 字节、corpus README 补 sbyte[] |
-| 运行时：Rust | runtime/rust · wt-rust | runtimes/rust：默认 forbid(unsafe)、不 panic、criterion 对比 serde_json/bincode/rmp/postcard、miri、CI job | ✅ 15 个提交（含 nino-derive 过程宏、serde feature、trybuild 编译失败测试、MSRV 1.88）；语料 252 例 + 10,344 个截断前缀全过（引用追踪除外），derive 47 个类型过语料，变异 fuzz 75.6 万次无 panic。合并前必须：提交 10–15 缺 Co-Authored-By，本地改写补上；runtimes.yml 合成一个文件（conformance + go + rust + ts）。待改进：字符串解码比 bincode/postcard 慢（约 71 vs 50 µs/1000 个）；单条记录序列化慢于 bincode。规范待定：keyed 链示例顺序与语料不符（以 .NET 实际输出为准）；结构体嵌套是否计入 512 层；SortedDictionary<string> 默认比较器与文化相关，其他语言用序数排序会写出不同字节（写进规范：读取保持线上顺序） |
+| 运行时：Go | runtime/go · wt-go | runtimes/go：读写、校验、深度延迟、零依赖、基准对比 json/msgpack、原生 fuzz、CI job | ✅ 9 个提交；一致性语料全过（引用追踪除外），fuzz 约 560 万次无 panic。合并前必须：bf8894d 误提交 5.6 MB 测试二进制，本地分支未推送，合并前改写该分支历史去掉它；runtimes.yml 与 conformance job 合并成一个文件。规范待修项 ✅ 均已写进规范（aa043a3 等；phase3/misc 对照语料与 Nino.Core 逐条核对）：§3.3/§3.4 示例日期标签、§7.6 keyed 剩余字节非法、§7.10.3 三条区段规则、§9.10 decimal/DateOnly/TimeOnly 范围、空结构体 1 字节（§5.2）、corpus README 的 sbyte[] |
+| 运行时：Rust | runtime/rust · wt-rust | runtimes/rust：默认 forbid(unsafe)、不 panic、criterion 对比 serde_json/bincode/rmp/postcard、miri、CI job | ✅ 15 个提交（含 nino-derive 过程宏、serde feature、trybuild 编译失败测试、MSRV 1.88）；语料 252 例 + 10,344 个截断前缀全过（引用追踪除外），derive 47 个类型过语料，变异 fuzz 75.6 万次无 panic。合并前必须：提交 10–15 缺 Co-Authored-By，本地改写补上；runtimes.yml 合成一个文件（conformance + go + rust + ts）。待改进：字符串解码比 bincode/postcard 慢（约 71 vs 50 µs/1000 个）；单条记录序列化慢于 bincode。规范待定项 ✅ 已写进规范：keyed 链示例与语料 deep-keyed-chain-129 一致（§7.10.3）；能自嵌套的结构体和集合计入 512 层（§9.9，§7.10.1 加了指引，99955f4）；SortedDictionary<string> 等排序集合读取保持线上顺序（§6.3） |
 | 线格式规范 | docs/wire-spec · wt-spec | docs/spec/wire-format.md | ✅ b870f7c（规范 4.0 草案；§10 列出 12 处不一致或未定义） |
 | 一致性语料 | test/conformance · wt-conf | conformance/：.NET 写出的 valid + malicious 语料、.NET 自测、runtimes.yml 的 conformance job | ✅ 3 个提交（66286fa、8507669、ee400b3）：109 个有效用例、149 个恶意用例 + 截断规则（37 个用例的每个前缀，共 10,441 个）。.NET 现有缺口 26 个（自嵌套栈溢出 2、bool/presence 字节 12、延迟区段偏移/标志 4、keyed 成员剩余字节 1、尾随字节 1、越界 raw 值 3…），修复后需重新生成语料。合并时：slnx 加入 Nino.Conformance；runtimes.yml 触发路径补全；TS job 接入语料；规范补“空 raw 结构体写 1 个零字节” |
 | 安全：模糊测试 | test/fuzz · wt-fuzz | tests/Nino.Fuzz（保护页变异模糊器 + SharpFuzz）、fuzz.yml（SIMD 开/关矩阵 + nightly） | ✅ 4 个提交（20b3a15、6e641fe、62cbfe2、e1c4386）；各 SIMD 模式各 300 s + libFuzzer 每个目标，无新 bug。已知 tree/dtree/hash/hash-set 默认非严格，修复后设仓库变量 NINO_FUZZ_STRICT_KNOWN=1 并删 Probes.cs 的 Known。注意：哈希修复要过探针的 1 s / 50 倍限制（只做到和 BCL 一样不够）；Golden 链接路径随目录重组改；三个新工程加进 slnx。发现生成器 bug K（类型名只差大小写 → hintName 冲突 → 整个项目没有生成代码）→ 已交 gen |
-| 安全：修复 | core 分支（B7 自嵌套、B5 负缓存）；第二阶段（哈希链上限、Untrusted、NinoDataException、限制） | | ✅ B7、B5 已合并 / ⬜ 第二阶段 |
+| 安全：修复 | core 分支（B7 自嵌套、B5 负缓存）；第二阶段（哈希链上限、Untrusted、NinoDataException、限制） | | ✅ B7、B5 已合并 / ✅ 第二阶段 |
 | 目录结构 | chore/layout · wt-layout | 可重跑的重组脚本（tests/、benchmarks/、根目录 slnx 和 Directory.*.props），先在当前 main 上跑通验证，合并后再跑一次 | ✅ 175c21a tools/restructure.py（--check、--dry-run，幂等）+ 159362f 在 7dd8186 上的结果（合并后改为重跑脚本，不合并此提交）。验证：slnx 构建零警告、三种单测、AOT、Mono RuntimeTests、基准构建、6 个包文件列表不变、Unity 包不变。注意：report.yml 手动跑旧标签会失败；dependabot directories 通配需确认；nino.docs CLAUDE.md 的路径要改 |
 | AspNetCore 零分配测试 | fix/aspnetcore-alloc · wt-asp | 测试工程从未进 sln，CI 的这一步其实什么都没跑；两个零分配测试真实失败，查根因并修 | ✅ 根因：Debug 构建里 async 状态机是 class，每次调用都分配；Release 发布包本来就零分配（无用户可见 bug）。46232f0 已在管道里的请求体同步读完、不走 async 方法（本机 Release 约 225→165 ns，非完整模式数字，无尾注）；b28ac83 测试改为同步调用测量，仍是严格零分配。合并时：nino.docs aspnetcore 页（中英）第 113 行附近改说法 |
-| 文档 | docs/scan · wt-docs + nino.docs | 文档对照当前 main 全面核对（含 pitfalls 的 NinoTuple），列出进行中工作将来需要的页面 | ✅ Nino 1b65faa（未合并）；nino.docs 41cf216 已推送（NINO017 补“非泛型”）。待查：AnalyzerReleases.Shipped.md 里 NINO003/006/009 标题与 NinoDiagnostics.cs 不一致 |
+| 文档 | docs/scan · wt-docs + nino.docs | 文档对照当前 main 全面核对（含 pitfalls 的 NinoTuple），列出进行中工作将来需要的页面 | ✅ Nino 1b65faa（未合并）；nino.docs 41cf216 已推送（NINO017 补“非泛型”）。AnalyzerReleases.Shipped.md 里 NINO003/006/009 标题已与 NinoDiagnostics.cs 一致（394d5cb，AnalyzerTest.ReleaseTrackingMatchesTheDescriptors 检查每条规则的级别和标题） |
 
 ## 调研 / 审计
 
@@ -50,7 +50,7 @@
 - ⬜ 每个运行时的性能维护：各自基准对比本生态的主流库（TS：JSON、msgpackr；Go：encoding/json、vmihailenco/msgpack；Rust：serde_json、bincode、rmp-serde、postcard），report.yml 发布各语言结果，CLAUDE.md 写各语言的性能和安全规则
 - ✅ Go 结构体标签（runtime/go 6 个提交 fd2bd02…3693254；语料经标签结构体 103/140/35 通过；反射计划缓存，比手写编解码慢 2–5 倍，仍远快于 encoding/json）。合并时：Go 自造的 `deferrable=false` 与生成器 23abe40 发布的标记对齐成同一语法。待定：普通 string 字段把 null 读成 ""（要保留 null 用 *string）；map 按键排序写出（[]nino.Entry 保留线上顺序）。原计划：`nino:"0"` / `nino:"Name"`（keyed）/ `nino:"-"` 等，用户自己的结构体走反射 + 按类型缓存的编解码计划（同等的安全保证、fuzz）；生成的 Go 结构体带 nino 标签和可配置的 json/yaml 标签（默认 camelCase）
 - ✅ Rust 对应（runtime/rust）：`#[derive(NinoRead, NinoWrite)]` 过程宏 + `#[nino(index/key/skip/utf8)]` 属性（编译期生成，零运行时成本），可选 serde 派生（serde feature，rename_all 可配置）
-- ⬜ 包名确认：npm、crates.io、Go 模块路径 github.com/JasonXuDeveloper/Nino/runtimes/go（标签 runtimes/go/vX.Y.Z）
+- ✅ 包名已定（2026-10-24）：npm 包名 nino-serialization；crate 名和 Go 模块路径 github.com/JasonXuDeveloper/Nino/runtimes/go（标签 runtimes/go/vX.Y.Z）不变
 
 ### 目标目录结构（第一阶段合并后执行，Unity 包路径不动）
 
@@ -143,7 +143,14 @@ Nino/
 - ⬜ report.yml 8 分片拆分后的耗时，需下次发布或手动运行确认（`gh workflow run report.yml`）
 - ⬜ NuGet 可信发布：给 Nino.Codegen、Nino.Codegen.Tool 两个新包配置
 - ⬜ 首个带 Nino.Codegen 的版本发布后，在 NuGet 上把 Nino.TypeScript 标为弃用并指向 Nino.Codegen
-- ❓ 待定：TS 把 Kind=Unspecified 的 DateTime 读成 UTC；Go 普通 string 把 null 读成 ""；nino-gen 不生成泛型类型；ConcurrentDictionary 不受哈希碰撞上限保护；Rust 输出需要 indexmap
+- ✅ 维护者已决定（2026-10-24），由其他分支实现：
+  - TS 继续把 Kind=Unspecified 的 DateTime 读成 UTC，写进文档；
+  - Go 普通 string 继续把 null 读成 ""（要保留 null 用 *string）；
+  - 泛型类型在每种语言里都生成（nino-gen 生成泛型类型）；
+  - ConcurrentDictionary 也受 MaxHashCollisions 上限保护；
+  - Rust 的映射类型改为选项：默认 indexmap，可选 std HashMap；
+  - npm 包名 nino-serialization，crate 名和 Go 模块路径不变；
+  - 自嵌套集合的写入超过 MaxDepth 时抛异常（不再无限递归）
 
 ## 记录
 
