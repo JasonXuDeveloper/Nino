@@ -20,9 +20,6 @@ namespace Nino.Codegen.Targets
 
         /// <summary>Whether member names are camelCased (the default) or kept as in C#.</summary>
         public bool CamelCase { get; set; } = true;
-
-        /// <summary>What the header comment names as the generator.</summary>
-        public string Generator { get; set; } = "Nino.TypeScript";
     }
 
     /// <summary>
@@ -102,7 +99,6 @@ namespace Nino.Codegen.Targets
             string module = _options.RuntimeModule ?? "./nino" + _options.ImportExtension;
             var renderer = new TemplateRenderer("typescript");
             renderer.Set("source", source);
-            renderer.Set("generator", _options.Generator);
             renderer.Set("runtime_module", module);
             renderer.Set("enums", enums);
             renderer.Set("raw_structs", rawStructs);

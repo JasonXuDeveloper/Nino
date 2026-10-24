@@ -13,7 +13,7 @@
         <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.13"/>
     </ItemGroup>
 
-    <!-- Tools only (Nino.Codegen, Nino.TypeScript): the templates of the code generated for other languages. Shipped
+    <!-- Tools only (Nino.Codegen, Nino.Codegen.Tool): the templates of the code generated for other languages. Shipped
          in the tools' own folders, never a dependency of a package's users. -->
     <ItemGroup>
         <PackageVersion Include="Scriban" Version="7.5.0"/>

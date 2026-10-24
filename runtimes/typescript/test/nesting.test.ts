@@ -1,6 +1,6 @@
 // Deep nesting: past 128 open class bodies a body is deferred (after the top-level object, or in a section at the end
 // of the outermost region), so any depth costs a bounded stack; bodies that cannot be deferred, and structs that hold
-// themselves, fail past 512; cycles fail. The byte layout is checked against .NET by src/Nino.TypeScript.Tests.
+// themselves, fail past 512; cycles fail. The byte layout is checked against .NET by tests/Nino.Codegen.Integration.Tests.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { deserialize, NinoError, serialize } from "../src/nino.ts";

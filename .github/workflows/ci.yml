@@ -169,17 +169,19 @@ jobs:
           dotnet test tests/Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj --no-build -c Debug
           --logger trx --results-directory ./TestResults
 
-      # The TypeScript generator: Node runs the generated code (type stripping, Node 22.18+), tsc checks it.
+      # Nino.Codegen in builds: Node runs the generated TypeScript (type stripping, Node 22.18+) and tsc checks it;
+      # scratch projects build with build/Nino.Codegen.targets for TypeScript, Go and Rust, and the old
+      # NinoTypeScript* properties.
       - uses: actions/setup-node@v7
         if: ${{ matrix.project == '' }}
         with:
           node-version: 22
 
-      - name: Test TypeScript
+      - name: Test Nino.Codegen in builds
         if: ${{ matrix.project == '' }}
         run: |
           npm install -g typescript@5
-          dotnet test tests/Nino.TypeScript.Tests/Nino.TypeScript.Tests.csproj --no-build -c Debug --logger trx --results-directory ./TestResults
+          dotnet test tests/Nino.Codegen.Integration.Tests/Nino.Codegen.Integration.Tests.csproj --no-build -c Debug --logger trx --results-directory ./TestResults
 
       # nino-gen (src/Nino.Codegen): its model and command line, and the generated files under runtimes/ are what
       # it writes today (runtimes.yml compiles and runs them).

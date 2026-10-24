@@ -1,6 +1,6 @@
-// Codecs written as Nino.TypeScript generates them (see TypeScriptEmitter.cs), for the tests of the runtime: a class
+// Codecs written as nino-gen generates them (src/Nino.Codegen/Templates/typescript), for the tests of the runtime: a class
 // body counts the depth and is deferred past 128 open bodies, a version tolerant body is a region, a struct that can
-// hold itself counts its nesting. The .NET tests (tests/Nino.TypeScript.Tests) check the generated code against the
+// hold itself counts its nesting. The .NET tests (tests/Nino.Codegen.Integration.Tests) check the generated code against the
 // bytes .NET writes; these check the runtime on its own, malformed data included.
 import { NinoReader, NinoWriter, type NinoCodec } from "../src/nino.ts";
 
