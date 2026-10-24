@@ -59,6 +59,22 @@ public class GenericPolymorphicTest
 
     private readonly NinoArrayBufferWriter _buffer = new(1 << 16);
 
+    static GenericPolymorphicTest()
+    {
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNonGenericBase), NinoNonGenericBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNonGenericBase), MemoryPackNonGenericBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericIntBase), NinoGenericIntBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericIntBase), MemoryPackGenericIntBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericUnmanagedTupleBase), NinoGenericUnmanagedTupleBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericUnmanagedTupleBase), MemoryPackGenericUnmanagedTupleBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericManagedTupleBase), NinoGenericManagedTupleBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericManagedTupleBase), MemoryPackGenericManagedTupleBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericSealedClassTupleBase), NinoGenericSealedClassTupleBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericSealedClassTupleBase), MemoryPackGenericSealedClassTupleBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericOpenClassTupleBase), NinoGenericOpenClassTupleBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericOpenClassTupleBase), MemoryPackGenericOpenClassTupleBaseBytes.Length);
+    }
+
     private static bool RegisterUnions()
     {
         MemoryPackFormatterProvider.Register(new DynamicUnionFormatter<ProbeBox<int>>((0, typeof(ProbeBoxA)), (1, typeof(ProbeBoxB)), (2, typeof(ProbeBoxC)), (3, typeof(ProbeBoxD)), (4, typeof(ProbeBoxE)), (5, typeof(ProbeBoxF)), (6, typeof(ProbeBoxG)), (7, typeof(ProbeBoxH))));
