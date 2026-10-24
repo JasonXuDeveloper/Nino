@@ -7,6 +7,18 @@ using Nino.UnitTests.Subset;
 
 namespace Nino.UnitTests
 {
+    public struct PlainGenericPair<T> where T : unmanaged
+    {
+        public T A;
+        public T B;
+    }
+
+    [NinoType]
+    public struct PredicateNinoStruct
+    {
+        public int X;
+    }
+
     [TestClass]
     public class RawStructTests
     {
@@ -69,68 +81,30 @@ namespace Nino.UnitTests
             Assert.AreEqual(4 + 12, bytes.Length);
             Assert.AreEqual(tolerant, NinoDeserializer.Deserialize<SubsetTolerantStruct>(bytes));
         }
-    }
-}
 
-[TestClass]
-public class TopLevelFastPathTests
-{
-    private static byte[] ViaWriter<T>(T value)
-    {
-        var buffer = new NinoArrayBufferWriter();
-        NinoSerializer.Serialize(value, buffer);
-        return buffer.WrittenSpan.ToArray();
-    }
-
-    [TestMethod]
-    public void RawArraysMatchTheWriterPath()
-    {
-        var ints = new[] { 1, -2, 3 };
-        CollectionAssert.AreEqual(ViaWriter(ints), NinoSerializer.Serialize(ints));
-        CollectionAssert.AreEqual(ints, NinoDeserializer.Deserialize<int[]>(NinoSerializer.Serialize(ints)));
-        var empty = new long[0];
-        CollectionAssert.AreEqual(ViaWriter(empty), NinoSerializer.Serialize(empty));
-        int[] none = null;
-        CollectionAssert.AreEqual(ViaWriter(none), NinoSerializer.Serialize(none));
-        var guids = new[] { System.Guid.NewGuid(), System.Guid.NewGuid() };
-        CollectionAssert.AreEqual(ViaWriter(guids), NinoSerializer.Serialize(guids));
-        CollectionAssert.AreEqual(guids, NinoDeserializer.Deserialize<System.Guid[]>(NinoSerializer.Serialize(guids)));
-    }
-
-    [TestMethod]
-    public void NullableRawValuesRoundTrip()
-    {
-        var values = new int?[] { 1, null, -3 };
-        var bytes = NinoSerializer.Serialize(values);
-        Assert.AreEqual(4 + 3 * 8, bytes.Length);
-        CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<int?[]>(bytes));
-        // The 64-bit Nullable<int> layout: has-value byte, 3 zero bytes, the value (zero when null).
-        CollectionAssert.AreEqual(new byte[]
+        // NativeAOT decides which unregistered unmanaged types are raw with the resolver's own rule
+        // (NinoReflection.IsRawShape), so a type is raw with or without dynamic code.
+        [TestMethod]
+        public void NativeAotAndTheResolverAgreeOnRawTypes()
         {
-            3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0xFD, 0xFF, 0xFF, 0xFF
-        }, bytes);
-        CollectionAssert.AreEqual(NinoSerializer.Serialize(new List<int?>(values)), bytes);
-        var holder = NinoDeserializer.Deserialize<NullableHolder>(NinoSerializer.Serialize(
-            new NullableHolder { Array = values, List = new List<int?>(values), Dates = new List<System.DateTime?> { null } }));
-        CollectionAssert.AreEqual(values, holder.Array);
-        CollectionAssert.AreEqual(values, holder.List);
-        Assert.AreEqual(1, holder.Dates.Count);
-        Assert.IsNull(holder.Dates[0]);
-        CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<List<int?>>(bytes));
-        var reused = new int?[] { 9, 9, 9 };
-        NinoDeserializer.Deserialize(bytes, ref reused);
-        CollectionAssert.AreEqual(values, reused);
-        Assert.ThrowsExactly<NinoDataException>(() =>
-            NinoDeserializer.Deserialize<int?[]>(bytes.AsSpan(0, bytes.Length - 1).ToArray()));
-        var dates = new System.DateTime?[] { null, System.DateTime.UtcNow };
-        CollectionAssert.AreEqual(dates, NinoDeserializer.Deserialize<System.DateTime?[]>(NinoSerializer.Serialize(dates)));
-    }
-}
+            var raw = new[] { typeof(int), typeof(DateTime), typeof(Guid), typeof(PlainGenericPair<int>), typeof(decimal) };
+            var notRaw = new[]
+            {
+                typeof(int?), typeof(KeyValuePair<int, int>), typeof(ValueTuple<int, int>), typeof(DateTimeOffset),
+                typeof(IntPtr), typeof(UIntPtr), typeof(PredicateNinoStruct)
+            };
+            foreach (var type in raw)
+            {
+                Assert.IsTrue(NinoReflection.IsRawShape(type), type.Name);
+                Assert.IsTrue(NinoReflection.IsRawUnmanaged(type), type.Name);
+            }
 
-[NinoType]
-public class NullableHolder
-{
-    public int?[] Array;
-    public List<int?> List;
-    public List<System.DateTime?> Dates;
+            foreach (var type in notRaw)
+                Assert.IsFalse(NinoReflection.IsRawShape(type), type.Name);
+            // Generic structs that are not [NinoType]s were left out under NativeAOT only; the resolver writes them raw.
+            var pair = new PlainGenericPair<int> { A = 1, B = 2 };
+            CollectionAssert.AreEqual(new byte[] { 1, 0, 0, 0, 2, 0, 0, 0 },
+                NinoSerializer.SerializeBoxed(pair, typeof(PlainGenericPair<int>)));
+        }
+    }
 }

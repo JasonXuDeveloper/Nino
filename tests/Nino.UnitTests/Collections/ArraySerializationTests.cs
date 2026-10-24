@@ -6,6 +6,16 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests;
 
+[NinoType]
+public class JaggedArrays
+{
+    public int[][] Jagged;
+    public int[][,] JaggedOfMulti;
+    public int[,][] MultiOfJagged;
+    public (int, string)[] Tuples;
+    public System.Collections.Generic.Dictionary<string, (int Id, float[] Values)> Named;
+}
+
 [TestClass]
 public class ArraySerializationTests
 {
@@ -926,4 +936,29 @@ public class ArraySerializationTests
         Console.WriteLine("PriorityQueue with complex array types tests passed!");
     }
 #endif
+
+    [TestMethod]
+    public void JaggedAndMultiDimensionalCombinations()
+    {
+        var value = new JaggedArrays
+        {
+            Jagged = new[] { new[] { 1, 2 }, null, new int[0] },
+            JaggedOfMulti = new[] { new int[,] { { 1, 2 }, { 3, 4 } }, null },
+            MultiOfJagged = new int[,][] { { new[] { 5 }, null }, { new int[0], new[] { 6, 7 } } },
+            Tuples = new[] { (1, "a"), (2, null) },
+            Named = new System.Collections.Generic.Dictionary<string, (int, float[])> { ["x"] = (3, new[] { 1f }) },
+        };
+        var result = NinoDeserializer.Deserialize<JaggedArrays>(NinoSerializer.Serialize(value));
+        CollectionAssert.AreEqual(value.Jagged[0], result.Jagged[0]);
+        Assert.IsNull(result.Jagged[1]);
+        Assert.AreEqual(0, result.Jagged[2].Length);
+        CollectionAssert.AreEqual(value.JaggedOfMulti[0], result.JaggedOfMulti[0]);
+        Assert.IsNull(result.JaggedOfMulti[1]);
+        Assert.AreEqual(2, result.MultiOfJagged.GetLength(0));
+        CollectionAssert.AreEqual(new[] { 6, 7 }, result.MultiOfJagged[1, 1]);
+        Assert.IsNull(result.MultiOfJagged[0, 1]);
+        CollectionAssert.AreEqual(value.Tuples, result.Tuples);
+        Assert.AreEqual(3, result.Named["x"].Item1);
+        CollectionAssert.AreEqual(new[] { 1f }, result.Named["x"].Item2);
+    }
 }
