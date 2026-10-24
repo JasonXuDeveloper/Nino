@@ -645,10 +645,14 @@ namespace Nino.Core
 
         /// <summary>Reads a value stored in its wire layout.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T Read(ref byte source)
+        public static T Read(ref byte source) =>
+            IsCanonical ? NinoUnsafe.Read<T>(ref source) : ReadConverted(ref source);
+
+        // Its own method, as WriteConverted: where IsCanonical does not fold (Tier0, Mono, IL2CPP), a local whose
+        // address is taken here would be one in every inlined caller.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static T ReadConverted(ref byte source)
         {
-            if (IsCanonical)
-                return NinoUnsafe.Read<T>(ref source);
             T value = default;
             NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref value), ref source, false);
             return value;

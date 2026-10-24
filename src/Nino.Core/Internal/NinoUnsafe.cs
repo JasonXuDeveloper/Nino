@@ -136,6 +136,9 @@ namespace Nino.Core
         public static T Read<T>(ref byte source) =>
             Is64Bit || Unsafe.SizeOf<T>() <= 4 ? Unsafe.ReadUnaligned<T>(ref source) : ReadBytes<T>(ref source);
 
+        // Not AggressiveInlining, unlike WriteBytes: the 32-bit branch of Read is imported before it folds away, and
+        // this body inlined there takes inlining budget from large methods (with it, on x64, a generated __WriteBody
+        // made 9 stack accesses instead of 3, and a generated __ReadTop 83 instead of 69). Only 32-bit runtimes call it.
         private static T ReadBytes<T>(ref byte source)
         {
             T value = default;
