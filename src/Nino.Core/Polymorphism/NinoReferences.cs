@@ -131,14 +131,22 @@ namespace Nino.Core
             t_cached = table;
         }
 
+        /// <summary>
+        /// Opens the slot of a new object, recorded later (<see cref="Pending"/>): returns its 1-based index. Inline,
+        /// as it runs for every new tracked object read; growing the table out of line.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Begin()
         {
             if (_count == _objects.Length)
-                Array.Resize(ref _objects, _count * 2);
+                Grow();
             At(_count++) = null;
             Pending = _count;
             return _count;
         }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void Grow() => Array.Resize(ref _objects, _count * 2);
 
         /// <summary>
         /// Records <paramref name="value"/> as the object whose instance <paramref name="refs"/> (null: no table) is
