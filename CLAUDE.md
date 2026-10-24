@@ -88,6 +88,33 @@ every method it lists. What has gone wrong before:
   `NinoReadContext:Return` or `NinoWriteContext:Return` calls and `[rbp-0x..]` loads and stores of the cursor (the
   reader or writer was not kept in registers).
 
+## Security
+
+Nino reads untrusted data (network messages, files, request bodies): crafted bytes must never crash the process, read
+outside the input, allocate out of proportion to it, recurse without a bound or take time out of proportion to it.
+- Every check of the data throws `NinoDataException`, through a `NinoThrow` helper (out of line). The caller's
+  mistakes and the write side (a graph nested too deep or holding itself, a collection changed while written) keep
+  `InvalidOperationException`. Tests assert the exact type (`Assert.ThrowsExactly`).
+- Check a length against the bytes left (`TryReadLength`, `NinoLimits.TooLong`) before allocating; grow, never
+  presize, what an element larger in memory than on the wire claims. Every recursive path counts depth: class bodies
+  through `Depth`, structs and collections that can hold themselves through `EnterStruct`/`ExitStruct` on both the
+  reader and the writer, against `NinoSettings.MaxDepth`.
+- Reject bytes no writer writes: a `bool` or presence byte other than 0 or 1 (`ReadBool`, `ReadPresent`,
+  `NinoChecks.Bools`), keyed members that do not fill their entry (`EndMember`), sections of deferred bodies that do
+  not match their region. A raw block copy of a type with a `bool` in it goes through `NinoLayout<T>.CopiesAsIs`,
+  never `IsCanonical` alone.
+- A hash table Nino fills counts the keys in each bucket against `NinoSettings.MaxHashCollisions` (`HashTables`:
+  `TryFill`, `Insert`, or `Added`/`Walk` after the table's own add, as `HashTables.Plan` says). A new path that adds
+  keys from the data to a hash table does one of these.
+- `NinoSettings.Untrusted` holds the checks that cost time on every read (seeded comparers, value checks of raw
+  structs, trailing bytes). It is a constant once frozen (`NinoLimits.Untrusted`): keep each test of it a single
+  `if` on the field, with the work out of line, so the default path compiles to what it was; prove it with
+  `benchmarks/asm.py compare`.
+- A change here runs the fuzzer (`tests/Nino.Fuzz`: `selftest`, then a timed run with and without
+  `DOTNET_EnableHWIntrinsic=0`), the hostile-input unit tests (`StrictReadTests`, `HashFloodingTests`,
+  `UntrustedModeTests`, `SettingsTests`, the nesting tests) and the conformance corpus in .NET, Go, Rust and TypeScript.
+  A rule the other runtimes must follow goes into `docs/spec/wire-format.md` §9.
+
 ## Source generator
 
 - A generator bug shows up as code that does not compile for one shape of type nobody tested (#203: every generic

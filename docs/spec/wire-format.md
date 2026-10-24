@@ -65,7 +65,8 @@ top-level value under its declared type, followed by the deferred bodies the val
 follows.
 
 A reader that has read the top-level value (and its deferred bodies) stops there. The .NET reader **ignores any
-bytes that follow** (verified: `Deserialize<int>` of `01 00 00 00 FF FF` returns 1). See §9.12.
+bytes that follow** by default (verified: `Deserialize<int>` of `01 00 00 00 FF FF` returns 1), and rejects them with
+`NinoSettings.Untrusted` set. See §9.12.
 
 ### 2.3 Integer types
 
@@ -99,8 +100,9 @@ There are no variable-length integers anywhere in the format.
 
 ### 2.6 Errors
 
-The .NET reader reports every invalid input as `System.InvalidOperationException` with a message that begins with
-`Nino:`. The exceptions are listed in §9.14. Running out of data is also an `InvalidOperationException`.
+The .NET reader reports every invalid input as `Nino.Core.NinoDataException` (derived from
+`System.InvalidOperationException`) with a message that begins with `Nino:`, running out of data included. The
+exceptions are listed in §9.14.
 
 ### 2.7 Versioning
 
@@ -387,8 +389,7 @@ Null and empty values:
 
 - A `Memory<T>`, `ReadOnlyMemory<T>` or `ReadOnlySequence<T>` cannot be null. Its default value is written as count `0`.
 - A default `ArraySegment<T>` (no array) is written as `-1`.
-- A default `ImmutableArray<T>` is written as `-1`. Reading `-1` into an `ImmutableArray<T>` fails in .NET
-  (§9.14).
+- A default `ImmutableArray<T>` is written as `-1`, and `-1` reads back as a default `ImmutableArray<T>`.
 - Jagged arrays nest: `int[][] {{1}, null}` → `02 00 00 00 | 01 00 00 00 01 00 00 00 | FF FF FF FF`.
 
 ```
@@ -992,7 +993,8 @@ member, the elements of a `bool[]` or `List<bool>` (and other raw blocks of `boo
 class, `T?`, `Lazy<T>` or `Tuple<...>`, and the has-value bytes of a fixed-stride `T?[]` (§6.2). **.NET:** done
 (`Nino: invalid bool byte`, `Nino: invalid presence byte`); so are the Go, Rust and TypeScript runtimes.
 
-Note: the .NET reader currently copies a `bool` field inside a raw struct (§5) with the struct's bytes, unchecked.
+Note: the .NET reader copies a `bool` field inside a raw struct (§5) with the struct's bytes, unchecked, unless
+`NinoSettings.Untrusted` is set (§9.10).
 
 ### 9.4 Strings
 
@@ -1066,10 +1068,18 @@ languages MUST count the same struct bodies the same way (Rust: `enter_struct`),
 
 ### 9.10 Value ranges
 
-`DateTimeOffset` MUST be validated (§3.4). `DateTime` SHOULD be rejected when its kind bits are `3` or its ticks
-exceed `DateTime.MaxValue.Ticks`.
+`DateTimeOffset` MUST be validated (§3.4). `DateTime` SHOULD be rejected when its ticks exceed
+`DateTime.MaxValue.Ticks`. Kind `3` is valid: .NET writes it for a local time in the repeated hour of a daylight saving
+change (`DateTime.ToBinary`), and reads it back as `DateTimeKind.Local`. A `decimal` SHOULD be rejected when its flags
+have bits set other than the sign and the scale, or its scale exceeds 28; `DateOnly` when its day number exceeds
+`DateOnly.MaxValue`'s, and `TimeOnly` when its ticks reach a day.
 
-Note: the .NET reader currently accepts any `DateTime` bits, including kind `3` and out-of-range ticks.
+**.NET:** with `NinoSettings.Untrusted` set, every such value is checked where it is read, as a value, a member, an
+element or a field of a raw struct or tuple, and so is every `bool` inside one (§9.3). Without it (the default) these
+values are copied as they are, at no cost: a `DateTime` with out-of-range ticks, or a `decimal` with an invalid scale,
+then reaches the caller. `TimeSpan`, `Guid` and `char` have no invalid bits. Enum values are never checked against
+the enum's defined members (§2.5), in either mode: flags enums combine them, and data written by a newer version may
+carry members this one lacks.
 
 `Version` MUST reject a negative major (other than `-1`) and a negative minor. **.NET:** done.
 
@@ -1087,7 +1097,10 @@ Note: the .NET reader currently ignores all three.
 
 Readers SHOULD offer a mode that rejects bytes after the top-level value (and its deferred bodies).
 
-Note: the .NET reader currently ignores trailing bytes.
+**.NET:** with `NinoSettings.Untrusted` set, a whole payload read through `NinoDeserializer.Deserialize` (or the
+generated overloads) that leaves bytes unread throws `NinoDataException`. Without it, trailing bytes are ignored, so
+that a caller may read several values from one buffer through a `Reader`; a `Reader` the caller creates is never
+checked, in either mode.
 
 ### 9.13 Multi-dimensional arrays
 
@@ -1103,9 +1116,11 @@ Readers MUST reject:
 
 All validation failures SHOULD surface as one error type.
 
-Note: the .NET reader currently throws `InvalidOperationException` (`Nino: ...`) for almost all failures. Reading
-null (`-1`) into an `ImmutableArray<T>` surfaces an `InvalidOperationException` from the BCL instead of a Nino one.
-**(unverified: other BCL constructors may throw `ArgumentException` on values Nino passes through.)**
+**.NET:** every check of the data throws `NinoDataException` (`Nino: ...`), derived from `InvalidOperationException`.
+Mistakes of the caller (a null argument, a type with no formatter, a read-only collection to read into) keep their own
+types, and so does a failure while writing: an object graph nested deeper than `NinoSettings.MaxDepth`, or one that
+holds itself (a cycle without reference tracking, a collection that contains itself), throws
+`InvalidOperationException` before the stack runs out.
 
 ---
 
@@ -1137,15 +1152,16 @@ readers of layouts or data from earlier builds.
    §7.10.1.
 6. **Presence bytes and `bool` other than `0` or `1` are rejected in every runtime (resolved)** (§9.3).
 7. **Repeated keyed entries are accepted** in .NET, and the last one wins (§9.8).
-8. **Trailing bytes are ignored** (§2.2, §9.12).
-9. **`DateTime` is not validated** (§9.10).
-10. **`ImmutableArray` null** fails with a BCL exception (§9.14).
+8. **Trailing bytes are ignored** unless `NinoSettings.Untrusted` is set (§2.2, §9.12).
+9. **`DateTime`, `decimal`, `DateOnly` and `TimeOnly` are validated** only when `NinoSettings.Untrusted` is set
+   (§9.10).
+10. *(Resolved: `-1` reads as a default `ImmutableArray<T>`, §6.1.)*
 11. **Member order across `partial` declarations** follows Roslyn's `GetMembers()` order, which in practice is the
     order of the files in the compilation. Moving a member to another file of a `partial` type can change a
     positional format. **(unverified across compilers.)** The published layout is authoritative for any given
     build.
-12. **Raw blocks are not normalized**: padding and `bool` fields inside raw structs are copied as they are on read
-    (§9.3, §9.11).
+12. **Raw blocks are not normalized**: padding inside raw structs is copied as it is on read, and so are `bool`
+    fields unless `NinoSettings.Untrusted` is set (§9.3, §9.11).
 13. **`object` resolves any loaded type** (§9.6).
 14. **`WEAK_VERSION_TOLERANCE` changes the format per assembly** (§7.5). The same source compiled in two projects can
     produce two formats. The layout shows the effective format.

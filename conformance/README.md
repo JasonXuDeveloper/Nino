@@ -134,10 +134,7 @@ Cases are added freely; a case is renamed or removed only with a reason in the c
 
 Recorded in each case's `dotnet` field (`returned` or `crashed` where `expected` is `error`); summarized here:
 
-- `presence-*`: bool bytes, null flags and nullable flags other than 0 and 1 are read as true / present.
-- `deferred-offset-zero`, `deferred-offset-into-members`, `deferred-flag-without-section`, `keyed-body-section-flag`:
-  a deferred-section offset or flag that does not match the deferred bodies is not always detected.
-- `keyed-member-string-long`: bytes left over at the end of a keyed member are skipped.
-- `trailing-byte`: bytes after the top-level value are ignored.
+- `trailing-byte`: bytes after the top-level value are ignored (rejected with `NinoSettings.Untrusted`, which the
+  corpus does not set).
 - `decimal-bad-scale`, `datetime-ticks-past-max`, `dateonly-day-past-max`: raw values outside the type's range are
-  copied as they are.
+  copied as they are (rejected with `NinoSettings.Untrusted`).

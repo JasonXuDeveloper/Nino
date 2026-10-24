@@ -103,7 +103,7 @@ A UTF-16 code unit takes 1 to 3 bytes (a surrogate pair 4 bytes for 2 units), so
 
 The reader loads both counts at once, checks that `b` bytes remain and that `c <= b` (which bounds the allocation by
 the data) before allocating the string at `c` chars, then decodes exactly those `b` bytes into it in one pass and
-moves past them; it never reads beyond them. The data is rejected (`InvalidOperationException`) when it ends early,
+moves past them; it never reads beyond them. The data is rejected (`NinoDataException`) when it ends early,
 when a count is out of range (`b > 3 * c` decodes to more chars than the string holds), or when the `b` bytes are not
 strict UTF-8 (including overlong forms, encoded surrogates and a sequence cut by the end of the range) or do not
 decode to exactly `c` chars. The char count lets the reader allocate before decoding, the byte count lets it decode
@@ -191,8 +191,10 @@ Nino creates a collection only when the slot is `null`, through `NinoActivator<T
   `T` (ambiguous in both resolvers, whatever the interface order) have no formatter: the member is skipped with
   NINO007, and the runtime resolver finds no formatter either. A collection whose `IsReadOnly` is true is a clear
   `InvalidOperationException` when deserialized into. The same key (or set element) twice in the data, under the
-  reader's comparer, is a clear `InvalidOperationException` when a dictionary or `HashSet<T>` is filled from empty;
-  merging into a non-empty dictionary in place does not look for repeated keys (the last value wins).
+  reader's comparer, is a `NinoDataException` when a dictionary or `HashSet<T>` is filled from empty;
+  merging into a non-empty dictionary in place does not look for repeated keys (the last value wins). A key that
+  finds more than `NinoSettings.MaxHashCollisions` keys in its hash bucket is a `NinoDataException` too (see
+  [Untrusted input](#untrusted-input)).
 * The declared type decides what is created: a `List<int>` member holding a `ListComponent<int>` is read back as a
   `List<int>` (reuse deserialization keeps the `ListComponent<int>` it holds). Collections are values: the same
   instance in two members is written twice and read as two instances (`trackReferences` tracks `[NinoType]`
@@ -304,7 +306,12 @@ int32 ref: 0 = null | n > 0 = the n-th object already written in this call | -1 
 Class bodies are written and read by nested calls, so a recursive type (a linked list, a tree) would use stack in
 proportion to the depth of its data: a long list overflows the stack on write, and a payload that nests one level
 every few bytes overflows it on read, which ends the process. Instead, the writer and the reader count the class
-bodies open (`Depth`; struct bodies do not count, since a struct cannot contain itself). A body that would open
+bodies open (`Depth`). A struct cannot contain itself, but it can hold itself through a collection, a nullable, a
+`Lazy` or an interface, and a collection type can hold itself (`class Tree : List<Tree>`): no class body counts
+those, so their bodies call `EnterStruct`/`ExitStruct` on the reader and on the writer (generated for such structs,
+`NestingFormatter` for such collections), which count them with the class bodies against `NinoSettings.MaxDepth`
+and check the stack every 16 levels. Reading too deep is a `NinoDataException`; writing too deep (or a collection
+that contains itself) an `InvalidOperationException`, before the stack runs out. A body that would open
 below 128 open bodies is **deferred**: the writer queues the object and writes nothing for its body yet; the
 reader, which counts the same way, creates the instance (or reuses the one in the slot), puts it in the slot and
 queues it. The queued bodies are written and read later from a shallow point, each starting a fresh count, so the
@@ -334,7 +341,7 @@ Limits and checks:
 * Classes built by their constructor (records with a primary constructor, init-only or read-only members) cannot
   be put in a slot before their members are read, and classes compared by value (records, `GetHashCode`
   overrides, `IComparable`) must not be put in a hashed or sorted collection before then, so these are never
-  deferred: past 128 they nest inline, and past 512 open bodies writing or reading throws.
+  deferred: past 128 they nest inline, and past `NinoSettings.MaxDepth` (512) open bodies writing or reading throws.
 * An untracked cycle would be written forever (each pass defers the next). The writer compares each deferred
   object with the deferred object whose body it was found in, and with the one at the last power-of-two length of
   that chain (Brent's algorithm), so a cycle throws, pointing at `trackReferences`, after a number of steps
@@ -686,11 +693,51 @@ serialization call on any thread.
 | `SetRecycler<T>(Action<T>)` | handler for instances dropped from slots declared as `T` (null removes it) |
 | `DefaultPoolMaxRetained` | shared-stack size of pools created from now on (default 256) |
 | `SetPoolMaxRetained<T>(int)` | shared-stack size of `T`'s pool |
+| `MaxDepth` | open bodies (classes, and structs and collections that can hold themselves) a read or write may nest (default 512, at least 128) |
+| `MaxCollectionLength` | the most elements a collection in the data may claim (default `int.MaxValue`; the bytes left bound it anyway) |
+| `MaxHashCollisions` | the most keys a key read from the data may find in its hash bucket (default 100) |
+| `Untrusted` | checks for data from someone who would craft it (default off; see below) |
+
+`MaxDepth`, `MaxCollectionLength`, `MaxHashCollisions` and `Untrusted` are taken as constants by the read and write
+paths: `NinoLimits` holds them in `static readonly` fields, frozen (`NinoSettings.Freeze`, under a lock) the first
+time a path uses one, so Tier1 code folds every test of them, and setting one afterwards throws
+`InvalidOperationException`. Mono, IL2CPP and the interpreters read the fields: a load and a compare.
 
 A value read on a hot path stays next to the code that reads it, so the JIT sees a static field of the closed
 generic type rather than a lookup: the recycler handler is stored in `NinoRecycler<T>` and a pool's size in
 `NinoPool<T>`, and `NinoSettings` is the only code that writes them. Registrations (formatters, polymorphic types)
 are made by generated code and are not settings.
+
+### Untrusted input
+
+Every read checks the data in every mode: bounds, lengths against the bytes left (and `MaxCollectionLength`), depth,
+type ids, references, duplicate keys, `bool` and presence bytes of 0 or 1, regions, keyed entries that their member
+fills exactly and sections of deferred bodies that match their region. Each failure is a `NinoDataException`
+(`NinoThrow`, out of line).
+
+Hash flooding (keys built to share a hash bucket, which makes each insert scan every key before it) is bounded in
+every mode by `MaxHashCollisions`, at no cost where Nino fills the table: `HashTables` (Nino.Core) writes the entries
+and buckets of a new `Dictionary<TKey, TValue>` or `HashSet<T>` itself, through a layout declared per runtime and
+checked at startup (as `CollectionViews` does), and the walk of the bucket it makes for duplicates counts. Where the
+table adds a key itself (an existing table, a layout not found, netstandard2.0), `HashTables.Walk` walks the new key's
+bucket afterwards, out of line (`HashTables.Plan` decides per key and value type whether a loop inserts or walks).
+String keys of .NET's tables, which switch to a randomized comparer after 100 collisions, are left to them;
+`ImmutableDictionary` and `ImmutableHashSet` count equal hash codes in the sorted hashes their trees are built from.
+`ConcurrentDictionary` keeps its buckets to itself and is not covered.
+
+`NinoSettings.Untrusted` adds what costs time on every read, all behind `NinoLimits.Untrusted`, which Tier1 code
+folds, so trusted reads keep their code:
+
+* **Seeded comparers** (`NinoSeededHash`): new dictionaries and hash sets of integer, `char`, `Guid` and `string`
+  keys get a SipHash-1-3 comparer keyed per process, so keys cannot be chosen to collide at all.
+* **Values copied as their bytes** are checked as their constructors would: `NinoLayout<T>.Checks` lists the offsets
+  of each `bool`, `DateTime`, `decimal`, `DateOnly` and `TimeOnly` in `T`'s memory, and the raw paths
+  (`NinoLayout<T>.CopiesAsIs` is false for such types) check them in the data (`NinoChecks`), out of line.
+  Generated members of those types read through `ReadChecked`. Enums are not checked (flags combine; a newer
+  version may add members), and `TimeSpan`, `Guid`, `char` and the numbers have no invalid values.
+* **Trailing bytes**: the span APIs (`NinoDeserializer.Deserialize`, `NinoDirect`, the interceptors) read through
+  `NinoUntrusted`, which reads with a `Reader` and throws when bytes are left after the value and its deferred
+  bodies.
 
 ## Source generator
 

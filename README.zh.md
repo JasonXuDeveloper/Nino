@@ -30,7 +30,11 @@
 > **Nino 本来就是为读取不可信数据而设计的**：网络对端的消息、用户交给你的文件、请求体。
 > 伪造的字节无法让进程崩溃，无法越过输入末尾读取，无法分配与自身大小不成比例的内存（一个集合在读到元素之前最多预先分配剩余字节数的 16 倍），
 > 也无法指定要创建的类型：数据里只有你声明的子类型的类型 id，没有类型名。所有无效输入都抛出同一种异常，
-> 即消息以 `Nino:` 开头的 `InvalidOperationException`，在边界处一个 `catch` 就能处理。
+> 即 `NinoDataException`（派生自 `InvalidOperationException`，消息以 `Nino:` 开头），在边界处一个 `catch` 就能处理。
+> 为在哈希表中冲突而构造的键也会抛出异常（`NinoSettings.MaxHashCollisions`），`NinoSettings.MaxDepth` 和
+> `MaxCollectionLength` 可以收紧限制。读取外部数据时，在启动时设置 `NinoSettings.Untrusted = true`：Nino 创建的字典和集合用每个进程随机生成的密钥对整数、`char`、`Guid` 和 `string` 键求哈希，
+> `bool`、`DateTime`、`decimal`、`DateOnly` 和 `TimeOnly` 的值（包括原始结构体内部的）都会检查，值之后多余的字节会被拒绝；
+> 关闭时（默认）这些都没有任何开销。
 > 我们用变异 fuzz 和手工构造的数据检验了每个内置类型，发现的问题都已在 4.0.0-rc.7 修复。
 > [Nino 检查什么、哪些仍需你的代码负责](https://nino.xgamedev.net/zh/docs/v4/basic#invalid-data)。（MemoryPack 现在
 > [建议只用于可信数据](https://github.com/Cysharp/MemoryPack#readme)；参见[对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack#untrusted-input)。）
@@ -45,7 +49,7 @@
 
 - **比 MemoryPack 更快。** 类和多态类型的序列化快 <!--bench:ser.range-->3.5–6.8<!--/bench--> 倍，反序列化快 <!--bench:deser.range-->1.3–1.9<!--/bench--> 倍；原始结构体数组两者都是整块拷贝，性能至少持平。
 - **可读取不可信数据。** 伪造的字节无法让进程崩溃、无法分配与自身大小不成比例的内存，也无法让 Nino 创建你没有声明的类型；
-  所有无效输入都抛出同一种 `InvalidOperationException`。[无效数据](https://nino.xgamedev.net/zh/docs/v4/basic#invalid-data)。
+  所有无效输入都抛出同一种 `NinoDataException`。[无效数据](https://nino.xgamedev.net/zh/docs/v4/basic#invalid-data)。
 - **零分配。** 序列化到缓冲区（`IBufferWriter<byte>`）不分配内存。反序列化到已有对象或池化对象（`[NinoPooled]`、复用反序列化）同样不分配（内容不变的字符串直接保留），
   比 MemoryPack 的覆盖写入最多快 <!--bench:reuse.inplace-->8.7<!--/bench--> 倍。
 - **一切在编译期完成。** 源生成器为每个类型生成格式化器：没有反射、没有 IL emit、无需注册、无需初始化调用，
