@@ -171,18 +171,12 @@ namespace Nino.Core
             return i;
         }
 
-        /// <summary>The group of values from value <paramref name="i"/>: <see cref="Permute64x2Words{T, TFormatter}"/> or <see cref="Permute64x2{T, TFormatter}"/>.</summary>
+        /// <summary>The group of values from value <paramref name="i"/> (<see cref="Permute64x2{T, TFormatter}"/>).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteGroup<T, TFormatter>(ref byte source, ref byte destination, int i, int size)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            if (Avx512F.IsSupported && NinoBlock<T, TFormatter>.GroupWords)
-                Permute64x2Words<T, TFormatter>(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination,
-                    (nuint)i * (nuint)size);
-            else
-                Permute64x2<T, TFormatter>(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination,
-                    (nuint)i * (nuint)size);
-        }
+            where TFormatter : struct, INinoFormatter<T> =>
+            Permute64x2<T, TFormatter>(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination,
+                (nuint)i * (nuint)size);
 #endif
 
         /// <summary>Reads <paramref name="count"/> values from <paramref name="source"/>, <paramref name="size"/> bytes apart.</summary>
@@ -374,9 +368,9 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// One group of values (<see cref="NinoBlock{T, TFormatter}.Groups"/>) with AVX-512 VBMI, for blocks that do not
-        /// move whole words: vector k of blocks is
-        /// one two-source permute of memory vectors k and k + 1, each memory vector loaded once.
+        /// One group of values (<see cref="NinoBlock{T, TFormatter}.Groups"/>) with AVX-512: vector k of blocks is one
+        /// two-source permute (<see cref="Pair{T, TFormatter}"/>) of memory vectors k and k + 1, each memory vector
+        /// loaded once.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Permute64x2<T, TFormatter>(ref byte source, nuint from, ref byte destination, nuint to)
@@ -385,47 +379,32 @@ namespace Nino.Core
             int vectors = NinoBlock<T, TFormatter>.GroupVectors;
             var a = Vector512.LoadUnsafe(ref source, from);
             var b = Vector512.LoadUnsafe(ref source, from + 64);
-            Avx512Vbmi.PermuteVar64x8x2(a, NinoBlock<T, TFormatter>.Group0, b).StoreUnsafe(ref destination, to);
+            Pair<T, TFormatter>(a, NinoBlock<T, TFormatter>.Group0, b).StoreUnsafe(ref destination, to);
             if (vectors < 2)
                 return;
             var c = Vector512.LoadUnsafe(ref source, from + 128);
-            Avx512Vbmi.PermuteVar64x8x2(b, NinoBlock<T, TFormatter>.Group1, c).StoreUnsafe(ref destination, to + 64);
+            Pair<T, TFormatter>(b, NinoBlock<T, TFormatter>.Group1, c).StoreUnsafe(ref destination, to + 64);
             if (vectors < 3)
                 return;
             var d = Vector512.LoadUnsafe(ref source, from + 192);
-            Avx512Vbmi.PermuteVar64x8x2(c, NinoBlock<T, TFormatter>.Group2, d).StoreUnsafe(ref destination, to + 128);
+            Pair<T, TFormatter>(c, NinoBlock<T, TFormatter>.Group2, d).StoreUnsafe(ref destination, to + 128);
             if (vectors < 4)
                 return;
             var e = Vector512.LoadUnsafe(ref source, from + 256);
-            Avx512Vbmi.PermuteVar64x8x2(d, NinoBlock<T, TFormatter>.Group3, e).StoreUnsafe(ref destination, to + 192);
+            Pair<T, TFormatter>(d, NinoBlock<T, TFormatter>.Group3, e).StoreUnsafe(ref destination, to + 192);
         }
 
-        /// <summary><see cref="Permute64x2{T, TFormatter}"/> for <see cref="NinoBlock{T, TFormatter}.GroupWords"/>: 4-byte words (vpermt2d).</summary>
+        /// <summary>
+        /// The two-source permute of a write group: 4-byte words (vpermt2d, AVX-512F) where every block moves whole
+        /// words (<see cref="NinoBlock{T, TFormatter}.GroupWords"/>), else bytes (vpermt2b, AVX-512 VBMI).
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Permute64x2Words<T, TFormatter>(ref byte source, nuint from, ref byte destination, nuint to)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            int vectors = NinoBlock<T, TFormatter>.GroupVectors;
-            var a = Vector512.LoadUnsafe(ref source, from).AsInt32();
-            var b = Vector512.LoadUnsafe(ref source, from + 64).AsInt32();
-            Avx512F.PermuteVar16x32x2(a, NinoBlock<T, TFormatter>.Group0.AsInt32(), b).AsByte()
-                .StoreUnsafe(ref destination, to);
-            if (vectors < 2)
-                return;
-            var c = Vector512.LoadUnsafe(ref source, from + 128).AsInt32();
-            Avx512F.PermuteVar16x32x2(b, NinoBlock<T, TFormatter>.Group1.AsInt32(), c).AsByte()
-                .StoreUnsafe(ref destination, to + 64);
-            if (vectors < 3)
-                return;
-            var d = Vector512.LoadUnsafe(ref source, from + 192).AsInt32();
-            Avx512F.PermuteVar16x32x2(c, NinoBlock<T, TFormatter>.Group2.AsInt32(), d).AsByte()
-                .StoreUnsafe(ref destination, to + 128);
-            if (vectors < 4)
-                return;
-            var e = Vector512.LoadUnsafe(ref source, from + 256).AsInt32();
-            Avx512F.PermuteVar16x32x2(d, NinoBlock<T, TFormatter>.Group3.AsInt32(), e).AsByte()
-                .StoreUnsafe(ref destination, to + 192);
-        }
+        private static Vector512<byte> Pair<T, TFormatter>(Vector512<byte> low, Vector512<byte> mask,
+            Vector512<byte> high)
+            where TFormatter : struct, INinoFormatter<T> =>
+            Avx512F.IsSupported && NinoBlock<T, TFormatter>.GroupWords
+                ? Avx512F.PermuteVar16x32x2(low.AsInt32(), mask.AsInt32(), high.AsInt32()).AsByte()
+                : Avx512Vbmi.PermuteVar64x8x2(low, mask, high);
 
         /// <summary>
         /// The first of the <paramref name="count"/> values from <paramref name="from"/>, <paramref name="stride"/>
