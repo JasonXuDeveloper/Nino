@@ -25,6 +25,9 @@ internal static class CornerCompiler
         public Assembly Assembly;
         public byte[] Image;
 
+        /// <summary>The compilation the generator ran on (without its output).</summary>
+        public Compilation Compilation;
+
         public string ErrorText => string.Join("\n", Errors);
         public bool HasAnalyzer(string id) => AnalyzerDiagnostics.Any(d => d.Id == id);
     }
@@ -57,6 +60,7 @@ internal static class CornerCompiler
         {
             AnalyzerDiagnostics = compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync().Result,
             GeneratedCode = string.Concat(run.GeneratedTrees.Select(t => t.ToString())),
+            Compilation = compilation,
         };
 
         using var stream = new MemoryStream();

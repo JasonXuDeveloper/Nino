@@ -302,7 +302,9 @@ raw:
    own (§6.5, §6.6, §3.4).
 3. A `[NinoType]` struct that is unmanaged, positional (§7.4), has sequential layout, has no custom formatter on any
    member, serializes every instance field (backing fields included), and whose `[NinoType]` struct fields are all
-   raw too. Its layout metadata has `raw=true`.
+   raw too. Its layout metadata has `raw=true`. A closed generic `[NinoType]` struct (`Pad<int>`) is raw exactly
+   when its definition is, whatever its type arguments: a field of a type parameter makes every instance member by
+   member, as the definition's layout metadata says.
 
 Every other struct is written member by member (§7.4), with no padding.
 
@@ -1181,6 +1183,9 @@ readers of layouts or data from earlier builds.
 
 17. **`ValueTuple`s of 8 or more items** were silently skipped as members (resolved): they are now written as
     their items in order, like any `ValueTuple` (§6.6), and published as `tuple(...)` with every item.
+18. **Closed generic `[NinoType]` structs** (`Pad<int>`, of `struct Pad<T> { byte A; T B; }`) were written as raw
+    memory, padding included, where generated code held them as members or elements, and member by member everywhere
+    else (resolved): they are now member by member everywhere, unless their definition is raw (§5.1).
 
 Unverified overall: behavior on 32-bit hosts, big-endian hosts, Mono, IL2CPP and Arm; the exact set of BCL
 exceptions that can escape a reader (§9.14). Everything else in

@@ -38,7 +38,8 @@ internal sealed class RawRules
             return false; // pointer-sized: written as 8 bytes
         if (type is INamedTypeSymbol named)
         {
-            if (named.IsTupleType)
+            // Tuples of items have formats of their own; System.ValueTuple, of none, is raw as in Nino.Core.
+            if (named.IsTupleType && named.Arity != 0)
                 return false;
             var definition = named.OriginalDefinition;
             if (definition.SpecialType == SpecialType.System_Nullable_T)
@@ -65,6 +66,11 @@ internal sealed class RawRules
 
     private bool ComputeIsRawStruct(INamedTypeSymbol type)
     {
+        // A generic struct has one formatter, generated for its definition: an instance is raw exactly when that
+        // formatter is (INinoRawFormatter, which Nino.Core reads), never by its type arguments. Pad<int> written raw
+        // in one place and by its formatter in another (a Box<T> of it, its own registration) were two encodings.
+        if (!SymbolEqualityComparer.Default.Equals(type, type.OriginalDefinition))
+            return IsRawStruct(type.OriginalDefinition);
         if (!type.IsUnmanagedType)
             return false;
         // WEAK_VERSION_TOLERANCE only applies to the types of the assembly that defines it.
