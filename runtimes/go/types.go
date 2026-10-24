@@ -266,11 +266,12 @@ func ticksTime(ticks int64) time.Time {
 	return time.Unix(sec, rem*100).UTC()
 }
 
-// Valid reports whether d is a DateTime .NET writes: ticks at most MaxTicks, kind 0 to 2.
-func (d DateTime) Valid() bool { return d.Ticks() <= MaxTicks && d.Kind() != 3 }
+// Valid reports whether d is a DateTime .NET writes: ticks at most MaxTicks, any kind (3 included: .NET writes it for
+// a local time in the repeated hour of a daylight saving change).
+func (d DateTime) Valid() bool { return d.Ticks() <= MaxTicks }
 
-// DateTime reads a DateTime. Ticks past MaxTicks or kind 3 fail with CodeInvalidData (the specification's SHOULD;
-// .NET copies any bits).
+// DateTime reads a DateTime. Ticks past MaxTicks fail with CodeInvalidData (the specification's SHOULD; .NET copies
+// any bits).
 func (r *Reader) DateTime() DateTime {
 	d := DateTime(r.U64())
 	if !d.Valid() {

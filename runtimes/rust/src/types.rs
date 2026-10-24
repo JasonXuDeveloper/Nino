@@ -326,8 +326,10 @@ pub enum DateTimeKind {
     Local = 2,
 }
 
-/// `System.DateTime`: ticks (100 ns since 0001-01-01) in bits 0-61, the kind in bits 62-63. Reading rejects kind 3
-/// and ticks past `DateTime.MaxValue` (.NET reads them; see the README).
+/// `System.DateTime`: ticks (100 ns since 0001-01-01) in bits 0-61, the kind in bits 62-63. Kind 3 is a local time in
+/// the repeated hour of a daylight saving change (.NET writes it from `ToLocalTime`): [`DateTime::kind`] reports it as
+/// `Local`, [`DateTime::is_ambiguous_local`] tells it apart, and it is written back as read. Reading rejects ticks past
+/// `DateTime.MaxValue` (.NET reads them; see the README).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, PartialOrd, Ord)]
 pub struct DateTime(u64);
 
@@ -346,12 +348,18 @@ impl DateTime {
         (self.0 & 0x3FFF_FFFF_FFFF_FFFF) as i64
     }
 
+    /// The kind, as .NET's `DateTime.Kind` reports it: kind 3 is `Local`.
     pub fn kind(&self) -> DateTimeKind {
         match self.0 >> 62 {
+            0 => DateTimeKind::Unspecified,
             1 => DateTimeKind::Utc,
-            2 => DateTimeKind::Local,
-            _ => DateTimeKind::Unspecified,
+            _ => DateTimeKind::Local,
         }
+    }
+
+    /// Whether this is a local time in the repeated hour of a daylight saving change (kind 3 on the wire).
+    pub fn is_ambiguous_local(&self) -> bool {
+        self.0 >> 62 == 3
     }
 
     /// The 64 bits on the wire.
@@ -363,7 +371,7 @@ impl DateTime {
     fn decode(b: &[u8; 8]) -> Result<Self> {
         let bits = u64::from_le_bytes(*b);
         let value = Self(bits);
-        if bits >> 62 == 3 || value.ticks() > MAX_TICKS {
+        if value.ticks() > MAX_TICKS {
             return Err(Error::of(ErrorKind::InvalidDateTime));
         }
         Ok(value)

@@ -19,6 +19,10 @@ fn round<T: NinoRead + NinoWrite + PartialEq + std::fmt::Debug>(value: T, bytes:
     }
 }
 
+fn read<T: NinoRead>(bytes: &str) -> T {
+    deserialize_exact::<T>(&hex(bytes)).unwrap()
+}
+
 fn kind<T: NinoRead + std::fmt::Debug>(bytes: &str) -> ErrorKind {
     deserialize::<T>(&hex(bytes)).unwrap_err().kind()
 }
@@ -118,7 +122,10 @@ fn bcl_values() {
 
     round(DateTime::new(MAX_TICKS, DateTimeKind::Utc).unwrap(), "FF3F37F4 7528CA6B");
     round(DateTime::new(0, DateTimeKind::Local).unwrap(), "00000000 00000080");
-    assert_eq!(kind::<DateTime>("00000000 000000C0"), ErrorKind::InvalidDateTime);
+    // Kind 3: .NET's local time in the repeated hour of a daylight saving change, read as Local and written back as is.
+    round(read::<DateTime>("80C0BF7A 3F0BDCC8"), "80C0BF7A 3F0BDCC8");
+    assert_eq!(read::<DateTime>("00000000 000000C0").kind(), DateTimeKind::Local);
+    assert!(read::<DateTime>("00000000 000000C0").is_ambiguous_local());
     assert_eq!(kind::<DateTime>("0040 37F4 757CCA2B"), ErrorKind::InvalidDateTime);
     round(TimeSpan(-1), "FFFFFFFFFFFFFFFF");
     round(DateOnly::new(DateOnly::MAX_DAY).unwrap(), "DAB93700");
