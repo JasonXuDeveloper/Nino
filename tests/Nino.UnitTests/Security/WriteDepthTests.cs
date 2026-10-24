@@ -7,6 +7,18 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests;
 
+/// <summary>A struct that can hold itself, holding a record (built by its constructor, never deferred).</summary>
+[NinoType]
+public struct WriteDepthMixedNode
+{
+    public int V;
+    public List<WriteDepthMixedNode> Kids;
+    public WriteDepthRecord Record;
+}
+
+[NinoType]
+public sealed record WriteDepthRecord(int Value, WriteDepthRecord Next);
+
 /// <summary>
 /// Object graphs that nest without a class body to count them (structs and collections that can hold themselves)
 /// count their levels on the write side too: nested past <see cref="NinoSettings.MaxDepth"/>, or holding themselves
@@ -68,6 +80,74 @@ public class WriteDepthTests
         for (var node = legal; node.Count != 0; node = node[0])
             levels++;
         Assert.AreEqual(400, levels);
+    }
+
+    [TestMethod]
+    public void MillionDeepOnAnOrdinaryStack()
+    {
+        // A thread of the default size (1 MB): a million levels would overflow it many times over.
+        Exception error = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                TooDeep(Nest(1_000_000));
+                TooDeep(new SelfNestingHolder { T = Nest(1_000_000) });
+                TooDeep(Chain(1_000_000));
+            }
+            catch (Exception e)
+            {
+                error = e;
+            }
+        });
+        thread.Start();
+        thread.Join();
+        if (error != null)
+            throw new AssertFailedException(error.ToString());
+    }
+
+    [TestMethod]
+    public void UpToTheLimitRoundTrips()
+    {
+        // NinoSettings.MaxDepth nested levels (below the top-level tree, which is not counted, on either side) are
+        // written and read; one more is not written.
+        int max = NinoSettings.MaxDepth;
+        var back = NinoDeserializer.Deserialize<SelfTree>(NinoSerializer.Serialize(Nest(max + 1)));
+        int levels = 1;
+        for (var node = back; node.Count != 0; node = node[0])
+            levels++;
+        Assert.AreEqual(max + 1, levels);
+        var e = Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(Nest(max + 2)));
+        StringAssert.Contains(e.Message, max.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [TestMethod]
+    public void StructsAndClassesThatCannotBeDeferredCountTogether()
+    {
+        // 300 struct levels around 300 records: each under the limit alone, 600 together. The reader counts them
+        // together, so the writer does too: what it writes, the reader reads.
+        Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(Mixed(300, 300)));
+        var legal = Mixed(200, 200);
+        var back = NinoDeserializer.Deserialize<WriteDepthMixedNode>(NinoSerializer.Serialize(legal));
+        int structs = 1;
+        var node = back;
+        for (; node.Kids.Count != 0; node = node.Kids[0])
+            structs++;
+        int records = 0;
+        for (var record = node.Record; record != null; record = record.Next)
+            records++;
+        Assert.AreEqual((200, 200), (structs, records));
+    }
+
+    private static WriteDepthMixedNode Mixed(int structs, int records)
+    {
+        WriteDepthRecord record = null;
+        for (int i = 0; i < records; i++)
+            record = new WriteDepthRecord(i, record);
+        var node = new WriteDepthMixedNode { V = structs, Kids = new List<WriteDepthMixedNode>(), Record = record };
+        for (int i = structs - 1; i > 0; i--)
+            node = new WriteDepthMixedNode { V = i, Kids = new List<WriteDepthMixedNode> { node } };
+        return node;
     }
 
     private static SelfTree Nest(int depth)

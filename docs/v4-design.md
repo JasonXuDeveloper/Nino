@@ -342,7 +342,8 @@ Limits and checks:
 * Classes built by their constructor (records with a primary constructor, init-only or read-only members) cannot
   be put in a slot before their members are read, and classes compared by value (records, `GetHashCode`
   overrides, `IComparable`) must not be put in a hashed or sorted collection before then, so these are never
-  deferred: past 128 they nest inline, and past `NinoSettings.MaxDepth` (512) open bodies writing or reading throws.
+  deferred: past 128 they nest inline, and past `NinoSettings.MaxDepth` (512) open bodies, the counted struct bodies
+  included, writing or reading throws.
 * An untracked cycle would be written forever (each pass defers the next). The writer compares each deferred
   object with the deferred object whose body it was found in, and with the one at the last power-of-two length of
   that chain (Brent's algorithm), so a cycle throws, pointing at `trackReferences`, after a number of steps

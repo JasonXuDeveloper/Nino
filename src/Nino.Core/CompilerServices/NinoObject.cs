@@ -269,7 +269,9 @@ namespace Nino.Core.CompilerServices
             where TFormatter : struct, INinoBodyFormatter<T>
         {
             int depth = writer.Depth;
-            if (depth >= NinoLimits.MaxDepth || !NinoDepth.StackLeft())
+            // Struct bodies that can hold themselves count too (Writer.EnterStruct), as the reader counts them: a graph
+            // the reader would reject is not written.
+            if (depth + writer.OpenStructs >= NinoLimits.MaxDepth || !NinoDepth.StackLeft())
                 NinoThrow.WriteTooDeep(typeof(T));
             writer.Depth = depth + 1;
             default(TFormatter).WriteBody(value, ref writer);

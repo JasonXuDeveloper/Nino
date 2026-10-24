@@ -212,6 +212,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ExitStruct() => _context.Structs--;
 
+        /// <summary>The struct bodies <see cref="EnterStruct"/> opened, which the class body depth adds to.</summary>
+        internal int OpenStructs => _context?.Structs ?? 0;
+
         /// <summary>Absolute position in the underlying buffer.</summary>
         public int Position
         {
