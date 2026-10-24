@@ -66,6 +66,43 @@ namespace Nino.Codegen.Tests
         }
 
         [TestMethod]
+        public void RustMaps()
+        {
+            var (indexmap, _) = Run("rust", "nino_types.rs");
+            var (explicitIndexmap, _) = Run("rust", "nino_types.rs", "--maps", "indexmap");
+            var (std, _) = Run("rust", "nino_types.rs", "--maps", "std");
+            Assert.AreEqual(indexmap, explicitIndexmap);
+            StringAssert.Contains(indexmap, "indexmap::IndexMap<");
+            StringAssert.Contains(indexmap, "indexmap::IndexSet<");
+            Assert.IsFalse(std.Contains("indexmap", StringComparison.Ordinal));
+            StringAssert.Contains(std, "std::collections::HashMap<");
+            StringAssert.Contains(std, "std::collections::HashSet<");
+            Assert.ThrowsExactly<ArgumentException>(() => Run("rust", "nino_types.rs", "--maps", "btree"));
+        }
+
+        [TestMethod]
+        public void GenericTypesAreGenericInEveryLanguage()
+        {
+            var (rust, rustOutput) = Run("rust", "nino_types.rs");
+            StringAssert.Contains(rust, "pub struct BoxType<T> {");
+            StringAssert.Contains(rust, "pub number: Option<Box<BoxType<i32>>>,");
+            var (go, goOutput) = Run("go", "nino_types.go", "--package", "shapes");
+            StringAssert.Contains(go, "type Box[T any] struct {");
+            StringAssert.Contains(go, "func BoxCodec[T any](p0 NinoArg[T]) NinoArg[*Box[T]] {");
+            var (ts, tsOutput) = Run("ts", "Nino.Codegen.Tests.ts");
+            StringAssert.Contains(ts, "export class Box<T> {");
+            StringAssert.Contains(ts, "export function PairCodec<TKey, TValue>(");
+            // Open<T> is written behind a type id (the hash of a closed .NET name): left out, with a warning.
+            foreach (string output in new[] { rustOutput, goOutput, tsOutput })
+                StringAssert.Contains(output, "Shapes.Generic.Open`1 is not written to");
+            Assert.IsFalse(ts.Contains("class Open", StringComparison.Ordinal));
+            // A set element or map key in Rust needs Eq and Hash, which a class (Box<long>) does not have.
+            StringAssert.Contains(rustOutput, "Shapes.Generic.UnhashedKeys is not written to Rust");
+            StringAssert.Contains(rust, "pub struct Keys<T: Eq + core::hash::Hash> {");
+            StringAssert.Contains(rust, "pub int_keys: Option<Box<Keys<i32>>>,");
+        }
+
+        [TestMethod]
         public void GoKeepsItsOwnNamesFree()
         {
             var (text, _) = Run("go", "nino_types.go", "--package", "shapes");
@@ -126,7 +163,7 @@ namespace Nino.Codegen.Tests
 
             var help = new StringWriter();
             Assert.AreEqual(0, Program.Run(new[] { "--help" }, help));
-            StringAssert.Contains(help.ToString(), "rust: [--serde] [--serde-names camel|snake|original] [--strings string|wide]");
+            StringAssert.Contains(help.ToString(), "rust: [--serde] [--serde-names camel|snake|original] [--strings string|wide] [--maps indexmap|std]");
         }
 
         [TestMethod]

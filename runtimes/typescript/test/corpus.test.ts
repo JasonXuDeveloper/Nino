@@ -23,7 +23,10 @@ const notGenerated = new Set([
   "Conformance.Tracked", "Conformance.TrackedLeaf", "Conformance.TrackedHolder",
 ]);
 
-/** Valid cases holding a closed generic type (Conformance.Box<int>...), whose layout .NET does not publish. */
+/**
+ * Valid cases holding a closed generic type (Conformance.Box<int>...) in a polymorphic slot, behind the type id of its
+ * closed .NET name: nino-gen generates Box<T> but not as a subtype a slot allows (docs/codegen.md, "Generic types").
+ */
 const closedGenerics = new Set(["polymorphism", "polymorphism-generic-root"]);
 
 const codecs = generated as unknown as Record<string, NinoCodec<unknown> | undefined>;
@@ -55,7 +58,7 @@ function cases(group: "valid" | "malicious"): { name: string; c: any }[] {
 
 function skipReason(name: string, c: any): string | null {
   if (c.optional) return `optional: ${c.optional}`;
-  if (closedGenerics.has(name)) return "holds a closed generic type";
+  if (closedGenerics.has(name)) return "holds a closed generic type in a polymorphic slot";
   if (notGenerated.has(c.type)) {
     assert.equal(codecOf(c.type), undefined, `${c.type} is generated now: take it out of notGenerated`);
     return `${c.type} is not generated for TypeScript`;

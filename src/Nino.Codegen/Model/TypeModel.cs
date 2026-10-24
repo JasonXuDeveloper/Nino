@@ -86,6 +86,10 @@ namespace Nino.Codegen.Model
 
         public bool IsGeneric => Clr.IsGenericType;
 
+        /// <summary>The type parameters of a generic definition (<c>T</c>, <c>TKey</c>), in order; empty otherwise.</summary>
+        public IReadOnlyList<string> TypeParameters =>
+            Clr.IsGenericTypeDefinition ? Clr.GetGenericArguments().Select(a => a.Name).ToList() : Array.Empty<string>();
+
         /// <summary>A class (or interface): its body counts toward the depth and may be deferred.</summary>
         public bool IsClassBody => !Clr.IsValueType;
 

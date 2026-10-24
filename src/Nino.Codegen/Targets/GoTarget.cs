@@ -47,6 +47,10 @@ namespace Nino.Codegen.Targets
         private readonly Dictionary<string, GoHelper> _helperByKey = new(StringComparer.Ordinal);
         private readonly List<GoHelper> _helpers = new();
         private readonly HashSet<int> _tuples = new();
+        private readonly Dictionary<TypeModel, GoGeneric> _generics = new();
+        private readonly Dictionary<string, GoClosed> _closedByKey = new(StringComparer.Ordinal);
+        private readonly List<GoClosed> _closed = new();
+        private GoGeneric? _context;
         private bool _usesObject;
         private bool _usesGrid;
 
@@ -93,6 +97,8 @@ namespace Nino.Codegen.Targets
             renderer.Set("tuples", _tuples.OrderBy(n => n).ToList());
             renderer.Set("uses_object", _usesObject);
             renderer.Set("uses_grid", _usesGrid);
+            renderer.Set("closed", _closed.ToList());
+            renderer.Set("uses_args", _closed.Count != 0 || types.Any(t => t.IsGenericDefinition));
             renderer.Set("objects", ObjectTypes().Select(t => new GoType(this, t)).ToList());
             renderer.Function("helper", new Func<GoShape, string, string>(Helper));
             renderer.Function("helper_count", new Func<int>(() => _helpers.Count));
@@ -103,9 +109,18 @@ namespace Nino.Codegen.Targets
             renderer.Function("name", new Func<object, string>(Name));
             renderer.Function("lower", new Func<string, string>(n =>
                 n.Length == 0 ? n : char.ToLowerInvariant(n[0]) + n.Substring(1)));
+            // A sum as gofmt prints it among a call's arguments.
+            renderer.Function("compact", new Func<string, string>(e => e.Replace(" + ", "+")));
+            renderer.Function("upper_first", new Func<string, string>(TypeNames.Pascal));
+            renderer.Function("go_helper", new Func<string, string, GoShape, GoHelper>((n, mode, shape) =>
+                new GoHelper(n, mode, shape)));
             // Columns as gofmt aligns them: the text, then spaces up to the width.
             renderer.Function("pad", new Func<string, int, string>((text, width) => text.PadRight(width)));
             renderer.Function("go_string", new Func<string, string>(GoString));
+            renderer.Function("plus", new Func<GoShape, GoShape, string>((a, b) =>
+                a.MinExpression == null && b.MinExpression == null
+                    ? (a.MinSize + b.MinSize).ToString(CultureInfo.InvariantCulture)
+                    : a.Min + " + " + b.Min));
             return renderer.Render("types.sbn").TrimEnd('\n') + "\n";
         }
 
@@ -115,7 +130,7 @@ namespace Nino.Codegen.Targets
         {
             foreach (var type in _model.Types)
             {
-                string? reason = type.IsGenericDefinition ? "open generic types are not supported"
+                string? reason = CodegenModel.GenericProblem(type) is { } generic ? generic
                     : type.TrackReferences ? "reference tracking (trackReferences) is not supported"
                     : type.Elements != null ? "[NinoType] collections are not supported"
                     : null;
@@ -147,6 +162,10 @@ namespace Nino.Codegen.Targets
             _helperByKey.Clear();
             _helpers.Clear();
             _tuples.Clear();
+            _generics.Clear();
+            _closedByKey.Clear();
+            _closed.Clear();
+            _context = null;
             _usesObject = false;
             _usesGrid = false;
         }
@@ -159,7 +178,7 @@ namespace Nino.Codegen.Targets
                     Shape(type.RawValue!, false);
                 else
                     foreach (var member in type.Members)
-                        Shape(member.Value, false);
+                        ShapeIn(type, member.Value);
                 return null;
             }
             catch (UnsupportedException e)
@@ -174,6 +193,67 @@ namespace Nino.Codegen.Targets
         /// <summary>The type id a type is written behind: its published one, or (a closed generic) its name's.</summary>
         internal static int IdOf(TypeModel type) => type.TypeId != 0 ? type.TypeId : TypeNames.Hash(type.RuntimeName);
 
+        /// <summary>
+        /// The shape of a member of <paramref name="owner"/>: in a generic definition, the values holding its type
+        /// parameters are read through the codecs its own codec holds (<see cref="GoGeneric"/>).
+        /// </summary>
+        internal GoShape ShapeIn(TypeModel owner, ValueModel value)
+        {
+            var outer = _context;
+            _context = owner.IsGenericDefinition ? GenericOf(owner) : null;
+            try
+            {
+                return Shape(value, false);
+            }
+            finally
+            {
+                _context = outer;
+            }
+        }
+
+        internal GoGeneric GenericOf(TypeModel type)
+        {
+            if (!_generics.TryGetValue(type, out var generic))
+                _generics[type] = generic = new GoGeneric(type);
+            return generic;
+        }
+
+        /// <summary>
+        /// A value holding a type parameter, in a generic definition: read and written through a codec its codec
+        /// builds once (a field <c>c.dN</c>), from the codecs of its arguments.
+        /// </summary>
+        private GoShape Open(ValueModel value, GoShape shape, bool generic)
+        {
+            if (_context == null || !value.IsOpen)
+                return shape;
+            string key = shape.Identity;
+            if (!_context.ByKey.TryGetValue(key, out var derived))
+            {
+                derived = new GoDerived("d" + _context.Derived.Count.ToString(CultureInfo.InvariantCulture), shape,
+                    generic);
+                _context.ByKey[key] = derived;
+                _context.Derived.Add(derived);
+            }
+
+            shape.Field = "c." + derived.Name;
+            return shape;
+        }
+
+        /// <summary>A closed generic type: its codec, built once in the package (a variable <c>codecVn</c>).</summary>
+        private GoShape Closed(GoShape shape)
+        {
+            string key = shape.Identity;
+            if (!_closedByKey.TryGetValue(key, out var closed))
+            {
+                closed = new GoClosed("codecV" + _closed.Count.ToString(CultureInfo.InvariantCulture), shape);
+                _closedByKey[key] = closed;
+                _closed.Add(closed);
+            }
+
+            shape.Field = closed.Name;
+            return shape;
+        }
+
         /// <summary>The concrete types an <c>object</c> slot allows: every one written behind a type id.</summary>
         private IEnumerable<TypeModel> ObjectTypes() =>
             _model.Types.Where(t => _supported.Contains(t) && t.IsConcrete && !t.IsGenericDefinition)
@@ -187,6 +267,7 @@ namespace Nino.Codegen.Targets
 
         /// <summary>The slots (types written behind a type id with more than themselves) a type can sit in.</summary>
         internal List<TypeModel> SlotsOf(TypeModel type) =>
+            type.IsGenericDefinition ? new List<TypeModel>() :
             _model.Types.Where(t => _supported.Contains(t) && t.Header == HeaderKind.TypeId && IsInterfaceSlot(t) &&
                                     t.IsAssignableFrom(type))
                 .OrderBy(Name, StringComparer.Ordinal).ToList();
@@ -245,6 +326,32 @@ namespace Nino.Codegen.Targets
                     return new GoShape("object") { MinSize = 4 };
                 case ValueKind.Type:
                     return TypeShape(value.Type!);
+                case ValueKind.Parameter:
+                {
+                    if (_context == null)
+                        throw new UnsupportedException($"{value.ParameterName} is a type parameter outside its type");
+                    string field = "c.p" + value.Parameter.ToString(CultureInfo.InvariantCulture);
+                    return new GoShape("param")
+                        { Parameter = value.ParameterName, Field = field, MinExpression = field + ".MinSize" };
+                }
+                case ValueKind.Generic:
+                {
+                    var definition = value.Type!;
+                    if (!_supported.Contains(definition))
+                        throw new UnsupportedException($"{definition.FullName} is not written to Go");
+                    var shape = new GoShape("generic")
+                    {
+                        Type = definition, Items = value.Arguments.Select(a => Shape(a, false)).ToList(),
+                        MinSize = definition.IsValueType ? 0 : 1,
+                    };
+                    if (_context != null && value.IsSelf(_context.Type))
+                    {
+                        shape.Field = "c.self";
+                        return shape;
+                    }
+
+                    return value.IsOpen ? Open(value, shape, true) : Closed(shape);
+                }
                 case ValueKind.Named:
                 {
                     if (!_model.NamedCollections.TryGetValue(value.NamedTypeName ?? "", out var collection))
@@ -264,7 +371,7 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Nullable:
                 {
                     var inner = Shape(value.Element!, false);
-                    return new GoShape("nullable") { Inner = inner, MinSize = 1 };
+                    return Open(value, new GoShape("nullable") { Inner = inner, MinSize = 1 }, false);
                 }
                 case ValueKind.Sequence:
                 {
@@ -279,27 +386,31 @@ namespace Nino.Codegen.Targets
                         : element.Block ? "block"
                         : element.Kind is "rawstruct" or "rawnullable" or "rawtuple" ? "fixed"
                         : "slice";
-                    return new GoShape("seq") { Element = element, Mode = mode, MinSize = 4 };
+                    return Open(value, new GoShape("seq") { Element = element, Mode = mode, MinSize = 4 }, false);
                 }
                 case ValueKind.Map:
                 {
                     var (k, v) = (Shape(value.Key!, true), Shape(value.Value!, false));
-                    return new GoShape("map")
+                    return Open(value, new GoShape("map")
                     {
                         Key = k, Value = v, Mode = Comparable(k) || k.Kind is "keystring" or "keyutf8" ? "unique" : "entries",
                         MinSize = 4,
-                    };
+                    }, false);
                 }
                 case ValueKind.Tuple:
                 {
                     var items = value.Items.Select(i => Shape(i, false)).ToList();
                     if (!value.IsPair)
                         _tuples.Add(items.Count);
-                    return new GoShape("tuple") { Items = items, Pair = value.IsPair, MinSize = items.Sum(i => i.MinSize) };
+                    var tuple = new GoShape("tuple") { Items = items, Pair = value.IsPair, MinSize = items.Sum(i => i.MinSize) };
+                    if (items.Any(i => i.MinExpression != null))
+                        tuple.MinExpression = string.Join(" + ", items.Select(i => i.Min));
+                    return Open(value, tuple, false);
                 }
                 case ValueKind.Grid:
                     _usesGrid = true;
-                    return new GoShape("grid") { Element = Shape(value.Element!, false), Rank = value.Rank, MinSize = 4 };
+                    return Open(value,
+                        new GoShape("grid") { Element = Shape(value.Element!, false), Rank = value.Rank, MinSize = 4 }, false);
                 case ValueKind.BigInteger:
                     return new GoShape("bigint") { MinSize = 4 };
                 case ValueKind.Version:
@@ -338,6 +449,9 @@ namespace Nino.Codegen.Targets
         {
             if (type.Format != BodyFormat.Positional)
                 return 4;
+            // A generic struct's members are sized by its arguments: none is counted on.
+            if (type.IsGenericDefinition)
+                return 0;
             if (!_sizing.Add(type))
                 return 0;
             try
@@ -452,10 +566,10 @@ namespace Nino.Codegen.Targets
         private void AssignNames(IEnumerable<object> types)
         {
             var all = types.Select(Clr).Distinct().ToList();
-            var simple = all.ToLookup(t => Go(TypeNames.Simple(t)));
+            var simple = all.ToLookup(t => Go(SimpleName(t)));
             foreach (var type in all)
             {
-                string name = Go(TypeNames.Simple(type));
+                string name = Go(SimpleName(type));
                 if (simple[name].Count() > 1)
                     name = Go((type.Namespace ?? "").Replace('.', '_')) + name;
                 // The generated code's own names (NinoCodec, NinoGrid, NinoTuple2...).
@@ -473,6 +587,14 @@ namespace Nino.Codegen.Targets
             _ => throw new ArgumentException(type.ToString()),
         };
 
+        /// <summary>
+        /// <see cref="TypeNames.Simple"/>, but a generic definition by its name alone (<c>Box</c>, not <c>Box_T</c>):
+        /// its parameters are the generated type's.
+        /// </summary>
+        internal static string SimpleName(Type type) => type.IsGenericTypeDefinition
+            ? (type.IsNested ? SimpleName(type.DeclaringType!) + "_" : "") + TypeNames.WithoutArity(type.Name)
+            : TypeNames.Simple(type);
+
         /// <summary>An exported Go name: the parts of the C# name, each with a capital (<c>Outer_Inner</c> → <c>OuterInner</c>).</summary>
         internal static string Go(string name) =>
             string.Concat(name.Split(Underscore, StringSplitOptions.RemoveEmptyEntries).Select(TypeNames.Pascal));
@@ -480,7 +602,7 @@ namespace Nino.Codegen.Targets
         private static readonly char[] Underscore = { '_' };
 
         internal string Name(object type) =>
-            _names.TryGetValue(Clr(type), out var name) ? name : Go(TypeNames.Simple(Clr(type)));
+            _names.TryGetValue(Clr(type), out var name) ? name : Go(SimpleName(Clr(type)));
 
         /// <summary>The Go field name of a C# member: exported, and unique in its struct.</summary>
         internal static List<string> FieldNames(IEnumerable<string> names)
@@ -551,7 +673,8 @@ namespace Nino.Codegen.Targets
     /// How a value is written in Go (<see cref="Kind"/>: <c>prim</c>, <c>enum</c>, <c>rawstruct</c>,
     /// <c>emptystruct</c>, <c>rawnullable</c>, <c>rawtuple</c>, <c>string</c>, <c>utf8</c>, <c>keystring</c>,
     /// <c>keyutf8</c>, <c>object</c>, <c>struct</c>, <c>class</c>, <c>slot</c>, <c>named</c>, <c>nullable</c>,
-    /// <c>seq</c>, <c>map</c>, <c>tuple</c>, <c>grid</c>, <c>bigint</c>, <c>version</c>, <c>datetimeoffset</c>).
+    /// <c>seq</c>, <c>map</c>, <c>tuple</c>, <c>grid</c>, <c>bigint</c>, <c>version</c>, <c>datetimeoffset</c>,
+    /// <c>param</c>: a type parameter, <c>generic</c>: a generic type with its arguments in <see cref="Items"/>).
     /// </summary>
     public sealed class GoShape
     {
@@ -567,6 +690,21 @@ namespace Nino.Codegen.Targets
 
         /// <summary>The fewest bytes a value takes: a collection's count is checked against it.</summary>
         public int MinSize { get; internal set; }
+
+        /// <summary>An expression for the fewest bytes, where the arguments of a generic type decide them.</summary>
+        internal string? MinExpression { get; set; }
+
+        /// <summary><see cref="MinSize"/>, or the expression giving it.</summary>
+        public string Min => MinExpression ?? MinSize.ToString(CultureInfo.InvariantCulture);
+
+        /// <summary>The name of a type parameter (<c>param</c>).</summary>
+        public string? Parameter { get; internal set; }
+
+        /// <summary>
+        /// The codec (<c>NinoArg</c>) it is read and written through: a type parameter's (<c>c.p0</c>), one its
+        /// generic type's codec built (<c>c.d0</c>, <c>c.self</c>), or a closed generic type's (<c>codecV0</c>).
+        /// </summary>
+        public string? Field { get; internal set; }
 
         /// <summary>Whether arrays of it are one block (<c>nino.ReadPrimitives</c>).</summary>
         public bool Block { get; internal set; }
@@ -618,6 +756,7 @@ namespace Nino.Codegen.Targets
         {
             yield return Size.ToString(CultureInfo.InvariantCulture);
             yield return Primitive ?? "";
+            yield return Parameter ?? "";
             yield return Enum?.FullName ?? "";
             yield return Struct?.FullName ?? "";
             yield return Type?.FullName ?? "";
@@ -631,9 +770,58 @@ namespace Nino.Codegen.Targets
         }
     }
 
+    /// <summary>
+    /// The codec of a generic definition (<c>boxCodec[T]</c>): the codecs of its parameters (<c>p0</c>...), and those it
+    /// builds once from them for the values holding them (<c>d0</c>...), in the order they are built.
+    /// </summary>
+    public sealed class GoGeneric
+    {
+        internal GoGeneric(TypeModel type) => Type = type;
+
+        public TypeModel Type { get; }
+
+        public List<GoDerived> Derived { get; } = new();
+
+        internal Dictionary<string, GoDerived> ByKey { get; } = new(StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// A codec a generic codec builds: of a generic type (<see cref="Generic"/>, its constructor called with the
+    /// codecs of its arguments) or of a collection, tuple or nullable value (its own read and write methods).
+    /// </summary>
+    public sealed class GoDerived
+    {
+        internal GoDerived(string name, GoShape shape, bool generic)
+        {
+            Name = name;
+            Shape = shape;
+            Generic = generic;
+        }
+
+        public string Name { get; }
+
+        public GoShape Shape { get; }
+
+        public bool Generic { get; }
+    }
+
+    /// <summary>The codec of a closed generic type, a package variable set in <c>init</c>.</summary>
+    public sealed class GoClosed
+    {
+        internal GoClosed(string name, GoShape shape)
+        {
+            Name = name;
+            Shape = shape;
+        }
+
+        public string Name { get; }
+
+        public GoShape Shape { get; }
+    }
+
     public sealed class GoHelper
     {
-        internal GoHelper(string name, string mode, GoShape shape)
+        public GoHelper(string name, string mode, GoShape shape)
         {
             Name = name;
             Mode = mode;
@@ -814,8 +1002,16 @@ namespace Nino.Codegen.Targets
 
         public bool Deferrable => Model.Deferrable ?? true;
 
-        /// <summary>A struct that can hold itself through no class body: its nesting is counted.</summary>
-        public bool Counted => Model.IsValueType && HoldsItself();
+        /// <summary>
+        /// A struct whose nesting is counted: one that can hold itself through no class body, or a generic struct
+        /// (whose .NET formatter counts every one).
+        /// </summary>
+        public bool Counted => Model.IsValueType && (Model.IsGenericDefinition || HoldsItself());
+
+        /// <summary>The fewest bytes of a generic struct's body: its members', its arguments' as its codec has them.</summary>
+        public string MinBody => Model.Format != BodyFormat.Positional ? "4"
+            : Members.Count == 0 ? "0"
+            : string.Join(" + ", Members.Select(m => m.Shape.Min));
 
         public List<GoMember> Members => _members ??= BuildMembers();
 
@@ -824,7 +1020,26 @@ namespace Nino.Codegen.Targets
         private List<GoMember> BuildMembers()
         {
             var names = GoTarget.FieldNames(Model.Members.Select(m => m.Name));
-            return Model.Members.Select((m, i) => new GoMember(m, names[i], _target.Shape(m.Value, false))).ToList();
+            return Model.Members.Select((m, i) => new GoMember(m, names[i], _target.ShapeIn(Model, m.Value))).ToList();
+        }
+
+        /// <summary>The type parameters of a generic definition (empty otherwise).</summary>
+        public IReadOnlyList<string> Parameters => Model.TypeParameters;
+
+        /// <summary><c>[T any, U any]</c> after the name of a generic type's declaration, else empty.</summary>
+        public string TypeParams => Parameters.Count == 0 ? "" : "[" + string.Join(", ", Parameters.Select(p => p + " any")) + "]";
+
+        /// <summary><c>[T, U]</c> after the name of a generic type where it is used, else empty.</summary>
+        public string TypeArgs => Parameters.Count == 0 ? "" : "[" + string.Join(", ", Parameters) + "]";
+
+        /// <summary>The codecs a generic codec builds, in order (members shaped first).</summary>
+        public List<GoDerived> Derived
+        {
+            get
+            {
+                _ = Members;
+                return _target.GenericOf(Model).Derived;
+            }
         }
 
         public GoShape? RawShape => Model.Raw ? _target.Shape(Model.RawValue!, false) : null;

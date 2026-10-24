@@ -155,15 +155,15 @@ func helper_body(h)
       end
       ret $o + "\treturn v\n}\n"
     when "grid"
-      ret $o + "\treturn readGrid(r, " + $s.rank + ", " + $s.element.min_size + ", " + rfn($s.element) + ")\n}\n"
+      ret $o + "\treturn readGrid(r, " + $s.rank + ", " + compact($s.element.min) + ", " + rfn($s.element) + ")\n}\n"
     when "map"
       $how = $s.mode == "unique" ? "ReadUniqueEntries" : "ReadEntries"
-      ret $o + "\treturn nino." + $how + "(r, " + ($s.key.min_size + $s.value.min_size) + ", " + rfn($s.key) + ", " + rfn($s.value) + ")\n}\n"
+      ret $o + "\treturn nino." + $how + "(r, " + compact(plus($s.key, $s.value)) + ", " + rfn($s.key) + ", " + rfn($s.value) + ")\n}\n"
     end
     # A sequence.
     case $s.mode
     when "unique"
-      ret $o + "\treturn nino.ReadUnique(r, " + $s.element.min_size + ", " + rfn($s.element) + ")\n}\n"
+      ret $o + "\treturn nino.ReadUnique(r, " + compact($s.element.min) + ", " + rfn($s.element) + ")\n}\n"
     when "stringset"
       # A set of strings in the order of the data: a string (or null) read twice fails.
       $o = $o + "\tv := nino.ReadSlice(r, 4, " + rfn($s.element) + ")\n\tif v == nil {\n\t\treturn nil\n\t}\n"
@@ -173,7 +173,7 @@ func helper_body(h)
     when "fixed"
       ret $o + "\treturn nino.ReadFixed(r, " + $s.element.size + ", " + decode_fn($s.element) + ")\n}\n"
     end
-    ret $o + "\treturn nino.ReadSlice(r, " + $s.element.min_size + ", " + rfn($s.element) + ")\n}\n"
+    ret $o + "\treturn nino.ReadSlice(r, " + compact($s.element.min) + ", " + rfn($s.element) + ")\n}\n"
   end
 
   $o = "func " + $n + "(w *nino.Writer, v " + $t + ") {\n"
@@ -230,6 +230,86 @@ func slot_functions(c)
     end
   end
   ret $o + "\tdefault:\n\t\tw.Fail(nino.CodeUnknownType, \"not a type the slot allows\")\n\t}\n}\n"
+end
+
+# A generic type: its struct, and its codec (`boxCodec[T]`), which holds the codecs of its type arguments (p0...),
+# those it builds from them (d0...) and its own (self); BoxCodec builds one from the codecs of the arguments.
+func generic_type(c)
+  $self = c.name + c.type_args
+  $value = c.kind == "struct" ? $self : "*" + $self
+  $codec = lower(c.name) + "Codec"
+  $recv = "func (c *" + $codec + c.type_args + ") "
+  $o = "// " + c.name + " is `" + c.runtime_name + "`.\n" + struct_decl(c.name + c.type_params, c.members, c.format == "keyed") + "\n"
+  $o = $o + "func (" + $self + ") NinoLayout() string {\n\treturn " + go_string(c.layout) + "\n}\n\n"
+  $o = $o + "func (" + $self + ") NinoTypeName() string {\n\treturn " + go_string(c.runtime_name) + "\n}\n\n"
+  $names = []
+  $kinds = []
+  if c.kind == "class"
+    $names = array.add $names "class"
+    $kinds = array.add $kinds ("nino.Class[" + $self + "]")
+  end
+  $names = array.add $names "self"
+  $kinds = array.add $kinds ("NinoArg[" + $value + "]")
+  $params = []
+  for $p in c.parameters
+    $names = array.add $names ("p" + for.index)
+    $kinds = array.add $kinds ("NinoArg[" + $p + "]")
+    $params = array.add $params ("p" + for.index + " NinoArg[" + $p + "]")
+  end
+  $derived = c.derived
+  for $d in $derived
+    $names = array.add $names $d.name
+    $kinds = array.add $kinds ("NinoArg[" + gotype($d.shape) + "]")
+  end
+  $nw = 0
+  for $n in $names
+    if $n.size > $nw
+      $nw = $n.size
+    end
+  end
+  $o = $o + "// " + $codec + " reads and writes " + $self + " with the codecs of its type arguments.\ntype " + $codec + c.type_params + " struct {\n"
+  for $i in 0..($names.size - 1)
+    $o = $o + "\t" + pad($names[$i], $nw) + " " + $kinds[$i] + "\n"
+  end
+  $o = $o + "}\n\n"
+  $o = $o + "// " + c.name + "Codec returns the codec of " + $self + " (as a member of its type is written) from the codec of each\n// type argument, in order.\n"
+  $o = $o + "func " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + ") NinoArg[" + $value + "] {\n"
+  $fields = []
+  for $p in c.parameters
+    $fields = array.add $fields ("p" + for.index + ": p" + for.index)
+  end
+  $o = $o + "\tc := &" + $codec + c.type_args + "{" + (array.join $fields ", ") + "}\n"
+  if c.kind == "class"
+    $o = $o + "\tc.class = nino.Class[" + $self + "]{Read: c.readBody, Write: c.writeBody, Deferrable: " + c.deferrable + "}\n"
+    $o = $o + "\tc.self = NinoArg[" + $value + "]{Read: c.read, Write: c.write, MinSize: 1}\n"
+  else
+    $o = $o + "\tc.self = NinoArg[" + $value + "]{Read: c.read, Write: c.write, MinSize: " + c.min_body + "}\n"
+  end
+  for $d in $derived
+    if $d.generic
+      $o = $o + "\tc." + $d.name + " = " + type_of($d.shape.type).name + "Codec(" + args($d.shape.items) + ")\n"
+    else
+      $o = $o + "\tc." + $d.name + " = NinoArg[" + gotype($d.shape) + "]{Read: c.read" + upper_first($d.name) + ", Write: c.write" + upper_first($d.name) + ", MinSize: " + $d.shape.min + "}\n"
+    end
+  end
+  $o = $o + "\treturn c.self\n}\n\n"
+  if c.kind == "class"
+    $o = $o + $recv + "read(r *nino.Reader) " + $value + " {\n\treturn nino.ReadSealed(r, &c.class)\n}\n\n"
+    $o = $o + $recv + "write(w *nino.Writer, v " + $value + ") {\n\tnino.WriteSealed(w, v, &c.class)\n}\n\n"
+    $o = $o + $recv + "readBody(r *nino.Reader, v *" + $self + ") {\n" + read_members(c) + "}\n\n"
+    $o = $o + $recv + "writeBody(w *nino.Writer, v *" + $self + ") {\n" + write_members(c) + "}\n"
+  else
+    # Every generic struct counts toward the depth, as its .NET formatter does.
+    $o = $o + $recv + "read(r *nino.Reader) (v " + $self + ") {\n\tif !r.EnterStruct() {\n\t\treturn v\n\t}\n" + read_members(c) + "\tr.ExitStruct()\n\treturn v\n}\n\n"
+    $o = $o + $recv + "write(w *nino.Writer, v " + $self + ") {\n\tif !w.EnterStruct() {\n\t\treturn\n\t}\n" + write_members(c) + "\tw.ExitStruct()\n}\n"
+  end
+  for $d in $derived
+    if !$d.generic
+      $o = $o + "\n" + helper_body(go_helper("(c *" + $codec + c.type_args + ") read" + upper_first($d.name), "read", $d.shape))
+      $o = $o + "\n" + helper_body(go_helper("(c *" + $codec + c.type_args + ") write" + upper_first($d.name), "write", $d.shape))
+    end
+  end
+  ret $o
 end
 
 # The receiver of a type's methods: the pointer of a class, the value of a struct.
@@ -310,30 +390,46 @@ for n in named
   "\nfunc write" + n.name + "(w *nino.Writer, v " + n.name + ") {\n\tif !w.EnterStruct() {\n\t\treturn\n\t}\n\t" + write(n.value, "v") + "\n\tw.ExitStruct()\n}\n"
 end
 
-# The class descriptors, set in init: a recursive type's functions refer to its descriptor.
+# The class descriptors and the codecs of closed generic types, set in init: a recursive type's functions refer to
+# its descriptor, and a codec is built from the codecs of its arguments.
 $classes = []
 for c in types
-  if !c.is_abstract && (c.kind == "class" || c.kind == "typeid")
+  if !c.is_abstract && c.parameters.size == 0 && (c.kind == "class" || c.kind == "typeid")
     $classes = array.add $classes c
   end
 end
-if $classes.size != 0
-  $nw = 0
+if $classes.size != 0 || closed.size != 0
+  $names = []
+  $kinds = []
   for c in $classes
-    if (lower(c.name) + "Class").size > $nw
-      $nw = (lower(c.name) + "Class").size
+    $names = array.add $names (lower(c.name) + "Class")
+    $kinds = array.add $kinds ("nino.Class[" + c.name + "]")
+  end
+  for $k in closed
+    $names = array.add $names $k.name
+    $kinds = array.add $kinds ("NinoArg[" + gotype($k.shape) + "]")
+  end
+  if uses_object
+    $names = array.add $names "objects"
+    $kinds = array.add $kinds "*nino.TypeSet"
+  end
+  $nw = 0
+  for $n in $names
+    if $n.size > $nw
+      $nw = $n.size
     end
   end
   "\nvar (\n"
-  for c in $classes
-    "\t" + pad(lower(c.name) + "Class", $nw) + " nino.Class[" + c.name + "]\n"
-  end
-  if uses_object
-    "\t" + pad("objects", $nw) + " *nino.TypeSet\n"
+  for $i in 0..($names.size - 1)
+    "\t" + pad($names[$i], $nw) + " " + $kinds[$i] + "\n"
   end
   ")\n\nfunc init() {\n"
   for c in $classes
     "\t" + lower(c.name) + "Class = nino.Class[" + c.name + "]{Read: read" + c.name + "Body, Write: write" + c.name + "Body, Deferrable: " + c.deferrable + "}\n"
+  end
+  # Arguments first: a codec copies the codecs it is given.
+  for $k in closed
+    "\t" + $k.name + " = " + type_of($k.shape.type).name + "Codec(" + args($k.shape.items) + ")\n"
   end
   if uses_object
     # What a slot declared as object allows: every type here (an explicit allow-list, where .NET accepts any type
@@ -359,6 +455,10 @@ for c in types
     # An abstract class or interface: a slot of the types that implement it.
     "// " + c.slot_name + " is a value of a slot declared as `" + c.model.full_name + "`.\ntype " + c.slot_name + " interface {\n\tnino.Typed\n\tis" + c.slot_name + "()\n}\n\n"
     slot_functions(c)
+    continue
+  end
+  if c.parameters.size != 0
+    generic_type(c)
     continue
   end
   if c.kind != "raw"
@@ -518,6 +618,16 @@ func timeOnlyAt(r *nino.Reader, b []byte) nino.TimeOnly {
 	return t
 }
 
+{{~ if uses_args ~}}
+// NinoArg is the codec of a type argument of a generic type: how its values are read and written, and the fewest
+// bytes one takes.
+type NinoArg[T any] struct {
+	Read    func(*nino.Reader) T
+	Write   func(*nino.Writer, T)
+	MinSize int
+}
+
+{{~ end ~}}
 // NinoCodec reads and writes values of one type, as any.
 type NinoCodec struct {
 	Read  func(*nino.Reader) any
@@ -542,6 +652,9 @@ func NinoCodecOf(name string) (NinoCodec, bool) {
 	switch name {
 {{~
 for c in types
+  if c.parameters.size != 0
+    continue
+  end
   "\tcase " + go_string(c.runtime_name) + ":\n"
   if c.kind == "typeid"
     "\t\treturn codecOf(Read" + c.slot_functions + ", Write" + c.slot_functions + "), true\n"

@@ -89,6 +89,7 @@ namespace Nino.Codegen
                         Serde = options.Get("serde") == "true",
                         SerdeNaming = Naming(options.Get("serde-names")),
                         WideStrings = options.Get("strings") == "wide",
+                        StdMaps = options.Get("maps") == "std",
                     });
                     files[options.Get("name", "nino_types.rs")] = target.Render(source);
                     warnings = target.Warnings;

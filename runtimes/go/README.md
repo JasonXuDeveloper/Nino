@@ -236,7 +236,10 @@ either's data. `nino-gen --lang go` (docs/codegen.md; `--tags`, `--tag-names`; i
   Tag order: `nino`, then the extra tags in the configured order: ``Health int32 `nino:"Health" json:"health" yaml:"health"` ``.
 - **`NinoLayout()`** returning the layout string .NET publishes for the type, unchanged (its `deferrable=` part
   included). A closed generic type (layout `typeId=0`) written by hand gets `NinoTypeID()` returning `TypeID` of
-  its .NET name; nino-gen does not generate generic types (only their definitions have layouts).
+  its .NET name. nino-gen generates a generic `[NinoType]` as a generic struct (`Box[T any]`) whose codec is built
+  from the codecs of its type arguments (`BoxCodec[T any](p0 NinoArg[T]) NinoArg[*Box[T]]`), and a member
+  `Box<int>` as `*Box[int32]`; a generic type written behind a type id is left out (docs/codegen.md, "Generic
+  types").
 - **`NinoTypeID()`** on the pointer type of every class that can sit behind a type id.
 - **`NinoTypeName()`** returning the .NET full name.
 

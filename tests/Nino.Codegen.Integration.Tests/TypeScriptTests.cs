@@ -207,6 +207,32 @@ namespace Nino.Codegen.Integration.Tests
                 StringAssert.Contains(extras, expected);
         }
 
+        /// <summary>Closed generic types as members: read with the codecs built from those of their arguments.</summary>
+        [TestMethod]
+        public void RoundTripsGenericTypes()
+        {
+            var cases = GenericSamples.Cases(ordered: true)
+                .Select(c => (c.Type.Substring("Samples.".Length) + "Codec", c.Bytes)).ToList();
+            var results = RunNode(cases);
+            for (int i = 0; i < cases.Count; i++)
+                Assert.AreEqual(Hex(cases[i].Item2), results[i].Hex, $"case {i} ({cases[i].Item1}): {results[i].Error}");
+
+            // The last case is the full value (the harness adds a value of its own after the cases).
+            string full = results[cases.Count - 1].Json;
+            foreach (string expected in new[]
+                     {
+                         "\"number\":{\"label\":\"number\",\"value\":-42}", "\"duo\":{\"first\":\"-9223372036854775808\",\"second\":\"second\"}",
+                         "\"nested\":{\"label\":\"outer\",\"value\":{\"label\":\"inner\",\"value\":7}}",
+                         "\"mixed\":{\"label\":\"mixed\",\"value\":{\"first\":\"vec\",\"second\":{\"x\":1.5,\"y\":-2}}}",
+                         "\"array\":{\"label\":null,\"value\":[1,-2,2147483647]}",
+                     })
+                StringAssert.Contains(full, expected);
+            string types = File.ReadAllText(Path.Combine(_directory, "Nino.Codegen.Integration.Tests.ts"));
+            StringAssert.Contains(types, "export class Box<T> {");
+            StringAssert.Contains(types, "export class Duo<TFirst, TSecond> {");
+            StringAssert.Contains(types, "export function BoxCodec<T>(p0: NinoCodec<T>): NinoCodec<Box<T> | null> {");
+        }
+
         [TestMethod]
         public void DotNetReadsWhatTypeScriptWrites()
         {

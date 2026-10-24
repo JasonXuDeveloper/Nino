@@ -59,6 +59,10 @@ func gotype(s)
     ret type_of(s.type).name
   when "class"
     ret "*" + type_of(s.type).name
+  when "param"
+    ret s.parameter
+  when "generic"
+    ret (s.type.is_value_type ? "" : "*") + type_of(s.type).name + "[" + join_types(s.items) + "]"
   when "slot"
     ret type_of(s.type).slot_name
   when "named"
@@ -80,6 +84,9 @@ end
 
 # A function value reading a value: func(*nino.Reader) T.
 func rfn(s)
+  if s.field
+    ret s.field + ".Read"
+  end
   case s.kind
   when "prim"
     ret "(*nino.Reader)." + s.primitive
@@ -119,6 +126,9 @@ end
 
 # An expression reading a value.
 func read(s)
+  if s.field
+    ret s.field + ".Read(r)"
+  end
   case s.kind
   when "prim"
     ret "r." + s.primitive + "()"
@@ -142,6 +152,9 @@ end
 
 # A function value writing a value: func(*nino.Writer, T).
 func wfn(s)
+  if s.field
+    ret s.field + ".Write"
+  end
   case s.kind
   when "prim"
     ret "(*nino.Writer)." + s.primitive
@@ -181,6 +194,9 @@ end
 
 # A statement writing the value `x`.
 func write(s, x)
+  if s.field
+    ret s.field + ".Write(w, " + x + ")"
+  end
   case s.kind
   when "prim"
     ret "w." + s.primitive + "(" + x + ")"
@@ -308,6 +324,22 @@ func lines(list, indent)
     $o = $o + indent + $l + "\n"
   end
   ret $o
+end
+
+# The codec (NinoArg) of a type argument: the one built for it, or one of its read and write functions.
+func arg(s)
+  if s.field
+    ret s.field
+  end
+  ret "NinoArg[" + gotype(s) + "]{Read: " + rfn(s) + ", Write: " + wfn(s) + ", MinSize: " + s.min + "}"
+end
+
+func args(items)
+  $parts = []
+  for $i in items
+    $parts = array.add $parts (arg($i))
+  end
+  ret array.join $parts ", "
 end
 
 # The name of a tuple's item: Key and Value for a pair, else Item1...

@@ -43,6 +43,12 @@ namespace Nino.Codegen.Targets
         private readonly Dictionary<string, TsHelper> _helperByKey = new(StringComparer.Ordinal);
         private readonly List<TsHelper> _helpers = new();
 
+        // Generic types: the codecs each one's codec builds, and those of the closed generic types the module builds.
+        private readonly Dictionary<TypeModel, List<TsDerived>> _derived = new();
+        private readonly Dictionary<string, TsDerived> _closedByKey = new(StringComparer.Ordinal);
+        private readonly List<TsDerived> _closed = new();
+        private TypeModel? _context;
+
         public List<string> Warnings { get; } = new();
 
         public TypeScriptTarget(CodegenModel model, TypeScriptOptions options)
@@ -94,7 +100,13 @@ namespace Nino.Codegen.Targets
                 .OrderBy(t => t.InheritanceDepth).ThenBy(Name, StringComparer.Ordinal)
                 .Select(t => new TsClass(this, t)).ToList();
             var registered = Registered(layouts).Select(t => new TsClass(this, t)).ToList();
-            var codecs = layouts.OrderBy(Name, StringComparer.Ordinal).Select(t => new TsClass(this, t)).ToList();
+            var codecs = layouts.Where(t => !t.IsGenericDefinition).OrderBy(Name, StringComparer.Ordinal)
+                .Select(t => new TsClass(this, t)).ToList();
+            var generics = layouts.Where(t => t.IsGenericDefinition).OrderBy(Name, StringComparer.Ordinal)
+                .Select(t => new TsClass(this, t)).ToList();
+            // Every member shaped, so every codec the module and the generic codecs build is known.
+            foreach (var c in classes.Concat(generics))
+                _ = c.Derived;
 
             string module = _options.RuntimeModule ?? "./nino" + _options.ImportExtension;
             var renderer = new TemplateRenderer("typescript");
@@ -106,6 +118,8 @@ namespace Nino.Codegen.Targets
             renderer.Set("classes", classes);
             renderer.Set("registered", registered);
             renderer.Set("codecs", codecs);
+            renderer.Set("generics", generics);
+            renderer.Set("closed", _closed);
             renderer.Function("name", new Func<object, string>(Name));
             renderer.Function("helper", new Func<TsShape, string, string>(Helper));
             renderer.Function("helper_count", new Func<int>(() => _helpers.Count));
@@ -119,7 +133,7 @@ namespace Nino.Codegen.Targets
         {
             foreach (var type in _model.Types)
             {
-                string? reason = type.IsGeneric ? "generic types are not supported"
+                string? reason = CodegenModel.GenericProblem(type) is { } generic ? generic
                     : type.TrackReferences ? "reference tracking (trackReferences) is not supported"
                     : type.Elements != null ? "[NinoType] collections are not supported"
                     : null;
@@ -134,13 +148,21 @@ namespace Nino.Codegen.Targets
             {
                 _enums.Clear();
                 _rawStructs.Clear();
+                _derived.Clear();
+                _closedByKey.Clear();
+                _closed.Clear();
                 var failing = _model.Types.Where(_supported.Contains)
                     .Select(t => (Type: t, Reason: Check(t))).FirstOrDefault(f => f.Reason != null);
                 if (failing.Type == null)
-                    return;
+                    break;
                 _supported.Remove(failing.Type);
                 Warn(failing.Type, failing.Reason!);
             }
+
+            _derived.Clear();
+            _closedByKey.Clear();
+            _closed.Clear();
+            _structOpens.Clear();
         }
 
         /// <summary>Why a type cannot be written, or null.</summary>
@@ -152,7 +174,7 @@ namespace Nino.Codegen.Targets
                     Shape(type.RawValue!);
                 else
                     foreach (var member in type.Members)
-                        Shape(member.Value);
+                        ShapeIn(type, member.Value);
                 return null;
             }
             catch (UnsupportedException e)
@@ -169,6 +191,79 @@ namespace Nino.Codegen.Targets
             types.Where(t => t.TypeId != 0 && t.IsConcrete).OrderBy(Name, StringComparer.Ordinal);
 
         // ---------------------------------------------------------------- shapes
+
+        /// <summary>
+        /// The shape of a member of <paramref name="owner"/>: in a generic definition, the values holding its type
+        /// parameters are read with the codecs of its arguments (<c>c</c>, the type's <c>X$Codecs</c>).
+        /// </summary>
+        internal TsShape ShapeIn(TypeModel owner, ValueModel value)
+        {
+            var outer = _context;
+            _context = owner.IsGenericDefinition ? owner : null;
+            try
+            {
+                return Shape(value);
+            }
+            finally
+            {
+                _context = outer;
+            }
+        }
+
+        /// <summary>The codecs a generic type's codec builds (<c>c.d0</c>...), in the order they are built.</summary>
+        internal List<TsDerived> DerivedOf(TypeModel type)
+        {
+            if (!_derived.TryGetValue(type, out var list))
+                _derived[type] = list = new List<TsDerived>();
+            return list;
+        }
+
+        /// <summary>A generic type with its arguments, read and written through a codec built once.</summary>
+        private TsShape Generic(ValueModel value)
+        {
+            var definition = value.Type!;
+            if (!_supported.Contains(definition))
+                throw new UnsupportedException($"{definition.FullName} is not written to TypeScript");
+            var shape = new TsShape("generic")
+            {
+                Type = definition, Items = value.Arguments.Select(Shape).ToList(), Opens = true,
+                Header = definition.Header == HeaderKind.None ? "none" : "null",
+            };
+            if (_context != null && value.IsSelf(_context))
+            {
+                shape.Field = "c.self";
+                return shape;
+            }
+
+            string key = shape.Identity;
+            if (value.IsOpen && _context != null)
+            {
+                var list = DerivedOf(_context);
+                var derived = list.FirstOrDefault(d => d.Key == key);
+                if (derived == null)
+                    list.Add(derived = new TsDerived("d" + list.Count, key, shape));
+                shape.Field = "c." + derived.Name;
+                return shape;
+            }
+
+            if (!_closedByKey.TryGetValue(key, out var closed))
+            {
+                closed = new TsDerived("codec$" + _closed.Count, key, shape);
+                _closedByKey[key] = closed;
+                _closed.Add(closed);
+            }
+
+            shape.Field = closed.Name;
+            return shape;
+        }
+
+        /// <summary>A value holding a type parameter of the type being written: its code takes that type's codecs.</summary>
+        private TsShape InContext(ValueModel value, TsShape shape)
+        {
+            if (_context != null && value.IsOpen)
+                shape.Context = _context;
+            return shape;
+        }
 
         /// <summary>The TypeScript shape of a value: what the template writes for it.</summary>
         internal TsShape Shape(ValueModel value)
@@ -189,26 +284,35 @@ namespace Nino.Codegen.Targets
                     return new TsShape("object") { Opens = true, Reaches = BodyStructs(_ => true) };
                 case ValueKind.Type:
                     return TypeShape(value.Type!);
+                case ValueKind.Parameter:
+                    if (_context == null)
+                        throw new UnsupportedException($"{value.ParameterName} is a type parameter outside its type");
+                    return new TsShape("param")
+                    {
+                        Parameter = value.ParameterName, Field = "c.p" + value.Parameter, Opens = true,
+                    };
+                case ValueKind.Generic:
+                    return Generic(value);
                 case ValueKind.Named:
                     throw new UnsupportedException($"{value.ClrName} is not written to TypeScript");
                 case ValueKind.Nullable:
-                    return Nullable(Shape(value.Element!));
+                    return InContext(value, Nullable(Shape(value.Element!)));
                 case ValueKind.Sequence:
                 {
                     var element = Shape(value.Element!);
                     if (value.IsByteArray)
                         return new TsShape("bytes");
-                    return Holding(new TsShape("seq")
+                    return InContext(value, Holding(new TsShape("seq")
                     {
                         Element = element,
                         Set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
                               CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null,
-                    }, element);
+                    }, element));
                 }
                 case ValueKind.Map:
                 {
                     var (key, mapValue) = (Shape(value.Key!), Shape(value.Value!));
-                    return Holding(new TsShape("map") { Key = key, Value = mapValue }, key, mapValue);
+                    return InContext(value, Holding(new TsShape("map") { Key = key, Value = mapValue }, key, mapValue));
                 }
                 case ValueKind.Tuple:
                 {
@@ -222,8 +326,8 @@ namespace Nino.Codegen.Targets
                         size += item.Size;
                     }
 
-                    return Holding(Tuple(items, offsets, items.All(i => i.Fixed) ? size : -1, items.Any(i => i.Zeroed)),
-                        items.ToArray());
+                    return InContext(value, Holding(Tuple(items, offsets, items.All(i => i.Fixed) ? size : -1,
+                        items.Any(i => i.Zeroed)), items.ToArray()));
                 }
                 case ValueKind.Unsupported:
                     throw new UnsupportedException(Problem(value));
@@ -398,7 +502,7 @@ namespace Nino.Codegen.Targets
                 return opens;
             // A struct that holds itself opens what its other members open.
             _structOpens[type] = false;
-            opens = _supported.Contains(type) && type.Members.Any(m => Opens(Shape(m.Value)));
+            opens = _supported.Contains(type) && type.Members.Any(m => Opens(ShapeIn(type, m.Value)));
             _structOpens[type] = opens;
             return opens;
         }
@@ -407,7 +511,7 @@ namespace Nino.Codegen.Targets
         /// Whether a class body may hold other class bodies (<c>NinoBody.Nests</c>): it counts the depth for them, and
         /// at depth 0, ends with the bodies deferred below it. Saying so of one that does not changes no byte.
         /// </summary>
-        internal bool Nests(TypeModel type) => type.Members.Any(m => Opens(Shape(m.Value)));
+        internal bool Nests(TypeModel type) => type.Members.Any(m => Opens(ShapeIn(type, m.Value)));
 
         /// <summary>
         /// Whether a struct can hold itself without a class body between (through collections, nullables,
@@ -424,7 +528,7 @@ namespace Nino.Codegen.Targets
                 var next = pending.Pop();
                 if (!_supported.Contains(next))
                     continue;
-                foreach (var reached in next.Members.SelectMany(m => Shape(m.Value).Reaches))
+                foreach (var reached in next.Members.SelectMany(m => ShapeIn(next, m.Value).Reaches))
                 {
                     if (reached == type)
                         return true;
@@ -487,10 +591,10 @@ namespace Nino.Codegen.Targets
         private void AssignNames(IEnumerable<object> types)
         {
             var all = types.Select(Clr).Distinct().ToList();
-            var simple = all.ToLookup(TypeNames.Simple);
+            var simple = all.ToLookup(GoTarget.SimpleName);
             foreach (var type in all)
             {
-                string name = TypeNames.Simple(type);
+                string name = GoTarget.SimpleName(type);
                 if (simple[name].Count() > 1)
                     name = (type.Namespace ?? "").Replace('.', '_') + "_" + name;
                 _names[type] = name;
@@ -506,7 +610,7 @@ namespace Nino.Codegen.Targets
         };
 
         internal string Name(object type) =>
-            _names.TryGetValue(Clr(type), out var name) ? name : TypeNames.Simple(Clr(type));
+            _names.TryGetValue(Clr(type), out var name) ? name : GoTarget.SimpleName(Clr(type));
 
         internal string Member(string name) => _options.CamelCase ? TypeNames.Camel(name) : name;
 
@@ -522,7 +626,7 @@ namespace Nino.Codegen.Targets
                 used[name] = used.TryGetValue(name, out int count) ? count + 1 : 0;
                 if (used[name] != 0)
                     name += "_" + used[name].ToString(System.Globalization.CultureInfo.InvariantCulture);
-                list.Add(new TsMember(member, name, Shape(member.Value)));
+                list.Add(new TsMember(member, name, ShapeIn(type, member.Value)));
             }
 
             return list;
@@ -553,10 +657,20 @@ namespace Nino.Codegen.Targets
             }
 
             helper = new TsHelper((mode == "read" ? "read$" : "write$") + _helpers.Count, mode, shape);
+            if (shape.Context is { } context)
+            {
+                // The code of a value holding a type parameter takes the codecs of the type's arguments.
+                helper.TypeParams = TypeParams(context);
+                helper.Codecs = ", c: " + Name(context) + "$Codecs" + TypeParams(context);
+            }
             _helperByKey[key] = helper;
             _helpers.Add(helper);
             return helper.Name;
         }
+
+        /// <summary><c>&lt;T, U&gt;</c> of a generic definition, else empty.</summary>
+        internal static string TypeParams(TypeModel type) =>
+            type.TypeParameters.Count == 0 ? "" : "<" + string.Join(", ", type.TypeParameters) + ">";
 
         /// <summary>Registers the functions the code reading or writing <paramref name="shape"/> alone calls.</summary>
         private void Touch(TsShape shape, string mode)
@@ -583,8 +697,9 @@ namespace Nino.Codegen.Targets
     /// <summary>
     /// How a value is written in TypeScript (<see cref="Kind"/>: <c>prim</c>, <c>enum</c>, <c>rawstruct</c>,
     /// <c>rawnullable</c>, <c>fixedtuple</c>, <c>tuple</c>, <c>string</c>, <c>utf8</c>, <c>object</c>,
-    /// <c>nullable</c>, <c>bytes</c>, <c>seq</c>, <c>map</c>, <c>type</c>): the template turns it into a type, a default,
-    /// and code reading and writing it, alone or at an offset.
+    /// <c>nullable</c>, <c>bytes</c>, <c>seq</c>, <c>map</c>, <c>type</c>, <c>param</c>: a type parameter,
+    /// <c>generic</c>: a generic type with its arguments in <see cref="Items"/>): the template turns it into a type, a
+    /// default, and code reading and writing it, alone or at an offset.
     /// </summary>
     public sealed class TsShape
     {
@@ -602,6 +717,21 @@ namespace Nino.Codegen.Targets
 
         /// <summary>The reader's and writer's method of a primitive (<c>i32</c>, <c>dateTime</c>...).</summary>
         public string? Primitive { get; internal set; }
+
+        /// <summary>The name of a type parameter (<c>param</c>).</summary>
+        public string? Parameter { get; internal set; }
+
+        /// <summary>
+        /// The codec it is read and written through: a type parameter's (<c>c.p0</c>), one the generic type's codec
+        /// built (<c>c.d0</c>, <c>c.self</c>), or a closed generic type's (<c>codec$0</c>).
+        /// </summary>
+        public string? Field { get; internal set; }
+
+        /// <summary>The generic definition whose codecs (<c>c</c>) the code of a value holding its parameters takes.</summary>
+        public TypeModel? Context { get; internal set; }
+
+        /// <summary><c>, c</c> after the arguments of the code of a value holding type parameters, else empty.</summary>
+        public string CodecsArgument => Context == null ? "" : ", c";
 
         public EnumModel? Enum { get; internal set; }
 
@@ -651,6 +781,8 @@ namespace Nino.Codegen.Targets
             yield return Size.ToString(System.Globalization.CultureInfo.InvariantCulture);
             yield return Zeroed ? "z" : "";
             yield return Primitive ?? "";
+            yield return Parameter ?? "";
+            yield return Context?.FullName ?? "";
             yield return Enum?.FullName ?? "";
             yield return Struct?.FullName ?? "";
             yield return Type?.FullName ?? "";
@@ -703,6 +835,33 @@ namespace Nino.Codegen.Targets
         /// <summary><c>read</c> or <c>write</c>.</summary>
         public string Mode { get; }
 
+        public TsShape Shape { get; }
+
+        /// <summary>The type parameters of the code of a value holding them (<c>&lt;T&gt;</c>), else empty.</summary>
+        public string TypeParams { get; internal set; } = "";
+
+        /// <summary>The codecs parameter of such code (<c>, c: Bag$Codecs&lt;T&gt;</c>), else empty.</summary>
+        public string Codecs { get; internal set; } = "";
+    }
+
+    /// <summary>
+    /// A codec built from the codecs of type arguments: one a generic type's codec builds (<c>c.d0</c>), or one of a
+    /// closed generic type the module builds (<c>codec$0</c>).
+    /// </summary>
+    public sealed class TsDerived
+    {
+        internal TsDerived(string name, string key, TsShape shape)
+        {
+            Name = name;
+            Key = key;
+            Shape = shape;
+        }
+
+        public string Name { get; }
+
+        internal string Key { get; }
+
+        /// <summary>The generic type with its arguments.</summary>
         public TsShape Shape { get; }
     }
 
@@ -815,8 +974,36 @@ namespace Nino.Codegen.Targets
         /// <summary>Whether the class body may hold other class bodies: it counts the depth for them.</summary>
         public bool Nests => _target.Nests(Model);
 
-        /// <summary>A struct that can hold itself: its nesting is counted.</summary>
-        public bool Counted => !Model.IsClassBody && _target.HoldsItself(Model);
+        /// <summary>
+        /// A struct whose nesting is counted: one that can hold itself, or a generic struct (whose .NET formatter
+        /// counts every one).
+        /// </summary>
+        public bool Counted => !Model.IsClassBody && (Model.IsGenericDefinition || _target.HoldsItself(Model));
+
+        /// <summary>The type parameters of a generic definition (empty otherwise).</summary>
+        public IReadOnlyList<string> Parameters => Model.TypeParameters;
+
+        /// <summary><c>&lt;T, U&gt;</c> of a generic definition, else empty.</summary>
+        public string TypeParams => TypeScriptTarget.TypeParams(Model);
+
+        /// <summary>The type as its code names it: <c>Box&lt;T&gt;</c>.</summary>
+        public string Self => Name + TypeParams;
+
+        /// <summary>The codecs parameter of a generic type's code (<c>, c: Box$Codecs&lt;T&gt;</c>), else empty.</summary>
+        public string Codecs => Parameters.Count == 0 ? "" : ", c: " + Name + "$Codecs" + TypeParams;
+
+        /// <summary><c>, c</c> where a generic type's code passes its codecs on, else empty.</summary>
+        public string CodecsArgument => Parameters.Count == 0 ? "" : ", c";
+
+        /// <summary>The codecs a generic type's codec builds, in order.</summary>
+        public List<TsDerived> Derived
+        {
+            get
+            {
+                _ = Members;
+                return _target.DerivedOf(Model);
+            }
+        }
 
         /// <summary><c>defer</c> (deferred past 128 bodies) or <c>deep</c> (in place up to 512).</summary>
         public string Later => _target.Deferrable(Model) ? "defer" : "deep";

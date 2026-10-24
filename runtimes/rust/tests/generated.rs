@@ -26,8 +26,8 @@ use nino::{NinoRead, NinoWrite};
 use nino_types::{with_nino_type, NinoVisit};
 use serde_json::Value;
 
-/// Valid cases holding a closed generic type (`Conformance.Box<int>`...): nino-gen writes no code for them, as the
-/// assembly publishes the layout of the generic definition only (docs/codegen.md, "What is not generated").
+/// Valid cases holding a closed generic type (`Conformance.Box<int>`...) in a polymorphic slot, behind the type id of
+/// its closed .NET name: nino-gen generates `Box<T>` but no slot variant for it (docs/codegen.md, "Generic types").
 const CLOSED_GENERICS: [&str; 2] = ["polymorphism", "polymorphism-generic-root"];
 
 // ---------------------------------------------------------------------------------------------- allocation tracking
@@ -363,6 +363,48 @@ fn shapes_round_trip() {
     let bytes = nino::serialize(&Some(Box::new(forest.clone()))).unwrap();
     let back: Option<Box<shapes::ForestHolder>> = nino::deserialize_exact(&bytes).unwrap();
     assert_eq!(back.as_deref(), Some(&forest));
+}
+
+/// Generic types: closed uses read and written with the codecs of their arguments.
+#[test]
+fn generic_shapes_round_trip() {
+    use shapes::{Bag, BoxType, Keys, Node, Pair};
+    let uses = shapes::Uses {
+        number: Some(Box::new(BoxType { value: -42 })),
+        text: Some(Box::new(BoxType { value: Some("text".into()) })),
+        pair: Pair { key: 1, value: Some("one".into()) },
+        nested: Some(Box::new(BoxType { value: Some(Box::new(BoxType { value: 7 })) })),
+        mixed: Some(Box::new(BoxType {
+            value: Pair { key: Some("g".into()), value: shapes::Gappy { small: 1, large: 2 } },
+        })),
+        boxes: Some(vec![Some(Box::new(BoxType { value: 1 })), None]),
+        bag: Some(Box::new(Bag {
+            items: Some(vec![Some(Box::new(BoxType { value: 5 })), None]),
+            by_name: Some([("a".to_string(), Some(Box::new(BoxType { value: 6 })))].into_iter().collect()),
+            inner: Some(Box::new(BoxType { value: Some(Box::new(BoxType { value: 8 })) })),
+            pair: Pair { key: 3, value: None },
+            boxes: Some(vec![None]),
+            tuple: (4, None),
+            ..Default::default()
+        })),
+        chain: Some(Box::new(Node {
+            value: Some("a".into()),
+            next: Some(Box::new(Node { value: Some("b".into()), next: None })),
+        })),
+        array: Some(Box::new(BoxType { value: Some(vec![1, 2]) })),
+        tuple: Some(Box::new(BoxType { value: (9, Some("nine".into())) })),
+        maybe: Some(Box::new(BoxType { value: Some(7) })),
+        entry: Some(Box::new(BoxType { value: (2, Some("two".into())) })),
+        set: Some(Box::new(BoxType { value: Some(["x".to_string()].into_iter().collect()) })),
+        int_keys: Some(Box::new(Keys {
+            set: Some([1, 2].into_iter().collect()),
+            by_key: Some([(3, 4)].into_iter().collect()),
+        })),
+        ..Default::default()
+    };
+    let bytes = nino::serialize(&Some(Box::new(uses.clone()))).unwrap();
+    let back: Option<Box<shapes::Uses>> = nino::deserialize_exact(&bytes).unwrap();
+    assert_eq!(back.as_deref(), Some(&uses));
 }
 
 #[test]

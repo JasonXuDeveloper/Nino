@@ -35,8 +35,9 @@ Each language needs its runtime next to the generated code:
   import it from).
 - **Go**: the module `github.com/JasonXuDeveloper/Nino/runtimes/go` (package `nino`), a dependency of your module.
 - **Rust**: the crate `nino-serialization` (`runtimes/rust`) with its `indexmap` feature, and `indexmap` itself (maps
-  and sets are `IndexMap` and `IndexSet`, which keep the wire order); with `--serde`, a `serde` feature of your crate
-  that turns on `serde` and `nino-serialization/serde`.
+  and sets are `IndexMap` and `IndexSet`, which keep the wire order); with `--maps std`, the crate alone (maps and sets
+  are `std::collections::HashMap` and `HashSet`); with `--serde`, a `serde` feature of your crate that turns on `serde`
+  and `nino-serialization/serde`.
 
 ## Usage
 
@@ -44,7 +45,7 @@ Each language needs its runtime next to the generated code:
 nino-gen --assembly <dll> --lang ts|go|rust --out <dir> [--references <file>] [--name <file name>]
   ts:   [--names camel|keep] [--import-extension <.js|.ts|.mjs|.mts>] [--runtime <module>]
   go:   [--package <name>] [--tags json,yaml] [--tag-names camel|snake|original]
-  rust: [--serde] [--serde-names camel|snake|original] [--strings string|wide]
+  rust: [--serde] [--serde-names camel|snake|original] [--strings string|wide] [--maps indexmap|std]
 ```
 
 | Option | Meaning |
@@ -63,6 +64,7 @@ nino-gen --assembly <dll> --lang ts|go|rust --out <dir> [--references <file>] [-
 | `--serde` (rust) | Adds `#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]` and a rename per field. |
 | `--serde-names` (rust) | The serde names: `camel` (default, as `System.Text.Json`), `snake` or `original`. |
 | `--strings` (rust) | `string` (default): C# strings are `String`, and an unpaired surrogate is read as U+FFFD. `wide`: `nino::WideString`, which keeps any UTF-16. |
+| `--maps` (rust) | `indexmap` (default): dictionaries and sets are `indexmap::IndexMap` and `IndexSet`, which keep the order they were read in, so a value read is written back byte for byte. `std`: `std::collections::HashMap` and `HashSet`, with no dependency but the crate; they are written in `HashMap`'s iteration order, which is not the order .NET wrote and changes from run to run (.NET reads them the same, but the bytes differ). |
 
 An option that is unknown, given twice, of another language or with a value it does not take is an error, as are
 missing arguments. `--serde` may be followed by `true` or `false`. Warnings (a type left out, and why) are printed as
@@ -84,7 +86,7 @@ The Nino.Codegen package runs nino-gen after `CoreCompile`, once per `<NinoCodeg
 | `Name` | `--name` | all |
 | `Names`, `ImportExtension`, `Runtime` | `--names`, `--import-extension`, `--runtime` | TypeScript |
 | `Package`, `Tags`, `TagNames` | `--package`, `--tags`, `--tag-names` | Go |
-| `Serde`, `SerdeNames`, `Strings` | `--serde` (`true` or `false`), `--serde-names`, `--strings` | Rust |
+| `Serde`, `SerdeNames`, `Strings`, `Maps` | `--serde` (`true` or `false`), `--serde-names`, `--strings`, `--maps` | Rust |
 
 (MSBuild reserves the metadata name `Output`, hence `Out`.) The build passes the assembly it compiled and its references
 itself, and nino-gen checks the metadata as it checks the command line: an option of another language, or a value it
@@ -141,6 +143,37 @@ changes only the text around them. The options are defined once, in `Options.cs`
 on the command line, the `<NinoCodegen>` metadata that sets it in a build, the language and the values it takes. The
 command line, its usage text and the build targets all work from that list.
 
+## Generic types
+
+A generic `[NinoType]` is generated as a generic type in each language, and its codec is built from the codecs of its
+type arguments, as .NET builds `NinoFormatter<Box<T>>` from the formatter of `T`:
+
+| | `Box<T>` | Its codec | `Box<int>` as a member |
+| --- | --- | --- | --- |
+| TypeScript | `class Box<T>` | `BoxCodec<T>(p0: NinoCodec<T>): NinoCodec<Box<T> \| null>` | `Box<number> \| null`, through a codec the module builds once |
+| Go | `type Box[T any] struct` | `BoxCodec[T any](p0 NinoArg[T]) NinoArg[*Box[T]]` (`NinoArg` holds `Read`, `Write` and `MinSize`) | `*Box[int32]`, through a codec built in `init` |
+| Rust | `struct BoxType<T>` (`Box` is taken) | `impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for BoxType<T>`... | `Option<Box<BoxType<i32>>>` |
+
+Closed uses (`Box<int>`, `Pair<int, string>`, `Box<Box<int>>`, `List<Box<int>>`, `Bag<Box<long>>`) name the generic
+type with its arguments; inside a generic type, its parameters may appear anywhere a member type can (`T`, `List<T>`,
+`Dictionary<string, T>`, `T[]`, `T?` where `T : struct`, tuples, `Box<T>`, `Pair<int, T>`, the type itself as
+`Node<T>`). A type argument may be a primitive, an enum, a string, a `[NinoType]` (generic ones included), an array,
+`List<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`, a `ValueTuple`, and, outside collections, a `Nullable<T>` or
+`KeyValuePair<TKey, TValue>`.
+
+Not generated, with a warning (NINOGEN002):
+
+- A generic type written behind a type id (a non-sealed class, an abstract class or an interface): the id is the hash
+  of the closed type's .NET name (`Box<System.Int32>`), and a closed generic type in a polymorphic or `object` slot is
+  not generated either.
+- A generic type that holds itself with other arguments (`Node<T>` holding `Node<List<T>>`), directly or through
+  another generic type: its codecs would be built without end.
+- A member whose type argument is a `Nullable<T>` or `KeyValuePair` inside a collection (`Box<int?[]>`), or any type
+  not in the list above.
+
+A closed unmanaged generic struct used directly as a member (`Pair<byte, int>`) is raw in .NET, and is generated as its
+own raw struct (`PairByteInt32`), as before. As a type argument it is written member by member, as .NET does.
+
 ## TypeScript
 
 A class per type, an `as const` object per enum and a `NinoCodec` per type, with `nino.ts` next to them. The bodies of
@@ -190,8 +223,8 @@ mod protocol;
 
 nino-gen warns and leaves a type out when its language cannot express it, and the types that use it with it:
 
-- **Generic types.** Only a generic type's definition has a published layout, not `Box<int>`; neither open nor closed
-  generic types are generated (in any language), nor slots that allow one.
+- **Some generic types**: those written behind a type id, those that hold themselves with other arguments, and closed
+  generic types in polymorphic slots ([Generic types](#generic-types)).
 - **Reference tracking** (`[NinoType(trackReferences: true)]`) and **`[NinoType]` collections** (a class deriving from
   `List<T>`; the collection itself is generated as an element type when its elements can be).
 - **TypeScript**: the types the TypeScript guide lists.
@@ -204,7 +237,8 @@ nino-gen warns and leaves a type out when its language cannot express it, and th
 
 `tests/Nino.Codegen.Tests` (in Nino.slnx) checks the IR, each target and the command line, and that the generated files
 committed under the runtimes match what nino-gen writes today. `tests/Nino.Codegen.Integration.Tests` runs the
-TypeScript of its samples under Node against the bytes .NET writes, and builds scratch projects with
+TypeScript of its samples under Node against the bytes .NET writes, round-trips its generic samples through the
+generated Go (`go run`) and Rust (`cargo run`, with each `--maps`) when those tools are on the PATH, and builds scratch projects with
 `build/Nino.Codegen.targets` (every language, incremental runs, the `NinoTypeScript*` properties, design-time builds,
 and that the targets pass every option `Options.cs` defines). Each runtime then runs its corpus check over the generated code
 (every valid case written back byte for byte, every malicious case and truncated prefix rejected):

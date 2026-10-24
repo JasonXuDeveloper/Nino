@@ -56,6 +56,62 @@ func writeGappy(w *nino.Writer, v Gappy) {
 	writeRaw(w, v, 8, encodeGappy)
 }
 
+// PairInt32Int32 is `Shapes.Generic.Pair<System.Int32,System.Int32>`, copied as raw memory (8 bytes).
+type PairInt32Int32 struct {
+	Key   int32 `nino:"0" json:"key" yaml:"key"`
+	Value int32 `nino:"1" json:"value" yaml:"value"`
+}
+
+func decodePairInt32Int32(r *nino.Reader, b []byte) PairInt32Int32 {
+	_ = b[7]
+	var v PairInt32Int32
+	v.Key = int32(le.Uint32(b))
+	v.Value = int32(le.Uint32(b[4:]))
+	return v
+}
+
+func encodePairInt32Int32(b []byte, v PairInt32Int32) {
+	_ = b[7]
+	le.PutUint32(b, uint32(v.Key))
+	le.PutUint32(b[4:], uint32(v.Value))
+}
+
+func readPairInt32Int32(r *nino.Reader) PairInt32Int32 {
+	return readRaw(r, 8, decodePairInt32Int32)
+}
+
+func writePairInt32Int32(w *nino.Writer, v PairInt32Int32) {
+	writeRaw(w, v, 8, encodePairInt32Int32)
+}
+
+// RawPairInt32 is `Shapes.Generic.RawPair<System.Int32>`, copied as raw memory (8 bytes).
+type RawPairInt32 struct {
+	A int32 `nino:"0" json:"a" yaml:"a"`
+	B int32 `nino:"1" json:"b" yaml:"b"`
+}
+
+func decodeRawPairInt32(r *nino.Reader, b []byte) RawPairInt32 {
+	_ = b[7]
+	var v RawPairInt32
+	v.A = int32(le.Uint32(b))
+	v.B = int32(le.Uint32(b[4:]))
+	return v
+}
+
+func encodeRawPairInt32(b []byte, v RawPairInt32) {
+	_ = b[7]
+	le.PutUint32(b, uint32(v.A))
+	le.PutUint32(b[4:], uint32(v.B))
+}
+
+func readRawPairInt32(r *nino.Reader) RawPairInt32 {
+	return readRaw(r, 8, decodeRawPairInt32)
+}
+
+func writeRawPairInt32(w *nino.Writer, v RawPairInt32) {
+	writeRaw(w, v, 8, encodeRawPairInt32)
+}
+
 // ThingStruct is `Shapes.ThingStruct`, copied as raw memory (16 bytes).
 type ThingStruct struct {
 	Id    int32 `nino:"0" json:"id" yaml:"id"`
@@ -116,6 +172,27 @@ var (
 	shapesLeftItemClass  nino.Class[ShapesLeftItem]
 	shapesRightItemClass nino.Class[ShapesRightItem]
 	thingClassClass      nino.Class[ThingClass]
+	unhashedKeysClass    nino.Class[UnhashedKeys]
+	usesClass            nino.Class[Uses]
+	codecV0              NinoArg[*Box[int64]]
+	codecV1              NinoArg[*Keys[*Box[int64]]]
+	codecV2              NinoArg[*Box[int32]]
+	codecV3              NinoArg[*Box[*string]]
+	codecV4              NinoArg[Pair[int32, *string]]
+	codecV5              NinoArg[*Box[*Box[int32]]]
+	codecV6              NinoArg[Pair[*string, Gappy]]
+	codecV7              NinoArg[*Box[Pair[*string, Gappy]]]
+	codecV8              NinoArg[*Bag[*Box[int64]]]
+	codecV9              NinoArg[*Node[*string]]
+	codecV10             NinoArg[*Box[IThing]]
+	codecV11             NinoArg[*Box[[]int32]]
+	codecV12             NinoArg[Pair[*Box[int32], []nino.Entry[int32, *string]]]
+	codecV13             NinoArg[*Box[NinoTuple2[int32, *string]]]
+	codecV14             NinoArg[*Box[*int32]]
+	codecV15             NinoArg[*Box[nino.Entry[int32, *string]]]
+	codecV16             NinoArg[*Box[[]*string]]
+	codecV17             NinoArg[*Keys[int32]]
+	codecV18             NinoArg[*Keys[*string]]
 )
 
 func init() {
@@ -129,6 +206,201 @@ func init() {
 	shapesLeftItemClass = nino.Class[ShapesLeftItem]{Read: readShapesLeftItemBody, Write: writeShapesLeftItemBody, Deferrable: true}
 	shapesRightItemClass = nino.Class[ShapesRightItem]{Read: readShapesRightItemBody, Write: writeShapesRightItemBody, Deferrable: true}
 	thingClassClass = nino.Class[ThingClass]{Read: readThingClassBody, Write: writeThingClassBody, Deferrable: true}
+	unhashedKeysClass = nino.Class[UnhashedKeys]{Read: readUnhashedKeysBody, Write: writeUnhashedKeysBody, Deferrable: true}
+	usesClass = nino.Class[Uses]{Read: readUsesBody, Write: writeUsesBody, Deferrable: true}
+	codecV0 = BoxCodec(NinoArg[int64]{Read: (*nino.Reader).I64, Write: (*nino.Writer).I64, MinSize: 8})
+	codecV1 = KeysCodec(codecV0)
+	codecV2 = BoxCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
+	codecV3 = BoxCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+	codecV4 = PairCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4}, NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+	codecV5 = BoxCodec(codecV2)
+	codecV6 = PairCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4}, NinoArg[Gappy]{Read: readGappy, Write: writeGappy, MinSize: 8})
+	codecV7 = BoxCodec(codecV6)
+	codecV8 = BagCodec(codecV0)
+	codecV9 = NodeCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+	codecV10 = BoxCodec(NinoArg[IThing]{Read: ReadIThing, Write: WriteIThing, MinSize: 4})
+	codecV11 = BoxCodec(NinoArg[[]int32]{Read: nino.ReadPrimitives[int32], Write: nino.WritePrimitives[int32], MinSize: 4})
+	codecV12 = PairCodec(codecV2, NinoArg[[]nino.Entry[int32, *string]]{Read: readV2, Write: writeV3, MinSize: 4})
+	codecV13 = BoxCodec(NinoArg[NinoTuple2[int32, *string]]{Read: readV4, Write: writeV5, MinSize: 8})
+	codecV14 = BoxCodec(NinoArg[*int32]{Read: readV6, Write: writeV7, MinSize: 1})
+	codecV15 = BoxCodec(NinoArg[nino.Entry[int32, *string]]{Read: readV8, Write: writeV9, MinSize: 8})
+	codecV16 = BoxCodec(NinoArg[[]*string]{Read: readV10, Write: writeV11, MinSize: 4})
+	codecV17 = KeysCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
+	codecV18 = KeysCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+}
+
+// Bag is `Shapes.Generic.Bag<T>`.
+type Bag[T any] struct {
+	Items  []T                     `nino:"0" json:"items" yaml:"items"`
+	ByName []nino.Entry[string, T] `nino:"1" json:"byName" yaml:"byName"`
+	Array  []T                     `nino:"2" json:"array" yaml:"array"`
+	Inner  *Box[T]                 `nino:"3" json:"inner" yaml:"inner"`
+	Pair   Pair[int32, T]          `nino:"4" json:"pair" yaml:"pair"`
+	Boxes  []*Box[T]               `nino:"5" json:"boxes" yaml:"boxes"`
+	Tuple  NinoTuple2[int32, T]    `nino:"6" json:"tuple" yaml:"tuple"`
+}
+
+func (Bag[T]) NinoLayout() string {
+	return "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Items:System.Collections.Generic.List<T>:seq(type(T));ByName:System.Collections.Generic.Dictionary<string, T>:map(string,type(T));Array:T[]:seq(type(T));Inner:Shapes.Generic.Box<T>:type(Shapes.Generic.Box<T>);Pair:Shapes.Generic.Pair<int, T>:type(Shapes.Generic.Pair<int, T>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<T>>:seq(type(Shapes.Generic.Box<T>));Tuple:System.ValueTuple<int, T>:tuple(raw(4),type(T))"
+}
+
+func (Bag[T]) NinoTypeName() string {
+	return "Shapes.Generic.Bag<T>"
+}
+
+// bagCodec reads and writes Bag[T] with the codecs of its type arguments.
+type bagCodec[T any] struct {
+	class nino.Class[Bag[T]]
+	self  NinoArg[*Bag[T]]
+	p0    NinoArg[T]
+	d0    NinoArg[[]T]
+	d1    NinoArg[[]nino.Entry[string, T]]
+	d2    NinoArg[*Box[T]]
+	d3    NinoArg[Pair[int32, T]]
+	d4    NinoArg[[]*Box[T]]
+	d5    NinoArg[NinoTuple2[int32, T]]
+}
+
+// BagCodec returns the codec of Bag[T] (as a member of its type is written) from the codec of each
+// type argument, in order.
+func BagCodec[T any](p0 NinoArg[T]) NinoArg[*Bag[T]] {
+	c := &bagCodec[T]{p0: p0}
+	c.class = nino.Class[Bag[T]]{Read: c.readBody, Write: c.writeBody, Deferrable: true}
+	c.self = NinoArg[*Bag[T]]{Read: c.read, Write: c.write, MinSize: 1}
+	c.d0 = NinoArg[[]T]{Read: c.readD0, Write: c.writeD0, MinSize: 4}
+	c.d1 = NinoArg[[]nino.Entry[string, T]]{Read: c.readD1, Write: c.writeD1, MinSize: 4}
+	c.d2 = BoxCodec(c.p0)
+	c.d3 = PairCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4}, c.p0)
+	c.d4 = NinoArg[[]*Box[T]]{Read: c.readD4, Write: c.writeD4, MinSize: 4}
+	c.d5 = NinoArg[NinoTuple2[int32, T]]{Read: c.readD5, Write: c.writeD5, MinSize: 4 + c.p0.MinSize}
+	return c.self
+}
+
+func (c *bagCodec[T]) read(r *nino.Reader) *Bag[T] {
+	return nino.ReadSealed(r, &c.class)
+}
+
+func (c *bagCodec[T]) write(w *nino.Writer, v *Bag[T]) {
+	nino.WriteSealed(w, v, &c.class)
+}
+
+func (c *bagCodec[T]) readBody(r *nino.Reader, v *Bag[T]) {
+	g := r.BeginRegion()
+	if r.More() {
+		v.Items = c.d0.Read(r)
+	}
+	if r.More() {
+		v.ByName = c.d1.Read(r)
+	}
+	if r.More() {
+		v.Array = c.d0.Read(r)
+	}
+	if r.More() {
+		v.Inner = c.d2.Read(r)
+	}
+	if r.More() {
+		v.Pair = c.d3.Read(r)
+	}
+	if r.More() {
+		v.Boxes = c.d4.Read(r)
+	}
+	if r.More() {
+		v.Tuple = c.d5.Read(r)
+	}
+	r.EndRegion(g)
+}
+
+func (c *bagCodec[T]) writeBody(w *nino.Writer, v *Bag[T]) {
+	g := w.BeginRegion()
+	c.d0.Write(w, v.Items)
+	c.d1.Write(w, v.ByName)
+	c.d0.Write(w, v.Array)
+	c.d2.Write(w, v.Inner)
+	c.d3.Write(w, v.Pair)
+	c.d4.Write(w, v.Boxes)
+	c.d5.Write(w, v.Tuple)
+	w.EndRegion(g)
+}
+
+func (c *bagCodec[T]) readD0(r *nino.Reader) []T {
+	return nino.ReadSlice(r, c.p0.MinSize, c.p0.Read)
+}
+
+func (c *bagCodec[T]) writeD0(w *nino.Writer, v []T) {
+	nino.WriteSlice(w, v, c.p0.Write)
+}
+
+func (c *bagCodec[T]) readD1(r *nino.Reader) []nino.Entry[string, T] {
+	return nino.ReadUniqueEntries(r, 4+c.p0.MinSize, keyString, c.p0.Read)
+}
+
+func (c *bagCodec[T]) writeD1(w *nino.Writer, v []nino.Entry[string, T]) {
+	nino.WriteEntries(w, v, (*nino.Writer).String, c.p0.Write)
+}
+
+func (c *bagCodec[T]) readD4(r *nino.Reader) []*Box[T] {
+	return nino.ReadSlice(r, 1, c.d2.Read)
+}
+
+func (c *bagCodec[T]) writeD4(w *nino.Writer, v []*Box[T]) {
+	nino.WriteSlice(w, v, c.d2.Write)
+}
+
+func (c *bagCodec[T]) readD5(r *nino.Reader) NinoTuple2[int32, T] {
+	var v NinoTuple2[int32, T]
+	v.Item1 = r.I32()
+	v.Item2 = c.p0.Read(r)
+	return v
+}
+
+func (c *bagCodec[T]) writeD5(w *nino.Writer, v NinoTuple2[int32, T]) {
+	w.I32(v.Item1)
+	c.p0.Write(w, v.Item2)
+}
+
+// Box is `Shapes.Generic.Box<T>`.
+type Box[T any] struct {
+	Value T `nino:"0" json:"value" yaml:"value"`
+}
+
+func (Box[T]) NinoLayout() string {
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T)"
+}
+
+func (Box[T]) NinoTypeName() string {
+	return "Shapes.Generic.Box<T>"
+}
+
+// boxCodec reads and writes Box[T] with the codecs of its type arguments.
+type boxCodec[T any] struct {
+	class nino.Class[Box[T]]
+	self  NinoArg[*Box[T]]
+	p0    NinoArg[T]
+}
+
+// BoxCodec returns the codec of Box[T] (as a member of its type is written) from the codec of each
+// type argument, in order.
+func BoxCodec[T any](p0 NinoArg[T]) NinoArg[*Box[T]] {
+	c := &boxCodec[T]{p0: p0}
+	c.class = nino.Class[Box[T]]{Read: c.readBody, Write: c.writeBody, Deferrable: true}
+	c.self = NinoArg[*Box[T]]{Read: c.read, Write: c.write, MinSize: 1}
+	return c.self
+}
+
+func (c *boxCodec[T]) read(r *nino.Reader) *Box[T] {
+	return nino.ReadSealed(r, &c.class)
+}
+
+func (c *boxCodec[T]) write(w *nino.Writer, v *Box[T]) {
+	nino.WriteSealed(w, v, &c.class)
+}
+
+func (c *boxCodec[T]) readBody(r *nino.Reader, v *Box[T]) {
+	v.Value = c.p0.Read(r)
+}
+
+func (c *boxCodec[T]) writeBody(w *nino.Writer, v *Box[T]) {
+	c.p0.Write(w, v.Value)
 }
 
 // FloatKeys is `Shapes.FloatKeys`.
@@ -157,11 +429,11 @@ func WriteFloatKeys(w *nino.Writer, v *FloatKeys) {
 }
 
 func readFloatKeysBody(r *nino.Reader, v *FloatKeys) {
-	v.Map = readV2(r)
+	v.Map = readV12(r)
 }
 
 func writeFloatKeysBody(w *nino.Writer, v *FloatKeys) {
-	writeV3(w, v.Map)
+	writeV13(w, v.Map)
 }
 
 // ForestHolder is `Shapes.ForestHolder`.
@@ -257,35 +529,35 @@ func WriteHolder(w *nino.Writer, v *Holder) {
 
 func readHolderBody(r *nino.Reader, v *Holder) {
 	v.Thing = ReadIThing(r)
-	v.Things = readV4(r)
+	v.Things = readV14(r)
 	v.Tree = ReadRecursive(r)
 	v.Inner = ReadOuterInner(r)
 	v.LeftItem = ReadShapesLeftItem(r)
 	v.RightItem = ReadShapesRightItem(r)
-	v.Flags = readV5(r)
-	v.Gaps = readV6(r)
-	v.Names = readV7(r)
-	v.Tags = readV8(r)
-	v.Pair = readV9(r)
-	v.Entry = readV10(r)
-	v.Maybe = readV11(r)
+	v.Flags = readV15(r)
+	v.Gaps = readV16(r)
+	v.Names = readV2(r)
+	v.Tags = readV10(r)
+	v.Pair = readV4(r)
+	v.Entry = readV17(r)
+	v.Maybe = readV6(r)
 	v.Keywords = ReadKeywords(r)
 }
 
 func writeHolderBody(w *nino.Writer, v *Holder) {
 	WriteIThing(w, v.Thing)
-	writeV12(w, v.Things)
+	writeV18(w, v.Things)
 	WriteRecursive(w, v.Tree)
 	WriteOuterInner(w, v.Inner)
 	WriteShapesLeftItem(w, v.LeftItem)
 	WriteShapesRightItem(w, v.RightItem)
-	writeV13(w, v.Flags)
-	writeV14(w, v.Gaps)
-	writeV15(w, v.Names)
-	writeV16(w, v.Tags)
-	writeV17(w, v.Pair)
-	writeV18(w, v.Entry)
-	writeV19(w, v.Maybe)
+	writeV19(w, v.Flags)
+	writeV20(w, v.Gaps)
+	writeV3(w, v.Names)
+	writeV11(w, v.Tags)
+	writeV5(w, v.Pair)
+	writeV21(w, v.Entry)
+	writeV7(w, v.Maybe)
 	WriteKeywords(w, v.Keywords)
 }
 
@@ -323,6 +595,74 @@ func WriteIThing(w *nino.Writer, v IThing) {
 	default:
 		w.Fail(nino.CodeUnknownType, "not a type the slot allows")
 	}
+}
+
+// Keys is `Shapes.Generic.Keys<T>`.
+type Keys[T any] struct {
+	Set   []T                    `nino:"0" json:"set" yaml:"set"`
+	ByKey []nino.Entry[T, int32] `nino:"1" json:"byKey" yaml:"byKey"`
+}
+
+func (Keys[T]) NinoLayout() string {
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Set:System.Collections.Generic.HashSet<T>:seq(type(T));ByKey:System.Collections.Generic.Dictionary<T, int>:map(type(T),raw(4))"
+}
+
+func (Keys[T]) NinoTypeName() string {
+	return "Shapes.Generic.Keys<T>"
+}
+
+// keysCodec reads and writes Keys[T] with the codecs of its type arguments.
+type keysCodec[T any] struct {
+	class nino.Class[Keys[T]]
+	self  NinoArg[*Keys[T]]
+	p0    NinoArg[T]
+	d0    NinoArg[[]T]
+	d1    NinoArg[[]nino.Entry[T, int32]]
+}
+
+// KeysCodec returns the codec of Keys[T] (as a member of its type is written) from the codec of each
+// type argument, in order.
+func KeysCodec[T any](p0 NinoArg[T]) NinoArg[*Keys[T]] {
+	c := &keysCodec[T]{p0: p0}
+	c.class = nino.Class[Keys[T]]{Read: c.readBody, Write: c.writeBody, Deferrable: true}
+	c.self = NinoArg[*Keys[T]]{Read: c.read, Write: c.write, MinSize: 1}
+	c.d0 = NinoArg[[]T]{Read: c.readD0, Write: c.writeD0, MinSize: 4}
+	c.d1 = NinoArg[[]nino.Entry[T, int32]]{Read: c.readD1, Write: c.writeD1, MinSize: 4}
+	return c.self
+}
+
+func (c *keysCodec[T]) read(r *nino.Reader) *Keys[T] {
+	return nino.ReadSealed(r, &c.class)
+}
+
+func (c *keysCodec[T]) write(w *nino.Writer, v *Keys[T]) {
+	nino.WriteSealed(w, v, &c.class)
+}
+
+func (c *keysCodec[T]) readBody(r *nino.Reader, v *Keys[T]) {
+	v.Set = c.d0.Read(r)
+	v.ByKey = c.d1.Read(r)
+}
+
+func (c *keysCodec[T]) writeBody(w *nino.Writer, v *Keys[T]) {
+	c.d0.Write(w, v.Set)
+	c.d1.Write(w, v.ByKey)
+}
+
+func (c *keysCodec[T]) readD0(r *nino.Reader) []T {
+	return nino.ReadSlice(r, c.p0.MinSize, c.p0.Read)
+}
+
+func (c *keysCodec[T]) writeD0(w *nino.Writer, v []T) {
+	nino.WriteSlice(w, v, c.p0.Write)
+}
+
+func (c *keysCodec[T]) readD1(r *nino.Reader) []nino.Entry[T, int32] {
+	return nino.ReadEntries(r, c.p0.MinSize+4, c.p0.Read, (*nino.Reader).I32)
+}
+
+func (c *keysCodec[T]) writeD1(w *nino.Writer, v []nino.Entry[T, int32]) {
+	nino.WriteEntries(w, v, c.p0.Write, (*nino.Writer).I32)
 }
 
 // Keywords is `Shapes.Keywords`.
@@ -426,6 +766,79 @@ func writeNinoGridTypeBody(w *nino.Writer, v *NinoGridType) {
 	w.I32(v.Value)
 }
 
+// Node is `Shapes.Generic.Node<T>`.
+type Node[T any] struct {
+	Value T        `nino:"Value" json:"value" yaml:"value"`
+	Next  *Node[T] `nino:"Next" json:"next" yaml:"next"`
+}
+
+func (Node[T]) NinoLayout() string {
+	return "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T):key=0xC373233E;Next:Shapes.Generic.Node<T>:type(Shapes.Generic.Node<T>):key=0xC9A6113A"
+}
+
+func (Node[T]) NinoTypeName() string {
+	return "Shapes.Generic.Node<T>"
+}
+
+// nodeCodec reads and writes Node[T] with the codecs of its type arguments.
+type nodeCodec[T any] struct {
+	class nino.Class[Node[T]]
+	self  NinoArg[*Node[T]]
+	p0    NinoArg[T]
+}
+
+// NodeCodec returns the codec of Node[T] (as a member of its type is written) from the codec of each
+// type argument, in order.
+func NodeCodec[T any](p0 NinoArg[T]) NinoArg[*Node[T]] {
+	c := &nodeCodec[T]{p0: p0}
+	c.class = nino.Class[Node[T]]{Read: c.readBody, Write: c.writeBody, Deferrable: true}
+	c.self = NinoArg[*Node[T]]{Read: c.read, Write: c.write, MinSize: 1}
+	return c.self
+}
+
+func (c *nodeCodec[T]) read(r *nino.Reader) *Node[T] {
+	return nino.ReadSealed(r, &c.class)
+}
+
+func (c *nodeCodec[T]) write(w *nino.Writer, v *Node[T]) {
+	nino.WriteSealed(w, v, &c.class)
+}
+
+func (c *nodeCodec[T]) readBody(r *nino.Reader, v *Node[T]) {
+	g := r.BeginRegion()
+	var seen uint64
+	for r.More() {
+		key := r.I32()
+		e := r.BeginEntry()
+		switch key {
+		case -1015864514:
+			if r.KeyedSeen(&seen, 0) {
+				v.Value = c.p0.Read(r)
+			}
+		case -911863494:
+			if r.KeyedSeen(&seen, 1) {
+				v.Next = c.self.Read(r)
+			}
+		default:
+			r.SkipEntry(e)
+			continue
+		}
+		r.EndEntry(e)
+	}
+	r.EndRegion(g)
+}
+
+func (c *nodeCodec[T]) writeBody(w *nino.Writer, v *Node[T]) {
+	g := w.BeginRegion()
+	e := w.BeginEntry(-1015864514)
+	c.p0.Write(w, v.Value)
+	w.EndEntry(e)
+	e = w.BeginEntry(-911863494)
+	c.self.Write(w, v.Next)
+	w.EndEntry(e)
+	w.EndRegion(g)
+}
+
 // OuterInner is `Shapes.Outer+Inner`.
 type OuterInner struct {
 	Value int32 `nino:"0" json:"value" yaml:"value"`
@@ -459,6 +872,101 @@ func writeOuterInnerBody(w *nino.Writer, v *OuterInner) {
 	w.I32(v.Value)
 }
 
+// Pair is `Shapes.Generic.Pair<TKey,TValue>`.
+type Pair[TKey any, TValue any] struct {
+	Key   TKey   `nino:"0" json:"key" yaml:"key"`
+	Value TValue `nino:"1" json:"value" yaml:"value"`
+}
+
+func (Pair[TKey, TValue]) NinoLayout() string {
+	return "format=Positional; header=None; trackReferences=false; raw=false; typeId=0x00000000; deferrable=false; members=Key:TKey:type(TKey);Value:TValue:type(TValue)"
+}
+
+func (Pair[TKey, TValue]) NinoTypeName() string {
+	return "Shapes.Generic.Pair<TKey,TValue>"
+}
+
+// pairCodec reads and writes Pair[TKey, TValue] with the codecs of its type arguments.
+type pairCodec[TKey any, TValue any] struct {
+	self NinoArg[Pair[TKey, TValue]]
+	p0   NinoArg[TKey]
+	p1   NinoArg[TValue]
+}
+
+// PairCodec returns the codec of Pair[TKey, TValue] (as a member of its type is written) from the codec of each
+// type argument, in order.
+func PairCodec[TKey any, TValue any](p0 NinoArg[TKey], p1 NinoArg[TValue]) NinoArg[Pair[TKey, TValue]] {
+	c := &pairCodec[TKey, TValue]{p0: p0, p1: p1}
+	c.self = NinoArg[Pair[TKey, TValue]]{Read: c.read, Write: c.write, MinSize: c.p0.MinSize + c.p1.MinSize}
+	return c.self
+}
+
+func (c *pairCodec[TKey, TValue]) read(r *nino.Reader) (v Pair[TKey, TValue]) {
+	if !r.EnterStruct() {
+		return v
+	}
+	v.Key = c.p0.Read(r)
+	v.Value = c.p1.Read(r)
+	r.ExitStruct()
+	return v
+}
+
+func (c *pairCodec[TKey, TValue]) write(w *nino.Writer, v Pair[TKey, TValue]) {
+	if !w.EnterStruct() {
+		return
+	}
+	c.p0.Write(w, v.Key)
+	c.p1.Write(w, v.Value)
+	w.ExitStruct()
+}
+
+// RawPair is `Shapes.Generic.RawPair<T>`.
+type RawPair[T any] struct {
+	A T `nino:"0" json:"a" yaml:"a"`
+	B T `nino:"1" json:"b" yaml:"b"`
+}
+
+func (RawPair[T]) NinoLayout() string {
+	return "format=Positional; header=None; trackReferences=false; raw=false; typeId=0x00000000; deferrable=false; members=A:T:type(T);B:T:type(T)"
+}
+
+func (RawPair[T]) NinoTypeName() string {
+	return "Shapes.Generic.RawPair<T>"
+}
+
+// rawPairCodec reads and writes RawPair[T] with the codecs of its type arguments.
+type rawPairCodec[T any] struct {
+	self NinoArg[RawPair[T]]
+	p0   NinoArg[T]
+}
+
+// RawPairCodec returns the codec of RawPair[T] (as a member of its type is written) from the codec of each
+// type argument, in order.
+func RawPairCodec[T any](p0 NinoArg[T]) NinoArg[RawPair[T]] {
+	c := &rawPairCodec[T]{p0: p0}
+	c.self = NinoArg[RawPair[T]]{Read: c.read, Write: c.write, MinSize: c.p0.MinSize + c.p0.MinSize}
+	return c.self
+}
+
+func (c *rawPairCodec[T]) read(r *nino.Reader) (v RawPair[T]) {
+	if !r.EnterStruct() {
+		return v
+	}
+	v.A = c.p0.Read(r)
+	v.B = c.p0.Read(r)
+	r.ExitStruct()
+	return v
+}
+
+func (c *rawPairCodec[T]) write(w *nino.Writer, v RawPair[T]) {
+	if !w.EnterStruct() {
+		return
+	}
+	c.p0.Write(w, v.A)
+	c.p0.Write(w, v.B)
+	w.ExitStruct()
+}
+
 // Recursive is `Shapes.Recursive`.
 type Recursive struct {
 	Value    int32       `nino:"0" json:"value" yaml:"value"`
@@ -482,7 +990,7 @@ func ReadRecursive(r *nino.Reader) (v Recursive) {
 		return v
 	}
 	v.Value = r.I32()
-	v.Children = readV20(r)
+	v.Children = readV22(r)
 	r.ExitStruct()
 	return v
 }
@@ -492,7 +1000,7 @@ func WriteRecursive(w *nino.Writer, v Recursive) {
 		return
 	}
 	w.I32(v.Value)
-	writeV21(w, v.Children)
+	writeV23(w, v.Children)
 	w.ExitStruct()
 }
 
@@ -685,6 +1193,126 @@ func WriteThingStruct(w *nino.Writer, v ThingStruct) {
 	writeThingStruct(w, v)
 }
 
+// UnhashedKeys is `Shapes.Generic.UnhashedKeys`.
+type UnhashedKeys struct {
+	Keys *Keys[*Box[int64]] `nino:"0" json:"keys" yaml:"keys"`
+}
+
+func (UnhashedKeys) NinoLayout() string {
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDC62564; deferrable=true; members=Keys:Shapes.Generic.Keys<Shapes.Generic.Box<long>>:type(Shapes.Generic.Keys<Shapes.Generic.Box<long>>)"
+}
+
+func (UnhashedKeys) NinoTypeName() string {
+	return "Shapes.Generic.UnhashedKeys"
+}
+
+func (*UnhashedKeys) NinoTypeID() int32 {
+	return -842652316
+}
+
+func ReadUnhashedKeys(r *nino.Reader) *UnhashedKeys {
+	return nino.ReadSealed(r, &unhashedKeysClass)
+}
+
+func WriteUnhashedKeys(w *nino.Writer, v *UnhashedKeys) {
+	nino.WriteSealed(w, v, &unhashedKeysClass)
+}
+
+func readUnhashedKeysBody(r *nino.Reader, v *UnhashedKeys) {
+	v.Keys = codecV1.Read(r)
+}
+
+func writeUnhashedKeysBody(w *nino.Writer, v *UnhashedKeys) {
+	codecV1.Write(w, v.Keys)
+}
+
+// Uses is `Shapes.Generic.Uses`.
+type Uses struct {
+	Number     *Box[int32]                                     `nino:"0" json:"number" yaml:"number"`
+	Text       *Box[*string]                                   `nino:"1" json:"text" yaml:"text"`
+	Pair       Pair[int32, *string]                            `nino:"2" json:"pair" yaml:"pair"`
+	Nested     *Box[*Box[int32]]                               `nino:"3" json:"nested" yaml:"nested"`
+	Mixed      *Box[Pair[*string, Gappy]]                      `nino:"4" json:"mixed" yaml:"mixed"`
+	Boxes      []*Box[int32]                                   `nino:"5" json:"boxes" yaml:"boxes"`
+	Bag        *Bag[*Box[int64]]                               `nino:"6" json:"bag" yaml:"bag"`
+	Chain      *Node[*string]                                  `nino:"7" json:"chain" yaml:"chain"`
+	Thing      *Box[IThing]                                    `nino:"8" json:"thing" yaml:"thing"`
+	Array      *Box[[]int32]                                   `nino:"9" json:"array" yaml:"array"`
+	Complex    Pair[*Box[int32], []nino.Entry[int32, *string]] `nino:"10" json:"complex" yaml:"complex"`
+	Pairs      []nino.Entry[string, PairInt32Int32]            `nino:"11" json:"pairs" yaml:"pairs"`
+	Raw        RawPairInt32                                    `nino:"12" json:"raw" yaml:"raw"`
+	Tuple      *Box[NinoTuple2[int32, *string]]                `nino:"13" json:"tuple" yaml:"tuple"`
+	Maybe      *Box[*int32]                                    `nino:"14" json:"maybe" yaml:"maybe"`
+	Entry      *Box[nino.Entry[int32, *string]]                `nino:"15" json:"entry" yaml:"entry"`
+	Set        *Box[[]*string]                                 `nino:"16" json:"set" yaml:"set"`
+	IntKeys    *Keys[int32]                                    `nino:"17" json:"intKeys" yaml:"intKeys"`
+	StringKeys *Keys[*string]                                  `nino:"18" json:"stringKeys" yaml:"stringKeys"`
+}
+
+func (Uses) NinoLayout() string {
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCF00B9E0; deferrable=true; members=Number:Shapes.Generic.Box<int>:type(Shapes.Generic.Box<int>);Text:Shapes.Generic.Box<string>:type(Shapes.Generic.Box<string>);Pair:Shapes.Generic.Pair<int, string>:type(Shapes.Generic.Pair<int, string>);Nested:Shapes.Generic.Box<Shapes.Generic.Box<int>>:type(Shapes.Generic.Box<Shapes.Generic.Box<int>>);Mixed:Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>:type(Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<int>>:seq(type(Shapes.Generic.Box<int>));Bag:Shapes.Generic.Bag<Shapes.Generic.Box<long>>:type(Shapes.Generic.Bag<Shapes.Generic.Box<long>>);Chain:Shapes.Generic.Node<string>:type(Shapes.Generic.Node<string>);Thing:Shapes.Generic.Box<Shapes.IThing>:type(Shapes.Generic.Box<Shapes.IThing>);Array:Shapes.Generic.Box<int[]>:type(Shapes.Generic.Box<int[]>);Complex:Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>:type(Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>);Pairs:System.Collections.Generic.Dictionary<string, Shapes.Generic.Pair<int, int>>:map(string,raw(8){Key:int@0:raw(4),Value:int@4:raw(4)});Raw:Shapes.Generic.RawPair<int>:raw(8){A:int@0:raw(4),B:int@4:raw(4)};Tuple:Shapes.Generic.Box<System.ValueTuple<int, string>>:type(Shapes.Generic.Box<System.ValueTuple<int, string>>);Maybe:Shapes.Generic.Box<System.Nullable<int>>:type(Shapes.Generic.Box<System.Nullable<int>>);Entry:Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>:type(Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>);Set:Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>:type(Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>);IntKeys:Shapes.Generic.Keys<int>:type(Shapes.Generic.Keys<int>);StringKeys:Shapes.Generic.Keys<string>:type(Shapes.Generic.Keys<string>)"
+}
+
+func (Uses) NinoTypeName() string {
+	return "Shapes.Generic.Uses"
+}
+
+func (*Uses) NinoTypeID() int32 {
+	return -822036000
+}
+
+func ReadUses(r *nino.Reader) *Uses {
+	return nino.ReadSealed(r, &usesClass)
+}
+
+func WriteUses(w *nino.Writer, v *Uses) {
+	nino.WriteSealed(w, v, &usesClass)
+}
+
+func readUsesBody(r *nino.Reader, v *Uses) {
+	v.Number = codecV2.Read(r)
+	v.Text = codecV3.Read(r)
+	v.Pair = codecV4.Read(r)
+	v.Nested = codecV5.Read(r)
+	v.Mixed = codecV7.Read(r)
+	v.Boxes = readV24(r)
+	v.Bag = codecV8.Read(r)
+	v.Chain = codecV9.Read(r)
+	v.Thing = codecV10.Read(r)
+	v.Array = codecV11.Read(r)
+	v.Complex = codecV12.Read(r)
+	v.Pairs = readV25(r)
+	v.Raw = readRawPairInt32(r)
+	v.Tuple = codecV13.Read(r)
+	v.Maybe = codecV14.Read(r)
+	v.Entry = codecV15.Read(r)
+	v.Set = codecV16.Read(r)
+	v.IntKeys = codecV17.Read(r)
+	v.StringKeys = codecV18.Read(r)
+}
+
+func writeUsesBody(w *nino.Writer, v *Uses) {
+	codecV2.Write(w, v.Number)
+	codecV3.Write(w, v.Text)
+	codecV4.Write(w, v.Pair)
+	codecV5.Write(w, v.Nested)
+	codecV7.Write(w, v.Mixed)
+	writeV26(w, v.Boxes)
+	codecV8.Write(w, v.Bag)
+	codecV9.Write(w, v.Chain)
+	codecV10.Write(w, v.Thing)
+	codecV11.Write(w, v.Array)
+	codecV12.Write(w, v.Complex)
+	writeV27(w, v.Pairs)
+	writeRawPairInt32(w, v.Raw)
+	codecV13.Write(w, v.Tuple)
+	codecV14.Write(w, v.Maybe)
+	codecV15.Write(w, v.Entry)
+	codecV16.Write(w, v.Set)
+	codecV17.Write(w, v.IntKeys)
+	codecV18.Write(w, v.StringKeys)
+}
+
 func readV0(r *nino.Reader) []Forest {
 	return nino.ReadSlice(r, 4, readForest)
 }
@@ -693,31 +1321,54 @@ func writeV1(w *nino.Writer, v []Forest) {
 	nino.WriteSlice(w, v, writeForest)
 }
 
-func readV2(r *nino.Reader) []nino.Entry[float32, int32] {
-	return nino.ReadUniqueEntries(r, 8, (*nino.Reader).F32, (*nino.Reader).I32)
-}
-
-func writeV3(w *nino.Writer, v []nino.Entry[float32, int32]) {
-	nino.WriteEntries(w, v, (*nino.Writer).F32, (*nino.Writer).I32)
-}
-
-func readV4(r *nino.Reader) []IThing {
-	return nino.ReadSlice(r, 4, ReadIThing)
-}
-
-func readV5(r *nino.Reader) Flags {
-	return Flags(r.I64())
-}
-
-func readV6(r *nino.Reader) []Gappy {
-	return nino.ReadFixed(r, 8, decodeGappy)
-}
-
-func readV7(r *nino.Reader) []nino.Entry[int32, *string] {
+func readV2(r *nino.Reader) []nino.Entry[int32, *string] {
 	return nino.ReadUniqueEntries(r, 8, (*nino.Reader).I32, (*nino.Reader).StringPtr)
 }
 
-func readV8(r *nino.Reader) []*string {
+func writeV3(w *nino.Writer, v []nino.Entry[int32, *string]) {
+	nino.WriteEntries(w, v, (*nino.Writer).I32, (*nino.Writer).StringPtr)
+}
+
+func readV4(r *nino.Reader) NinoTuple2[int32, *string] {
+	var v NinoTuple2[int32, *string]
+	v.Item1 = r.I32()
+	v.Item2 = r.StringPtr()
+	return v
+}
+
+func writeV5(w *nino.Writer, v NinoTuple2[int32, *string]) {
+	w.I32(v.Item1)
+	w.StringPtr(v.Item2)
+}
+
+func readV6(r *nino.Reader) *int32 {
+	if !r.Present() {
+		return nil
+	}
+	x := r.I32()
+	return &x
+}
+
+func writeV7(w *nino.Writer, v *int32) {
+	w.Present(v != nil)
+	if v != nil {
+		w.I32(*v)
+	}
+}
+
+func readV8(r *nino.Reader) nino.Entry[int32, *string] {
+	var v nino.Entry[int32, *string]
+	v.Key = r.I32()
+	v.Value = r.StringPtr()
+	return v
+}
+
+func writeV9(w *nino.Writer, v nino.Entry[int32, *string]) {
+	w.I32(v.Key)
+	w.StringPtr(v.Value)
+}
+
+func readV10(r *nino.Reader) []*string {
 	v := nino.ReadSlice(r, 4, (*nino.Reader).StringPtr)
 	if v == nil {
 		return nil
@@ -739,71 +1390,76 @@ func readV8(r *nino.Reader) []*string {
 	return v
 }
 
-func readV9(r *nino.Reader) NinoTuple2[int32, *string] {
-	var v NinoTuple2[int32, *string]
-	v.Item1 = r.I32()
-	v.Item2 = r.StringPtr()
-	return v
+func writeV11(w *nino.Writer, v []*string) {
+	nino.WriteSlice(w, v, (*nino.Writer).StringPtr)
 }
 
-func readV10(r *nino.Reader) nino.Entry[*string, int32] {
+func readV12(r *nino.Reader) []nino.Entry[float32, int32] {
+	return nino.ReadUniqueEntries(r, 8, (*nino.Reader).F32, (*nino.Reader).I32)
+}
+
+func writeV13(w *nino.Writer, v []nino.Entry[float32, int32]) {
+	nino.WriteEntries(w, v, (*nino.Writer).F32, (*nino.Writer).I32)
+}
+
+func readV14(r *nino.Reader) []IThing {
+	return nino.ReadSlice(r, 4, ReadIThing)
+}
+
+func readV15(r *nino.Reader) Flags {
+	return Flags(r.I64())
+}
+
+func readV16(r *nino.Reader) []Gappy {
+	return nino.ReadFixed(r, 8, decodeGappy)
+}
+
+func readV17(r *nino.Reader) nino.Entry[*string, int32] {
 	var v nino.Entry[*string, int32]
 	v.Key = r.StringPtr()
 	v.Value = r.I32()
 	return v
 }
 
-func readV11(r *nino.Reader) *int32 {
-	if !r.Present() {
-		return nil
-	}
-	x := r.I32()
-	return &x
-}
-
-func writeV12(w *nino.Writer, v []IThing) {
+func writeV18(w *nino.Writer, v []IThing) {
 	nino.WriteSlice(w, v, WriteIThing)
 }
 
-func writeV13(w *nino.Writer, v Flags) {
+func writeV19(w *nino.Writer, v Flags) {
 	w.I64(int64(v))
 }
 
-func writeV14(w *nino.Writer, v []Gappy) {
+func writeV20(w *nino.Writer, v []Gappy) {
 	nino.WriteFixed(w, v, 8, encodeGappy)
 }
 
-func writeV15(w *nino.Writer, v []nino.Entry[int32, *string]) {
-	nino.WriteEntries(w, v, (*nino.Writer).I32, (*nino.Writer).StringPtr)
-}
-
-func writeV16(w *nino.Writer, v []*string) {
-	nino.WriteSlice(w, v, (*nino.Writer).StringPtr)
-}
-
-func writeV17(w *nino.Writer, v NinoTuple2[int32, *string]) {
-	w.I32(v.Item1)
-	w.StringPtr(v.Item2)
-}
-
-func writeV18(w *nino.Writer, v nino.Entry[*string, int32]) {
+func writeV21(w *nino.Writer, v nino.Entry[*string, int32]) {
 	w.StringPtr(v.Key)
 	w.I32(v.Value)
 }
 
-func writeV19(w *nino.Writer, v *int32) {
-	w.Present(v != nil)
-	if v != nil {
-		w.I32(*v)
-	}
-}
-
-func readV20(r *nino.Reader) []Recursive {
+func readV22(r *nino.Reader) []Recursive {
 	return nino.ReadSlice(r, 8, ReadRecursive)
 }
 
-func writeV21(w *nino.Writer, v []Recursive) {
+func writeV23(w *nino.Writer, v []Recursive) {
 	nino.WriteSlice(w, v, WriteRecursive)
+}
+
+func readV24(r *nino.Reader) []*Box[int32] {
+	return nino.ReadSlice(r, 1, codecV2.Read)
+}
+
+func readV25(r *nino.Reader) []nino.Entry[string, PairInt32Int32] {
+	return nino.ReadUniqueEntries(r, 12, keyString, readPairInt32Int32)
+}
+
+func writeV26(w *nino.Writer, v []*Box[int32]) {
+	nino.WriteSlice(w, v, codecV2.Write)
+}
+
+func writeV27(w *nino.Writer, v []nino.Entry[string, PairInt32Int32]) {
+	nino.WriteEntries(w, v, (*nino.Writer).String, writePairInt32Int32)
 }
 
 // NinoTuple2 is a ValueTuple or Tuple of 2 items.
@@ -883,6 +1539,14 @@ func timeOnlyAt(r *nino.Reader, b []byte) nino.TimeOnly {
 	return t
 }
 
+// NinoArg is the codec of a type argument of a generic type: how its values are read and written, and the fewest
+// bytes one takes.
+type NinoArg[T any] struct {
+	Read    func(*nino.Reader) T
+	Write   func(*nino.Writer, T)
+	MinSize int
+}
+
 // NinoCodec reads and writes values of one type, as any.
 type NinoCodec struct {
 	Read  func(*nino.Reader) any
@@ -933,6 +1597,10 @@ func NinoCodecOf(name string) (NinoCodec, bool) {
 		return codecOf(ReadThingClass, WriteThingClass), true
 	case "Shapes.ThingStruct":
 		return codecOf(ReadThingStruct, WriteThingStruct), true
+	case "Shapes.Generic.UnhashedKeys":
+		return codecOf(ReadUnhashedKeys, WriteUnhashedKeys), true
+	case "Shapes.Generic.Uses":
+		return codecOf(ReadUses, WriteUses), true
 	}
 	return NinoCodec{}, false
 }

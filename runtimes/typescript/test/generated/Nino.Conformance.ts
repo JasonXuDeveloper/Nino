@@ -2109,6 +2109,46 @@ function writeBody$BlueLink(w: NinoWriter, v: BlueLink): void {
   w.string(v.Note);
 }
 
+/** `Conformance.Box<T>`. */
+export class Box<T> extends Animal {
+  declare Value: T;
+
+  constructor() {
+    super();
+    this.Value = undefined as unknown as T;
+  }
+}
+
+function readBox<T>(r: NinoReader, c: Box$Codecs<T>): Box<T> {
+  const v = new Box<T>(), depth = r.depth;
+  if (depth >= 128) return r.defer(v, (r, v) => readBody$Box(r, v, c));
+  r.depth = depth + 1;
+  readBody$Box(r, v, c);
+  r.exit(depth);
+  return v;
+}
+
+function writeBox<T>(w: NinoWriter, v: Box<T>, c: Box$Codecs<T>): void {
+  const depth = w.depth;
+  if (depth >= 128) {
+    w.defer(v, (w, v) => writeBody$Box(w, v, c));
+    return;
+  }
+  w.depth = depth + 1;
+  writeBody$Box(w, v, c);
+  w.exit(depth);
+}
+
+function readBody$Box<T>(r: NinoReader, v: Box<T>, c: Box$Codecs<T>): void {
+  v.Name = r.string();
+  v.Value = c.p0.read(r);
+}
+
+function writeBody$Box<T>(w: NinoWriter, v: Box<T>, c: Box$Codecs<T>): void {
+  w.string(v.Name);
+  c.p0.write(w, v.Value);
+}
+
 /** `Conformance.Cat`. */
 export class Cat extends Animal {
   declare Lives: number;
@@ -2959,6 +2999,28 @@ export const ZooCodec: NinoCodec<Zoo | null> = {
     if (v === null || v === undefined) w.u8(0); else { w.u8(1); writeZoo(w, v); }
   },
 };
+
+interface Box$Codecs<T> {
+  p0: NinoCodec<T>;
+  self: NinoCodec<Box<T> | null>;
+}
+
+/** The codec of `Conformance.Box<T>` with the codecs of its type arguments. */
+export function BoxCodec<T>(p0: NinoCodec<T>): NinoCodec<Box<T> | null> {
+  const c = { p0 } as Box$Codecs<T>;
+  c.self = {
+    read: (r) => (r.notNull() ? readBox(r, c) : null),
+    write: (w, v) => {
+      if (v === null || v === undefined) w.u8(0);
+      else {
+        w.u8(1);
+        writeBox(w, v, c);
+      }
+    },
+  };
+  return c.self;
+}
+
 function read$0(r: NinoReader): boolean[] | null {
   const length = r.length();
   if (length < 0) return null;

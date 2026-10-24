@@ -85,6 +85,45 @@ namespace Nino.Codegen.Tests
         }
 
         [TestMethod]
+        public void GenericTypesKeepTheirParametersAndArguments()
+        {
+            using var model = Load(GeneratedFilesTests.Shapes);
+            var bag = Type(model, "Shapes.Generic.Bag`1");
+            CollectionAssert.AreEqual(new[] { "T" }, bag.TypeParameters.ToList());
+            CollectionAssert.AreEqual(new[] { "TKey", "TValue" },
+                Type(model, "Shapes.Generic.Pair`2").TypeParameters.ToList());
+            ValueModel BagMember(string name) => bag.Members.Single(m => m.Name == name).Value;
+            Assert.AreEqual(ValueKind.Parameter, BagMember("Items").Element!.Kind);
+            Assert.AreEqual(0, BagMember("Items").Element!.Parameter);
+            // Box<T> in Bag<T>: open (it holds T), and not Bag<T> itself.
+            var inner = BagMember("Inner");
+            Assert.AreEqual(ValueKind.Generic, inner.Kind);
+            Assert.IsTrue(inner.IsOpen);
+            Assert.IsFalse(inner.IsSelf(bag));
+            var node = Type(model, "Shapes.Generic.Node`1");
+            Assert.IsTrue(node.Members.Single(m => m.Name == "Next").Value.IsSelf(node));
+
+            var uses = Type(model, "Shapes.Generic.Uses");
+            ValueModel Member(string name) => uses.Members.Single(m => m.Name == name).Value;
+            var nested = Member("Nested");
+            Assert.AreEqual(ValueKind.Generic, nested.Kind);
+            Assert.AreEqual("Shapes.Generic.Box`1", nested.Type!.FullName);
+            Assert.IsFalse(nested.IsOpen);
+            Assert.AreEqual(ValueKind.Generic, nested.Arguments.Single().Kind);
+            Assert.AreEqual(ValueKind.Primitive, nested.Arguments.Single().Arguments.Single().Kind);
+            var complex = Member("Complex");
+            Assert.AreEqual(2, complex.Arguments.Count);
+            Assert.AreEqual(ValueKind.Map, complex.Arguments[1].Kind);
+            // A closed unmanaged generic struct as a member is raw, as before.
+            Assert.AreEqual(ValueKind.RawStruct, Member("Raw").Kind);
+
+            Assert.IsNull(CodegenModel.GenericProblem(bag));
+            Assert.IsNull(CodegenModel.GenericProblem(node));
+            // Written behind a type id, the hash of its closed .NET name: no other language can name it.
+            Assert.IsNotNull(CodegenModel.GenericProblem(Type(model, "Shapes.Generic.Open`1")));
+        }
+
+        [TestMethod]
         public void RecordsAreNotDeferrable()
         {
             using var model = Load(GeneratedFilesTests.Conformance);

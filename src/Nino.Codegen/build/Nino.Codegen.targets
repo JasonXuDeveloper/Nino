@@ -14,7 +14,7 @@
         (docs/codegen.md): Out (relative to the project; default ts/, go/ or rust/ next to it), Name, and
           typescript  Names, ImportExtension, Runtime
           go          Package, Tags, TagNames
-          rust        Serde, SerdeNames, Strings
+          rust        Serde, SerdeNames, Strings, Maps
         nino-gen checks them: an unknown value, or an option of another language, fails the build (NINOGEN001).
 
           NinoCodegenTargetFramework  the target framework whose build writes them, when there are several (default:
@@ -84,6 +84,7 @@
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Serde)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --serde &quot;%(_NinoCodegenItem.Serde)&quot;"/>
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.SerdeNames)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --serde-names &quot;%(_NinoCodegenItem.SerdeNames)&quot;"/>
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Strings)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --strings &quot;%(_NinoCodegenItem.Strings)&quot;"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Maps)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --maps &quot;%(_NinoCodegenItem.Maps)&quot;"/>
             <_NinoCodegenItem NinoOptions="$(_NinoCodegenDirectory)%(_NinoCodegenItem.NinoKey).options" NinoStamp="$(_NinoCodegenDirectory)%(_NinoCodegenItem.NinoKey).stamp"/>
         </ItemGroup>
 

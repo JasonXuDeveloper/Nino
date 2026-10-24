@@ -20,6 +20,13 @@ namespace Nino.Codegen.Targets
         /// (which reads one as U+FFFD).
         /// </summary>
         public bool WideStrings { get; set; }
+
+        /// <summary>
+        /// Maps and sets as <c>std::collections::HashMap</c> and <c>HashSet</c> instead of <c>indexmap</c>'s
+        /// <c>IndexMap</c> and <c>IndexSet</c> (no dependency, but written in the hash table's order, not the order
+        /// read).
+        /// </summary>
+        public bool StdMaps { get; set; }
     }
 
     /// <summary>
@@ -39,6 +46,7 @@ namespace Nino.Codegen.Targets
         private readonly List<RawStructModel> _rawStructs = new();
         internal Dictionary<RawStructModel, RustShape> RawShapes { get; } = new();
         private readonly List<RustNamed> _namedCollections = new();
+        private readonly Dictionary<TypeModel, HashSet<int>> _hashedParameters = new();
         private bool _usesObject;
 
         public List<string> Warnings { get; } = new();
@@ -78,6 +86,7 @@ namespace Nino.Codegen.Targets
             var renderer = new TemplateRenderer("rust");
             renderer.Set("source", source);
             renderer.Set("serde", _options.Serde);
+            renderer.Set("std_maps", _options.StdMaps);
             renderer.Set("serde_rename_all", SerdeRule);
             renderer.Set("enums", _enums.OrderBy(e => Name(e), StringComparer.Ordinal)
                 .Select(e => new RustEnum(Name(e), e)).ToList());
@@ -86,7 +95,8 @@ namespace Nino.Codegen.Targets
                 .OrderBy(t => t.Name, StringComparer.Ordinal).ToList());
             renderer.Set("refs", refs.OrderBy(r => r.Name, StringComparer.Ordinal).ToList());
             renderer.Set("named", _namedCollections.OrderBy(n => n.Name, StringComparer.Ordinal).ToList());
-            renderer.Set("tops", all.OrderBy(t => t.RuntimeName, StringComparer.Ordinal).ToList());
+            renderer.Set("tops", all.Where(t => !t.Model.IsGenericDefinition)
+                .OrderBy(t => t.RuntimeName, StringComparer.Ordinal).ToList());
             renderer.Set("uses_any", refs.Count != 0);
             renderer.Function("hex", new Func<int, string>(TypeNames.Hex));
             renderer.Function("name", new Func<object, string>(Name));
@@ -101,7 +111,7 @@ namespace Nino.Codegen.Targets
         {
             foreach (var type in _model.Types)
             {
-                string? reason = type.IsGenericDefinition ? "open generic types are not supported"
+                string? reason = CodegenModel.GenericProblem(type) is { } generic ? generic
                     : type.TrackReferences ? "reference tracking (trackReferences) is not supported"
                     : type.Elements != null ? "[NinoType] collections are not supported"
                     : null;
@@ -239,6 +249,23 @@ namespace Nino.Codegen.Targets
                     return new RustShape("object") { MayDefer = true };
                 case ValueKind.Type:
                     return TypeShape(value.Type!);
+                case ValueKind.Parameter:
+                    // A type parameter: its argument's NinoRead decides (read_in asks it whether it may defer); a
+                    // parameter a map key or set element holds is bound by Eq + Hash, and checked where it is closed.
+                    return new RustShape("param") { Parameter = value.ParameterName, MayDefer = true, Hashable = true };
+                case ValueKind.Generic:
+                {
+                    var definition = value.Type!;
+                    if (!_supported.Contains(definition))
+                        throw new UnsupportedException($"{definition.FullName} is not written to Rust");
+                    var arguments = value.Arguments.Select(a => Shape(a, false)).ToList();
+                    foreach (int i in HashedParameters(definition))
+                        if (!arguments[i].Hashable)
+                            throw new UnsupportedException(
+                                $"{TypeNames.Runtime(value.Clr)}: {definition.TypeParameters[i]} is a key or set element, which Rust cannot hash");
+                    return new RustShape(definition.IsValueType ? "generic" : "genericclass")
+                        { Type = definition, Items = arguments, MayDefer = true };
+                }
                 case ValueKind.Named:
                 {
                     if (!_model.NamedCollections.TryGetValue(value.NamedTypeName ?? "", out var collection))
@@ -272,7 +299,7 @@ namespace Nino.Codegen.Targets
                                CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
                     if (set && !element.Hashable)
                         throw new UnsupportedException(
-                            $"{value.ClrName}: a set of values Rust cannot hash (an IndexSet needs Eq and Hash)");
+                            $"{value.ClrName}: a set of values Rust cannot hash (a set needs Eq and Hash)");
                     if (!set)
                         element = Shape(value.Element, false);
                     return new RustShape("seq") { Element = element, Mode = set ? "set" : "vec", MayDefer = element.MayDefer };
@@ -282,7 +309,7 @@ namespace Nino.Codegen.Targets
                     var (k, v) = (Shape(value.Key!, true), Shape(value.Value!, false));
                     if (!k.Hashable)
                         throw new UnsupportedException(
-                            $"{value.ClrName}: keys Rust cannot hash (an IndexMap needs Eq and Hash)");
+                            $"{value.ClrName}: keys Rust cannot hash (a map needs Eq and Hash)");
                     return new RustShape("map") { Key = k, Value = v, MayDefer = k.MayDefer || v.MayDefer };
                 }
                 case ValueKind.Tuple:
@@ -389,6 +416,34 @@ namespace Nino.Codegen.Targets
             _ => 8,
         };
 
+        /// <summary>
+        /// The parameters of a generic definition that are map keys or set elements in it (directly, or through the
+        /// generic types it holds): bound by <c>Eq + Hash</c>, and given only arguments Rust can hash.
+        /// </summary>
+        internal HashSet<int> HashedParameters(TypeModel type)
+        {
+            if (_hashedParameters.TryGetValue(type, out var hashed))
+                return hashed;
+            hashed = new HashSet<int>();
+            _hashedParameters[type] = hashed;
+            foreach (var value in type.Members.SelectMany(m => m.Value.Walk()))
+            {
+                IEnumerable<ValueModel> keys = value.Kind switch
+                {
+                    ValueKind.Map => new[] { value.Key! },
+                    ValueKind.Sequence when value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
+                                            CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null
+                        => new[] { value.Element! },
+                    ValueKind.Generic when value.Type != type => HashedParameters(value.Type!).Select(i => value.Arguments[i]),
+                    _ => Array.Empty<ValueModel>(),
+                };
+                foreach (var parameter in keys.SelectMany(k => k.Walk()).Where(v => v.Kind == ValueKind.Parameter))
+                    hashed.Add(parameter.Parameter);
+            }
+
+            return hashed;
+        }
+
         // ---------------------------------------------------------------- names
 
         /// <summary>Names a generated type must not take: the prelude's and the generated code's own.</summary>
@@ -401,10 +456,10 @@ namespace Nino.Codegen.Targets
         private void AssignNames(IEnumerable<object> types)
         {
             var all = types.Select(Clr).Distinct().ToList();
-            var simple = all.ToLookup(t => GoTarget.Go(TypeNames.Simple(t)));
+            var simple = all.ToLookup(t => GoTarget.Go(GoTarget.SimpleName(t)));
             foreach (var type in all)
             {
-                string name = GoTarget.Go(TypeNames.Simple(type));
+                string name = GoTarget.Go(GoTarget.SimpleName(type));
                 if (simple[name].Count() > 1)
                     name = GoTarget.Go((type.Namespace ?? "").Replace('.', '_')) + name;
                 if (Reserved.Contains(name))
@@ -422,7 +477,7 @@ namespace Nino.Codegen.Targets
         };
 
         internal string Name(object type) =>
-            _names.TryGetValue(Clr(type), out var name) ? name : GoTarget.Go(TypeNames.Simple(Clr(type)));
+            _names.TryGetValue(Clr(type), out var name) ? name : GoTarget.Go(GoTarget.SimpleName(Clr(type)));
 
         private static readonly HashSet<string> Keywords = new(StringComparer.Ordinal)
         {
@@ -511,7 +566,8 @@ namespace Nino.Codegen.Targets
     /// How a value is written in Rust (<see cref="Kind"/>: <c>prim</c>, <c>enum</c>, <c>rawstruct</c>, <c>tuple</c>,
     /// <c>string</c>, <c>keystring</c>, <c>utf8</c>, <c>keyutf8</c>, <c>object</c>, <c>struct</c>, <c>class</c>,
     /// <c>slot</c>, <c>named</c>, <c>nullable</c>, <c>seq</c>, <c>map</c>, <c>grid</c>, <c>bigint</c>,
-    /// <c>version</c>, <c>datetimeoffset</c>).
+    /// <c>version</c>, <c>datetimeoffset</c>, <c>param</c>: a type parameter, <c>generic</c> and <c>genericclass</c>:
+    /// a generic struct or class with its arguments in <see cref="Items"/>).
     /// </summary>
     public sealed class RustShape
     {
@@ -521,6 +577,9 @@ namespace Nino.Codegen.Targets
 
         /// <summary>The <see cref="PrimitiveKind"/> of a primitive.</summary>
         public string? Primitive { get; internal set; }
+
+        /// <summary>The name of a type parameter (<c>param</c>).</summary>
+        public string? Parameter { get; internal set; }
 
         public int Size { get; internal set; } = -1;
 
@@ -675,6 +734,9 @@ namespace Nino.Codegen.Targets
 
         public string? SerdeRename { get; }
 
+        /// <summary>Whether a type parameter is inside it.</summary>
+        public bool Open => Model.Value.IsOpen;
+
         /// <summary>A keyed member's key and former keys, as the reader matches them.</summary>
         public string Keys => string.Join(" | ", Model.AllKeys.Select(TypeNames.Hex));
     }
@@ -721,11 +783,33 @@ namespace Nino.Codegen.Targets
                 _target.SerdeRename(names[i].Plain, m.Name))).ToList();
         }
 
-        /// <summary>A struct that can hold itself through no class body: its nesting is counted.</summary>
-        public bool Counted => Model.IsValueType && !Model.Raw && _target.HoldsItself(Model);
+        /// <summary>
+        /// A struct whose nesting is counted: one that can hold itself through no class body, or a generic struct
+        /// (whose .NET formatter counts every one).
+        /// </summary>
+        public bool Counted => Model.IsValueType && !Model.Raw && (Model.IsGenericDefinition || _target.HoldsItself(Model));
 
         /// <summary>Whether reading a member may defer a class body.</summary>
         public bool MayDefer => Members.Any(m => m.Shape.MayDefer);
+
+        /// <summary>The type parameters of a generic definition (empty otherwise).</summary>
+        public IReadOnlyList<string> Parameters => Model.TypeParameters;
+
+        /// <summary><c>&lt;T, U&gt;</c> after the name of a generic type, else empty.</summary>
+        public string Generics => Parameters.Count == 0 ? "" : "<" + string.Join(", ", Parameters) + ">";
+
+        /// <summary>The bounds the struct declares: <c>Eq + Hash</c> on the parameters it hashes (its derives need them).</summary>
+        public string DeclaredGenerics => Parameters.Count == 0 ? "" :
+            "<" + string.Join(", ", Parameters.Select((p, i) => _target.HashedParameters(Model).Contains(i)
+                ? p + ": Eq + core::hash::Hash"
+                : p)) + ">";
+
+        /// <summary>The parameters of an impl of a generic type, with every bound its codecs need.</summary>
+        public string ImplGenerics => Parameters.Count == 0 ? "" :
+            "<" + string.Join(", ", Parameters.Select((p, i) => p + ": NinoRead + NinoWrite + Default" +
+                (_target.HashedParameters(Model).Contains(i) ? " + Eq + core::hash::Hash + Clone" : "") +
+                " + 'static")) + ">";
+
 
         public string Layout => Model.LayoutText;
 

@@ -6,37 +6,48 @@ include "shapes.sbn"
 # A class body (`readBody$X`, `writeBody$X`) or a struct (`readX`, `writeX`): its members, without the header.
 func body(c)
   $n = c.name
+  # A generic type: `Box<T>`, its code takes the codecs of its arguments (`c`) and passes them on.
+  $t = c.self
+  $tp = c.type_params
+  $ca = c.codecs_argument
   $o = ""
   # An empty body leaves its parameters unused: they are named with a `_`, as noUnusedParameters wants.
   $empty = c.members.size == 0
   $r = $empty && c.format == "positional" && !c.counted ? "_r" : "r"
   $w = $empty && c.format == "positional" && !c.counted ? "_w" : "w"
   $v = $empty ? "_v" : "v"
+  $cs = $empty ? (string.replace c.codecs ", c:" ", _c:") : c.codecs
+  $readBody = "readBody$" + $n
+  $writeBody = "writeBody$" + $n
+  if $ca != ""
+    $readBody = "(r, v) => readBody$" + $n + "(r, v, c)"
+    $writeBody = "(w, v) => writeBody$" + $n + "(w, v, c)"
+  end
   if c.is_class_body
-    $o = $o + "function read" + $n + "(r: NinoReader): " + $n + " {\n"
+    $o = $o + "function read" + $n + $tp + "(r: NinoReader" + c.codecs + "): " + $t + " {\n"
     if c.nests
-      $o = $o + "  const v = new " + $n + "(), depth = r.depth;\n  if (depth >= 128) return r." + c.later + "(v, readBody$" + $n + ");\n"
-      $o = $o + "  r.depth = depth + 1;\n  readBody$" + $n + "(r, v);\n  r.exit(depth);\n"
+      $o = $o + "  const v = new " + $t + "(), depth = r.depth;\n  if (depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
+      $o = $o + "  r.depth = depth + 1;\n  readBody$" + $n + "(r, v" + $ca + ");\n  r.exit(depth);\n"
     else
-      $o = $o + "  const v = new " + $n + "();\n  if (r.depth >= 128) return r." + c.later + "(v, readBody$" + $n + ");\n"
-      $o = $o + "  readBody$" + $n + "(r, v);\n"
+      $o = $o + "  const v = new " + $t + "();\n  if (r.depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
+      $o = $o + "  readBody$" + $n + "(r, v" + $ca + ");\n"
     end
     $o = $o + "  return v;\n}\n\n"
-    $o = $o + "function write" + $n + "(w: NinoWriter, v: " + $n + "): void {\n"
+    $o = $o + "function write" + $n + $tp + "(w: NinoWriter, v: " + $t + c.codecs + "): void {\n"
     if c.nests
-      $o = $o + "  const depth = w.depth;\n  if (depth >= 128) {\n    w." + c.later + "(v, writeBody$" + $n + ");\n    return;\n  }\n"
-      $o = $o + "  w.depth = depth + 1;\n  writeBody$" + $n + "(w, v);\n  w.exit(depth);\n"
+      $o = $o + "  const depth = w.depth;\n  if (depth >= 128) {\n    w." + c.later + "(v, " + $writeBody + ");\n    return;\n  }\n"
+      $o = $o + "  w.depth = depth + 1;\n  writeBody$" + $n + "(w, v" + $ca + ");\n  w.exit(depth);\n"
     else
-      $o = $o + "  if (w.depth >= 128) w." + c.later + "(v, writeBody$" + $n + ");\n  else writeBody$" + $n + "(w, v);\n"
+      $o = $o + "  if (w.depth >= 128) w." + c.later + "(v, " + $writeBody + ");\n  else writeBody$" + $n + "(w, v" + $ca + ");\n"
     end
     $o = $o + "}\n\n"
-    $o = $o + "function readBody$" + $n + "(" + $r + ": NinoReader, " + $v + ": " + $n + "): void {\n"
+    $o = $o + "function readBody$" + $n + $tp + "(" + $r + ": NinoReader, " + $v + ": " + $t + $cs + "): void {\n"
   else
-    $o = $o + "function read" + $n + "(" + $r + ": NinoReader): " + $n + " {\n"
+    $o = $o + "function read" + $n + $tp + "(" + $r + ": NinoReader" + $cs + "): " + $t + " {\n"
     if c.counted
       $o = $o + "  r.enterStruct();\n"
     end
-    $o = $o + "  const v = new " + $n + "();\n"
+    $o = $o + "  const v = new " + $t + "();\n"
   end
 
   if c.format == "keyed"
@@ -77,10 +88,10 @@ func body(c)
   end
   if c.is_class_body
     $o = $o + "}\n\n"
-    $o = $o + "function writeBody$" + $n + "(" + $w + ": NinoWriter, " + $v + ": " + $n + "): void {\n"
+    $o = $o + "function writeBody$" + $n + $tp + "(" + $w + ": NinoWriter, " + $v + ": " + $t + $cs + "): void {\n"
   else
     $o = $o + "  return v;\n}\n\n"
-    $o = $o + "function write" + $n + "(" + $w + ": NinoWriter, " + $v + ": " + $n + "): void {\n"
+    $o = $o + "function write" + $n + $tp + "(" + $w + ": NinoWriter, " + $v + ": " + $t + $cs + "): void {\n"
   end
   if c.counted
     $o = $o + "  w.enterStruct();\n"
@@ -138,7 +149,7 @@ func helper_body(h)
   $o = ""
   if h.mode == "read"
     if $s.kind == "seq"
-      $o = "function " + $n + "(r: NinoReader): " + seq_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n"
+      $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + "): " + seq_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n"
       if $s.set
         $o = $o + "  const values = new Set<" + ts($s.element) + ">();\n"
         $add = "values.add("
@@ -159,7 +170,7 @@ func helper_body(h)
       end
       ret $o + "  return values;\n}\n"
     else if $s.kind == "map"
-      $o = "function " + $n + "(r: NinoReader): " + map_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const map = new " + map_ts($s) + "();\n"
+      $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + "): " + map_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const map = new " + map_ts($s) + "();\n"
       if $s.key.fixed && $s.value.fixed
         $size = $s.key.size + $s.value.size
         $o = $o + "  for (let i = 0, at = r.take(length * " + $size + "); i < length; i++, at += " + $size + ") map.set(" + read_at($s.key, 0) + ", " + read_at($s.value, $s.key.size) + ");\n"
@@ -184,7 +195,7 @@ func helper_body(h)
       $length = "values.length"
       $loop = "  for (let i = 0; i < values.length; i++) {\n    const value = values[i];\n"
     end
-    $o = "function " + $n + "(w: NinoWriter, values: " + $input + " | null): void {\n  if (values === null || values === undefined) {\n    w.i32(-1);\n    return;\n  }\n  w.i32(" + $length + ");\n"
+    $o = "function " + $n + h.type_params + "(w: NinoWriter, values: " + $input + " | null" + h.codecs + "): void {\n  if (values === null || values === undefined) {\n    w.i32(-1);\n    return;\n  }\n  w.i32(" + $length + ");\n"
     if $s.element.fixed
       $o = $o + "  let at = " + reserve($length + " * " + $s.element.size, $s.element.zeroed) + ";\n" + $loop + "    " + stmt(write_at($s.element, 0, "value")) + "\n    at += " + $s.element.size + ";\n  }\n"
     else
@@ -192,7 +203,7 @@ func helper_body(h)
     end
     ret $o + "}\n"
   else if $s.kind == "map"
-    $o = "function " + $n + "(w: NinoWriter, map: ReadonlyMap<" + ts($s.key) + ", " + ts($s.value) + "> | null): void {\n  if (map === null || map === undefined) {\n    w.i32(-1);\n    return;\n  }\n  w.i32(map.size);\n"
+    $o = "function " + $n + h.type_params + "(w: NinoWriter, map: ReadonlyMap<" + ts($s.key) + ", " + ts($s.value) + "> | null" + h.codecs + "): void {\n  if (map === null || map === undefined) {\n    w.i32(-1);\n    return;\n  }\n  w.i32(map.size);\n"
     if $s.key.fixed && $s.value.fixed
       $size = $s.key.size + $s.value.size
       $o = $o + "  let at = " + reserve("map.size * " + $size, $s.key.zeroed || $s.value.zeroed) + ";\n  for (const [key, value] of map) {\n    " + stmt(write_at($s.key, 0, "key")) + "\n    " + stmt(write_at($s.value, $s.key.size, "value")) + "\n    at += " + $size + ";\n  }\n"
@@ -254,7 +265,7 @@ for i in interfaces
 end
 
 for c in classes
-  "/** `" + c.model.full_name + "`. */\nexport " + (c.model.is_abstract ? "abstract " : "") + "class " + c.name
+  "/** `" + (c.parameters.size == 0 ? c.model.full_name : c.model.runtime_name) + "`. */\nexport " + (c.model.is_abstract ? "abstract " : "") + "class " + c.self
   if c.base_name
     " extends " + c.base_name
   end
@@ -316,6 +327,51 @@ for c in codecs
     end
     "    }\n    throw types.unwritable(v);\n  },\n};\n"
   end
+end
+
+# XCodec(...) of a generic type: its codec from those of its type arguments, and the codecs it builds from them.
+if generics.size != 0
+  "\n"
+end
+for c in generics
+  $self = c.self + (c.header == "null" ? " | null" : "")
+  $params = []
+  for $p in c.parameters
+    $params = array.add $params ("p" + for.index + ": NinoCodec<" + $p + ">")
+  end
+  "interface " + c.name + "$Codecs" + c.type_params + " {\n"
+  for $p in c.parameters
+    "  p" + for.index + ": NinoCodec<" + $p + ">;\n"
+  end
+  "  self: NinoCodec<" + $self + ">;\n"
+  for $d in c.derived
+    "  " + $d.name + ": NinoCodec<" + ts($d.shape) + ">;\n"
+  end
+  "}\n\n"
+  "/** The codec of `" + c.model.runtime_name + "` with the codecs of its type arguments. */\n"
+  "export function " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + "): NinoCodec<" + $self + "> {\n"
+  $names = []
+  for $p in c.parameters
+    $names = array.add $names ("p" + for.index)
+  end
+  "  const c = { " + (array.join $names ", ") + " } as " + c.name + "$Codecs" + c.type_params + ";\n"
+  if c.header == "null"
+    "  c.self = {\n    read: (r) => (r.notNull() ? read" + c.name + "(r, c) : null),\n    write: (w, v) => {\n      if (v === null || v === undefined) w.u8(0);\n      else {\n        w.u8(1);\n        write" + c.name + "(w, v, c);\n      }\n    },\n  };\n"
+  else
+    "  c.self = { read: (r) => read" + c.name + "(r, c), write: (w, v) => write" + c.name + "(w, v, c) };\n"
+  end
+  for $d in c.derived
+    "  c." + $d.name + " = " + generic_codec($d.shape) + ";\n"
+  end
+  "  return c.self;\n}\n\n"
+end
+
+# The codecs of the generic types the types above hold with their arguments, arguments first.
+for $d in closed
+  "const " + $d.name + " = " + generic_codec($d.shape) + ";\n"
+end
+if closed.size != 0
+  "\n"
 end
 
 # The functions shared by values of one shape, in the order the code above first used them.

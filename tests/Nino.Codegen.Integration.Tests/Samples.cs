@@ -215,6 +215,56 @@ namespace Samples
         public Nest Nest;
     }
 
+    // Generic types: generated as generic types, read and written with the codecs of their type arguments.
+
+    /// <summary>One type parameter.</summary>
+    [NinoType]
+    public sealed class Box<T>
+    {
+        public string Label;
+        public T Value;
+    }
+
+    /// <summary>Two type parameters, in a struct (not raw: its formatter counts its nesting).</summary>
+    [NinoType]
+    public struct Duo<TFirst, TSecond>
+    {
+        public TFirst First;
+        public TSecond Second;
+    }
+
+    /// <summary>Type parameters in collections and in other generic types, in a keyed body.</summary>
+    [NinoType(format: NinoFormat.Keyed)]
+    public sealed class Many<T>
+    {
+        public List<T> Items;
+        public Dictionary<string, T> ByName;
+        public Box<T> Inner;
+        public Duo<int, T> Pair;
+        public Many<T> Next;
+        public (int, T) Tuple;
+    }
+
+    /// <summary>Closed generic types as members: one and two arguments, nested, in collections.</summary>
+    [NinoType]
+    public sealed class Generics
+    {
+        public Box<int> Number;
+        public Box<string> Text;
+        public Duo<long, string> Duo;
+        public Box<Box<int>> Nested;
+        public Box<Duo<string, Vec2>> Mixed;
+        public List<Box<int>> Boxes;
+        public Many<Box<long>> Many;
+        public Box<int[]> Array;
+        public Dictionary<string, Duo<int, Box<string>>> ByName;
+        public Box<List<Tag>> Tags;
+        public Box<(int, string)> Tuple;
+        public Box<int?> Maybe;
+        public Box<KeyValuePair<string, long>> Entry;
+        public Many<int> Ints;
+    }
+
     /// <summary>Left out of TypeScript (reference tracking), with a warning.</summary>
     [NinoType(trackReferences: true)]
     public sealed class Node

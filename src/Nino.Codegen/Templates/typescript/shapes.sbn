@@ -104,7 +104,43 @@ func ts(s)
       ret name(s.type) + " | null"
     end
     ret name(s.type)
+  when "param"
+    ret s.parameter
+  when "generic"
+    if s.header == "null"
+      ret generic_ts(s) + " | null"
+    end
+    ret generic_ts(s)
   end
+end
+
+# A generic type with its arguments, without `| null`: `Box<number>`.
+func generic_ts(s)
+  $parts = []
+  for $item in s.items
+    $parts = array.add $parts (ts($item))
+  end
+  ret name(s.type) + "<" + (array.join $parts ", ") + ">"
+end
+
+# The codec of a value read and written through one (a type parameter's, a generic type's), else one made of its
+# code: an argument of a generic type's codec.
+func codec(s)
+  if s.field
+    ret s.field
+  end
+  ret "{ read: (r) => " + read(s) + ", write: (w, v) => { " + stmt(write(s, "v")) + " } }"
+end
+
+# The expression building the codec of a generic type from the codecs of its arguments: `BoxCodec<number>(...)`.
+func generic_codec(s)
+  $types = []
+  $args = []
+  for $item in s.items
+    $types = array.add $types (ts($item))
+    $args = array.add $args (codec($item))
+  end
+  ret name(s.type) + "Codec<" + (array.join $types ", ") + ">(" + (array.join $args ", ") + ")"
 end
 
 func def(s)
@@ -129,6 +165,14 @@ func def(s)
       ret "new " + name(s.type) + "()"
     end
     ret "null"
+  when "param"
+    # Set when it is read; a value made with `new` holds no value of its type argument until then.
+    ret "undefined as unknown as " + s.parameter
+  when "generic"
+    if s.header == "none"
+      ret "new " + generic_ts(s) + "()"
+    end
+    ret "null"
   end
   ret "null"
 end
@@ -143,7 +187,7 @@ func read(s)
   when "rawstruct"
     ret "read" + name(s.struct) + "(r, r.take(" + s.size + "))"
   when "rawnullable", "fixedtuple", "seq", "map"
-    ret helper(s, "read") + "(r)"
+    ret helper(s, "read") + "(r" + s.codecs_argument + ")"
   when "tuple"
     $parts = []
     for $item in s.items
@@ -165,6 +209,8 @@ func read(s)
       ret name(s.type) + "Codec.read(r)"
     end
     ret "read" + name(s.type) + "(r)"
+  when "param", "generic"
+    ret s.field + ".read(r)"
   end
 end
 
@@ -178,7 +224,7 @@ func write(s, v)
   when "rawstruct"
     ret "write" + name(s.struct) + "(w, " + reserve(s.size, s.zeroed) + ", " + v + ")"
   when "rawnullable", "fixedtuple", "seq", "map"
-    ret helper(s, "write") + "(w, " + v + ")"
+    ret helper(s, "write") + "(w, " + v + s.codecs_argument + ")"
   when "tuple"
     $parts = []
     for $item in s.items
@@ -200,6 +246,8 @@ func write(s, v)
       ret name(s.type) + "Codec.write(w, " + v + ")"
     end
     ret "write" + name(s.type) + "(w, " + v + ")"
+  when "param", "generic"
+    ret s.field + ".write(w, " + v + ")"
   end
 end
 

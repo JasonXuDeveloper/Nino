@@ -816,6 +816,54 @@ func writeBoolValueBody(w *nino.Writer, v *BoolValue) {
 	w.Bool(v.Value)
 }
 
+// Box is `Conformance.Box<T>`.
+type Box[T any] struct {
+	Name  *string `nino:"0" json:"name" yaml:"name"`
+	Value T       `nino:"1" json:"value" yaml:"value"`
+}
+
+func (Box[T]) NinoLayout() string {
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Name:string:string;Value:T:type(T)"
+}
+
+func (Box[T]) NinoTypeName() string {
+	return "Conformance.Box<T>"
+}
+
+// boxCodec reads and writes Box[T] with the codecs of its type arguments.
+type boxCodec[T any] struct {
+	class nino.Class[Box[T]]
+	self  NinoArg[*Box[T]]
+	p0    NinoArg[T]
+}
+
+// BoxCodec returns the codec of Box[T] (as a member of its type is written) from the codec of each
+// type argument, in order.
+func BoxCodec[T any](p0 NinoArg[T]) NinoArg[*Box[T]] {
+	c := &boxCodec[T]{p0: p0}
+	c.class = nino.Class[Box[T]]{Read: c.readBody, Write: c.writeBody, Deferrable: true}
+	c.self = NinoArg[*Box[T]]{Read: c.read, Write: c.write, MinSize: 1}
+	return c.self
+}
+
+func (c *boxCodec[T]) read(r *nino.Reader) *Box[T] {
+	return nino.ReadSealed(r, &c.class)
+}
+
+func (c *boxCodec[T]) write(w *nino.Writer, v *Box[T]) {
+	nino.WriteSealed(w, v, &c.class)
+}
+
+func (c *boxCodec[T]) readBody(r *nino.Reader, v *Box[T]) {
+	v.Name = r.StringPtr()
+	v.Value = c.p0.Read(r)
+}
+
+func (c *boxCodec[T]) writeBody(w *nino.Writer, v *Box[T]) {
+	w.StringPtr(v.Name)
+	c.p0.Write(w, v.Value)
+}
+
 // ByteArray is `Conformance.Targets.ByteArray`.
 type ByteArray struct {
 	Values []uint8 `nino:"0" json:"values" yaml:"values"`
@@ -4412,6 +4460,14 @@ func timeOnlyAt(r *nino.Reader, b []byte) nino.TimeOnly {
 		return 0
 	}
 	return t
+}
+
+// NinoArg is the codec of a type argument of a generic type: how its values are read and written, and the fewest
+// bytes one takes.
+type NinoArg[T any] struct {
+	Read    func(*nino.Reader) T
+	Write   func(*nino.Writer, T)
+	MinSize int
 }
 
 // NinoCodec reads and writes values of one type, as any.

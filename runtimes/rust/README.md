@@ -108,7 +108,7 @@ How each Rust type handles them:
 | `rust_decimal` | Reads and writes `rust_decimal::Decimal` as `decimal`; conversions between them |
 | `chrono` | `TryFrom` conversions between `DateTime`, `DateOnly`, `TimeOnly`, `TimeSpan`, `DateTimeOffset` and chrono's types |
 | `num-bigint` | Reads and writes `num_bigint::BigInt` as `BigInteger`; conversions between them |
-| `indexmap` | `IndexMap` and `IndexSet`, which keep the wire order, so a map or set reads back and writes back byte for byte |
+| `indexmap` | `IndexMap` and `IndexSet`, which keep the wire order, so a map or set reads back and writes back byte for byte. Code nino-gen generates uses them unless run with `--maps std`, which uses `HashMap` and `HashSet` instead (no dependency, but written in `HashMap`'s iteration order, so the bytes differ from what was read) |
 
 ## `#[derive(NinoRead, NinoWrite)]`
 

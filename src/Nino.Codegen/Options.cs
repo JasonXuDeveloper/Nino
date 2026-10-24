@@ -84,6 +84,8 @@ namespace Nino.Codegen
                 new[] { "camel", "snake", "original" }),
             new CodegenOption("strings", "Strings", CodegenLanguage.Rust, "string|wide", "string",
                 new[] { "string", "wide" }),
+            new CodegenOption("maps", "Maps", CodegenLanguage.Rust, "indexmap|std", "indexmap",
+                new[] { "indexmap", "std" }),
         };
 
         /// <summary>The usage text, from <see cref="All"/>.</summary>

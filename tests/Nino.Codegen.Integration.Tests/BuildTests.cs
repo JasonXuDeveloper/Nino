@@ -39,6 +39,7 @@ namespace Scratch
         public string DisplayName;
         public Kind Kind;
         public List<Point> Path;
+        public Dictionary<string, int> Counts;
     }
 }
 ";
@@ -159,7 +160,7 @@ namespace Scratch
             string dir = Project(@"  <ItemGroup>
     <NinoCodegen Include=""typescript"" Out=""ts/"" Names=""keep"" ImportExtension="".js"" Runtime=""$(TsRuntime)"" />
     <NinoCodegen Include=""go"" Out=""go/model"" Package=""model"" Tags=""json"" TagNames=""snake"" />
-    <NinoCodegen Include=""rust"" Out=""rust/src/model"" Serde=""true"" Strings=""wide"" />
+    <NinoCodegen Include=""rust"" Out=""rust/src/model"" Serde=""true"" Strings=""wide"" Maps=""std"" />
   </ItemGroup>");
             try
             {
@@ -169,13 +170,15 @@ namespace Scratch
                     Path.Combine(dir, "ts"));
                 AssertSame(Expected(dir, "--lang", "go", "--package", "model", "--tags", "json", "--tag-names", "snake"),
                     Path.Combine(dir, "go", "model"));
-                AssertSame(Expected(dir, "--lang", "rust", "--serde", "--strings", "wide"),
+                AssertSame(Expected(dir, "--lang", "rust", "--serde", "--strings", "wide", "--maps", "std"),
                     Path.Combine(dir, "rust", "src", "model"));
                 StringAssert.Contains(File.ReadAllText(Path.Combine(dir, "ts", "Scratch.ts")), "DisplayName");
                 StringAssert.Contains(File.ReadAllText(Path.Combine(dir, "go", "model", "nino_types.go")),
                     "json:\"display_name\"");
                 StringAssert.Contains(File.ReadAllText(Path.Combine(dir, "rust", "src", "model", "nino_types.rs")),
                     "serde");
+                StringAssert.Contains(File.ReadAllText(Path.Combine(dir, "rust", "src", "model", "nino_types.rs")),
+                    "std::collections::HashMap<");
 
                 // Nothing changed: nothing runs, no file is touched.
                 string types = Path.Combine(dir, "go", "model", "nino_types.go");

@@ -50,3 +50,46 @@ func TestShapesRoundTrip(t *testing.T) {
 		t.Fatalf("renamed: %v, %+v", err, r)
 	}
 }
+
+// Generic types: closed uses read and written with the codecs built from those of their arguments.
+func TestGenericShapesRoundTrip(t *testing.T) {
+	s := func(v string) *string { return &v }
+	seven := int32(7)
+	uses := &Uses{
+		Number: &Box[int32]{Value: -42},
+		Text:   &Box[*string]{Value: s("text")},
+		Pair:   Pair[int32, *string]{Key: 1, Value: s("one")},
+		Nested: &Box[*Box[int32]]{Value: &Box[int32]{Value: 7}},
+		Mixed:  &Box[Pair[*string, Gappy]]{Value: Pair[*string, Gappy]{Key: s("g"), Value: Gappy{Small: 1, Large: 2}}},
+		Boxes:  []*Box[int32]{{Value: 1}, nil},
+		Bag: &Bag[*Box[int64]]{
+			Items:  []*Box[int64]{{Value: 5}, nil},
+			ByName: []nino.Entry[string, *Box[int64]]{{Key: "a", Value: &Box[int64]{Value: 6}}},
+			Inner:  &Box[*Box[int64]]{Value: &Box[int64]{Value: 8}},
+			Pair:   Pair[int32, *Box[int64]]{Key: 3},
+			Boxes:  []*Box[*Box[int64]]{nil},
+			Tuple:  NinoTuple2[int32, *Box[int64]]{Item1: 4},
+		},
+		Chain:      &Node[*string]{Value: s("a"), Next: &Node[*string]{Value: s("b")}},
+		Thing:      &Box[IThing]{Value: &ThingClass{Id: 3, Label: s("x")}},
+		Array:      &Box[[]int32]{Value: []int32{1, 2}},
+		Complex:    Pair[*Box[int32], []nino.Entry[int32, *string]]{Value: []nino.Entry[int32, *string]{{Key: 1}}},
+		Tuple:      &Box[NinoTuple2[int32, *string]]{Value: NinoTuple2[int32, *string]{Item1: 9, Item2: s("nine")}},
+		Maybe:      &Box[*int32]{Value: &seven},
+		Entry:      &Box[nino.Entry[int32, *string]]{Value: nino.Entry[int32, *string]{Key: 2, Value: s("two")}},
+		Set:        &Box[[]*string]{Value: []*string{s("x")}},
+		IntKeys:    &Keys[int32]{Set: []int32{1, 2}, ByKey: []nino.Entry[int32, int32]{{Key: 3, Value: 4}}},
+		StringKeys: &Keys[*string]{Set: []*string{s("k")}},
+	}
+	data, err := nino.Serialize(uses, WriteUses)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := nino.DeserializeExact(data, ReadUses)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(back, uses) {
+		t.Fatalf("read back\n %+v\nwant %+v", back, uses)
+	}
+}

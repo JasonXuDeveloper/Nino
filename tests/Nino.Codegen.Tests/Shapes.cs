@@ -147,3 +147,104 @@ namespace Shapes.Right
         public int Right;
     }
 }
+
+namespace Shapes.Generic
+{
+    /// <summary>A sealed generic class of one parameter.</summary>
+    [NinoType]
+    public sealed class Box<T>
+    {
+        public T Value;
+    }
+
+    /// <summary>A generic struct of two parameters.</summary>
+    [NinoType]
+    public struct Pair<TKey, TValue>
+    {
+        public TKey Key;
+        public TValue Value;
+    }
+
+    /// <summary>Type parameters inside collections, and other generic types of them.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public sealed class Bag<T>
+    {
+        public List<T> Items;
+        public Dictionary<string, T> ByName;
+        public T[] Array;
+        public Box<T> Inner;
+        public Pair<int, T> Pair;
+        public List<Box<T>> Boxes;
+        public (int, T) Tuple;
+    }
+
+    /// <summary>Holds itself with the same arguments.</summary>
+    [NinoType(format: NinoFormat.Keyed)]
+    public sealed class Node<T>
+    {
+        public T Value;
+        public Node<T> Next;
+    }
+
+    /// <summary>Written behind a type id (not sealed): left out, with a warning.</summary>
+    [NinoType]
+    public class Open<T>
+    {
+        public T Value;
+    }
+
+    /// <summary>Unmanaged when closed: a closed use .NET copies as raw memory is a raw struct of its own.</summary>
+    [NinoType]
+    public struct RawPair<T> where T : unmanaged
+    {
+        public T A;
+        public T B;
+    }
+
+    /// <summary>A type parameter as a set element and a map key: in Rust, its arguments must be hashable.</summary>
+    [NinoType]
+    public sealed class Keys<T>
+    {
+        public HashSet<T> Set;
+        public Dictionary<T, int> ByKey;
+    }
+
+    /// <summary>Keys of a type Rust cannot hash: left out of Rust, with a warning.</summary>
+    [NinoType]
+    public sealed class UnhashedKeys
+    {
+        public Keys<Box<long>> Keys;
+    }
+
+    /// <summary>Closed uses of the generic types.</summary>
+    [NinoType]
+    public sealed class Uses
+    {
+        public Box<int> Number;
+        public Box<string> Text;
+        public Pair<int, string> Pair;
+        public Box<Box<int>> Nested;
+        public Box<Pair<string, Shapes.Gappy>> Mixed;
+        public List<Box<int>> Boxes;
+        public Bag<Box<long>> Bag;
+        public Node<string> Chain;
+        public Box<IThing> Thing;
+        public Box<int[]> Array;
+        public Pair<Box<int>, Dictionary<int, string>> Complex;
+        public Dictionary<string, Pair<int, int>> Pairs;
+        public RawPair<int> Raw;
+        public Box<(int, string)> Tuple;
+        public Box<int?> Maybe;
+        public Box<KeyValuePair<int, string>> Entry;
+        public Box<HashSet<string>> Set;
+        public Keys<int> IntKeys;
+        public Keys<string> StringKeys;
+    }
+
+    /// <summary>Left out with Open: a type holding one is left out too.</summary>
+    [NinoType]
+    public sealed class OpenUse
+    {
+        public Open<int> Open;
+    }
+}

@@ -40,6 +40,18 @@ namespace Nino.Codegen.Model
         /// </summary>
         Named,
 
+        /// <summary>
+        /// A type parameter of the generic type being described (<c>type(T)</c>): written as the type argument is,
+        /// which the code reading the generic type is given (<see cref="ValueModel.Parameter"/>).
+        /// </summary>
+        Parameter,
+
+        /// <summary>
+        /// A generic <c>[NinoType]</c> with its type arguments (<c>type(Box&lt;int&gt;)</c>): <see cref="ValueModel.Type"/>
+        /// is the generic definition, <see cref="ValueModel.Arguments"/> the values of its arguments.
+        /// </summary>
+        Generic,
+
         /// <summary>A presence byte, then the value (<c>nullable(E)</c>): <c>T?</c>, <c>Lazy&lt;T&gt;</c>, <c>Tuple</c>.</summary>
         Nullable,
 
@@ -144,8 +156,28 @@ namespace Nino.Codegen.Model
 
         public EnumModel? Enum { get; internal set; }
 
-        /// <summary>The <c>[NinoType]</c> of <see cref="ValueKind.Type"/>.</summary>
+        /// <summary>The <c>[NinoType]</c> of <see cref="ValueKind.Type"/>, the generic definition of <see cref="ValueKind.Generic"/>.</summary>
         public TypeModel? Type { get; internal set; }
+
+        /// <summary>The type arguments of <see cref="ValueKind.Generic"/>, as .NET writes each of them.</summary>
+        public List<ValueModel> Arguments { get; } = new();
+
+        /// <summary>The position of a <see cref="ValueKind.Parameter"/> among its type's parameters.</summary>
+        public int Parameter { get; internal set; } = -1;
+
+        /// <summary>The name of a <see cref="ValueKind.Parameter"/> (<c>T</c>, <c>TKey</c>).</summary>
+        public string? ParameterName { get; internal set; }
+
+        /// <summary>
+        /// Whether it is <paramref name="owner"/> (a generic definition) with the owner's own parameters, in order:
+        /// a generic type holding itself, read with the codecs it was given.
+        /// </summary>
+        public bool IsSelf(TypeModel owner) =>
+            Kind == ValueKind.Generic && Type == owner &&
+            Arguments.Select((a, i) => a.Kind == ValueKind.Parameter && a.Parameter == i).All(x => x);
+
+        /// <summary>Whether a type parameter is inside it: it is read with the codecs of the arguments.</summary>
+        public bool IsOpen => Walk().Any(v => v.Kind == ValueKind.Parameter);
 
         /// <summary>The struct of <see cref="ValueKind.RawStruct"/>.</summary>
         public RawStructModel? Struct { get; internal set; }
@@ -213,6 +245,8 @@ namespace Nino.Codegen.Model
                 yield return Value;
             foreach (var item in Items)
                 yield return item;
+            foreach (var argument in Arguments)
+                yield return argument;
             if (Struct != null)
                 foreach (var field in Struct.Fields)
                     yield return field.Value;
@@ -231,7 +265,8 @@ namespace Nino.Codegen.Model
 
         internal Type Clr { get; }
 
-        public string FullName => Clr.FullName ?? Clr.Name;
+        /// <summary>The full name; a closed generic struct's in the runtime form (<c>Pair&lt;System.Int32,System.Int32&gt;</c>).</summary>
+        public string FullName => Clr.IsGenericType ? TypeNames.Runtime(Clr) : Clr.FullName ?? Clr.Name;
 
         /// <summary>The <c>[NinoType]</c> layout of the struct, when it has one (a BCL struct has none).</summary>
         public TypeModel? Layout { get; internal set; }

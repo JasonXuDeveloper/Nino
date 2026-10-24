@@ -67,6 +67,48 @@ namespace Nino.Codegen.Model
 
         internal TypeModel? Find(Type type) => _byClr.TryGetValue(type, out var model) ? model : null;
 
+        /// <summary>
+        /// Why a generic definition cannot be generated as a generic type in any language, or null when it can.
+        /// Written behind a type id, its id is the hash of the closed type's .NET name, which a type argument's
+        /// type in another language does not determine (a Rust <c>Vec&lt;i32&gt;</c> is <c>int[]</c> and
+        /// <c>List&lt;int&gt;</c>). A generic type that holds, through other generic types, itself with other
+        /// arguments (<c>Node&lt;T&gt;</c> holding <c>Node&lt;List&lt;T&gt;&gt;</c>) has no end to the types its codecs are
+        /// built from. Holding itself with its own parameters (<c>Node&lt;T&gt;</c> holding <c>Node&lt;T&gt;</c>) is fine.
+        /// </summary>
+        public static string? GenericProblem(TypeModel type)
+        {
+            if (!type.IsGenericDefinition)
+                return null;
+            if (type.Header == HeaderKind.TypeId)
+                return "a generic type written behind a type id (a class that is not sealed, an abstract class or an " +
+                       "interface) is not supported: its type id depends on the type arguments' .NET names";
+            var seen = new HashSet<TypeModel>();
+            var pending = new Stack<TypeModel>();
+            pending.Push(type);
+            while (pending.Count != 0)
+            {
+                var next = pending.Pop();
+                foreach (var used in OpenUses(next))
+                {
+                    if (used == type)
+                        return "it holds itself with other type arguments, through " + next.FullName;
+                    if (seen.Add(used))
+                        pending.Push(used);
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// The generic definitions a generic definition holds with arguments made of its own parameters, other than
+        /// itself with its parameters in order: the codecs it builds from the codecs of its arguments.
+        /// </summary>
+        private static IEnumerable<TypeModel> OpenUses(TypeModel type) =>
+            type.Members.SelectMany(m => m.Value.Walk())
+                .Where(v => v.Kind == ValueKind.Generic && v.IsOpen && !v.IsSelf(type))
+                .Select(v => v.Type!);
+
         // ---------------------------------------------------------------- building
 
         private void Build(Dictionary<Type, TypeLayout> layouts)
@@ -156,6 +198,14 @@ namespace Nino.Codegen.Model
                 case "type":
                     if (Find(clr) is { } type)
                         return new ValueModel(ValueKind.Type, clr, e.Source) { Type = type };
+                    if (clr.IsGenericParameter)
+                        return new ValueModel(ValueKind.Parameter, clr, e.Source)
+                        {
+                            Parameter = clr.GenericParameterPosition, ParameterName = clr.Name,
+                        };
+                    if (clr.IsGenericType && !clr.IsGenericTypeDefinition &&
+                        Find(clr.GetGenericTypeDefinition()) is { } generic)
+                        return Generic(clr, generic, e.Source);
                     return new ValueModel(ValueKind.Named, clr, e.Source) { NamedType = clr };
                 case "nullable":
                 {
@@ -252,6 +302,82 @@ namespace Nino.Codegen.Model
                 default:
                     return Unsupported(clr, e.Source, NoForm(clr, e.Kind));
             }
+        }
+
+        /// <summary>
+        /// A generic <c>[NinoType]</c> with its arguments. The layout names only the closed type
+        /// (<c>type(Box&lt;int&gt;)</c>): .NET writes each argument with the formatter it finds for the argument's type at
+        /// run time, which <see cref="ArgumentEncoding"/> gives as an encoding.
+        /// </summary>
+        private ValueModel Generic(Type clr, TypeModel definition, string encoding)
+        {
+            var value = new ValueModel(ValueKind.Generic, clr, encoding) { Type = definition };
+            foreach (var argument in clr.GetGenericArguments())
+            {
+                string? text = ArgumentEncoding(argument, false);
+                value.Arguments.Add(text == null
+                    ? Unsupported(argument, "", $"{argument.FullName ?? argument.Name}, a type argument of {clr.FullName ?? clr.Name}, has no {{lang}} form")
+                    : Value(WireEncoding.Parse(text), argument));
+            }
+
+            return value;
+        }
+
+        /// <summary>
+        /// The encoding of a value of a type argument: what Nino.Core's formatter for the type writes at run time
+        /// (<c>CachedFormatter&lt;T&gt;</c>), which a generic type's formatter calls for its type parameters. It
+        /// differs from a member's encoding where the generator copies a member as raw memory: a closed generic
+        /// struct, a <c>ValueTuple</c>, a <c>KeyValuePair</c> or a <c>T?</c> is written item by item as a type
+        /// argument, and as raw memory as a member. Null for a type whose formatter is not known here (a collection of
+        /// <c>T?</c> or of <c>KeyValuePair</c>, which .NET may copy as raw memory, a <c>Tuple</c>, a type of another
+        /// library): the generic type is then left out where it has that argument.
+        /// </summary>
+        internal string? ArgumentEncoding(Type type, bool element)
+        {
+            if (type.IsGenericParameter || Find(type) != null)
+                return $"type({type.Name})";
+            if (type.IsEnum)
+                return PrimitiveOf(type.GetEnumUnderlyingType()) is { } underlying ? $"raw({PrimitiveSize(underlying)})" : null;
+            if (PrimitiveOf(type) is { } primitive)
+                return $"raw({PrimitiveSize(primitive)})";
+            switch (type.FullName)
+            {
+                case "System.String":
+                    return "string";
+                case "System.Object":
+                    return "object";
+            }
+
+            if (type.IsArray)
+                return type.GetArrayRank() == 1 && ArgumentEncoding(type.GetElementType()!, true) is { } item
+                    ? $"seq({item})"
+                    : null;
+            if (!type.IsGenericType)
+                return null;
+            var args = type.GetGenericArguments();
+            string definition = type.GetGenericTypeDefinition().FullName ?? "";
+            if (Find(type.GetGenericTypeDefinition()) != null)
+                return $"type({type.Name})";
+            string?[] parts = args.Select(a => ArgumentEncoding(a, definition.StartsWith("System.ValueTuple`",
+                StringComparison.Ordinal) ? false : true)).ToArray();
+            if (parts.Any(p => p == null))
+                return null;
+            switch (definition)
+            {
+                case "System.Collections.Generic.List`1":
+                case "System.Collections.Generic.HashSet`1":
+                    return $"seq({parts[0]})";
+                case "System.Collections.Generic.Dictionary`2":
+                    return $"map({parts[0]},{parts[1]})";
+                case "System.Nullable`1" when !element:
+                    return $"nullable({ArgumentEncoding(args[0], false)})";
+                case "System.Collections.Generic.KeyValuePair`2" when !element:
+                    return $"pair({ArgumentEncoding(args[0], false)},{ArgumentEncoding(args[1], false)})";
+            }
+
+            if (definition.StartsWith("System.ValueTuple`", StringComparison.Ordinal) && args.Length <= 7)
+                return $"tuple({string.Join(",", parts)})";
+            return null;
         }
 
         /// <summary>Records a collection that holds itself (its elements, keys or values are <c>type(itself)</c>).</summary>
