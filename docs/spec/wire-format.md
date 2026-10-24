@@ -737,7 +737,8 @@ wire marks deferral when it does not happen. **Every reader MUST implement this 
 
 - The depth `D` is the number of `[NinoType]` **class** bodies open at the current position. It is 0 at the top
   level and when a deferred body starts (see below).
-- Struct bodies, collections, tuples and other built-in types do not count.
+- Struct bodies, collections, tuples and other built-in types do not count. Struct bodies and collections that can
+  hold themselves still count toward the limit of 512 below (§9.9).
 - A class body opens (`D` increases by 1) after its header, and closes when its last member has been written.
 
 When a class body is about to open while `D >= 128` (`NinoDepth.Inline`):
