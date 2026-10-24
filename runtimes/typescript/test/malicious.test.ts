@@ -132,6 +132,44 @@ describe("malicious data", () => {
     assert.throws(() => r.endRegion(end), NinoError);
   });
 
+  it("rejects a known keyed member whose value leaves bytes in its entry, and skips unknown ones whole", () => {
+    // Keyed { int A (key 1); string B (key 2) }, read as generated code reads it.
+    const read = (data: number[]) => {
+      const r = new NinoReader(Uint8Array.from(data)), v = { a: 0, b: null as string | null };
+      const end = r.region();
+      while (r.pos < end) {
+        const key = r.i32(), member = r.region();
+        switch (key) {
+          case 1:
+            v.a = r.i32();
+            r.endMember(member);
+            continue;
+          case 2:
+            v.b = r.string();
+            r.endMember(member);
+            continue;
+        }
+        r.endRegion(member);
+      }
+      r.endRegion(end);
+      assert.equal(r.pos, data.length);
+      return v;
+    };
+    const body = (...entries: number[][]) => {
+      const members = entries.flat();
+      return [...int32(members.length), ...members];
+    };
+    const entry = (key: number, value: number[]) => [...int32(key), ...int32(value.length), ...value];
+    const b = [...int32(~2), 0x68, 0x69];
+    assert.deepEqual(read(body(entry(2, b), entry(9, [1, 2, 3]), entry(1, int32(7)))), { a: 7, b: "hi" });
+    assert.throws(() => read(body(entry(1, [...int32(7), 0]))), /bytes left over at the end of a keyed member/);
+    assert.throws(() => read(body(entry(2, [...b, 0x21]))), /bytes left over at the end of a keyed member/);
+    // A value read past its entry: the string's length claims a byte of the next entry.
+    const long = body(entry(2, b), entry(1, int32(7)));
+    long[4 + 8] = ~3 & 0xff;
+    assert.throws(() => read(long), /runs past the end/);
+  });
+
   it("leaves the bytes after a value unread, as .NET does", () => {
     const bytes = serialize(ChainCodec, chain(3)), padded = new Uint8Array(bytes.length + 10).fill(0xff);
     padded.set(bytes);

@@ -137,10 +137,8 @@ After a change to the IR, a target or a template, regenerate them and commit the
 NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests
 ```
 
-then run the three runtime checks. The TypeScript check lists the malicious cases the TypeScript runtime still accepts
-as `todo` (bytes other than 0 and 1 for booleans and presence flags, duplicate map keys and set elements, unchecked
-deferred sections). They are reported, not failed; remove a case from the list (`looser`) when the runtime rejects
-it.
+then run the three runtime checks. Each runtime must reject every malicious case (or may read it, where the case allows
+either).
 
 ## Benchmarks
 

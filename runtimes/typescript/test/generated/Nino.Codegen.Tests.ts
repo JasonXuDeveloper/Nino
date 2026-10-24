@@ -282,10 +282,12 @@ function readBody$Renamed(r: NinoReader, v: Renamed): void {
       case -1400823602:
       case 1263340021:
         v.newName = r.i32();
-        break;
+        r.endMember(member);
+        continue;
       case 1300856177:
         v.other = r.string();
-        break;
+        r.endMember(member);
+        continue;
     }
     r.endRegion(member);
   }
@@ -517,6 +519,7 @@ function read$0(r: NinoReader): Map<number, number> | null {
   if (length < 0) return null;
   const map = new Map<number, number>();
   for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) map.set(r.view.getFloat32(at, true), r.view.getInt32(at + 4, true));
+  if (map.size !== length) throw r.duplicateKey();
   return map;
 }
 
@@ -558,6 +561,7 @@ function read$4(r: NinoReader): Map<number, string | null> | null {
     const key = r.i32();
     map.set(key, r.string());
   }
+  if (map.size !== length) throw r.duplicateKey();
   return map;
 }
 
@@ -566,6 +570,7 @@ function read$5(r: NinoReader): Set<string | null> | null {
   if (length < 0) return null;
   const values = new Set<string | null>();
   for (let i = 0; i < length; i++) values.add(r.string());
+  if (values.size !== length) throw r.duplicateKey();
   return values;
 }
 

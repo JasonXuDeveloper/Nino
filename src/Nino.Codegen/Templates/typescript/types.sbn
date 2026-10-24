@@ -40,13 +40,14 @@ func body(c)
   end
 
   if c.format == "keyed"
-    # Members by key, in any order; a key this version does not know is skipped.
+    # Members by key, in any order; a known member's value fills its entry exactly, a key this version does not know
+    # is skipped.
     $o = $o + "  const end = r.region();\n  while (r.pos < end) {\n    const key = r.i32(), member = r.region();\n    switch (key) {\n"
     for $m in c.members
       for $key in $m.model.all_keys
         $o = $o + "      case " + $key + ":\n"
       end
-      $o = $o + "        v." + $m.name + " = " + read($m.shape) + ";\n        break;\n"
+      $o = $o + "        v." + $m.name + " = " + read($m.shape) + ";\n        r.endMember(member);\n        continue;\n"
     end
     $o = $o + "    }\n    r.endRegion(member);\n  }\n  r.endRegion(end);\n"
   else if c.format == "tolerant"
@@ -152,6 +153,10 @@ func helper_body(h)
       else
         $o = $o + "  for (let i = 0; i < length; i++) " + $add + read($s.element) + $close + ";\n"
       end
+      if $s.set
+        # An element read twice (the set holds fewer than were read) is invalid data, as in .NET.
+        $o = $o + "  if (values.size !== length) throw r.duplicateKey();\n"
+      end
       ret $o + "  return values;\n}\n"
     else if $s.kind == "map"
       $o = "function " + $n + "(r: NinoReader): " + map_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const map = new " + map_ts($s) + "();\n"
@@ -161,7 +166,8 @@ func helper_body(h)
       else
         $o = $o + "  for (let i = 0; i < length; i++) {\n    const key = " + read($s.key) + ";\n    map.set(key, " + read($s.value) + ");\n  }\n"
       end
-      ret $o + "  return map;\n}\n"
+      # A key read twice (the map holds fewer than were read) is invalid data, as in .NET.
+      ret $o + "  if (map.size !== length) throw r.duplicateKey();\n  return map;\n}\n"
     end
     # A value of fixed size: takes its bytes.
     ret "function " + $n + "(r: NinoReader): " + ts($s) + " {\n  const at = r.take(" + $s.size + ");\n  return " + read_at($s, 0) + ";\n}\n"

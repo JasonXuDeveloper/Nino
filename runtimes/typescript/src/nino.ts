@@ -261,8 +261,9 @@ export class NinoReader {
   private regions = 0;
   private structs = 0;
   private deferrals: NinoDeferrals<NinoReader> | null = null;
-  // The regions read with a section of deferred bodies after their members: (open regions, where the region ends).
-  private sections: number[] | null = null;
+  // Where the outermost region ends when a section of deferred bodies follows its members (only the outermost region
+  // holds one), else 0.
+  private sectionEnd = 0;
 
   constructor(data: Uint8Array) {
     this.data = data;
@@ -422,13 +423,17 @@ export class NinoReader {
     return values;
   }
 
-  /** A set: length, then each element. */
+  /** A set: length, then each element. An element read twice is invalid data, as in .NET (see `duplicateKey`). */
   set<T>(read: (reader: NinoReader) => T): Set<T> | null {
-    const values = this.array(read);
-    return values === null ? null : new Set(values);
+    const length = this.length();
+    if (length < 0) return null;
+    const values = new Set<T>();
+    for (let i = 0; i < length; i++) values.add(read(this));
+    if (values.size !== length) throw this.duplicateKey();
+    return values;
   }
 
-  /** A dictionary: length, then each key and value. */
+  /** A dictionary: length, then each key and value. A key read twice is invalid data, as in .NET (see `duplicateKey`). */
   map<K, V>(readKey: (reader: NinoReader) => K, readValue: (reader: NinoReader) => V): Map<K, V> | null {
     const length = this.length();
     if (length < 0) return null;
@@ -437,7 +442,18 @@ export class NinoReader {
       const key = readKey(this);
       map.set(key, readValue(this));
     }
+    if (map.size !== length) throw this.duplicateKey();
     return map;
+  }
+
+  /**
+   * The error for a map or set read with fewer entries than its length: a key or element came twice, which .NET's
+   * dictionaries and sets reject (Nino writes none). Generated code checks the size once, after the loop. Keys are
+   * compared as `Map` and `Set` compare them: numbers, bigints, strings, booleans and null by value; keys read as
+   * objects (`Date`, structs, tuples) by identity, so those are not checked.
+   */
+  duplicateKey(): NinoError {
+    return new NinoError("a key or element is repeated in a map or set.");
   }
 
   /** A nullable value, `Tuple` or sealed class: a presence byte, then the value if present. */
@@ -463,30 +479,62 @@ export class NinoReader {
     return this.sectionedRegion(length);
   }
 
-  /** A region whose length has `sectionFlag` set: where its members end, before the section and its offset. */
+  /**
+   * A region whose length has `sectionFlag` set: where its members end, before the section and its offset. Checks the
+   * section as .NET, Go and Rust do, before any member is read: only the outermost region holds one (`region` has
+   * counted it already), and its entries `(int32 key, int32 length, body)` fill it exactly, at least one, keyed in
+   * increasing order by positions no later than the entry itself (where the body deferred to it would have begun: in
+   * the members, at most at their end, or in the body of an earlier entry).
+   */
   private sectionedRegion(length: number): number {
     const total = length & 0x7fffffff, at = this.pos;
     if (length >= 0 || total < 4 || total > this.end - at) throw new NinoError(`invalid length ${length}.`);
-    const members = this.view.getInt32(at + total - 4, true);
-    if (members < 0 || members > total - 4) throw new NinoError("invalid offset of deferred bodies.");
-    (this.sections ??= []).push(this.regions, at + total);
+    if (this.regions !== 1) throw new NinoError("deferred bodies in a region inside another region.");
+    const view = this.view, end = total - 4, members = view.getInt32(at + end, true);
+    // At least one entry: a writer flags a region only when it holds a deferred body.
+    if (members < 0 || members >= end) throw new NinoError("invalid offset of deferred bodies.");
+    let last = -1;
+    for (let p = members; p !== end;) {
+      if (end - p < 8) throw new NinoError("invalid section of deferred bodies.");
+      const key = view.getInt32(at + p, true), size = view.getInt32(at + p + 4, true);
+      if (key <= last || key > p || size < 0 || size > end - p - 8)
+        throw new NinoError("invalid section of deferred bodies.");
+      last = key;
+      p += 8 + size;
+    }
+    this.sectionEnd = at + total;
     return at + members;
   }
 
   /**
    * Moves to the end of a region, checking that its members stayed inside it. At the end of the outermost region,
-   * reads the bodies deferred inside it from its section.
+   * moves past its section, if any, and reads the bodies deferred inside it from there.
    */
   endRegion(end: number): void {
     if (this.pos > end) throw new NinoError("a member runs past the end of its object.");
-    const sections = this.sections;
-    if (sections !== null && sections.length !== 0 && sections[sections.length - 2] === this.regions) {
-      this.pos = sections.pop()!;
-      sections.pop();
+    if (--this.regions === 0) {
+      const after = this.sectionEnd;
+      this.sectionEnd = 0;
+      this.pos = after === 0 ? end : after;
+      if (this.deferrals !== null) this.readSection(end);
     } else {
       this.pos = end;
     }
-    if (--this.regions === 0 && this.deferrals !== null) this.readSection(end);
+  }
+
+  /**
+   * Generated code: `endRegion` for a keyed member that was read, whose value must fill its entry exactly. Bytes left
+   * over are invalid data, as in .NET, Go and Rust (no writer leaves any); entries of unknown keys are skipped whole
+   * by `endRegion`.
+   */
+  endMember(end: number): void {
+    if (this.pos !== end) throw this.memberSize(end);
+    this.endRegion(end);
+  }
+
+  private memberSize(end: number): NinoError {
+    return new NinoError(this.pos > end ? "a member runs past the end of its object."
+      : "bytes left over at the end of a keyed member.");
   }
 
   /**

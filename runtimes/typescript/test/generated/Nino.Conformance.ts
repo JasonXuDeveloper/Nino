@@ -768,10 +768,12 @@ function readBody$KeyedChain(r: NinoReader, v: KeyedChain): void {
     switch (key) {
       case -1015864514:
         v.Value = r.i32();
-        break;
+        r.endMember(member);
+        continue;
       case -911863494:
         v.Next = (r.notNull() ? readKeyedChain(r) : null);
-        break;
+        r.endMember(member);
+        continue;
     }
     r.endRegion(member);
   }
@@ -857,16 +859,20 @@ function readBody$KeyedV1(r: NinoReader, v: KeyedV1): void {
     switch (key) {
       case -1717475487:
         v.Health = r.i32();
-        break;
+        r.endMember(member);
+        continue;
       case 814068706:
         v.Name = r.string();
-        break;
+        r.endMember(member);
+        continue;
       case -592928685:
         v.Items = read$8(r);
-        break;
+        r.endMember(member);
+        continue;
       case 72003917:
         v.Score = r.i64();
-        break;
+        r.endMember(member);
+        continue;
     }
     r.endRegion(member);
   }
@@ -921,17 +927,21 @@ function readBody$KeyedV2(r: NinoReader, v: KeyedV2): void {
     switch (key) {
       case 72003917:
         v.Score = r.i64();
-        break;
+        r.endMember(member);
+        continue;
       case 814068706:
         v.Name = r.string();
-        break;
+        r.endMember(member);
+        continue;
       case -1586416211:
       case -1717475487:
         v.Hp = r.i32();
-        break;
+        r.endMember(member);
+        continue;
       case -358083429:
         v.Level = r.i32();
-        break;
+        r.endMember(member);
+        continue;
     }
     r.endRegion(member);
   }
@@ -2177,10 +2187,12 @@ function readKeyedStruct(r: NinoReader): KeyedStruct {
     switch (key) {
       case 1792377636:
         v.A = r.i32();
-        break;
+        r.endMember(member);
+        continue;
       case -589499809:
         v.B = r.f64();
-        break;
+        r.endMember(member);
+        continue;
     }
     r.endRegion(member);
   }
@@ -3062,6 +3074,7 @@ function read$10(r: NinoReader): Map<number, number> | null {
   if (length < 0) return null;
   const map = new Map<number, number>();
   for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) map.set(r.view.getInt32(at, true), r.view.getInt32(at + 4, true));
+  if (map.size !== length) throw r.duplicateKey();
   return map;
 }
 
@@ -3084,6 +3097,7 @@ function read$12(r: NinoReader): Set<number> | null {
   if (length < 0) return null;
   const values = new Set<number>();
   for (let i = 0, at = r.take(length * 4); i < length; i++, at += 4) values.add(r.view.getInt32(at, true));
+  if (values.size !== length) throw r.duplicateKey();
   return values;
 }
 
@@ -3188,6 +3202,7 @@ function read$22(r: NinoReader): Map<number, number | null> | null {
     const key = r.i32();
     map.set(key, (r.notNull() ? r.i32() : null));
   }
+  if (map.size !== length) throw r.duplicateKey();
   return map;
 }
 
@@ -3301,6 +3316,7 @@ function read$32(r: NinoReader): Map<string | null, number> | null {
     const key = r.string();
     map.set(key, r.i32());
   }
+  if (map.size !== length) throw r.duplicateKey();
   return map;
 }
 
@@ -3321,6 +3337,7 @@ function read$34(r: NinoReader): Set<string | null> | null {
   if (length < 0) return null;
   const values = new Set<string | null>();
   for (let i = 0; i < length; i++) values.add(r.string());
+  if (values.size !== length) throw r.duplicateKey();
   return values;
 }
 
@@ -3453,6 +3470,7 @@ function read$48(r: NinoReader): Map<string | null, Animal | null> | null {
     const key = r.string();
     map.set(key, AnimalCodec.read(r));
   }
+  if (map.size !== length) throw r.duplicateKey();
   return map;
 }
 
