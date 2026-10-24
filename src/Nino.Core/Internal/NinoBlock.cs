@@ -34,39 +34,6 @@ namespace Nino.Core
         public static int ReadSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             !NinoUnsafe.IsReferenceOrContainsReferences<T>() ? NinoBlock<T, TFormatter>.ReadSize : -1;
 
-        /// <summary>The byte offset of <paramref name="field"/> inside <paramref name="value"/>.</summary>
-        public static int Offset<T, TField>(ref T value, ref TField field) =>
-            (int)Unsafe.ByteOffset(ref Unsafe.As<T, byte>(ref value), ref Unsafe.As<TField, byte>(ref field));
-
-        /// <summary>
-        /// Where the bytes of an item that <paramref name="fill"/> stores into a value land in its memory: the offset of
-        /// the first byte of the run of <paramref name="size"/> marked bytes, or -1. For values whose fields are private
-        /// (<c>KeyValuePair</c>).
-        /// </summary>
-        public static int Find<T>(int size, Func<T> fill) where T : struct
-        {
-            T value = fill();
-            ref byte bytes = ref Unsafe.As<T, byte>(ref value);
-            for (int start = 0; start + size <= Unsafe.SizeOf<T>(); start++)
-            {
-                int i = 0;
-                while (i < size && Unsafe.Add(ref bytes, start + i) == 0xA5)
-                    i++;
-                if (i == size)
-                    return start;
-            }
-
-            return -1;
-        }
-
-        /// <summary>An item marked for <see cref="Find{T}"/>: every byte 0xA5 (raw items only).</summary>
-        public static TItem Marked<TItem>()
-        {
-            TItem item = default!;
-            Unsafe.InitBlockUnaligned(ref Unsafe.As<TItem, byte>(ref item), 0xA5, (uint)Unsafe.SizeOf<TItem>());
-            return item;
-        }
-
         /// <summary>Writes <paramref name="count"/> values at <paramref name="destination"/>, <paramref name="size"/> bytes apart.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteAll<T, TFormatter>(ref byte destination, ref T first, int count, int size)
@@ -203,6 +170,10 @@ namespace Nino.Core
         public static void ReadAll<T, TFormatter>(ref byte source, ref T first, int count, int size)
             where TFormatter : struct, INinoFormatter<T>
         {
+            // The bools of the blocks first: the copy and the vector paths move their bytes without a look, where
+            // ReadBlock checks them (null for values without bools, and the test folds away).
+            if (NinoBlock<T, TFormatter>.Bools != null)
+                CheckBools<T, TFormatter>(ref source, count);
             if (NinoBlock<T, TFormatter>.IsMemory)
             {
                 NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref first), ref source, (uint)(count * size));
@@ -210,6 +181,19 @@ namespace Nino.Core
             }
 
             ReadEach<T, TFormatter>(ref source, ref first, count);
+        }
+
+        /// <summary>
+        /// Throws if a bool of the <paramref name="count"/> blocks at <paramref name="source"/>
+        /// (<see cref="NinoBlock{T, TFormatter}.Bools"/>) is neither 0 nor 1.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CheckBools<T, TFormatter>(ref byte source, int count)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int size = NinoBlock<T, TFormatter>.Size;
+            foreach (int at in NinoBlock<T, TFormatter>.Bools)
+                NinoChecks.Bools(ref Unsafe.Add(ref source, at), count, size);
         }
 
         /// <summary>

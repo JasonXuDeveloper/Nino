@@ -70,6 +70,13 @@ public class StrictReadTests
         return copy;
     }
 
+    private static byte[] WithByte(byte[] data, int at, byte value)
+    {
+        var copy = (byte[])data.Clone();
+        copy[at] = value;
+        return copy;
+    }
+
     [TestMethod]
     public void BoolsOtherThanZeroOrOneAreErrors()
     {
@@ -93,6 +100,20 @@ public class StrictReadTests
             Invalid<HashSet<bool>>(Concat(Ints(1), new[] { b }));
             Invalid<StrictFlags>(Concat(new[] { b }, NinoSerializer.Serialize("a")));
             Invalid<(bool, string)>(Concat(new[] { b }, NinoSerializer.Serialize("a")));
+            // Tuples and pairs of raw items read as blocks: the vector paths move the bytes without ReadBlock, so the
+            // bools are checked before them, wherever the bad one is.
+            foreach (int length in new[] { 1, 9, 33, 100 })
+            foreach (int at in new[] { 0, length / 2, length - 1 })
+            {
+                var pairs = Enumerable.Range(0, length).Select(i => (i % 2 == 0, i)).ToArray();
+                Invalid<(bool, int)[]>(WithByte(NinoSerializer.Serialize(pairs), 4 + at * 5, b));
+                Invalid<List<(bool, int)>>(WithByte(NinoSerializer.Serialize(pairs.ToList()), 4 + at * 5, b));
+                var swapped = pairs.Select(p => (p.Item2, (short)1, p.Item1)).ToArray();
+                Invalid<(int, short, bool)[]>(WithByte(NinoSerializer.Serialize(swapped), 4 + at * 7 + 6, b));
+                var kvps = pairs.Select(p => new KeyValuePair<bool, int>(p.Item1, p.Item2)).ToArray();
+                Invalid<KeyValuePair<bool, int>[]>(WithByte(NinoSerializer.Serialize(kvps), 4 + at * 5, b));
+            }
+
             // bool?[]: [has value][value] each; the second value is the bad one.
             var nullables = NinoSerializer.Serialize(new bool?[] { true, false, null });
             Assert.AreEqual(4 + 3 * 2, nullables.Length);
