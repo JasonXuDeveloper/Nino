@@ -68,12 +68,13 @@ jobs:
         run: |
           set -euo pipefail
           if [[ $FILTER == '*' ]]; then
-            # report.yml's shards (the probe classes are left out: run them with a filter).
-            SHARDS='[{"id":"a","filters":"*.SimpleTest.* *.PooledTest.*"},
-              {"id":"b","filters":"*.CommonTypesTest.* *.FixedSizeTest.* *.GenericPolymorphicTest.*"},
-              {"id":"c","filters":"*.PolymorphicTest.* *.BclTypesTest.NinoSerialize* *.BclTypesTest.MemoryPackSerialize*"},
-              {"id":"d","filters":"*.VersionTolerantTest.* *.ReferenceTest.* *.BclTypesTest.*Deserialize*"},
-              {"id":"e","filters":"*.CollectionsTest.* *.PooledGraphTest.*"}]'
+            # The classes in five shards, Nino and MemoryPack only (MessagePack and protobuf-net do not change between
+            # the refs; MemoryPack shows how much the runner moved). The probe classes are left out: run them with a filter.
+            SHARDS='[{"id":"a","filters":"*.SimpleTest.Nino* *.SimpleTest.MemoryPack* *.PooledTest.Nino* *.PooledTest.MemoryPack*"},
+              {"id":"b","filters":"*.CommonTypesTest.Nino* *.CommonTypesTest.MemoryPack* *.FixedSizeTest.Nino* *.FixedSizeTest.MemoryPack* *.GenericPolymorphicTest.Nino* *.GenericPolymorphicTest.MemoryPack*"},
+              {"id":"c","filters":"*.PolymorphicTest.Nino* *.PolymorphicTest.MemoryPack* *.BclTypesTest.NinoSerialize* *.BclTypesTest.MemoryPackSerialize*"},
+              {"id":"d","filters":"*.VersionTolerantTest.Nino* *.VersionTolerantTest.MemoryPack* *.ReferenceTest.Nino* *.ReferenceTest.MemoryPack* *.BclTypesTest.NinoDeserialize* *.BclTypesTest.MemoryPackDeserialize*"},
+              {"id":"e","filters":"*.CollectionsTest.Nino* *.CollectionsTest.MemoryPack* *.PooledGraphTest.Nino* *.PooledGraphTest.MemoryPack*"}]'
           else
             SHARDS=$(jq -cn --arg f "$FILTER" '[{id: "filter", filters: $f}]')
           fi

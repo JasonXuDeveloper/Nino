@@ -3,12 +3,12 @@
 
 usage: merge_reports.py report.md [report.md ...] > merged.md
 
-report.yml runs the benchmark classes in parallel jobs (each class with its Nino and MemoryPack cases on one
-runner) and publishes one table, as one run would write it: the first report's environment block, then one table
-with the rows of every report in the order given. The columns are the union of the reports' (BenchmarkDotNet leaves
-out a column, such as Gen1, that is empty in its run); a cell a report has no column for is "-". Program.cs prints
-every time in ns and every size in B, so cells merge as they are. BenchmarkDotNet leaves the Type column out of a
-report of one class: when another report has one, its rows take the class from the file name
+report.yml runs the benchmark classes in parallel jobs (every serializer's run of a case on one runner) and
+publishes one table, as one run would write it: the first report's environment block, then one table with the rows
+of every report in the order given. The columns are the union of the reports' (BenchmarkDotNet leaves out a column,
+such as Gen1, that is empty in its run); a cell a report has no column for is "-". Program.cs prints every time in
+ns and every size in B, so cells merge as they are. BenchmarkDotNet leaves the Type column out of a report of one
+class: when another report has one, its rows take the class from the file name
 (Nino.Benchmark.SimpleTest-report-github.md), or "-" for a renamed copy. After the table, each report's runner is
 named, by the classes of its Type column (a joined summary of two or more classes) or, for a report of one class
 (the v3 SimpleTest, run in halves), by its class when the file name gives it and its first and last case.
@@ -67,7 +67,7 @@ def merge(paths):
                               for i in range(len(columns))) + "|")
     out += [line(row, right) for row in rows]
     out.append("")
-    out.append("The cases ran in parallel on several runners (each case's Nino and MemoryPack runs on one):")
+    out.append("The cases ran in parallel on several runners (every serializer's run of a case on one):")
     out.append("")
     for _, header, _, report_rows, cpu, type_name in reports:
         if "Type" in header:

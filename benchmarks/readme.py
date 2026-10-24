@@ -15,7 +15,8 @@ usage: python3 benchmarks/readme.py --v4 <joined report-github.md> [--v3 <v3 rep
 
 The README carries each generated number between markers: <!--bench:key-->5.1<!--/bench-->; docs/v4-benchmarks.md
 carries whole tables between such markers. Everything outside the markers (the build-time numbers among it) is
-written by hand. Ratios follow the docs site (nino.docs
+written by hand. The headline numbers and the chart compare Nino with MemoryPack; the serialize and deserialize
+tables also list MessagePack's and protobuf-net's times. Ratios follow the docs site (nino.docs
 src/lib/benchmarks.ts): within 5% is "on par", and a case where v4 is slower is left out, never shown as slower.
 A time under FLOOR_NS is below what BenchmarkDotNet can tell apart from an empty method: v4 under it against a
 measurable v3 is "faster, too fast to measure" (no ratio: it would only reflect the floor); both under it is on par.
@@ -219,6 +220,9 @@ def tables(v4, v3, v3_runs, env, tag):
     def mean(method):
         return v4[method]["mean"] if method in v4 else None
 
+    def maybe(method):
+        return time(mean(method)) if method in v4 else "—"
+
     out = {}
     for verb in ("Serialize", "Deserialize"):
         rows = []
@@ -227,9 +231,12 @@ def tables(v4, v3, v3_runs, env, tag):
             if nino is None or mp is None:
                 continue
             old = v3.get(f"Nino{verb}{key}")
-            rows.append([label, time(nino), time(mp), time(old) if old is not None else "—", versus(mp, nino),
+            # MessagePack and protobuf-net: their times, for reference ("—" where a release did not run them).
+            rows.append([label, time(nino), time(mp), maybe(f"MessagePack{verb}{key}"), maybe(f"Protobuf{verb}{key}"),
+                         time(old) if old is not None else "—", versus(mp, nino),
                          versus(old, nino) if old is not None else "—"])
-        out[f"table.{verb.lower()}"] = table(["Case", "v4", "MemoryPack", "v3", "v4 vs MemoryPack", "v4 vs v3"], rows)
+        out[f"table.{verb.lower()}"] = table(["Case", "v4", "MemoryPack", "MessagePack", "protobuf-net", "v3",
+                                              "v4 vs MemoryPack", "v4 vs v3"], rows)
 
     rows = []
     for label, new, reuse, mp_new, overwrite in REUSE_CASES:

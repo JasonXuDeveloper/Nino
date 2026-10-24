@@ -96,12 +96,12 @@ jobs:
             echo "✅ A section is missing, will run"
           fi
 
-  # The benchmark classes run in parallel, two or more per runner (so each joined report has a Type column), each case's
-  # Nino and MemoryPack runs always on one runner. Eight shards of 28 to 36 cases (about a minute each with three
-  # launches); BclTypesTest and CollectionsTest are split by type. MessagePack runs only locally: nothing published
-  # reads its rows. SimpleTest is split into its serialize (a) and deserialize (h) cases, and on x64 each half of v3
-  # runs directly before the same half of v4, on its runner, as benchmarks/run.sh does (v3 takes about 10 minutes a
-  # half, so these shards take about as long as the others). The publish job merges the reports into one table
+  # The benchmark classes run in parallel, two or more per runner (so each joined report has a Type column), every
+  # serializer's runs of a case (Nino, MemoryPack, MessagePack, protobuf-net) always on one runner. Ten shards of 30
+  # to 46 cases (about a minute each with three launches); BclTypesTest, CollectionsTest and CommonTypesTest are split
+  # by type. SimpleTest is split into its serialize (a) and deserialize (h) cases, and on x64 each half of v3 runs
+  # directly before the same half of v4, on its runner, as benchmarks/run.sh does (v3 takes about 10 minutes a half,
+  # so these shards have fewer v4 cases). The publish job merges the reports into one table
   # (benchmarks/merge_reports.py). The same shards run on Arm64 runners too, for the Arm64 section of the release
   # (AdvSimd and TBL paths that x64 never takes); an Arm64 failure leaves that section out and never blocks the x64 report.
   bench:
@@ -115,22 +115,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { arch: x64, shard: a, filters: "'*.SimpleTest.NinoSerialize*' '*.SimpleTest.MemoryPackSerialize*' '*.PooledTest.*' '*.ReferenceTest.*'", v3: "'*SimpleTest.NinoSerialize*' '*SimpleTest.MemoryPackSerialize*'" }
-          - { arch: x64, shard: h, filters: "'*.SimpleTest.NinoDeserialize*' '*.SimpleTest.MemoryPackDeserialize*' '*.VersionTolerantTest.*'", v3: "'*SimpleTest.NinoDeserialize*' '*SimpleTest.MemoryPackDeserialize*'" }
-          - { arch: x64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*'" }
-          - { arch: x64, shard: c, filters: "'*.GenericPolymorphicTest.*' '*.PooledGraphTest.*'" }
-          - { arch: x64, shard: d, filters: "'*.BclTypesTest.*Immutable*' '*.PolymorphicTest.Nino*' '*.PolymorphicTest.MemoryPack*'" }
-          - { arch: x64, shard: e, filters: "'*.BclTypesTest.*BigInteger' '*.BclTypesTest.*BitArray' '*.BclTypesTest.*BlockingCollection' '*.BclTypesTest.*CultureInfo' '*.BclTypesTest.*Lazy' '*.CollectionsTest.*ConcurrentDictionary' '*.CollectionsTest.*HashSet' '*.CollectionsTest.*KeyValuePairs'" }
-          - { arch: x64, shard: f, filters: "'*.BclTypesTest.*Lookup' '*.BclTypesTest.*Memory' '*.BclTypesTest.*ReadOnlyCollection' '*.BclTypesTest.*ReadOnlySequence' '*.CollectionsTest.*LinkedList' '*.CollectionsTest.*Queue' '*.CollectionsTest.*SortedDictionary'" }
-          - { arch: x64, shard: g, filters: "'*.BclTypesTest.*StringBuilder' '*.BclTypesTest.*TimeZoneInfo' '*.BclTypesTest.*Uri' '*.BclTypesTest.*Version' '*.CollectionsTest.*SortedList' '*.CollectionsTest.*SortedSet' '*.CollectionsTest.*TupleList'" }
-          - { arch: arm64, shard: a, filters: "'*.SimpleTest.NinoSerialize*' '*.SimpleTest.MemoryPackSerialize*' '*.PooledTest.*' '*.ReferenceTest.*'" }
-          - { arch: arm64, shard: h, filters: "'*.SimpleTest.NinoDeserialize*' '*.SimpleTest.MemoryPackDeserialize*' '*.VersionTolerantTest.*'" }
-          - { arch: arm64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*'" }
-          - { arch: arm64, shard: c, filters: "'*.GenericPolymorphicTest.*' '*.PooledGraphTest.*'" }
-          - { arch: arm64, shard: d, filters: "'*.BclTypesTest.*Immutable*' '*.PolymorphicTest.Nino*' '*.PolymorphicTest.MemoryPack*'" }
-          - { arch: arm64, shard: e, filters: "'*.BclTypesTest.*BigInteger' '*.BclTypesTest.*BitArray' '*.BclTypesTest.*BlockingCollection' '*.BclTypesTest.*CultureInfo' '*.BclTypesTest.*Lazy' '*.CollectionsTest.*ConcurrentDictionary' '*.CollectionsTest.*HashSet' '*.CollectionsTest.*KeyValuePairs'" }
-          - { arch: arm64, shard: f, filters: "'*.BclTypesTest.*Lookup' '*.BclTypesTest.*Memory' '*.BclTypesTest.*ReadOnlyCollection' '*.BclTypesTest.*ReadOnlySequence' '*.CollectionsTest.*LinkedList' '*.CollectionsTest.*Queue' '*.CollectionsTest.*SortedDictionary'" }
-          - { arch: arm64, shard: g, filters: "'*.BclTypesTest.*StringBuilder' '*.BclTypesTest.*TimeZoneInfo' '*.BclTypesTest.*Uri' '*.BclTypesTest.*Version' '*.CollectionsTest.*SortedList' '*.CollectionsTest.*SortedSet' '*.CollectionsTest.*TupleList'" }
+          - { arch: x64, shard: a, filters: "'*.SimpleTest.NinoSerialize*' '*.SimpleTest.MemoryPackSerialize*' '*.SimpleTest.MessagePackSerialize*' '*.SimpleTest.ProtobufSerialize*' '*.PooledTest.*' '*.ReferenceTest.*'", v3: "'*SimpleTest.NinoSerialize*' '*SimpleTest.MemoryPackSerialize*'" }
+          - { arch: x64, shard: h, filters: "'*.SimpleTest.NinoDeserialize*' '*.SimpleTest.MemoryPackDeserialize*' '*.SimpleTest.MessagePackDeserialize*' '*.SimpleTest.ProtobufDeserialize*' '*.VersionTolerantTest.*'", v3: "'*SimpleTest.NinoDeserialize*' '*SimpleTest.MemoryPackDeserialize*'" }
+          - { arch: x64, shard: b, filters: "'*.FixedSizeTest.*' '*.PooledGraphTest.*'" }
+          - { arch: x64, shard: c, filters: "'*.GenericPolymorphicTest.*' '*.BclTypesTest.*BigInteger' '*.BclTypesTest.*BitArray'" }
+          - { arch: x64, shard: d, filters: "'*.PolymorphicTest.*' '*.CommonTypesTest.*Players' '*.CommonTypesTest.*Orders'" }
+          - { arch: x64, shard: e, filters: "'*.CommonTypesTest.*Shapes' '*.CommonTypesTest.*Tree' '*.CommonTypesTest.*Inventory' '*.CommonTypesTest.*Waypoints' '*.CommonTypesTest.*StringDictionary' '*.BclTypesTest.*CultureInfo' '*.BclTypesTest.*TimeZoneInfo'" }
+          - { arch: x64, shard: f, filters: "'*.BclTypesTest.*ImmutableHashSet' '*.BclTypesTest.*ImmutableSortedSet' '*.BclTypesTest.*ImmutableQueue' '*.BclTypesTest.*ImmutableStack' '*.BclTypesTest.*ImmutableDictionary' '*.BclTypesTest.*BlockingCollection'" }
+          - { arch: x64, shard: g, filters: "'*.BclTypesTest.*ImmutableSortedDictionary' '*.BclTypesTest.*Uri' '*.BclTypesTest.*Version' '*.BclTypesTest.*StringBuilder' '*.BclTypesTest.*Lazy' '*.BclTypesTest.*Memory' '*.BclTypesTest.*ReadOnlySequence'" }
+          - { arch: x64, shard: i, filters: "'*.BclTypesTest.*ReadOnlyCollection' '*.BclTypesTest.*Lookup' '*.CollectionsTest.*TupleList' '*.CollectionsTest.*KeyValuePairs' '*.CollectionsTest.*HashSet' '*.CollectionsTest.*Queue'" }
+          - { arch: x64, shard: j, filters: "'*.CollectionsTest.*LinkedList' '*.CollectionsTest.*SortedSet' '*.CollectionsTest.*SortedDictionary' '*.CollectionsTest.*SortedList' '*.CollectionsTest.*ConcurrentDictionary'" }
+          - { arch: arm64, shard: a, filters: "'*.SimpleTest.NinoSerialize*' '*.SimpleTest.MemoryPackSerialize*' '*.SimpleTest.MessagePackSerialize*' '*.SimpleTest.ProtobufSerialize*' '*.PooledTest.*' '*.ReferenceTest.*'" }
+          - { arch: arm64, shard: h, filters: "'*.SimpleTest.NinoDeserialize*' '*.SimpleTest.MemoryPackDeserialize*' '*.SimpleTest.MessagePackDeserialize*' '*.SimpleTest.ProtobufDeserialize*' '*.VersionTolerantTest.*'" }
+          - { arch: arm64, shard: b, filters: "'*.FixedSizeTest.*' '*.PooledGraphTest.*'" }
+          - { arch: arm64, shard: c, filters: "'*.GenericPolymorphicTest.*' '*.BclTypesTest.*BigInteger' '*.BclTypesTest.*BitArray'" }
+          - { arch: arm64, shard: d, filters: "'*.PolymorphicTest.*' '*.CommonTypesTest.*Players' '*.CommonTypesTest.*Orders'" }
+          - { arch: arm64, shard: e, filters: "'*.CommonTypesTest.*Shapes' '*.CommonTypesTest.*Tree' '*.CommonTypesTest.*Inventory' '*.CommonTypesTest.*Waypoints' '*.CommonTypesTest.*StringDictionary' '*.BclTypesTest.*CultureInfo' '*.BclTypesTest.*TimeZoneInfo'" }
+          - { arch: arm64, shard: f, filters: "'*.BclTypesTest.*ImmutableHashSet' '*.BclTypesTest.*ImmutableSortedSet' '*.BclTypesTest.*ImmutableQueue' '*.BclTypesTest.*ImmutableStack' '*.BclTypesTest.*ImmutableDictionary' '*.BclTypesTest.*BlockingCollection'" }
+          - { arch: arm64, shard: g, filters: "'*.BclTypesTest.*ImmutableSortedDictionary' '*.BclTypesTest.*Uri' '*.BclTypesTest.*Version' '*.BclTypesTest.*StringBuilder' '*.BclTypesTest.*Lazy' '*.BclTypesTest.*Memory' '*.BclTypesTest.*ReadOnlySequence'" }
+          - { arch: arm64, shard: i, filters: "'*.BclTypesTest.*ReadOnlyCollection' '*.BclTypesTest.*Lookup' '*.CollectionsTest.*TupleList' '*.CollectionsTest.*KeyValuePairs' '*.CollectionsTest.*HashSet' '*.CollectionsTest.*Queue'" }
+          - { arch: arm64, shard: j, filters: "'*.CollectionsTest.*LinkedList' '*.CollectionsTest.*SortedSet' '*.CollectionsTest.*SortedDictionary' '*.CollectionsTest.*SortedList' '*.CollectionsTest.*ConcurrentDictionary'" }
     env:
       V3_OUT: ${{ github.workspace }}/v3-results
       OUT: ${{ github.workspace }}/report
@@ -277,7 +281,7 @@ jobs:
       # Every benchmark class of benchmarks/Nino.Benchmark: one table in the Performance Report, its Type column naming the
       # class. A class missing from the table is reported as a warning.
       # The shards of the bench job's matrix, per architecture.
-      SHARDS: 8
+      SHARDS: 10
       # The x64 shards that run half of v3 each (matrix.v3): the v3 section needs both halves.
       V3_SHARDS: 2
       BENCH_CLASSES: SimpleTest PolymorphicTest GenericPolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest CommonTypesTest CollectionsTest BclTypesTest
@@ -331,10 +335,10 @@ jobs:
           elif (( ${#V3[@]} )); then
             echo "::warning::${#V3[@]} of the $V3_SHARDS v3 reports: the v3 comparison is left out"
           fi
-          # A case that no shard's filters select (a new one, say) is left out of the report: name it. MessagePack and
-          # the probes are not run on purpose.
+          # A case that no shard's filters select (a new one, say) is left out of the report: name it. The probes are
+          # not run on purpose.
           if [[ -f "$DIR/cases-x64-all.txt" ]]; then
-            grep -vE '\.MessagePack|Probe' "$DIR/cases-x64-all.txt" | sort -u > "$RUNNER_TEMP/all.txt"
+            grep -v 'Probe' "$DIR/cases-x64-all.txt" | sort -u > "$RUNNER_TEMP/all.txt"
             cat "$DIR"/cases-x64-[a-z].txt | sort -u > "$RUNNER_TEMP/run.txt"
             for CASE in $(comm -23 "$RUNNER_TEMP/all.txt" "$RUNNER_TEMP/run.txt"); do
               echo "::warning::$CASE is in no shard of report.yml: add it to the bench matrix"
@@ -438,7 +442,7 @@ jobs:
               echo ""
               # Never write the words "Performance Report" here: parsers find the x64 report by them.
               echo "The benchmark classes of the x64 report below, with the same BenchmarkDotNet settings"
-              echo "(\`${BDN_ARGS}\`), on GitHub's \`ubuntu-24.04-arm\` runners. Compare Nino with MemoryPack within"
+              echo "(\`${BDN_ARGS}\`), on GitHub's \`ubuntu-24.04-arm\` runners. Compare the serializers within"
               echo "this table: the runners differ from the x64 ones, so times across the two tables say little."
               echo ""
               python3 "$GITHUB_WORKSPACE/benchmarks/compact_report.py" "$ARM64_REPORT"

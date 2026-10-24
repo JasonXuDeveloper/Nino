@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bdn import FLOOR_NS, mean_ns, rows, show  # noqa: E402 (benchmarks/bdn.py)
 
-LIBS = ("Nino", "MemoryPack", "MessagePack")
+LIBS = ("Nino", "MemoryPack", "MessagePack", "Protobuf")
 
 
 def parse(path):
