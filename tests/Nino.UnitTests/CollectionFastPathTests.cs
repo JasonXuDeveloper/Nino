@@ -780,7 +780,10 @@ public class EmptyCollectionTests
 [TestClass]
 public class HashTableFillTests
 {
-    private static void CheckSet<T>(T[] items, T missing)
+    internal static Guid[] CollidingGuids(int n) =>
+        Enumerable.Range(0, n).Select(i => new Guid(i, (short)i, 7, 1, 2, 3, 4, 5, 6, 7, 8)).ToArray();
+
+    internal static void CheckSet<T>(T[] items, T missing)
     {
         var source = new HashSet<T>(items);
         var back = NinoDeserializer.Deserialize<HashSet<T>>(NinoSerializer.Serialize(source));
@@ -822,8 +825,12 @@ public class HashTableFillTests
         CheckSet(Enumerable.Range(0, 1000).Select(i => i * 3 - 1500).ToArray(), 1);
         CheckSet(Enumerable.Range(0, 300).Select(i => (long)i << 33 ^ -i).Concat(new[] { long.MinValue, long.MaxValue })
             .ToArray(), 42L);
-        CheckSet(Enumerable.Range(0, 200).Select(i => new Guid(i, (short)i, 7, 1, 2, 3, 4, 5, 6, 7, 8)).ToArray(),
-            Guid.Empty);
+        // Guids of one hash code (the halves of their first eight bytes cancel out): up to
+        // NinoSettings.MaxHashCollisions here, and 200 rejected; read in full under a raised limit by
+        // SettingsTests.CollidingRawSetUnderARaisedLimit.
+        CheckSet(CollidingGuids(NinoSettings.DefaultMaxHashCollisions), Guid.Empty);
+        Assert.ThrowsExactly<NinoDataException>(() =>
+            NinoDeserializer.Deserialize<HashSet<Guid>>(NinoSerializer.Serialize(new HashSet<Guid>(CollidingGuids(200)))));
         CheckSet(new[] { 0.5, -0.0, double.MaxValue, double.Epsilon }, 1.5);
         CheckSet(Enumerable.Range(0, 100).Select(i => new PaddedItem { Id = i % 10, Count = (short)i }).ToArray(),
             new PaddedItem { Id = -1 });

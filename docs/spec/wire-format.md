@@ -1032,6 +1032,15 @@ reference`).
 **.NET:** dictionaries, `HashSet<T>` and lookups throw on a repeated key when filled from empty. When reading into a
 non-empty dictionary, the last value wins.
 
+- A reader that fills a hash table from the data SHOULD bound the work each key costs. Keys built to share a hash
+  bucket (hash flooding) make each insert scan all the keys before it, and the read quadratic in the data.
+
+**.NET:** a key that finds more than `NinoSettings.MaxHashCollisions` (default 100) keys in its bucket throws
+`NinoDataException`, in `Dictionary<TKey, TValue>`, `HashSet<T>`, lookups, `ImmutableDictionary` and `ImmutableHashSet`
+(more than that many keys with one hash code). Nino walks the bucket as it adds a key to a new table, and walks it
+after the table adds a key itself; string keys of tables that switch to a randomized comparer on their own (.NET's,
+and .NET Framework's `Dictionary`) are left to them. `ConcurrentDictionary` is not covered.
+
 Note: the .NET reader currently accepts a keyed body with a repeated key, and the last entry wins (verified).
 
 ### 9.9 Depth

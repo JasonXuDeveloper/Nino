@@ -29,6 +29,9 @@ public class SettingsTests
                 : null;
     }
 
+    /// <summary>Runs a case of <see cref="SettingsProbes"/> in a copy of Nino of its own (for other test classes).</summary>
+    public static void RunProbe(string probe, byte[] data = null) => Run(probe, data);
+
     private static void Run(string probe, byte[] data = null)
     {
         var copy = new Isolated().LoadFromAssemblyPath(typeof(SettingsTests).Assembly.Location);
@@ -44,6 +47,7 @@ public class SettingsTests
         // Read in this process (which has used Nino already): the defaults (DefaultMaxDepth is 512), and frozen.
         Assert.AreEqual(NinoSettings.DefaultMaxDepth, NinoSettings.MaxDepth);
         Assert.AreEqual(int.MaxValue, NinoSettings.MaxCollectionLength);
+        Assert.AreEqual(NinoSettings.DefaultMaxHashCollisions, NinoSettings.MaxHashCollisions);
     }
 
     [TestMethod]
@@ -56,6 +60,12 @@ public class SettingsTests
     public void CollectionLengthLimit() => Run(nameof(SettingsProbes.CollectionLength));
 
     [TestMethod]
+    public void HashCollisionLimit() => Run(nameof(SettingsProbes.HashCollisions));
+
+    [TestMethod]
+    public void CollidingRawSetUnderARaisedLimit() => Run(nameof(SettingsProbes.CollidingRawSet));
+
+    [TestMethod]
     public void DepthLimit()
     {
         // Written here, under the default limit: 300 structs, each holding the next through its list.
@@ -64,7 +74,7 @@ public class SettingsTests
 }
 
 /// <summary>The cases of <see cref="SettingsTests"/>, run in a copy of Nino of their own.</summary>
-public static class SettingsProbes
+public static partial class SettingsProbes
 {
     public static Assembly CoreAssembly() => typeof(NinoSettings).Assembly;
 
@@ -100,9 +110,32 @@ public static class SettingsProbes
                (NinoSettings.MaxDepth == 300 && NinoSettings.MaxCollectionLength == 1000 ? "ok" : "changed");
     }
 
+    /// <summary>Keys of one hash code, more than the default limit, read under a raised one.</summary>
+    public static string ImmutableCollidingKeys(byte[] _) => UnderRaisedLimit(() =>
+        BclTypeTests.SameImmutable(BclTypeTests.CancellingLongs(1000), i => -1L - i));
+
+    /// <inheritdoc cref="ImmutableCollidingKeys"/>
+    public static string CollidingRawSet(byte[] _) => UnderRaisedLimit(() =>
+        HashTableFillTests.CheckSet(HashTableFillTests.CollidingGuids(200), Guid.Empty));
+
+    private static string UnderRaisedLimit(Action check)
+    {
+        NinoSettings.MaxHashCollisions = 2000;
+        try
+        {
+            check();
+            return "ok";
+        }
+        catch (Exception e)
+        {
+            return $"{e.GetType().Name}: {e.Message}";
+        }
+    }
+
     public static string OutOfRange(byte[] _) =>
         Throws<ArgumentOutOfRangeException>(() => NinoSettings.MaxDepth = 127, "MaxDepth 127") ??
         Throws<ArgumentOutOfRangeException>(() => NinoSettings.MaxCollectionLength = -1, "MaxCollectionLength -1") ??
+        Throws<ArgumentOutOfRangeException>(() => NinoSettings.MaxHashCollisions = 0, "MaxHashCollisions 0") ??
         "ok";
 
     public static string CollectionLength(byte[] _)
@@ -129,6 +162,33 @@ public static class SettingsProbes
                Throws<NinoDataException>(() => NinoDeserializer.Deserialize<Dictionary<int, int>>(map4), "Dictionary") ??
                Throws<NinoDataException>(() => NinoDeserializer.Deserialize<int[,]>(grid), "int[,]") ??
                Throws<NinoDataException>(() => NinoDeserializer.Deserialize<UntrustedStructNode>(holder), "member") ??
+               "ok";
+    }
+
+    public static string HashCollisions(byte[] _)
+    {
+        NinoSettings.MaxHashCollisions = 3;
+        // Longs whose halves cancel out: all hash to 0. Four in one bucket (the last finds 3) are read, five are not.
+        long[] Keys(int count) => Enumerable.Range(1, count).Select(i => (long)i << 32 | (uint)i).ToArray();
+        byte[] Bytes<T>(T value) => NinoSerializer.Serialize(value);
+        var map4 = Bytes(Keys(4).ToDictionary(k => k, k => 1));
+        var set4 = Bytes(Keys(4).ToHashSet());
+        var map5 = Bytes(Keys(5).ToDictionary(k => k, k => 1));
+        var set5 = Bytes(Keys(5).ToHashSet());
+        var names5 = Bytes(Keys(5).ToDictionary(k => k, k => "v"));
+        var objects5 = Bytes(Enumerable.Range(0, 5).ToDictionary(i => new FloodKey { Id = i * 7 }, i => i));
+        var spread = Bytes(Enumerable.Range(0, 1000).ToHashSet());
+        if (NinoDeserializer.Deserialize<Dictionary<long, int>>(map4).Count != 4 ||
+            NinoDeserializer.Deserialize<HashSet<long>>(set4).Count != 4 ||
+            NinoDeserializer.Deserialize<HashSet<int>>(spread).Count != 1000)
+            return "keys within the limit were not read";
+        return Throws<NinoDataException>(() => NinoDeserializer.Deserialize<Dictionary<long, int>>(map5), "raw pairs") ??
+               Throws<NinoDataException>(() => NinoDeserializer.Deserialize<HashSet<long>>(set5), "raw set") ??
+               Throws<NinoDataException>(() => NinoDeserializer.Deserialize<Dictionary<long, string>>(names5),
+                   "string values") ??
+               Throws<NinoDataException>(() => NinoDeserializer.Deserialize<Dictionary<FloodKey, int>>(objects5),
+                   "object keys") ??
+               Throws<InvalidOperationException>(() => NinoSettings.MaxHashCollisions = 10, "set after use") ??
                "ok";
     }
 

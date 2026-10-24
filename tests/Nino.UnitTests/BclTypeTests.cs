@@ -481,46 +481,22 @@ public class BclTypeTests
         Assert.IsTrue(Nino.Immutable.HashTrees.Usable);
         Assert.IsTrue(Nino.Immutable.SortedTrees.Usable);
 
-        void Same<TKey>(TKey[] keys, Func<int, TKey> other)
-        {
-            var dictionary = keys.Select((k, i) => new KeyValuePair<TKey, int>(k, i)).ToImmutableDictionary();
-            // Copied out of the tree, written as the enumerator yields it.
-            CollectionAssert.AreEqual(NinoSerializer.Serialize(dictionary.ToArray()), NinoSerializer.Serialize(dictionary));
-            var back = RoundTrip(dictionary);
-            Assert.AreEqual(dictionary.Count, back.Count);
-            foreach (var pair in dictionary)
-                Assert.AreEqual(pair.Value, back[pair.Key]);
-            CollectionAssert.AreEquivalent(dictionary.ToArray(), back.ToArray());
-            var changed = back.Add(other(0), -1).SetItem(keys[keys.Length - 1], -2).Remove(keys[0]);
-            Assert.AreEqual(back.Count, changed.Count);
-            Assert.AreEqual(-1, changed[other(0)]);
-            Assert.IsFalse(changed.ContainsKey(keys[0]));
-            if (keys.Length > 1)
-                Assert.AreEqual(-2, changed[keys[keys.Length - 1]]);
-            Assert.AreEqual(0, back[keys[0]]);
-            var emptied = keys.Aggregate(back, (d, k) => d.Remove(k));
-            Assert.IsTrue(emptied.IsEmpty);
-
-            var set = keys.ToImmutableHashSet();
-            CollectionAssert.AreEqual(NinoSerializer.Serialize(set.ToArray()), NinoSerializer.Serialize(set));
-            var setBack = RoundTrip(set);
-            Assert.IsTrue(setBack.SetEquals(set));
-            Assert.IsFalse(setBack.Contains(other(1)));
-            var setChanged = setBack.Add(other(1)).Remove(keys[0]);
-            Assert.IsTrue(setChanged.Contains(other(1)));
-            Assert.IsFalse(setChanged.Contains(keys[0]));
-            Assert.IsTrue(setBack.Contains(keys[0]));
-            Assert.IsTrue(keys.Aggregate(setBack, (s, k) => s.Remove(k)).IsEmpty);
-        }
-
         foreach (int n in new[] { 1, 2, 3, 7, 64, 1000 })
         {
-            Same(Enumerable.Range(-n / 2, n).Select(i => i * 7919).ToArray(), i => int.MaxValue - i);
-            Same(Enumerable.Range(0, n).Select(i => "key" + i).ToArray(), i => "other" + i);
-            Same(Enumerable.Range(0, n).Select(i => (long)i << 32 | (uint)i).ToArray(), i => -1L - i);
+            SameImmutable(Enumerable.Range(-n / 2, n).Select(i => i * 7919).ToArray(), i => int.MaxValue - i);
+            SameImmutable(Enumerable.Range(0, n).Select(i => "key" + i).ToArray(), i => "other" + i);
             // Equal hashes: built the usual way.
-            Same(Enumerable.Range(0, n).Select(i => new Crowded(i)).ToArray(), i => new Crowded(-1 - i));
+            SameImmutable(Enumerable.Range(0, n).Select(i => new Crowded(i)).ToArray(), i => new Crowded(-1 - i));
         }
+
+        // Keys of one hash code (longs whose halves cancel out): up to NinoSettings.MaxHashCollisions here, and 1000
+        // rejected; read in full under a raised limit by ImmutableCollidingKeysUnderARaisedLimit.
+        foreach (int n in new[] { 1, 2, 3, 7, 64, NinoSettings.DefaultMaxHashCollisions })
+            SameImmutable(CancellingLongs(n), i => -1L - i);
+        var colliding = CancellingLongs(1000);
+        Assert.ThrowsExactly<NinoDataException>(() =>
+            RoundTrip(colliding.Select((k, i) => new KeyValuePair<long, int>(k, i)).ToImmutableDictionary()));
+        Assert.ThrowsExactly<NinoDataException>(() => RoundTrip(colliding.ToImmutableHashSet()));
 
         void SameSorted<TKey>(TKey[] keys, TKey absent)
         {
@@ -565,5 +541,46 @@ public class BclTypeTests
         Assert.IsTrue(RoundTrip(withNull).SetEquals(withNull));
         Assert.AreEqual(0, RoundTrip(ImmutableDictionary<string, int>.Empty).Count);
         Assert.AreEqual(0, RoundTrip(ImmutableHashSet<string>.Empty).Count);
+    }
+
+#if NET8_0_OR_GREATER
+    [TestMethod]
+    public void ImmutableCollidingKeysUnderARaisedLimit() =>
+        SettingsTests.RunProbe(nameof(SettingsProbes.ImmutableCollidingKeys));
+#endif
+
+    /// <summary>Longs whose halves cancel out: every one hashes to 0.</summary>
+    internal static long[] CancellingLongs(int n) => Enumerable.Range(0, n).Select(i => (long)i << 32 | (uint)i).ToArray();
+
+    internal static void SameImmutable<TKey>(TKey[] keys, Func<int, TKey> other)
+    {
+        var dictionary = keys.Select((k, i) => new KeyValuePair<TKey, int>(k, i)).ToImmutableDictionary();
+        // Copied out of the tree, written as the enumerator yields it.
+        CollectionAssert.AreEqual(NinoSerializer.Serialize(dictionary.ToArray()), NinoSerializer.Serialize(dictionary));
+        var back = RoundTrip(dictionary);
+        Assert.AreEqual(dictionary.Count, back.Count);
+        foreach (var pair in dictionary)
+            Assert.AreEqual(pair.Value, back[pair.Key]);
+        CollectionAssert.AreEquivalent(dictionary.ToArray(), back.ToArray());
+        var changed = back.Add(other(0), -1).SetItem(keys[keys.Length - 1], -2).Remove(keys[0]);
+        Assert.AreEqual(back.Count, changed.Count);
+        Assert.AreEqual(-1, changed[other(0)]);
+        Assert.IsFalse(changed.ContainsKey(keys[0]));
+        if (keys.Length > 1)
+            Assert.AreEqual(-2, changed[keys[keys.Length - 1]]);
+        Assert.AreEqual(0, back[keys[0]]);
+        var emptied = keys.Aggregate(back, (d, k) => d.Remove(k));
+        Assert.IsTrue(emptied.IsEmpty);
+
+        var set = keys.ToImmutableHashSet();
+        CollectionAssert.AreEqual(NinoSerializer.Serialize(set.ToArray()), NinoSerializer.Serialize(set));
+        var setBack = RoundTrip(set);
+        Assert.IsTrue(setBack.SetEquals(set));
+        Assert.IsFalse(setBack.Contains(other(1)));
+        var setChanged = setBack.Add(other(1)).Remove(keys[0]);
+        Assert.IsTrue(setChanged.Contains(other(1)));
+        Assert.IsFalse(setChanged.Contains(keys[0]));
+        Assert.IsTrue(setBack.Contains(keys[0]));
+        Assert.IsTrue(keys.Aggregate(setBack, (s, k) => s.Remove(k)).IsEmpty);
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Nino.Core
 {
@@ -28,10 +29,14 @@ namespace Nino.Core
         /// <summary>Default of <see cref="MaxDepth"/>.</summary>
         public const int DefaultMaxDepth = 512;
 
+        /// <summary>Default of <see cref="MaxHashCollisions"/>.</summary>
+        public const int DefaultMaxHashCollisions = 100;
+
         private static readonly object Lock = new object();
         private static bool _frozen;
         private static int _maxDepth = DefaultMaxDepth;
         private static int _maxCollectionLength = int.MaxValue;
+        private static int _maxHashCollisions = DefaultMaxHashCollisions;
 
         /// <summary>
         /// How deep objects may nest in data being read or written before Nino throws (a
@@ -91,6 +96,40 @@ namespace Nino.Core
             }
         }
 
+        /// <summary>
+        /// The most keys a key read from the data may find in its hash bucket when Nino adds it to a hash table it
+        /// fills: <see cref="Dictionary{TKey,TValue}"/>, <see cref="HashSet{T}"/>, <c>ILookup</c>, and (with
+        /// Nino.Immutable) <c>ImmutableDictionary</c> and <c>ImmutableHashSet</c>, where it is the most keys with one
+        /// hash code. More throws <see cref="NinoDataException"/>: data built to make every key collide (hash
+        /// flooding) would otherwise take time quadratic in its size to read. Default
+        /// <see cref="DefaultMaxHashCollisions"/> (100), far above what keys with a reasonable hash code ever reach
+        /// (a bucket holds about one key); raise it for keys whose hash codes are poor on purpose or by accident (a
+        /// struct key without its own <c>GetHashCode</c>, where the runtime may combine its fields so that many keys
+        /// share one). At least 1. The counting is free: Nino walks the bucket anyway. Where the runtime fills the
+        /// table itself (a collection read into an existing one), Nino walks the new key's bucket after adding it.
+        /// String keys are left to the tables that switch to a randomized comparer after 100 collisions on their own
+        /// (.NET's <c>Dictionary</c> and <c>HashSet</c>, .NET Framework's <c>Dictionary</c>).
+        /// <c>ConcurrentDictionary</c> is not covered: it keeps its buckets to itself.
+        /// <b>Set before first use</b> (see <see cref="MaxDepth"/>).
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">The value is below 1.</exception>
+        /// <exception cref="InvalidOperationException">Nino has already used the setting.</exception>
+        public static int MaxHashCollisions
+        {
+            get => _maxHashCollisions;
+            set
+            {
+                if (value < 1)
+                    throw new ArgumentOutOfRangeException(nameof(value), value,
+                        "Nino: the hash collision limit must be at least 1.");
+                lock (Lock)
+                {
+                    CheckNotFrozen(nameof(MaxHashCollisions));
+                    _maxHashCollisions = value;
+                }
+            }
+        }
+
         private static void CheckNotFrozen(string name)
         {
             if (_frozen)
@@ -109,6 +148,7 @@ namespace Nino.Core
                 {
                     MaxDepth = _maxDepth,
                     MaxCollectionLength = _maxCollectionLength,
+                    MaxHashCollisions = _maxHashCollisions,
                 };
             }
         }
@@ -117,6 +157,7 @@ namespace Nino.Core
         {
             public int MaxDepth;
             public int MaxCollectionLength;
+            public int MaxHashCollisions;
         }
 
         private static int _defaultPoolMaxRetained = DefaultPoolMaxRetainedValue;
