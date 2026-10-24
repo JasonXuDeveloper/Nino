@@ -19,10 +19,12 @@ the error is within 2% of the mean. Do not publish its numbers: the README, the 
 and the release notes use the full protocol, which is what supports "x× faster" and "on par" (within 5%).
 
 Requires the .NET 10 SDK and Python 3. The script prints `v4 vs v3` per case; the BenchmarkDotNet
-reports are in `<out>/v3` and `<out>/v4`. `dotnet benchmarks/v3/bin/Release/net10.0/Nino.Benchmark.dll
---verify` checks that v3 round-trips the benchmark data and prints the payload sizes; `--verify` on v4's
-`Nino.Benchmark.dll` (`benchmarks/Nino.Benchmark/Verify.cs`, run by `run.sh`, `report.yml` and the PR benchmark job) checks
-every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
+reports are in `<out>/v3` and `<out>/v4`. Both runs use one project, `benchmarks/Nino.Benchmark`: built with
+`NINO_BENCH_V3=true` (an environment variable, so the builds BenchmarkDotNet makes for its runs take it too), it
+references Nino 3.3.13 from nuget.org instead of the repository's code, compiles only `V3/SimpleTest.cs` (the same
+`SimpleTest`, ported to v3's API) with the shared data, job, columns and checks, and goes to `bin/v3` and `obj/v3`.
+`--verify` (`benchmarks/Nino.Benchmark/Verify.cs`, run by `run.sh`, `report.yml` and the PR benchmark job, for v3 too)
+checks every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
 same value, deep-compared. The data is seeded (`BenchmarkRandom`), so every run serializes the same values. Nino
 serializes to its `NinoArrayBufferWriter`, MemoryPack and MessagePack to `ArrayBufferWriter<byte>`: each to the
 writer it writes in place.
@@ -61,7 +63,7 @@ dash in the tables. A time under 1 ns (about three clock cycles) cannot be told 
 it against a measurable one is "faster (too fast to measure)", with no ratio, and both under it are on par.
 Build-time numbers and everything outside the markers are edited by hand.
 
-The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `compact_report.py`, `v3/compare.py`,
+The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `compact_report.py`, `compare_v3.py`,
 `members/table.py`) share one parser, unit table and floor: [`bdn.py`](bdn.py).
 
 ## Benchmark Classes

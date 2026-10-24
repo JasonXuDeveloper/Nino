@@ -10,7 +10,7 @@ using Nino.Core;
 #nullable disable
 namespace Nino.Benchmark;
 
-// Port of benchmarks/Nino.Benchmark/SimpleTest.cs (v4) to Nino 3.3.13 (NuGet).
+// SimpleTest.cs ported to Nino 3.3.13 (NuGet), for the v3 build of this project (NINO_BENCH_V3=true).
 // Only the Nino calls differ: NinoSerializer/NinoDeserializer -> NinoGen.Serializer/NinoGen.Deserializer,
 // NinoArrayBufferWriter -> ArrayBufferWriter<byte>. Everything else is verbatim.
 

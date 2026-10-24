@@ -7,7 +7,7 @@ usage: python3 benchmarks/readme.py --v4 <joined report-github.md> [--v3 <v3 rep
 
   --v4        the joined report of benchmarks/Nino.Benchmark (every class in one table), as benchmarks/run.sh and
               report.yml produce it
-  --v3        a report of benchmarks/v3 (Nino 3.3.13, SimpleTest); repeat it for several runs,
+  --v3        a report of the v3 run (Nino 3.3.13, SimpleTest); repeat it for several runs,
               v3 is then the mean of them. Without it the README's v3 runtime numbers are left as they are.
   --tag       the release the reports belong to (report.yml); without it docs/v4-benchmarks.md names a local run
   --png-html  also write the chart wrapped in an HTML page, to render benchmark.png from it (report.yml does
