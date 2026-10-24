@@ -197,6 +197,10 @@ public static partial class SettingsProbes
                Fails<DateTime?[]>(With(Bytes(new DateTime?[] { when }), 4 + 8, badTicks), "DateTime?[]") ??
                Fails<(bool, int)[]>(With(Bytes(new[] { (true, 1), (false, 2) }), 4, 2), "(bool, int)[]") ??
                Fails<UntrustedRaw[]>(BoolAfterA(Bytes(new[] { holder.Raw })), "UntrustedRaw[]") ??
+               // Read as blocks in the default mode (one at a time here, each checked by its read).
+               Fails<Subset.Blocks.BlockDated[]>(With(Bytes(Enumerable.Range(0, 40)
+                   .Select(i => new Subset.Blocks.BlockDated { Id = i, When = when }).ToArray()), 4 + 20 * 15 + 4,
+                   BitConverter.GetBytes(BadTicks)), "BlockDated[]") ??
                Fails<HashSet<DateTime>>(With(Bytes(new HashSet<DateTime> { when }), 4, badTicks), "HashSet<DateTime>") ??
                Fails<Dictionary<int, DateTime>>(With(Bytes(new Dictionary<int, DateTime> { [1] = when }), 8, badTicks),
                    "Dictionary<int, DateTime>") ??

@@ -143,7 +143,8 @@ and `FixedSizeTest` (a 40-byte struct, the same members in a sealed class and 10
 `byte[]` APIs of both, so allocating the result is part of every call). `CommonTypesTest` adds data shaped like
 that of common applications (`benchmarks/Nino.Benchmark/CommonTypes.cs`): players with a struct list, a string dictionary,
 bytes and strings; orders with `Guid`, `DateTimeOffset`, `decimal` and a list of classes; shapes through an abstract
-base; a tree; a padded struct array; and a string dictionary. `CollectionsTest` covers collections of the base
+base; a tree; a padded struct array; an array of structs of fixed size that are not raw (a value tuple member), which
+are read and written as blocks; and a string dictionary. `CollectionsTest` covers collections of the base
 class library: a list of tuples, an array of key-value pairs, and hashed, queued, linked, sorted and concurrent
 collections. `BclTypesTest` covers the other base class library types both libraries have formatters for: `BigInteger`,
 `Uri`, `Version`, `StringBuilder`, `BitArray`, `CultureInfo`, `TimeZoneInfo`, `Lazy<T>`, memory and sequences, read-only,

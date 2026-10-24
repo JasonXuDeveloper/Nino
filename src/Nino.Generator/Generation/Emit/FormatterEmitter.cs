@@ -63,6 +63,8 @@ internal static class FormatterEmitter
             iface += $", {CoreGenerated}INinoFixedSizeFormatter<{t}>";
         if (m.RawBody)
             iface += $", {CoreGenerated}INinoRawBodyFormatter<{t}>";
+        if (m.Block)
+            iface += $", {CoreGenerated}INinoBlockFormatter<{t}>";
 
         w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.Constraints}");
         var body = new BodyEmitter(m, w, names);
@@ -143,6 +145,12 @@ internal static class FormatterEmitter
         {
             w.Line();
             body.EmitFixed();
+        }
+
+        if (m.Block)
+        {
+            w.Line();
+            body.EmitBlock();
         }
 
         if (m.HasTop)

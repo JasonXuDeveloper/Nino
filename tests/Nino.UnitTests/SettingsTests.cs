@@ -12,8 +12,8 @@ namespace Nino.UnitTests;
 
 /// <summary>
 /// The limits of <see cref="NinoSettings"/> are frozen the first time Nino uses them, so each case runs in a load
-/// context of its own: a fresh copy of Nino.Core and of this assembly (its generated formatters register with that
-/// copy), where the case sets the limits before anything reads them. Cases are the static methods of
+/// context of its own: a fresh copy of Nino.Core, of this assembly and of Nino.UnitTests.Subset (their generated
+/// formatters register with that copy), where the case sets the limits before anything reads them. Cases are the static methods of
 /// <see cref="SettingsProbes"/>, called by name; they return "ok" or what went wrong.
 /// </summary>
 [TestClass]
@@ -24,7 +24,7 @@ public class SettingsTests
         private readonly string _directory = Path.GetDirectoryName(typeof(SettingsTests).Assembly.Location);
 
         protected override Assembly Load(AssemblyName name) =>
-            name.Name is "Nino.Core" or "Nino.UnitTests" or "Nino.Immutable"
+            name.Name is "Nino.Core" or "Nino.UnitTests" or "Nino.UnitTests.Subset" or "Nino.Immutable"
                 ? LoadFromAssemblyPath(Path.Combine(_directory, name.Name + ".dll"))
                 : null;
     }

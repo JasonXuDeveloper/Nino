@@ -210,6 +210,9 @@ internal sealed record TypeModel(
     // Whether every (non-null) value is written in the same number of bytes (TypeFacts.IsFixedSize): the formatter
     // implements INinoFixedSizeFormatter.
     bool FixedSize,
+    // Whether the formatter implements INinoBlockFormatter (TypeFacts.IsBlock): a struct of fixed size whose
+    // collections are read and written as blocks.
+    bool Block,
     // Whether ReadBody reads a new instance (created by `new T()`, not taken from a pool or a factory) apart from
     // an existing one: its members are known to be null there (MemberModel.Fresh), so their formatters' reuse
     // paths fold away. Only for types whose members read no loop in the body (MemberModel.ReadsLoop): a second copy
