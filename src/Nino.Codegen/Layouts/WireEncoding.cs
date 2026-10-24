@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace Nino.TypeScript
+namespace Nino.Codegen.Layouts
 {
     /// <summary>
     /// One encoding of a member in a published layout (<c>NinoTypeLayoutAttribute.Members</c>): what the bytes are.

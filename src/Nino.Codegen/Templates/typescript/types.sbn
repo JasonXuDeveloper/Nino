@@ -1,0 +1,321 @@
+{{~
+# The TypeScript of an assembly's [NinoType]s (TypeScriptTarget): enums, raw structs, interfaces and classes, the
+# registry of the types written behind a type id, a codec per type, then the functions values of one shape share.
+include "shapes.sbn"
+
+# A class body (`readBody$X`, `writeBody$X`) or a struct (`readX`, `writeX`): its members, without the header.
+func body(c)
+  $n = c.name
+  $o = ""
+  # An empty body leaves its parameters unused: they are named with a `_`, as noUnusedParameters wants.
+  $empty = c.members.size == 0
+  $r = $empty && c.format == "positional" && !c.counted ? "_r" : "r"
+  $w = $empty && c.format == "positional" && !c.counted ? "_w" : "w"
+  $v = $empty ? "_v" : "v"
+  if c.is_class_body
+    $o = $o + "function read" + $n + "(r: NinoReader): " + $n + " {\n"
+    if c.nests
+      $o = $o + "  const v = new " + $n + "(), depth = r.depth;\n  if (depth >= 128) return r." + c.later + "(v, readBody$" + $n + ");\n"
+      $o = $o + "  r.depth = depth + 1;\n  readBody$" + $n + "(r, v);\n  r.exit(depth);\n"
+    else
+      $o = $o + "  const v = new " + $n + "();\n  if (r.depth >= 128) return r." + c.later + "(v, readBody$" + $n + ");\n"
+      $o = $o + "  readBody$" + $n + "(r, v);\n"
+    end
+    $o = $o + "  return v;\n}\n\n"
+    $o = $o + "function write" + $n + "(w: NinoWriter, v: " + $n + "): void {\n"
+    if c.nests
+      $o = $o + "  const depth = w.depth;\n  if (depth >= 128) {\n    w." + c.later + "(v, writeBody$" + $n + ");\n    return;\n  }\n"
+      $o = $o + "  w.depth = depth + 1;\n  writeBody$" + $n + "(w, v);\n  w.exit(depth);\n"
+    else
+      $o = $o + "  if (w.depth >= 128) w." + c.later + "(v, writeBody$" + $n + ");\n  else writeBody$" + $n + "(w, v);\n"
+    end
+    $o = $o + "}\n\n"
+    $o = $o + "function readBody$" + $n + "(" + $r + ": NinoReader, " + $v + ": " + $n + "): void {\n"
+  else
+    $o = $o + "function read" + $n + "(" + $r + ": NinoReader): " + $n + " {\n"
+    if c.counted
+      $o = $o + "  r.enterStruct();\n"
+    end
+    $o = $o + "  const v = new " + $n + "();\n"
+  end
+
+  if c.format == "keyed"
+    # Members by key, in any order; a key this version does not know is skipped.
+    $o = $o + "  const end = r.region();\n  while (r.pos < end) {\n    const key = r.i32(), member = r.region();\n    switch (key) {\n"
+    for $m in c.members
+      for $key in $m.model.all_keys
+        $o = $o + "      case " + $key + ":\n"
+      end
+      $o = $o + "        v." + $m.name + " = " + read($m.shape) + ";\n        break;\n"
+    end
+    $o = $o + "    }\n    r.endRegion(member);\n  }\n  r.endRegion(end);\n"
+  else if c.format == "tolerant"
+    # Members written by an older version end early; those of a newer one are skipped.
+    $o = $o + "  const end = r.region();\n"
+    for $m in c.members
+      $o = $o + "  if (r.pos < end) v." + $m.name + " = " + read($m.shape) + ";\n"
+    end
+    $o = $o + "  r.endRegion(end);\n"
+  else
+    # Each run of fixed-size members takes its bytes at once and reads them at their offsets.
+    $decl = c.at_declaration
+    for $run in c.runs
+      if $run.items.size == 1
+        $o = $o + "  v." + $run.items[0].member.name + " = " + read($run.items[0].member.shape) + ";\n"
+      else
+        $o = $o + "  " + $decl + " = r.take(" + $run.size + ");\n"
+        $decl = "at"
+        for $item in $run.items
+          $o = $o + "  v." + $item.member.name + " = " + read_at($item.member.shape, $item.offset) + ";\n"
+        end
+      end
+    end
+  end
+  if c.counted
+    $o = $o + "  r.exitStruct();\n"
+  end
+  if c.is_class_body
+    $o = $o + "}\n\n"
+    $o = $o + "function writeBody$" + $n + "(" + $w + ": NinoWriter, " + $v + ": " + $n + "): void {\n"
+  else
+    $o = $o + "  return v;\n}\n\n"
+    $o = $o + "function write" + $n + "(" + $w + ": NinoWriter, " + $v + ": " + $n + "): void {\n"
+  end
+  if c.counted
+    $o = $o + "  w.enterStruct();\n"
+  end
+  if c.format != "positional"
+    $o = $o + "  const start = w.region();\n"
+  end
+  if c.format == "keyed"
+    for $m in c.members
+      $o = $o + "  w.i32(" + $m.model.key + ");\n  const " + $m.name + "$ = w.region();\n  " + stmt(write($m.shape, "v." + $m.name)) + "\n  w.endRegion(" + $m.name + "$);\n"
+    end
+  else
+    # Each run of fixed-size members reserves its bytes at once and writes them at their offsets.
+    $decl = c.at_declaration
+    for $run in c.runs
+      if $run.items.size == 1
+        $o = $o + "  " + stmt(write($run.items[0].member.shape, "v." + $run.items[0].member.name)) + "\n"
+      else
+        $o = $o + "  " + $decl + " = " + reserve($run.size, $run.zeroed) + ";\n"
+        $decl = "at"
+        for $item in $run.items
+          $o = $o + "  " + stmt(write_at($item.member.shape, $item.offset, "v." + $item.member.name)) + "\n"
+        end
+      end
+    end
+  end
+  if c.format != "positional"
+    $o = $o + "  w.endRegion(start);\n"
+  end
+  if c.counted
+    $o = $o + "  w.exitStruct();\n"
+  end
+  ret $o + "}\n\n"
+end
+
+# The body of a type written behind a type id, without its header.
+func read_body(c)
+  if c.raw_shape
+    ret read(c.raw_shape)
+  end
+  ret "read" + c.name + "(r)"
+end
+
+func write_body(c, v)
+  if c.raw_shape
+    ret write(c.raw_shape, v)
+  end
+  ret "write" + c.name + "(w, " + v + ")"
+end
+
+# A function shared by every value of one shape.
+func helper_body(h)
+  $s = h.shape
+  $n = h.name
+  $o = ""
+  if h.mode == "read"
+    if $s.kind == "seq"
+      $o = "function " + $n + "(r: NinoReader): " + seq_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n"
+      if $s.set
+        $o = $o + "  const values = new Set<" + ts($s.element) + ">();\n"
+        $add = "values.add("
+        $close = ")"
+      else
+        $o = $o + "  const values = new Array<" + ts($s.element) + ">(length);\n"
+        $add = "values[i] = "
+        $close = ""
+      end
+      if $s.element.fixed
+        $o = $o + "  for (let i = 0, at = r.take(length * " + $s.element.size + "); i < length; i++, at += " + $s.element.size + ") " + $add + read_at($s.element, 0) + $close + ";\n"
+      else
+        $o = $o + "  for (let i = 0; i < length; i++) " + $add + read($s.element) + $close + ";\n"
+      end
+      ret $o + "  return values;\n}\n"
+    else if $s.kind == "map"
+      $o = "function " + $n + "(r: NinoReader): " + map_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const map = new " + map_ts($s) + "();\n"
+      if $s.key.fixed && $s.value.fixed
+        $size = $s.key.size + $s.value.size
+        $o = $o + "  for (let i = 0, at = r.take(length * " + $size + "); i < length; i++, at += " + $size + ") map.set(" + read_at($s.key, 0) + ", " + read_at($s.value, $s.key.size) + ");\n"
+      else
+        $o = $o + "  for (let i = 0; i < length; i++) {\n    const key = " + read($s.key) + ";\n    map.set(key, " + read($s.value) + ");\n  }\n"
+      end
+      ret $o + "  return map;\n}\n"
+    end
+    # A value of fixed size: takes its bytes.
+    ret "function " + $n + "(r: NinoReader): " + ts($s) + " {\n  const at = r.take(" + $s.size + ");\n  return " + read_at($s, 0) + ";\n}\n"
+  end
+
+  if $s.kind == "seq"
+    if $s.set
+      $input = "ReadonlySet<" + ts($s.element) + ">"
+      $length = "values.size"
+      # Arrays by index: V8 runs an index loop faster than an array iterator (Chromium most).
+      $loop = "  for (const value of values) {\n"
+    else
+      $input = "readonly " + paren(ts($s.element)) + "[]"
+      $length = "values.length"
+      $loop = "  for (let i = 0; i < values.length; i++) {\n    const value = values[i];\n"
+    end
+    $o = "function " + $n + "(w: NinoWriter, values: " + $input + " | null): void {\n  if (values === null || values === undefined) {\n    w.i32(-1);\n    return;\n  }\n  w.i32(" + $length + ");\n"
+    if $s.element.fixed
+      $o = $o + "  let at = " + reserve($length + " * " + $s.element.size, $s.element.zeroed) + ";\n" + $loop + "    " + stmt(write_at($s.element, 0, "value")) + "\n    at += " + $s.element.size + ";\n  }\n"
+    else
+      $o = $o + $loop + "    " + stmt(write($s.element, "value")) + "\n  }\n"
+    end
+    ret $o + "}\n"
+  else if $s.kind == "map"
+    $o = "function " + $n + "(w: NinoWriter, map: ReadonlyMap<" + ts($s.key) + ", " + ts($s.value) + "> | null): void {\n  if (map === null || map === undefined) {\n    w.i32(-1);\n    return;\n  }\n  w.i32(map.size);\n"
+    if $s.key.fixed && $s.value.fixed
+      $size = $s.key.size + $s.value.size
+      $o = $o + "  let at = " + reserve("map.size * " + $size, $s.key.zeroed || $s.value.zeroed) + ";\n  for (const [key, value] of map) {\n    " + stmt(write_at($s.key, 0, "key")) + "\n    " + stmt(write_at($s.value, $s.key.size, "value")) + "\n    at += " + $size + ";\n  }\n"
+    else
+      $o = $o + "  for (const [key, value] of map) {\n    " + stmt(write($s.key, "key")) + "\n    " + stmt(write($s.value, "value")) + "\n  }\n"
+    end
+    ret $o + "}\n"
+  end
+  ret "function " + $n + "(w: NinoWriter, v: " + ts($s) + "): void {\n  const at = " + reserve($s.size, $s.zeroed) + ";\n  " + stmt(write_at($s, 0, "v")) + "\n}\n"
+end
+~}}
+// Generated by {{ generator }} from {{ source }}: its [NinoType]s, read and written as Nino serializes them in .NET.
+// Do not edit: it is overwritten on every build.
+
+import { NinoReader, NinoRegistry, NinoWriter, type NinoCodec } from "{{ runtime_module }}";
+
+const types = new NinoRegistry();
+
+{{~
+for e in enums
+  "/** `" + e.model.full_name + "`. */\nexport const " + e.name + " = {\n"
+  for $c in e.model.constants
+    "  " + $c.name + ": " + $c.value + (e.big ? "n" : "") + ",\n"
+  end
+  "} as const;\n"
+  # A flags value is any combination of them.
+  if e.model.flags
+    "export type " + e.name + " = " + (e.big ? "bigint" : "number") + ";\n\n"
+  else
+    "export type " + e.name + " = (typeof " + e.name + ")[keyof typeof " + e.name + "];\n\n"
+  end
+end
+
+for s in raw_structs
+  "/** `" + s.model.full_name + "`, copied as raw memory (" + s.model.size + " bytes). */\nexport class " + s.name + " {\n"
+  for $f in s.fields
+    "  " + $f.name + ": " + ts($f.shape) + " = " + def($f.shape) + ";\n"
+  end
+  "}\n\n"
+  # Each field at its offset of the bytes the caller took (zeroed, if the struct has padding).
+  "function read" + s.name + "(r: NinoReader, at: number): " + s.name + " {\n  const v = new " + s.name + "();\n"
+  for $f in s.fields
+    "  v." + $f.name + " = " + read_at($f.shape, $f.offset) + ";\n"
+  end
+  "  return v;\n}\n\n"
+  "function write" + s.name + "(w: NinoWriter, at: number, v: " + s.name + "): void {\n"
+  for $f in s.fields
+    "  " + stmt(write_at($f.shape, $f.offset, "v." + $f.name)) + "\n"
+  end
+  "}\n\n"
+end
+
+for i in interfaces
+  "/** `" + i.model.full_name + "`. */\nexport interface " + i.name + " {\n"
+  for $m in i.members
+    "  " + $m.name + ": " + ts($m.shape) + ";\n"
+  end
+  "}\n\n"
+end
+
+for c in classes
+  "/** `" + c.model.full_name + "`. */\nexport " + (c.model.is_abstract ? "abstract " : "") + "class " + c.name
+  if c.base_name
+    " extends " + c.base_name
+  end
+  if c.interface_names.size != 0
+    " implements " + (array.join c.interface_names ", ")
+  end
+  " {\n"
+  # In a class hierarchy, V8 creates objects about twice as fast from constructors as from field initializers (one
+  # initializer per class), so the members are declared and set in the constructor there.
+  if !c.hierarchy
+    for $m in c.own
+      "  " + $m.name + ": " + ts($m.shape) + " = " + def($m.shape) + ";\n"
+    end
+  else if c.own.size != 0
+    for $m in c.own
+      "  declare " + $m.name + ": " + ts($m.shape) + ";\n"
+    end
+    "\n  constructor() {\n" + (c.base_name ? "    super();\n" : "")
+    for $m in c.own
+      "    this." + $m.name + " = " + def($m.shape) + ";\n"
+    end
+    "  }\n"
+  end
+  "}\n\n"
+  if !c.model.is_abstract
+    body(c)
+  end
+end
+
+# Every type that can be written behind a type id, once its class is declared.
+for c in registered
+  if c.raw_shape
+    "types.add(" + c.model.type_id + ", " + c.name + ", (r) => " + read(c.raw_shape) + ", (w, v) => " + write(c.raw_shape, "v") + ");\n"
+  else
+    "types.add(" + c.model.type_id + ", " + c.name + ", read" + c.name + ", write" + c.name + ");\n"
+  end
+end
+"\n"
+
+# XCodec: the type with its header, as a member of its type or NinoSerializer writes it.
+for c in codecs
+  "export const " + c.name + "Codec: NinoCodec<" + c.name
+  if c.header == "none" && c.raw_shape
+    "> = {\n  read: (r) => " + read(c.raw_shape) + ",\n  write: (w, v) => " + write(c.raw_shape, "v") + ",\n};\n"
+  else if c.header == "none"
+    "> = { read: read" + c.name + ", write: write" + c.name + " };\n"
+  else if c.header == "null"
+    " | null> = {\n  read: (r) => " + read(c.header_shape) + ",\n  write: (w, v) => {\n    " + stmt(write(c.header_shape, "v")) + "\n  },\n};\n"
+  else
+    # Any type assignable to it, by the type id in front of its body: by its class when written.
+    " | null> = {\n  read: (r) => {\n    const id = r.i32();\n    switch (id) {\n      case 0:\n        return null;\n"
+    $assignable = c.assignable
+    for $t in $assignable
+      "      case " + $t.model.type_id + ":\n        return " + read_body($t) + ";\n"
+    end
+    "    }\n    throw types.unreadable(id);\n  },\n  write: (w, v) => {\n    if (v === null || v === undefined) {\n      w.i32(0);\n      return;\n    }\n    switch (v.constructor) {\n"
+    for $t in $assignable
+      "      case " + $t.name + ":\n        w.i32(" + $t.model.type_id + ");\n        " + stmt(write_body($t, "v as " + $t.name)) + "\n        return;\n"
+    end
+    "    }\n    throw types.unwritable(v);\n  },\n};\n"
+  end
+end
+
+# The functions shared by values of one shape, in the order the code above first used them.
+$i = 0
+while $i < helper_count()
+  helper_body(helper_at($i)) + "\n"
+  $i = $i + 1
+end
+~}}

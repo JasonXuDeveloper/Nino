@@ -22,18 +22,18 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Nino.TypeScript.Tests"/>
-        <EmbeddedResource Include="..\..\runtimes\typescript\src\nino.ts" LogicalName="nino.ts" Link="Runtime\nino.ts"/>
         <None Include="build\Nino.TypeScript.targets" Pack="true" PackagePath="build\"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="System.Reflection.MetadataLoadContext"/>
+        <!-- The layouts, the TypeScript target and its templates, and the nino.ts runtime. -->
+        <ProjectReference Include="..\Nino.Codegen\Nino.Codegen.csproj"/>
     </ItemGroup>
 
     <!-- The tool and its dependencies go to tools/ in the package, where the targets run it from. -->
     <Target Name="PackTool" BeforeTargets="_GetPackageFiles">
         <ItemGroup>
-            <None Include="$(OutputPath)nino-ts.dll;$(OutputPath)System.Reflection.MetadataLoadContext.dll;$(OutputPath)nino-ts.runtimeconfig.json;$(OutputPath)nino-ts.deps.json"
+            <None Include="$(OutputPath)nino-ts.dll;$(OutputPath)nino-gen.dll;$(OutputPath)Scriban.dll;$(OutputPath)System.Reflection.MetadataLoadContext.dll;$(OutputPath)nino-ts.runtimeconfig.json;$(OutputPath)nino-ts.deps.json"
                   Pack="true" PackagePath="tools"/>
         </ItemGroup>
     </Target>

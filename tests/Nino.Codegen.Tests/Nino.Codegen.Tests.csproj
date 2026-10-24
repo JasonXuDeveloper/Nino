@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- nino-gen's tests: its layout model (IR), its command line, and the generated files committed under runtimes/
+         (the conformance corpus's types and Shapes.cs), which each runtime's tests compile and run. -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <OutputType>Library</OutputType>
+        <IsPackable>false</IsPackable>
+        <NoWarn>$(NoWarn);CS0649</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="MSTest.TestAdapter"/>
+        <PackageReference Include="MSTest.TestFramework"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj"/>
+        <ProjectReference Include="..\..\src\Nino.Codegen\Nino.Codegen.csproj"/>
+        <!-- The corpus's types: their generated code is committed under runtimes/ and checked here. Built first, but
+             not referenced: Nino's generator would publish their layouts in this assembly too, next to Shapes.cs. -->
+        <ProjectReference Include="..\..\conformance\Nino.Conformance\Nino.Conformance.csproj"
+                          ReferenceOutputAssembly="false"/>
+        <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props"/>
+</Project>

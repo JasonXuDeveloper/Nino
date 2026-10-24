@@ -6,7 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace Nino.TypeScript
+namespace Nino.Codegen.Layouts
 {
     /// <summary>The published layout of a <c>[NinoType]</c> (<c>NinoTypeLayoutAttribute</c>), with its type.</summary>
     internal sealed class TypeLayout
@@ -33,6 +33,29 @@ namespace Nino.TypeScript
 
         public const int Positional = 0, VersionTolerant = 1, Keyed = 2;
         public const int NoHeader = 0, NullFlag = 1, TypeId = 2;
+
+        /// <summary>The layout as <c>NinoTypeLayoutAttribute.ToString()</c> writes it, part for part.</summary>
+        public string Text =>
+            $"format={FormatName(Format)}; header={HeaderName(Header)}; " +
+            $"trackReferences={(TrackReferences ? "true" : "false")}; raw={(Raw ? "true" : "false")}; " +
+            $"typeId=0x{Id:X8}; " + (Deferrable is { } d ? d ? "deferrable=true; " : "deferrable=false; " : "") +
+            $"members={MembersText}";
+
+        public static string FormatName(int format) => format switch
+        {
+            Positional => "Positional",
+            VersionTolerant => "VersionTolerant",
+            Keyed => "Keyed",
+            _ => format.ToString(CultureInfo.InvariantCulture),
+        };
+
+        public static string HeaderName(int header) => header switch
+        {
+            NoHeader => "None",
+            NullFlag => "NullFlag",
+            TypeId => "TypeId",
+            _ => header.ToString(CultureInfo.InvariantCulture),
+        };
     }
 
     /// <summary>A member of a layout: <c>name:type:encoding[:key=0x..][:former=0x..,..]</c>.</summary>

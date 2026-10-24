@@ -1,0 +1,267 @@
+{{~
+# The code of one value, from its shape (TypeScriptTarget.Shape): its type, default, and the expressions and statements
+# reading and writing it, alone (`r`, `w`) or at `at` plus an offset of the reader's or writer's view. Every decision
+# (sizes, offsets, zeroing, names, the shared functions) is the target's; these functions only spell it.
+
+# The primitives: TypeScript type, default, and the DataView accessor of those read from the view.
+prims = {
+  bool: { ts: "boolean", def: "false" },
+  u8: { ts: "number", def: "0", view: "Uint8" },
+  i8: { ts: "number", def: "0", view: "Int8" },
+  i16: { ts: "number", def: "0", view: "Int16" },
+  u16: { ts: "number", def: "0", view: "Uint16" },
+  i32: { ts: "number", def: "0", view: "Int32" },
+  u32: { ts: "number", def: "0", view: "Uint32" },
+  i64: { ts: "bigint", def: "0n", view: "BigInt64" },
+  u64: { ts: "bigint", def: "0n", view: "BigUint64" },
+  f32: { ts: "number", def: "0", view: "Float32" },
+  f64: { ts: "number", def: "0", view: "Float64" },
+  char: { ts: "string", def: '"\\0"' },
+  decimal: { ts: "string", def: '"0"' },
+  guid: { ts: "string", def: '"00000000-0000-0000-0000-000000000000"' },
+  dateTime: { ts: "Date", def: "new Date(-62135596800000)" },
+  timeSpan: { ts: "bigint", def: "0n", view: "BigInt64" }
+}
+
+# `at`, plus `off` bytes.
+func at(off)
+  if off == 0
+    ret "at"
+  end
+  ret "at + " + off
+end
+
+# A statement: ends with `;` unless it is a block.
+func stmt(code)
+  if string.ends_with code "}"
+    ret code
+  end
+  ret code + ";"
+end
+
+func trim_semicolons(code)
+  $c = code
+  while string.ends_with $c ";"
+    $c = string.slice $c 0 ($c.size - 1)
+  end
+  ret $c
+end
+
+func reserve(size, zeroed)
+  if zeroed
+    ret "w.raw(" + size + ")"
+  end
+  ret "w.reserve(" + size + ")"
+end
+
+func paren(text)
+  if string.contains text " "
+    ret "(" + text + ")"
+  end
+  ret text
+end
+
+# The type of an element of a sequence (without `| null`).
+func seq_ts(s)
+  if s.set
+    ret "Set<" + ts(s.element) + ">"
+  end
+  ret paren(ts(s.element)) + "[]"
+end
+
+func map_ts(s)
+  ret "Map<" + ts(s.key) + ", " + ts(s.value) + ">"
+end
+
+func ts(s)
+  case s.kind
+  when "prim"
+    ret prims[s.primitive].ts
+  when "enum"
+    ret name(s.enum)
+  when "rawstruct"
+    ret name(s.struct)
+  when "rawnullable", "nullable"
+    ret ts(s.inner) + " | null"
+  when "fixedtuple", "tuple"
+    $parts = []
+    for $item in s.items
+      $parts = array.add $parts (ts($item))
+    end
+    ret "[" + (array.join $parts ", ") + "]"
+  when "string", "utf8"
+    ret "string | null"
+  when "object"
+    ret "unknown"
+  when "bytes"
+    ret "Uint8Array | null"
+  when "seq"
+    ret seq_ts(s) + " | null"
+  when "map"
+    ret map_ts(s) + " | null"
+  when "type"
+    if s.header == "typeid"
+      ret name(s.type) + " | null"
+    end
+    ret name(s.type)
+  end
+end
+
+func def(s)
+  case s.kind
+  when "prim"
+    ret prims[s.primitive].def
+  when "enum"
+    if s.default_cast
+      ret def(s.inner) + " as " + ts(s.inner) + " as " + name(s.enum)
+    end
+    ret def(s.inner) + " as " + name(s.enum)
+  when "rawstruct"
+    ret "new " + name(s.struct) + "()"
+  when "fixedtuple", "tuple"
+    $parts = []
+    for $item in s.items
+      $parts = array.add $parts (def($item))
+    end
+    ret "[" + (array.join $parts ", ") + "]"
+  when "type"
+    if s.header == "none"
+      ret "new " + name(s.type) + "()"
+    end
+    ret "null"
+  end
+  ret "null"
+end
+
+# An expression reading the value.
+func read(s)
+  case s.kind
+  when "prim"
+    ret "r." + s.primitive + "()"
+  when "enum"
+    ret read(s.inner) + " as " + name(s.enum)
+  when "rawstruct"
+    ret "read" + name(s.struct) + "(r, r.take(" + s.size + "))"
+  when "rawnullable", "fixedtuple", "seq", "map"
+    ret helper(s, "read") + "(r)"
+  when "tuple"
+    $parts = []
+    for $item in s.items
+      $parts = array.add $parts (read($item))
+    end
+    ret "[" + (array.join $parts ", ") + "]"
+  when "string"
+    ret "r.string()"
+  when "utf8"
+    ret "r.utf8()"
+  when "object"
+    ret "types.read(r, null)"
+  when "bytes"
+    ret "r.bytes()"
+  when "nullable"
+    ret "(r.notNull() ? " + read(s.inner) + " : null)"
+  when "type"
+    if s.header == "typeid"
+      ret name(s.type) + "Codec.read(r)"
+    end
+    ret "read" + name(s.type) + "(r)"
+  end
+end
+
+# A statement (maybe without its `;`) writing the value `v` (an expression it may evaluate more than once).
+func write(s, v)
+  case s.kind
+  when "prim"
+    ret "w." + s.primitive + "(" + v + ")"
+  when "enum"
+    ret write(s.inner, v)
+  when "rawstruct"
+    ret "write" + name(s.struct) + "(w, " + reserve(s.size, s.zeroed) + ", " + v + ")"
+  when "rawnullable", "fixedtuple", "seq", "map"
+    ret helper(s, "write") + "(w, " + v + ")"
+  when "tuple"
+    $parts = []
+    for $item in s.items
+      $parts = array.add $parts (stmt(write($item, v + "[" + for.index + "]")))
+    end
+    ret trim_semicolons(array.join $parts " ")
+  when "string"
+    ret "w.string(" + v + ")"
+  when "utf8"
+    ret "w.utf8(" + v + ")"
+  when "object"
+    ret "types.write(w, " + v + ", null)"
+  when "bytes"
+    ret "w.bytes(" + v + ")"
+  when "nullable"
+    ret "if (" + v + " === null || " + v + " === undefined) w.u8(0); else { w.u8(1); " + stmt(write(s.inner, v)) + " }"
+  when "type"
+    if s.header == "typeid"
+      ret name(s.type) + "Codec.write(w, " + v + ")"
+    end
+    ret "write" + name(s.type) + "(w, " + v + ")"
+  end
+end
+
+# An expression reading the value of fixed size at `at` plus `off`.
+func read_at(s, off)
+  case s.kind
+  when "prim"
+    $p = s.primitive
+    if $p == "bool"
+      ret "r.view.getUint8(" + at(off) + ") !== 0"
+    else if $p == "char"
+      ret "String.fromCharCode(r.view.getUint16(" + at(off) + ", true))"
+    else if $p == "decimal" || $p == "guid" || $p == "dateTime"
+      ret "r." + $p + "At(" + at(off) + ")"
+    end
+    if s.size > 1
+      ret "r.view.get" + prims[$p].view + "(" + at(off) + ", true)"
+    end
+    ret "r.view.get" + prims[$p].view + "(" + at(off) + ")"
+  when "enum"
+    ret read_at(s.inner, off) + " as " + name(s.enum)
+  when "rawstruct"
+    ret "read" + name(s.struct) + "(r, " + at(off) + ")"
+  when "rawnullable"
+    ret "(r.view.getUint8(" + at(off + s.flag_offset) + ") !== 0 ? " + read_at(s.inner, off + s.value_offset) + " : null)"
+  when "fixedtuple"
+    $parts = []
+    for $item in s.items
+      $parts = array.add $parts (read_at($item, off + s.offsets[for.index]))
+    end
+    ret "[" + (array.join $parts ", ") + "]"
+  end
+end
+
+# A statement (maybe without its `;`) writing `v` at `at` plus `off`.
+func write_at(s, off, v)
+  case s.kind
+  when "prim"
+    $p = s.primitive
+    if $p == "bool"
+      ret "w.view.setUint8(" + at(off) + ", " + v + " ? 1 : 0)"
+    else if $p == "char"
+      ret "w.view.setUint16(" + at(off) + ", " + v + ".charCodeAt(0), true)"
+    else if $p == "decimal" || $p == "guid" || $p == "dateTime"
+      ret "w." + $p + "At(" + at(off) + ", " + v + ")"
+    end
+    if s.size > 1
+      ret "w.view.set" + prims[$p].view + "(" + at(off) + ", " + v + ", true)"
+    end
+    ret "w.view.set" + prims[$p].view + "(" + at(off) + ", " + v + ")"
+  when "enum"
+    ret write_at(s.inner, off, v)
+  when "rawstruct"
+    ret "write" + name(s.struct) + "(w, " + at(off) + ", " + v + ")"
+  when "rawnullable"
+    ret "if (" + v + " !== null && " + v + " !== undefined) { w.view.setUint8(" + at(off + s.flag_offset) + ", 1); " + stmt(write_at(s.inner, off + s.value_offset, v)) + " }"
+  when "fixedtuple"
+    $parts = []
+    for $item in s.items
+      $parts = array.add $parts (stmt(write_at($item, off + s.offsets[for.index], v + "[" + for.index + "]")))
+    end
+    ret trim_semicolons(array.join $parts " ")
+  end
+end
+~}}

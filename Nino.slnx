@@ -6,6 +6,7 @@
   </Configurations>
   <Folder Name="/src/">
     <Project Path="src/Nino.AspNetCore/Nino.AspNetCore.csproj" />
+    <Project Path="src/Nino.Codegen/Nino.Codegen.csproj" />
     <Project Path="src/Nino.Core/Nino.Core.csproj" />
     <Project Path="src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj" />
     <Project Path="src/Nino.Generator.Roslyn4.12/Nino.Generator.Roslyn4.12.csproj" />
@@ -20,6 +21,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Nino.AotTests/Nino.AotTests.csproj" />
     <Project Path="tests/Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj" />
+    <Project Path="tests/Nino.Codegen.Tests/Nino.Codegen.Tests.csproj" />
     <Project Path="tests/Nino.Fuzz/Golden/Nino.Fuzz.Golden.csproj" />
     <Project Path="tests/Nino.Fuzz/Nino.Fuzz.csproj" />
     <Project Path="tests/Nino.RuntimeTests/Nino.RuntimeTests.csproj" />

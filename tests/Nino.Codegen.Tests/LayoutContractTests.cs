@@ -1,15 +1,16 @@
 using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Nino.Codegen.Layouts;
 using Nino.Core;
 
-namespace Nino.TypeScript.Tests
+namespace Nino.Codegen.Tests
 {
     /// <summary>
     /// What <see cref="LayoutReader"/> takes from Nino.Core without referencing it (it reads assemblies through a
     /// MetadataLoadContext): the attribute's name, the order and types of its constructor's arguments and the values of
     /// <see cref="NinoFormat"/> and <see cref="NinoHeader"/>. A change to any of them in Nino.Core fails here, not in
-    /// the TypeScript a user generates.
+    /// the code a user generates.
     /// </summary>
     [TestClass]
     public class LayoutContractTests

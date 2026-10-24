@@ -2,15 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
+using Nino.Codegen.Model;
+using Nino.Codegen.Targets;
 
 namespace Nino.TypeScript
 {
     /// <summary>
     /// <c>nino-ts --assembly &lt;dll&gt; --out &lt;dir&gt; [--references &lt;file&gt;] [--import-extension &lt;.js|.ts&gt;]
     /// [--names camel|keep]</c>: writes <c>nino.ts</c> and <c>&lt;Assembly&gt;.ts</c> into the output directory, each
-    /// only when its text changes. Run after each build by <c>build/Nino.TypeScript.targets</c>.
+    /// only when its text changes. Run after each build by <c>build/Nino.TypeScript.targets</c>. The code comes from
+    /// Nino.Codegen (<c>nino-gen --lang ts</c> writes the same).
     /// </summary>
     internal static class Program
     {
@@ -56,16 +58,16 @@ namespace Nino.TypeScript
                 ? File.ReadAllLines(list).Select(l => l.Trim()).Where(l => l.Length != 0).ToList()
                 : new List<string>();
 
-            using var reader = new LayoutReader(assembly, references);
-            string name = reader.Assembly.GetName().Name!;
-            var emitter = new TypeScriptEmitter(reader.ReadAll(),
+            using var model = CodegenModel.Load(assembly, references);
+            string name = model.AssemblyName;
+            var target = new TypeScriptTarget(model,
                 new TypeScriptOptions { ImportExtension = extension, CamelCase = names == "camel" });
             var files = new Dictionary<string, string>
             {
-                ["nino.ts"] = Runtime(),
-                [name + ".ts"] = emitter.Emit(name),
+                ["nino.ts"] = TypeScriptTarget.Runtime(),
+                [name + ".ts"] = target.Render(name),
             };
-            foreach (var warning in emitter.Warnings)
+            foreach (var warning in target.Warnings)
                 Console.WriteLine($"nino-ts : warning NINOTS002: {warning}");
 
             Directory.CreateDirectory(output);
@@ -81,17 +83,6 @@ namespace Nino.TypeScript
             WriteIfChanged(manifest, string.Join("\n", files.Keys.OrderBy(f => f, StringComparer.Ordinal)) + "\n");
             Console.WriteLine($"nino-ts: {name}.ts and nino.ts -> {Path.GetFullPath(output)}");
             return 0;
-        }
-
-        /// <summary>The runtime, stamped with this tool's version.</summary>
-        private static string Runtime()
-        {
-            using var stream = typeof(Program).Assembly.GetManifestResourceStream("nino.ts")!;
-            using var text = new StreamReader(stream, Encoding.UTF8);
-            string version = typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-                ?.InformationalVersion ?? "";
-            int plus = version.IndexOf('+');
-            return text.ReadToEnd().Replace("__NINO_VERSION__", plus < 0 ? version : version.Substring(0, plus));
         }
 
         /// <summary>Leaves an unchanged file alone, so watchers and incremental TypeScript builds see no change.</summary>
