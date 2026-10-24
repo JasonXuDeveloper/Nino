@@ -7,18 +7,20 @@ report.yml runs the benchmark classes in parallel jobs (each class with its Nino
 runner) and publishes one table, as one run would write it: the first report's environment block, then one table
 with the rows of every report in the order given. The columns are the union of the reports' (BenchmarkDotNet leaves
 out a column, such as Gen1, that is empty in its run); a cell a report has no column for is "-". Program.cs prints
-every time in ns and every size in B, so cells merge as they are. After the table, each report's runner is named,
-by the classes of its Type column (a joined summary of two or more classes) or, for a report of one class (the v3
-SimpleTest, run in halves), by its first and last case.
+every time in ns and every size in B, so cells merge as they are. BenchmarkDotNet leaves the Type column out of a
+report of one class: when another report has one, its rows take the class from the file name
+(Nino.Benchmark.SimpleTest-report-github.md), or "-" for a renamed copy. After the table, each report's runner is
+named, by the classes of its Type column (a joined summary of two or more classes) or, for a report of one class
+(the v3 SimpleTest, run in halves), by its class when the file name gives it and its first and last case.
 """
 import re
 import sys
 
-from bdn import cells, span
+from bdn import cells, class_name, span
 
 
 def read(path):
-    """-> (text before the table, header cells, alignment cells, rows of cells, CPU line)."""
+    """-> (text before the table, header cells, alignment cells, rows of cells, CPU line, class name or None)."""
     lines = open(path, encoding="utf-8").read().splitlines()
     table = span(lines)
     if table is None:
@@ -27,13 +29,14 @@ def read(path):
 
     header, align = cells(lines[first]), cells(lines[first + 1])
     cpu = next((line.strip() for line in lines[:first] if re.search(r"\bCPU\b|cores", line)), "unknown CPU")
-    return "\n".join(lines[:first]), header, align, [cells(line) for line in lines[first + 2:end]], cpu
+    return ("\n".join(lines[:first]), header, align, [cells(line) for line in lines[first + 2:end]], cpu,
+            class_name(path))
 
 
 def merge(paths):
     reports = [read(path) for path in paths]
     columns, align = [], {}
-    for _, header, alignment, _, _ in reports:
+    for _, header, alignment, _, _, _ in reports:
         for i, name in enumerate(header):
             if name not in columns:
                 # After the column that comes before it in this report, so Gen0, Gen1, Gen2 stay together.
@@ -42,12 +45,14 @@ def merge(paths):
             align.setdefault(name, alignment[i])
 
     rows = []
-    for _, header, _, report_rows, _ in reports:
+    for _, header, _, report_rows, _, type_name in reports:
         if rows:
             rows.append([""] * len(columns))  # the blank row BenchmarkDotNet puts between groups
         for row in report_rows:
             by_name = dict(zip(header, row))
             blank = all(cell == "" for cell in row)
+            if not blank and "Type" not in by_name and type_name:
+                by_name["Type"] = type_name
             rows.append([by_name.get(name, "" if blank else "-") for name in columns])
 
     widths = [max(len(name), *(len(row[i]) for row in rows)) for i, name in enumerate(columns)]
@@ -64,14 +69,16 @@ def merge(paths):
     out.append("")
     out.append("The cases ran in parallel on several runners (each case's Nino and MemoryPack runs on one):")
     out.append("")
-    for _, header, _, report_rows, cpu in reports:
+    for _, header, _, report_rows, cpu, type_name in reports:
         if "Type" in header:
             at = header.index("Type")
-            names = ", ".join(sorted({row[at] for row in report_rows if len(row) > at and row[at]}))
+            names = ", ".join(sorted({row[at].strip("*") for row in report_rows if len(row) > at and row[at]}))
         else:
             at = header.index("Method")
             methods = [row[at] for row in report_rows if len(row) > at and row[at]]
             names = f"{methods[0]} to {methods[-1]}" if methods else "no cases"
+            if type_name:
+                names = f"{type_name} ({names})"
         out.append(f"- {names}: {cpu}")
     return "\n".join(out) + "\n"
 

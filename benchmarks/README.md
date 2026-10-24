@@ -39,7 +39,8 @@ Nino and MemoryPack runs always on one, every case in three processes (MessagePa
 [`merge_reports.py`](merge_reports.py) merges their reports into one table, naming each class's runner under it.
 The release notes get the short tables of [`compact_report.py`](compact_report.py) (Method, Mean, Ratio, Payload,
 Allocated, one table per class), as a release body holds at most 125,000 characters; the full reports are attached
-to the release.
+to the release. BenchmarkDotNet writes a report of one class without a Type column: both scripts then take the class
+from the file name (`Nino.Benchmark.SimpleTest-report-github.md`), so keep that name when copying one.
 Each of the two `SimpleTest` runners builds `v3/` and runs its half of it directly before the same half of v4, with the
 same settings; the workflow adds a
 **📊 v3 3.3.13 vs v4 (same machine)** section to the release notes, in front of the Performance Report: the

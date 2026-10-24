@@ -15,6 +15,16 @@ def cells(line):
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
 
 
+def class_name(path):
+    """The benchmark class a report of one class is for, from its file name as BenchmarkDotNet writes it
+    (Nino.Benchmark.SimpleTest-report-github.md -> SimpleTest); None for a joined summary of several classes
+    (BenchmarkRun-joined-...) or a renamed copy. BenchmarkDotNet leaves the Type column out of a report of one class."""
+    name = re.sub(r"^.*[\\/]", "", path)
+    if not name.endswith("-report-github.md") or name.startswith("BenchmarkRun-"):
+        return None
+    return name[:-len("-report-github.md")].rsplit(".", 1)[-1] or None
+
+
 def span(lines):
     """-> (first, end): the lines of the first table (lines that start with "|"), or None without one."""
     first = next((i for i, line in enumerate(lines) if line.startswith("|")), None)
