@@ -62,7 +62,7 @@ nino-gen --assembly <dll> --lang ts|go|rust --out <dir> [--references <file>] [-
 | `--tag-names` (go) | How those tags name a member: `camel` (default), `snake` or `original` (runtimes/go/README.md, "Tags on generated structs"). |
 | `--serde` (rust) | Adds `#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]` and a rename per field. |
 | `--serde-names` (rust) | The serde names: `camel` (default, as `System.Text.Json`), `snake` or `original`. |
-| `--strings` (rust) | `string` (default): C# strings are `String`, and a string with an unpaired surrogate fails to read. `wide`: `nino::WideString`, which keeps any UTF-16. |
+| `--strings` (rust) | `string` (default): C# strings are `String`, and an unpaired surrogate is read as U+FFFD. `wide`: `nino::WideString`, which keeps any UTF-16. |
 
 An option that is unknown, given twice, of another language or with a value it does not take is an error, as are
 missing arguments. `--serde` may be followed by `true` or `false`. Warnings (a type left out, and why) are printed as
