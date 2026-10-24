@@ -22,9 +22,9 @@ namespace Nino.UnitTests.Corner
     }
 
     /// <summary>
-    /// Tuples of eight items or more are a <c>ValueTuple</c> whose eighth argument is a tuple of the rest. Nino.Core has
-    /// formatters for one to seven items; the generator writes longer ones with a formatter of its own, every item in
-    /// order, as for the shorter ones (they were skipped, with a NINO007 warning).
+    /// Tuples of eight items or more are a <c>ValueTuple</c> whose eighth argument is a tuple of the rest. Nino.Core's
+    /// formatter of eight type arguments writes every item in order, as for the shorter ones (they were skipped, with a
+    /// NINO007 warning), in generated code and where Nino.Core resolves the formatter at run time.
     /// </summary>
     [TestClass]
     public class LongTupleTests
@@ -73,6 +73,32 @@ namespace Nino.UnitTests.Corner
                 "Eights:System.Collections.Generic.List<System.ValueTuple<int, int, int, int, int, int, int, " +
                 "System.ValueTuple<string>>>:seq(tuple(raw(4),raw(4),raw(4),raw(4),raw(4),raw(4),raw(4),string))"),
                 layout.Members);
+        }
+
+        [TestMethod]
+        public void ResolvesAtRunTime()
+        {
+            // Box<T> of a tuple the generator never sees closed: Nino.Core resolves its formatter (it had none).
+            var result = CornerCompiler.Compile(@"
+using Nino.Core;
+namespace LongTuple
+{
+    [NinoType] public sealed class Box<T> { public T V; }
+    public static class Api
+    {
+        private static byte[] Write<T>(T v) => NinoSerializer.Serialize(new Box<T> { V = v });
+        private static T Read<T>(byte[] b) => NinoDeserializer.Deserialize<Box<T>>(b).V;
+        public static byte[] Run() => Write((1, 2, 3, 4, 5, 6, 7, ""eight"", 9));
+        public static bool RoundTrips(byte[] b) => Read<(int, int, int, int, int, int, int, string, int)>(b) == (1, 2, 3, 4, 5, 6, 7, ""eight"", 9);
+    }
+}");
+            Assert.AreEqual(0, result.Errors.Length, result.ErrorText);
+            var api = result.Assembly.GetType("LongTuple.Api", true);
+            var bytes = (byte[])api.GetMethod("Run")!.Invoke(null, null);
+            // The null flag of the box, then the items as generated code writes them.
+            CollectionAssert.AreEqual(new byte[] { 1 }.Concat(NinoSerializer.Serialize((1, 2, 3, 4, 5, 6, 7, "eight", 9)))
+                .ToArray(), bytes);
+            Assert.IsTrue((bool)api.GetMethod("RoundTrips")!.Invoke(null, new object[] { bytes }));
         }
 
         [TestMethod]

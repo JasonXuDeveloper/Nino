@@ -826,4 +826,43 @@ namespace Nino.Core
             NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4, T5, T6, T7>(item1, item2, item3, item4, item5, item6, item7));
         }
     }
+
+    /// <summary><c>ValueTuple&lt;T1, T2, T3, T4, T5, T6, T7, TRest&gt;</c>: the items in order, then the rest's.</summary>
+    public struct ValueTupleFormatter<T1, T2, T3, T4, T5, T6, T7, TRest, TF1, TF2, TF3, TF4, TF5, TF6, TF7, TF8> : INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>
+        where TRest : struct
+        where TF1 : struct, INinoFormatter<T1>
+        where TF2 : struct, INinoFormatter<T2>
+        where TF3 : struct, INinoFormatter<T3>
+        where TF4 : struct, INinoFormatter<T4>
+        where TF5 : struct, INinoFormatter<T5>
+        where TF6 : struct, INinoFormatter<T6>
+        where TF7 : struct, INinoFormatter<T7>
+        where TF8 : struct, INinoFormatter<TRest>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Serialize(ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> value, ref Writer writer)
+        {
+            default(TF1).Serialize(value.Item1, ref writer);
+            default(TF2).Serialize(value.Item2, ref writer);
+            default(TF3).Serialize(value.Item3, ref writer);
+            default(TF4).Serialize(value.Item4, ref writer);
+            default(TF5).Serialize(value.Item5, ref writer);
+            default(TF6).Serialize(value.Item6, ref writer);
+            default(TF7).Serialize(value.Item7, ref writer);
+            default(TF8).Serialize(value.Rest, ref writer);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Deserialize(ref ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> value, ref Reader reader)
+        {
+            default(TF1).Deserialize(ref value.Item1, ref reader);
+            default(TF2).Deserialize(ref value.Item2, ref reader);
+            default(TF3).Deserialize(ref value.Item3, ref reader);
+            default(TF4).Deserialize(ref value.Item4, ref reader);
+            default(TF5).Deserialize(ref value.Item5, ref reader);
+            default(TF6).Deserialize(ref value.Item6, ref reader);
+            default(TF7).Deserialize(ref value.Item7, ref reader);
+            default(TF8).Deserialize(ref value.Rest, ref reader);
+        }
+    }
 }

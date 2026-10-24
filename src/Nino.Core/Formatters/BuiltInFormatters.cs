@@ -70,7 +70,7 @@ using Nino.Core;
 [assembly: NinoFormatter(typeof(ProducerConsumerFormatter<,,>), Priority = 5)]
 [assembly: NinoFormatter(typeof(CollectionFormatter<,,>))]
 
-// Tuples (up to 7 elements).
+// Tuples (up to 7 elements; a value tuple of 8 or more holds the rest in its eighth).
 [assembly: NinoFormatter(typeof(ValueTupleFormatter<,>))]
 [assembly: NinoFormatter(typeof(ValueTupleFormatter<,,,>))]
 [assembly: NinoFormatter(typeof(ValueTupleFormatter<,,,,,>))]
@@ -78,6 +78,7 @@ using Nino.Core;
 [assembly: NinoFormatter(typeof(ValueTupleFormatter<,,,,,,,,,>))]
 [assembly: NinoFormatter(typeof(ValueTupleFormatter<,,,,,,,,,,,>))]
 [assembly: NinoFormatter(typeof(ValueTupleFormatter<,,,,,,,,,,,,,>))]
+[assembly: NinoFormatter(typeof(ValueTupleFormatter<,,,,,,,,,,,,,,,>))]
 [assembly: NinoFormatter(typeof(TupleFormatter<,>))]
 [assembly: NinoFormatter(typeof(TupleFormatter<,,,>))]
 [assembly: NinoFormatter(typeof(TupleFormatter<,,,,,>))]

@@ -44,7 +44,7 @@ internal static class WireEncoding
             "GroupingFormatter" => $"group({e[0]},{e[1]})",
             "LookupFormatter" => $"seq(group({e[0]},{e[1]}))",
             "NullableFormatter" or "LazyFormatter" => $"nullable({e[0]})",
-            "ValueTupleFormatter" => $"tuple({string.Join(",", e)})",
+            "ValueTupleFormatter" => $"tuple({string.Join(",", e.Length == 8 ? Flat(e) : e)})",
             "TupleFormatter" => $"nullable(tuple({string.Join(",", e)}))",
             "Array2DFormatter" => $"grid(2,{e[0]})",
             "Array3DFormatter" => $"grid(3,{e[0]})",
@@ -58,5 +58,19 @@ internal static class WireEncoding
             "TimeZoneInfoFormatter" => "timezone",
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// The items of a value tuple of eight or more: the seven, then those of its rest (a value tuple), as one tuple of
+    /// every item, which is how they are written.
+    /// </summary>
+    private static string?[] Flat(string?[] items)
+    {
+        string? rest = items[7];
+        if (rest == null || !rest.StartsWith("tuple(", System.StringComparison.Ordinal))
+            return items;
+        var flat = (string?[])items.Clone();
+        flat[7] = rest.Substring(6, rest.Length - 7);
+        return flat;
     }
 }

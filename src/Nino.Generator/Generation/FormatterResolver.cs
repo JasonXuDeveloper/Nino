@@ -142,8 +142,6 @@ internal sealed class FormatterResolver
 
         if (type.IsTupleType && type.TupleUnderlyingType is { } underlying)
             type = underlying;
-        if (TypeNames.IsValueTuple(type.OriginalDefinition) && type.Arity == 8)
-            return LongTuple(type, utf8);
 
         // Registrations of this very definition first (a library can override how a raw struct is written).
         if (FirstMatch(_rules.ForDefinition(type.OriginalDefinition), type, utf8) is { } registered)
@@ -163,40 +161,6 @@ internal sealed class FormatterResolver
                 : CachedFormatter(type);
 
         return FirstMatch(_rules.Open, type, utf8);
-    }
-
-    /// <summary>
-    /// <c>ValueTuple&lt;T1, ..., T7, TRest&gt;</c>, a tuple of eight items or more (<c>TRest</c> holds the items after
-    /// the seventh): the generated <see cref="Emit.RegistryEmitter.LongTupleFormatter"/>, which writes every item in
-    /// order, as Nino.Core's formatters of shorter tuples do.
-    /// </summary>
-    private ResolvedFormatter? LongTuple(INamedTypeSymbol type, bool utf8)
-    {
-        var items = type.TypeArguments;
-        var formatters = new FormatterRef[items.Length];
-        var encodings = new List<string>(items.Length);
-        var factories = new List<FactoryRegistration>();
-        bool opensBodies = false;
-        for (int i = 0; i < items.Length; i++)
-        {
-            if (Resolve(items[i], utf8) is not { } item)
-                return null;
-            formatters[i] = item.Code;
-            factories.AddRange(item.Factories);
-            opensBodies |= item.OpensBodies;
-            // The rest is a tuple of the remaining items, written as they are: one tuple of all of them.
-            encodings.Add(i == items.Length - 1 && item.Encoding.StartsWith("tuple(", System.StringComparison.Ordinal)
-                ? item.Encoding.Substring(6, item.Encoding.Length - 7)
-                : item.Encoding);
-        }
-
-        return new ResolvedFormatter(FormatterRef.Generic(Emit.RegistryEmitter.LongTupleFormatter,
-                items.Select(FormatterRef.Of).Concat(formatters)), true,
-            $"tuple({string.Join(",", encodings)})",
-            factories.Count == 0
-                ? EquatableArray<FactoryRegistration>.Empty
-                : new EquatableArray<FactoryRegistration>(factories.Distinct()),
-            opensBodies, Elements: items);
     }
 
     /// <summary>The formatter of the first rule that binds.</summary>

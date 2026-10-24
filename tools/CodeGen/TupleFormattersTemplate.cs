@@ -38,6 +38,8 @@ namespace Nino.CodeGen
                 AppendTuple(sb, arity);
             }
 
+            sb.Append("\n");
+            AppendLongValueTuple(sb);
             sb.Append("}\n");
             return sb.ToString();
         }
@@ -143,6 +145,38 @@ namespace Nino.CodeGen
             sb.Append("        {\n");
             foreach (int i in Items(arity))
                 sb.Append($"            value.Item{i} = NinoLayout<T{i}>.Read(ref {At("source", i)});\n");
+            sb.Append("        }\n");
+            sb.Append("    }\n");
+        }
+
+        /// <summary>
+        /// <c>ValueTuple&lt;T1, ..., T7, TRest&gt;</c>, a tuple of eight items or more: the seven items, then the rest's
+        /// (itself a value tuple), so every item in order as the shorter tuples write theirs. No block formatter: a
+        /// block holds tuples of up to seven raw items.
+        /// </summary>
+        private static void AppendLongValueTuple(StringBuilder sb)
+        {
+            const int arity = MaxArity + 1;
+            string items = List(MaxArity, "T{0}") + ", TRest";
+            string type = $"ValueTuple<{items}>";
+            sb.Append($"    /// <summary><c>ValueTuple&lt;{items}&gt;</c>: the items in order, then the rest's.</summary>\n");
+            sb.Append($"    public struct ValueTupleFormatter<{items}, {List(arity, "TF{0}")}> : INinoFormatter<{type}>\n");
+            sb.Append("        where TRest : struct\n");
+            foreach (int i in Items(arity))
+                sb.Append($"        where TF{i} : struct, INinoFormatter<{(i == arity ? "TRest" : $"T{i}")}>\n");
+            sb.Append("    {\n");
+            sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
+            sb.Append($"        public void Serialize({type} value, ref Writer writer)\n");
+            sb.Append("        {\n");
+            foreach (int i in Items(arity))
+                sb.Append($"            default(TF{i}).Serialize(value.{(i == arity ? "Rest" : $"Item{i}")}, ref writer);\n");
+            sb.Append("        }\n");
+            sb.Append("\n");
+            sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
+            sb.Append($"        public void Deserialize(ref {type} value, ref Reader reader)\n");
+            sb.Append("        {\n");
+            foreach (int i in Items(arity))
+                sb.Append($"            default(TF{i}).Deserialize(ref value.{(i == arity ? "Rest" : $"Item{i}")}, ref reader);\n");
             sb.Append("        }\n");
             sb.Append("    }\n");
         }
