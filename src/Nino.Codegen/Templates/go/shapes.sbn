@@ -1,0 +1,323 @@
+{{~
+# The code of one value in Go, from its shape (GoTarget.Shape): its type, and the expressions, function values and
+# statements reading and writing it, alone (`r`, `w`) or in raw memory (`b`, at an offset). Every decision is the
+# target's; these functions only spell it.
+
+prim_types = {
+  Bool: "bool", I8: "int8", U8: "uint8", I16: "int16", U16: "uint16", I32: "int32", U32: "uint32", I64: "int64",
+  U64: "uint64", Half: "nino.Half", F32: "float32", F64: "float64", Char: "uint16", Int128: "nino.Int128",
+  UInt128: "nino.UInt128", Guid: "nino.Guid", TimeSpan: "nino.TimeSpan", Decimal: "nino.Decimal",
+  DateTime: "nino.DateTime", DateOnly: "nino.DateOnly", TimeOnly: "nino.TimeOnly"
+}
+
+# The bytes from offset `o` of `b`, and the byte at it.
+func at(o)
+  if o == 0
+    ret "b"
+  end
+  ret "b[" + o + ":]"
+end
+
+func idx(o)
+  ret "b[" + o + "]"
+end
+
+func span(o, size)
+  ret "b[" + o + ":" + (o + size) + "]"
+end
+
+func join_types(items)
+  $parts = []
+  for $i in items
+    $parts = array.add $parts (gotype($i))
+  end
+  ret array.join $parts ", "
+end
+
+func gotype(s)
+  case s.kind
+  when "prim"
+    ret prim_types[s.primitive]
+  when "enum"
+    ret name(s.enum)
+  when "rawstruct", "emptystruct"
+    ret name(s.struct)
+  when "rawnullable", "nullable"
+    ret "*" + gotype(s.inner)
+  when "rawtuple", "tuple"
+    if s.pair
+      ret "nino.Entry[" + join_types(s.items) + "]"
+    end
+    ret "NinoTuple" + s.items.size + "[" + join_types(s.items) + "]"
+  when "string", "utf8"
+    ret "*string"
+  when "keystring", "keyutf8"
+    ret "string"
+  when "object"
+    ret "nino.Typed"
+  when "struct"
+    ret type_of(s.type).name
+  when "class"
+    ret "*" + type_of(s.type).name
+  when "slot"
+    ret type_of(s.type).slot_name
+  when "named"
+    ret s.named.name
+  when "seq"
+    ret "[]" + gotype(s.element)
+  when "map"
+    ret "[]nino.Entry[" + gotype(s.key) + ", " + gotype(s.value) + "]"
+  when "grid"
+    ret "*NinoGrid[" + gotype(s.element) + "]"
+  when "bigint"
+    ret "*big.Int"
+  when "version"
+    ret "*nino.Version"
+  when "datetimeoffset"
+    ret "nino.DateTimeOffset"
+  end
+end
+
+# A function value reading a value: func(*nino.Reader) T.
+func rfn(s)
+  case s.kind
+  when "prim"
+    ret "(*nino.Reader)." + s.primitive
+  when "rawstruct", "emptystruct", "named"
+    ret "read" + gotype(s)
+  when "string"
+    ret "(*nino.Reader).StringPtr"
+  when "utf8"
+    ret "(*nino.Reader).Utf8Ptr"
+  when "keystring"
+    ret "keyString"
+  when "keyutf8"
+    ret "keyUtf8"
+  when "object"
+    ret "readObject"
+  when "struct", "class"
+    ret "Read" + type_of(s.type).name
+  when "slot"
+    ret "Read" + type_of(s.type).slot_functions
+  when "bigint"
+    ret "(*nino.Reader).BigInteger"
+  when "version"
+    ret "(*nino.Reader).Version"
+  when "datetimeoffset"
+    ret "(*nino.Reader).DateTimeOffset"
+  when "seq"
+    if s.mode == "bytes"
+      ret "(*nino.Reader).ByteArray"
+    else if s.mode == "block"
+      ret "nino.ReadPrimitives[" + gotype(s.element) + "]"
+    else if s.mode == "bools"
+      ret "nino.ReadBools"
+    end
+  end
+  ret helper(s, "read")
+end
+
+# An expression reading a value.
+func read(s)
+  case s.kind
+  when "prim"
+    ret "r." + s.primitive + "()"
+  when "string"
+    ret "r.StringPtr()"
+  when "utf8"
+    ret "r.Utf8Ptr()"
+  when "bigint"
+    ret "r.BigInteger()"
+  when "version"
+    ret "r.Version()"
+  when "datetimeoffset"
+    ret "r.DateTimeOffset()"
+  when "seq"
+    if s.mode == "bytes"
+      ret "r.ByteArray()"
+    end
+  end
+  ret rfn(s) + "(r)"
+end
+
+# A function value writing a value: func(*nino.Writer, T).
+func wfn(s)
+  case s.kind
+  when "prim"
+    ret "(*nino.Writer)." + s.primitive
+  when "rawstruct", "emptystruct", "named"
+    ret "write" + gotype(s)
+  when "string"
+    ret "(*nino.Writer).StringPtr"
+  when "utf8"
+    ret "(*nino.Writer).Utf8Ptr"
+  when "keystring"
+    ret "(*nino.Writer).String"
+  when "keyutf8"
+    ret "(*nino.Writer).Utf8"
+  when "object"
+    ret "writeObject"
+  when "struct", "class"
+    ret "Write" + type_of(s.type).name
+  when "slot"
+    ret "Write" + type_of(s.type).slot_functions
+  when "bigint"
+    ret "(*nino.Writer).BigInteger"
+  when "version"
+    ret "(*nino.Writer).Version"
+  when "datetimeoffset"
+    ret "(*nino.Writer).DateTimeOffset"
+  when "seq"
+    if s.mode == "bytes"
+      ret "(*nino.Writer).ByteArray"
+    else if s.mode == "block"
+      ret "nino.WritePrimitives[" + gotype(s.element) + "]"
+    else if s.mode == "bools"
+      ret "nino.WriteBools"
+    end
+  end
+  ret helper(s, "write")
+end
+
+# A statement writing the value `x`.
+func write(s, x)
+  case s.kind
+  when "prim"
+    ret "w." + s.primitive + "(" + x + ")"
+  when "string"
+    ret "w.StringPtr(" + x + ")"
+  when "utf8"
+    ret "w.Utf8Ptr(" + x + ")"
+  when "seq"
+    if s.mode == "bytes"
+      ret "w.ByteArray(" + x + ")"
+    end
+  end
+  ret wfn(s) + "(w, " + x + ")"
+end
+
+# A function value decoding a raw value from exactly its bytes: func(*nino.Reader, []byte) T.
+func decode_fn(s)
+  if s.kind == "rawstruct" || s.kind == "emptystruct"
+    ret "decode" + name(s.struct)
+  end
+  ret helper(s, "decode")
+end
+
+func encode_fn(s)
+  if s.kind == "rawstruct" || s.kind == "emptystruct"
+    ret "encode" + name(s.struct)
+  end
+  ret helper(s, "encode")
+end
+
+# An expression decoding the raw value at offset `o` of `b` (validated values fail on `r`).
+func decode(s, o)
+  case s.kind
+  when "enum"
+    ret name(s.enum) + "(" + decode(s.inner, o) + ")"
+  when "rawstruct", "rawnullable", "rawtuple"
+    ret decode_fn(s) + "(r, " + span(o, s.size) + ")"
+  when "emptystruct"
+    ret name(s.struct) + "{}"
+  end
+  $a = at(o)
+  case s.primitive
+  when "Bool"
+    ret "r.BoolAt(" + idx(o) + ")"
+  when "I8"
+    ret "int8(" + idx(o) + ")"
+  when "U8"
+    ret idx(o)
+  when "I16"
+    ret "int16(le.Uint16(" + $a + "))"
+  when "U16", "Char"
+    ret "le.Uint16(" + $a + ")"
+  when "Half"
+    ret "nino.Half(le.Uint16(" + $a + "))"
+  when "I32"
+    ret "int32(le.Uint32(" + $a + "))"
+  when "U32"
+    ret "le.Uint32(" + $a + ")"
+  when "F32"
+    ret "math.Float32frombits(le.Uint32(" + $a + "))"
+  when "I64"
+    ret "int64(le.Uint64(" + $a + "))"
+  when "U64"
+    ret "le.Uint64(" + $a + ")"
+  when "TimeSpan"
+    ret "nino.TimeSpan(le.Uint64(" + $a + "))"
+  when "F64"
+    ret "math.Float64frombits(le.Uint64(" + $a + "))"
+  when "Int128", "UInt128"
+    ret "nino." + s.primitive + "{Lo: le.Uint64(" + $a + "), Hi: le.Uint64(" + at(o + 8) + ")}"
+  when "Guid"
+    ret "nino.Guid(" + span(o, 16) + ")"
+  when "Decimal"
+    ret "decimalAt(r, " + $a + ")"
+  when "DateTime"
+    ret "dateTimeAt(r, " + $a + ")"
+  when "DateOnly"
+    ret "dateOnlyAt(r, " + $a + ")"
+  when "TimeOnly"
+    ret "timeOnlyAt(r, " + $a + ")"
+  end
+end
+
+# The statements (lines) encoding the raw value `x` at offset `o` of `b`, whose bytes are zero.
+func encode(s, o, x)
+  case s.kind
+  when "enum"
+    ret encode(s.inner, o, x)
+  when "rawstruct", "rawnullable", "rawtuple"
+    ret [encode_fn(s) + "(" + span(o, s.size) + ", " + x + ")"]
+  when "emptystruct"
+    ret []
+  end
+  $a = at(o)
+  case s.primitive
+  when "Bool"
+    ret ["if " + x + " {", "\t" + idx(o) + " = 1", "}"]
+  when "I8", "U8"
+    ret [idx(o) + " = byte(" + x + ")"]
+  when "I16", "U16", "Char", "Half"
+    ret ["le.PutUint16(" + $a + ", uint16(" + x + "))"]
+  when "I32", "U32"
+    ret ["le.PutUint32(" + $a + ", uint32(" + x + "))"]
+  when "F32"
+    ret ["le.PutUint32(" + $a + ", math.Float32bits(" + x + "))"]
+  when "I64", "U64", "TimeSpan", "DateTime", "TimeOnly"
+    ret ["le.PutUint64(" + $a + ", uint64(" + x + "))"]
+  when "DateOnly"
+    ret ["le.PutUint32(" + $a + ", uint32(" + x + "))"]
+  when "F64"
+    ret ["le.PutUint64(" + $a + ", math.Float64bits(" + x + "))"]
+  when "Int128", "UInt128"
+    ret ["le.PutUint64(" + $a + ", " + x + ".Lo)", "le.PutUint64(" + at(o + 8) + ", " + x + ".Hi)"]
+  when "Guid"
+    ret ["copy(" + $a + ", " + x + "[:])"]
+  when "Decimal"
+    ret [x + ".Put(" + $a + ")"]
+  end
+end
+
+# Lines, each indented by `indent`.
+func lines(list, indent)
+  $o = ""
+  for $l in list
+    $o = $o + indent + $l + "\n"
+  end
+  ret $o
+end
+
+# The name of a tuple's item: Key and Value for a pair, else Item1...
+func item(s, i)
+  if s.pair
+    if i == 0
+      ret "Key"
+    end
+    ret "Value"
+  end
+  ret "Item" + (i + 1)
+end
+~}}

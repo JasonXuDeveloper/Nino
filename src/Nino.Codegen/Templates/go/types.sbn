@@ -1,0 +1,555 @@
+{{~
+# The Go of an assembly's [NinoType]s (GoTarget): enums, raw structs, structs with their tags and layouts, class
+# descriptors, bodies, polymorphic slots, then the functions values of one shape share. gofmt leaves it as it is.
+include "shapes.sbn"
+
+# A struct declaration: its fields with their nino tag (position or key, utf8) and the extra tags.
+func struct_decl(name, fields, keyed)
+  if fields.size == 0
+    ret "type " + name + " struct{}\n"
+  end
+  $names = []
+  $types = []
+  $tags = []
+  for $f in fields
+    $names = array.add $names $f.name
+    $types = array.add $types (gotype($f.shape))
+    $tag = keyed ? $f.csharp : ("" + for.index)
+    if $f.shape.kind == "utf8" || $f.shape.kind == "keyutf8"
+      $tag = $tag + ",utf8"
+    end
+    $tag = "nino:\"" + $tag + "\""
+    for $t in extra_tags
+      $tag = $tag + " " + $t + ":\"" + tag_name($f.csharp) + "\""
+    end
+    $tags = array.add $tags ("`" + $tag + "`")
+  end
+  $nw = 0
+  $tw = 0
+  for $i in 0..($names.size - 1)
+    if $names[$i].size > $nw
+      $nw = $names[$i].size
+    end
+    if $types[$i].size > $tw
+      $tw = $types[$i].size
+    end
+  end
+  $o = "type " + name + " struct {\n"
+  for $i in 0..($names.size - 1)
+    $o = $o + "\t" + pad($names[$i], $nw) + " " + pad($types[$i], $tw) + " " + $tags[$i] + "\n"
+  end
+  ret $o + "}\n"
+end
+
+# The statements reading the members into `v` (a *T for a class body, a T for a struct).
+func read_members(c)
+  $o = ""
+  if c.format == "keyed"
+    # Members by key, in any order, each at most once; a key this version does not know is skipped.
+    $o = $o + "\tg := r.BeginRegion()\n"
+    if c.seen_words == 1
+      $o = $o + "\tvar seen uint64\n"
+    else if c.seen_words > 1
+      $o = $o + "\tvar seen [" + c.seen_words + "]uint64\n"
+    end
+    $o = $o + "\tfor r.More() {\n\t\tkey := r.I32()\n\t\te := r.BeginEntry()\n\t\tswitch key {\n"
+    for $m in c.members
+      $keys = []
+      for $k in $m.model.all_keys
+        $keys = array.add $keys ("" + $k)
+      end
+      $seen = c.seen_words == 1 ? "&seen, " + for.index : "&seen[" + (for.index // 64) + "], " + (for.index % 64)
+      $o = $o + "\t\tcase " + (array.join $keys ", ") + ":\n\t\t\tif r.KeyedSeen(" + $seen + ") {\n\t\t\t\tv." + $m.name + " = " + read($m.shape) + "\n\t\t\t}\n"
+    end
+    $o = $o + "\t\tdefault:\n\t\t\tr.SkipEntry(e)\n\t\t\tcontinue\n\t\t}\n\t\tr.EndEntry(e)\n\t}\n\tr.EndRegion(g)\n"
+  else if c.format == "tolerant"
+    # Members written by an older version end early; those of a newer one are skipped.
+    $o = $o + "\tg := r.BeginRegion()\n"
+    for $m in c.members
+      $o = $o + "\tif r.More() {\n\t\tv." + $m.name + " = " + read($m.shape) + "\n\t}\n"
+    end
+    $o = $o + "\tr.EndRegion(g)\n"
+  else
+    # Each run of fixed-size members takes its bytes with one bounds check.
+    for $run in c.runs
+      if $run.items.size == 1
+        $o = $o + "\tv." + $run.items[0].member.name + " = " + read($run.items[0].member.shape) + "\n"
+      else
+        $o = $o + "\tif b := r.Take(" + $run.size + "); len(b) == " + $run.size + " {\n"
+        for $item in $run.items
+          $o = $o + "\t\tv." + $item.member.name + " = " + decode($item.member.shape, $item.offset) + "\n"
+        end
+        $o = $o + "\t}\n"
+      end
+    end
+  end
+  ret $o
+end
+
+func write_members(c)
+  $o = ""
+  if c.format == "keyed"
+    $o = $o + "\tg := w.BeginRegion()\n"
+    for $m in c.members
+      $o = $o + "\t" + (for.first ? "e := " : "e = ") + "w.BeginEntry(" + $m.model.key + ")\n\t" + write($m.shape, "v." + $m.name) + "\n\tw.EndEntry(e)\n"
+    end
+    $o = $o + "\tw.EndRegion(g)\n"
+  else if c.format == "tolerant"
+    $o = $o + "\tg := w.BeginRegion()\n"
+    for $m in c.members
+      $o = $o + "\t" + write($m.shape, "v." + $m.name) + "\n"
+    end
+    $o = $o + "\tw.EndRegion(g)\n"
+  else
+    for $run in c.runs
+      if $run.items.size == 1
+        $o = $o + "\t" + write($run.items[0].member.shape, "v." + $run.items[0].member.name) + "\n"
+      else
+        $o = $o + "\tif b := w.Extend(" + $run.size + "); len(b) == " + $run.size + " {\n"
+        for $item in $run.items
+          $o = $o + lines(encode($item.member.shape, $item.offset, "v." + $item.member.name), "\t\t")
+        end
+        $o = $o + "\t}\n"
+      end
+    end
+  end
+  ret $o
+end
+
+func helper_body(h)
+  $s = h.shape
+  $n = h.name
+  $t = gotype($s)
+  if h.mode == "decode"
+    $o = "func " + $n + "(r *nino.Reader, b []byte) " + $t + " {\n\t_ = b[" + ($s.size - 1) + "]\n"
+    if $s.kind == "rawnullable"
+      ret $o + "\tif !r.BoolAt(b[" + $s.flag_offset + "]) {\n\t\treturn nil\n\t}\n\tx := " + decode($s.inner, $s.value_offset) + "\n\treturn &x\n}\n"
+    end
+    $o = $o + "\tvar v " + $t + "\n"
+    for $i in $s.items
+      $o = $o + "\tv." + item($s, for.index) + " = " + decode($i, $s.offsets[for.index]) + "\n"
+    end
+    ret $o + "\treturn v\n}\n"
+  else if h.mode == "encode"
+    $o = "func " + $n + "(b []byte, v " + $t + ") {\n\t_ = b[" + ($s.size - 1) + "]\n"
+    if $s.kind == "rawnullable"
+      ret $o + "\tif v != nil {\n\t\tb[" + $s.flag_offset + "] = 1\n\t\tx := *v\n" + lines(encode($s.inner, $s.value_offset, "x"), "\t\t") + "\t}\n}\n"
+    end
+    for $i in $s.items
+      $o = $o + lines(encode($i, $s.offsets[for.index], "v." + item($s, for.index)), "\t")
+    end
+    ret $o + "}\n"
+  else if h.mode == "read"
+    $o = "func " + $n + "(r *nino.Reader) " + $t + " {\n"
+    case $s.kind
+    when "enum"
+      ret $o + "\treturn " + name($s.enum) + "(r." + $s.inner.primitive + "())\n}\n"
+    when "rawnullable", "rawtuple"
+      ret $o + "\treturn readRaw(r, " + $s.size + ", " + decode_fn($s) + ")\n}\n"
+    when "nullable"
+      ret $o + "\tif !r.Present() {\n\t\treturn nil\n\t}\n\tx := " + read($s.inner) + "\n\treturn &x\n}\n"
+    when "tuple"
+      $o = $o + "\tvar v " + $t + "\n"
+      for $i in $s.items
+        $o = $o + "\tv." + item($s, for.index) + " = " + read($i) + "\n"
+      end
+      ret $o + "\treturn v\n}\n"
+    when "grid"
+      ret $o + "\treturn readGrid(r, " + $s.rank + ", " + $s.element.min_size + ", " + rfn($s.element) + ")\n}\n"
+    when "map"
+      $how = $s.mode == "unique" ? "ReadUniqueEntries" : "ReadEntries"
+      ret $o + "\treturn nino." + $how + "(r, " + ($s.key.min_size + $s.value.min_size) + ", " + rfn($s.key) + ", " + rfn($s.value) + ")\n}\n"
+    end
+    # A sequence.
+    case $s.mode
+    when "unique"
+      ret $o + "\treturn nino.ReadUnique(r, " + $s.element.min_size + ", " + rfn($s.element) + ")\n}\n"
+    when "stringset"
+      # A set of strings in the order of the data: a string (or null) read twice fails.
+      $o = $o + "\tv := nino.ReadSlice(r, 4, " + rfn($s.element) + ")\n\tif v == nil {\n\t\treturn nil\n\t}\n"
+      $o = $o + "\tseen := make(map[string]struct{}, len(v))\n\tnull := false\n\tfor _, s := range v {\n\t\tdup := false\n"
+      $o = $o + "\t\tif s == nil {\n\t\t\tdup, null = null, true\n\t\t} else if _, dup = seen[*s]; !dup {\n\t\t\tseen[*s] = struct{}{}\n\t\t}\n"
+      ret $o + "\t\tif dup {\n\t\t\tr.Fail(nino.CodeDuplicateKey, \"\")\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn v\n}\n"
+    when "fixed"
+      ret $o + "\treturn nino.ReadFixed(r, " + $s.element.size + ", " + decode_fn($s.element) + ")\n}\n"
+    end
+    ret $o + "\treturn nino.ReadSlice(r, " + $s.element.min_size + ", " + rfn($s.element) + ")\n}\n"
+  end
+
+  $o = "func " + $n + "(w *nino.Writer, v " + $t + ") {\n"
+  case $s.kind
+  when "enum"
+    ret $o + "\tw." + $s.inner.primitive + "(" + gotype($s.inner) + "(v))\n}\n"
+  when "rawnullable", "rawtuple"
+    ret $o + "\twriteRaw(w, v, " + $s.size + ", " + encode_fn($s) + ")\n}\n"
+  when "nullable"
+    ret $o + "\tw.Present(v != nil)\n\tif v != nil {\n\t\t" + write($s.inner, "*v") + "\n\t}\n}\n"
+  when "tuple"
+    for $i in $s.items
+      $o = $o + "\t" + write($i, "v." + item($s, for.index)) + "\n"
+    end
+    ret $o + "}\n"
+  when "grid"
+    ret $o + "\twriteGrid(w, v, " + $s.rank + ", " + wfn($s.element) + ")\n}\n"
+  when "map"
+    ret $o + "\tnino.WriteEntries(w, v, " + wfn($s.key) + ", " + wfn($s.value) + ")\n}\n"
+  end
+  if $s.mode == "fixed"
+    ret $o + "\tnino.WriteFixed(w, v, " + $s.element.size + ", " + encode_fn($s.element) + ")\n}\n"
+  else if $s.element.block
+    ret $o + "\tnino.WritePrimitives(w, v)\n}\n"
+  end
+  ret $o + "\tnino.WriteSlice(w, v, " + wfn($s.element) + ")\n}\n"
+end
+
+# A slot's dispatch: the type id, then the body of one of the types the declared type allows.
+func slot_functions(c)
+  $f = c.slot_functions
+  $s = c.slot_name
+  $o = "// Read" + $f + " reads a value of a slot declared as " + c.model.full_name + ": a type id, then the body of a\n// type it allows.\n"
+  $o = $o + "func Read" + $f + "(r *nino.Reader) " + $s + " {\n\tswitch id := r.TypeID(); id {\n\tcase nino.NullTypeID:\n\t\treturn nil\n"
+  for $t in c.allowed
+    $o = $o + "\tcase " + $t.id + ":\n"
+    if $t.kind == "raw" || $t.kind == "struct"
+      $o = $o + "\t\treturn Read" + $t.name + "(r)\n"
+    else
+      $o = $o + "\t\treturn nino.ReadClass(r, &" + lower($t.name) + "Class)\n"
+    end
+  end
+  $o = $o + "\tdefault:\n\t\tr.UnknownType(id)\n\t\treturn nil\n\t}\n}\n\n"
+  if !c.interface_slot
+    # A class without subtypes: a *T, nil or the class itself.
+    ret $o + "func Write" + $f + "(w *nino.Writer, v " + $s + ") {\n\tnino.WriteTyped(w, " + c.id + ", v, &" + lower(c.name) + "Class)\n}\n"
+  end
+  $o = $o + "func Write" + $f + "(w *nino.Writer, v " + $s + ") {\n\tswitch v := v.(type) {\n\tcase nil:\n\t\tw.TypeID(nino.NullTypeID)\n"
+  for $t in c.allowed
+    if $t.kind == "raw" || $t.kind == "struct"
+      $o = $o + "\tcase " + $t.name + ":\n\t\tw.TypeID(" + $t.id + ")\n\t\tWrite" + $t.name + "(w, v)\n"
+    else
+      $o = $o + "\tcase *" + $t.name + ":\n\t\tnino.WriteTyped(w, " + $t.id + ", v, &" + lower($t.name) + "Class)\n"
+    end
+  end
+  ret $o + "\tdefault:\n\t\tw.Fail(nino.CodeUnknownType, \"not a type the slot allows\")\n\t}\n}\n"
+end
+
+# The receiver of a type's methods: the pointer of a class, the value of a struct.
+func receiver(c)
+  if c.is_struct
+    ret c.name
+  end
+  ret "*" + c.name
+end
+~}}
+// Code generated by nino-gen from {{ source }}; DO NOT EDIT.
+// Its [NinoType]s, read and written as Nino serializes them in .NET.
+
+package {{ package }}
+
+import (
+	"encoding/binary"
+	"math"
+	"math/big"
+
+	nino "{{ runtime_import }}"
+)
+
+var le = binary.LittleEndian
+
+// The packages every file imports, whichever types use them.
+var (
+	_ = math.Float32bits
+	_ = big.NewInt
+)
+{{~
+for e in enums
+  "\n// " + e.name + " is `" + e.model.full_name + "`.\ntype " + e.name + " " + prim_types[e.underlying] + "\n"
+  if e.constants.size != 0
+    $nw = 0
+    for $c in e.constants
+      if $c.name.size > $nw
+        $nw = $c.name.size
+      end
+    end
+    "\nconst (\n"
+    for $c in e.constants
+      "\t" + pad($c.name, $nw) + " " + e.name + " = " + $c.value + "\n"
+    end
+    ")\n"
+  end
+end
+
+for s in raw_structs
+  $model = s.model
+  if $model.empty
+    "\n// " + s.name + " is `" + $model.full_name + "`, an empty struct: the one byte .NET gives it.\n" + struct_decl(s.name, s.fields, false)
+    "\nfunc decode" + s.name + "(_ *nino.Reader, _ []byte) " + s.name + " {\n\treturn " + s.name + "{}\n}\n"
+    "\nfunc encode" + s.name + "(_ []byte, _ " + s.name + ") {\n}\n"
+    "\nfunc read" + s.name + "(r *nino.Reader) " + s.name + " {\n\tr.Skip(1)\n\treturn " + s.name + "{}\n}\n"
+    "\nfunc write" + s.name + "(w *nino.Writer, _ " + s.name + ") {\n\tw.U8(0)\n}\n"
+  else
+    "\n// " + s.name + " is `" + $model.full_name + "`, copied as raw memory (" + $model.size + " bytes).\n" + struct_decl(s.name, s.fields, false)
+    # Decoded from and encoded into exactly its bytes; the writer's are zero first, so padding is written as zeros.
+    "\nfunc decode" + s.name + "(r *nino.Reader, b []byte) " + s.name + " {\n\t_ = b[" + ($model.size - 1) + "]\n\tvar v " + s.name + "\n"
+    for $f in s.fields
+      "\tv." + $f.name + " = " + decode($f.shape, $f.offset) + "\n"
+    end
+    "\treturn v\n}\n"
+    "\nfunc encode" + s.name + "(b []byte, v " + s.name + ") {\n\t_ = b[" + ($model.size - 1) + "]\n"
+    for $f in s.fields
+      lines(encode($f.shape, $f.offset, "v." + $f.name), "\t")
+    end
+    "}\n"
+    "\nfunc read" + s.name + "(r *nino.Reader) " + s.name + " {\n\treturn readRaw(r, " + $model.size + ", decode" + s.name + ")\n}\n"
+    "\nfunc write" + s.name + "(w *nino.Writer, v " + s.name + ") {\n\twriteRaw(w, v, " + $model.size + ", encode" + s.name + ")\n}\n"
+  end
+end
+
+for n in named
+  "\n// " + n.name + " is `" + n.full_name + "`, a collection of itself: no class body counts its nesting, so each\n// level is counted (up to 512, where .NET runs out of stack).\ntype " + n.name + " " + gotype(n.value) + "\n"
+  "\nfunc read" + n.name + "(r *nino.Reader) " + n.name + " {\n\tif !r.EnterStruct() {\n\t\treturn nil\n\t}\n\tv := " + read(n.value) + "\n\tr.ExitStruct()\n\treturn v\n}\n"
+  "\nfunc write" + n.name + "(w *nino.Writer, v " + n.name + ") {\n\tif !w.EnterStruct() {\n\t\treturn\n\t}\n\t" + write(n.value, "v") + "\n\tw.ExitStruct()\n}\n"
+end
+
+# The class descriptors, set in init: a recursive type's functions refer to its descriptor.
+$classes = []
+for c in types
+  if !c.is_abstract && (c.kind == "class" || c.kind == "typeid")
+    $classes = array.add $classes c
+  end
+end
+if $classes.size != 0
+  $nw = 0
+  for c in $classes
+    if (lower(c.name) + "Class").size > $nw
+      $nw = (lower(c.name) + "Class").size
+    end
+  end
+  "\nvar (\n"
+  for c in $classes
+    "\t" + pad(lower(c.name) + "Class", $nw) + " nino.Class[" + c.name + "]\n"
+  end
+  if uses_object
+    "\t" + pad("objects", $nw) + " *nino.TypeSet\n"
+  end
+  ")\n\nfunc init() {\n"
+  for c in $classes
+    "\t" + lower(c.name) + "Class = nino.Class[" + c.name + "]{Read: read" + c.name + "Body, Write: write" + c.name + "Body, Deferrable: " + c.deferrable + "}\n"
+  end
+  if uses_object
+    # What a slot declared as object allows: every type here (an explicit allow-list, where .NET accepts any type
+    # it can find).
+    "\tobjects = nino.NewTypeSet(\n"
+    for o in objects
+      if o.kind == "raw" || o.kind == "struct"
+        "\t\tnino.StructType(" + o.id + ", func(r *nino.Reader, v *" + o.name + ") { *v = Read" + o.name + "(r) }, func(w *nino.Writer, v *" + o.name + ") { Write" + o.name + "(w, *v) }),\n"
+      else
+        "\t\tnino.ClassType(" + o.id + ", &" + lower(o.name) + "Class),\n"
+      end
+    end
+    "\t)\n"
+  end
+  "}\n"
+else if uses_object
+  "\nvar objects = nino.NewTypeSet()\n"
+end
+
+for c in types
+  "\n"
+  if c.is_abstract
+    # An abstract class or interface: a slot of the types that implement it.
+    "// " + c.slot_name + " is a value of a slot declared as `" + c.model.full_name + "`.\ntype " + c.slot_name + " interface {\n\tnino.Typed\n\tis" + c.slot_name + "()\n}\n\n"
+    slot_functions(c)
+    continue
+  end
+  if c.kind != "raw"
+    "// " + c.name + " is `" + c.model.full_name + "`.\n" + struct_decl(c.name, c.members, c.format == "keyed") + "\n"
+  end
+  "func (" + c.name + ") NinoLayout() string {\n\treturn " + go_string(c.layout) + "\n}\n\n"
+  "func (" + c.name + ") NinoTypeName() string {\n\treturn " + go_string(c.runtime_name) + "\n}\n\n"
+  "func (" + receiver(c) + ") NinoTypeID() int32 {\n\treturn " + c.id + "\n}\n\n"
+  for $slot in c.slots
+    "func (" + receiver(c) + ") is" + $slot.slot_name + "() {\n}\n\n"
+  end
+  if c.kind == "raw"
+    "func Read" + c.name + "(r *nino.Reader) " + c.name + " {\n\treturn " + read(c.raw_shape) + "\n}\n\n"
+    "func Write" + c.name + "(w *nino.Writer, v " + c.name + ") {\n\t" + write(c.raw_shape, "v") + "\n}\n"
+    continue
+  end
+  if c.kind == "struct"
+    # A struct: no header, and no class body (it does not count toward the depth).
+    "func Read" + c.name + "(r *nino.Reader) (v " + c.name + ") {\n"
+    if c.counted
+      "\tif !r.EnterStruct() {\n\t\treturn v\n\t}\n"
+    end
+    read_members(c)
+    if c.counted
+      "\tr.ExitStruct()\n"
+    end
+    "\treturn v\n}\n\n"
+    "func Write" + c.name + "(w *nino.Writer, v " + c.name + ") {\n"
+    if c.counted
+      "\tif !w.EnterStruct() {\n\t\treturn\n\t}\n"
+    end
+    write_members(c)
+    if c.counted
+      "\tw.ExitStruct()\n"
+    end
+    "}\n"
+    continue
+  end
+  if c.kind == "class"
+    "func Read" + c.name + "(r *nino.Reader) *" + c.name + " {\n\treturn nino.ReadSealed(r, &" + lower(c.name) + "Class)\n}\n\n"
+    "func Write" + c.name + "(w *nino.Writer, v *" + c.name + ") {\n\tnino.WriteSealed(w, v, &" + lower(c.name) + "Class)\n}\n\n"
+  else
+    if c.interface_slot
+      "// " + c.slot_name + " is a value of a slot declared as `" + c.model.full_name + "`: it or a type deriving from it.\ntype " + c.slot_name + " interface {\n\tnino.Typed\n\tis" + c.slot_name + "()\n}\n\n"
+    end
+    slot_functions(c) + "\n"
+  end
+  "func read" + c.name + "Body(r *nino.Reader, v *" + c.name + ") {\n" + read_members(c) + "}\n\n"
+  "func write" + c.name + "Body(w *nino.Writer, v *" + c.name + ") {\n" + write_members(c) + "}\n"
+end
+
+if uses_object
+  "\nfunc readObject(r *nino.Reader) nino.Typed {\n\tv, _ := nino.ReadAny(r, objects).(nino.Typed)\n\treturn v\n}\n"
+  "\nfunc writeObject(w *nino.Writer, v nino.Typed) {\n\tnino.WriteAny(w, v, objects)\n}\n"
+end
+
+# The functions shared by values of one shape.
+$i = 0
+while $i < helper_count()
+  "\n" + helper_body(helper_at($i))
+  $i = $i + 1
+end
+
+for n in tuples
+  $params = []
+  $fields = []
+  for $k in 1..n
+    $params = array.add $params ("T" + $k)
+  end
+  "\n// NinoTuple" + n + " is a ValueTuple or Tuple of " + n + " items.\ntype NinoTuple" + n + "[" + (array.join $params ", ") + " any] struct {\n"
+  for $k in 1..n
+    "\tItem" + $k + " T" + $k + "\n"
+  end
+  "}\n"
+end
+
+if uses_grid
+  "\n// NinoGrid is a multi-dimensional array: its lengths and its items in row-major order.\ntype NinoGrid[T any] struct {\n\tLengths []int\n\tItems   []T\n}\n"
+  "\nfunc readGrid[T any](r *nino.Reader, rank, minSize int, read func(*nino.Reader) T) *NinoGrid[T] {\n\ts, ok := r.ReadShape(rank, minSize)\n\tif !ok {\n\t\treturn nil\n\t}\n"
+  "\t// ReadShape checked the element count against the bytes left.\n\tg := &NinoGrid[T]{Lengths: append([]int(nil), s.Dims[:rank]...), Items: make([]T, s.Total)}\n"
+  "\tfor i := range g.Items {\n\t\tg.Items[i] = read(r)\n\t\tif r.Failed() {\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn g\n}\n"
+  "\nfunc writeGrid[T any](w *nino.Writer, g *NinoGrid[T], rank int, write func(*nino.Writer, T)) {\n\tif g == nil {\n\t\tw.Null()\n\t\treturn\n\t}\n"
+  "\ttotal := 1\n\tfor _, n := range g.Lengths {\n\t\tif n < 0 {\n\t\t\ttotal = -1\n\t\t\tbreak\n\t\t}\n\t\ttotal *= n\n\t}\n"
+  "\tif len(g.Lengths) != rank || total != len(g.Items) {\n\t\tw.Fail(nino.CodeInvalidValue, \"grid lengths do not match its items\")\n\t\treturn\n\t}\n"
+  "\tw.WriteShape(g.Lengths...)\n\tfor _, e := range g.Items {\n\t\twrite(w, e)\n\t}\n}\n"
+end
+~}}
+
+// readRaw reads one raw value of size bytes.
+func readRaw[T any](r *nino.Reader, size int, decode func(*nino.Reader, []byte) T) (v T) {
+	if b := r.Take(size); len(b) == size {
+		v = decode(r, b)
+	}
+	return v
+}
+
+// writeRaw writes one raw value of size bytes, zeroed first.
+func writeRaw[T any](w *nino.Writer, v T, size int, encode func([]byte, T)) {
+	if b := w.ExtendZero(size); len(b) == size {
+		encode(b, v)
+	}
+}
+
+// keyString reads a string dictionary key: null is invalid (.NET's dictionaries reject a null key).
+func keyString(r *nino.Reader) string {
+	s, ok := r.NullableString()
+	if !ok && !r.Failed() {
+		r.Fail(nino.CodeInvalidData, "null dictionary key")
+	}
+	return s
+}
+
+// keyUtf8 reads a [NinoUtf8] string dictionary key.
+func keyUtf8(r *nino.Reader) string {
+	s, ok := r.NullableUtf8()
+	if !ok && !r.Failed() {
+		r.Fail(nino.CodeInvalidData, "null dictionary key")
+	}
+	return s
+}
+
+// Values inside raw memory with invalid bit patterns, checked as when read alone.
+
+func decimalAt(r *nino.Reader, b []byte) nino.Decimal {
+	d := nino.DecimalAt(b)
+	if !d.Valid() {
+		r.Fail(nino.CodeInvalidData, "invalid decimal")
+		return nino.Decimal{}
+	}
+	return d
+}
+
+func dateTimeAt(r *nino.Reader, b []byte) nino.DateTime {
+	d := nino.DateTime(le.Uint64(b))
+	if !d.Valid() {
+		r.Fail(nino.CodeInvalidData, "invalid DateTime")
+		return 0
+	}
+	return d
+}
+
+func dateOnlyAt(r *nino.Reader, b []byte) nino.DateOnly {
+	d := nino.DateOnly(int32(le.Uint32(b)))
+	if !d.Valid() {
+		r.Fail(nino.CodeInvalidData, "invalid DateOnly")
+		return 0
+	}
+	return d
+}
+
+func timeOnlyAt(r *nino.Reader, b []byte) nino.TimeOnly {
+	t := nino.TimeOnly(int64(le.Uint64(b)))
+	if !t.Valid() {
+		r.Fail(nino.CodeInvalidData, "invalid TimeOnly")
+		return 0
+	}
+	return t
+}
+
+// NinoCodec reads and writes values of one type, as any.
+type NinoCodec struct {
+	Read  func(*nino.Reader) any
+	Write func(*nino.Writer, any)
+}
+
+func codecOf[T any](read func(*nino.Reader) T, write func(*nino.Writer, T)) NinoCodec {
+	return NinoCodec{
+		Read: func(r *nino.Reader) any {
+			return read(r)
+		},
+		Write: func(w *nino.Writer, v any) {
+			x, _ := v.(T)
+			write(w, x)
+		},
+	}
+}
+
+// NinoCodecOf returns the codec of the type of that .NET name (Namespace.Outer+Inner), as a member of its type is
+// written (with its header).
+func NinoCodecOf(name string) (NinoCodec, bool) {
+	switch name {
+{{~
+for c in types
+  "\tcase " + go_string(c.runtime_name) + ":\n"
+  if c.kind == "typeid"
+    "\t\treturn codecOf(Read" + c.slot_functions + ", Write" + c.slot_functions + "), true\n"
+  else
+    "\t\treturn codecOf(Read" + (c.is_abstract ? c.slot_functions : c.name) + ", Write" + (c.is_abstract ? c.slot_functions : c.name) + "), true\n"
+  end
+end
+~}}
+	}
+	return NinoCodec{}, false
+}
