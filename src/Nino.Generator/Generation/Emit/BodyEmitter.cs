@@ -413,7 +413,7 @@ internal sealed class BodyEmitter
                 var (member, offset) = layout.Members[i];
                 string memory = member.IsProperty
                     ? $"{CoreCompilerServices}NinoBlocks.Find<{T}>({CoreCompilerServices}NinoUnsafe.SizeOf<{member.TypeName}>(), () => " +
-                      $"{{ var __m = default({T}); {Set(_m, member, "__m", $"{CoreCompilerServices}NinoBlocks.Marked<{member.TypeName}>()")} return __m; }})"
+                      $$"""{ var __m = default({{T}}); {{Set(_m, member, "__m", $"{CoreCompilerServices}NinoBlocks.Marked<{member.TypeName}>()")}} return __m; })"""
                     : $"{CoreCompilerServices}NinoBlocks.Offset(ref __v, ref {Get(_m, member, "__v")})";
                 string item = member.Raw != null
                     ? $"Raw<{member.TypeName}>"
