@@ -395,9 +395,10 @@ deserialization.
   `UnmanagedArrayFormatter<T>`, `ListFormatter<T, TF>`, `DictionaryFormatter<TKey, TValue, TFK, TFV>`,
   and so on. Element formatters are type parameters, so the JIT/AOT compiler inlines element
   (de)serialization into the collection loop.
-  The tuple formatters (`ValueTupleFormatter<T1..Tn, TF1..TFn>`, `TupleFormatter<...>`, arity 1 to 7) are
-  written by a template, `tools/CodeGen` (`dotnet run --project tools/CodeGen`), into
-  `Formatters/TupleFormatters.g.cs`; a unit test compiles the template and fails when the file is out of date.
+  The tuple formatters (`ValueTupleFormatter<T1..Tn, TF1..TFn>`, `TupleFormatter<...>`, arity 1 to 7) and the
+  multidimensional array formatters (`Array2DFormatter` to `Array4DFormatter`) are written by templates,
+  `tools/CodeGen` (`dotnet run --project tools/CodeGen`), into `Formatters/TupleFormatters.g.cs` and
+  `Formatters/MultiDimFormatters.g.cs`; unit tests compile the templates and fail when a file is out of date.
 * **Generated formatters** are structs in `<Assembly>.NinoGen`, one per `[NinoType]`. Members call
   their formatter as `default(TFormatter).Serialize(...)`, which is a direct, inlinable call.
 * **`CachedFormatter<T>`** is a struct that forwards to the formatter `NinoFormatterCache<T>` holds (an internal

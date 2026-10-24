@@ -97,6 +97,7 @@
     <ItemGroup>
         <!-- The code generator's templates, to check that their checked-in output is current. -->
         <Compile Include="..\..\tools\CodeGen\TupleFormattersTemplate.cs" Link="CodeGen\TupleFormattersTemplate.cs"/>
+        <Compile Include="..\..\tools\CodeGen\MultiDimFormattersTemplate.cs" Link="CodeGen\MultiDimFormattersTemplate.cs"/>
     </ItemGroup>
 
 </Project>

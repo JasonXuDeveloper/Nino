@@ -27,8 +27,9 @@ A change to a read or write path (Nino.Core, Nino.Immutable, the code the genera
 `python3 benchmarks/asm.py compare origin/main` ([benchmarks/README.md](benchmarks/README.md)), which lists every
 method whose machine code changed.
 
-* `src/Nino.Core/Formatters/TupleFormatters.g.cs` is generated: after changing
-  `tools/CodeGen/TupleFormattersTemplate.cs`, run `dotnet run --project tools/CodeGen` from the repository root.
+* `src/Nino.Core/Formatters/TupleFormatters.g.cs` and `MultiDimFormatters.g.cs` are generated: after changing
+  `tools/CodeGen/TupleFormattersTemplate.cs` or `MultiDimFormattersTemplate.cs`, run
+  `dotnet run --project tools/CodeGen` from the repository root.
 * Runtime benchmarks: `dotnet run -c Release --project benchmarks/Nino.Benchmark`. Generator (compile time) benchmarks:
   `dotnet run -c Release --project benchmarks/Nino.GeneratorBenchmark`.
 * How the runtime and the generator fit together: [docs/v4-design.md](docs/v4-design.md).

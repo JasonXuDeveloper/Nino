@@ -19,6 +19,7 @@ namespace Nino.CodeGen
             }
 
             Write(root, TupleFormattersTemplate.OutputPath, TupleFormattersTemplate.Generate());
+            Write(root, MultiDimFormattersTemplate.OutputPath, MultiDimFormattersTemplate.Generate());
             return 0;
         }
 
