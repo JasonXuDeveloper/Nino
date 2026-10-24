@@ -36,6 +36,9 @@ env:
   # The third section: the same benchmarks on an Arm64 runner. The docs site (sync-benchmarks.ts) looks for this
   # heading; it must never contain the words "Performance Report", by which parsers find the x64 report.
   ARM64_HEADING: "## 📊 Arm64 benchmark"
+  # The last sections: the runtimes outside .NET (benchmarks/runtimes_report.py's HEADINGS), appended after every
+  # other section by the runtimes jobs. Their headings and tables never contain "Performance Report", "Method" or
+  # "Mean", so nothing reading the .NET report takes them for its own.
 
 jobs:
   target:
@@ -568,3 +571,143 @@ jobs:
           if [[ "${{ github.event_name }}" == "release" ]]; then
             echo "- **Release Notes**: Updated automatically" >> $GITHUB_STEP_SUMMARY
           fi
+
+  # The runtimes outside .NET (runtimes/typescript, runtimes/go, runtimes/rust), each against the serializers of its
+  # language on one runner: one section per language, appended to the release body after the others. Independent of
+  # the .NET benchmark: a release that has its .NET sections still gets these, and a failure here never touches them.
+  runtimes:
+    name: Runtime benchmark (${{ matrix.lang }})
+    needs: target
+    runs-on: ubuntu-26.04
+    timeout-minutes: 40
+    env:
+      TAG_NAME: ${{ needs.target.outputs.tag }}
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [ typescript, go, rust ]
+    steps:
+      # The tag's runtimes and benchmarks; this workflow's commit for the report script.
+      - name: Checkout the release
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.target.outputs.tag }}
+          path: release
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          path: workflow
+
+      - name: Setup .NET
+        if: matrix.lang == 'typescript'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - uses: actions/setup-node@v7
+        if: matrix.lang == 'typescript'
+        with:
+          node-version: 22
+
+      - uses: actions/setup-go@v6
+        if: matrix.lang == 'go'
+        with:
+          go-version: stable
+          cache-dependency-path: release/runtimes/go/bench/go.sum
+
+      # Node only: the Chromium run of runtimes/typescript/bench/run.sh needs Playwright.
+      - name: Run the TypeScript benchmark
+        if: matrix.lang == 'typescript'
+        working-directory: release/runtimes/typescript/bench
+        run: |
+          set -euo pipefail
+          dotnet build -c Release ../../../src/Nino.Codegen > /dev/null
+          dotnet build -c Release . > /dev/null
+          dotnet bin/Release/net10.0/Bench.dll out/data
+          dotnet ../../../src/Nino.Codegen/bin/Release/net8.0/nino-gen.dll --assembly bin/Release/net10.0/Bench.dll \
+            --lang ts --out gen --import-extension .ts
+          NINO_BENCH_JSON="$RUNNER_TEMP/bench.json" node --no-warnings node.ts out/data
+          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" typescript "$RUNNER_TEMP/bench.json" \
+            "$TAG_NAME" > "$RUNNER_TEMP/section.md"
+
+      - name: Run the Go benchmark
+        if: matrix.lang == 'go'
+        working-directory: release/runtimes/go/bench
+        run: |
+          set -euo pipefail
+          go test -run '^$' -bench . -benchmem -count 1 . | tee "$RUNNER_TEMP/bench.txt"
+          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" go "$RUNNER_TEMP/bench.txt" \
+            "$TAG_NAME" > "$RUNNER_TEMP/section.md"
+
+      - name: Run the Rust benchmark
+        if: matrix.lang == 'rust'
+        working-directory: release/runtimes/rust
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/target
+        run: |
+          set -euo pipefail
+          rustup toolchain install stable --profile minimal
+          cargo bench -p nino-bench --bench compare --locked
+          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" rust "$CARGO_TARGET_DIR/criterion" \
+            "$TAG_NAME" > "$RUNNER_TEMP/section.md"
+
+      - name: Upload the section
+        uses: actions/upload-artifact@v7
+        with:
+          name: runtime-section-${{ matrix.lang }}
+          path: ${{ runner.temp }}/section.md
+          retention-days: 30
+
+  # After the .NET report (publish), so the two never edit the release body at once; also when publish was skipped
+  # (its sections were there) or failed.
+  publish-runtimes:
+    name: Publish the runtime benchmarks
+    needs: [ target, runtimes, publish ]
+    if: ${{ always() && needs.target.result == 'success' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG_NAME: ${{ needs.target.outputs.tag }}
+    steps:
+      - name: Download the sections
+        uses: actions/download-artifact@v7
+        with:
+          pattern: runtime-section-*
+          path: sections
+
+      - name: Append the missing sections to the release body
+        run: |
+          set -euo pipefail
+          gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > current_notes.md
+          cp current_notes.md updated_notes.md
+          added=0
+          # One section per language, in this order, each only once.
+          for lang in typescript go rust; do
+            file="sections/runtime-section-$lang/section.md"
+            if [[ ! -s "$file" ]]; then
+              echo "⚠️ No $lang section (see its runtimes job): left out"
+              continue
+            fi
+            heading=$(head -n 1 "$file")
+            if grep -qF "$heading" current_notes.md; then
+              echo "⏭️ $heading already in the release notes"
+              continue
+            fi
+            if (( $(wc -c < updated_notes.md) + $(wc -c < "$file") > 124000 )); then
+              echo "::warning::No room for the $lang section in the release body (GitHub's 125,000 characters)"
+              continue
+            fi
+            printf '\n\n' >> updated_notes.md
+            cat "$file" >> updated_notes.md
+            added=$((added + 1))
+          done
+          if (( added == 0 )); then
+            echo "⏭️ Nothing to add"
+            exit 0
+          fi
+          gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes-file updated_notes.md
+          echo "✅ Added $added runtime section(s)"
