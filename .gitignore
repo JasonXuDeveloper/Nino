@@ -13,7 +13,6 @@ obj/
 /artifacts/
 TestResults/
 *.binlog
-src/Nino.Core/.AssemblyAttributes
 tests/Nino.UnitTests/*.rsp
 **/BenchmarkDotNet.Artifacts
 

@@ -24,10 +24,6 @@
         <NoWarn>$(NoWarn);IL3050</NoWarn>
     </PropertyGroup>
 
-    <!--  for .NET Standard  -->
-    <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0' Or '$(TargetFramework)' == 'netstandard2.1'">
-        <TargetFrameworkMonikerAssemblyAttributesPath>$([System.IO.Path]::Combine('$(IntermediateOutputPath)','$(TargetFrameworkMoniker).AssemblyAttributes$(DefaultLanguageSourceExtension)'))</TargetFrameworkMonikerAssemblyAttributesPath>
-    </PropertyGroup>
     <ItemGroup>
         <EmbeddedFiles Include="$(GeneratedAssemblyInfoFile)"/>
     </ItemGroup>
