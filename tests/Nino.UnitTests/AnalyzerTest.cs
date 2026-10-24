@@ -2337,7 +2337,7 @@ public struct AnyListFormatter<TList, T, TF> : INinoFormatter<TList>
     [TestMethod]
     public void ReleaseTrackingMatchesTheDescriptors()
     {
-        string dir = System.IO.Path.Combine(SourceDirectory(), "..", "..", "src", "Nino.Generator");
+        string dir = RepositoryFiles.Of(System.IO.Path.Combine("src", "Nino.Generator"));
         var listed = new System.Collections.Generic.Dictionary<string, (string Severity, string Title)>();
         foreach (string file in new[] { "AnalyzerReleases.Shipped.md", "AnalyzerReleases.Unshipped.md" })
         {
@@ -2357,7 +2357,4 @@ public struct AnyListFormatter<TList, T, TF> : INinoFormatter<TList>
             Assert.AreEqual(d.Title.ToString(), entry.Title, d.Id);
         }
     }
-
-    private static string SourceDirectory([System.Runtime.CompilerServices.CallerFilePath] string here = "") =>
-        System.IO.Path.GetDirectoryName(here)!;
 }

@@ -1,5 +1,4 @@
 using System.IO;
-using System.Runtime.CompilerServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.CodeGen;
 
@@ -9,15 +8,10 @@ namespace Nino.UnitTests;
 [TestClass]
 public class TupleFormattersGenerationTests
 {
-    private static string RepositoryRoot([CallerFilePath] string path = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "..", ".."));
-
     [TestMethod]
     public void CheckedInFileMatchesTheTemplate()
     {
-        string path = Path.Combine(RepositoryRoot(), TupleFormattersTemplate.OutputPath);
-        if (!File.Exists(path))
-            Assert.Inconclusive($"{path} is not available (the tests run without the sources)");
+        string path = RepositoryFiles.Of(TupleFormattersTemplate.OutputPath);
 
         string expected = TupleFormattersTemplate.Generate();
         string actual = File.ReadAllText(path).Replace("\r\n", "\n");
