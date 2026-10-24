@@ -29,8 +29,10 @@ fn is_ascii_long(bytes: &[u8]) -> bool {
     high & 0x8080_8080_8080_8080 == 0
 }
 
-/// Latin-1 bytes (each byte is the code point U+0000..U+00FF) as a `String`.
-#[inline]
+/// Latin-1 bytes (each byte is the code point U+0000..U+00FF) as a `String`. Out of line, so that
+/// [`crate::Reader::string`] stays small enough to inline into the codec that reads it: only the `String` comes back
+/// through memory.
+#[inline(never)]
 pub(crate) fn latin1(bytes: &[u8]) -> String {
     if is_ascii(bytes) {
         // ASCII is UTF-8 as it is.

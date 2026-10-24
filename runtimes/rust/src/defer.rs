@@ -153,6 +153,7 @@ fn read_item<'d>(
 
 /// Every class body is closed: reads the bodies deferred outside regions, which follow here, in order (each at
 /// depth 1; those they defer are appended), then puts them in place under `owner`, the outermost object.
+#[inline(never)]
 pub(crate) fn flush_top<O: Any>(r: &mut Reader<'_>, owner: &mut O) -> Result<()> {
     let (records, log) = match r.defer.as_deref_mut() {
         Some(d) if !d.top_active && !d.pending.is_empty() => {
@@ -185,6 +186,7 @@ pub(crate) fn flush_top<O: Any>(r: &mut Reader<'_>, owner: &mut O) -> Result<()>
 
 /// At the end of the outermost region: reads the bodies deferred inside it from its section, matching each with
 /// its entry by key (entries of objects this reader skipped are skipped), then puts them in place under `owner`.
+#[inline(never)]
 pub(crate) fn end_outer_region<'d, O: Any>(r: &mut Reader<'d>, region: Region<'d>, owner: &mut O) -> Result<()> {
     let start = region.pending_start;
     let (records, log) = match r.defer.as_deref() {
@@ -367,6 +369,7 @@ impl<'a> WriteDeferrals<'a> {
 
 /// Every class body is closed: writes the bodies deferred outside regions, in order, each at depth 1 (those they
 /// defer are appended).
+#[inline(never)]
 pub(crate) fn write_top(w: &mut Writer<'_>) -> Result<()> {
     match w.defer.as_deref_mut() {
         Some(d) if !d.top_active && !d.top.is_empty() => d.top_active = true,
@@ -403,6 +406,7 @@ pub(crate) fn write_top(w: &mut Writer<'_>) -> Result<()> {
 /// Ends the outermost region (its length at `at`): when bodies were deferred inside it, writes them as a section of
 /// `(key, length, body)` entries and the section's offset, and sets bit 31 of the length. Returns false when there
 /// was nothing to write (the caller patches the length).
+#[inline(never)]
 pub(crate) fn write_section(w: &mut Writer<'_>, at: usize) -> Result<bool> {
     match w.defer.as_deref() {
         Some(d) if !d.region.is_empty() => {}

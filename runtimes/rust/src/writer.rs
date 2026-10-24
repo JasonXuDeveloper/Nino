@@ -239,17 +239,33 @@ impl<'a> Writer<'a> {
 
     /// Writes the body of the class `T` (after its header), counting it as an open body: or, 128 bodies deep,
     /// queues it to be written later when `T` can be deferred (see the specification, 7.10).
+    #[inline]
     pub fn write_class<T: NinoWriteBody>(&mut self, value: &'a T) -> Result<()> {
         let depth = self.depth;
         if depth >= DEPTH_INLINE {
-            if T::DEFERRABLE {
-                let (position, regions) = (self.position(), self.regions);
-                return self.defer.get_or_insert_with(Default::default).defer(value, position, regions);
-            }
-            if depth >= DEPTH_MAX {
-                return Err(Error::of(ErrorKind::TooDeep));
-            }
+            return self.write_class_deep(value);
         }
+        self.write_body_at(value, depth)
+    }
+
+    /// [`Writer::write_class`] 128 bodies deep or more (out of line: rare).
+    #[inline(never)]
+    fn write_class_deep<T: NinoWriteBody>(&mut self, value: &'a T) -> Result<()> {
+        let depth = self.depth;
+        if T::DEFERRABLE {
+            let (position, regions) = (self.position(), self.regions);
+            return self.defer.get_or_insert_with(Default::default).defer(value, position, regions);
+        }
+        if depth >= DEPTH_MAX {
+            return Err(Error::of(ErrorKind::TooDeep));
+        }
+        self.write_body_at(value, depth)
+    }
+
+    /// Writes the body of `value` as an open body at `depth` (the writer's), then the bodies deferred in it when it
+    /// is the outermost.
+    #[inline]
+    fn write_body_at<T: NinoWriteBody>(&mut self, value: &'a T, depth: u32) -> Result<()> {
         self.depth = depth.saturating_add(1);
         value.write_body(self)?;
         self.depth = depth;

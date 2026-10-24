@@ -232,8 +232,10 @@ impl<'d> Reader<'d> {
     // ------------------------------------------------------------------ strings
 
     /// A string in the default encoding: null (-1), empty (0), `~n` then `n` Latin-1 bytes, or `n` then `n` UTF-16
-    /// code units. Unpaired surrogates become U+FFFD; [`Reader::wide_string`] keeps them.
-    #[inline]
+    /// code units. Unpaired surrogates become U+FFFD; [`Reader::wide_string`] keeps them. Always inlined (the text
+    /// is decoded out of line): returned through memory, `Result<Option<String>>` is read back in pieces that span
+    /// the stores that wrote it, which stalls.
+    #[inline(always)]
     pub fn string(&mut self) -> Result<Option<String>> {
         let header = self.i32()?;
         if header < 0 {
@@ -361,19 +363,35 @@ impl<'d> Reader<'d> {
 
     /// Reads the body of the class `T` (after its header), counting it as an open body: or, `128` bodies deep,
     /// creates the instance and reads its body later (see the specification, 7.10), when `T` can be deferred.
+    #[inline]
     pub fn read_class<T: NinoReadBody>(&mut self) -> Result<T> {
         let depth = self.depth;
         if depth >= DEPTH_INLINE {
-            if T::DEFERRABLE {
-                let position = self.position();
-                let regions = self.regions;
-                self.deferrals().defer::<T>(position, regions);
-                return Ok(T::default());
-            }
-            if depth.saturating_add(self.structs) >= DEPTH_MAX {
-                return Err(Error::of(ErrorKind::TooDeep));
-            }
+            return self.read_class_deep();
         }
+        self.read_body_at(depth)
+    }
+
+    /// [`Reader::read_class`] 128 bodies deep or more (out of line: rare).
+    #[inline(never)]
+    fn read_class_deep<T: NinoReadBody>(&mut self) -> Result<T> {
+        let depth = self.depth;
+        if T::DEFERRABLE {
+            let position = self.position();
+            let regions = self.regions;
+            self.deferrals().defer::<T>(position, regions);
+            return Ok(T::default());
+        }
+        if depth.saturating_add(self.structs) >= DEPTH_MAX {
+            return Err(Error::of(ErrorKind::TooDeep));
+        }
+        self.read_body_at(depth)
+    }
+
+    /// Reads the body of `T` as an open body at `depth` (the reader's), then the bodies deferred in it when it is
+    /// the outermost.
+    #[inline]
+    fn read_body_at<T: NinoReadBody>(&mut self, depth: u32) -> Result<T> {
         self.depth = depth.saturating_add(1);
         let mut value = T::default();
         value.read_body(self)?;
