@@ -256,7 +256,10 @@ namespace Nino.Core
                 return;
             }
 
-            string rules = reader.ReadString();
+            // Null for a system zone, the usual case, and long otherwise: decoded out of line, so that the two strings
+            // inline do not spend the caller's inlining budget (which left Reader.Skip as a call and the reader in
+            // memory).
+            string rules = reader.ReadStringOutOfLine();
             value = Find(id, rules);
         }
 

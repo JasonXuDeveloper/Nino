@@ -880,6 +880,23 @@ namespace Nino.Core
         }
 
         /// <summary>
+        /// <see cref="ReadString()"/> with the string decoded out of line, for one that is rarely there or rarely
+        /// short: only the call and the position's update inline. The data, not the reader, goes to the call, so the
+        /// reader stays in registers.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal string ReadStringOutOfLine()
+        {
+            string value = ReadStringAt(ref Cur, Avail, out int size);
+            Skip(size);
+            return value;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static string ReadStringAt(ref byte source, int available, out int size) =>
+            NinoStrings.Read(ref source, available, null, out size);
+
+        /// <summary>
         /// Reads <paramref name="count"/> strings into the slots starting at <paramref name="first"/> (the
         /// elements of a string collection): <see cref="ReadString"/> in one loop that keeps the position and the
         /// data in registers, where through the reader's reference they are loaded, and the position stored, for
