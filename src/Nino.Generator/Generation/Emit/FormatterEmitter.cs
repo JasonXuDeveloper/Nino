@@ -207,7 +207,7 @@ internal static class FormatterEmitter
             w.Open($"private static {t} __ReadTop(global::System.ReadOnlySpan<byte> data)");
             w.Line($"var __r = new {Core}Reader(data);");
             w.Line($"{t} value = null;");
-            w.Line($"if (__r.UnsafeRead<byte>() != (byte){NinoWire.Null})");
+            w.Line("if (__r.ReadPresent())");
             w.Indented(() => w.Line($"{(m.SplitFresh ? "__ReadBodyFreshInline" : "__ReadBodyInline")}(ref value, ref __r);"));
             w.Line("__r.ReleaseReferences();");
             w.Line("return value;");

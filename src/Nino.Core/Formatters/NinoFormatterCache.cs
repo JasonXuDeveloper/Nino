@@ -177,6 +177,12 @@ namespace Nino.Core
     {
         public static readonly bool IsRaw = Compute();
 
+        /// <summary>
+        /// <see cref="IsRaw"/>, but not for a <c>bool</c>: the top-level reads take its formatter, which checks the
+        /// byte (0 or 1), so that the raw reads of the other types stay a length check and a load.
+        /// </summary>
+        public static readonly bool IsRawRead = IsRaw && typeof(T) != typeof(bool);
+
         private static bool Compute()
         {
             // A big-endian host takes the formatter, whose writer or reader rejects it (BitConverter.IsLittleEndian
@@ -248,5 +254,12 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Is<T>() => !NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw;
+
+        /// <summary>
+        /// Whether the top-level APIs read values of <typeparamref name="T"/> as their raw bytes: <see cref="Is{T}"/>,
+        /// but not for a <c>bool</c> (<see cref="NinoRaw{T}.IsRawRead"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsRead<T>() => !NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRawRead;
     }
 }

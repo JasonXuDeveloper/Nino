@@ -90,8 +90,7 @@ There are no variable-length integers anywhere in the format.
 
 - A length or count of `-1` means null. The default string encoding (§4.1) also uses other negative values. Apart
   from that, a negative length is invalid and readers MUST reject it.
-- Writers MUST write presence bytes and `bool` as exactly `0` or `1`. The .NET reader treats every non-zero byte as
-  `1` (§9.3).
+- Writers MUST write presence bytes and `bool` as exactly `0` or `1`, and readers MUST reject any other byte (§9.3).
 
 ### 2.5 Booleans and enums
 
@@ -648,9 +647,9 @@ entry = i32 key | i32 len | value (len bytes)
     finds a match, it reads the value from exactly `len` bytes. Otherwise it skips `len` bytes.
   - Members with no entry keep their current or default value.
   - When a key appears more than once, the .NET reader silently keeps the last one (§9.8).
-  - A value that reads past `len` is an error. Writers MUST make `len` the exact size of the value. A .NET reader
-    skips whatever a value leaves unread in its entry (from `BodyEmitter.EmitKeyedReads`: each entry is a region
-    that is skipped as a whole).
+  - A value that reads past `len` is an error. Writers MUST make `len` the exact size of the value, and readers MUST
+    reject a known member whose value leaves bytes unread in its entry (`Nino: bytes left over at the end of a keyed
+    member`). Entries of unknown keys are skipped whole.
 - Keyed types are never raw. A keyed type that is also a `[NinoType]` collection puts its elements inside the
   region, before the entries (§7.7).
 
@@ -804,9 +803,15 @@ entry = i32 key | i32 len | body (len bytes)
 
 Reading:
 
-1. A region length with bit 31 set is valid only when `T >= 4` and `T` fits in the remaining data. `M` is read from
-   the last 4 bytes of the region and MUST satisfy `0 <= M <= T - 4`. The members are read from the first `M`
-   bytes only.
+1. A region length with bit 31 set is valid only when `T >= 4` and `T` fits in the remaining data, and only on the
+   outermost region: an inner region with bit 31 set MUST be rejected. `M` is read from the last 4 bytes of the
+   region and MUST satisfy `0 <= M < T - 4` (a section holds at least one entry). The members are read from the
+   first `M` bytes only.
+   The entries MUST fill the section exactly: each has its 8-byte head and a `len` that fits in what is left before
+   the trailing `M`, and the keys MUST be strictly increasing, `>= 0`, and no greater than the entry's own offset
+   (a body is deferred from the members, at most at their end, or from the body of an earlier entry). Readers check
+   this when they open the region, before reading any member; .NET throws `Nino: invalid offset of deferred
+   bodies` or `Nino: invalid section of deferred bodies`.
 2. After the outermost region's members, the reader goes through its queue in order. For each queued object, it
    scans entries forward until it finds one with `key` equal to the object's position, skipping the others by their
    `len`. A reader that skipped unknown members never queued their objects, so their entries are skipped.
@@ -982,11 +987,12 @@ checked one product at a time against overflow and the remaining bytes.
 
 ### 9.3 Presence bytes and `bool`
 
-A presence byte or a `bool` MUST be `0` or `1`. Other values SHOULD be rejected.
+A presence byte or a `bool` MUST be `0` or `1`, and readers MUST reject other values: a `bool` read as a value or a
+member, the elements of a `bool[]` or `List<bool>` (and other raw blocks of `bool`), the presence byte of a sealed
+class, `T?`, `Lazy<T>` or `Tuple<...>`, and the has-value bytes of a fixed-stride `T?[]` (§6.2). **.NET:** done
+(`Nino: invalid bool byte`, `Nino: invalid presence byte`); so are the Go, Rust and TypeScript runtimes.
 
-Note: the .NET reader currently treats every non-zero presence byte and `bool` as `1`, and copies `bool`s inside
-raw values and raw arrays without checking them. The TypeScript runtime (`nino.ts`) rejects presence bytes above
-`1`.
+Note: the .NET reader currently copies a `bool` field inside a raw struct (§5) with the struct's bytes, unchecked.
 
 ### 9.4 Strings
 
@@ -997,9 +1003,9 @@ the remaining bytes. Unpaired surrogates in the default encoding MUST be accepte
 
 - A region length MUST fit in the remaining bytes. The section rules of §7.10.3 MUST be checked.
 - A member that runs past its region's end MUST be rejected.
-- Each keyed entry's `len` MUST fit in the remaining region.
+- Each keyed entry's `len` MUST fit in the remaining region, and a known member's value MUST fill it exactly (§7.6).
 
-**.NET:** done (`ReadRegion`, `SectionedRegion`).
+**.NET:** done (`ReadRegion`, `SectionedRegion`, `EndMember`).
 
 ### 9.6 Type ids
 
@@ -1120,7 +1126,7 @@ readers of layouts or data from earlier builds.
 5. **Deferrability was not published** (resolved): layouts now carry `deferrable=true|false` (§7.10.1,
    §8). Layouts from an older generator leave it out, and a reader can then only reconstruct it from the rules in
    §7.10.1.
-6. **Presence bytes and `bool` are lenient** in .NET (§9.3) and strict in TypeScript.
+6. **Presence bytes and `bool` other than `0` or `1` are rejected in every runtime (resolved)** (§9.3).
 7. **Repeated keyed entries are accepted** in .NET, and the last one wins (§9.8).
 8. **Trailing bytes are ignored** (§2.2, §9.12).
 9. **`DateTime` is not validated** (§9.10).
@@ -1129,7 +1135,8 @@ readers of layouts or data from earlier builds.
     order of the files in the compilation. Moving a member to another file of a `partial` type can change a
     positional format. **(unverified across compilers.)** The published layout is authoritative for any given
     build.
-12. **Raw blocks are not normalized**: `bool` bytes and padding are copied as they are on read (§9.3, §9.11).
+12. **Raw blocks are not normalized**: padding and `bool` fields inside raw structs are copied as they are on read
+    (§9.3, §9.11).
 13. **`object` resolves any loaded type** (§9.6).
 14. **`WEAK_VERSION_TOLERANCE` changes the format per assembly** (§7.5). The same source compiled in two projects can
     produce two formats. The layout shows the effective format.

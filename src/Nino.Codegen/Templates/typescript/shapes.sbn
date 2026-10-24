@@ -209,7 +209,7 @@ func read_at(s, off)
   when "prim"
     $p = s.primitive
     if $p == "bool"
-      ret "r.view.getUint8(" + at(off) + ") !== 0"
+      ret "r.boolAt(" + at(off) + ")"
     else if $p == "char"
       ret "String.fromCharCode(r.view.getUint16(" + at(off) + ", true))"
     else if $p == "decimal" || $p == "guid" || $p == "dateTime"
@@ -224,7 +224,7 @@ func read_at(s, off)
   when "rawstruct"
     ret "read" + name(s.struct) + "(r, " + at(off) + ")"
   when "rawnullable"
-    ret "(r.view.getUint8(" + at(off + s.flag_offset) + ") !== 0 ? " + read_at(s.inner, off + s.value_offset) + " : null)"
+    ret "(r.flagAt(" + at(off + s.flag_offset) + ") ? " + read_at(s.inner, off + s.value_offset) + " : null)"
   when "fixedtuple"
     $parts = []
     for $item in s.items

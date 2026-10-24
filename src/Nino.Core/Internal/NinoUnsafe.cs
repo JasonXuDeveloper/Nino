@@ -130,7 +130,9 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Loads a <typeparamref name="T"/> from <paramref name="source"/> without alignment requirements.
+        /// Loads a <typeparamref name="T"/> from <paramref name="source"/> without alignment requirements. Unchecked:
+        /// a <c>bool</c> of the data is read with <see cref="ReadBool"/> or checked by its caller (see
+        /// <see cref="NinoChecks"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Read<T>(ref byte source) =>
@@ -154,6 +156,20 @@ namespace Nino.Core
             Is64Bit || Unsafe.SizeOf<T>() <= 4
                 ? Unsafe.ReadUnaligned<T>(ref Unsafe.Add(ref source, offset))
                 : ReadBytes<T>(ref Unsafe.Add(ref source, offset));
+
+        /// <summary>
+        /// Generated code: loads a bool member from <paramref name="source"/> + <paramref name="offset"/> (a block of
+        /// raw members), a byte of 0 or 1; any other is invalid data (<see cref="NinoDataException"/>).
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ReadBool(ref byte source, int offset)
+        {
+            byte value = Unsafe.Add(ref source, offset);
+            if (value > 1)
+                NinoThrow.InvalidBool(value);
+            return value != 0;
+        }
 
         /// <summary><paramref name="source"/> + <paramref name="offset"/> bytes.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -64,8 +64,13 @@ namespace Nino.Core.Internal
         /// the data holds twice throws, as the element by element read does.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static bool TryFill<T>(HashSet<T> set, ref byte source, int count, int size) =>
-            Fill(set, ref source, count, size, SetMask, SetBias);
+        public static bool TryFill<T>(HashSet<T> set, ref byte source, int count, int size)
+        {
+            // A bool other than 0 or 1 is invalid data.
+            if (typeof(T) == typeof(bool))
+                NinoChecks.Bools(ref source, count);
+            return Fill(set, ref source, count, size, SetMask, SetBias);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool Fill<T>(HashSet<T> set, ref byte source, int count, int size, int mask, int bias)

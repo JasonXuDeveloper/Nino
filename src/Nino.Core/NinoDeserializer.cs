@@ -18,7 +18,7 @@ namespace Nino.Core
         public static T Deserialize<T>(ReadOnlySpan<byte> data)
         {
             // Raw values inline into the caller as a length check and a load.
-            if (NinoRaw.Is<T>())
+            if (NinoRaw.IsRead<T>())
                 return ReadRaw<T>(data);
             // Arrays of raw elements: read by code specialized for the element type, as the serializer writes them.
             if (NinoRawArray<T>.Formatter is { } raw)
@@ -43,7 +43,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(ReadOnlySpan<byte> data, ref T value)
         {
-            if (NinoRaw.Is<T>())
+            if (NinoRaw.IsRead<T>())
             {
                 value = ReadRaw<T>(data);
                 return;
@@ -73,7 +73,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(ref T value, ref Reader reader)
         {
-            if (NinoRaw.Is<T>())
+            if (NinoRaw.IsRead<T>())
             {
                 value = reader.UnsafeRead<T>();
                 return;
@@ -86,7 +86,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T>(ref Reader reader)
         {
-            if (NinoRaw.Is<T>())
+            if (NinoRaw.IsRead<T>())
                 return reader.UnsafeRead<T>();
 
             T value = default;

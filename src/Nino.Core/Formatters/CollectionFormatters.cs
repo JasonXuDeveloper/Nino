@@ -174,15 +174,11 @@ namespace Nino.Core
             {
                 int size = Unsafe.SizeOf<T>();
                 ref byte src = ref reader.ReadElements(length, size);
+                // Filled directly where it can be, else added out of line (each checks bools: 0 or 1).
                 if (created && length != 0 && HashTables.Set && HashTables.TryFill(set, ref src, length, size))
                     return;
-                for (int i = 0; i < length; i++)
-                {
-                    if (!set.Add(NinoUnsafe.Read<T>(ref src)))
-                        NinoThrow.DuplicateKey(set.GetType());
-                    src = ref Unsafe.Add(ref src, size);
-                }
-
+                if (length != 0)
+                    AddRaw(set, ref src, length);
                 return;
             }
 
@@ -192,6 +188,25 @@ namespace Nino.Core
                 default(TFormatter).Deserialize(ref item, ref reader);
                 if (!set.Add(item))
                     NinoThrow.DuplicateKey(set.GetType());
+            }
+        }
+
+        /// <summary>
+        /// Adds the <paramref name="length"/> raw elements at <paramref name="src"/> one by one, where the set was not
+        /// filled directly (<see cref="HashTables"/>). Out of line: the element loop and the bool check (a byte other
+        /// than 0 or 1 is invalid data) cost the caller nothing.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void AddRaw(TSet set, ref byte src, int length)
+        {
+            int size = Unsafe.SizeOf<T>();
+            if (typeof(T) == typeof(bool))
+                NinoChecks.Bools(ref src, length);
+            for (int i = 0; i < length; i++)
+            {
+                if (!set.Add(NinoUnsafe.Read<T>(ref src)))
+                    NinoThrow.DuplicateKey(set.GetType());
+                src = ref Unsafe.Add(ref src, size);
             }
         }
     }

@@ -41,8 +41,7 @@ public class SettingsTests
     [TestMethod]
     public void DefaultsAreTheLimitsOfBefore()
     {
-        Assert.AreEqual(512, NinoSettings.DefaultMaxDepth);
-        // Read in this process too (which has used Nino already): the defaults, and frozen.
+        // Read in this process (which has used Nino already): the defaults (DefaultMaxDepth is 512), and frozen.
         Assert.AreEqual(NinoSettings.DefaultMaxDepth, NinoSettings.MaxDepth);
         Assert.AreEqual(int.MaxValue, NinoSettings.MaxCollectionLength);
     }

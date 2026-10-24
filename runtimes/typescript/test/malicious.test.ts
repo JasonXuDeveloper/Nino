@@ -105,7 +105,12 @@ describe("malicious data", () => {
     for (let flag = 2; flag < 256; flag += 17) {
       assert.throws(() => new NinoReader(Uint8Array.of(flag)).notNull(), NinoError);
       assert.throws(() => deserialize(ChainCodec, Uint8Array.of(flag, 0, 0, 0, 0, 0)), NinoError);
+      assert.throws(() => new NinoReader(Uint8Array.of(flag)).bool(), NinoError);
+      assert.throws(() => new NinoReader(Uint8Array.of(0, flag)).boolAt(1), NinoError);
+      assert.throws(() => new NinoReader(Uint8Array.of(flag, 7, 0, 0, 0)).flagAt(0), NinoError);
     }
+    assert.equal(new NinoReader(Uint8Array.of(1)).bool(), true);
+    assert.equal(new NinoReader(Uint8Array.of(0)).bool(), false);
   });
 
   it("rejects type ids it does not know, and type ids of types not allowed there", () => {

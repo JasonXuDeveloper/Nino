@@ -302,6 +302,10 @@ namespace Nino.Core
             // A cursor rather than an int offset, which every access would sign-extend.
             int keySize = Unsafe.SizeOf<TKey>();
             int pairSize = keySize + Unsafe.SizeOf<TValue>();
+            if (typeof(TKey) == typeof(bool))
+                NinoChecks.Bools(ref src, length, pairSize);
+            if (typeof(TValue) == typeof(bool))
+                NinoChecks.Bools(ref Unsafe.Add(ref src, keySize), length, pairSize);
             // The dictionary is new and sized for the pairs (Read's only caller): filled directly where it can be.
             if (HashTables.Map && HashTables.TryFill(dictionary, ref src, length, keySize, pairSize))
                 return;

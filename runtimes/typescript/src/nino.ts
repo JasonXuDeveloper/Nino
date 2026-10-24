@@ -280,7 +280,19 @@ export class NinoReader {
 
   /** Skips a value copied as raw memory: returns where it starts. */
   raw(size: number): number { return this.take(size); }
-  bool(): boolean { return this.view.getUint8(this.take(1)) !== 0; }
+  bool(): boolean { return this.boolAt(this.take(1)); }
+  /** A `bool` at `at`: 0 or 1, as every writer writes it; any other byte is invalid data. */
+  boolAt(at: number): boolean {
+    const b = this.view.getUint8(at);
+    if (b > 1) throw new NinoError(`invalid bool byte ${b}.`);
+    return b === 1;
+  }
+  /** The has-value flag of a nullable at `at` (0 or 1, as `boolAt`). */
+  flagAt(at: number): boolean {
+    const b = this.view.getUint8(at);
+    if (b > 1) throw new NinoError(`invalid presence byte ${b}.`);
+    return b === 1;
+  }
   u8(): number { return this.view.getUint8(this.take(1)); }
   i8(): number { return this.view.getInt8(this.take(1)); }
   u16(): number { return this.view.getUint16(this.take(2), true); }

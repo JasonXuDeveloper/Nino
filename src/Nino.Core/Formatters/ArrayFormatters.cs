@@ -223,7 +223,8 @@ namespace Nino.Core
             where TFormatter : struct, INinoFormatter<T>
         {
 #if NETSTANDARD2_0
-            if (RawFormatter.Is<T, TFormatter>())
+            // Bools one by one (checked, NinoLayout<T>.CopiesAsIs).
+            if (RawFormatter.Is<T, TFormatter>() && NinoLayout<T>.CopiesAsIs)
             {
                 NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref first),
                     ref reader.ReadElements(count, Unsafe.SizeOf<T>()), (uint)count * (uint)Unsafe.SizeOf<T>());
@@ -348,8 +349,9 @@ namespace Nino.Core
                 return;
             }
 
-            // Raw elements: one bounds check and one block copy (see Write).
-            if (RawFormatter.Is<T, TFormatter>())
+            // Raw elements: one bounds check and one block copy (see Write). Bools one by one (checked,
+            // NinoLayout<T>.CopiesAsIs).
+            if (RawFormatter.Is<T, TFormatter>() && NinoLayout<T>.CopiesAsIs)
             {
                 NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
                     ref reader.ReadElements(values.Length, Unsafe.SizeOf<T>()),
@@ -545,7 +547,7 @@ namespace Nino.Core
         {
             // A new array (NinoDeserializer.Deserialize<T[]>(data) passes null, a constant once inlined): no slot
             // to reuse, so no local whose address reaches the recycler and stays in memory.
-            if (existing == null && NinoLayout<T>.IsCanonical)
+            if (existing == null && NinoLayout<T>.CopiesAsIs)
                 return ReadNew(data);
             var reader = new Reader(data);
             var value = Unsafe.As<T[]>(existing);
@@ -581,7 +583,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T[] value, ref Reader reader)
         {
-            if (!NinoLayout<T>.IsCanonical)
+            // Also bools, checked there (NinoLayout<T>.CopiesAsIs).
+            if (!NinoLayout<T>.CopiesAsIs)
             {
                 DeserializeConverted(ref value, ref reader);
                 return;
@@ -656,7 +659,8 @@ namespace Nino.Core
         public static readonly int Stride = Offset + NinoLayout<T>.WireSize;
 
         /// <summary>Whether <c>T?</c> memory equals its wire layout on this runtime.</summary>
-        internal static readonly bool Raw = NinoLayout<T>.IsCanonical && NullableLayout<T>.HasValueOffset == 0 &&
+        // Not for bool: its values are read one by one, checked (NinoLayout<T>.CopiesAsIs).
+        internal static readonly bool Raw = NinoLayout<T>.CopiesAsIs && NullableLayout<T>.HasValueOffset == 0 &&
                                            NullableLayout<T>.ValueOffset == Offset &&
                                            Unsafe.SizeOf<T?>() == Stride;
 
@@ -707,6 +711,9 @@ namespace Nino.Core
             ref byte src = ref reader.ReadElements(destination.Length, Stride);
             if (destination.IsEmpty)
                 return;
+            // Has-value bytes other than 0 or 1 are invalid data (copied as they are, they would make HasValue true
+            // and the value unequal to any other).
+            NinoChecks.Flags(ref src, destination.Length, Stride);
             ref T? item = ref MemoryMarshal.GetReference(destination);
             if (Raw)
             {

@@ -150,7 +150,7 @@ namespace Nino.Core
         {
             ref byte source = ref MemoryMarshal.GetReference(data);
             // Folded to one of the two branches.
-            if (!NinoRaw.Is<T>())
+            if (!NinoRaw.IsRead<T>())
                 source = ref DeserializeOther<T>(data);
             else if (data.Length < Unsafe.SizeOf<T>())
                 NinoThrow.EndOfData();

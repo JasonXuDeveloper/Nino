@@ -50,8 +50,10 @@ describe("primitives", () => {
     assert.equal(bytes((w) => w.u64(-1n)), "ffffffffffffffff");
   });
 
-  it("reads a bool as .NET does: any byte but 0 is true", () => {
-    assert.equal(reader("02").bool(), true);
+  it("reads a bool as .NET does: 0 or 1, any other byte is invalid data", () => {
+    assert.equal(reader("01").bool(), true);
+    assert.equal(reader("00").bool(), false);
+    assert.throws(() => reader("02").bool(), NinoError);
   });
 
   it("reads past nothing: each read checks the bytes left", () => {

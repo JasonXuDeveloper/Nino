@@ -100,7 +100,8 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoLayout<T>.Size, out int length))
                 return;
 
-            if (!ListAccess.Direct || !NinoLayout<T>.IsCanonical)
+            // Bools too: ReadUnmanagedRaw checks them (NinoLayout<T>.CopiesAsIs).
+            if (!ListAccess.Direct || !NinoLayout<T>.CopiesAsIs)
             {
                 var list = value ??= ListAccess.CreateOverwritten<TList, T>(length, uninitialized: true);
                 var span = ListAccess.Open(list, length, overwritten: true, out var buffer);

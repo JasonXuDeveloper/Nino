@@ -42,6 +42,14 @@ namespace Nino.Core
         public static void InvalidData(string message) =>
             throw new NinoDataException("Nino: " + message);
 
+        [MethodImpl(Cold)]
+        public static void InvalidBool(int value) =>
+            throw new NinoDataException($"Nino: invalid bool byte {value} (only 0 and 1 are bools).");
+
+        [MethodImpl(Cold)]
+        public static void InvalidPresence(int value) =>
+            throw new NinoDataException($"Nino: invalid presence byte {value} (only 0, null, and 1, a value).");
+
         /// <summary>A collection that changed while it was being written (not invalid data: the caller's object).</summary>
         [MethodImpl(Cold)]
         public static void ModifiedDuringWrite() =>

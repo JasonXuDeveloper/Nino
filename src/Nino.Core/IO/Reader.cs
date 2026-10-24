@@ -335,7 +335,7 @@ namespace Nino.Core
             {
                 // A region followed by a section of deferred bodies, or invalid data: the region ends where its
                 // members do, and this reader skips the section too.
-                members = SectionedRegion(ref Cur, Avail, length);
+                members = SectionedRegion(ref Cur, Avail, length, _regions);
                 length &= int.MaxValue;
             }
 
@@ -346,17 +346,37 @@ namespace Nino.Core
 
         /// <summary>
         /// The length of the members of a region whose length has <see cref="NinoDepth.SectionFlag"/> set (a section of
-        /// deferred bodies follows them, then the section's offset); throws on any other invalid length.
+        /// deferred bodies follows them, then the section's offset); throws on any other invalid length, and on a
+        /// section no writer writes: one in a region inside another (only the outermost holds one), an empty one, or
+        /// one whose entries do not fill it exactly, each keyed by a position in the region no later than the entry
+        /// itself, in increasing order (where the body deferred to it would have begun: in the members, at most at their
+        /// end, or in the body of an earlier entry).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int SectionedRegion(ref byte data, int remaining, int length)
+        private static int SectionedRegion(ref byte data, int remaining, int length, int regions)
         {
             int total = length & int.MaxValue;
             if (length >= 0 || total < sizeof(int) || total > remaining)
                 NinoThrow.InvalidLength(length);
-            int members = NinoUnsafe.Read<int>(ref Unsafe.Add(ref data, total - sizeof(int)));
-            if ((uint)members > (uint)(total - sizeof(int)))
+            if (regions != 0)
+                NinoThrow.InvalidData("deferred bodies in a region inside another region.");
+            int end = total - sizeof(int);
+            int members = NinoUnsafe.Read<int>(ref Unsafe.Add(ref data, end));
+            if ((uint)members >= (uint)end)
                 NinoThrow.InvalidData("invalid offset of deferred bodies.");
+            int last = -1;
+            for (int at = members; at != end;)
+            {
+                if (end - at < 2 * sizeof(int))
+                    NinoThrow.InvalidData("invalid section of deferred bodies.");
+                int key = NinoUnsafe.Read<int>(ref Unsafe.Add(ref data, at));
+                int size = NinoUnsafe.Read<int>(ref Unsafe.Add(ref data, at + sizeof(int)));
+                if (key <= last || key > at || (uint)size > (uint)(end - at - 2 * sizeof(int)))
+                    NinoThrow.InvalidData("invalid section of deferred bodies.");
+                last = key;
+                at += 2 * sizeof(int) + size;
+            }
+
             return members;
         }
 
@@ -375,6 +395,19 @@ namespace Nino.Core
             _context = context;
             if (_regions == 0 && context.Deferrals != null)
                 EndDeferredRegion(Data, Pos, region.Pos + region.Avail, context, Depth);
+        }
+
+        /// <summary>
+        /// Generated code: <see cref="EndRegion"/> for a keyed member, whose value must fill its entry exactly: bytes
+        /// left over are invalid data (no writer leaves any).
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void EndMember(in Reader member)
+        {
+            if (member.Avail != 0)
+                NinoThrow.InvalidData("bytes left over at the end of a keyed member.");
+            EndRegion(in member);
         }
 
         /// <summary>
@@ -534,6 +567,10 @@ namespace Nino.Core
             return ref block;
         }
 
+        /// <summary>The next byte, not consumed: the caller already checked the bytes it looks at are there.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte Peek() => ref Cur;
+
         /// <summary>Consumes <paramref name="size"/> bytes the caller already checked are there.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref byte UnsafeAdvance(int size)
@@ -576,9 +613,23 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out T value) where T : unmanaged => value = ReadValue<T>();
 
-        /// <summary>Reads a bool (any non-zero byte is true).</summary>
+        /// <summary>Reads a bool: a byte of 0 or 1 (any other is invalid data).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Read(out bool value) => value = UnsafeRead<byte>() != 0;
+        public void Read(out bool value) => value = ReadBool();
+
+        /// <summary>
+        /// Generated code: reads a bool member, a byte of 0 or 1; any other is invalid data. Its own method rather
+        /// than a check in <see cref="UnsafeRead{T}"/>, which every other raw member is read with.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool ReadBool()
+        {
+            byte value = UnsafeRead<byte>();
+            if (value > 1)
+                NinoThrow.InvalidBool(value);
+            return value != 0;
+        }
 
         /// <summary>Reads a nullable unmanaged value written by <see cref="Writer.Write{T}(T?)"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -595,8 +646,10 @@ namespace Nino.Core
             ref byte block = ref Cur;
             if ((uint)size < (uint)Avail)
             {
-                if (block == NinoWire.Null)
+                if (block != NinoWire.NotNull)
                 {
+                    if (block != NinoWire.Null)
+                        NinoThrow.InvalidPresence(block);
                     Skip(1);
                     return null;
                 }
@@ -605,7 +658,7 @@ namespace Nino.Core
                 return NinoLayout<T>.Read(ref Unsafe.Add(ref block, 1));
             }
 
-            if (UnsafeRead<byte>() == NinoWire.Null)
+            if (!ReadPresent())
                 return null;
             return ReadValue<T>();
         }
@@ -685,9 +738,25 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal bool TryReadPresent<T>(ref T value)
         {
-            if (UnsafeRead<byte>() != NinoWire.Null)
+            if (ReadPresent())
                 return true;
             NinoRecycler.Discard(ref value);
+            return false;
+        }
+
+        /// <summary>
+        /// Reads a presence byte (a null flag): true for 1, a value follows; false for 0, null. Any other byte is
+        /// invalid data. The common case, a value, takes one compare.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool ReadPresent()
+        {
+            byte flag = UnsafeRead<byte>();
+            if (flag == NinoWire.NotNull)
+                return true;
+            if (flag != NinoWire.Null)
+                NinoThrow.InvalidPresence(flag);
             return false;
         }
 
@@ -722,10 +791,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ReadUnmanagedRaw<T>(Span<T> destination) where T : unmanaged
         {
-            if (!NinoLayout<T>.IsCanonical)
+            if (!NinoLayout<T>.CopiesAsIs)
             {
-                for (int i = 0; i < destination.Length; i++)
-                    destination[i] = ReadValue<T>();
+                this = ReadUnmanagedOther(destination, this);
                 return;
             }
 
@@ -734,6 +802,30 @@ namespace Nino.Core
             int count = destination.Length;
             NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)),
                 ref ReadElements(count, Unsafe.SizeOf<T>()), (uint)count * (uint)Unsafe.SizeOf<T>());
+        }
+
+        /// <summary>
+        /// <see cref="ReadUnmanagedRaw{T}"/> for values not copied as they are (<see cref="NinoLayout{T}.CopiesAsIs"/>):
+        /// bools, checked in the data before one block copy (a byte other than 0 or 1 is invalid data), and values of a
+        /// layout this runtime converts, one by one. Out of line, with the reader by value.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadUnmanagedOther<T>(Span<T> destination, Reader reader) where T : unmanaged
+        {
+            if (NinoLayout<T>.IsCanonical)
+            {
+                int count = destination.Length;
+                ref byte src = ref reader.ReadElements(count, Unsafe.SizeOf<T>());
+                if (typeof(T) == typeof(bool))
+                    NinoChecks.Bools(ref src, count);
+                NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)), ref src,
+                    (uint)count * (uint)Unsafe.SizeOf<T>());
+                return reader;
+            }
+
+            for (int i = 0; i < destination.Length; i++)
+                destination[i] = reader.ReadValue<T>();
+            return reader;
         }
 
         /// <summary>Reads a length-prefixed unmanaged array written by <see cref="Writer.Write{T}(T[])"/>.</summary>
@@ -821,6 +913,8 @@ namespace Nino.Core
             {
                 if ((uint)(end - pos) < (uint)keySize)
                     NinoThrow.EndOfData();
+                if (typeof(TKey) == typeof(bool) && Unsafe.Add(ref data, pos) > 1)
+                    NinoThrow.InvalidBool(Unsafe.Add(ref data, pos));
                 TKey key = NinoUnsafe.Read<TKey>(ref Unsafe.Add(ref data, pos));
                 pos += keySize;
                 string value = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, null, out int size);

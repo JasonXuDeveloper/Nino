@@ -611,6 +611,14 @@ namespace Nino.Core
         /// <summary>Whether values can be copied as raw memory on this runtime.</summary>
         public static readonly bool IsCanonical = Info.Canonical;
 
+        /// <summary>
+        /// Whether values are read as their bytes, one (<see cref="Read"/>) or a block of them (arrays, lists): canonical,
+        /// and not a <c>bool</c>, whose byte is checked (0 or 1). The read paths test this field where they tested
+        /// <see cref="IsCanonical"/> and take their other path for the rest, so the check costs the other types nothing,
+        /// not even code to fold (in a large method the inliner counts that too).
+        /// </summary>
+        internal static readonly bool CopiesAsIs = Info.Canonical && typeof(T) != typeof(bool);
+
         private static readonly NinoMask Mask = Info.Mask == null ? null : NinoMask.Create(Info.Mask);
 
         /// <summary>Whether the canonical layout has padding bytes (cleared on write).</summary>
@@ -695,12 +703,23 @@ namespace Nino.Core
         private static void WriteConverted(ref byte destination, in T value) =>
             NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), ref destination, true);
 
-        /// <summary>Reads a value stored in its wire layout.</summary>
+        /// <summary>Reads a value stored in its wire layout (a <c>bool</c> other than 0 or 1 is invalid data).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Read(ref byte source) =>
-            IsCanonical ? NinoUnsafe.Read<T>(ref source) : ReadConverted(ref source);
+            CopiesAsIs ? NinoUnsafe.Read<T>(ref source)
+            : typeof(T) == typeof(bool) ? ReadBool(ref source)
+            : ReadConverted(ref source);
 
-        // Its own method, as WriteConverted: where IsCanonical does not fold (Tier0, Mono, IL2CPP), a local whose
+        // Out of line: a bool's byte is checked (0 or 1), which the other types never pay for.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static T ReadBool(ref byte source)
+        {
+            if (source > 1)
+                NinoThrow.InvalidBool(source);
+            return NinoUnsafe.Read<T>(ref source);
+        }
+
+        // Its own method, as WriteConverted: where CopiesAsIs does not fold (Tier0, Mono, IL2CPP), a local whose
         // address is taken here would be one in every inlined caller.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static T ReadConverted(ref byte source)

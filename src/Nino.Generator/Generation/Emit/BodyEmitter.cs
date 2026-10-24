@@ -818,6 +818,9 @@ internal sealed class BodyEmitter
         }
     }
 
+    /// <summary>Whether <paramref name="member"/> is a <c>bool</c>, which is read with a check of its byte.</summary>
+    private static bool IsBool(MemberModel member) => member.TypeName is "bool" or "global::System.Boolean";
+
     /// <summary>The raw members of <paramref name="group"/>, read from one block of <paramref name="r"/>.</summary>
     private void EmitRawBlockRead(List<MemberModel> group, RawBlock block, string r, bool inPlace)
     {
@@ -825,8 +828,10 @@ internal sealed class BodyEmitter
         _w.Line($"ref byte {p} = ref {r}.ReadBlock({block.Total});");
         for (int i = 0; i < group.Count; i++)
         {
-            _w.Line(Store(_m, group[i], inPlace,
-                $"{Core}NinoUnsafe.Read<{group[i].TypeName}>(ref {p}, {block.Offsets[i]})", _mode.Target));
+            // A bool through its own read, which rejects a byte other than 0 or 1.
+            _w.Line(Store(_m, group[i], inPlace, IsBool(group[i])
+                ? $"{Core}NinoUnsafe.ReadBool(ref {p}, {block.Offsets[i]})"
+                : $"{Core}NinoUnsafe.Read<{group[i].TypeName}>(ref {p}, {block.Offsets[i]})", _mode.Target));
         }
     }
 
@@ -835,7 +840,8 @@ internal sealed class BodyEmitter
     {
         if (member.Raw != null)
         {
-            _w.Line(Store(_m, member, inPlace, $"{r}.UnsafeRead<{member.TypeName}>()", _mode.Target));
+            _w.Line(Store(_m, member, inPlace,
+                IsBool(member) ? $"{r}.ReadBool()" : $"{r}.UnsafeRead<{member.TypeName}>()", _mode.Target));
             return;
         }
 
@@ -916,7 +922,8 @@ internal sealed class BodyEmitter
             _w.Open();
             _w.Line($"var __m = {r}.ReadRegion();");
             EmitMemberRead(member, "__m", inPlace);
-            _w.Line($"{r}.EndRegion(in __m);");
+            // A member's value fills its entry exactly: bytes left over are invalid data.
+            _w.Line($"{r}.EndMember(in __m);");
             _w.Close();
         }
 
@@ -937,8 +944,7 @@ internal sealed class BodyEmitter
                     _w.Line($"case {formerKey}:");
                 _w.Open();
                 EmitMemberRead(member, "__m", inPlace);
-                if (member.Raw == null)
-                    _w.Line($"{r}.EndRegion(in __m);");
+                _w.Line($"{r}.EndMember(in __m);");
                 _w.Line("break;");
                 _w.Close();
             }
