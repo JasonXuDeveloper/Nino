@@ -1,7 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <!-- Run with whatever .NET runtime is installed, 8.0 or later. -->
         <TargetFramework>net8.0</TargetFramework>
+        <RollForward>LatestMajor</RollForward>
         <AssemblyName>nino-gen</AssemblyName>
         <RootNamespace>Nino.Codegen</RootNamespace>
         <ImplicitUsings>disable</ImplicitUsings>
@@ -9,6 +12,11 @@
         <AnalysisLevel>latest-recommended</AnalysisLevel>
         <!-- Enum members named after the values they stand for (String, Object, Decimal...), types named XEnum. -->
         <NoWarn>$(NoWarn);CA1720;CA1711</NoWarn>
+        <PackageId>Nino.Codegen</PackageId>
+        <Description>nino-gen: writes TypeScript, Go and Rust types and codecs that read and write the bytes a .NET assembly's [NinoType]s are serialized to, from the layouts the Nino generator published in the built assembly.</Description>
+        <PackageTags>Nino;Serialization;Binary;TypeScript;Go;Rust;CodeGeneration</PackageTags>
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>nino-gen</ToolCommandName>
     </PropertyGroup>
 
     <ItemGroup>

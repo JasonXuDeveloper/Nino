@@ -21,7 +21,8 @@
     <PropertyGroup>
         <IsPackable Condition="'$(MSBuildProjectName)' == 'Nino.Core' Or '$(MSBuildProjectName)' == 'Nino.Generator'
                                Or '$(MSBuildProjectName)' == 'Nino.Immutable' Or '$(MSBuildProjectName)' == 'Nino.AspNetCore'
-                               Or '$(MSBuildProjectName)' == 'Nino.TypeScript' Or '$(MSBuildProjectName)' == 'Nino'">true</IsPackable>
+                               Or '$(MSBuildProjectName)' == 'Nino.TypeScript' Or '$(MSBuildProjectName)' == 'Nino.Codegen'
+                               Or '$(MSBuildProjectName)' == 'Nino'">true</IsPackable>
         <IsPackable Condition="'$(IsPackable)' != 'true'">false</IsPackable>
     </PropertyGroup>
 
