@@ -31,10 +31,6 @@ const closedGenerics = new Set(["polymorphism", "polymorphism-generic-root"]);
  * reject them: run as todo tests (reported, not failing the suite) until the runtime checks them.
  */
 const looser = new Map<string, string>([
-  ...["presence-bool-02", "presence-bool-ff", "presence-bool-array-02", "presence-bool-array-ff"].map(
-    (n) => [n, "a bool other than 0 or 1 is read"] as [string, string]),
-  ...["presence-nullable-array-flag-02", "presence-nullable-array-flag-ff"].map(
-    (n) => [n, "a presence byte other than 0 or 1 is read"] as [string, string]),
   ...["deferred-offset-zero", "deferred-offset-into-members", "deferred-flag-without-section",
     "keyed-body-section-flag"].map((n) => [n, "a malformed section of deferred bodies is read"] as [string, string]),
   ["keyed-member-string-long", "a keyed member read past its region is not rejected"],
