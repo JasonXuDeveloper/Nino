@@ -6,13 +6,18 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using MemoryPack;
+using MessagePack;
+using MessagePack.ImmutableCollection;
+using MessagePack.Resolvers;
 using Nino.Core;
+using ProtoBuf;
 
 #nullable disable
 namespace Nino.Benchmark;
@@ -23,7 +28,9 @@ namespace Nino.Benchmark;
 /// <c>TimeZoneInfo</c>, <c>Lazy&lt;T&gt;</c>), memory and sequences, read-only and lookup collections, and the
 /// immutable collections (Nino.Immutable), collections with 1,000 elements, serialized to a reused buffer writer and
 /// deserialized into new instances. Deserialize cases return <c>object</c>: BenchmarkDotNet refuses to time a method
-/// that returns a lazy or enumerable result.
+/// that returns a lazy or enumerable result. MessagePack has formatters for all but <c>CultureInfo</c>,
+/// <c>TimeZoneInfo</c> and <c>BlockingCollection&lt;T&gt;</c> (it throws on them); protobuf-net for <c>Uri</c> and
+/// the immutable collections only.
 /// </summary>
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
@@ -36,6 +43,10 @@ namespace Nino.Benchmark;
 public class BclTypesTest
 {
     private const int N = 1000;
+
+    // MessagePack's formatters for the immutable collections are a package of their own (MessagePack.ImmutableCollection).
+    private static readonly MessagePackSerializerOptions ImmutableOptions = MessagePackSerializerOptions.Standard
+        .WithResolver(CompositeResolver.Create(ImmutableCollectionResolver.Instance, StandardResolver.Instance));
 
     private static readonly BigInteger BigIntegerValue = BigInteger.Pow(3, 1000);
     private static readonly Uri UriValue = new Uri("https://example.com/api/v1/items?id=42&sort=name#top");
@@ -58,40 +69,63 @@ public class BclTypesTest
     private static readonly ImmutableSortedDictionary<int, int> ImmutableSortedDictionaryValue = ImmutableSortedDictionary.CreateRange(Enumerable.Range(0, N).Select(i => new KeyValuePair<int, int>(i, i * 7)));
 
     private static readonly byte[] NinoBigIntegerBytes = NinoSerializer.Serialize(BigIntegerValue);
+    private static readonly byte[] MessagePackBigIntegerBytes = MessagePackSerializer.Serialize(BigIntegerValue);
     private static readonly byte[] NinoUriBytes = NinoSerializer.Serialize(UriValue);
+    private static readonly byte[] MessagePackUriBytes = MessagePackSerializer.Serialize(UriValue);
+    private static readonly byte[] ProtobufUriBytes = ProtobufModel.Serialize(UriValue);
     private static readonly byte[] MemoryPackUriBytes = MemoryPackSerializer.Serialize(UriValue);
     private static readonly byte[] NinoVersionBytes = NinoSerializer.Serialize(VersionValue);
+    private static readonly byte[] MessagePackVersionBytes = MessagePackSerializer.Serialize(VersionValue);
     private static readonly byte[] MemoryPackVersionBytes = MemoryPackSerializer.Serialize(VersionValue);
     private static readonly byte[] NinoStringBuilderBytes = NinoSerializer.Serialize(StringBuilderValue);
+    private static readonly byte[] MessagePackStringBuilderBytes = MessagePackSerializer.Serialize(StringBuilderValue);
     private static readonly byte[] MemoryPackStringBuilderBytes = MemoryPackSerializer.Serialize(StringBuilderValue);
     private static readonly byte[] NinoBitArrayBytes = NinoSerializer.Serialize(BitArrayValue);
+    private static readonly byte[] MessagePackBitArrayBytes = MessagePackSerializer.Serialize(BitArrayValue);
     private static readonly byte[] NinoCultureInfoBytes = NinoSerializer.Serialize(CultureInfoValue);
     private static readonly byte[] MemoryPackCultureInfoBytes = MemoryPackSerializer.Serialize(CultureInfoValue);
     private static readonly byte[] NinoTimeZoneInfoBytes = NinoSerializer.Serialize(TimeZoneInfoValue);
     private static readonly byte[] MemoryPackTimeZoneInfoBytes = MemoryPackSerializer.Serialize(TimeZoneInfoValue);
     private static readonly byte[] NinoLazyBytes = NinoSerializer.Serialize(LazyValue);
+    private static readonly byte[] MessagePackLazyBytes = MessagePackSerializer.Serialize(LazyValue);
     private static readonly byte[] MemoryPackLazyBytes = MemoryPackSerializer.Serialize(LazyValue);
     private static readonly byte[] NinoMemoryBytes = NinoSerializer.Serialize(MemoryValue);
+    private static readonly byte[] MessagePackMemoryBytes = MessagePackSerializer.Serialize(MemoryValue);
     private static readonly byte[] MemoryPackMemoryBytes = MemoryPackSerializer.Serialize(MemoryValue);
     private static readonly byte[] NinoReadOnlySequenceBytes = NinoSerializer.Serialize(ReadOnlySequenceValue);
+    private static readonly byte[] MessagePackReadOnlySequenceBytes = MessagePackSerializer.Serialize(ReadOnlySequenceValue);
     private static readonly byte[] MemoryPackReadOnlySequenceBytes = MemoryPackSerializer.Serialize(ReadOnlySequenceValue);
     private static readonly byte[] NinoReadOnlyCollectionBytes = NinoSerializer.Serialize(ReadOnlyCollectionValue);
+    private static readonly byte[] MessagePackReadOnlyCollectionBytes = MessagePackSerializer.Serialize(ReadOnlyCollectionValue);
     private static readonly byte[] MemoryPackReadOnlyCollectionBytes = MemoryPackSerializer.Serialize(ReadOnlyCollectionValue);
     private static readonly byte[] NinoLookupBytes = NinoSerializer.Serialize(LookupValue);
+    private static readonly byte[] MessagePackLookupBytes = MessagePackSerializer.Serialize(LookupValue);
     private static readonly byte[] MemoryPackLookupBytes = MemoryPackSerializer.Serialize(LookupValue);
     private static readonly byte[] NinoBlockingCollectionBytes = NinoSerializer.Serialize(BlockingCollectionValue);
     private static readonly byte[] MemoryPackBlockingCollectionBytes = MemoryPackSerializer.Serialize(BlockingCollectionValue);
     private static readonly byte[] NinoImmutableHashSetBytes = NinoSerializer.Serialize(ImmutableHashSetValue);
+    private static readonly byte[] MessagePackImmutableHashSetBytes = MessagePackSerializer.Serialize(ImmutableHashSetValue, ImmutableOptions);
+    private static readonly byte[] ProtobufImmutableHashSetBytes = ProtobufModel.Serialize(ImmutableHashSetValue);
     private static readonly byte[] MemoryPackImmutableHashSetBytes = MemoryPackSerializer.Serialize(ImmutableHashSetValue);
     private static readonly byte[] NinoImmutableSortedSetBytes = NinoSerializer.Serialize(ImmutableSortedSetValue);
+    private static readonly byte[] MessagePackImmutableSortedSetBytes = MessagePackSerializer.Serialize(ImmutableSortedSetValue, ImmutableOptions);
+    private static readonly byte[] ProtobufImmutableSortedSetBytes = ProtobufModel.Serialize(ImmutableSortedSetValue);
     private static readonly byte[] MemoryPackImmutableSortedSetBytes = MemoryPackSerializer.Serialize(ImmutableSortedSetValue);
     private static readonly byte[] NinoImmutableQueueBytes = NinoSerializer.Serialize(ImmutableQueueValue);
+    private static readonly byte[] MessagePackImmutableQueueBytes = MessagePackSerializer.Serialize(ImmutableQueueValue, ImmutableOptions);
+    private static readonly byte[] ProtobufImmutableQueueBytes = ProtobufModel.Serialize(ImmutableQueueValue);
     private static readonly byte[] MemoryPackImmutableQueueBytes = MemoryPackSerializer.Serialize(ImmutableQueueValue);
     private static readonly byte[] NinoImmutableStackBytes = NinoSerializer.Serialize(ImmutableStackValue);
+    private static readonly byte[] MessagePackImmutableStackBytes = MessagePackSerializer.Serialize(ImmutableStackValue, ImmutableOptions);
+    private static readonly byte[] ProtobufImmutableStackBytes = ProtobufModel.Serialize(ImmutableStackValue);
     private static readonly byte[] MemoryPackImmutableStackBytes = MemoryPackSerializer.Serialize(ImmutableStackValue);
     private static readonly byte[] NinoImmutableDictionaryBytes = NinoSerializer.Serialize(ImmutableDictionaryValue);
+    private static readonly byte[] MessagePackImmutableDictionaryBytes = MessagePackSerializer.Serialize(ImmutableDictionaryValue, ImmutableOptions);
+    private static readonly byte[] ProtobufImmutableDictionaryBytes = ProtobufModel.Serialize(ImmutableDictionaryValue);
     private static readonly byte[] MemoryPackImmutableDictionaryBytes = MemoryPackSerializer.Serialize(ImmutableDictionaryValue);
     private static readonly byte[] NinoImmutableSortedDictionaryBytes = NinoSerializer.Serialize(ImmutableSortedDictionaryValue);
+    private static readonly byte[] MessagePackImmutableSortedDictionaryBytes = MessagePackSerializer.Serialize(ImmutableSortedDictionaryValue, ImmutableOptions);
+    private static readonly byte[] ProtobufImmutableSortedDictionaryBytes = ProtobufModel.Serialize(ImmutableSortedDictionaryValue);
     private static readonly byte[] MemoryPackImmutableSortedDictionaryBytes = MemoryPackSerializer.Serialize(ImmutableSortedDictionaryValue);
 
     private NinoArrayBufferWriter _ninoBuffer;
@@ -135,6 +169,29 @@ public class BclTypesTest
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeImmutableDictionary), MemoryPackImmutableDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeImmutableSortedDictionary), NinoImmutableSortedDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeImmutableSortedDictionary), MemoryPackImmutableSortedDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeBigInteger), MessagePackBigIntegerBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeUri), MessagePackUriBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeUri), ProtobufUriBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeVersion), MessagePackVersionBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeStringBuilder), MessagePackStringBuilderBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeBitArray), MessagePackBitArrayBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeLazy), MessagePackLazyBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeMemory), MessagePackMemoryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeReadOnlySequence), MessagePackReadOnlySequenceBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeReadOnlyCollection), MessagePackReadOnlyCollectionBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeLookup), MessagePackLookupBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeImmutableHashSet), MessagePackImmutableHashSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeImmutableHashSet), ProtobufImmutableHashSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeImmutableSortedSet), MessagePackImmutableSortedSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeImmutableSortedSet), ProtobufImmutableSortedSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeImmutableQueue), MessagePackImmutableQueueBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeImmutableQueue), ProtobufImmutableQueueBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeImmutableStack), MessagePackImmutableStackBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeImmutableStack), ProtobufImmutableStackBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeImmutableDictionary), MessagePackImmutableDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeImmutableDictionary), ProtobufImmutableDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeImmutableSortedDictionary), MessagePackImmutableSortedDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeImmutableSortedDictionary), ProtobufImmutableSortedDictionaryBytes.Length);
     }
 
     private static BlockingCollection<int> MakeBlockingCollection()
@@ -144,6 +201,9 @@ public class BclTypesTest
             collection.Add(i);
         return collection;
     }
+
+    private readonly ArrayBufferWriter<byte> _messagePackBuffer = new(1 << 16);
+    private readonly MemoryStream _protobufStream = new(1 << 16);
 
     [GlobalSetup]
     public void Setup()
@@ -231,7 +291,8 @@ public class BclTypesTest
     public object NinoDeserializeStringBuilder() => NinoDeserializer.Deserialize<StringBuilder>(NinoStringBuilderBytes);
 
     [Benchmark, BenchmarkCategory("StringBuilderDeserialize")]
-    public object MemoryPackDeserializeStringBuilder() => MemoryPackSerializer.Deserialize<StringBuilder>(MemoryPackStringBuilderBytes);
+    public object MemoryPackDeserializeStringBuilder() =>
+        MemoryPackSerializer.Deserialize<StringBuilder>(MemoryPackStringBuilderBytes);
 
     // No MemoryPack cases for BitArray: MemoryPack 1.21.4 reinterprets it as { int[] m_array; int m_length }, its
     // layout on .NET 8; .NET 10's BitArray holds a byte[] _array, so it writes the wrong bytes and reading one
@@ -269,7 +330,8 @@ public class BclTypesTest
     public object NinoDeserializeCultureInfo() => NinoDeserializer.Deserialize<CultureInfo>(NinoCultureInfoBytes);
 
     [Benchmark, BenchmarkCategory("CultureInfoDeserialize")]
-    public object MemoryPackDeserializeCultureInfo() => MemoryPackSerializer.Deserialize<CultureInfo>(MemoryPackCultureInfoBytes);
+    public object MemoryPackDeserializeCultureInfo() =>
+        MemoryPackSerializer.Deserialize<CultureInfo>(MemoryPackCultureInfoBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("TimeZoneInfoSerialize")]
     public int NinoSerializeTimeZoneInfo()
@@ -291,7 +353,8 @@ public class BclTypesTest
     public object NinoDeserializeTimeZoneInfo() => NinoDeserializer.Deserialize<TimeZoneInfo>(NinoTimeZoneInfoBytes);
 
     [Benchmark, BenchmarkCategory("TimeZoneInfoDeserialize")]
-    public object MemoryPackDeserializeTimeZoneInfo() => MemoryPackSerializer.Deserialize<TimeZoneInfo>(MemoryPackTimeZoneInfoBytes);
+    public object MemoryPackDeserializeTimeZoneInfo() =>
+        MemoryPackSerializer.Deserialize<TimeZoneInfo>(MemoryPackTimeZoneInfoBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("LazySerialize")]
     public int NinoSerializeLazy()
@@ -354,10 +417,12 @@ public class BclTypesTest
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("ReadOnlySequenceDeserialize")]
-    public object NinoDeserializeReadOnlySequence() => NinoDeserializer.Deserialize<ReadOnlySequence<int>>(NinoReadOnlySequenceBytes);
+    public object NinoDeserializeReadOnlySequence() =>
+        NinoDeserializer.Deserialize<ReadOnlySequence<int>>(NinoReadOnlySequenceBytes);
 
     [Benchmark, BenchmarkCategory("ReadOnlySequenceDeserialize")]
-    public object MemoryPackDeserializeReadOnlySequence() => MemoryPackSerializer.Deserialize<ReadOnlySequence<int>>(MemoryPackReadOnlySequenceBytes);
+    public object MemoryPackDeserializeReadOnlySequence() =>
+        MemoryPackSerializer.Deserialize<ReadOnlySequence<int>>(MemoryPackReadOnlySequenceBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("ReadOnlyCollectionSerialize")]
     public int NinoSerializeReadOnlyCollection()
@@ -376,10 +441,12 @@ public class BclTypesTest
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("ReadOnlyCollectionDeserialize")]
-    public object NinoDeserializeReadOnlyCollection() => NinoDeserializer.Deserialize<ReadOnlyCollection<int>>(NinoReadOnlyCollectionBytes);
+    public object NinoDeserializeReadOnlyCollection() =>
+        NinoDeserializer.Deserialize<ReadOnlyCollection<int>>(NinoReadOnlyCollectionBytes);
 
     [Benchmark, BenchmarkCategory("ReadOnlyCollectionDeserialize")]
-    public object MemoryPackDeserializeReadOnlyCollection() => MemoryPackSerializer.Deserialize<ReadOnlyCollection<int>>(MemoryPackReadOnlyCollectionBytes);
+    public object MemoryPackDeserializeReadOnlyCollection() =>
+        MemoryPackSerializer.Deserialize<ReadOnlyCollection<int>>(MemoryPackReadOnlyCollectionBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("LookupSerialize")]
     public int NinoSerializeLookup()
@@ -401,7 +468,8 @@ public class BclTypesTest
     public object NinoDeserializeLookup() => NinoDeserializer.Deserialize<ILookup<int, int>>(NinoLookupBytes);
 
     [Benchmark, BenchmarkCategory("LookupDeserialize")]
-    public object MemoryPackDeserializeLookup() => MemoryPackSerializer.Deserialize<ILookup<int, int>>(MemoryPackLookupBytes);
+    public object MemoryPackDeserializeLookup() =>
+        MemoryPackSerializer.Deserialize<ILookup<int, int>>(MemoryPackLookupBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("BlockingCollectionSerialize")]
     public int NinoSerializeBlockingCollection()
@@ -420,10 +488,12 @@ public class BclTypesTest
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("BlockingCollectionDeserialize")]
-    public object NinoDeserializeBlockingCollection() => NinoDeserializer.Deserialize<BlockingCollection<int>>(NinoBlockingCollectionBytes);
+    public object NinoDeserializeBlockingCollection() =>
+        NinoDeserializer.Deserialize<BlockingCollection<int>>(NinoBlockingCollectionBytes);
 
     [Benchmark, BenchmarkCategory("BlockingCollectionDeserialize")]
-    public object MemoryPackDeserializeBlockingCollection() => MemoryPackSerializer.Deserialize<BlockingCollection<int>>(MemoryPackBlockingCollectionBytes);
+    public object MemoryPackDeserializeBlockingCollection() =>
+        MemoryPackSerializer.Deserialize<BlockingCollection<int>>(MemoryPackBlockingCollectionBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("ImmutableHashSetSerialize")]
     public int NinoSerializeImmutableHashSet()
@@ -442,10 +512,12 @@ public class BclTypesTest
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("ImmutableHashSetDeserialize")]
-    public object NinoDeserializeImmutableHashSet() => NinoDeserializer.Deserialize<ImmutableHashSet<int>>(NinoImmutableHashSetBytes);
+    public object NinoDeserializeImmutableHashSet() =>
+        NinoDeserializer.Deserialize<ImmutableHashSet<int>>(NinoImmutableHashSetBytes);
 
     [Benchmark, BenchmarkCategory("ImmutableHashSetDeserialize")]
-    public object MemoryPackDeserializeImmutableHashSet() => MemoryPackSerializer.Deserialize<ImmutableHashSet<int>>(MemoryPackImmutableHashSetBytes);
+    public object MemoryPackDeserializeImmutableHashSet() =>
+        MemoryPackSerializer.Deserialize<ImmutableHashSet<int>>(MemoryPackImmutableHashSetBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("ImmutableSortedSetSerialize")]
     public int NinoSerializeImmutableSortedSet()
@@ -464,10 +536,12 @@ public class BclTypesTest
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("ImmutableSortedSetDeserialize")]
-    public object NinoDeserializeImmutableSortedSet() => NinoDeserializer.Deserialize<ImmutableSortedSet<int>>(NinoImmutableSortedSetBytes);
+    public object NinoDeserializeImmutableSortedSet() =>
+        NinoDeserializer.Deserialize<ImmutableSortedSet<int>>(NinoImmutableSortedSetBytes);
 
     [Benchmark, BenchmarkCategory("ImmutableSortedSetDeserialize")]
-    public object MemoryPackDeserializeImmutableSortedSet() => MemoryPackSerializer.Deserialize<ImmutableSortedSet<int>>(MemoryPackImmutableSortedSetBytes);
+    public object MemoryPackDeserializeImmutableSortedSet() =>
+        MemoryPackSerializer.Deserialize<ImmutableSortedSet<int>>(MemoryPackImmutableSortedSetBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("ImmutableQueueSerialize")]
     public int NinoSerializeImmutableQueue()
@@ -486,10 +560,12 @@ public class BclTypesTest
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("ImmutableQueueDeserialize")]
-    public object NinoDeserializeImmutableQueue() => NinoDeserializer.Deserialize<ImmutableQueue<int>>(NinoImmutableQueueBytes);
+    public object NinoDeserializeImmutableQueue() =>
+        NinoDeserializer.Deserialize<ImmutableQueue<int>>(NinoImmutableQueueBytes);
 
     [Benchmark, BenchmarkCategory("ImmutableQueueDeserialize")]
-    public object MemoryPackDeserializeImmutableQueue() => MemoryPackSerializer.Deserialize<ImmutableQueue<int>>(MemoryPackImmutableQueueBytes);
+    public object MemoryPackDeserializeImmutableQueue() =>
+        MemoryPackSerializer.Deserialize<ImmutableQueue<int>>(MemoryPackImmutableQueueBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("ImmutableStackSerialize")]
     public int NinoSerializeImmutableStack()
@@ -508,10 +584,12 @@ public class BclTypesTest
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("ImmutableStackDeserialize")]
-    public object NinoDeserializeImmutableStack() => NinoDeserializer.Deserialize<ImmutableStack<int>>(NinoImmutableStackBytes);
+    public object NinoDeserializeImmutableStack() =>
+        NinoDeserializer.Deserialize<ImmutableStack<int>>(NinoImmutableStackBytes);
 
     [Benchmark, BenchmarkCategory("ImmutableStackDeserialize")]
-    public object MemoryPackDeserializeImmutableStack() => MemoryPackSerializer.Deserialize<ImmutableStack<int>>(MemoryPackImmutableStackBytes);
+    public object MemoryPackDeserializeImmutableStack() =>
+        MemoryPackSerializer.Deserialize<ImmutableStack<int>>(MemoryPackImmutableStackBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("ImmutableDictionarySerialize")]
     public int NinoSerializeImmutableDictionary()
@@ -530,10 +608,12 @@ public class BclTypesTest
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("ImmutableDictionaryDeserialize")]
-    public object NinoDeserializeImmutableDictionary() => NinoDeserializer.Deserialize<ImmutableDictionary<int, int>>(NinoImmutableDictionaryBytes);
+    public object NinoDeserializeImmutableDictionary() =>
+        NinoDeserializer.Deserialize<ImmutableDictionary<int, int>>(NinoImmutableDictionaryBytes);
 
     [Benchmark, BenchmarkCategory("ImmutableDictionaryDeserialize")]
-    public object MemoryPackDeserializeImmutableDictionary() => MemoryPackSerializer.Deserialize<ImmutableDictionary<int, int>>(MemoryPackImmutableDictionaryBytes);
+    public object MemoryPackDeserializeImmutableDictionary() =>
+        MemoryPackSerializer.Deserialize<ImmutableDictionary<int, int>>(MemoryPackImmutableDictionaryBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("ImmutableSortedDictionarySerialize")]
     public int NinoSerializeImmutableSortedDictionary()
@@ -552,8 +632,283 @@ public class BclTypesTest
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("ImmutableSortedDictionaryDeserialize")]
-    public object NinoDeserializeImmutableSortedDictionary() => NinoDeserializer.Deserialize<ImmutableSortedDictionary<int, int>>(NinoImmutableSortedDictionaryBytes);
+    public object NinoDeserializeImmutableSortedDictionary() =>
+        NinoDeserializer.Deserialize<ImmutableSortedDictionary<int, int>>(NinoImmutableSortedDictionaryBytes);
 
     [Benchmark, BenchmarkCategory("ImmutableSortedDictionaryDeserialize")]
-    public object MemoryPackDeserializeImmutableSortedDictionary() => MemoryPackSerializer.Deserialize<ImmutableSortedDictionary<int, int>>(MemoryPackImmutableSortedDictionaryBytes);
+    public object MemoryPackDeserializeImmutableSortedDictionary() =>
+        MemoryPackSerializer.Deserialize<ImmutableSortedDictionary<int, int>>(MemoryPackImmutableSortedDictionaryBytes);
+
+    // MessagePack and protobuf-net.
+    [Benchmark, BenchmarkCategory("BigIntegerSerialize")]
+    public int MessagePackSerializeBigInteger()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, BigIntegerValue);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("UriSerialize")]
+    public int MessagePackSerializeUri()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, UriValue);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("UriSerialize")]
+    public int ProtobufSerializeUri()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, UriValue);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("VersionSerialize")]
+    public int MessagePackSerializeVersion()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, VersionValue);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("StringBuilderSerialize")]
+    public int MessagePackSerializeStringBuilder()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, StringBuilderValue);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("BitArraySerialize")]
+    public int MessagePackSerializeBitArray()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, BitArrayValue);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("LazySerialize")]
+    public int MessagePackSerializeLazy()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, LazyValue);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("MemorySerialize")]
+    public int MessagePackSerializeMemory()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, MemoryValue);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("ReadOnlySequenceSerialize")]
+    public int MessagePackSerializeReadOnlySequence()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, ReadOnlySequenceValue);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("ReadOnlyCollectionSerialize")]
+    public int MessagePackSerializeReadOnlyCollection()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, ReadOnlyCollectionValue);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("LookupSerialize")]
+    public int MessagePackSerializeLookup()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, LookupValue);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("BigIntegerDeserialize")]
+    public object MessagePackDeserializeBigInteger() =>
+        MessagePackSerializer.Deserialize<BigInteger>(MessagePackBigIntegerBytes);
+
+    [Benchmark, BenchmarkCategory("UriDeserialize")]
+    public object MessagePackDeserializeUri() => MessagePackSerializer.Deserialize<Uri>(MessagePackUriBytes);
+
+    [Benchmark, BenchmarkCategory("UriDeserialize")]
+    public object ProtobufDeserializeUri() => Serializer.Deserialize<Uri>(new ReadOnlySpan<byte>(ProtobufUriBytes));
+
+    [Benchmark, BenchmarkCategory("VersionDeserialize")]
+    public object MessagePackDeserializeVersion() =>
+        MessagePackSerializer.Deserialize<Version>(MessagePackVersionBytes);
+
+    [Benchmark, BenchmarkCategory("StringBuilderDeserialize")]
+    public object MessagePackDeserializeStringBuilder() =>
+        MessagePackSerializer.Deserialize<StringBuilder>(MessagePackStringBuilderBytes);
+
+    [Benchmark, BenchmarkCategory("BitArrayDeserialize")]
+    public object MessagePackDeserializeBitArray() =>
+        MessagePackSerializer.Deserialize<BitArray>(MessagePackBitArrayBytes);
+
+    [Benchmark, BenchmarkCategory("LazyDeserialize")]
+    public object MessagePackDeserializeLazy() => MessagePackSerializer.Deserialize<Lazy<string>>(MessagePackLazyBytes);
+
+    [Benchmark, BenchmarkCategory("MemoryDeserialize")]
+    public object MessagePackDeserializeMemory() =>
+        MessagePackSerializer.Deserialize<Memory<int>>(MessagePackMemoryBytes);
+
+    [Benchmark, BenchmarkCategory("ReadOnlySequenceDeserialize")]
+    public object MessagePackDeserializeReadOnlySequence() =>
+        MessagePackSerializer.Deserialize<ReadOnlySequence<int>>(MessagePackReadOnlySequenceBytes);
+
+    [Benchmark, BenchmarkCategory("ReadOnlyCollectionDeserialize")]
+    public object MessagePackDeserializeReadOnlyCollection() =>
+        MessagePackSerializer.Deserialize<ReadOnlyCollection<int>>(MessagePackReadOnlyCollectionBytes);
+
+    [Benchmark, BenchmarkCategory("LookupDeserialize")]
+    public object MessagePackDeserializeLookup() =>
+        MessagePackSerializer.Deserialize<ILookup<int, int>>(MessagePackLookupBytes);
+    [Benchmark, BenchmarkCategory("ImmutableHashSetSerialize")]
+    public int MessagePackSerializeImmutableHashSet()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, ImmutableHashSetValue, ImmutableOptions);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("ImmutableHashSetSerialize")]
+    public int ProtobufSerializeImmutableHashSet()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, ImmutableHashSetValue);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("ImmutableSortedSetSerialize")]
+    public int MessagePackSerializeImmutableSortedSet()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, ImmutableSortedSetValue, ImmutableOptions);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("ImmutableSortedSetSerialize")]
+    public int ProtobufSerializeImmutableSortedSet()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, ImmutableSortedSetValue);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("ImmutableQueueSerialize")]
+    public int MessagePackSerializeImmutableQueue()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, ImmutableQueueValue, ImmutableOptions);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("ImmutableQueueSerialize")]
+    public int ProtobufSerializeImmutableQueue()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, ImmutableQueueValue);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("ImmutableStackSerialize")]
+    public int MessagePackSerializeImmutableStack()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, ImmutableStackValue, ImmutableOptions);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("ImmutableStackSerialize")]
+    public int ProtobufSerializeImmutableStack()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, ImmutableStackValue);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("ImmutableDictionarySerialize")]
+    public int MessagePackSerializeImmutableDictionary()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, ImmutableDictionaryValue, ImmutableOptions);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("ImmutableDictionarySerialize")]
+    public int ProtobufSerializeImmutableDictionary()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, ImmutableDictionaryValue);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("ImmutableSortedDictionarySerialize")]
+    public int MessagePackSerializeImmutableSortedDictionary()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, ImmutableSortedDictionaryValue, ImmutableOptions);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("ImmutableSortedDictionarySerialize")]
+    public int ProtobufSerializeImmutableSortedDictionary()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, ImmutableSortedDictionaryValue);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("ImmutableHashSetDeserialize")]
+    public object MessagePackDeserializeImmutableHashSet() =>
+        MessagePackSerializer.Deserialize<ImmutableHashSet<int>>(MessagePackImmutableHashSetBytes, ImmutableOptions);
+
+    [Benchmark, BenchmarkCategory("ImmutableHashSetDeserialize")]
+    public object ProtobufDeserializeImmutableHashSet() =>
+        Serializer.Deserialize<ImmutableHashSet<int>>(new ReadOnlySpan<byte>(ProtobufImmutableHashSetBytes));
+
+    [Benchmark, BenchmarkCategory("ImmutableSortedSetDeserialize")]
+    public object MessagePackDeserializeImmutableSortedSet() =>
+        MessagePackSerializer.Deserialize<ImmutableSortedSet<int>>(MessagePackImmutableSortedSetBytes, ImmutableOptions);
+
+    [Benchmark, BenchmarkCategory("ImmutableSortedSetDeserialize")]
+    public object ProtobufDeserializeImmutableSortedSet() =>
+        Serializer.Deserialize<ImmutableSortedSet<int>>(new ReadOnlySpan<byte>(ProtobufImmutableSortedSetBytes));
+
+    [Benchmark, BenchmarkCategory("ImmutableQueueDeserialize")]
+    public object MessagePackDeserializeImmutableQueue() =>
+        MessagePackSerializer.Deserialize<ImmutableQueue<int>>(MessagePackImmutableQueueBytes, ImmutableOptions);
+
+    [Benchmark, BenchmarkCategory("ImmutableQueueDeserialize")]
+    public object ProtobufDeserializeImmutableQueue() =>
+        Serializer.Deserialize<ImmutableQueue<int>>(new ReadOnlySpan<byte>(ProtobufImmutableQueueBytes));
+
+    [Benchmark, BenchmarkCategory("ImmutableStackDeserialize")]
+    public object MessagePackDeserializeImmutableStack() =>
+        MessagePackSerializer.Deserialize<ImmutableStack<int>>(MessagePackImmutableStackBytes, ImmutableOptions);
+
+    [Benchmark, BenchmarkCategory("ImmutableStackDeserialize")]
+    public object ProtobufDeserializeImmutableStack() =>
+        Serializer.Deserialize<ImmutableStack<int>>(new ReadOnlySpan<byte>(ProtobufImmutableStackBytes));
+
+    [Benchmark, BenchmarkCategory("ImmutableDictionaryDeserialize")]
+    public object MessagePackDeserializeImmutableDictionary() =>
+        MessagePackSerializer.Deserialize<ImmutableDictionary<int, int>>(MessagePackImmutableDictionaryBytes, ImmutableOptions);
+
+    [Benchmark, BenchmarkCategory("ImmutableDictionaryDeserialize")]
+    public object ProtobufDeserializeImmutableDictionary() =>
+        Serializer.Deserialize<ImmutableDictionary<int, int>>(new ReadOnlySpan<byte>(ProtobufImmutableDictionaryBytes));
+
+    [Benchmark, BenchmarkCategory("ImmutableSortedDictionaryDeserialize")]
+    public object MessagePackDeserializeImmutableSortedDictionary() =>
+        MessagePackSerializer.Deserialize<ImmutableSortedDictionary<int, int>>(MessagePackImmutableSortedDictionaryBytes, ImmutableOptions);
+
+    [Benchmark, BenchmarkCategory("ImmutableSortedDictionaryDeserialize")]
+    public object ProtobufDeserializeImmutableSortedDictionary() =>
+        Serializer.Deserialize<ImmutableSortedDictionary<int, int>>(new ReadOnlySpan<byte>(ProtobufImmutableSortedDictionaryBytes));
 }

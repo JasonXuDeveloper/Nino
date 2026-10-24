@@ -6,7 +6,8 @@ Guidance for Claude Code when working in this repository.
 
 - During development, run benchmarks in quick mode: `QUICK=1 benchmarks/run.sh`, with `FILTER='*SimpleTest*'`
   (any BenchmarkDotNet filter) to run only the cases you are working on. Quick mode measures each case for 6 to 10
-  iterations, stopping once its error is under 2%, so it takes about 15–20 minutes for everything.
+  iterations, stopping once its error is under 2%, so it takes about 30–45 minutes for everything (Nino, MemoryPack,
+  MessagePack and protobuf-net).
 - Both modes run v3 3.3.13 (from NuGet: `benchmarks/Nino.Benchmark` built with `NINO_BENCH_V3=true`) once, directly
   before v4, on the same machine; MemoryPack runs in both, so its two results show how much the machine moved.
 - Quick numbers are for comparing your own changes back to back on one machine. Never publish them: the numbers

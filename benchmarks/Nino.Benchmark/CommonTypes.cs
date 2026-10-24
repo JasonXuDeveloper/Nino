@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using MemoryPack;
+using MessagePack;
 using Nino.Core;
+using ProtoBuf;
 
 #nullable disable
 namespace Nino.Benchmark;
@@ -18,11 +20,13 @@ public enum UnitKind : byte
 /// <summary>A small struct with padding (4 + 2 + 1 bytes of members in 8).</summary>
 [NinoType]
 [MemoryPackable]
+[MessagePackObject]
+[ProtoContract]
 public partial struct InventoryItem
 {
-    public int ItemId;
-    public short Count;
-    public bool Bound;
+    [Key(0)] [ProtoMember(1)] public int ItemId;
+    [Key(1)] [ProtoMember(2)] public short Count;
+    [Key(2)] [ProtoMember(3)] public bool Bound;
 }
 
 /// <summary>
@@ -31,30 +35,34 @@ public partial struct InventoryItem
 /// </summary>
 [NinoType]
 [MemoryPackable]
+[MessagePackObject]
+[ProtoContract]
 public partial struct Waypoint
 {
-    public float X;
-    public float Y;
-    public (int Tick, short Zone) Stamp;
-    public bool Visited;
+    [Key(0)] [ProtoMember(1)] public float X;
+    [Key(1)] [ProtoMember(2)] public float Y;
+    [Key(2)] [ProtoMember(3)] public (int Tick, short Zone) Stamp;
+    [Key(3)] [ProtoMember(4)] public bool Visited;
 }
 
 /// <summary>A game save record: scalars, an enum, a nullable, a struct list, a string dictionary, bytes and strings.</summary>
 [NinoType]
 [MemoryPackable]
+[MessagePackObject]
+[ProtoContract]
 public partial class Player
 {
-    public int Id;
-    public string Name;
-    public UnitKind Kind;
-    public float Hp;
-    public Vector3 Position;
-    public int? GuildId;
-    public DateTime LastLogin;
-    public List<InventoryItem> Items;
-    public Dictionary<string, int> Stats;
-    public byte[] Avatar;
-    public List<string> Friends;
+    [Key(0)] [ProtoMember(1)] public int Id;
+    [Key(1)] [ProtoMember(2)] public string Name;
+    [Key(2)] [ProtoMember(3)] public UnitKind Kind;
+    [Key(3)] [ProtoMember(4)] public float Hp;
+    [Key(4)] [ProtoMember(5)] public Vector3 Position;
+    [Key(5)] [ProtoMember(6)] public int? GuildId;
+    [Key(6)] [ProtoMember(7)] public DateTime LastLogin;
+    [Key(7)] [ProtoMember(8)] public List<InventoryItem> Items;
+    [Key(8)] [ProtoMember(9)] public Dictionary<string, int> Stats;
+    [Key(9)] [ProtoMember(10)] public byte[] Avatar;
+    [Key(10)] [ProtoMember(11)] public List<string> Friends;
 
     public static Player Create(int i) => new()
     {
@@ -76,25 +84,29 @@ public partial class Player
 /// <summary>A line of an <see cref="Order"/> (not sealed, as most classes are).</summary>
 [NinoType]
 [MemoryPackable]
+[MessagePackObject]
+[ProtoContract]
 public partial class OrderLine
 {
-    public string Sku;
-    public int Quantity;
-    public decimal Price;
+    [Key(0)] [ProtoMember(1)] public string Sku;
+    [Key(1)] [ProtoMember(2)] public int Quantity;
+    [Key(2)] [ProtoMember(3)] public decimal Price;
 }
 
 /// <summary>A business record: Guid, DateTimeOffset, decimal, an optional note, a list of classes and a string set.</summary>
 [NinoType]
 [MemoryPackable]
+[MessagePackObject]
+[ProtoContract]
 public partial class Order
 {
-    public long Id;
-    public Guid Customer;
-    public DateTimeOffset PlacedAt;
-    public decimal Total;
-    public string Note;
-    public List<OrderLine> Lines;
-    public HashSet<string> Tags;
+    [Key(0)] [ProtoMember(1)] public long Id;
+    [Key(1)] [ProtoMember(2)] public Guid Customer;
+    [Key(2)] [ProtoMember(3)] public DateTimeOffset PlacedAt;
+    [Key(3)] [ProtoMember(4)] public decimal Total;
+    [Key(4)] [ProtoMember(5)] public string Note;
+    [Key(5)] [ProtoMember(6)] public List<OrderLine> Lines;
+    [Key(6)] [ProtoMember(7)] public HashSet<string> Tags;
 
     public static Order Create(int i, Random r) => new()
     {
@@ -114,33 +126,48 @@ public partial class Order
 [MemoryPackable]
 [MemoryPackUnion(0, typeof(Circle))]
 [MemoryPackUnion(1, typeof(Rect))]
+[MessagePackObject]
+[Union(0, typeof(Circle))]
+[Union(1, typeof(Rect))]
+[ProtoContract]
+[ProtoInclude(100, typeof(Circle))]
+[ProtoInclude(101, typeof(Rect))]
 public abstract partial class Shape
 {
-    public int Color;
+    [Key(0)] [ProtoMember(1)] public int Color;
 }
 
 [NinoType]
 [MemoryPackable]
+[MessagePackObject]
+[ProtoContract]
 public sealed partial class Circle : Shape
 {
-    public float Radius;
+    [Key(1)] [ProtoMember(1)] public float Radius;
 }
 
 [NinoType]
 [MemoryPackable]
+[MessagePackObject]
+[ProtoContract]
 public sealed partial class Rect : Shape
 {
-    public float Width, Height;
+    [Key(1)] [ProtoMember(1)] public float Width;
+    [Key(2)] [ProtoMember(2)] public float Height;
 }
 
-/// <summary>A recursive type: each node has a label and a list of children.</summary>
+/// <summary>
+/// A recursive type: each node has a label and a list of children. Not a protobuf contract: protobuf cannot tell an
+/// empty list from none, so the leaves' empty <see cref="Children"/> would read back as null.
+/// </summary>
 [NinoType]
 [MemoryPackable]
+[MessagePackObject]
 public partial class TreeNode
 {
-    public int Value;
-    public string Label;
-    public List<TreeNode> Children;
+    [Key(0)] public int Value;
+    [Key(1)] public string Label;
+    [Key(2)] public List<TreeNode> Children;
 
     public static TreeNode Create(Random r, int depth) => new()
     {

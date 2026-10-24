@@ -1,11 +1,13 @@
 using System;
 using System.Buffers;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using BenchmarkDotNet.Configs;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
+using ProtoBuf;
 
 #nullable disable
 namespace Nino.Benchmark;
@@ -29,6 +31,7 @@ public class SimpleTest
     private NinoArrayBufferWriter _ninoBuffer;
     private ArrayBufferWriter<byte> _memoryPackBuffer;
     private ArrayBufferWriter<byte> _messagePackBuffer;
+    private MemoryStream _protobufStream;
 
     private static readonly byte[][] SerializedSimpleClass;
     private static readonly byte[][] SerializedSimpleStruct;
@@ -38,6 +41,7 @@ public class SimpleTest
 
     static SimpleTest()
     {
+        _ = ProtobufModel.Ready; // Vector4's fields
         SimpleClass = SimpleClass.Create();
         SimpleClasses = Enumerable.Range(0, 100).Select(_ => SimpleClass.Create()).ToArray();
         SimpleStruct = SimpleStruct.Create();
@@ -47,30 +51,35 @@ public class SimpleTest
             .Select(_ => new Vector4(r.NextSingle(), r.NextSingle(),
                 r.NextSingle(), r.NextSingle())).ToArray();
 
-        SerializedSimpleClass = new byte[3][];
+        SerializedSimpleClass = new byte[4][];
         SerializedSimpleClass[0] = MessagePackSerializer.Serialize(SimpleClass);
         SerializedSimpleClass[1] = MemoryPackSerializer.Serialize(SimpleClass);
         SerializedSimpleClass[2] = NinoSerializer.Serialize(SimpleClass);
+        SerializedSimpleClass[3] = ProtobufModel.Serialize(SimpleClass);
 
-        SerializedSimpleStruct = new byte[3][];
+        SerializedSimpleStruct = new byte[4][];
         SerializedSimpleStruct[0] = MessagePackSerializer.Serialize(SimpleStruct);
         SerializedSimpleStruct[1] = MemoryPackSerializer.Serialize(SimpleStruct);
         SerializedSimpleStruct[2] = NinoSerializer.Serialize(SimpleStruct);
+        SerializedSimpleStruct[3] = ProtobufModel.Serialize(SimpleStruct);
 
-        SerializedSimpleClasses = new byte[3][];
+        SerializedSimpleClasses = new byte[4][];
         SerializedSimpleClasses[0] = MessagePackSerializer.Serialize(SimpleClasses);
         SerializedSimpleClasses[1] = MemoryPackSerializer.Serialize(SimpleClasses);
         SerializedSimpleClasses[2] = NinoSerializer.Serialize(SimpleClasses);
+        SerializedSimpleClasses[3] = ProtobufModel.Serialize(SimpleClasses);
 
-        SerializedSimpleStructs = new byte[3][];
+        SerializedSimpleStructs = new byte[4][];
         SerializedSimpleStructs[0] = MessagePackSerializer.Serialize(SimpleStructs);
         SerializedSimpleStructs[1] = MemoryPackSerializer.Serialize(SimpleStructs);
         SerializedSimpleStructs[2] = NinoSerializer.Serialize(SimpleStructs);
+        SerializedSimpleStructs[3] = ProtobufModel.Serialize(SimpleStructs);
 
-        SerializedVectors = new byte[3][];
+        SerializedVectors = new byte[4][];
         SerializedVectors[0] = MessagePackSerializer.Serialize(Vectors);
         SerializedVectors[1] = MemoryPackSerializer.Serialize(Vectors);
         SerializedVectors[2] = NinoSerializer.Serialize(Vectors);
+        SerializedVectors[3] = ProtobufModel.Serialize(Vectors);
 
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleClass), SerializedSimpleClass[2].Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleStruct), SerializedSimpleStruct[2].Length);
@@ -85,10 +94,15 @@ public class SimpleTest
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeVectors), SerializedVectors[1].Length);
 
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSimpleClass), SerializedSimpleClass[0].Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSimpleClass), SerializedSimpleClass[3].Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSimpleStruct), SerializedSimpleStruct[0].Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSimpleStruct), SerializedSimpleStruct[3].Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSimpleClasses), SerializedSimpleClasses[0].Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSimpleClasses), SerializedSimpleClasses[3].Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSimpleStructs), SerializedSimpleStructs[0].Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSimpleStructs), SerializedSimpleStructs[3].Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeVectors), SerializedVectors[0].Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeVectors), SerializedVectors[3].Length);
     }
 
     [GlobalSetup]
@@ -97,6 +111,7 @@ public class SimpleTest
         _ninoBuffer = new NinoArrayBufferWriter(320 * 1024);
         _memoryPackBuffer = new ArrayBufferWriter<byte>(320 * 1024);
         _messagePackBuffer = new ArrayBufferWriter<byte>(320 * 1024);
+        _protobufStream = new MemoryStream(320 * 1024);
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleClassSerialize")]
@@ -123,6 +138,14 @@ public class SimpleTest
         return _messagePackBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("SimpleClassSerialize")]
+    public int ProtobufSerializeSimpleClass()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, SimpleClass);
+        return (int)_protobufStream.Length;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleStructSerialize")]
     public int NinoSerializeSimpleStruct()
     {
@@ -145,6 +168,14 @@ public class SimpleTest
         _messagePackBuffer.ResetWrittenCount();
         MessagePackSerializer.Serialize(_messagePackBuffer, SimpleStruct);
         return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("SimpleStructSerialize")]
+    public int ProtobufSerializeSimpleStruct()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, SimpleStruct);
+        return (int)_protobufStream.Length;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleClassesSerialize")]
@@ -171,6 +202,14 @@ public class SimpleTest
         return _messagePackBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("SimpleClassesSerialize")]
+    public int ProtobufSerializeSimpleClasses()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, SimpleClasses);
+        return (int)_protobufStream.Length;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleStructsSerialize")]
     public int NinoSerializeSimpleStructs()
     {
@@ -193,6 +232,14 @@ public class SimpleTest
         _messagePackBuffer.ResetWrittenCount();
         MessagePackSerializer.Serialize(_messagePackBuffer, SimpleStructs);
         return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("SimpleStructsSerialize")]
+    public int ProtobufSerializeSimpleStructs()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, SimpleStructs);
+        return (int)_protobufStream.Length;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("VectorsSerialize")]
@@ -219,6 +266,14 @@ public class SimpleTest
         return _messagePackBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("VectorsSerialize")]
+    public int ProtobufSerializeVectors()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, Vectors);
+        return (int)_protobufStream.Length;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleClassDeserialize")]
     public SimpleClass NinoDeserializeSimpleClass()
     {
@@ -235,6 +290,12 @@ public class SimpleTest
     public SimpleClass MessagePackDeserializeSimpleClass()
     {
         return MessagePackSerializer.Deserialize<SimpleClass>(SerializedSimpleClass[0]);
+    }
+
+    [Benchmark, BenchmarkCategory("SimpleClassDeserialize")]
+    public SimpleClass ProtobufDeserializeSimpleClass()
+    {
+        return Serializer.Deserialize<SimpleClass>(new ReadOnlySpan<byte>(SerializedSimpleClass[3]));
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleStructDeserialize")]
@@ -255,6 +316,12 @@ public class SimpleTest
         return MessagePackSerializer.Deserialize<SimpleStruct>(SerializedSimpleStruct[0]);
     }
 
+    [Benchmark, BenchmarkCategory("SimpleStructDeserialize")]
+    public SimpleStruct ProtobufDeserializeSimpleStruct()
+    {
+        return Serializer.Deserialize<SimpleStruct>(new ReadOnlySpan<byte>(SerializedSimpleStruct[3]));
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleClassesDeserialize")]
     public SimpleClass[] NinoDeserializeSimpleClasses()
     {
@@ -271,6 +338,12 @@ public class SimpleTest
     public SimpleClass[] MessagePackDeserializeSimpleClasses()
     {
         return MessagePackSerializer.Deserialize<SimpleClass[]>(SerializedSimpleClasses[0]);
+    }
+
+    [Benchmark, BenchmarkCategory("SimpleClassesDeserialize")]
+    public SimpleClass[] ProtobufDeserializeSimpleClasses()
+    {
+        return Serializer.Deserialize<SimpleClass[]>(new ReadOnlySpan<byte>(SerializedSimpleClasses[3]));
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleStructsDeserialize")]
@@ -291,6 +364,12 @@ public class SimpleTest
         return MessagePackSerializer.Deserialize<SimpleStruct[]>(SerializedSimpleStructs[0]);
     }
 
+    [Benchmark, BenchmarkCategory("SimpleStructsDeserialize")]
+    public SimpleStruct[] ProtobufDeserializeSimpleStructs()
+    {
+        return Serializer.Deserialize<SimpleStruct[]>(new ReadOnlySpan<byte>(SerializedSimpleStructs[3]));
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("VectorsDeserialize")]
     public Vector4[] NinoDeserializeVectors()
     {
@@ -307,5 +386,11 @@ public class SimpleTest
     public Vector4[] MessagePackDeserializeVectors()
     {
         return MessagePackSerializer.Deserialize<Vector4[]>(SerializedVectors[0]);
+    }
+
+    [Benchmark, BenchmarkCategory("VectorsDeserialize")]
+    public Vector4[] ProtobufDeserializeVectors()
+    {
+        return Serializer.Deserialize<Vector4[]>(new ReadOnlySpan<byte>(SerializedVectors[3]));
     }
 }

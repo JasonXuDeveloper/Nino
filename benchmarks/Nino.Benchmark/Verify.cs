@@ -16,8 +16,8 @@ namespace Nino.Benchmark;
 /// bytes, or writes another value, would still be timed. For every benchmark class it runs the global setup, then
 /// every case twice (the second call on reused buffers and targets), and checks that
 ///  - each serialize case writes as many bytes as its Payload column says (the byte[] API's length);
-///  - every case of a category that returns a value returns one deep-equal to the baseline's: Nino, MemoryPack and
-///    MessagePack read back the same data, new or in place.
+///  - every case of a category that returns a value returns one deep-equal to the baseline's: Nino, MemoryPack,
+///    MessagePack and protobuf-net read back the same data, new or in place.
 /// </summary>
 public static class Verify
 {
@@ -101,8 +101,11 @@ public static class Verify
 
         switch (a)
         {
-            // MessagePack reads a local DateTime back in UTC: the same instant.
-            case DateTime t: return b is DateTime u && t.ToUniversalTime() == u.ToUniversalTime();
+            // MessagePack reads a local DateTime back in UTC: the same instant. It writes an unspecified one as it is,
+            // as UTC: the same clock time.
+            case DateTime t:
+                return b is DateTime u && (t.ToUniversalTime() == u.ToUniversalTime() ||
+                                           t.Kind == DateTimeKind.Unspecified && t.Ticks == u.Ticks);
             case StringBuilder s: return b is StringBuilder c && s.ToString() == c.ToString();
             case string or Uri or Version: return a.Equals(b);
         }

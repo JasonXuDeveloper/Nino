@@ -50,8 +50,9 @@ about linearly, at about 4 KB of source and 2 to 3 ms of compile time per type.
 ## Runtime
 
 `benchmarks/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, each case in 3 processes, server
-GC), all eleven benchmark classes, v4 and MemoryPack 1.21.4 side by side: the release run spreads the classes over eight
-runners per architecture and keeps each case's Nino and MemoryPack runs on one. v3 is Nino 3.3.13 from nuget.org, running a port of
+GC), all eleven benchmark classes, v4 and MemoryPack 1.21.4 side by side, with MessagePack 3.1.12 and protobuf-net
+3.4.30 wherever they can write the same data: the release run spreads the classes over ten runners per architecture
+and keeps every serializer's run of a case on one. v3 is Nino 3.3.13 from nuget.org, running a port of
 the same `SimpleTest` (same data, same attributes), each half (serialize, deserialize) on the runner of the same v4 cases
 directly before them; it has no
 polymorphic, pooling, reference, version-tolerant or fixed-size benchmarks. These tables come from
@@ -64,7 +65,7 @@ v4 under 1 ns against a measurable time is faster, too fast to measure, with no 
 in a "vs" column means the case was not measured there, or v4 is not ahead.
 
 Each library serializes to its own buffer writer: Nino to `NinoArrayBufferWriter`, MemoryPack and MessagePack to
-`ArrayBufferWriter<byte>`. Nino writes in place only into its own; into any other `IBufferWriter<byte>` it writes a
+`ArrayBufferWriter<byte>`, protobuf-net to a `MemoryStream` (its fastest writer). Nino writes in place only into its own; into any other `IBufferWriter<byte>` it writes a
 pooled buffer and then copies it over, one copy more than these tables measure.
 Before the benchmarks run, `--verify` (`benchmarks/Nino.Benchmark/Verify.cs`) checks every case: each serialize case writes
 its payload's bytes, and every deserialize case of a category reads back the same value, deep-compared. The data is
@@ -317,8 +318,9 @@ dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*Referenc
     --launchCount 3 --warmupCount 5 --iterationCount 15                                  # some classes only
 ```
 
-The suite has eleven classes, all against MemoryPack 1.21.4:
-`SimpleTest` and `PolymorphicTest` (also against MessagePack, in local runs only), `GenericPolymorphicTest` (subtypes through a
+The suite has eleven classes, all against MemoryPack 1.21.4, and against MessagePack and protobuf-net wherever they
+can write the same data ([benchmarks/README.md](../benchmarks/README.md#messagepack-and-protobuf-net) lists the cases
+they cannot): `SimpleTest`, `PolymorphicTest`, `GenericPolymorphicTest` (subtypes through a
 non-generic base and through closed instances of a generic base, whose union MemoryPack registers at runtime), `PooledTest` and `PooledGraphTest` (reuse and
 pooling), `ReferenceTest` (a graph with shared references and cycles: `trackReferences` against MemoryPack's
 `GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members as `NinoFormat.VersionTolerant`

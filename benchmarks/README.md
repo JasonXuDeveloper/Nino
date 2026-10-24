@@ -1,16 +1,18 @@
 # Benchmarks
 
-`benchmarks/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack and MessagePack).
+`benchmarks/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack, MessagePack and
+protobuf-net).
 `v3/` is the same `SimpleTest` (same data, same attributes) built against **Nino 3.3.13 from nuget.org**, the last v3
 release, so v4 can be compared with v3 on the same machine; it compiles v4's `NinoJobAttribute.cs` and
 `SimpleBenchmarkData.cs`, so the job and the data cannot drift apart. It is not part of `Nino.slnx`.
 
 ```sh
-benchmarks/run.sh                          # v3, then the full v4 suite; about three and a half hours
+benchmarks/run.sh                          # v3, then the full v4 suite; about six hours
 benchmarks/run.sh /path/to/out             # write the results somewhere else
-QUICK=1 benchmarks/run.sh                  # development run, about 15 to 20 minutes (see below)
+QUICK=1 benchmarks/run.sh                  # development run, about 30 to 45 minutes (see below)
 FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs SimpleTest's Nino and MemoryPack cases)
 FILTER='*Vectors* *FixedStruct*' benchmarks/run.sh   # several patterns, separated by spaces
+FILTER='*.Nino* *.MemoryPack*' benchmarks/run.sh    # Nino and MemoryPack only (231 of 413 cases)
 ```
 
 `QUICK=1` is for trends and regressions while developing: it sets `NINO_BENCH_QUICK=1`, which switches every class's
@@ -26,16 +28,16 @@ references Nino 3.3.13 from nuget.org instead of the repository's code, compiles
 `--verify` (`benchmarks/Nino.Benchmark/Verify.cs`, run by `run.sh`, `report.yml` and the PR benchmark job, for v3 too)
 checks every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
 same value, deep-compared. The data is seeded (`BenchmarkRandom`), so every run serializes the same values. Nino
-serializes to its `NinoArrayBufferWriter`, MemoryPack and MessagePack to `ArrayBufferWriter<byte>`: each to the
-writer it writes in place.
+serializes to its `NinoArrayBufferWriter`, MemoryPack and MessagePack to `ArrayBufferWriter<byte>`, protobuf-net to
+a `MemoryStream`: each to the writer it writes fastest, all reused.
 
 The runtime tables in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) come from the newest release's report (see
 below); the release notes of each release carry its numbers.
 
 Every release runs the same protocol in CI: [`report.yml`](../.github/workflows/report.yml) runs the benchmark
-classes in parallel on eight runners per architecture (SimpleTest split into its serialize and deserialize cases,
-BclTypesTest and CollectionsTest by type), each case's
-Nino and MemoryPack runs always on one, every case in three processes (MessagePack's cases run only locally), and
+classes in parallel on ten runners per architecture (SimpleTest split into its serialize and deserialize cases,
+BclTypesTest, CollectionsTest and CommonTypesTest by type), every serializer's run of a case always on one, every
+case in three processes, and
 [`merge_reports.py`](merge_reports.py) merges their reports into one table, naming each class's runner under it.
 The release notes get the short tables of [`compact_report.py`](compact_report.py) (Method, Mean, Ratio, Payload,
 Allocated, one table per class), as a release body holds at most 125,000 characters; the full reports are attached
@@ -77,7 +79,8 @@ The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `compac
 ## Benchmark Classes
 
 `benchmarks/Nino.Benchmark` runs these classes (BenchmarkDotNet categories in parentheses). Every one compares Nino with
-MemoryPack; `SimpleTest` and `PolymorphicTest` add MessagePack. All of them land in one joined table, which is the
+MemoryPack, and with MessagePack and protobuf-net wherever they can write the same data (see
+[MessagePack and protobuf-net](#messagepack-and-protobuf-net)). All of them land in one joined table, which is the
 Performance Report of each release.
 
 | Class | What it measures |
@@ -94,7 +97,43 @@ Performance Report of each release.
 | `BclTypesTest` | Base class library types beyond the common collections, to a reused buffer writer and into new instances: `BigInteger` (3^1000), `Uri`, `Version`, `StringBuilder` (1,000 chars), `BitArray` (1,000 bits), `CultureInfo`, `TimeZoneInfo`, `Lazy<string>`, and with 1,000 elements `Memory<int>`, `ReadOnlySequence<int>`, `ReadOnlyCollection<int>`, `ILookup<int, int>`, `BlockingCollection<int>` and the immutable collections of Nino.Immutable (`ImmutableHashSet`, `ImmutableSortedSet`, `ImmutableQueue`, `ImmutableStack`, `ImmutableDictionary`, `ImmutableSortedDictionary`) (`BigIntegerSerialize`, ..., `ImmutableSortedDictionarySerialize` and the `Deserialize` ones). Nino only for `BigInteger` and `BitArray`: MemoryPack 1.21.4 reads back another `BigInteger` than it wrote (up to 255 bytes), and on .NET 10 writes a `BitArray` wrong and crashes reading one |
 
 Method names are unique across classes (`<Serializer><Serialize|Deserialize><Case>`, e.g. `NinoSerializeTolerantClass`,
-`MemoryPackDeserializeGraph`): the documentation site and the `Payload` column key rows by method name alone.
+`MemoryPackDeserializeGraph`, `ProtobufSerializePlayers`; the serializers are `Nino`, `MemoryPack`, `MessagePack` and
+`Protobuf`): the documentation site and the `Payload` column key rows by method name alone.
+
+### MessagePack and protobuf-net
+
+MessagePack 3 (MessagePack-CSharp) and protobuf-net 3 read and write the same values as Nino and MemoryPack, through
+the same types: `[MessagePackObject]` with integer `[Key]`s and `[Union]` for subtypes, `[ProtoContract]` with
+`[ProtoMember]` and `[ProtoInclude]`. Each uses the API its documentation recommends for speed:
+
+- MessagePack: `MessagePackSerializer.Serialize(IBufferWriter<byte>, value)` into a reused `ArrayBufferWriter<byte>`
+  and `Deserialize<T>(ReadOnlyMemory<byte>)`, with the default options, whose resolver takes the formatters
+  MessagePack's source generator (in MessagePackAnalyzer) writes for the benchmark types at compile time. The immutable
+  collections go through `ImmutableCollectionResolver` (the MessagePack.ImmutableCollection package).
+- protobuf-net: `Serializer.Serialize(Stream, value)` into a reused `MemoryStream` and
+  `Serializer.Deserialize<T>(ReadOnlySpan<byte>)`, on the default runtime model, which compiles a serializer for each
+  type on first use (protobuf-net 3.4's compile-time model is a preview, `[Experimental]`, and is meant for native AOT
+  and start-up time). `ProtobufModel.cs` adds what attributes cannot say: the fields of `Vector3` and `Vector4`, a
+  surrogate for `DateTimeOffset` (ticks and offset), which protobuf-net has no serializer for, and, in
+  `GenericPolymorphicTest`, the subtypes of each closed generic base. Its stream writer is its fastest: it writes a
+  nested message first and its length after, where its `IBufferWriter<byte>` writer measures each nested message
+  before writing it (slower in the cases compared, and it allocates). `FixedSizeTest` measures `byte[]` APIs:
+  MessagePack's `Serialize(value)`; protobuf-net has none, so it writes to a reused stream and copies the bytes into
+  a new array.
+
+A case a library cannot express with the same data has no method for it, never one with other data:
+
+| Class | No MessagePack | No protobuf-net |
+|---|---|---|
+| `ReferenceTest` | no reference tracking: shared objects and cycles cannot be written | the same (protobuf-net 3 does not implement `AsReference`: a compile error) |
+| `PooledTest`, `PooledGraphTest` | the overwrite and pooled cases: it reads new instances only | the same: deserializing into an instance merges (appends to its lists) instead of overwriting it |
+| `GenericPolymorphicTest` | the five generic bases: its unions are attributes on the base, which cannot name other subtypes for each type argument | — |
+| `CommonTypesTest` | — | `Tree`: protobuf cannot tell an empty list from none, and the leaves' empty child lists read back as null |
+| `BclTypesTest` | `CultureInfo`, `TimeZoneInfo`, `BlockingCollection<T>`: it throws on them | everything but `Uri` and the immutable collections: no serializer for `BigInteger`, `Version`, `StringBuilder`, `BitArray`, `CultureInfo`, `TimeZoneInfo`, `Lazy<T>`, `Memory<T>`, `ReadOnlySequence<T>`, `ReadOnlyCollection<T>`, `ILookup<,>` or `BlockingCollection<T>` |
+
+The formats differ in what they write, and the Payload column shows it: MessagePack writes a `Guid` as a 36-character
+string and a `DateTime` as a UTC timestamp (it reads a local time back in UTC: the same instant), protobuf-net nests
+one message per level of a class hierarchy and writes a `DateTime` as its own `bcl.DateTime` message.
 
 ```sh
 cd benchmarks/Nino.Benchmark

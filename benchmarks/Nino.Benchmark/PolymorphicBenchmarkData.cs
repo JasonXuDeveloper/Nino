@@ -4,6 +4,7 @@ using System.Linq;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
+using ProtoBuf;
 
 namespace Nino.Benchmark;
 
@@ -14,9 +15,11 @@ namespace Nino.Benchmark;
 [MessagePackObject]
 [MemoryPackUnion(1, typeof(PolymorphicClass))]
 [Union(1, typeof(PolymorphicClass))]
+[ProtoContract]
+[ProtoInclude(100, typeof(PolymorphicClass))]
 public abstract partial class PolymorphicClassBase
 {
-    [Key(10)]
+    [Key(10)] [ProtoMember(1)]
     public int BaseId;
 
     public abstract void Write();
@@ -25,15 +28,16 @@ public abstract partial class PolymorphicClassBase
 [MemoryPackable]
 [MessagePackObject]
 [NinoType]
+[ProtoContract]
 public sealed partial class PolymorphicClass : PolymorphicClassBase, IPolymorphicWriter
 {
-    [Key(0)] public int Id;
-    [Key(1)] public bool Tag;
-    [Key(2)] public int[] Numbers;
-    [Key(3)] public List<PolymorphicFooBase> Numbers2;
-    [Key(4)] public Dictionary<int, PolymorphicFooBase> Map1;
-    [Key(5)] public FooD Foo;
-    [Key(6)] public HashSet<int> Set;
+    [Key(0)] [ProtoMember(1)] public int Id;
+    [Key(1)] [ProtoMember(2)] public bool Tag;
+    [Key(2)] [ProtoMember(3)] public int[] Numbers;
+    [Key(3)] [ProtoMember(4)] public List<PolymorphicFooBase> Numbers2;
+    [Key(4)] [ProtoMember(5)] public Dictionary<int, PolymorphicFooBase> Map1;
+    [Key(5)] [ProtoMember(6)] public FooD Foo;
+    [Key(6)] [ProtoMember(7)] public HashSet<int> Set;
 
     public static PolymorphicClass Create()
     {
@@ -117,17 +121,22 @@ public sealed partial class PolymorphicClass : PolymorphicClassBase, IPolymorphi
 [Union(18, typeof(FooR))]
 [Union(19, typeof(FooS))]
 [Union(20, typeof(FooZ))]
+// protobuf-net: each type names its direct subtypes, one level of nesting per level of the hierarchy.
+[ProtoContract]
+[ProtoInclude(100, typeof(FooA))]
 public abstract partial class PolymorphicFooBase
 {
-    [Key(0)] public int Id;
+    [Key(0)] [ProtoMember(1)] public int Id;
 }
 
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
+[ProtoInclude(100, typeof(FooB))]
 public partial class FooA : PolymorphicFooBase, IPolymorphicWriter
 {
-    [Key(1)] public PolymorphicTransform Card;
+    [Key(1)] [ProtoMember(1)] public PolymorphicTransform Card;
 
     public void Write() => Console.WriteLine("FooA says hello!");
 
@@ -144,9 +153,11 @@ public partial class FooA : PolymorphicFooBase, IPolymorphicWriter
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
+[ProtoInclude(100, typeof(FooC))]
 public partial class FooB : FooA
 {
-    [Key(2)] public PolymorphicTransform CardB;
+    [Key(2)] [ProtoMember(1)] public PolymorphicTransform CardB;
 
     public static new FooB Create()
     {
@@ -162,9 +173,11 @@ public partial class FooB : FooA
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
+[ProtoInclude(100, typeof(FooD))]
 public partial class FooC : FooB
 {
-    [Key(3)] public PolymorphicTransform CardC;
+    [Key(3)] [ProtoMember(1)] public PolymorphicTransform CardC;
 
     public static new FooC Create()
     {
@@ -181,9 +194,11 @@ public partial class FooC : FooB
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
+[ProtoInclude(100, typeof(FooE))]
 public partial class FooD : FooC
 {
-    [Key(4)] public PolymorphicTransform CardD;
+    [Key(4)] [ProtoMember(1)] public PolymorphicTransform CardD;
 
     public static new FooD Create()
     {
@@ -201,6 +216,8 @@ public partial class FooD : FooC
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
+[ProtoInclude(100, typeof(FooF))]
 public partial class FooE : FooD
 {
     public static new FooE Create()
@@ -219,6 +236,8 @@ public partial class FooE : FooD
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
+[ProtoInclude(100, typeof(FooG))]
 public partial class FooF : FooE
 {
     public static new FooF Create()
@@ -237,6 +256,8 @@ public partial class FooF : FooE
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
+[ProtoInclude(100, typeof(FooH))]
 public partial class FooG : FooF
 {
     public static new FooG Create()
@@ -255,6 +276,19 @@ public partial class FooG : FooF
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
+[ProtoInclude(100, typeof(FooI))]
+[ProtoInclude(101, typeof(FooJ))]
+[ProtoInclude(102, typeof(FooK))]
+[ProtoInclude(103, typeof(FooL))]
+[ProtoInclude(104, typeof(FooM))]
+[ProtoInclude(105, typeof(FooN))]
+[ProtoInclude(106, typeof(FooO))]
+[ProtoInclude(107, typeof(FooP))]
+[ProtoInclude(108, typeof(FooQ))]
+[ProtoInclude(109, typeof(FooR))]
+[ProtoInclude(110, typeof(FooS))]
+[ProtoInclude(111, typeof(FooZ))]
 public partial class FooH : FooG
 {
     public static new FooH Create()
@@ -273,6 +307,7 @@ public partial class FooH : FooG
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public partial class FooI : FooH
 {
     public static new FooI Create()
@@ -291,6 +326,7 @@ public partial class FooI : FooH
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public partial class FooJ : FooH
 {
     public static new FooJ Create()
@@ -309,6 +345,7 @@ public partial class FooJ : FooH
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public partial class FooK : FooH
 {
     public static new FooK Create()
@@ -327,6 +364,7 @@ public partial class FooK : FooH
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public partial class FooL : FooH
 {
     public static new FooL Create()
@@ -345,6 +383,7 @@ public partial class FooL : FooH
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public partial class FooM : FooH
 {
     public static new FooM Create()
@@ -363,6 +402,7 @@ public partial class FooM : FooH
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public partial class FooN : FooH
 {
     public static new FooN Create()
@@ -381,6 +421,7 @@ public partial class FooN : FooH
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public partial class FooO : FooH
 {
     public static new FooO Create()
@@ -399,6 +440,7 @@ public partial class FooO : FooH
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public partial class FooP : FooH
 {
     public static new FooP Create()
@@ -417,6 +459,7 @@ public partial class FooP : FooH
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public partial class FooQ : FooH
 {
     public static new FooQ Create()
@@ -435,6 +478,7 @@ public partial class FooQ : FooH
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public partial class FooR : FooH
 {
     public static new FooR Create()
@@ -453,6 +497,7 @@ public partial class FooR : FooH
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public partial class FooS : FooH
 {
     public static new FooS Create()
@@ -471,6 +516,7 @@ public partial class FooS : FooH
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public partial class FooZ : FooH
 {
     public static new FooZ Create()
@@ -494,11 +540,12 @@ public interface IPolymorphicWriter
 [MemoryPackable]
 [MessagePackObject]
 [NinoType]
+[ProtoContract]
 public partial struct PolymorphicTransform
 {
-    [Key(0)] public float X;
-    [Key(1)] public float Y;
-    [Key(2)] public float Z;
+    [Key(0)] [ProtoMember(1)] public float X;
+    [Key(1)] [ProtoMember(2)] public float Y;
+    [Key(2)] [ProtoMember(3)] public float Z;
 
     public PolymorphicTransform(float x, float y, float z)
     {

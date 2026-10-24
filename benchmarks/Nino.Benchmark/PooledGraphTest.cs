@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using BenchmarkDotNet.Configs;
 using MemoryPack;
+using MessagePack;
 using Nino.Core;
+using ProtoBuf;
 
 #nullable disable
 namespace Nino.Benchmark;
@@ -11,11 +13,13 @@ namespace Nino.Benchmark;
 /// <summary>A pooled leaf: primitives and a list.</summary>
 [NinoType, NinoPooled]
 [MemoryPackable]
+[MessagePackObject]
+[ProtoContract]
 public sealed partial class PooledLeaf
 {
-    public int A;
-    public float B;
-    public List<int> Items;
+    [Key(0)] [ProtoMember(1)] public int A;
+    [Key(1)] [ProtoMember(2)] public float B;
+    [Key(2)] [ProtoMember(3)] public List<int> Items;
 
     private static partial IEnumerable<PooledLeaf> OnNinoPoolWarmup() => null;
 
@@ -30,11 +34,13 @@ public sealed partial class PooledLeaf
 /// <summary>The same as <see cref="PooledLeaf"/>, not pooled.</summary>
 [NinoType]
 [MemoryPackable]
+[MessagePackObject]
+[ProtoContract]
 public sealed partial class PlainLeaf
 {
-    public int A;
-    public float B;
-    public List<int> Items;
+    [Key(0)] [ProtoMember(1)] public int A;
+    [Key(1)] [ProtoMember(2)] public float B;
+    [Key(2)] [ProtoMember(3)] public List<int> Items;
 
     public static PlainLeaf Create(Random r) =>
         new() { A = r.Next(), B = r.NextSingle(), Items = Enumerable.Range(0, 8).Select(_ => r.Next()).ToList() };
@@ -43,18 +49,21 @@ public sealed partial class PlainLeaf
 /// <summary>No strings: primitives, an array, a list, a dictionary, a pooled child and a list of pooled children.</summary>
 [NinoType, NinoPooled]
 [MemoryPackable]
+[MessagePackObject]
+[ProtoContract]
 public sealed partial class PooledNode
 {
-    public int Id;
-    public long Ticks;
-    public double X, Y;
-    public bool Flag;
-    public Guid Guid;
-    public int[] Data;
-    public List<long> Values;
-    public Dictionary<int, int> Map;
-    public PooledLeaf Leaf;
-    public List<PooledLeaf> Leaves;
+    [Key(0)] [ProtoMember(1)] public int Id;
+    [Key(1)] [ProtoMember(2)] public long Ticks;
+    [Key(2)] [ProtoMember(3)] public double X;
+    [Key(3)] [ProtoMember(4)] public double Y;
+    [Key(4)] [ProtoMember(5)] public bool Flag;
+    [Key(5)] [ProtoMember(6)] public Guid Guid;
+    [Key(6)] [ProtoMember(7)] public int[] Data;
+    [Key(7)] [ProtoMember(8)] public List<long> Values;
+    [Key(8)] [ProtoMember(9)] public Dictionary<int, int> Map;
+    [Key(9)] [ProtoMember(10)] public PooledLeaf Leaf;
+    [Key(10)] [ProtoMember(11)] public List<PooledLeaf> Leaves;
 
     private static partial IEnumerable<PooledNode> OnNinoPoolWarmup() => null;
 
@@ -77,7 +86,7 @@ public sealed partial class PooledNode
 /// <summary>
 /// Pooling without strings, so steady state allocates nothing: a pooled graph, and a list of pooled elements.
 /// "New" creates everything; "Pooled" returns what it got so the next call reuses it; MemoryPack overwrites the
-/// previous result in place.
+/// previous result in place. MessagePack and protobuf-net read new instances only: neither overwrites one in place.
 /// </summary>
 [HideColumns("StdDev", "RatioSD", "Error")]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
@@ -99,12 +108,24 @@ public class PooledGraphTest
         Enumerable.Range(0, 100).Select(_ => PlainLeaf.Create(new Random(2))).ToList();
     private static readonly byte[] NinoPlain = NinoSerializer.Serialize(Plain);
     private static readonly byte[] MemoryPackPlain = MemoryPackSerializer.Serialize(Plain);
+    private static readonly byte[] MessagePackNode = MessagePackSerializer.Serialize(Node);
+    private static readonly byte[] ProtobufNode = ProtobufModel.Serialize(Node);
+    private static readonly byte[] MessagePackLeaves = MessagePackSerializer.Serialize(Leaves);
+    private static readonly byte[] ProtobufLeaves = ProtobufModel.Serialize(Leaves);
+    private static readonly byte[] MessagePackPlain = MessagePackSerializer.Serialize(Plain);
+    private static readonly byte[] ProtobufPlain = ProtobufModel.Serialize(Plain);
 
     [Benchmark(Baseline = true), BenchmarkCategory("Plain")]
     public List<PlainLeaf> NinoPlainNew() => NinoDeserializer.Deserialize<List<PlainLeaf>>(NinoPlain);
 
     [Benchmark, BenchmarkCategory("Plain")]
     public List<PlainLeaf> MemoryPackPlainNew() => MemoryPackSerializer.Deserialize<List<PlainLeaf>>(MemoryPackPlain);
+
+    [Benchmark, BenchmarkCategory("Plain")]
+    public List<PlainLeaf> MessagePackPlainNew() => MessagePackSerializer.Deserialize<List<PlainLeaf>>(MessagePackPlain);
+
+    [Benchmark, BenchmarkCategory("Plain")]
+    public List<PlainLeaf> ProtobufPlainNew() => Serializer.Deserialize<List<PlainLeaf>>(new ReadOnlySpan<byte>(ProtobufPlain));
 
     private PooledNode _memoryPackNode;
     private List<PooledLeaf> _memoryPackLeaves, _ninoLeaves;
@@ -131,6 +152,12 @@ public class PooledGraphTest
 
     [Benchmark, BenchmarkCategory("Node")]
     public PooledNode MemoryPackNodeNew() => MemoryPackSerializer.Deserialize<PooledNode>(MemoryPackNode);
+
+    [Benchmark, BenchmarkCategory("Node")]
+    public PooledNode MessagePackNodeNew() => MessagePackSerializer.Deserialize<PooledNode>(MessagePackNode);
+
+    [Benchmark, BenchmarkCategory("Node")]
+    public PooledNode ProtobufNodeNew() => Serializer.Deserialize<PooledNode>(new ReadOnlySpan<byte>(ProtobufNode));
 
     [Benchmark, BenchmarkCategory("Node")]
     public PooledNode MemoryPackNodeOverwrite()
@@ -163,6 +190,13 @@ public class PooledGraphTest
 
     [Benchmark, BenchmarkCategory("Leaves")]
     public List<PooledLeaf> MemoryPackLeavesNew() => MemoryPackSerializer.Deserialize<List<PooledLeaf>>(MemoryPackLeaves);
+
+    [Benchmark, BenchmarkCategory("Leaves")]
+    public List<PooledLeaf> MessagePackLeavesNew() => MessagePackSerializer.Deserialize<List<PooledLeaf>>(MessagePackLeaves);
+
+    [Benchmark, BenchmarkCategory("Leaves")]
+    public List<PooledLeaf> ProtobufLeavesNew() =>
+        Serializer.Deserialize<List<PooledLeaf>>(new ReadOnlySpan<byte>(ProtobufLeaves));
 
     [Benchmark, BenchmarkCategory("Leaves")]
     public List<PooledLeaf> MemoryPackLeavesOverwrite()

@@ -1,18 +1,22 @@
+using System;
 using System.Buffers;
+using System.IO;
 using System.Linq;
 using BenchmarkDotNet.Configs;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
+using ProtoBuf;
 
 namespace Nino.Benchmark;
 
 #nullable disable
 
 /// <summary>
-/// Polymorphic data written through its base type, against MemoryPack's and MessagePack's unions: one class holding
-/// 1,000 elements of 20 subtypes (one to nine levels below their base), an array of 1,000 such elements, and an array
-/// of 100 classes holding 50 each.
+/// Polymorphic data written through its base type, against MemoryPack's and MessagePack's unions and protobuf-net's
+/// <c>[ProtoInclude]</c> (a nested message per level of the hierarchy): one class holding 1,000 elements of 20
+/// subtypes (one to nine levels below their base), an array of 1,000 such elements, and an array of 100 classes
+/// holding 50 each.
 /// </summary>
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
@@ -31,6 +35,7 @@ public class PolymorphicTest
     private NinoArrayBufferWriter _ninoBuffer;
     private ArrayBufferWriter<byte> _memoryPackBuffer;
     private ArrayBufferWriter<byte> _messagePackBuffer;
+    private MemoryStream _protobufStream;
 
     private static readonly byte[][] SerializedPolymorphicClass;
     private static readonly byte[][] SerializedPolymorphicFooArray;
@@ -60,20 +65,23 @@ public class PolymorphicTest
             return instance;
         }).ToArray();
 
-        SerializedPolymorphicClass = new byte[3][];
+        SerializedPolymorphicClass = new byte[4][];
         SerializedPolymorphicClass[0] = MessagePackSerializer.Serialize(PolymorphicInstance);
         SerializedPolymorphicClass[1] = MemoryPackSerializer.Serialize(PolymorphicInstance);
         SerializedPolymorphicClass[2] = NinoSerializer.Serialize(PolymorphicInstance);
+        SerializedPolymorphicClass[3] = ProtobufModel.Serialize(PolymorphicInstance);
 
-        SerializedPolymorphicFooArray = new byte[3][];
+        SerializedPolymorphicFooArray = new byte[4][];
         SerializedPolymorphicFooArray[0] = MessagePackSerializer.Serialize(PolymorphicFooArray);
         SerializedPolymorphicFooArray[1] = MemoryPackSerializer.Serialize(PolymorphicFooArray);
         SerializedPolymorphicFooArray[2] = NinoSerializer.Serialize(PolymorphicFooArray);
+        SerializedPolymorphicFooArray[3] = ProtobufModel.Serialize(PolymorphicFooArray);
 
-        SerializedPolymorphicClassArray = new byte[3][];
+        SerializedPolymorphicClassArray = new byte[4][];
         SerializedPolymorphicClassArray[0] = MessagePackSerializer.Serialize(PolymorphicClassArray);
         SerializedPolymorphicClassArray[1] = MemoryPackSerializer.Serialize(PolymorphicClassArray);
         SerializedPolymorphicClassArray[2] = NinoSerializer.Serialize(PolymorphicClassArray);
+        SerializedPolymorphicClassArray[3] = ProtobufModel.Serialize(PolymorphicClassArray);
 
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClass), SerializedPolymorphicClass[2].Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicFooArray), SerializedPolymorphicFooArray[2].Length);
@@ -84,8 +92,11 @@ public class PolymorphicTest
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicClassArray), SerializedPolymorphicClassArray[1].Length);
 
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePolymorphicClass), SerializedPolymorphicClass[0].Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePolymorphicClass), SerializedPolymorphicClass[3].Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[0].Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePolymorphicFooArray), SerializedPolymorphicFooArray[3].Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePolymorphicClassArray), SerializedPolymorphicClassArray[0].Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePolymorphicClassArray), SerializedPolymorphicClassArray[3].Length);
     }
 
     /// <summary>The <paramref name="i"/>th of the 20 subtypes in turn (FooA is one level below the base, FooI to FooZ nine).</summary>
@@ -119,6 +130,7 @@ public class PolymorphicTest
         _ninoBuffer = new NinoArrayBufferWriter(1024 * 1024);
         _memoryPackBuffer = new ArrayBufferWriter<byte>(1024 * 1024);
         _messagePackBuffer = new ArrayBufferWriter<byte>(1024 * 1024);
+        _protobufStream = new MemoryStream(1024 * 1024);
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("PolymorphicClassSerialize")]
@@ -145,6 +157,14 @@ public class PolymorphicTest
         return _messagePackBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("PolymorphicClassSerialize")]
+    public int ProtobufSerializePolymorphicClass()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, PolymorphicInstance);
+        return (int)_protobufStream.Length;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("PolymorphicFooArraySerialize")]
     public int NinoSerializePolymorphicFooArray()
     {
@@ -167,6 +187,14 @@ public class PolymorphicTest
         _messagePackBuffer.ResetWrittenCount();
         MessagePackSerializer.Serialize(_messagePackBuffer, PolymorphicFooArray);
         return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("PolymorphicFooArraySerialize")]
+    public int ProtobufSerializePolymorphicFooArray()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, PolymorphicFooArray);
+        return (int)_protobufStream.Length;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("PolymorphicClassArraySerialize")]
@@ -193,6 +221,14 @@ public class PolymorphicTest
         return _messagePackBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("PolymorphicClassArraySerialize")]
+    public int ProtobufSerializePolymorphicClassArray()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, PolymorphicClassArray);
+        return (int)_protobufStream.Length;
+    }
+
     // Deserialization tests
     [Benchmark(Baseline = true), BenchmarkCategory("PolymorphicClassDeserialize")]
     public PolymorphicClassBase NinoDeserializePolymorphicClass()
@@ -210,6 +246,12 @@ public class PolymorphicTest
     public PolymorphicClassBase MessagePackDeserializePolymorphicClass()
     {
         return MessagePackSerializer.Deserialize<PolymorphicClassBase>(SerializedPolymorphicClass[0]);
+    }
+
+    [Benchmark, BenchmarkCategory("PolymorphicClassDeserialize")]
+    public PolymorphicClassBase ProtobufDeserializePolymorphicClass()
+    {
+        return Serializer.Deserialize<PolymorphicClassBase>(new ReadOnlySpan<byte>(SerializedPolymorphicClass[3]));
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("PolymorphicFooArrayDeserialize")]
@@ -230,6 +272,12 @@ public class PolymorphicTest
         return MessagePackSerializer.Deserialize<PolymorphicFooBase[]>(SerializedPolymorphicFooArray[0]);
     }
 
+    [Benchmark, BenchmarkCategory("PolymorphicFooArrayDeserialize")]
+    public PolymorphicFooBase[] ProtobufDeserializePolymorphicFooArray()
+    {
+        return Serializer.Deserialize<PolymorphicFooBase[]>(new ReadOnlySpan<byte>(SerializedPolymorphicFooArray[3]));
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("PolymorphicClassArrayDeserialize")]
     public PolymorphicClassBase[] NinoDeserializePolymorphicClassArray()
     {
@@ -246,5 +294,11 @@ public class PolymorphicTest
     public PolymorphicClassBase[] MessagePackDeserializePolymorphicClassArray()
     {
         return MessagePackSerializer.Deserialize<PolymorphicClassBase[]>(SerializedPolymorphicClassArray[0]);
+    }
+
+    [Benchmark, BenchmarkCategory("PolymorphicClassArrayDeserialize")]
+    public PolymorphicClassBase[] ProtobufDeserializePolymorphicClassArray()
+    {
+        return Serializer.Deserialize<PolymorphicClassBase[]>(new ReadOnlySpan<byte>(SerializedPolymorphicClassArray[3]));
     }
 }

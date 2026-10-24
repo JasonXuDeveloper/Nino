@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
+using ProtoBuf;
 
 namespace Nino.Benchmark;
 
@@ -34,25 +35,28 @@ internal static class BenchmarkRandom
 [MessagePackObject]
 [MemoryPackUnion(0, typeof(SimpleClass))]
 [Union(0, typeof(SimpleClass))]
+[ProtoContract]
+[ProtoInclude(100, typeof(SimpleClass))]
 public abstract partial class SimpleClassBase
 {
-    [Key(0)] public int Id;
-    [Key(1)] public bool Tag;
-    [Key(2)] public Guid Guid;
-    [Key(3)] public DateTime CreateTime;
+    [Key(0)] [ProtoMember(1)] public int Id;
+    [Key(1)] [ProtoMember(2)] public bool Tag;
+    [Key(2)] [ProtoMember(3)] public Guid Guid;
+    [Key(3)] [ProtoMember(4)] public DateTime CreateTime;
 }
 
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 public sealed partial class SimpleClass : SimpleClassBase
 {
-    [Key(4)] public string Name { get; set; }
-    [Key(5)] [NinoUtf8] public string Desc;
-    [Key(6)] public int[] Numbers { get; set; }
-    [Key(7)] public List<DateTime> Dates { get; set; }
-    [Key(8)] public Dictionary<int, string> Map1;
-    [Key(9)] public Dictionary<int, int> Map2 { get; set; }
+    [Key(4)] [ProtoMember(1)] public string Name { get; set; }
+    [Key(5)] [ProtoMember(2)] [NinoUtf8] public string Desc;
+    [Key(6)] [ProtoMember(3)] public int[] Numbers { get; set; }
+    [Key(7)] [ProtoMember(4)] public List<DateTime> Dates { get; set; }
+    [Key(8)] [ProtoMember(5)] public Dictionary<int, string> Map1;
+    [Key(9)] [ProtoMember(6)] public Dictionary<int, int> Map2 { get; set; }
 
     public static SimpleClass Create()
     {
@@ -76,11 +80,12 @@ public sealed partial class SimpleClass : SimpleClassBase
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[ProtoContract]
 [StructLayout(LayoutKind.Sequential, Pack = 4)] // int + DateTime with no padding: 12 bytes
 public partial struct SimpleStruct
 {
-    [Key(0)] public int Id;
-    [Key(1)] public DateTime CreateTime;
+    [Key(0)] [ProtoMember(1)] public int Id;
+    [Key(1)] [ProtoMember(2)] public DateTime CreateTime;
 
     public static SimpleStruct Create()
     {
