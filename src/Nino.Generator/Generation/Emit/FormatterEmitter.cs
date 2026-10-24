@@ -69,16 +69,19 @@ internal static class FormatterEmitter
         w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.Constraints}");
         var body = new BodyEmitter(m, w, names);
 
-        // The forwarders and TypeId are a few bytes of IL, which every runtime inlines without being told to;
-        // MethodImpl attributes on them only cost compile time.
+        // TypeId, Traits and Create are a few bytes of IL, which every runtime inlines without being told to. The
+        // entry points and body forwarders are marked AggressiveInlining all the same: the JIT counts what it inlines
+        // on its own judgement, and everything that inlines into that in turn, against the caller's inlining budget
+        // (only a chain of AggressiveInlining methods from the caller raises the budget), and a caller that spent it
+        // leaves even the small Nino.Core helpers its members' reads and writes inline as calls.
         if (m.Kind == FormatterKind.Polymorphic)
         {
             // Behind a reference header, subtypes are dispatched without one of their own.
             if (m.TrackReferences)
-                EmitEntryPoints(w, m, $"{CoreCompilerServices}NinoPolymorphic<{t}>.SerializeReferenced(value, ref writer)",
+                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoPolymorphic<{t}>.SerializeReferenced(value, ref writer)",
                     $"{CoreCompilerServices}NinoPolymorphic<{t}>.DeserializeReferenced(reader.UnsafeRead<int>(), ref value, ref reader)");
             else
-                EmitDispatchingEntryPoints(w, m, ownId: false);
+                EmitDispatchingEntryPoints(w, m, names, ownId: false);
             w.Line();
             if (m.Inheritance.EmitMembers)
             {
@@ -97,34 +100,36 @@ internal static class FormatterEmitter
         switch (m.Kind)
         {
             case FormatterKind.Struct:
+                w.Line(names.Inline);
                 w.Line($"{Signature.Serialize(t)} => WriteBody(value, ref writer);");
                 w.Line();
+                w.Line(names.Inline);
                 w.Line($"{Signature.Deserialize(t)} => ReadBody(ref value, ref reader);");
                 break;
             case FormatterKind.SealedClass when m.TrackReferences:
                 // The reference header already says the object is not null.
-                EmitEntryPoints(w, m, $"{CoreCompilerServices}NinoObject.WriteBody<{t}, {self}>(value, ref writer)",
+                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoObject.WriteBody<{t}, {self}>(value, ref writer)",
                     $"{CoreCompilerServices}NinoObject.ReadBody<{t}, {self}>(ref value, ref reader)");
                 break;
             case FormatterKind.SealedClass when m.BoundedEntry:
                 // The twin's bodies when the depth leaves room for the whole nesting bound (see TypeFacts.DepthBound).
-                EmitEntryPoints(w, m,
+                EmitEntryPoints(w, m, names,
                     $"{CoreCompilerServices}NinoObject.SerializeSealed<{t}, {self}, {self}.__Shallow>(value, ref writer, {m.Depth.Bound})",
                     $"{CoreCompilerServices}NinoObject.DeserializeSealed<{t}, {self}, {self}.__Shallow>(ref value, ref reader, {m.Depth.Bound})");
                 break;
             case FormatterKind.SealedClass:
-                EmitEntryPoints(w, m, $"{CoreCompilerServices}NinoObject.SerializeSealed{Raw(m)}<{t}, {self}>(value, ref writer)",
+                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoObject.SerializeSealed{Raw(m)}<{t}, {self}>(value, ref writer)",
                     $"{CoreCompilerServices}NinoObject.DeserializeSealed<{t}, {self}>(ref value, ref reader)");
                 break;
             case FormatterKind.Class when m.TrackReferences:
-                EmitEntryPoints(w, m, $"{CoreCompilerServices}NinoObject.SerializeReferenced<{t}, {self}>(value, ref writer)",
+                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoObject.SerializeReferenced<{t}, {self}>(value, ref writer)",
                     $"{CoreCompilerServices}NinoObject.DeserializeReferenced<{t}, {self}>(ref value, ref reader)");
                 break;
             case FormatterKind.Class when m.DispatchesSubtypes:
-                EmitDispatchingEntryPoints(w, m, ownId: true);
+                EmitDispatchingEntryPoints(w, m, names, ownId: true);
                 break;
             default:
-                EmitEntryPoints(w, m, $"{CoreCompilerServices}NinoObject.Serialize{Raw(m)}<{t}, {self}>(value, ref writer)",
+                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoObject.Serialize{Raw(m)}<{t}, {self}>(value, ref writer)",
                     $"{CoreCompilerServices}NinoObject.Deserialize<{t}, {self}>(ref value, ref reader)");
                 break;
         }
@@ -224,13 +229,17 @@ internal static class FormatterEmitter
         }
 
         OpenTwin(w, m, "__Top", $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>");
+        w.Line(names.Inline);
         w.Line(serializeTop
             ? $"{Signature.Serialize(t)} => __SerializeTop(value, ref writer);"
             : $"{Signature.Serialize(t)} => {SerializeTop(m, top)};");
+        w.Line(names.Inline);
         w.Line(serializeTop
             ? $"public void Write({t} value, {Core}NinoArrayBufferWriter buffer) => __WriteTop(value, buffer);"
             : $"public void Write({t} value, {Core}NinoArrayBufferWriter buffer) => {CoreCompilerServices}NinoDirect.Write<{t}, {top}>(value, buffer);");
+        w.Line(names.Inline);
         w.Line($"{Signature.Deserialize(t)} => {CoreCompilerServices}NinoObject.DeserializeTop<{t}, {top}>(ref value, ref reader);");
+        w.Line(names.Inline);
         w.Line(m.ReadTop
             ? $"public {t} Read(global::System.ReadOnlySpan<byte> data) => __ReadTop(data);"
             : $"public {t} Read(global::System.ReadOnlySpan<byte> data) => {CoreCompilerServices}NinoDirect.Deserialize<{t}, {top}>(data);");
@@ -298,16 +307,14 @@ internal static class FormatterEmitter
         string self = m.Self;
         string twin = self + ".__Shallow";
         OpenTwin(w, m, "__Shallow", $"{CoreCompilerServices}INinoBodyFormatter<{t}>");
-        if (m.Kind == FormatterKind.Struct)
-        {
-            w.Line($"{Signature.Serialize(t)} => WriteBody(value, ref writer);");
-            w.Line($"{Signature.Deserialize(t)} => ReadBody(ref value, ref reader);");
-        }
-        else
-        {
-            w.Line($"{Signature.Serialize(t)} => {SerializeTop(m, twin)};");
-            w.Line($"{Signature.Deserialize(t)} => {CoreCompilerServices}NinoObject.DeserializeTop<{t}, {twin}>(ref value, ref reader);");
-        }
+        w.Line(names.Inline);
+        w.Line(m.Kind == FormatterKind.Struct
+            ? $"{Signature.Serialize(t)} => WriteBody(value, ref writer);"
+            : $"{Signature.Serialize(t)} => {SerializeTop(m, twin)};");
+        w.Line(names.Inline);
+        w.Line(m.Kind == FormatterKind.Struct
+            ? $"{Signature.Deserialize(t)} => ReadBody(ref value, ref reader);"
+            : $"{Signature.Deserialize(t)} => {CoreCompilerServices}NinoObject.DeserializeTop<{t}, {twin}>(ref value, ref reader);");
 
         ForwardWriteBody(w, m, names, m.ShallowBodies ? "__WriteBodyShallow" : null);
         if (m.ShallowBodies && m.SplitFresh)
@@ -358,23 +365,27 @@ internal static class FormatterEmitter
     }
 
     /// <summary>Serialize/Deserialize forwarding to the given calls, behind a reference header when tracked.</summary>
-    private static void EmitEntryPoints(CodeWriter w, TypeModel m, string write, string read)
+    private static void EmitEntryPoints(CodeWriter w, TypeModel m, FormatterNames names, string write, string read)
     {
         string t = m.TypeName;
         if (!m.TrackReferences)
         {
+            w.Line(names.Inline);
             w.Line($"{Signature.Serialize(t)} => {write};");
             w.Line();
+            w.Line(names.Inline);
             w.Line($"{Signature.Deserialize(t)} => {read};");
             return;
         }
 
+        w.Line(names.Inline);
         w.Block($"{Signature.Serialize(t)}", () =>
         {
             w.Line("if (writer.WriteReference(value))");
             w.Indented(() => w.Line($"{write};"));
         });
         w.Line();
+        w.Line(names.Inline);
         w.Block($"{Signature.Deserialize(t)}", () =>
         {
             w.Line("if (!reader.ReadReference(ref value, out int __index))");
@@ -388,7 +399,7 @@ internal static class FormatterEmitter
     /// Type id (0 = null) and body. A class's own type is checked first; subtypes go through the generated dispatch
     /// (<see cref="DispatchEmitter"/>).
     /// </summary>
-    private static void EmitDispatchingEntryPoints(CodeWriter w, TypeModel m, bool ownId)
+    private static void EmitDispatchingEntryPoints(CodeWriter w, TypeModel m, FormatterNames names, bool ownId)
     {
         string t = m.TypeName;
         string self = m.Self;
@@ -409,11 +420,13 @@ internal static class FormatterEmitter
         string read = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);"
             : root ? "__ReadSubtype(id, ref value, ref reader);"
             : $"{rootFormatter}.__ReadSubtype(id, ref {CoreCompilerServices}NinoObject.AsBaseSlot<{t}, {rootType}>(ref value), ref reader); {CoreCompilerServices}NinoObject.EnsureSubtype<{t}>(value);";
+        w.Line(names.Inline);
         w.Line($"{Signature.Serialize(t)}");
         w.Indented(() => w.Line(ownId
             ? $$"""{ if (!{{CoreCompilerServices}}NinoObject.TryWriteOwn{{Raw(m)}}<{{t}}, {{self}}>(value, ref writer)) {{write}}; }"""
             : $$"""{ if (value == null) writer.UnsafeWrite({{NinoWire.NullTypeId}}); else {{write}}; }"""));
         w.Line();
+        w.Line(names.Inline);
         w.Line($"{Signature.Deserialize(t)}");
         w.Indented(() => w.Line(ownId
             ? $$"""{ int id = reader.UnsafeRead<int>(); if (!{{CoreCompilerServices}}NinoObject.TryReadOwn<{{t}}, {{self}}>(id, ref value, ref reader)) { {{read}} } }"""

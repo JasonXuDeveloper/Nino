@@ -152,11 +152,12 @@ internal sealed class BodyEmitter
             return $"internal static void __{name}Shallow({parameters})";
         }
 
+        // AggressiveInlining, as the entry points (see FormatterEmitter.EmitFormatter).
+        _w.Line(_names.Inline);
         if (!OutOfLine)
             return $"public void {name}({forwarded})";
         string body = "__" + name;
         string target = _m.InlineBody ? body + "Inline" : body;
-        // A one-call forwarder, which the JIT inlines without being told to.
         _w.Line($"public void {name}({forwarded}) => {target}({value}, ref {(write ? "writer" : "reader")});");
         _w.Line();
         if (_m.InlineBody)
