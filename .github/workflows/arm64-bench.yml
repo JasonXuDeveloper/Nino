@@ -237,7 +237,7 @@ jobs:
           persist-credentials: false
 
       - name: Download results
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: benchmark-${{ inputs.runner || 'ubuntu-24.04-arm' }}-*
           path: shards
