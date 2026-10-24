@@ -9,6 +9,7 @@
     "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
   },
   "dotnet": {
-    "outcome": "returned"
+    "outcome": "error",
+    "exception": "NinoDataException"
   }
 }

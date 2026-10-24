@@ -9,6 +9,7 @@
     "Conformance.Targets.MaybeIntArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x436A69B2; deferrable=true; members=Values:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
   },
   "dotnet": {
-    "outcome": "returned"
+    "outcome": "error",
+    "exception": "NinoDataException"
   }
 }

@@ -9,6 +9,7 @@
     "Conformance.Targets.BoolArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2C38911D; deferrable=true; members=Values:bool[]:seq(raw(1))"
   },
   "dotnet": {
-    "outcome": "returned"
+    "outcome": "error",
+    "exception": "NinoDataException"
   }
 }
