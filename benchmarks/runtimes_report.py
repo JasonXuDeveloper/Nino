@@ -3,7 +3,8 @@
 
 usage: runtimes_report.py typescript <node.json> <tag>   (runtimes/typescript/bench/node.ts with NINO_BENCH_JSON)
        runtimes_report.py go <go test -bench output> <tag>   (runtimes/go/bench: go test -bench . -benchmem)
-       runtimes_report.py rust <criterion directory> <tag>   (runtimes/rust/bench: cargo bench; target/criterion)
+       runtimes_report.py rust <criterion directory> <tag> [<bench output>]
+           (runtimes/rust/bench: cargo bench; target/criterion, and its output for the encoded sizes)
 
 Each prints one section: a "## " heading of its own (HEADINGS: never the words "Performance Report", by which the
 docs site finds the .NET report), then a table. No table has a Method or Mean column, so nothing that reads the
@@ -72,7 +73,7 @@ def go(path, tag):
         bop = re.search(r"(\d+) B/op", rest)
         allocs = re.search(r"(\d+) allocs/op", rest)
         rows.append(f"| {op} | {case} | {time(float(ns))} | {mbs.group(1) + ' MB/s' if mbs else ''} | "
-                    f"{bop.group(1) + ' B' if bop else ''} | {allocs.group(1) if allocs else ''} |")
+                    f"{size(int(bop.group(1))) if bop else ''} | {allocs.group(1) if allocs else ''} |")
     if not rows:
         sys.exit("no benchmark lines in " + path)
     table = ["| Operation | Case | Time | Throughput | Allocated | Allocations |", "|---|---|--:|--:|--:|--:|", *rows]
@@ -83,29 +84,51 @@ def go(path, tag):
     return section("go", tag, f"The Go runtime of {tag} against encoding/json, MessagePack and gob", intro, table)
 
 
-def rust(directory, tag):
-    rows = []
+RUST_SIZES = re.compile(r"^([\w-]+): (.*\bbytes\b.*)$")
+
+
+def rust(directory, tag, log=None):
+    """One row per group and operation, one column per serializer (Nino first), and each group's encoded sizes
+    (which compare.rs prints) from the bench's output when `log` is given."""
+    times = {}
     for path in sorted(glob.glob(os.path.join(directory, "**", "new", "benchmark.json"), recursive=True)):
         bench = json.load(open(path, encoding="utf-8"))
         estimates = json.load(open(os.path.join(os.path.dirname(path), "estimates.json"), encoding="utf-8"))
-        ns = estimates["mean"]["point_estimate"]
-        rows.append((bench["group_id"], bench["function_id"], bench.get("value_str") or "", ns))
-    if not rows:
+        key = (bench["group_id"], bench["function_id"])
+        times.setdefault(key, {})[bench.get("value_str") or ""] = estimates["mean"]["point_estimate"]
+    if not times:
         sys.exit("no criterion results under " + directory)
-    table = ["| Group | Operation | Serializer | Time |", "|---|---|---|--:|"]
-    for group, op, who, ns in rows:
-        table.append(f"| {group} | {op} | {who} | {time(ns)} |")
+    sizes = {}
+    for line in open(log, encoding="utf-8", errors="replace") if log else []:
+        m = RUST_SIZES.match(line.strip())
+        if m:
+            sizes[m.group(1)] = {who: int(n) for n, who in re.findall(r"(\d+) (?:bytes )?([\w-]+)", m.group(2))}
+    who = sorted({w for row in times.values() for w in row}, key=lambda w: (w != "nino", w))
+    table = ["| Case | Operation | " + " | ".join(who) + " |", "|---|---|" + "--:|" * len(who)]
+    groups = list(dict.fromkeys(group for group, _ in times))
+    for group in groups:
+        for op in ("serialize", "deserialize"):
+            row = times.get((group, op))
+            if row:
+                table.append(f"| {group} | {op} | " + " | ".join(time(row[w]) if w in row else "" for w in who) + " |")
+        if group in sizes:
+            table.append(f"| {group} | size | " + " | ".join(size(sizes[group][w]) if w in sizes[group] else ""
+                                                             for w in who) + " |")
     intro = ("`runtimes/rust/bench` (criterion): codecs in the shape nino-gen generates against "
-             "serde_json, bincode, rmp-serde and postcard. Time is criterion's mean estimate.")
+             "serde_json, bincode, rmp-serde and postcard. Times are criterion's mean estimates; sizes are the "
+             "encoded bytes of each case.")
     return section("rust", tag, f"The Rust runtime of {tag} against serde_json, bincode, rmp-serde and postcard",
                    intro, table)
 
 
 def main():
-    if len(sys.argv) != 4 or sys.argv[1] not in HEADINGS:
+    if len(sys.argv) not in (4, 5) or sys.argv[1] not in HEADINGS or (len(sys.argv) == 5 and sys.argv[1] != "rust"):
         sys.exit(__doc__)
-    lang, source, tag = sys.argv[1:]
-    print({"typescript": typescript, "go": go, "rust": rust}[lang](source, tag), end="")
+    lang, source, tag = sys.argv[1:4]
+    if lang == "rust":
+        print(rust(source, tag, *sys.argv[4:]), end="")
+        return
+    print({"typescript": typescript, "go": go}[lang](source, tag), end="")
 
 
 if __name__ == "__main__":

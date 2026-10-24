@@ -199,8 +199,9 @@ jobs:
           # NINO_BENCH_V3: the benchmark project's v3 build, which BenchmarkDotNet builds again for its runs.
           NINO_BENCH_V3=true dotnet "$V3_DLL" --filter "${V3_PATTERNS[@]}" $BDN_ARGS \
             --artifacts "$V3_OUT"
-          mkdir -p "$OUT"
-          cp "$(find "$V3_OUT/results" -name '*-report-github.md' | head -n1)" "$OUT/v3-${{ matrix.shard }}.md"
+          # Under BenchmarkDotNet's own file name, which names the class (benchmarks/bdn.py, class_name).
+          mkdir -p "$OUT/v3-${{ matrix.shard }}"
+          cp "$(find "$V3_OUT/results" -name '*-report-github.md' | head -n1)" "$OUT/v3-${{ matrix.shard }}/"
 
       - name: Run benchmarks
         working-directory: ${{ env.BENCH }}
@@ -224,15 +225,22 @@ jobs:
               | grep '^Nino\.Benchmark\.' > "$OUT/cases-${{ matrix.arch }}-all.txt" || true
           fi
           dotnet run -c Release --no-build -- --filter "${PATTERNS[@]}" $BDN_ARGS
+          # The joined report of the shard's classes; a shard of one class has none, only that class's report.
           REPORT=$(find BenchmarkDotNet.Artifacts/results -name "*-joined-*-report-github.md" | head -n1)
           if [[ -z "$REPORT" ]]; then
-            echo "❌ No joined report in BenchmarkDotNet.Artifacts/results"
+            mapfile -t ONE < <(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md")
+            if (( ${#ONE[@]} == 1 )); then REPORT=${ONE[0]}; fi
+          fi
+          if [[ -z "$REPORT" ]]; then
+            echo "❌ No joined report (or one class's report) in BenchmarkDotNet.Artifacts/results"
             ls -la BenchmarkDotNet.Artifacts/results || true
             exit 1
           fi
-          mkdir -p "$OUT"
-          # x64 reports are v4-<shard>.md, Arm64 ones arm64-<shard>.md (the publish job tells them apart by name).
-          cp "$REPORT" "$OUT/${{ matrix.arch == 'arm64' && 'arm64' || 'v4' }}-${{ matrix.shard }}.md"
+          # x64 reports go in v4-<shard>/, Arm64 ones in arm64-<shard>/ (the publish job tells them apart by that),
+          # under BenchmarkDotNet's own file name, which names the class of a one-class report (bdn.py, class_name).
+          DEST="$OUT/${{ matrix.arch == 'arm64' && 'arm64' || 'v4' }}-${{ matrix.shard }}"
+          mkdir -p "$DEST"
+          cp "$REPORT" "$DEST/"
 
       - name: Upload the report
         uses: actions/upload-artifact@v7
@@ -292,9 +300,10 @@ jobs:
         run: |
           set -euo pipefail
           DIR="$RUNNER_TEMP/reports"
-          ls -la "$DIR"
+          ls -laR "$DIR"
           shopt -s nullglob
-          X64=("$DIR"/v4-*.md) ARM64=("$DIR"/arm64-*.md)
+          # One report per shard directory (v4-<shard>/, arm64-<shard>/, v3-<shard>/), in shard order.
+          X64=("$DIR"/v4-*/*-report-github.md) ARM64=("$DIR"/arm64-*/*-report-github.md)
           if (( ${#X64[@]} != SHARDS )); then
             echo "❌ ${#X64[@]} of the $SHARDS x64 reports: not publishing a partial Performance Report"
             exit 1
@@ -315,7 +324,7 @@ jobs:
           else
             echo "::warning::${#ARM64[@]} of the $SHARDS Arm64 reports: the Arm64 section is left out"
           fi
-          V3=("$DIR"/v3-*.md)
+          V3=("$DIR"/v3-*/*-report-github.md)
           if (( ${#V3[@]} == V3_SHARDS )); then
             python3 benchmarks/merge_reports.py "${V3[@]}" > "$RUNNER_TEMP/v3-report.md"
             echo "V3_REPORT=$RUNNER_TEMP/v3-report.md" >> "$GITHUB_ENV"
@@ -659,9 +668,10 @@ jobs:
         run: |
           set -euo pipefail
           rustup toolchain install stable --profile minimal
-          cargo bench -p nino-bench --bench compare --locked
+          # The output too: compare.rs prints each case's encoded sizes.
+          cargo bench -p nino-bench --bench compare --locked 2>&1 | tee "$RUNNER_TEMP/bench.log"
           python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" rust "$CARGO_TARGET_DIR/criterion" \
-            "$TAG_NAME" > "$RUNNER_TEMP/section.md"
+            "$TAG_NAME" "$RUNNER_TEMP/bench.log" > "$RUNNER_TEMP/section.md"
 
       - name: Upload the section
         uses: actions/upload-artifact@v7

@@ -272,5 +272,6 @@ values. Each group covers serialize and deserialize, and prints every format's e
 - 10,000 `f64`;
 - 1,000 strings.
 
-The Nino codecs there are written in the shape the templates generate. The numbers are for comparing changes back to
-back on one machine. They are not published.
+The Nino codecs there are written in the shape the templates generate. Compare changes back to back on one machine;
+local numbers are not published. Each release's notes get a "🦀 Rust runtime benchmark" section from one run of
+this benchmark on a GitHub runner (`report.yml`, `benchmarks/runtimes_report.py`).

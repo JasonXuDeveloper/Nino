@@ -48,6 +48,13 @@ same settings; the workflow adds a
 section of the newest v4 release. A v3 failure only leaves the section out; re-running the workflow for the tag
 adds whichever section is missing.
 
+The runtimes outside .NET get a section each after all of those: **🌐 TypeScript runtime benchmark**
+(`runtimes/typescript/bench`, Node), **🐹 Go runtime benchmark** (`runtimes/go/bench`) and **🦀 Rust runtime
+benchmark** (`runtimes/rust/bench`), each against the serializers of its language, run on one runner from the tag's
+sources and formatted by [`runtimes_report.py`](runtimes_report.py). Their headings and tables have none of the
+words the readers of the .NET sections look for ("Performance Report", "Method", "Mean"), and a language whose
+benchmark fails is left out without touching the rest.
+
 The README numbers and chart (`docs/assets/benchmark.svg` and `.png`) and the runtime tables of
 `docs/v4-benchmarks.md` follow the newest v4 release too: for that release, `report.yml` runs
 [`readme.py`](readme.py) on its reports, which rewrites everything between the `<!--bench:...-->` markers of
