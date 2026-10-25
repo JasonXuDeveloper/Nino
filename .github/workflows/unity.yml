@@ -174,9 +174,9 @@ jobs:
       # Burst AOT, where the paths through the runtime's own collections and the Burst function pointers run as they do
       # on devices. It runs after a failure of the editor's tests too, so one run shows both; the steps run one after
       # the other, so the job still holds one seat at a time.
-      # Code coverage off: it instruments only the editor's code (game-ci's own note), and its -debugCodeOptimization
-      # compiled the player's scripts as Debug. With the benchmark, -ninoBenchmark builds the player without the
-      # Development flag and with the benchmark in it (Test.Editor.Burst.BenchmarkPlayerBuild).
+      # With the benchmark, -ninoBenchmark builds the player without the Development flag and with the benchmark in it
+      # (Test.Editor.Burst.BenchmarkPlayerBuild). Code coverage stays on: it instruments only the editor's code, but
+      # game-ci CLI v0.1.72 rejects the --no-coverageEnabled that coverageEnabled: false passes to it.
       - name: Run the IL2CPP player's tests
         if: success() || steps.editor-tests.conclusion == 'failure'
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
@@ -190,7 +190,6 @@ jobs:
           testMode: standalone
           artifactsPath: artifacts/player
           customImage: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
-          coverageEnabled: false
           customParameters: ${{ env.BENCHMARK == 'true' && '-ninoBenchmark' || '' }}
           unityVersion: ${{ matrix.unity }}
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
