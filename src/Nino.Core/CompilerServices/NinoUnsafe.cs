@@ -331,9 +331,9 @@ namespace Nino.Core.CompilerServices
                 else if (Vector512.IsHardwareAccelerated ? size <= MaxVectorCopy : size - 256 <= MaxVector256Copy - 256)
                 {
                     if (Vector512.IsHardwareAccelerated)
-                        CopyVectors<Vector512<byte>>(ref destination, ref source, size);
+                        CopyVectors<Vector512<byte>>(ref destination, ref source, size, AmdCopy);
                     else
-                        CopyVectors<Vector256<byte>>(ref destination, ref source, size);
+                        CopyVectors<Vector256<byte>>(ref destination, ref source, size, AmdCopy);
                     return;
                 }
             }
@@ -369,7 +369,7 @@ namespace Nino.Core.CompilerServices
         /// 2,018 instead of 2,680 to 2,750; on an AVX-512 Xeon, Memmove 1.3 to 2 times as fast; on Arm64 (Neoverse
         /// N2) Memmove as fast or faster. One CPUID at startup.
         /// </summary>
-        private static readonly bool AmdCopy = X86Base.IsSupported && IsAmd();
+        internal static readonly bool AmdCopy = X86Base.IsSupported && IsAmd();
 
         private static bool IsAmd()
         {
@@ -430,11 +430,18 @@ namespace Nino.Core.CompilerServices
         /// against Memmove (.NET 10), source and destination of different alignments, with 64-byte vectors: 256 bytes
         /// 5.9 ns instead of 7.9 ns, 1,200 bytes 11.9 ns instead of 18.6 ns, 4,000 bytes 34 ns instead of 48 ns.
         /// </summary>
-        // Fully optimized from the first call (see NinoMask.CopyVectors).
+        // Fully optimized from the first call (see NinoMask.CopyVectors). amd is AmdCopy, read by the caller: compiled
+        // before NinoUnsafe's static constructor has run, this method would read the field through a helper call.
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
-        private static unsafe void CopyVectors<TVector>(ref byte destination, ref byte source, uint size)
+        private static unsafe void CopyVectors<TVector>(ref byte destination, ref byte source, uint size, bool amd)
             where TVector : struct
         {
+            if (amd && Aliases(ref destination, ref source))
+            {
+                CopyVectorsDown<TVector>(ref destination, ref source, size);
+                return;
+            }
+
             nuint width = (nuint)Unsafe.SizeOf<TVector>();
             Unsafe.WriteUnaligned(ref destination, Unsafe.ReadUnaligned<TVector>(ref source));
             nuint i = width - ((nuint)Unsafe.AsPointer(ref destination) & (width - 1));
@@ -456,6 +463,58 @@ namespace Nino.Core.CompilerServices
                     Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i)));
             Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, end),
                 Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, end)));
+        }
+#endif
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Whether a copy forward from <paramref name="source"/> to <paramref name="destination"/> runs into 4K
+        /// aliasing: the destination less than <see cref="AliasWindow"/> bytes past the source modulo 4 KB, so each
+        /// load matches the low 12 bits of a store still pending ahead of it. As the C library's memmove, which copies
+        /// backward then. Only a hint: a moving GC may change the distance, which makes a copy slower, never wrong.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static unsafe bool Aliases(ref byte destination, ref byte source) =>
+            (((nuint)Unsafe.AsPointer(ref destination) - (nuint)Unsafe.AsPointer(ref source)) & 4095) < AliasWindow;
+
+        /// <summary>
+        /// The distances modulo 4 KB at which <see cref="Aliases"/> holds. Measured on GitHub's AMD EPYC runners (7763
+        /// and 9V74, .NET 10, 8,000 bytes, CopyGapProbe), a forward vector copy took 83 to 91 ns at most distances but,
+        /// depending on the process, 96 to 332 ns at distances of 4 to 516 bytes (and up to 112 at 1,028), and the
+        /// same loop run backward 88 to 102 ns at every distance below 4,036 bytes.
+        /// </summary>
+        internal const nuint AliasWindow = 1024;
+
+        /// <summary>
+        /// <see cref="CopyVectors{TVector}"/> from the end down (on AMD, where <see cref="Aliases"/>): the last vector
+        /// unaligned, then four aligned stores at a time downward, then the first vector unaligned.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        internal static unsafe void CopyVectorsDown<TVector>(ref byte destination, ref byte source, uint size)
+            where TVector : struct
+        {
+            nuint width = (nuint)Unsafe.SizeOf<TVector>();
+            nuint end = size - width;
+            Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, end),
+                Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, end)));
+            // The aligned stores end at i (exclusive), the last one at the aligned offset at or before the last vector.
+            nuint i = end + width - ((nuint)Unsafe.AsPointer(ref Unsafe.Add(ref destination, end)) & (width - 1));
+            for (; i >= 4 * width; i -= 4 * width)
+            {
+                var a = Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i - width));
+                var b = Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i - 2 * width));
+                var c = Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i - 3 * width));
+                var d = Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i - 4 * width));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i - width), a);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i - 2 * width), b);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i - 3 * width), c);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i - 4 * width), d);
+            }
+
+            for (; i >= width; i -= width)
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i - width),
+                    Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i - width)));
+            Unsafe.WriteUnaligned(ref destination, Unsafe.ReadUnaligned<TVector>(ref source));
         }
 #endif
 
