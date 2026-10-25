@@ -243,14 +243,11 @@ namespace Nino.UnitTests
                 [NinoMember(14)]
                 public bool Inverse { get; set; }
 
-
-                ///TODO:8.1新加
                 /// <summary>
                 /// 偏移量
                 /// </summary>
                 [NinoMember(15)] public Point? OffSet;
 
-                ///TODO:8.1新加
                 /// <summary>
                 /// 缩放
                 /// </summary>

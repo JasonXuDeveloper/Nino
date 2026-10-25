@@ -4,7 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     /// <summary>
     /// A <c>T?</c> sequence of a raw [NinoType] struct is written at the fixed stride of its layout (a has-value byte,

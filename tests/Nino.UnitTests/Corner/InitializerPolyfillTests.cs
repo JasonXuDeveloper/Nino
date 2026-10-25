@@ -1,7 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     /// <summary>
     /// The registry's initializer attributes are used only where the compilation can access them. Libraries carry

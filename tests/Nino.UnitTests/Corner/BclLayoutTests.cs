@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     [NinoType]
     public sealed class BclStructs
@@ -79,9 +79,9 @@ namespace BclCorner
             "Maybe:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})",
             // Not laid out the same on x86 (TimeOnly at 4) and 64-bit runtimes: written through its formatter, in the
             // canonical layout.
-            "Late:Nino.UnitTests.Corner.TimeAfterInt:raw(16){A:int@0:raw(4),T:System.TimeOnly@8:raw(8)}",
+            "Late:Nino.UnitTests.TimeAfterInt:raw(16){A:int@0:raw(4),T:System.TimeOnly@8:raw(8)}",
             // Int128 is 16-byte aligned on .NET 8 and later, 8-byte aligned before: no layout known at compile time.
-            "Wide:Nino.UnitTests.Corner.WideAfterLong:raw");
+            "Wide:Nino.UnitTests.WideAfterLong:raw");
 
         private static string Members(Assembly assembly, string ns) =>
             assembly.GetCustomAttributes<NinoTypeLayoutAttribute>()
@@ -89,14 +89,14 @@ namespace BclCorner
 
         [TestMethod]
         public void ReferenceAssembliesPublishTheRealLayouts() =>
-            Assert.AreEqual(Expected, Members(typeof(BclStructs).Assembly, "Nino.UnitTests.Corner"));
+            Assert.AreEqual(Expected, Members(typeof(BclStructs).Assembly, "Nino.UnitTests"));
 
         [TestMethod]
         public void ImplementationAssembliesPublishTheSameLayouts()
         {
             var result = CornerCompiler.Compile(Source);
             Assert.AreEqual(0, result.Errors.Length, result.ErrorText);
-            Assert.AreEqual(Expected.Replace("Nino.UnitTests.Corner.", "BclCorner."),
+            Assert.AreEqual(Expected.Replace("Nino.UnitTests.", "BclCorner."),
                 Members(result.Assembly, "BclCorner"));
         }
 

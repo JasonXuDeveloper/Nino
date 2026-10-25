@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     /// <summary>
     /// The generator (RawRules.IsRawUnmanaged) and Nino.Core (NinoReflection.IsRawUnmanaged) decide which values are
