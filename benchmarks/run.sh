@@ -16,11 +16,9 @@ V3_DLL=bin/v3/Release/net10.0/Nino.Benchmark.dll
 V4_DLL=bin/Release/net10.0/Nino.Benchmark.dll
 FILTER=${FILTER:-*}
 read -r -a FILTERS <<< "$FILTER"
+# The counts of each mode are in benchmarks/Nino.Benchmark/NinoJobAttribute.cs.
 if [[ "${QUICK:-0}" == 1 ]]; then
   export NINO_BENCH_QUICK=1
-  ARGS=()
-else
-  ARGS=(--launchCount 3 --warmupCount 5 --iterationCount 15)
 fi
 
 mkdir -p "$OUT"
@@ -32,11 +30,9 @@ git -C "$ROOT" rev-parse HEAD > "$OUT/v4-commit.txt"
 
 echo "v3 $(date)"
 (cd "$BENCH" && NINO_BENCH_V3=true dotnet "$V3_DLL" --filter '*SimpleTest.Nino*' '*SimpleTest.MemoryPack*' \
-  ${ARGS[@]+"${ARGS[@]}"} \
   --artifacts "$OUT/v3" > "$OUT/v3.log")
 echo "v4 $(date)"
-(cd "$BENCH" && dotnet "$V4_DLL" --filter "${FILTERS[@]}" ${ARGS[@]+"${ARGS[@]}"} \
-  --artifacts "$OUT/v4" > "$OUT/v4.log")
+(cd "$BENCH" && dotnet "$V4_DLL" --filter "${FILTERS[@]}" --artifacts "$OUT/v4" > "$OUT/v4.log")
 echo "done $(date)"
 
 V4_REPORT=$(ls "$OUT"/v4/results/*-report-github.md | head -n1)

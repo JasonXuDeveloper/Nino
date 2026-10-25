@@ -317,9 +317,8 @@ generated files. Each line reports one of five runs.
 Runtime (`benchmarks/Nino.Benchmark`, BenchmarkDotNet):
 
 ```sh
-dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*' --launchCount 3 --warmupCount 5 --iterationCount 15
-dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*ReferenceTest*' '*VersionTolerantTest*' '*FixedSizeTest*' \
-    --launchCount 3 --warmupCount 5 --iterationCount 15                                  # some classes only
+dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*'
+dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*ReferenceTest*' '*VersionTolerantTest*' '*FixedSizeTest*'   # some classes only
 ```
 
 The suite has eleven classes, all against MemoryPack 1.21.4, and against MessagePack and protobuf-net wherever they
