@@ -1,2 +1,3 @@
-# <go|rust|typescript> <base sha> <head sha> [filter]   (see .github/workflows/runtime-ab.yml)
-go 1c151bb fe5f8a5 /strings/(Nino|MessagePack|Protobuf)$
+# <go|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+rust d910e0f c389ae2 strings
+rust:text d910e0f c389ae2 text/write
