@@ -1,4 +1,6 @@
-# <base sha> <head sha> <rounds> <BenchmarkDotNet filters...> (see .github/workflows/dotnet-ab.yml); one job per line.
-# perf(core): copy downward on AMD where a forward copy hits 4K aliasing, against its parent on main: the raw and
-# padded copies alone, more rounds (each a new process, so a new distance between buffers).
-6371965 bf82fb7 8 *CommonTypesTest.*SerializeInventory* *CollectionsTest.*SerializeKeyValuePairs* *CollectionsTest.*SerializeTupleList* *SimpleTest.*SerializeVectors*
+# [cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...> (see .github/workflows/dotnet-ab.yml); one job per line.
+# phase5/inventory: main against the downward copy on every x64 CPU where the gap aliases (7b68bba, Intel included),
+# on Intel x64 (and Arm64 as a control), on AMD x64, and CopyGapProbe on Intel.
+cpu=Intel|Neoverse cceab9b8 7b68bba 6 *CommonTypesTest.*SerializeInventory* *CollectionsTest.*SerializeKeyValuePairs* *CollectionsTest.*SerializeTupleList* *SimpleTest.*SerializeVectors*
+cpu=AMD cceab9b8 7b68bba 6 *CommonTypesTest.*SerializeInventory* *CollectionsTest.*SerializeKeyValuePairs* *CollectionsTest.*SerializeTupleList* *SimpleTest.*SerializeVectors*
+cpu=Intel cceab9b8 cceab9b8 1 *CopyGapProbe*
