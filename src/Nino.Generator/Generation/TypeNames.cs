@@ -385,9 +385,15 @@ internal static class TypeNames
         return sb.ToString();
     }
 
-    /// <summary>The suffix that names a formatter's <c>__Top</c> twin (<c>TypeModel.HasTop</c>).</summary>
-    public const string Top = ".__Top";
+    /// <summary>The name of a formatter's <c>__Top</c> twin, a struct nested in it (<c>TypeModel.HasTop</c>).</summary>
+    public const string TopTwinName = "__Top";
 
-    /// <summary>The suffix that names a formatter's <c>__Shallow</c> twin (<c>DepthModel.Shallow</c>).</summary>
-    public const string Shallow = ".__Shallow";
+    /// <summary>The name of a formatter's <c>__Shallow</c> twin, a struct nested in it (<c>DepthModel.Shallow</c>).</summary>
+    public const string ShallowTwinName = "__Shallow";
+
+    /// <summary>The suffix that names a formatter's <see cref="TopTwinName"/>.</summary>
+    public const string Top = "." + TopTwinName;
+
+    /// <summary>The suffix that names a formatter's <see cref="ShallowTwinName"/>.</summary>
+    public const string Shallow = "." + ShallowTwinName;
 }
