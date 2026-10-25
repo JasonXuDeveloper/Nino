@@ -895,7 +895,7 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   permutes, AVX2 or SSSE3 lanes, Arm64 `tbl`, WebAssembly's swizzle; with VBMI, values of more than 16 bytes in
   memory, which its groups and permutes do not take, are written in the AVX2 lane plan's partial groups); elsewhere (no SIMD, a map that overlaps, Mono,
   .NET Framework and the netstandard builds of Nino.Core) the scalar loop of `WriteBlock`/`ReadBlock`, inlined, one
-  value after another. `BlockMap()` is built once per type from `NinoBlockMap` (`Raw<TItem>(memory, wire)` for a raw
+  value after another, unless kernels are registered (below). `BlockMap()` is built once per type from `NinoBlockMap` (`Raw<TItem>(memory, wire)` for a raw
   item, `Block<TItem, TFormatter>` for a nested block, whose map is merged); the memory offset of a field is
   `NinoBlocks.Offset`, of an auto-property's backing field (which generated code cannot name) `NinoBlocks.Find`, which
   stores a marked value through the property. An item with padding, references or a layout other than the canonical
@@ -907,6 +907,21 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   `(bool, int)[]` read as blocks accepted a bool byte of 2 on the vector paths and rejected it on the scalar ones.
   With `NinoSettings.Untrusted`, a block with values to check (`NinoLayout<T>.Checks`, a `DateTime` member) is read
   one value at a time through its formatter (`NinoBlock<T, TFormatter>.ReadSize` is -1), as raw structs are.
+* **Kernels for the netstandard builds.** The netstandard builds have no hardware intrinsics, so on Unity (Mono,
+  IL2CPP, HybridCLR) and .NET Framework the block paths above, the masked copy of raw structs with padding
+  (`NinoMask.Copy`) and the narrowing and widening of Latin-1 text (`NinoStrings.NarrowWords`/`WidenWords`) are scalar.
+  `NinoKernels` (public, netstandard builds only) lets a host register native kernels for them: `Permute` (a byte
+  table per value, 0xFF for a zero byte; strides 1 to 64), `Narrow`, `Widen`. Nino calls them for runs of at least
+  `MinBlocks` values or `MinChars` chars, from the paths that are already out of line, after one static load and
+  compare (`NinoKernelHook`), and checks bools before a kernel reads blocks. The tables are built once per type, in
+  unmanaged memory. A kernel must write the bytes of its scalar reference (`PermuteScalar`, `NarrowScalar`,
+  `WidenScalar`); `KernelHookTests` registers those references through the hook. The Unity package registers
+  Burst-compiled kernels (`Nino.Burst`, compiled only with `com.unity.burst` installed): SSSE3 on x86 and x64, Neon
+  on AArch64, called through Burst function pointers; Armv7, WebGL and players where Burst does not run register none.
+  A player's kernels are compiled ahead of time for the CPU targets in Burst's AOT settings (on x64 by default SSE2
+  and SSE4, chosen at startup), so each intrinsic sits under its own `IsXxxSupported` test (Burst error BC1200
+  otherwise); a CPU without SSSE3 registers none.
+  The .NET 8 and 10 builds have no hook (`#if !NET8_0_OR_GREATER`).
 * A sealed class with a small body that opens no class body (at most eight members, one or two of which call
   formatters) also gets a `__Top` twin of its formatter, whose body is inlined into the caller, so the reader or writer
   the top-level call creates stays in registers. Calls that create their reader or writer use it, for the type itself

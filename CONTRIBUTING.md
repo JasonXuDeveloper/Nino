@@ -24,7 +24,7 @@ netstandard2.1 without interceptors (what Unity runs), on netstandard2.0 with th
 `.github/scripts/test_shards.py`). Beside them it builds the whole solution and runs the ASP.NET Core tests and those
 of Nino.Codegen (`Nino.AspNetCore.Tests`, `Nino.Codegen.Integration.Tests`, `Nino.Codegen.Tests`, Node 22.18+),
 publishes `Nino.AotTests` trimmed and Native AOT, and runs `Nino.RuntimeTests` (net472) under Mono against .NET. The
-Unity tests (`src/Nino.Unity`, on Unity 2022.3 and the newest Unity 6 LTS) run in `unity.yml`, one version at a time
+Unity tests (`src/Nino.Unity`, on Unity 2022.3 and the newest Unity 6 LTS, in the editor and in an IL2CPP player) run in `unity.yml`, one job at a time
 and never cancelled while running, so CI holds at most one seat of the Unity license. Locally, the same split keeps a run in memory:
 `--filter "FullyQualifiedName!~ShapeMatrixTests"`, then `--filter "FullyQualifiedName~ShapeMatrixTests"`.
 
