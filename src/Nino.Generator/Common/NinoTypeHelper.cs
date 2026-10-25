@@ -176,11 +176,3 @@ internal sealed class NinoTypeOptions
         return options;
     }
 }
-
-/// <summary>The values of <c>Nino.Core.NinoFormat</c> (<c>[NinoType(format: ...)]</c>).</summary>
-internal enum NinoFormat
-{
-    Positional = 0,
-    VersionTolerant = 1,
-    Keyed = 2,
-}

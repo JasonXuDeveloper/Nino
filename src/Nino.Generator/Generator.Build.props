@@ -23,11 +23,12 @@
                  Exclude="$(MSBuildThisFileDirectory)bin\**;$(MSBuildThisFileDirectory)obj\**"
                  Link="%(RecursiveDir)%(Filename)%(Extension)"
                  Condition="'$(NinoRoslynVersion)' != '4.3'"/>
-        <!-- Shared with Nino.Core so compile-time and run-time rules (ids, wire constants, layouts, formatter binding)
-             cannot drift apart. -->
+        <!-- Shared with Nino.Core so compile-time and run-time rules (ids, wire constants, formats, layouts, formatter
+             binding) cannot drift apart. -->
         <Compile Include="$(MSBuildThisFileDirectory)..\Nino.Core\Internal\NinoHash.cs" Link="Shared\NinoHash.cs"/>
         <Compile Include="$(MSBuildThisFileDirectory)..\Nino.Core\Internal\NinoLayoutCore.cs" Link="Shared\NinoLayoutCore.cs"/>
         <Compile Include="$(MSBuildThisFileDirectory)..\Nino.Core\IO\NinoWire.cs" Link="Shared\NinoWire.cs"/>
+        <Compile Include="$(MSBuildThisFileDirectory)..\Nino.Core\Attributes\NinoFormat.cs" Link="Shared\NinoFormat.cs"/>
         <Compile Include="$(MSBuildThisFileDirectory)..\Nino.Core\Internal\NinoFormatterBinding.cs" Link="Shared\NinoFormatterBinding.cs"/>
     </ItemGroup>
 

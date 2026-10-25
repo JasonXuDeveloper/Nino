@@ -1,10 +1,20 @@
+// Linked into Nino.Generator (as the internal Nino.Generator.Common.NinoFormat), which reads [NinoType(format: ...)]
+// as these values: the two cannot drift apart.
+#if NINO_GENERATOR
+namespace Nino.Generator.Common
+#else
 namespace Nino.Core
+#endif
 {
     /// <summary>
     /// How a <c>[NinoType]</c> writes its members, and so which changes to the type existing data survives.
     /// <see href="https://nino.xgamedev.net/en/docs/v4/evolving-data"/>
     /// </summary>
+#if NINO_GENERATOR
+    internal enum NinoFormat
+#else
     public enum NinoFormat
+#endif
     {
         /// <summary>
         /// The members, one after another, with nothing around them: the smallest and fastest format. Changing the
