@@ -379,7 +379,8 @@ TEXT ·wireStringNEON(SB), NOSPLIT, $0-40
 	MOVD    $·narrowLo(SB), R23
 	MOVD    $·narrowHi(SB), R24
 	MOVD    $·wideShuf(SB), R25
-	VLD1    (R21), [V16.B16]        // N_BITS
+	MOVD    $0x3C3C3C3C3C3C3C3C, R19
+	MOVD    $0x1010101010101010, R17
 	ADD     $N_T1, R21, R8
 	VLD1    (R8), [V20.B16, V21.B16, V22.B16]
 	ADD     $N_TAIL, R21, R8
@@ -410,10 +411,9 @@ slatin1:
 	CMP     $16, R7
 	BLT     sltail
 	VLD1    (R6), [V0.B16]
+	LDP     (R6), (R8, R9)
 
 slbody:
-	VMOV    V0.D[0], R8
-	VMOV    V0.D[1], R9
 	ORR     R8, R9, R10
 	TST     R22, R10
 	BNE     slchars
@@ -427,12 +427,17 @@ slbody:
 	B       slatin1
 
 slchars:
-	// A byte above C3 (a char above U+00FF, or not UTF-8): UTF-16, from the start.
-	WORD $0x6e3c2c04 //    UQSUB V28.B16, V0.B16, V4.B16
-	VMOV    V4.D[0], R8
-	VMOV    V4.D[1], R9
-	ORR     R8, R9, R10
-	CBNZ    R10, stoUTF16
+	// A byte above C3 (a char above U+00FF, or not UTF-8): UTF-16, from the start. A byte b of 80 or above is C4
+	// or above when (b & 7F) + 3C carries into its high bit.
+	AND     $0x7f7f7f7f7f7f7f7f, R8, R10
+	ADD     R19, R10, R10
+	AND     R8, R10, R10
+	AND     $0x7f7f7f7f7f7f7f7f, R9, R11
+	ADD     R19, R11, R11
+	AND     R9, R11, R11
+	ORR     R10, R11, R10
+	TST     R22, R10
+	BNE     stoUTF16
 	// Its bytes are ASCII, leads C2 and C3 and continuations: it is valid when the continuations are exactly the
 	// bytes after the leads, and there are no C0 or C1.
 	VEXT    $15, V0.B16, V14.B16, V2.B16 // the byte before each
@@ -449,27 +454,31 @@ slchars:
 	VAND    V27.B16, V5.B16, V5.B16
 	VADD    V5.B16, V0.B16, V6.B16       // the bytes: 40 more after C3
 	VORR    V0.B16, V0.B16, V14.B16
-	VAND    V16.B16, V4.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VMOV    V7.H[0], R8
-	EOR     $0xffff, R8, R8              // kept: all but the leads
+	WORD $0x0f0c848b //    SHRN $4, V4.H8, V11.B8
+	VMOV    V11.D[0], R8
+	MVN     R8, R8
+	AND     $0x1111111111111111, R8
+	ORR     R8>>3, R8, R8
+	AND     $0x0303030303030303, R8
+	ORR     R8>>6, R8, R8
+	AND     $0x000F000F000F000F, R8
+	ORR     R8>>12, R8, R8
 	AND     $0xff, R8, R9
-	LSR     $8, R8, R10
+	UBFX    $32, R8, $8, R10
+	// kept: all but the leads
 	FMOVD   (R23)(R9<<3), F8
 	MOVD    (R24)(R10<<3), R11
 	VMOV    R11, V8.D[1]
 	VTBL    V8.B16, [V6.B16], V6.B16
-	MOVBU   (R20)(R9), R12
-	MOVBU   (R20)(R10), R13
+	MOVBU   (R20)(R9), R9
+	MOVBU   (R20)(R10), R10
 	VST1    [V6.B16], (R0)
-	SUB     $8, R12, R12
-	ADD     R12, R0
+	SUB     $8, R9, R9
+	ADD     R9, R0
 	VMOV    V6.D[1], R11
 	MOVD    R11, (R0)
-	SUB     $8, R13, R13
-	ADD     R13, R0
+	SUB     $8, R10, R10
+	ADD     R10, R0
 	ADD     $16, R3
 	B       slatin1
 
@@ -482,6 +491,8 @@ sltail:
 	SUB     R7, R8, R8
 	VLD1    (R8), [V1.B16]
 	VAND    V1.B16, V0.B16, V0.B16
+	VMOV    V0.D[0], R8
+	VMOV    V0.D[1], R9
 	B       slbody
 
 slcross:
@@ -496,6 +507,7 @@ slbyte:
 	CMP     R7, R8
 	BLT     slbyte
 	VLD1    (R0), [V0.B16]
+	LDP     (R0), (R8, R9)
 	B       slbody
 
 slatin1Done:
@@ -513,6 +525,7 @@ slatin1Done:
 stoUTF16:
 	// From the start again, as UTF-16: the block in V0 when it is the first.
 	MOVD    R5, R0
+	MOVD    $0, R13                      // the block before has a lead of 4 bytes (or more)
 	VEOR    V14.B16, V14.B16, V14.B16
 	VEOR    V12.B16, V12.B16, V12.B16
 	CBZ     R3, swchars
@@ -526,10 +539,9 @@ swide:
 	CMP     $16, R7
 	BLT     swtail
 	VLD1    (R6), [V0.B16]
+	LDP     (R6), (R8, R9)
 
 swbody:
-	VMOV    V0.D[0], R8
-	VMOV    V0.D[1], R9
 	ORR     R8, R9, R10
 	TST     R22, R10
 	BNE     swchars
@@ -539,6 +551,7 @@ swbody:
 	VUXTL2  V0.B16, V5.H8
 	VST1    [V4.B16, V5.B16], (R0)
 	ADD     $32, R0
+	MOVD    $0, R13
 	VORR    V0.B16, V0.B16, V14.B16
 	ADD     $16, R3
 	B       swide
@@ -563,6 +576,17 @@ swchars:
 	VEOR    V5.B16, V4.B16, V4.B16
 	VORR    V4.B16, V12.B16, V12.B16
 	VORR    V0.B16, V0.B16, V14.B16
+	// A lead of 4 bytes (F0 or above) here or in the block before: surrogates (R12).
+	AND     $0x7f7f7f7f7f7f7f7f, R8, R10
+	ADD     R17, R10, R10
+	AND     R8, R10, R10
+	AND     $0x7f7f7f7f7f7f7f7f, R9, R11
+	ADD     R17, R11, R11
+	AND     R9, R11, R11
+	ORR     R10, R11, R10
+	AND     R22, R10, R10
+	ORR     R10, R13, R12
+	MOVD    R10, R13
 	WORD $0x4e2037e4 //    CMGT V0.B16, V31.B16, V4.B16 // b0 a continuation
 	WORD $0x4e2237e5 //    CMGT V2.B16, V31.B16, V5.B16 // b1 a continuation
 	VAND    V24.B16, V2.B16, V6.B16
@@ -570,36 +594,34 @@ swchars:
 	WORD $0x4e20a807 //    CMLT V0.B16, V7.B16          // b0 not ASCII
 	VORR    V6.B16, V5.B16, V5.B16
 	VAND    V4.B16, V5.B16, V5.B16       // b0 ends a char of 2 or more bytes, or is a third byte
-	WORD $0x4e651ce5 //    BIC V5.B16, V7.B16, V5.B16   // dropped: the rest of the bytes not ASCII
-	VORR    V7.B16, V7.B16, V9.B16
-	VAND    V16.B16, V5.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VMOV    V7.H[0], R8
-	EOR     $0xffff, R8, R8              // kept
+	WORD $0x4ee71ca5 //    ORN V7.B16, V5.B16, V5.B16   // kept: those and ASCII
+	WORD $0x0f0c84ab //    SHRN $4, V5.H8, V11.B8
+	VMOV    V11.D[0], R8
+	AND     $0x1111111111111111, R8
+	ORR     R8>>3, R8, R8
+	AND     $0x0303030303030303, R8
+	ORR     R8>>6, R8, R8
+	AND     $0x000F000F000F000F, R8
+	ORR     R8>>12, R8, R8
+	AND     $0xff, R8, R9
+	UBFX    $32, R8, $8, R10
 	// The low bytes: b0 for ASCII, else (b0 & 3F) | b1 << 6.
-	VAND    V29.B16, V0.B16, V4.B16
-	VSHL    $6, V2.B16, V5.B16
-	VORR    V5.B16, V4.B16, V4.B16
-	VBIF    V9.B16, V0.B16, V4.B16
+	VORR    V0.B16, V0.B16, V4.B16
+	VSLI    $6, V2.B16, V4.B16
+	VBIF    V7.B16, V0.B16, V4.B16
 	// The high bytes: 0 for ASCII, (b1 >> 2) & 0F after the lead of 2 bytes, and that | b2 << 4 else.
 	VUSHR   $2, V2.B16, V5.B16
 	VAND    V30.B16, V5.B16, V5.B16
 	VSHL    $4, V3.B16, V8.B16
 	VORR    V5.B16, V8.B16, V8.B16
 	VBIT    V6.B16, V5.B16, V8.B16
-	VAND    V9.B16, V8.B16, V8.B16
+	VAND    V7.B16, V8.B16, V8.B16
+	CBZ     R12, swpack
 	// Surrogates: b2 the lead of 4 bytes (the high one), or b3 (the low one).
 	VAND    V15.B16, V3.B16, V9.B16
 	VCMEQ   V23.B16, V9.B16, V9.B16
 	VAND    V15.B16, V1.B16, V10.B16
 	VCMEQ   V23.B16, V10.B16, V10.B16
-	VORR    V10.B16, V9.B16, V11.B16
-	VMOV    V11.D[0], R9
-	VMOV    V11.D[1], R10
-	ORR     R9, R10, R10
-	CBZ     R10, swpack
 	// The high surrogate: D800 + ((b2 & 7) << 8 | (b1 & 3F) << 2 | (b0 >> 4) & 3) - 40.
 	VAND    V29.B16, V2.B16, V6.B16
 	VSHL    $2, V6.B16, V6.B16
@@ -626,21 +648,19 @@ swchars:
 swpack:
 	VZIP1   V8.B16, V4.B16, V9.B16       // the units of positions 0 to 7
 	VZIP2   V8.B16, V4.B16, V10.B16      // 8 to 15
-	AND     $0xff, R8, R9
-	LSR     $8, R8, R10
 	ADD     R9<<4, R25, R11
 	VLD1    (R11), [V6.B16]
 	ADD     R10<<4, R25, R11
 	VLD1    (R11), [V7.B16]
-	MOVBU   (R20)(R9), R12
-	MOVBU   (R20)(R10), R13
+	MOVBU   (R20)(R9), R9
+	MOVBU   (R20)(R10), R10
 	VTBL    V6.B16, [V9.B16], V9.B16
 	VTBL    V7.B16, [V10.B16], V10.B16
 	VST1    [V9.B16], (R0)
-	ADD     R12<<1, R0, R0
+	ADD     R9<<1, R0, R0
 	SUB     $16, R0, R0
 	VST1    [V10.B16], (R0)
-	ADD     R13<<1, R0, R0
+	ADD     R10<<1, R0, R0
 	SUB     $16, R0, R0
 	ADD     $16, R3
 	B       swide
@@ -654,6 +674,8 @@ swtail:
 	SUB     R7, R8, R8
 	VLD1    (R8), [V1.B16]
 	VAND    V1.B16, V0.B16, V0.B16
+	VMOV    V0.D[0], R8
+	VMOV    V0.D[1], R9
 	B       swbody
 
 swcross:
@@ -668,6 +690,7 @@ swbyte:
 	CMP     R7, R8
 	BLT     swbyte
 	VLD1    (R0), [V0.B16]
+	LDP     (R0), (R8, R9)
 	B       swbody
 
 swideDone:
@@ -708,7 +731,8 @@ TEXT ·wireStringsNEON(SB), NOSPLIT, $0-56
 	MOVD    $·narrowLo(SB), R23
 	MOVD    $·narrowHi(SB), R24
 	MOVD    $·wideShuf(SB), R25
-	VLD1    (R21), [V16.B16]        // N_BITS
+	MOVD    $0x3C3C3C3C3C3C3C3C, R19
+	MOVD    $0x1010101010101010, R17
 	ADD     $N_T1, R21, R8
 	VLD1    (R8), [V20.B16, V21.B16, V22.B16]
 	ADD     $N_TAIL, R21, R8
@@ -784,10 +808,9 @@ mlatin1:
 	CMP     $16, R7
 	BLT     mltail
 	VLD1    (R6), [V0.B16]
+	LDP     (R6), (R8, R9)
 
 mlbody:
-	VMOV    V0.D[0], R8
-	VMOV    V0.D[1], R9
 	ORR     R8, R9, R10
 	TST     R22, R10
 	BNE     mlchars
@@ -801,12 +824,17 @@ mlbody:
 	B       mlatin1
 
 mlchars:
-	// A byte above C3 (a char above U+00FF, or not UTF-8): UTF-16, from the start.
-	WORD $0x6e3c2c04 //    UQSUB V28.B16, V0.B16, V4.B16
-	VMOV    V4.D[0], R8
-	VMOV    V4.D[1], R9
-	ORR     R8, R9, R10
-	CBNZ    R10, mtoUTF16
+	// A byte above C3 (a char above U+00FF, or not UTF-8): UTF-16, from the start. A byte b of 80 or above is C4
+	// or above when (b & 7F) + 3C carries into its high bit.
+	AND     $0x7f7f7f7f7f7f7f7f, R8, R10
+	ADD     R19, R10, R10
+	AND     R8, R10, R10
+	AND     $0x7f7f7f7f7f7f7f7f, R9, R11
+	ADD     R19, R11, R11
+	AND     R9, R11, R11
+	ORR     R10, R11, R10
+	TST     R22, R10
+	BNE     mtoUTF16
 	// Its bytes are ASCII, leads C2 and C3 and continuations: it is valid when the continuations are exactly the
 	// bytes after the leads, and there are no C0 or C1.
 	VEXT    $15, V0.B16, V14.B16, V2.B16 // the byte before each
@@ -823,27 +851,31 @@ mlchars:
 	VAND    V27.B16, V5.B16, V5.B16
 	VADD    V5.B16, V0.B16, V6.B16       // the bytes: 40 more after C3
 	VORR    V0.B16, V0.B16, V14.B16
-	VAND    V16.B16, V4.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VMOV    V7.H[0], R8
-	EOR     $0xffff, R8, R8              // kept: all but the leads
+	WORD $0x0f0c848b //    SHRN $4, V4.H8, V11.B8
+	VMOV    V11.D[0], R8
+	MVN     R8, R8
+	AND     $0x1111111111111111, R8
+	ORR     R8>>3, R8, R8
+	AND     $0x0303030303030303, R8
+	ORR     R8>>6, R8, R8
+	AND     $0x000F000F000F000F, R8
+	ORR     R8>>12, R8, R8
 	AND     $0xff, R8, R9
-	LSR     $8, R8, R10
+	UBFX    $32, R8, $8, R10
+	// kept: all but the leads
 	FMOVD   (R23)(R9<<3), F8
 	MOVD    (R24)(R10<<3), R11
 	VMOV    R11, V8.D[1]
 	VTBL    V8.B16, [V6.B16], V6.B16
-	MOVBU   (R20)(R9), R12
-	MOVBU   (R20)(R10), R13
+	MOVBU   (R20)(R9), R9
+	MOVBU   (R20)(R10), R10
 	VST1    [V6.B16], (R0)
-	SUB     $8, R12, R12
-	ADD     R12, R0
+	SUB     $8, R9, R9
+	ADD     R9, R0
 	VMOV    V6.D[1], R11
 	MOVD    R11, (R0)
-	SUB     $8, R13, R13
-	ADD     R13, R0
+	SUB     $8, R10, R10
+	ADD     R10, R0
 	ADD     $16, R3
 	B       mlatin1
 
@@ -856,6 +888,8 @@ mltail:
 	SUB     R7, R8, R8
 	VLD1    (R8), [V1.B16]
 	VAND    V1.B16, V0.B16, V0.B16
+	VMOV    V0.D[0], R8
+	VMOV    V0.D[1], R9
 	B       mlbody
 
 mlcross:
@@ -870,6 +904,7 @@ mlbyte:
 	CMP     R7, R8
 	BLT     mlbyte
 	VLD1    (R0), [V0.B16]
+	LDP     (R0), (R8, R9)
 	B       mlbody
 
 mlatin1Done:
@@ -887,6 +922,7 @@ mlatin1Done:
 mtoUTF16:
 	// From the start again, as UTF-16: the block in V0 when it is the first.
 	MOVD    R5, R0
+	MOVD    $0, R13                      // the block before has a lead of 4 bytes (or more)
 	VEOR    V14.B16, V14.B16, V14.B16
 	VEOR    V12.B16, V12.B16, V12.B16
 	CBZ     R3, mwchars
@@ -900,10 +936,9 @@ mwide:
 	CMP     $16, R7
 	BLT     mwtail
 	VLD1    (R6), [V0.B16]
+	LDP     (R6), (R8, R9)
 
 mwbody:
-	VMOV    V0.D[0], R8
-	VMOV    V0.D[1], R9
 	ORR     R8, R9, R10
 	TST     R22, R10
 	BNE     mwchars
@@ -913,6 +948,7 @@ mwbody:
 	VUXTL2  V0.B16, V5.H8
 	VST1    [V4.B16, V5.B16], (R0)
 	ADD     $32, R0
+	MOVD    $0, R13
 	VORR    V0.B16, V0.B16, V14.B16
 	ADD     $16, R3
 	B       mwide
@@ -937,6 +973,17 @@ mwchars:
 	VEOR    V5.B16, V4.B16, V4.B16
 	VORR    V4.B16, V12.B16, V12.B16
 	VORR    V0.B16, V0.B16, V14.B16
+	// A lead of 4 bytes (F0 or above) here or in the block before: surrogates (R12).
+	AND     $0x7f7f7f7f7f7f7f7f, R8, R10
+	ADD     R17, R10, R10
+	AND     R8, R10, R10
+	AND     $0x7f7f7f7f7f7f7f7f, R9, R11
+	ADD     R17, R11, R11
+	AND     R9, R11, R11
+	ORR     R10, R11, R10
+	AND     R22, R10, R10
+	ORR     R10, R13, R12
+	MOVD    R10, R13
 	WORD $0x4e2037e4 //    CMGT V0.B16, V31.B16, V4.B16 // b0 a continuation
 	WORD $0x4e2237e5 //    CMGT V2.B16, V31.B16, V5.B16 // b1 a continuation
 	VAND    V24.B16, V2.B16, V6.B16
@@ -944,36 +991,34 @@ mwchars:
 	WORD $0x4e20a807 //    CMLT V0.B16, V7.B16          // b0 not ASCII
 	VORR    V6.B16, V5.B16, V5.B16
 	VAND    V4.B16, V5.B16, V5.B16       // b0 ends a char of 2 or more bytes, or is a third byte
-	WORD $0x4e651ce5 //    BIC V5.B16, V7.B16, V5.B16   // dropped: the rest of the bytes not ASCII
-	VORR    V7.B16, V7.B16, V9.B16
-	VAND    V16.B16, V5.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VMOV    V7.H[0], R8
-	EOR     $0xffff, R8, R8              // kept
+	WORD $0x4ee71ca5 //    ORN V7.B16, V5.B16, V5.B16   // kept: those and ASCII
+	WORD $0x0f0c84ab //    SHRN $4, V5.H8, V11.B8
+	VMOV    V11.D[0], R8
+	AND     $0x1111111111111111, R8
+	ORR     R8>>3, R8, R8
+	AND     $0x0303030303030303, R8
+	ORR     R8>>6, R8, R8
+	AND     $0x000F000F000F000F, R8
+	ORR     R8>>12, R8, R8
+	AND     $0xff, R8, R9
+	UBFX    $32, R8, $8, R10
 	// The low bytes: b0 for ASCII, else (b0 & 3F) | b1 << 6.
-	VAND    V29.B16, V0.B16, V4.B16
-	VSHL    $6, V2.B16, V5.B16
-	VORR    V5.B16, V4.B16, V4.B16
-	VBIF    V9.B16, V0.B16, V4.B16
+	VORR    V0.B16, V0.B16, V4.B16
+	VSLI    $6, V2.B16, V4.B16
+	VBIF    V7.B16, V0.B16, V4.B16
 	// The high bytes: 0 for ASCII, (b1 >> 2) & 0F after the lead of 2 bytes, and that | b2 << 4 else.
 	VUSHR   $2, V2.B16, V5.B16
 	VAND    V30.B16, V5.B16, V5.B16
 	VSHL    $4, V3.B16, V8.B16
 	VORR    V5.B16, V8.B16, V8.B16
 	VBIT    V6.B16, V5.B16, V8.B16
-	VAND    V9.B16, V8.B16, V8.B16
+	VAND    V7.B16, V8.B16, V8.B16
+	CBZ     R12, mwpack
 	// Surrogates: b2 the lead of 4 bytes (the high one), or b3 (the low one).
 	VAND    V15.B16, V3.B16, V9.B16
 	VCMEQ   V23.B16, V9.B16, V9.B16
 	VAND    V15.B16, V1.B16, V10.B16
 	VCMEQ   V23.B16, V10.B16, V10.B16
-	VORR    V10.B16, V9.B16, V11.B16
-	VMOV    V11.D[0], R9
-	VMOV    V11.D[1], R10
-	ORR     R9, R10, R10
-	CBZ     R10, mwpack
 	// The high surrogate: D800 + ((b2 & 7) << 8 | (b1 & 3F) << 2 | (b0 >> 4) & 3) - 40.
 	VAND    V29.B16, V2.B16, V6.B16
 	VSHL    $2, V6.B16, V6.B16
@@ -1000,21 +1045,19 @@ mwchars:
 mwpack:
 	VZIP1   V8.B16, V4.B16, V9.B16       // the units of positions 0 to 7
 	VZIP2   V8.B16, V4.B16, V10.B16      // 8 to 15
-	AND     $0xff, R8, R9
-	LSR     $8, R8, R10
 	ADD     R9<<4, R25, R11
 	VLD1    (R11), [V6.B16]
 	ADD     R10<<4, R25, R11
 	VLD1    (R11), [V7.B16]
-	MOVBU   (R20)(R9), R12
-	MOVBU   (R20)(R10), R13
+	MOVBU   (R20)(R9), R9
+	MOVBU   (R20)(R10), R10
 	VTBL    V6.B16, [V9.B16], V9.B16
 	VTBL    V7.B16, [V10.B16], V10.B16
 	VST1    [V9.B16], (R0)
-	ADD     R12<<1, R0, R0
+	ADD     R9<<1, R0, R0
 	SUB     $16, R0, R0
 	VST1    [V10.B16], (R0)
-	ADD     R13<<1, R0, R0
+	ADD     R10<<1, R0, R0
 	SUB     $16, R0, R0
 	ADD     $16, R3
 	B       mwide
@@ -1028,6 +1071,8 @@ mwtail:
 	SUB     R7, R8, R8
 	VLD1    (R8), [V1.B16]
 	VAND    V1.B16, V0.B16, V0.B16
+	VMOV    V0.D[0], R8
+	VMOV    V0.D[1], R9
 	B       mwbody
 
 mwcross:
@@ -1042,6 +1087,7 @@ mwbyte:
 	CMP     R7, R8
 	BLT     mwbyte
 	VLD1    (R0), [V0.B16]
+	LDP     (R0), (R8, R9)
 	B       mwbody
 
 mwideDone:

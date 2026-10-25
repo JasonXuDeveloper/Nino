@@ -48,6 +48,7 @@ func xgetbv() (eax, edx uint32)
 
 // The tiers of the vector paths: each needs the instructions of those before it.
 const (
+	tierSSE    = 1 // SSSE3
 	tierAVX2   = 2 // AVX2 and POPCNT
 	tierAVX512 = 3 // AVX-512 F, BW, VL and VBMI2 (the reader: VBMI too)
 )
@@ -60,8 +61,11 @@ var writeTiers, readTiers = detectTiers()
 var writeTier, readTier = best(writeTiers), best(readTiers)
 
 func detectTiers() (write, read []int) {
+	if _, _, ecx, _ := cpuid(1, 0); ecx&(1<<9) != 0 {
+		read = []int{tierSSE}
+	}
 	if !detectAVX2() {
-		return nil, nil
+		return nil, read
 	}
 	write = []int{tierAVX2}
 	if detectAVX512() {
@@ -119,10 +123,29 @@ func detectVBMI() bool {
 	return ecx&(1<<1) != 0
 }
 
-// readUTF16 and readLatin1 are utf16UTF8AVX512 and latin1UTF8AVX512 where they are taken.
-func readUTF16(dst, src unsafe.Pointer, units int) int { return utf16UTF8AVX512(dst, src, units) }
+// latin1UTF8SSE and utf16UTF8SSE are the reader's SSSE3 paths, as latin1UTF8NEON and utf16UTF8NEON on arm64 (16
+// bytes at a time; room for 16 bytes past the text's UTF-8).
+//
+//go:noescape
+func latin1UTF8SSE(dst, src unsafe.Pointer, n int) int
 
-func readLatin1(dst, src unsafe.Pointer, n int) int { return latin1UTF8AVX512(dst, src, n) }
+//go:noescape
+func utf16UTF8SSE(dst, src unsafe.Pointer, units int) int
+
+// readUTF16 and readLatin1 are the reader's kernels of the tier taken.
+func readUTF16(dst, src unsafe.Pointer, units int) int {
+	if readTier == tierAVX512 {
+		return utf16UTF8AVX512(dst, src, units)
+	}
+	return utf16UTF8SSE(dst, src, units)
+}
+
+func readLatin1(dst, src unsafe.Pointer, n int) int {
+	if readTier == tierAVX512 {
+		return latin1UTF8AVX512(dst, src, n)
+	}
+	return latin1UTF8SSE(dst, src, n)
+}
 
 // wireString is the writer's kernel of the tier taken.
 func wireString(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int {

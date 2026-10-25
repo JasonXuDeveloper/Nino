@@ -59,4 +59,3 @@ func replaceSpan(s, after, from, to, new string) string {
 	}
 	return s[:i] + new + s[i+j+len(to):]
 }
-
