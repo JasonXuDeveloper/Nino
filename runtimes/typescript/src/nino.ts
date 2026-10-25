@@ -88,7 +88,7 @@ const hexValues = Int8Array.from({ length: 128 }, (_, c) =>
   c >= 48 && c <= 57 ? c - 48 : (c | 32) >= 97 && (c | 32) <= 102 ? (c | 32) - 87 : -1);
 /** Chars per `String.fromCharCode` call, well under any engine's argument limit. */
 const chunk = 4096;
-/** Text longer than this is read by a native decoder, whose call costs more than reading a short text in JavaScript. */
+/** With Node's methods, text longer than this is written by a native call, which costs more for shorter text. */
 const shortText = 8;
 /** Without Node's methods, the longest text read and written in JavaScript: TextDecoder and TextEncoder cost more. */
 const mediumText = 32;
@@ -235,13 +235,96 @@ function decodeLatin1(data: Uint8Array, at: number, length: number): string {
   return wide.test(text) ? fromCodes(bytes) : text;
 }
 
+/** The UTF-16 code unit at `at`. */
+function u(d: Uint8Array, at: number): number {
+  return d[at] | (d[at + 1] << 8);
+}
+
+/**
+ * The text of up to 24 UTF-16 code units at `at`, in one call: flat, unpaired surrogates kept, and in Chromium and
+ * Node cheaper than a native decoder or an array of codes.
+ */
+function decodeShortUtf16(d: Uint8Array, at: number, length: number): string {
+  const c = String.fromCharCode;
+  switch (length) {
+    case 0: return "";
+    case 1: return c(u(d, at));
+    case 2: return c(u(d, at), u(d, at + 2));
+    case 3: return c(u(d, at), u(d, at + 2), u(d, at + 4));
+    case 4: return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6));
+    case 5: return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8));
+    case 6: return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10));
+    case 7: return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12));
+    case 8:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14));
+    case 9:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16));
+    case 10:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18));
+    case 11:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20));
+    case 12:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22));
+    case 13:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24));
+    case 14:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26));
+    case 15:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28));
+    case 16:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30));
+    case 17:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32));
+    case 18:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34));
+    case 19:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36));
+    case 20:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38));
+    case 21:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38), u(d, at + 40));
+    case 22:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38), u(d, at + 40),
+        u(d, at + 42));
+    case 23:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38), u(d, at + 40),
+        u(d, at + 42), u(d, at + 44));
+    default:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38), u(d, at + 40),
+        u(d, at + 42), u(d, at + 44), u(d, at + 46));
+  }
+}
+
 /** The text of `length` UTF-16 code units at `at`. */
 function decodeUtf16(data: Uint8Array, at: number, length: number): string {
-  if (length <= shortText) {
-    let text = "";
-    for (let i = 0; i < length; i++) text += String.fromCharCode(data[at + 2 * i] | (data[at + 2 * i + 1] << 8));
-    return text;
-  }
+  if (length <= 24) return decodeShortUtf16(data, at, length);
   if (nodeText !== null) return nodeText.ucs2Slice.call(data, at, at + 2 * length);
   if (length <= mediumText) {
     codes.length = length;
