@@ -17,9 +17,9 @@ name: Release
 #            rust-lang/crates-io-auth-action; each crate's trusted publisher: JasonXuDeveloper/Nino, release.yml).
 #   npm:     from the tag, build and publish nino-serialization to npm (Trusted Publishing; a pre-release under the
 #            dist-tag "next", so "latest" stays the newest stable). Both skip what the registry already has.
-# Trusted Publishing is set up on a package that exists: a package's first version is published with an API token
-# (repository secrets CARGO_REGISTRY_TOKEN and NPM_TOKEN, needed only then), after which its trusted publisher is
-# added in the registry's settings and the secret can be deleted.
+# Trusted Publishing is set up on a package that exists: a package's first version is published by hand from the
+# tag (CONTRIBUTING.md), or by this workflow with an API token (repository secrets CARGO_REGISTRY_TOKEN, NPM_TOKEN,
+# needed only then); then its trusted publisher is added in the registry's settings.
 # The Go module needs no registry: proxy.golang.org serves it from the runtimes/go/vX.Y.Z tag.
 #
 # Unity reads the package from the tag, so the tag must point at the commit that carries the DLLs: both are made
@@ -255,7 +255,7 @@ jobs:
         run: |
           if [[ "$NEW" == true ]]; then
             if [[ -z "$FIRST_TOKEN" ]]; then
-              echo "::error::a crate is published for the first time: add the repository secret CARGO_REGISTRY_TOKEN"; exit 1
+              echo "::error::a crate is not on crates.io yet: publish its first version by hand from the tag (CONTRIBUTING.md) and re-run this job, or add the repository secret CARGO_REGISTRY_TOKEN"; exit 1
             fi
             export CARGO_REGISTRY_TOKEN="$FIRST_TOKEN"
           else
@@ -300,7 +300,7 @@ jobs:
           fi
           if ! npm view nino-serialization name >/dev/null 2>&1; then
             if [[ -z "$FIRST_TOKEN" ]]; then
-              echo "::error::nino-serialization is published for the first time: add the repository secret NPM_TOKEN"; exit 1
+              echo "::error::nino-serialization is not on npm yet: publish its first version by hand from the tag (CONTRIBUTING.md) and re-run this job, or add the repository secret NPM_TOKEN"; exit 1
             fi
             export NODE_AUTH_TOKEN="$FIRST_TOKEN"
           fi

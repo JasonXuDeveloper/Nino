@@ -73,9 +73,20 @@ packages, the crates `nino-serialization-derive` and `nino-serialization` and th
 release with generated notes. Pre-releases also get the `vX.Y.Z-preview.N` tag OpenUPM reads. If a step fails after
 tagging, fix the cause and re-run the failed job: each publish skips what its registry already has.
 
-Trusted Publishing is configured on a package that exists, so a package's first version is published with an API
-token from the repository secrets: `CARGO_REGISTRY_TOKEN` (a crates.io token with the `publish-new` and
-`publish-update` scopes) and `NPM_TOKEN` (an npm granular access token that can publish). The workflow uses them only
-for a crate or package not yet on its registry, and fails with a message naming the secret if it is missing. Then add
-the trusted publisher (repository JasonXuDeveloper/Nino, workflow `release.yml`) to both crates on crates.io and to the
-npm package, and delete the two secrets.
+Trusted Publishing is configured on a package that exists, so the first release that carries the crates and the
+npm package publishes NuGet and the Go tag as usual, and its `crates` and `npm` jobs stop with a message. Publish those
+first versions by hand from the tag, with no token stored anywhere:
+
+```bash
+git checkout v<version>
+cd runtimes/rust && cargo login        # a crates.io token with the publish-new scope; revoke it afterwards
+cargo publish -p nino-serialization-derive && cargo publish -p nino-serialization
+cd ../typescript && cp ../../LICENSE . && npm ci
+npm login                              # interactive, with two-factor authentication
+npm publish --access public --tag next # `next` for a pre-release, `latest` for a stable one
+```
+
+Then add the trusted publisher (repository JasonXuDeveloper/Nino, workflow `release.yml`) to both crates on crates.io
+and to the npm package (where npm also offers "Require two-factor authentication and disallow tokens"); every later
+release publishes them from CI. Alternatively the jobs publish a first version themselves with the repository secrets
+`CARGO_REGISTRY_TOKEN` and `NPM_TOKEN`, if set; delete them once the trusted publishers are in place.
