@@ -123,8 +123,12 @@ const hexValues = Int8Array.from({ length: 128 }, (_, c) =>
   c >= 48 && c <= 57 ? c - 48 : (c | 32) >= 97 && (c | 32) <= 102 ? (c | 32) - 87 : -1);
 /** Chars per `String.fromCharCode` call, well under any engine's argument limit. */
 const chunk = 4096;
-/** With Node's methods, text longer than this is written by a native call, which costs more for shorter text. */
-const shortText = 8;
+/**
+ * With Node's methods, text longer than this is written by a native call (`latin1Write`, `ucs2Write`, after a regex
+ * for chars past U+00FF); shorter text is narrowed char by char in JavaScript, which costs less up to about 48 chars
+ * on x64 and Arm64 (32 and 64 measured the same, 8 took twice as long on short text).
+ */
+const shortText = 48;
 /** Without Node's methods, the longest text read and written in JavaScript: TextDecoder and TextEncoder cost more. */
 const mediumText = 32;
 /**
