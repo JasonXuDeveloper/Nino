@@ -401,106 +401,23 @@ jobs:
           diff <(grep -v '^#' dotnet.txt) <(grep -v '^#' mono.txt)
           grep -qx 'ALL OK' mono.txt
 
-  unity-tests:
-    name: Unity tests (${{ matrix.unity }})
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        # The oldest Unity the package supports (package.json: 2022.3) at its newest patch outside Extended LTS (later
-        # 2022.3 builds need an Industry or Enterprise license), the project's own version, and the newest Unity 6 LTS.
-        unity: [ '2022.3.62f2', '6000.3.27f1' ]
-    # Skip Unity tests for external PRs (secrets not available in forks)
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ runner.arch }}-unity-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-${{ runner.arch }}-unity-
-            nuget-${{ runner.os }}-${{ runner.arch }}-
-
-      - name: Build the DLLs Unity loads
-        run: |
-          dotnet build src/Nino.Core/Nino.Core.csproj -c Debug -f netstandard2.1
-          dotnet build src/Nino.Generator/Nino.Generator.csproj -c Debug
-          dotnet build src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj -c Debug
-          dotnet build src/Nino.UnityTypes/Nino.UnityTypes.csproj -c Debug
-          cp ./src/Nino.Core/bin/Debug/netstandard2.1/Nino.Core.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
-          # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
-          cp ./src/Nino.Generator/bin/Debug/netstandard2.0/Nino.Generator.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
-          # Code fixes, for Rider and Visual Studio: Unity lists RoslynAnalyzer DLLs in the projects it generates.
-          cp ./src/Nino.Generator.CodeFixes/bin/Debug/netstandard2.0/Nino.Generator.CodeFixes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.CodeFixes.dll
-          cp ./src/Nino.UnityTypes/bin/Debug/netstandard2.1/Nino.UnityTypes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
-
-      - name: Cache Unity Library
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: src/Nino.Unity/Library
-          key: Library-Nino-${{ runner.os }}-${{ matrix.unity }}-${{ hashFiles('src/Nino.Unity/Assets/**', 'src/Nino.Unity/Packages/**', 'src/Nino.Unity/ProjectSettings/**') }}
-          restore-keys: |
-            Library-Nino-${{ runner.os }}-${{ matrix.unity }}-
-
-      - name: Run Unity tests
-        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
-        id: unity-tests
-        env:
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
-        with:
-          projectPath: ./src/Nino.Unity
-          testMode: editmode
-          # No githubToken: posting the results as a check run calls the GitHub API, and a timeout there failed a run
-          # whose tests had all passed. The results are uploaded below, and a failed test still fails this step.
-          unityVersion: ${{ matrix.unity }}
-          # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
-          cliVersion: 'v0.1.72'
-
-      - name: Upload Unity results
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        # A storage timeout is not a test result.
-        continue-on-error: true
-        with:
-          name: test-results-unity-${{ matrix.unity }}
-          path: |
-            ./artifacts
-            ${{ steps.unity-tests.outputs.coveragePath }}
-          retention-days: 30
-
-  # The one check to require: fails if any configuration failed (a skipped Unity run, on fork PRs, is not a failure),
+  # The one check to require: fails if any configuration failed (Unity runs in unity.yml, one seat at a time),
   # or if the shards of a unit test configuration together did not run the whole suite.
   build-test:
     name: Build and Test
     runs-on: ubuntu-26.04
-    needs: [ unit-tests, integrations, trim-aot, mono, unity-tests ]
+    needs: [ unit-tests, integrations, trim-aot, mono ]
     # Not when the run itself was cancelled (a newer push supersedes it): its cancelled jobs are not failures.
     if: ${{ !cancelled() }}
     timeout-minutes: 10
     steps:
       - name: Check results
         run: |
-          echo "unit tests: ${{ needs.unit-tests.result }}, integrations: ${{ needs.integrations.result }}, trim/AOT: ${{ needs.trim-aot.result }}, Mono: ${{ needs.mono.result }}, Unity tests: ${{ needs.unity-tests.result }}"
+          echo "unit tests: ${{ needs.unit-tests.result }}, integrations: ${{ needs.integrations.result }}, trim/AOT: ${{ needs.trim-aot.result }}, Mono: ${{ needs.mono.result }}"
           [ "${{ needs.unit-tests.result }}" = success ] || exit 1
           [ "${{ needs.integrations.result }}" = success ] || exit 1
           [ "${{ needs.trim-aot.result }}" = success ] || exit 1
           [ "${{ needs.mono.result }}" = success ] || exit 1
-          case "${{ needs.unity-tests.result }}" in success|skipped) ;; *) exit 1 ;; esac
 
       - name: Checkout the scripts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

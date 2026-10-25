@@ -1,0 +1,137 @@
+name: Unity
+
+# The Unity tests, apart from ci.yml: they activate the Unity license, which has few seats. A seat is taken when a job
+# activates and given back when its tests end; a job cancelled in between never gives it back (it stays taken until
+# it is returned on id.unity.com). So this workflow never cancels a running job (a newer run waits in the queue, and
+# GitHub replaces a waiting run with a newer one before it starts), runs one Unity version at a time, and runs only
+# when what Unity loads changes. CI therefore takes at most one seat at any moment, whatever is pushed.
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+    paths:
+      - 'src/Nino.Core/**'
+      - 'src/Nino.Generator/**'
+      - 'src/Nino.Generator.CodeFixes/**'
+      - 'src/Nino.UnityTypes/**'
+      - 'src/Nino.Unity/**'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - 'nuget.config'
+      - '.github/workflows/unity.yml'
+  pull_request:
+    branches: [ "main", "develop" ]
+    paths:
+      - 'src/Nino.Core/**'
+      - 'src/Nino.Generator/**'
+      - 'src/Nino.Generator.CodeFixes/**'
+      - 'src/Nino.UnityTypes/**'
+      - 'src/Nino.Unity/**'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - 'nuget.config'
+      - '.github/workflows/unity.yml'
+  workflow_dispatch:
+
+# One group for every ref: one Unity run at a time in the repository, never cancelled while it runs.
+concurrency:
+  group: unity-license
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  unity-tests:
+    name: Unity tests (${{ matrix.unity }})
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      # One version after the other: each run activates the license, holds a seat until its tests end and returns it.
+      max-parallel: 1
+      matrix:
+        # The oldest Unity the package supports (package.json: 2022.3) at its newest patch outside Extended LTS (later
+        # 2022.3 builds need an Industry or Enterprise license), the project's own version, and the newest Unity 6 LTS.
+        unity: [ '2022.3.62f2', '6000.3.27f1' ]
+    # Skip Unity tests for external PRs (secrets not available in forks)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            ${{ vars.DOTNET_VERSION || '10.0.x' }}
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-unity-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-${{ runner.arch }}-unity-
+            nuget-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Build the DLLs Unity loads
+        run: |
+          dotnet build src/Nino.Core/Nino.Core.csproj -c Debug -f netstandard2.1
+          dotnet build src/Nino.Generator/Nino.Generator.csproj -c Debug
+          dotnet build src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj -c Debug
+          dotnet build src/Nino.UnityTypes/Nino.UnityTypes.csproj -c Debug
+          cp ./src/Nino.Core/bin/Debug/netstandard2.1/Nino.Core.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
+          # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
+          cp ./src/Nino.Generator/bin/Debug/netstandard2.0/Nino.Generator.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+          # Code fixes, for Rider and Visual Studio: Unity lists RoslynAnalyzer DLLs in the projects it generates.
+          cp ./src/Nino.Generator.CodeFixes/bin/Debug/netstandard2.0/Nino.Generator.CodeFixes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.CodeFixes.dll
+          cp ./src/Nino.UnityTypes/bin/Debug/netstandard2.1/Nino.UnityTypes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
+
+      - name: Cache Unity Library
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: src/Nino.Unity/Library
+          key: Library-Nino-${{ runner.os }}-${{ matrix.unity }}-${{ hashFiles('src/Nino.Unity/Assets/**', 'src/Nino.Unity/Packages/**', 'src/Nino.Unity/ProjectSettings/**') }}
+          restore-keys: |
+            Library-Nino-${{ runner.os }}-${{ matrix.unity }}-
+
+      - name: Run Unity tests
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        id: unity-tests
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ./src/Nino.Unity
+          testMode: editmode
+          # No githubToken: posting the results as a check run calls the GitHub API, and a timeout there failed a run
+          # whose tests had all passed. The results are uploaded below, and a failed test still fails this step.
+          unityVersion: ${{ matrix.unity }}
+          # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
+          cliVersion: 'v0.1.72'
+
+      - name: Upload Unity results
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        # A storage timeout is not a test result.
+        continue-on-error: true
+        with:
+          name: test-results-unity-${{ matrix.unity }}
+          path: |
+            ./artifacts
+            ${{ steps.unity-tests.outputs.coveragePath }}
+          retention-days: 30
+
