@@ -1,6 +1,5 @@
 #if NINO_BURST
 using System;
-using System.Diagnostics;
 using System.Linq;
 using Nino.Burst;
 using Nino.Core;
@@ -19,8 +18,9 @@ namespace Test.Runtime.Burst
 
     /// <summary>
     /// The Burst kernels (Nino.Burst) against Nino.Core's scalar paths: the same bytes with the kernels registered and
-    /// without, for every kernel kind and lengths around each threshold; then the time each takes. Run in play mode and
-    /// in an IL2CPP player (Burst AOT), and in edit mode through Test.Editor.Burst.BurstKernelsInEditMode.
+    /// without, for every kernel kind and lengths around each threshold. Run in play mode and in an IL2CPP player
+    /// (Burst AOT), and in edit mode through Test.Editor.Burst.BurstKernelsInEditMode. Their speed is measured by
+    /// BurstBenchmark, in the release benchmark's player only.
     /// </summary>
     public unsafe class BurstKernelTests
     {
@@ -31,32 +31,46 @@ namespace Test.Runtime.Burst
         {
             Assert.IsTrue(BurstCompiler.IsEnabled, "Burst is off");
             Assert.IsTrue(NinoBurst.Register(), "the kernels did not register");
-            // 1: SSSE3, 2: AArch64 Neon; 0 would be the scalar branch (or managed code, not Burst's).
+            // SSSE3, AVX2 or AArch64 Neon; 0 would be the scalar branch (or managed code, not Burst's).
             Assert.AreNotEqual(0, NinoBurst.Isa);
-            Debug.Log($"Nino Burst kernels: instruction set {(NinoBurst.Isa == 1 ? "SSSE3" : "AArch64 Neon")}");
+            Debug.Log($"Nino Burst kernels: instruction set {NinoBurst.IsaName}");
         }
 
         [OneTimeTearDown]
         public void Restore() => NinoBurst.Register();
 
-        private static NinoKernels Kernels
+        /// <summary>Every instruction set the kernels take on this machine: SSSE3 and AVX2 on an AVX2 CPU.</summary>
+        private static int[] Tiers
         {
             get
             {
                 Assert.IsTrue(NinoBurst.Register());
-                return NinoKernels.Current;
+                return NinoBurst.Isa == NinoBurst.Avx2 ? new[] { NinoBurst.Ssse3, NinoBurst.Avx2 } : new[] { NinoBurst.Isa };
             }
+        }
+
+        private static NinoKernels Use(int tier)
+        {
+            Assert.IsTrue(NinoBurst.Register(tier));
+            return NinoKernels.Current;
         }
 
         [Test]
         public void PermuteMatchesTheScalarReference()
         {
-            var kernels = Kernels;
+            foreach (int tier in Tiers)
+                Permute(Use(tier), NinoBurst.IsaName);
+        }
+
+        private static void Permute(NinoKernels kernels, string tier)
+        {
             var random = new Random(1);
             for (int trial = 0; trial < 4000; trial++)
             {
-                int from = random.Next(1, 65), to = random.Next(1, 65);
-                int count = trial % 4 == 0 ? random.Next(0, 300) : random.Next(0, 70);
+                // Half the values of up to 16 bytes, the ones the AVX2 path takes two or more a vector.
+                int most = trial % 2 == 0 ? 17 : 65;
+                int from = random.Next(1, most), to = random.Next(1, most);
+                int count = trial % 4 == 0 ? random.Next(0, 1200) : random.Next(0, 70);
                 var table = new byte[to];
                 for (int j = 0; j < to; j++)
                     table[j] = random.Next(5) == 0 ? (byte)0xFF : (byte)random.Next(from);
@@ -73,14 +87,19 @@ namespace Test.Runtime.Burst
                 }
 
                 if (!burst.SequenceEqual(scalar))
-                    Assert.Fail($"permute of {count} values, {from} to {to} bytes");
+                    Assert.Fail($"{tier}: permute of {count} values, {from} to {to} bytes");
             }
         }
 
         [Test]
         public void NarrowAndWidenMatchTheScalarReference()
         {
-            var kernels = Kernels;
+            foreach (int tier in Tiers)
+                NarrowAndWiden(Use(tier), NinoBurst.IsaName);
+        }
+
+        private static void NarrowAndWiden(NinoKernels kernels, string tier)
+        {
             var random = new Random(2);
             for (int n = 16; n < 600; n++)
             for (int bad = -1; bad < n; bad += Math.Max(1, n / 4))
@@ -100,9 +119,9 @@ namespace Test.Runtime.Burst
                     expected = NinoKernels.NarrowScalar(c, s, n);
                 }
 
-                Assert.AreEqual(expected, narrowed, $"narrow {n}, bad at {bad}");
+                Assert.AreEqual(expected, narrowed, $"{tier}: narrow {n}, bad at {bad}");
                 if (expected)
-                    CollectionAssert.AreEqual(scalar, burst, $"narrow {n}");
+                    CollectionAssert.AreEqual(scalar, burst, $"{tier}: narrow {n}");
             }
 
             for (int n = 16; n < 600; n++)
@@ -118,7 +137,7 @@ namespace Test.Runtime.Burst
                     NinoKernels.WidenScalar(p, s, n);
                 }
 
-                CollectionAssert.AreEqual(scalar, burst, $"widen {n}");
+                CollectionAssert.AreEqual(scalar, burst, $"{tier}: widen {n}");
             }
         }
 
@@ -127,13 +146,17 @@ namespace Test.Runtime.Burst
         {
             NinoBurst.Unregister();
             byte[] scalar = NinoSerializer.Serialize(value);
-            Assert.IsTrue(NinoBurst.Register());
-            byte[] burst = NinoSerializer.Serialize(value);
-            CollectionAssert.AreEqual(scalar, burst, what);
-            byte[] again = NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(burst));
+            foreach (int tier in Tiers)
+            {
+                Use(tier);
+                byte[] burst = NinoSerializer.Serialize(value);
+                CollectionAssert.AreEqual(scalar, burst, $"{NinoBurst.IsaName}: {what}");
+                byte[] again = NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(burst));
+                CollectionAssert.AreEqual(scalar, again, $"{NinoBurst.IsaName}: {what}");
+            }
+
             NinoBurst.Unregister();
-            CollectionAssert.AreEqual(scalar, again, what);
-            CollectionAssert.AreEqual(scalar, NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(burst)), what);
+            CollectionAssert.AreEqual(scalar, NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(scalar)), what);
             Assert.IsTrue(NinoBurst.Register());
         }
 
@@ -175,15 +198,29 @@ namespace Test.Runtime.Burst
                 BitConverter.GetBytes(values[i].Item2).CopyTo(expected, 4 + i * 5 + 1);
             }
 
-            Assert.IsTrue(NinoBurst.Register());
-            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values));
-            CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<(byte, int)[]>(expected));
+            // 40 (int, long): the length, then each as its int and its long (12 bytes, whatever the memory layout).
+            var wide = Enumerable.Range(0, 40).Select(i => (i * 7919, (long)i << 40 | (uint)i)).ToArray();
+            var expectedWide = new byte[4 + 40 * 12];
+            BitConverter.GetBytes(40).CopyTo(expectedWide, 0);
+            for (int i = 0; i < 40; i++)
+            {
+                BitConverter.GetBytes(wide[i].Item1).CopyTo(expectedWide, 4 + i * 12);
+                BitConverter.GetBytes(wide[i].Item2).CopyTo(expectedWide, 4 + i * 12 + 4);
+            }
 
             // 40 Latin-1 chars: ~length, then a byte each.
             string text = new string(Enumerable.Range(0, 40).Select(i => (char)(0xA0 + i)).ToArray());
             var latin1 = BitConverter.GetBytes(~40).Concat(text.Select(c => (byte)c)).ToArray();
-            CollectionAssert.AreEqual(latin1, NinoSerializer.Serialize(text));
-            Assert.AreEqual(text, NinoDeserializer.Deserialize<string>(latin1));
+            foreach (int tier in Tiers)
+            {
+                Use(tier);
+                CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values), NinoBurst.IsaName);
+                CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<(byte, int)[]>(expected), NinoBurst.IsaName);
+                CollectionAssert.AreEqual(expectedWide, NinoSerializer.Serialize(wide), NinoBurst.IsaName);
+                CollectionAssert.AreEqual(wide, NinoDeserializer.Deserialize<(int, long)[]>(expectedWide), NinoBurst.IsaName);
+                CollectionAssert.AreEqual(latin1, NinoSerializer.Serialize(text), NinoBurst.IsaName);
+                Assert.AreEqual(text, NinoDeserializer.Deserialize<string>(latin1), NinoBurst.IsaName);
+            }
         }
 
         [Test]
@@ -192,76 +229,11 @@ namespace Test.Runtime.Burst
             var values = Enumerable.Range(0, 64).Select(i => (i, i % 2 == 0)).ToArray();
             byte[] bytes = NinoSerializer.Serialize(values);
             bytes[4 + 33 * 5 + 4] = 2;
-            Assert.IsTrue(NinoBurst.Register());
-            Assert.Throws<NinoDataException>(() => NinoDeserializer.Deserialize<(int, bool)[]>(bytes));
-        }
-
-        /// <summary>The time per call of each path with the kernels and without, in the log (not asserted).</summary>
-        [Test]
-        public void Timings()
-        {
-            var random = new Random(4);
-            foreach (int n in new[] { 32, 1000 })
+            foreach (int tier in Tiers)
             {
-                var intLong = Enumerable.Range(0, n).Select(i => (i, (long)i << 20)).ToArray();
-                var byteInt = Enumerable.Range(0, n).Select(i => ((byte)i, i)).ToArray();
-                var wide = Enumerable.Range(0, n).Select(i => (1.5 * i, (long)i, 2.5, 3.5f, (byte)i)).ToArray();
-                var padded = Enumerable.Range(0, n).Select(i => new PaddedRaw { A = (short)i, B = i }).ToArray();
-                string text = new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(32, 127)).ToArray());
-                Time($"write (int, long)[{n}]", () => NinoSerializer.Serialize(intLong));
-                Time($"read (int, long)[{n}]", Reader(intLong));
-                Time($"write (byte, int)[{n}]", () => NinoSerializer.Serialize(byteInt));
-                Time($"read (byte, int)[{n}]", Reader(byteInt));
-                Time($"write (double, long, double, float, byte)[{n}]", () => NinoSerializer.Serialize(wide));
-                Time($"read (double, long, double, float, byte)[{n}]", Reader(wide));
-                Time($"write padded struct[{n}]", () => NinoSerializer.Serialize(padded));
-                Time($"write ASCII string ({n} chars)", () => NinoSerializer.Serialize(text));
-                byte[] bytes = NinoSerializer.Serialize(text);
-                Time($"read ASCII string ({n} chars)", () => NinoDeserializer.Deserialize<string>(bytes));
+                Use(tier);
+                Assert.Throws<NinoDataException>(() => NinoDeserializer.Deserialize<(int, bool)[]>(bytes), NinoBurst.IsaName);
             }
-
-            Assert.IsTrue(NinoBurst.Register());
-        }
-
-        private static Action Reader<T>(T[] values)
-        {
-            byte[] bytes = NinoSerializer.Serialize(values);
-            var into = new T[values.Length];
-            return () => NinoDeserializer.Deserialize(bytes, ref into);
-        }
-
-        private static void Time(string what, Action action)
-        {
-            NinoBurst.Unregister();
-            double scalar = Measure(action);
-            Assert.IsTrue(NinoBurst.Register());
-            double burst = Measure(action);
-            Debug.Log($"Nino Burst timing: {what}: scalar {scalar:F0} ns, Burst {burst:F0} ns ({scalar / burst:F2}x)");
-        }
-
-        // The best of seven runs of enough calls to take about 20 ms each, in nanoseconds per call.
-        private static double Measure(Action action)
-        {
-            for (int i = 0; i < 100; i++)
-                action();
-            var watch = Stopwatch.StartNew();
-            int calls = 0;
-            while (watch.ElapsedMilliseconds < 20)
-            {
-                action();
-                calls++;
-            }
-
-            double best = double.MaxValue;
-            for (int run = 0; run < 7; run++)
-            {
-                watch.Restart();
-                for (int i = 0; i < calls; i++)
-                    action();
-                best = Math.Min(best, watch.Elapsed.TotalMilliseconds * 1e6 / calls);
-            }
-
-            return best;
         }
     }
 }

@@ -3,7 +3,13 @@
 //
 // Unity loads the netstandard2.1 build of Nino.Core, which has no hardware intrinsics: on Mono, IL2CPP and HybridCLR it
 // moves blocks of tuples and structs a field at a time and narrows or widens Latin-1 text a word at a time. The kernels
-// here do that work with SSSE3 (x86 and x64) or AArch64 Neon, called through Burst function pointers.
+// here do that work with AVX2 or SSSE3 (x86 and x64) or AArch64 Neon, called through Burst function pointers.
+//
+// x64 players: Burst AOT compiles each function pointer once per CPU target of the Burst AOT Settings (Burst 1.8.29's
+// default for x64 desktop players: SSE2 and AVX2; SSE4 can be added) and picks the variant the CPU runs at load time.
+// The AVX2 variant takes the 32-byte permute below for blocks of 256 values or more, an SSE4 variant the 16-byte (SSSE3)
+// paths; the SSE2 variant has no byte shuffle, so on a CPU without AVX2 and without an SSE4 target the kernels are not
+// registered.
 //
 // Platforms (each kernel checks its instruction set at Burst compile time, IsXxxSupported, and has a scalar branch):
 // - Editor (Mono) and Mono players: Burst JIT in the editor (compiled synchronously), Burst AOT in players.
@@ -44,22 +50,46 @@ namespace Nino.Burst
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate int IsaFunction();
 
+        /// <summary>Values of <see cref="Isa"/>: the kernels' 16-byte x86 paths (SSSE3), AArch64 Neon, the 32-byte x86
+        /// paths (AVX2, with the 16-byte ones for what they do not cover).</summary>
+        public const int Ssse3 = 1, Neon = 2, Avx2 = 3;
+
         /// <summary>
-        /// The instruction set the kernels were compiled for: 1 SSSE3, 2 AArch64 Neon, 0 none (the scalar branches, or
-        /// the managed code when Burst did not compile them). Set by <see cref="Register"/>.
+        /// The instruction set of the registered kernels: <see cref="Ssse3"/>, <see cref="Neon"/>, <see cref="Avx2"/>, 0
+        /// none (the scalar branches, or the managed code when Burst did not compile them). Set by
+        /// <see cref="Register()"/>.
         /// </summary>
         public static int Isa { get; private set; }
+
+        // The best instruction set Burst compiled the kernels for on this CPU.
+        private static int _best;
 
         /// <summary>Whether Nino.Core uses these kernels.</summary>
         public static bool Registered => NinoKernels.Current is Kernels;
 
-        private static Kernels _kernels;
+        /// <summary>The instruction set name of <see cref="Isa"/>, for logs.</summary>
+        public static string IsaName => Isa switch
+        {
+            Ssse3 => "SSSE3",
+            Neon => "AArch64 Neon",
+            Avx2 => "AVX2",
+            _ => "none",
+        };
+
+        // The kernels with every path the CPU has, and with the 16-byte ones only (on AVX2 CPUs, for measuring).
+        private static Kernels _kernels, _kernels16;
 
         /// <summary>
         /// Compiles the kernels (once) and registers them with Nino.Core: false, with Nino's scalar paths kept, where
         /// Burst is off or the target has no SSSE3 or AArch64 Neon.
         /// </summary>
-        public static bool Register()
+        public static bool Register() => Register(Avx2);
+
+        /// <summary>
+        /// <see cref="Register()"/>, with the x86 kernels limited to <paramref name="maxIsa"/>: <see cref="Ssse3"/> keeps
+        /// an AVX2 CPU on the 16-byte paths (to compare the two; they write the same bytes).
+        /// </summary>
+        public static bool Register(int maxIsa)
         {
             if (_kernels == null)
             {
@@ -68,12 +98,16 @@ namespace Nino.Burst
                 try
                 {
                     var isa = BurstCompiler.CompileFunctionPointer<IsaFunction>(InstructionSet).Invoke;
-                    Isa = isa();
-                    if (Isa == 0)
+                    _best = isa();
+                    if (_best == 0)
                         return false;
                     _kernels = new Kernels(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute).Invoke,
                         BurstCompiler.CompileFunctionPointer<NarrowFunction>(Narrow).Invoke,
                         BurstCompiler.CompileFunctionPointer<WidenFunction>(Widen).Invoke);
+                    _kernels16 = _best == Avx2
+                        ? new Kernels(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute16).Invoke,
+                            _kernels.NarrowPointer, _kernels.WidenPointer)
+                        : _kernels;
                 }
                 catch (Exception e)
                 {
@@ -82,7 +116,9 @@ namespace Nino.Burst
                 }
             }
 
-            NinoKernels.Register(_kernels);
+            bool wide = _best == Avx2 && maxIsa >= Avx2;
+            Isa = _best == Avx2 && !wide ? Ssse3 : _best;
+            NinoKernels.Register(wide ? _kernels : _kernels16);
             return true;
         }
 
@@ -109,6 +145,9 @@ namespace Nino.Burst
             private readonly NarrowFunction _narrow;
             private readonly WidenFunction _widen;
 
+            public NarrowFunction NarrowPointer => _narrow;
+            public WidenFunction WidenPointer => _widen;
+
             public Kernels(PermuteFunction permute, NarrowFunction narrow, WidenFunction widen)
             {
                 _permute = permute;
@@ -131,9 +170,11 @@ namespace Nino.Burst
         public static int InstructionSet()
         {
             if (Arm.Neon.IsNeonSupported)
-                return 2;
+                return Neon;
+            if (X86.Avx2.IsAvx2Supported)
+                return Avx2;
             if (X86.Ssse3.IsSsse3Supported)
-                return 1;
+                return Ssse3;
             return 0;
         }
 
@@ -145,12 +186,30 @@ namespace Nino.Burst
         [BurstCompile(CompileSynchronously = true)]
         [MonoPInvokeCallback(typeof(PermuteFunction))]
         public static void Permute(byte* source, int sourceStride, byte* destination, int destinationStride,
-            byte* table, int count)
+            byte* table, int count) =>
+            PermuteAll(source, sourceStride, destination, destinationStride, table, count, true);
+
+        /// <summary><see cref="Permute"/> without the AVX2 paths (registered by <c>Register(Ssse3)</c>).</summary>
+        [BurstCompile(CompileSynchronously = true)]
+        [MonoPInvokeCallback(typeof(PermuteFunction))]
+        public static void Permute16(byte* source, int sourceStride, byte* destination, int destinationStride,
+            byte* table, int count) =>
+            PermuteAll(source, sourceStride, destination, destinationStride, table, count, false);
+
+        // The fewest values the 32-byte path takes: below it the 16-byte path was as fast or faster on the CI players'
+        // CPUs (32 values: about 5% slower with AVX2; 1000 and more: up to 3 times faster to read, 1.2 times to write).
+        private const int Avx2MinValues = 256;
+
+        private static void PermuteAll(byte* source, int sourceStride, byte* destination, int destinationStride,
+            byte* table, int count, bool wide)
         {
             int i = 0;
+            if (wide && count >= Avx2MinValues && sourceStride <= 16 && destinationStride <= 16)
+                i = PermuteAvx2(source, sourceStride, destination, destinationStride, table, count);
             if ((Arm.Neon.IsNeonSupported || X86.Ssse3.IsSsse3Supported) && sourceStride <= 64 &&
-                destinationStride <= 64)
-                i = PermuteVectors(source, sourceStride, destination, destinationStride, table, count);
+                destinationStride <= 64 && i < count)
+                i += PermuteVectors(source + (long)i * sourceStride, sourceStride,
+                    destination + (long)i * destinationStride, destinationStride, table, count - i);
             for (; i < count; i++)
             {
                 byte* from = source + (long)i * sourceStride, to = destination + (long)i * destinationStride;
@@ -233,8 +292,81 @@ namespace Nino.Burst
         }
 
         /// <summary>
+        /// Values of up to 16 bytes (both strides), two or more a 32-byte vector: each 16-byte lane holds
+        /// v = min(16 / sourceStride, 16 / destinationStride) values, shuffled (vpshufb) by one mask for both lanes; the
+        /// lanes' bytes are stored as one 32-byte store when they fill it, joined by a dword permute (vpermd) when they
+        /// are whole dwords, else as two 16-byte stores. Returns the values done (from the first), leaving those whose
+        /// loads or stores would reach past either range to the 16-byte path. AVX2 only (0 elsewhere).
+        /// </summary>
+        private static int PermuteAvx2(byte* source, int sourceStride, byte* destination, int destinationStride,
+            byte* table, int count)
+        {
+            if (X86.Avx2.IsAvx2Supported)
+            {
+                int v = Math.Min(16 / sourceStride, 16 / destinationStride);
+                int laneIn = v * sourceStride, laneOut = v * destinationStride, step = 2 * v;
+                int kind = laneOut == 16 ? 0 : (laneOut & 3) == 0 ? 1 : 2;
+                int readExtent = laneIn + 16, writeExtent = kind == 2 ? laneOut + 16 : 32;
+                int n = count / step;
+                long inTotal = (long)count * sourceStride, outTotal = (long)count * destinationStride;
+                while (n > 0 && ((long)(n - 1) * step * sourceStride + readExtent > inTotal ||
+                                 (long)(n - 1) * step * destinationStride + writeExtent > outTotal))
+                    n--;
+                if (n == 0)
+                    return 0;
+
+                // The shuffle of a lane (the same in both): byte j of the lane's output is byte b of value q.
+                byte* m = stackalloc byte[32];
+                for (int j = 0; j < 16; j++)
+                {
+                    int from = 0xFF;
+                    if (j < laneOut)
+                    {
+                        int q = j / destinationStride, b = j - q * destinationStride;
+                        from = table[b] == 0xFF ? 0xFF : q * sourceStride + table[b];
+                    }
+
+                    m[j] = m[16 + j] = from == 0xFF ? (byte)0x80 : (byte)from;
+                }
+
+                // The dwords of both lanes' output, in order (kind 1).
+                int* d = stackalloc int[8];
+                for (int j = 0; j < 8; j++)
+                    d[j] = j < laneOut / 4 ? j : j < 2 * (laneOut / 4) ? j - laneOut / 4 + 4 : 0;
+                v256 mask = X86.Avx.mm256_loadu_si256(m), dwords = X86.Avx.mm256_loadu_si256(d);
+                bool contiguous = laneIn == 16;
+                int inStep = step * sourceStride, outStep = step * destinationStride;
+                byte* at = source, to = destination;
+                for (int k = 0; k < n; k++)
+                {
+                    v256 x = contiguous
+                        ? X86.Avx.mm256_loadu_si256(at)
+                        : X86.Avx.mm256_loadu2_m128i(at + laneIn, at);
+                    v256 r = X86.Avx2.mm256_shuffle_epi8(x, mask);
+                    if (kind == 0)
+                        X86.Avx.mm256_storeu_si256(to, r);
+                    else if (kind == 1)
+                        X86.Avx.mm256_storeu_si256(to, X86.Avx2.mm256_permutevar8x32_epi32(r, dwords));
+                    else
+                    {
+                        X86.Sse2.storeu_si128(to, X86.Avx.mm256_castsi256_si128(r));
+                        X86.Sse2.storeu_si128(to + laneOut, X86.Avx2.mm256_extracti128_si256(r, 1));
+                    }
+
+                    at += inStep;
+                    to += outStep;
+                }
+
+                return n * step;
+            }
+
+            return 0;
+        }
+
+        /// <summary>
         /// <see cref="NinoKernels.Narrow"/>, 16 chars at a time (the last 16 again, overlapping): 1 when all are Latin-1,
-        /// 0 at the first 16 with a char above U+00FF.
+        /// 0 at the first 16 with a char above U+00FF. No 32-byte path: on the CI players' CPUs it was no faster
+        /// (strings of 1000 and 100000 chars, within a few percent either way).
         /// </summary>
         [BurstCompile(CompileSynchronously = true)]
         [MonoPInvokeCallback(typeof(NarrowFunction))]
