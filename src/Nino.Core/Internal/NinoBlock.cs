@@ -122,6 +122,13 @@ namespace Nino.Core
                     i = last + 1;
                 }
             }
+#else
+            // The netstandard builds (Unity, .NET Framework): the registered kernels (NinoKernels), for runs long
+            // enough to pay for the call; without any, one load and a compare that fails.
+            if (NinoBlock<T, TFormatter>.Kernel && count >= NinoKernelHook.MinBlocks &&
+                NinoKernelHook.Permute(ref Unsafe.As<T, byte>(ref first), Unsafe.SizeOf<T>(), ref destination, size,
+                    NinoBlock<T, TFormatter>.KernelTables.ToWire, count))
+                return;
 #endif
             for (; i < count; i++)
                 ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(
@@ -289,12 +296,39 @@ namespace Nino.Core
                     i = last + 1;
                 }
             }
+#else
+            // As in WriteEach.
+            if (NinoBlock<T, TFormatter>.Kernel && count >= NinoKernelHook.MinBlocks && ReadKernel<T, TFormatter>(
+                    ref source, ref first, count))
+                return;
 #endif
             for (; i < count; i++)
                 ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(
                     ref Unsafe.Add(ref source, (nint)i * size), ref Unsafe.Add(ref first, i));
         }
 
+#if !NET8_0_OR_GREATER
+        /// <summary>
+        /// <see cref="ReadEach{T, TFormatter}"/> by the registered kernels: false (nothing read) without any. The kernel
+        /// moves bytes without a look, where ReadBlock checks the bools, so they are checked first (as the vector paths
+        /// of the .NET 8 builds do).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool ReadKernel<T, TFormatter>(ref byte source, ref T first, int count)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (NinoKernelHook.Kernels == null)
+                return false;
+            int size = NinoBlock<T, TFormatter>.Size;
+            var bools = NinoBlock<T, TFormatter>.KernelTables.Bools;
+            if (bools != null)
+                foreach (int at in bools)
+                    NinoChecks.Bools(ref Unsafe.Add(ref source, at), count, size);
+            return NinoKernelHook.Permute(ref source, size, ref Unsafe.As<T, byte>(ref first), Unsafe.SizeOf<T>(),
+                NinoBlock<T, TFormatter>.KernelTables.ToMemory, count);
+        }
+
+#endif
 #if NET8_0_OR_GREATER
         /// <summary>
         /// The read groups of <see cref="ReadAll{T, TFormatter}"/>, two or more: returns the values read. Not inlined,

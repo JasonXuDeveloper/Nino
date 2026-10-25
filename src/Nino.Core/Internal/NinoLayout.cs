@@ -408,6 +408,11 @@ namespace Nino.Core
         private readonly int _period512;
 #endif
         private readonly int[] _gaps; // (offset, length) of each run of cleared bytes in one element
+#if !NET8_0_OR_GREATER
+        // For the registered kernels (NinoKernels.Permute): each byte from itself, padding cleared (0xFF). Zero for
+        // elements above 64 bytes.
+        private readonly IntPtr _kernelTable;
+#endif
 
         /// <summary>(offset, length) of each run of cleared bytes in one element.</summary>
         public int[] Gaps => _gaps;
@@ -432,6 +437,18 @@ namespace Nino.Core
             }
 
             _gaps = gaps.ToArray();
+#if !NET8_0_OR_GREATER
+            if (mask.Length <= 64)
+            {
+                _kernelTable = NinoKernelHook.Table(mask.Length);
+                unsafe
+                {
+                    for (int j = 0; j < mask.Length; j++)
+                        if (mask[j] != 0)
+                            ((byte*)_kernelTable)[j] = (byte)j;
+                }
+            }
+#endif
             var words = Repeat(mask, 8, 0, out _);
             _words = new ulong[words.Length / 8];
             for (int i = 0; i < _words.Length; i++)
@@ -467,6 +484,12 @@ namespace Nino.Core
         public void Copy(ref byte destination, ref byte source, int count)
         {
             int total = checked(count * _mask.Length);
+#if !NET8_0_OR_GREATER
+            // The netstandard builds (Unity, .NET Framework): the registered kernels, for runs long enough.
+            if (count >= NinoKernelHook.MinBlocks && _kernelTable != IntPtr.Zero &&
+                NinoKernelHook.Permute(ref source, _mask.Length, ref destination, _mask.Length, _kernelTable, count))
+                return;
+#endif
 #if NET8_0_OR_GREATER
             if (_mask512 != null && total >= Vector512<byte>.Count)
             {
