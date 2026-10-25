@@ -576,6 +576,8 @@ export class NinoReader {
   /** `System.Decimal` at `at`, as its exact decimal text. */
   decimalAt(at: number): string {
     const view = this.view, flags = view.getInt32(at, true), hi = view.getUint32(at + 4, true);
+    // Only the sign and a scale of at most 28 (§9.10), as the Go and Rust readers check and the writer requires.
+    if ((flags & 0x7f00ffff) !== 0 || ((flags >> 16) & 0xff) > 28) throw new NinoError("invalid decimal.");
     const lo = view.getUint32(at + 8, true), mid = view.getUint32(at + 12, true);
     // The 96-bit integer: below 2^53 in exact Number arithmetic, else as a BigInt.
     let digits = hi === 0 && mid < 0x200000 ? (mid * 4294967296 + lo).toString()
