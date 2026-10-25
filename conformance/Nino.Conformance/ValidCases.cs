@@ -556,6 +556,125 @@ namespace Conformance
                 DictTree = new DictTree { ["a"] = new DictTree { ["b"] = null }, [""] = new DictTree() },
             }, "seq", "map");
 
+            // ---------------------------------------------------------- reference tracking, every slot form (optional)
+
+            var node = new TrackedNode { Value = 1 };
+            node.Next = node;
+            var other = new TrackedNode { Value = 2, Next = node };
+            var based = new TrackedLeaf { Value = 3, Name = "base", Other = new Tracked { Value = 4 } };
+            based.Next = based;
+            var tolerant = new TrackedTolerant { Value = 5 };
+            tolerant.Next = new TrackedTolerant { Value = 6, Next = tolerant };
+            Optional("track-references", "references-forms",
+                "Tracked objects through an object member (type id, then header), a sealed member (header alone), a " +
+                "non-sealed member (header, then type id), collections and a version-tolerant type: one numbering.",
+                new TrackedMix
+                {
+                    Any = other, Node = node, Base = based,
+                    Nodes = new List<TrackedNode> { other, null, new TrackedNode { Value = 7 }, node },
+                    ById = new Dictionary<int, TrackedNode> { [1] = node, [2] = null, [7] = other },
+                    Tolerant = tolerant,
+                }, "track-references", "type-id", "object", "version-tolerant");
+
+            static TrackedNode MakeTrackedChain(int depth)
+            {
+                TrackedNode head = null, tail = null;
+                for (int i = depth; i > 0; i--)
+                {
+                    head = new TrackedNode { Value = i, Next = head };
+                    tail ??= head;
+                }
+
+                tail.Next = head;
+                return head;
+            }
+
+            static TrackedTolerant MakeTrackedTolerant(int depth)
+            {
+                TrackedTolerant head = null, tail = null;
+                for (int i = depth; i > 0; i--)
+                {
+                    head = new TrackedTolerant { Value = i, Next = head };
+                    tail ??= head;
+                }
+
+                tail.Next = head;
+                return head;
+            }
+
+            Optional("track-references", "references-deep-cycle",
+                "A tracked ring of 200: the bodies past 128 are deferred, their headers numbered where they stand; " +
+                "the last refers back to the first.", MakeTrackedChain(200), "track-references", "deferral");
+            Optional("track-references", "references-deep-tolerant",
+                "A version-tolerant tracked ring of 200: deferred bodies in the outermost region's section.",
+                MakeTrackedTolerant(200), "track-references", "deferral", "deferral-section", "version-tolerant");
+
+            // ---------------------------------------------------------- [NinoType] collections
+
+            var bag = new Bag { 1, 2, 3 };
+            bag.Tag = "bag";
+            var tolerantBag = new TolerantBag { "a", null, "" };
+            tolerantBag.Tag = "tolerant";
+            var keyedBag = new KeyedBag { ["one"] = 1, ["two"] = 2 };
+            keyedBag.Version = 9;
+            var set = new PointSet { 5, 3 };
+            set.Origin = new Point { X = 1, Y = 2 };
+            var empty = new Bag();
+            Add("nino-collections", "[NinoType] collections in every format: elements, then members (positional), " +
+                                    "elements outside the region (version tolerant), inside it (keyed).", new BagHolder
+            {
+                Bag = bag, Tolerant = tolerantBag, Keyed = keyedBag, Set = set, Bags = new List<Bag> { empty, null, bag },
+            }, "nino-collection", "type-id", "version-tolerant", "keyed", "seq", "map");
+            Add("nino-collections-null", "[NinoType] collection members, null.", new BagHolder(), "nino-collection");
+
+            // ---------------------------------------------------------- generic types behind type ids
+
+            Add("generic-slots", "Generic abstract classes, classes and interfaces written behind type ids: each " +
+                                 "closed type is its own slot, holding generic and non-generic subtypes.", new GenericSlots
+            {
+                IntShelf = new IntShelf { Item = 1, Extra = 2 },
+                TextShelf = new ListShelf<string> { Item = "x", More = new List<string> { "y" } },
+                Crate = new LabeledCrate<int> { Content = 3, Label = "l" },
+                TextCrate = new Crate<string> { Content = "c" },
+                Holder = new Holder<long> { Held = long.MaxValue, Count = 1 },
+                Shelves = new List<Shelf<int>> { new ListShelf<int> { Item = 4, More = new List<int> { 5 } }, null, new IntShelf() },
+            }, "type-id", "generic-type-id");
+            Add("generic-slots-null", "Generic slots, null.", new GenericSlots(), "type-id");
+
+            // ---------------------------------------------------------- generic types holding themselves
+
+            Add("generic-nest", "A generic type holding itself with another type argument (Nest<T> holds " +
+                                "Nest<List<T>>): every level is another closed type.", new NestHolder
+            {
+                Nest = new Nest<int>
+                {
+                    Value = 1,
+                    Deeper = new Nest<List<int>>
+                    {
+                        Value = new List<int> { 2 },
+                        Deeper = new Nest<List<List<int>>> { Value = new List<List<int>> { new() { 3 }, null } },
+                    },
+                },
+            }, "seq");
+
+            // ---------------------------------------------------------- nullables and pairs as type arguments
+
+            Add("generic-nullable-arguments", "Nullables and pairs inside the type arguments of a generic type: raw " +
+                                              "nullables in arrays and lists at a fixed stride, item by item elsewhere.",
+                new WrappedArgs
+                {
+                    NullableArray = new Wrap<int?[]> { Value = new int?[] { 1, null, 3 } },
+                    NullableList = new Wrap<List<int?>> { Value = new List<int?> { null, 2 } },
+                    NullableSet = new Wrap<HashSet<int?>> { Value = new HashSet<int?> { 4, null } },
+                    NullableStructs = new Wrap<List<Vec2?>> { Value = new List<Vec2?> { new Vec2 { X = 1, Y = 2 }, null } },
+                    NullableValues = new Wrap<Dictionary<int, double?>> { Value = new Dictionary<int, double?> { [1] = 0.5, [2] = null } },
+                    Pairs = new Wrap<List<KeyValuePair<int, string>>>
+                    {
+                        Value = new List<KeyValuePair<int, string>> { new(1, "one"), new(2, null) },
+                    },
+                    PairArray = new Wrap<KeyValuePair<string, int?>[]> { Value = new[] { new KeyValuePair<string, int?>("k", null) } },
+                }, "nullable", "seq", "map");
+
             return cases;
         }
 

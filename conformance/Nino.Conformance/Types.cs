@@ -568,6 +568,170 @@ namespace Conformance
         public EmptyStruct[] Structs;
         public List<Empty> Classes;
     }
+
+    // ------------------------------------------------------------------ reference tracking, every slot form
+
+    /// <summary>A sealed tracked class: the reference header alone, no presence byte or type id.</summary>
+    [NinoType(trackReferences: true)]
+    public sealed class TrackedNode
+    {
+        public int Value;
+        public TrackedNode Next;
+    }
+
+    /// <summary>Tracked and version tolerant: deferred bodies go to a section, their headers stay in place.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant, trackReferences: true)]
+    public sealed class TrackedTolerant
+    {
+        public int Value;
+        public TrackedTolerant Next;
+    }
+
+    /// <summary>Every slot a tracked object is written through, sharing one numbering.</summary>
+    [NinoType]
+    public sealed class TrackedMix
+    {
+        public object Any;
+        public TrackedNode Node;
+        public Tracked Base;
+        public List<TrackedNode> Nodes;
+        public Dictionary<int, TrackedNode> ById;
+        public TrackedTolerant Tolerant;
+    }
+
+    // ------------------------------------------------------------------ [NinoType] collections
+
+    /// <summary>A positional collection behind a type id (not sealed): its elements, then its members.</summary>
+    [NinoType]
+    public class Bag : List<int>
+    {
+        public string Tag;
+    }
+
+    /// <summary>Version tolerant: the elements outside the region, the members inside.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public sealed class TolerantBag : List<string>
+    {
+        public string Tag;
+    }
+
+    /// <summary>Keyed: the elements inside the region, before the entries.</summary>
+    [NinoType(format: NinoFormat.Keyed)]
+    public sealed class KeyedBag : Dictionary<string, int>
+    {
+        public int Version;
+    }
+
+    [NinoType]
+    public sealed class PointSet : HashSet<int>
+    {
+        public Point Origin;
+    }
+
+    [NinoType]
+    public sealed class BagHolder
+    {
+        public Bag Bag;
+        public TolerantBag Tolerant;
+        public KeyedBag Keyed;
+        public PointSet Set;
+        public List<Bag> Bags;
+    }
+
+    // ------------------------------------------------------------------ generic types behind type ids
+
+    [NinoType]
+    public abstract class Shelf<T>
+    {
+        public T Item;
+    }
+
+    /// <summary>A non-generic subtype of one closed type of a generic base.</summary>
+    [NinoType]
+    public sealed class IntShelf : Shelf<int>
+    {
+        public int Extra;
+    }
+
+    /// <summary>A generic subtype: one closed type per closed base.</summary>
+    [NinoType]
+    public sealed class ListShelf<T> : Shelf<T>
+    {
+        public List<T> More;
+    }
+
+    /// <summary>A generic class written behind a type id (not sealed), with a subtype.</summary>
+    [NinoType]
+    public class Crate<T>
+    {
+        public T Content;
+    }
+
+    [NinoType]
+    public sealed class LabeledCrate<T> : Crate<T>
+    {
+        public string Label;
+    }
+
+    [NinoType]
+    public interface IHolder<T>
+    {
+        T Held { get; set; }
+    }
+
+    [NinoType]
+    public sealed class Holder<T> : IHolder<T>
+    {
+        public T Held { get; set; }
+        public int Count;
+    }
+
+    [NinoType]
+    public sealed class GenericSlots
+    {
+        public Shelf<int> IntShelf;
+        public Shelf<string> TextShelf;
+        public Crate<int> Crate;
+        public Crate<string> TextCrate;
+        public IHolder<long> Holder;
+        public List<Shelf<int>> Shelves;
+    }
+
+    // ------------------------------------------------------------------ generic types holding themselves
+
+    /// <summary>Holds itself with another type argument: every level is another closed type.</summary>
+    [NinoType]
+    public sealed class Nest<T>
+    {
+        public T Value;
+        public Nest<List<T>> Deeper;
+    }
+
+    [NinoType]
+    public sealed class NestHolder
+    {
+        public Nest<int> Nest;
+    }
+
+    // ------------------------------------------------------------------ nullables and pairs as type arguments
+
+    [NinoType]
+    public sealed class Wrap<T>
+    {
+        public T Value;
+    }
+
+    [NinoType]
+    public sealed class WrappedArgs
+    {
+        public Wrap<int?[]> NullableArray;
+        public Wrap<List<int?>> NullableList;
+        public Wrap<HashSet<int?>> NullableSet;
+        public Wrap<List<Vec2?>> NullableStructs;
+        public Wrap<Dictionary<int, double?>> NullableValues;
+        public Wrap<List<KeyValuePair<int, string>>> Pairs;
+        public Wrap<KeyValuePair<string, int?>[]> PairArray;
+    }
 }
 
 // Small roots the malicious cases are forged against: one member each, after the sealed class's null flag.
