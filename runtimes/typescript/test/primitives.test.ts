@@ -110,8 +110,12 @@ describe("decimal", () => {
     for (const bad of ["", ".", "1e5", "abc", "79228162514264337593543950336", "0." + "1".repeat(29)])
       assert.throws(() => bytes((w) => w.decimal(bad)), NinoError);
   });
-  it("reads any scale and sign the data has", () => {
+  it("reads every scale and sign a decimal can have", () => {
     assert.equal(reader("00001c80 00000000 01000000 00000000").decimal(), "-0." + "0".repeat(27) + "1");
+  });
+  it("rejects a scale past 28 and flag bits other than the sign and the scale, as the writer does (§9.10)", () => {
+    for (const flags of ["00001d00", "00ff0000", "01000000", "00000140"])
+      assert.throws(() => reader(flags + " 00000000 01000000 00000000").decimal(), NinoError, flags);
   });
 });
 
