@@ -18,18 +18,29 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj"/>
         <ProjectReference Include="..\..\src\Nino.Codegen\Nino.Codegen.csproj"/>
-        <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
-                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
     <ItemGroup>
         <None Include="harness.ts" CopyToOutputDirectory="PreserveNewest"/>
-        <!-- What the scratch projects of BuildTests build with: nino-gen and the generator, as built here. -->
-        <AssemblyMetadata Include="NinoCodegenTool"
-                          Value="$(MSBuildThisFileDirectory)..\..\src\Nino.Codegen\bin\$(Configuration)\net8.0\nino-gen.dll"/>
-        <AssemblyMetadata Include="NinoGenerator"
-                          Value="$(MSBuildThisFileDirectory)..\..\src\Nino.Generator.Roslyn4.12\bin\$(Configuration)\netstandard2.0\Nino.Generator.dll"/>
     </ItemGroup>
 
-    <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props"/>
+    <!-- What the scratch projects of BuildTests build with: nino-gen and the generator, as built here (their target
+         paths, from MSBuild's GetTargetPath). -->
+    <Target Name="NinoToolPaths" BeforeTargets="GetAssemblyAttributes">
+        <MSBuild Projects="..\..\src\Nino.Codegen\Nino.Codegen.csproj" Targets="GetTargetPath"
+                 Properties="Configuration=$(Configuration)">
+            <Output TaskParameter="TargetOutputs" PropertyName="_NinoCodegenTool"/>
+        </MSBuild>
+        <MSBuild Projects="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj" Targets="GetTargetPath"
+                 Properties="Configuration=$(Configuration)">
+            <Output TaskParameter="TargetOutputs" PropertyName="_NinoGenerator"/>
+        </MSBuild>
+        <ItemGroup>
+            <AssemblyMetadata Include="NinoCodegenTool" Value="$(_NinoCodegenTool)"/>
+            <AssemblyMetadata Include="NinoGenerator" Value="$(_NinoGenerator)"/>
+        </ItemGroup>
+    </Target>
+
+    <Import Project="..\..\build\UseNinoGenerator.props"/>
+    <Import Project="..\Shared\RepositoryFiles.props"/>
 </Project>

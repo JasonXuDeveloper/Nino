@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Codegen;
+using Nino.Tests;
 
 namespace Nino.Codegen.Tests
 {
@@ -14,25 +17,13 @@ namespace Nino.Codegen.Tests
     [TestClass]
     public class GeneratedFilesTests
     {
-        internal static string Root
-        {
-            get
-            {
-                for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-                    if (File.Exists(Path.Combine(dir.FullName, "Nino.slnx")))
-                        return dir.FullName;
-                throw new InvalidOperationException("No Nino.slnx above " + AppContext.BaseDirectory);
-            }
-        }
-
-        /// <summary>The corpus's types, built in the configuration of this assembly (bin/&lt;config&gt;/net10.0/).</summary>
+        /// <summary>The corpus's types, as this build built them (its target path, from the project file).</summary>
         internal static string Conformance
         {
             get
             {
-                var framework = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar));
-                string path = Path.Combine(Root, "conformance", "Nino.Conformance", "bin", framework.Parent!.Name,
-                    framework.Name, "Nino.Conformance.dll");
+                string path = typeof(GeneratedFilesTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+                    .Single(a => a.Key == "NinoConformance").Value;
                 Assert.IsTrue(File.Exists(path), path + " is missing: build conformance/Nino.Conformance");
                 return path;
             }
@@ -65,7 +56,7 @@ namespace Nino.Codegen.Tests
         {
             var (files, _) = Generate(args);
             string text = files[file];
-            string path = Path.Combine(Root, committed);
+            string path = RepositoryFiles.Of(committed);
             if (Environment.GetEnvironmentVariable("NINO_UPDATE_GENERATED") == "1")
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);

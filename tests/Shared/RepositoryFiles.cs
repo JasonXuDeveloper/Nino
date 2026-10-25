@@ -3,6 +3,8 @@ using System.Linq;
 using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+#nullable enable
+
 namespace Nino.Tests;
 
 /// <summary>
@@ -22,11 +24,14 @@ internal static class RepositoryFiles
         return root != null && File.Exists(Path.Combine(root, "Nino.slnx")) ? root : null;
     }
 
-    /// <summary>The path of a file under the repository root; inconclusive when the tests run without the sources.</summary>
-    public static string Of(string relative)
+    /// <summary>
+    /// The path of a file or directory under the repository root, from its relative path or its parts; inconclusive
+    /// when the tests run without the sources.
+    /// </summary>
+    public static string Of(params string[] parts)
     {
         if (Root == null)
             Assert.Inconclusive("the repository is not available (the tests run without the sources)");
-        return Path.Combine(Root!, relative);
+        return Path.Combine(Root!, Path.Combine(parts));
     }
 }
