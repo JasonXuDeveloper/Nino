@@ -257,7 +257,8 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
   WTF-8 surrogates are written back as the code units they stand for. A byte that is not UTF-8 is written as U+FFFD.
   The text is converted into the writer's buffer eight bytes at a time, in one pass, through `unsafe` pointers
   within the text and the room reserved for it (`strings_write.go`); the reader, which takes untrusted bytes, stays
-  on checked slices.
+  on checked slices. On amd64 and arm64, long runs of ASCII are copied or widened 16 bytes at a time in assembly
+  (SSE2, NEON); the `purego` build tag, and every other platform, use the Go loops (the same bytes).
 - **Null.** A `string` has no null: `String` (and a `string` field of a tagged struct) reads a null string as `""`,
   and `""` is written back, not null. Read into a `*string` (`StringPtr`, `NullableString`; generated structs use
   `*string` for C# strings) to tell null from empty.
@@ -271,6 +272,7 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
 cd runtimes/go
 go vet ./...
 go test -race ./...                                    # unit tests, sample codecs, conformance corpus
+go test -tags purego ./...                             # the same without the string writer's assembly
 go test -run='^$' -fuzz=FuzzReader -fuzztime=1m .      # any sequence of reads over any bytes
 go test -run='^$' -fuzz=FuzzDecode -fuzztime=1m ./internal/sample   # any bytes as any corpus type
 go test -run='^$' -fuzz=FuzzTagged -fuzztime=1m .                   # any bytes into tagged structs

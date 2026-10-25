@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf16"
@@ -124,6 +125,22 @@ func TestStringEncodings(t *testing.T) {
 			}
 		}
 	}
+	// Long runs of ASCII before, after and between the kinds, of lengths around the word and block sizes (the
+	// writer takes long runs 16 bytes at a time where the platform has vector instructions).
+	runs := []int{0, 1, 7, 8, 9, 15, 16, 17, 31, 63, 64, 65, 71, 72, 73, 80, 100, 129}
+	var ascii strings.Builder
+	for c := 0; ascii.Len() < 130; c++ {
+		ascii.WriteByte(byte(0x20 + c*7%0x5F))
+	}
+	run := func(n, from int) string { return ascii.String()[from : from+n] }
+	for _, kind := range stringKinds {
+		for _, pre := range runs {
+			for _, post := range runs {
+				check(run(pre, 0) + kind + run(post, 1))
+				check(kind + run(pre, 0) + kind + run(post, 1) + kind)
+			}
+		}
+	}
 	// Every Latin-1 char, alone and among ASCII; random strings of the kinds.
 	for c := rune(0); c < 0x100; c++ {
 		check(string(c))
@@ -232,4 +249,44 @@ func FuzzString(f *testing.F) {
 			t.Fatalf("% X: read %q as Latin-1", b, got)
 		}
 	})
+}
+
+// BenchmarkWriteString writes 300 short strings of each kind (ASCII, Latin-1, other text; as the bench module's
+// mixed case) and one text of about 1 KiB of each kind, ASCII also after one char that makes it Latin-1 or UTF-16
+// (the long runs the writer takes 16 bytes at a time where it has vector instructions).
+func BenchmarkWriteString(b *testing.B) {
+	short := func(f func(i int) string) []string {
+		v := make([]string, 300)
+		for i := range v {
+			v[i] = f(i)
+		}
+		return v
+	}
+	ascii := strings.Repeat("The quick brown fox jumps over. ", 32)
+	cases := []struct {
+		name string
+		v    []string
+	}{
+		{"ascii", short(func(i int) string { return "string " + strconv.Itoa(i) })},
+		{"latin1", short(func(i int) string { return "crème brûlée " + strconv.Itoa(i) })},
+		{"other", short(func(i int) string { return "строка 字符串 🎉 " + strconv.Itoa(i) })},
+		{"long-ascii", []string{ascii}},
+		{"long-latin1", []string{strings.Repeat("Ça a été très démodé à côté. ", 35)}},
+		{"long-cyrillic", []string{strings.Repeat("Это предложение на русском языке. ", 30)}},
+		{"long-cjk", []string{strings.Repeat("这是一个用于测试的中文句子，", 40)}},
+		{"long-ascii-latin1", []string{"é" + ascii}},
+		{"long-ascii-utf16", []string{"🎉" + ascii}},
+	}
+	for _, c := range cases {
+		b.Run(c.name, func(b *testing.B) {
+			w := NewWriter(1 << 16)
+			b.ReportAllocs()
+			for b.Loop() {
+				w.Reset()
+				for _, s := range c.v {
+					w.String(s)
+				}
+			}
+		})
+	}
 }

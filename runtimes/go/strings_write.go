@@ -19,11 +19,18 @@ import (
 // platform: the compiler makes each one load or store on hosts that allow unaligned ones (amd64, arm64, ppc64le,
 // ...), byte-reversed on big-endian hosts that have such loads (ppc64, s390x), and byte by byte elsewhere. The
 // reader takes untrusted bytes and stays on checked slices (strings.go).
+//
+// On amd64 (SSE2) and arm64 (NEON), runs of ASCII of [asciiLong] bytes or more are copied or widened to UTF-16 16
+// bytes at a time in assembly (asciiCopy, widenASCII: strings_amd64.s, strings_arm64.s); with the purego build tag,
+// and on every other platform, they take the same word loops as the rest of the text (strings_noasm.go).
 
 // stringSlack is the most a store may write past a string's bytes (16 bytes of UTF-16 for eight ASCII bytes, of
 // which at least one is text): the loops store whole words when this much room is left past the most a string
 // can take.
 const stringSlack = 16
+
+// asciiLong is the fewest bytes of text left for which the writer calls asciiCopy or widenASCII.
+const asciiLong = 64
 
 // latin1Long is the fewest bytes of text [latin1Into] takes a word at a time.
 const latin1Long = 32
@@ -102,6 +109,11 @@ func (w *Writer) String(s string) {
 	dst := unsafe.Pointer(&b[4])
 	// Each word is stored before it is checked: at a byte of 0x80 or above, the ASCII bytes before it are written.
 	if n >= 8 {
+		if hasASCIIRuns && n >= asciiLong {
+			// Out of line, so that this path makes no call (nothing kept on the stack around one).
+			w.longString(s, at)
+			return
+		}
 		// The words before the last, then the last eight bytes (over the bytes before them).
 		for i := 0; i < n-8; i += 8 {
 			word := load64(src, i)
@@ -131,6 +143,33 @@ func (w *Writer) String(s string) {
 	}
 	w.buf = w.buf[:at+4+n]
 	binary.LittleEndian.PutUint32(b, uint32(^int32(n)))
+}
+
+// longString is [Writer.String] of text of [asciiLong] bytes or more where the platform has vector instructions:
+// copied 16 bytes at a time while it is ASCII (asciiCopy), then a word at a time as in String.
+//
+//go:noinline
+func (w *Writer) longString(s string, at int) {
+	n := len(s)
+	src := unsafe.Pointer(unsafe.StringData(s))
+	dst := unsafe.Pointer(&w.buf[at+4])
+	i := asciiCopy(dst, src, n)
+	for ; i < n-8; i += 8 {
+		word := load64(src, i)
+		store64(dst, i, word)
+		if high := word & highBits; high != 0 {
+			w.wideString(s, at, i+bits.TrailingZeros64(high)>>3, 0)
+			return
+		}
+	}
+	word := load64(src, n-8)
+	store64(dst, n-8, word)
+	if high := word & highBits; high != 0 {
+		w.wideString(s, at, n-8+bits.TrailingZeros64(high)>>3, 0)
+		return
+	}
+	w.buf = w.buf[:at+4+n]
+	binary.LittleEndian.PutUint32(w.buf[at:], uint32(^int32(n)))
 }
 
 // emptyString writes the empty string, or fails for a string of n bytes, more than a string's header can count.
@@ -221,6 +260,13 @@ func latin1Into(dst, src unsafe.Pointer, i, n int, short uint64) (int, int) {
 		for n-i >= 8 {
 			word := load64(src, i)
 			high := word & highBits
+			if high == 0 && n-i >= asciiLong {
+				// A long ASCII run 16 bytes at a time where the platform has vector instructions (asciiCopy).
+				if k := asciiCopy(unsafe.Add(dst, j), unsafe.Add(src, i), n-i); k > 0 {
+					i, j = i+k, j+k
+					continue
+				}
+			}
 			// The lead bytes C2 and C3 (each byte of v zero), and the continuation bytes (10xxxxxx).
 			v := (word ^ 0xC2C2C2C2C2C2C2C2) & 0xFEFEFEFEFEFEFEFE
 			lead := ^((v&0x7F7F7F7F7F7F7F7F + 0x7F7F7F7F7F7F7F7F) | v) & highBits
@@ -318,6 +364,26 @@ func utf16Into(dst unsafe.Pointer, j, room int, s string, i int, short uint64) i
 		// No room for whole words up to the end (each byte left takes at most one unit).
 		return utf16Tail(dst, j, s, i)
 	}
+	for {
+		i, j = utf16Words(dst, j, src, i, n, short)
+		if i == n {
+			return j >> 1
+		}
+		// Eight ASCII bytes with a long run of text after them: those words 16 bytes at a time where the platform
+		// has vector instructions (widenASCII), outside the word loop so that loop makes no call.
+		word := load64(src, i)
+		store64(dst, j, widen(uint32(word)))
+		store64(dst, j+8, widen(uint32(word>>32)))
+		i, j = i+8, j+16
+		k := widenASCII(unsafe.Add(dst, j), unsafe.Add(src, i), n-i)
+		i, j = i+k, j+2*k
+	}
+}
+
+// utf16Words is the word loop of [utf16Into]: it returns where it stopped, the end of the text or eight ASCII bytes
+// with at least [asciiLong] more after them, and the bytes dst holds.
+func utf16Words(dst unsafe.Pointer, j int, src unsafe.Pointer, i, n int, short uint64) (int, int) {
+	runs := n - 8 - asciiLong
 	for i < n {
 		word := textWord(src, i, n, short)
 		switch {
@@ -325,6 +391,9 @@ func utf16Into(dst unsafe.Pointer, j, room int, s string, i int, short uint64) i
 			store64(dst, j, widen(uint32(word)))
 			store64(dst, j+8, widen(uint32(word>>32)))
 			if word&highBits == 0 && n-i >= 8 {
+				if hasASCIIRuns && i <= runs {
+					return i, j
+				}
 				// The common case on its own, so the next word's position does not wait on the count.
 				i, j = i+8, j+16
 				continue
@@ -379,7 +448,7 @@ func utf16Into(dst unsafe.Pointer, j, room int, s string, i int, short uint64) i
 		store16(dst, j, utf8.RuneError)
 		i, j = i+1, j+2
 	}
-	return j >> 1
+	return i, j
 }
 
 // utf16Tail is [utf16Into] a char at a time, writing only the units of the chars: for a buffer without room for
