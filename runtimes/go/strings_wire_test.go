@@ -3,6 +3,7 @@ package nino
 import (
 	"bytes"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -248,4 +249,49 @@ func FuzzReadVector(f *testing.F) {
 		}
 		readBoth(t, src)
 	})
+}
+
+// benchStrings are the bench module's mixed strings (bench/strings.go): ASCII, Latin-1 and other text in turn.
+func benchStrings() []string {
+	v := make([]string, 1000)
+	for i := range v {
+		n := strconv.Itoa(i)
+		switch i % 3 {
+		case 0:
+			v[i] = "string " + n
+		case 1:
+			v[i] = "crème brûlée " + n
+		default:
+			v[i] = "строка 字符串 🎉 " + n
+		}
+	}
+	return v
+}
+
+// BenchmarkStringTiers writes and reads the mixed strings with each tier of the vector paths and with the Go loops.
+func BenchmarkStringTiers(b *testing.B) {
+	v := benchStrings()
+	w := NewWriter(1 << 16)
+	WriteStrings(w, v)
+	data := append([]byte(nil), w.Bytes()...)
+	for _, tier := range append([]int{0}, writeTiers...) {
+		b.Run("write/"+tierName(tier), func(b *testing.B) {
+			defer resetWire()
+			setWire(tier)
+			for range b.N {
+				w.Reset()
+				WriteStrings(w, v)
+			}
+		})
+	}
+	for _, tier := range append([]int{0}, readTiers...) {
+		b.Run("read/"+tierName(tier), func(b *testing.B) {
+			defer setReadTier(best(readTiers))
+			setReadTier(tier)
+			for range b.N {
+				r := NewReader(data)
+				ReadSlice(r, 4, (*Reader).String)
+			}
+		})
+	}
 }

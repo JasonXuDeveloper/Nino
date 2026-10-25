@@ -40,10 +40,12 @@ var neonOps = map[string]neon{
 	"CMLT":  {0x4E20A800, '2'}, // n < 0
 	"UMAXV": {0x6E30A800, 'v'}, // the largest lane
 	"SSHR":  {0x4F000400, 's'}, // shift right, signed
+	"SHRN":  {0x0F008400, 's'}, // shift right and narrow (to the lower half)
+	"ORN":   {0x4EE01C00, '3'}, // n | ^m (bytes only)
 }
 
 // arrangements are the size field of each arrangement Go writes.
-var arrangements = map[string]uint32{"B16": 0, "H8": 1, "S4": 2, "D2": 3}
+var arrangements = map[string]uint32{"B16": 0, "B8": 0, "H8": 1, "S4": 2, "D2": 3}
 
 // encodeARM64 replaces each "WORD <instruction>" line of s with its encoding.
 func encodeARM64(s string) string {
@@ -77,10 +79,10 @@ func encodeARM64(s string) string {
 			n, _ := reg(f[2])
 			d, _ := reg(f[3])
 			enc = op.bits | size<<22 | m<<16 | n<<5 | d
-			if f[0] == "BIC" {
-				enc = op.bits&^(3<<22) | 1<<22 | m<<16 | n<<5 | d
+			if f[0] == "BIC" || f[0] == "ORN" {
+				enc = op.bits | m<<16 | n<<5 | d
 				if size != 0 {
-					panic("wiregen: BIC takes bytes")
+					panic("wiregen: BIC and ORN take bytes")
 				}
 			}
 		case '2':
@@ -99,6 +101,9 @@ func encodeARM64(s string) string {
 			n, size := reg(f[2])
 			d, _ := reg(f[3])
 			esize := uint32(8) << size
+			if f[0] == "SHRN" {
+				esize >>= 1 // the size of the result's lanes
+			}
 			if shift < 1 || shift > esize {
 				panic("wiregen: bad shift in " + t)
 			}
@@ -483,7 +488,8 @@ const setupNEON = `	MOVD    $·pairLen(SB), R20
 	MOVD    $·narrowLo(SB), R23
 	MOVD    $·narrowHi(SB), R24
 	MOVD    $·wideShuf(SB), R25
-	VLD1    (R21), [V16.B16]        // N_BITS
+	MOVD    $0x3C3C3C3C3C3C3C3C, R19
+	MOVD    $0x1010101010101010, R17
 	ADD     $N_T1, R21, R8
 	VLD1    (R8), [V20.B16, V21.B16, V22.B16]
 	ADD     $N_TAIL, R21, R8
@@ -504,7 +510,7 @@ const setupNEON = `	MOVD    $·pairLen(SB), R20
 `
 
 // tailW loads the last block of the writer's text, R7 bytes (fewer than 16) at R6, into V0 with zeros past them,
-// as tailNEON.
+// as tailNEON, and its two halves into R8 and R9.
 func tailW(p, l, body string) string {
 	return sub(`
 {p}{l}tail:
@@ -516,6 +522,8 @@ func tailW(p, l, body string) string {
 	SUB     R7, R8, R8
 	VLD1    (R8), [V1.B16]
 	VAND    V1.B16, V0.B16, V0.B16
+	VMOV    V0.D[0], R8
+	VMOV    V0.D[1], R9
 	B       {p}{body}
 
 {p}{l}cross:
@@ -530,18 +538,29 @@ func tailW(p, l, body string) string {
 	CMP     R7, R8
 	BLT     {p}{l}byte
 	VLD1    (R0), [V0.B16]
+	LDP     (R0), (R8, R9)
 	B       {p}{body}
 `, "p", p, "l", l, "body", body)
 }
 
-// movemask sets R8 to the high bits of the 16 bytes of V{v} (each 00 or FF), V7 lost.
-func movemask(v string) string {
-	return sub(`	VAND    V16.B16, V{v}.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VADDP   V7.B16, V7.B16, V7.B16
-	VMOV    V7.H[0], R8
-`, "v", v)
+// movemask sets R9 and R10 to the high bits of bytes 0 to 7 and 8 to 15 of V{v} (each 00 or FF), or of their
+// complement with not: a nibble a byte (SHRN), gathered to a bit each in the scalar registers. R8 and V11 are lost.
+func movemask(v string, not bool) string {
+	inv := ""
+	if not {
+		inv = "\tMVN     R8, R8\n"
+	}
+	return sub(`	WORD    SHRN $4, V{v}.H8, V11.B8
+	VMOV    V11.D[0], R8
+{inv}	AND     $0x1111111111111111, R8
+	ORR     R8>>3, R8, R8
+	AND     $0x0303030303030303, R8
+	ORR     R8>>6, R8, R8
+	AND     $0x000F000F000F000F, R8
+	ORR     R8>>12, R8, R8
+	AND     $0xff, R8, R9
+	UBFX    $32, R8, $8, R10
+`, "v", v, "inv", inv)
 }
 
 // kernelNEON converts the text at R1 (R2 bytes, R2 > 0) to Latin-1 at R4, or to UTF-16 at R5, 16 bytes at a time
@@ -561,10 +580,9 @@ func kernelNEON(p string) string {
 	CMP     $16, R7
 	BLT     {p}ltail
 	VLD1    (R6), [V0.B16]
+	LDP     (R6), (R8, R9)
 
 {p}lbody:
-	VMOV    V0.D[0], R8
-	VMOV    V0.D[1], R9
 	ORR     R8, R9, R10
 	TST     R22, R10
 	BNE     {p}lchars
@@ -578,12 +596,17 @@ func kernelNEON(p string) string {
 	B       {p}latin1
 
 {p}lchars:
-	// A byte above C3 (a char above U+00FF, or not UTF-8): UTF-16, from the start.
-	WORD    UQSUB V28.B16, V0.B16, V4.B16
-	VMOV    V4.D[0], R8
-	VMOV    V4.D[1], R9
-	ORR     R8, R9, R10
-	CBNZ    R10, {p}toUTF16
+	// A byte above C3 (a char above U+00FF, or not UTF-8): UTF-16, from the start. A byte b of 80 or above is C4
+	// or above when (b & 7F) + 3C carries into its high bit.
+	AND     $0x7f7f7f7f7f7f7f7f, R8, R10
+	ADD     R19, R10, R10
+	AND     R8, R10, R10
+	AND     $0x7f7f7f7f7f7f7f7f, R9, R11
+	ADD     R19, R11, R11
+	AND     R9, R11, R11
+	ORR     R10, R11, R10
+	TST     R22, R10
+	BNE     {p}toUTF16
 	// Its bytes are ASCII, leads C2 and C3 and continuations: it is valid when the continuations are exactly the
 	// bytes after the leads, and there are no C0 or C1.
 	VEXT    $15, V0.B16, V14.B16, V2.B16 // the byte before each
@@ -600,22 +623,20 @@ func kernelNEON(p string) string {
 	VAND    V27.B16, V5.B16, V5.B16
 	VADD    V5.B16, V0.B16, V6.B16       // the bytes: 40 more after C3
 	VORR    V0.B16, V0.B16, V14.B16
-`+movemask("4")+`	EOR     $0xffff, R8, R8              // kept: all but the leads
-	AND     $0xff, R8, R9
-	LSR     $8, R8, R10
+`+movemask("4", true)+`	// kept: all but the leads
 	FMOVD   (R23)(R9<<3), F8
 	MOVD    (R24)(R10<<3), R11
 	VMOV    R11, V8.D[1]
 	VTBL    V8.B16, [V6.B16], V6.B16
-	MOVBU   (R20)(R9), R12
-	MOVBU   (R20)(R10), R13
+	MOVBU   (R20)(R9), R9
+	MOVBU   (R20)(R10), R10
 	VST1    [V6.B16], (R0)
-	SUB     $8, R12, R12
-	ADD     R12, R0
+	SUB     $8, R9, R9
+	ADD     R9, R0
 	VMOV    V6.D[1], R11
 	MOVD    R11, (R0)
-	SUB     $8, R13, R13
-	ADD     R13, R0
+	SUB     $8, R10, R10
+	ADD     R10, R0
 	ADD     $16, R3
 	B       {p}latin1
 `+tailW(p, "l", "lbody")+`
@@ -634,6 +655,7 @@ func kernelNEON(p string) string {
 {p}toUTF16:
 	// From the start again, as UTF-16: the block in V0 when it is the first.
 	MOVD    R5, R0
+	MOVD    $0, R13                      // the block before has a lead of 4 bytes (or more)
 	VEOR    V14.B16, V14.B16, V14.B16
 	VEOR    V12.B16, V12.B16, V12.B16
 	CBZ     R3, {p}wchars
@@ -647,10 +669,9 @@ func kernelNEON(p string) string {
 	CMP     $16, R7
 	BLT     {p}wtail
 	VLD1    (R6), [V0.B16]
+	LDP     (R6), (R8, R9)
 
 {p}wbody:
-	VMOV    V0.D[0], R8
-	VMOV    V0.D[1], R9
 	ORR     R8, R9, R10
 	TST     R22, R10
 	BNE     {p}wchars
@@ -660,6 +681,7 @@ func kernelNEON(p string) string {
 	VUXTL2  V0.B16, V5.H8
 	VST1    [V4.B16, V5.B16], (R0)
 	ADD     $32, R0
+	MOVD    $0, R13
 	VORR    V0.B16, V0.B16, V14.B16
 	ADD     $16, R3
 	B       {p}wide
@@ -684,6 +706,17 @@ func kernelNEON(p string) string {
 	VEOR    V5.B16, V4.B16, V4.B16
 	VORR    V4.B16, V12.B16, V12.B16
 	VORR    V0.B16, V0.B16, V14.B16
+	// A lead of 4 bytes (F0 or above) here or in the block before: surrogates (R12).
+	AND     $0x7f7f7f7f7f7f7f7f, R8, R10
+	ADD     R17, R10, R10
+	AND     R8, R10, R10
+	AND     $0x7f7f7f7f7f7f7f7f, R9, R11
+	ADD     R17, R11, R11
+	AND     R9, R11, R11
+	ORR     R10, R11, R10
+	AND     R22, R10, R10
+	ORR     R10, R13, R12
+	MOVD    R10, R13
 	WORD    CMGT V0.B16, V31.B16, V4.B16 // b0 a continuation
 	WORD    CMGT V2.B16, V31.B16, V5.B16 // b1 a continuation
 	VAND    V24.B16, V2.B16, V6.B16
@@ -691,31 +724,24 @@ func kernelNEON(p string) string {
 	WORD    CMLT V0.B16, V7.B16          // b0 not ASCII
 	VORR    V6.B16, V5.B16, V5.B16
 	VAND    V4.B16, V5.B16, V5.B16       // b0 ends a char of 2 or more bytes, or is a third byte
-	WORD    BIC V5.B16, V7.B16, V5.B16   // dropped: the rest of the bytes not ASCII
-	VORR    V7.B16, V7.B16, V9.B16
-`+movemask("5")+`	EOR     $0xffff, R8, R8              // kept
-	// The low bytes: b0 for ASCII, else (b0 & 3F) | b1 << 6.
-	VAND    V29.B16, V0.B16, V4.B16
-	VSHL    $6, V2.B16, V5.B16
-	VORR    V5.B16, V4.B16, V4.B16
-	VBIF    V9.B16, V0.B16, V4.B16
+	WORD    ORN V7.B16, V5.B16, V5.B16   // kept: those and ASCII
+`+movemask("5", false)+`	// The low bytes: b0 for ASCII, else (b0 & 3F) | b1 << 6.
+	VORR    V0.B16, V0.B16, V4.B16
+	VSLI    $6, V2.B16, V4.B16
+	VBIF    V7.B16, V0.B16, V4.B16
 	// The high bytes: 0 for ASCII, (b1 >> 2) & 0F after the lead of 2 bytes, and that | b2 << 4 else.
 	VUSHR   $2, V2.B16, V5.B16
 	VAND    V30.B16, V5.B16, V5.B16
 	VSHL    $4, V3.B16, V8.B16
 	VORR    V5.B16, V8.B16, V8.B16
 	VBIT    V6.B16, V5.B16, V8.B16
-	VAND    V9.B16, V8.B16, V8.B16
+	VAND    V7.B16, V8.B16, V8.B16
+	CBZ     R12, {p}wpack
 	// Surrogates: b2 the lead of 4 bytes (the high one), or b3 (the low one).
 	VAND    V15.B16, V3.B16, V9.B16
 	VCMEQ   V23.B16, V9.B16, V9.B16
 	VAND    V15.B16, V1.B16, V10.B16
 	VCMEQ   V23.B16, V10.B16, V10.B16
-	VORR    V10.B16, V9.B16, V11.B16
-	VMOV    V11.D[0], R9
-	VMOV    V11.D[1], R10
-	ORR     R9, R10, R10
-	CBZ     R10, {p}wpack
 	// The high surrogate: D800 + ((b2 & 7) << 8 | (b1 & 3F) << 2 | (b0 >> 4) & 3) - 40.
 	VAND    V29.B16, V2.B16, V6.B16
 	VSHL    $2, V6.B16, V6.B16
@@ -742,21 +768,19 @@ func kernelNEON(p string) string {
 {p}wpack:
 	VZIP1   V8.B16, V4.B16, V9.B16       // the units of positions 0 to 7
 	VZIP2   V8.B16, V4.B16, V10.B16      // 8 to 15
-	AND     $0xff, R8, R9
-	LSR     $8, R8, R10
 	ADD     R9<<4, R25, R11
 	VLD1    (R11), [V6.B16]
 	ADD     R10<<4, R25, R11
 	VLD1    (R11), [V7.B16]
-	MOVBU   (R20)(R9), R12
-	MOVBU   (R20)(R10), R13
+	MOVBU   (R20)(R9), R9
+	MOVBU   (R20)(R10), R10
 	VTBL    V6.B16, [V9.B16], V9.B16
 	VTBL    V7.B16, [V10.B16], V10.B16
 	VST1    [V9.B16], (R0)
-	ADD     R12<<1, R0, R0
+	ADD     R9<<1, R0, R0
 	SUB     $16, R0, R0
 	VST1    [V10.B16], (R0)
-	ADD     R13<<1, R0, R0
+	ADD     R10<<1, R0, R0
 	SUB     $16, R0, R0
 	ADD     $16, R3
 	B       {p}wide
