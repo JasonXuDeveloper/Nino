@@ -1767,7 +1767,7 @@ func keyString(r *nino.Reader) string {
 
 // keyUtf8 reads a [NinoUtf8] string dictionary key.
 func keyUtf8(r *nino.Reader) string {
-	s, ok := r.NullableUtf8()
+	s, ok := r.NullableUTF8()
 	if !ok && !r.Failed() {
 		r.Fail(nino.CodeInvalidData, "null dictionary key")
 	}
