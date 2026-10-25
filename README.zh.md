@@ -80,8 +80,21 @@
 | 📨 **[消息队列与事件流](https://nino.xgamedev.net/zh/docs/v4/advanced/message-queues)** | 多态事件类型共用一个基类型，数据小巧，生产者和消费者可以在不同时间升级。 |
 | 🗄️ **[缓存](https://nino.xgamedev.net/zh/docs/v4/advanced/caching)** | 作为 Redis、`IDistributedCache`/`HybridCache` 或进程内缓存的值格式，跨部署修改结构也没问题。 |
 | 💾 **[持久化与存储](https://nino.xgamedev.net/zh/docs/v4/advanced/persistence)** | 版本兼容和 keyed 成员让你在版本之间增加、调整顺序、删除字段；引用追踪保留共享引用和循环引用的对象图。 |
-| 🎮 **[Unity](https://nino.xgamedev.net/zh/docs/v4/advanced/unity)** | Unity 2022.3+，Mono 和 IL2CPP，HybridCLR 热更程序集。`Vector3`、`Quaternion`、`Color32` 等非托管结构体按原始内存直接拷贝；`AnimationCurve`、`Gradient` 和 `RectOffset` 已内置。装了 `com.unity.burst` 时，元组和结构体数组以及 Latin-1 字符串由 Burst 编译的 SIMD 内核（SSSE3、Arm64 Neon）处理。通过 OpenUPM 安装。 |
+| 🎮 **[Unity](https://nino.xgamedev.net/zh/docs/v4/advanced/unity)** | Unity 2022.3+，Mono 和 IL2CPP，HybridCLR 热更程序集。`Vector3`、`Quaternion`、`Color32` 等非托管结构体按原始内存直接拷贝；`AnimationCurve`、`Gradient` 和 `RectOffset` 已内置。装了 `com.unity.burst` 时，元组和结构体数组以及 Latin-1 字符串由 Burst 编译的 SIMD 内核（AVX2、SSSE3、Arm64 Neon）处理。通过 OpenUPM 安装。 |
 | 👾 **[Godot 4（.NET）](https://nino.xgamedev.net/zh/docs/v4/platforms)** | Godot 的 .NET 项目直接引用 NuGet 包。Godot 的数学结构体（`Vector3`、`Transform3D` 等）是非托管类型，按原始内存直接拷贝。 |
+
+## 各平台的 SIMD
+
+元组和结构体数组的搬运、字符串的转换，Nino 都用各平台自有的向量指令完成。每条路径写出的字节都与可移植代码相同，
+CPU 或运行时没有向量指令时由可移植代码接手。[各平台的 SIMD](https://nino.xgamedev.net/zh/docs/v4/platforms#simd)。
+
+| 平台 | 向量路径 | 基准测试 |
+|---|---|---|
+| .NET 8 和 10 | x64：AVX-512（字节置换、64 字节复制）、AVX2、SSSE3；Arm64：AdvSimd（`TBL` 查表、成对加载与存储）；WebAssembly（.NET 10）：`PackedSimd` 重排；其他平台走可移植代码 | [.NET](https://nino.xgamedev.net/zh/docs/v4/perf) |
+| Unity（Mono、IL2CPP） | 装有 `com.unity.burst` 时：Burst 编译的内核，x86 和 x64 用 AVX2（256 个值以上的块）和 SSSE3，Arm64 用 Neon；Armv7、WebGL 和没有 Burst 时走 Nino.Core 自身的路径 | [Unity](https://nino.xgamedev.net/zh/docs/v4/perf-unity) |
+| .NET Framework、.NET Core 3.0–7 | 没有硬件内在函数（netstandard 构建）：块用 `memmove` 复制，文本按字处理 | |
+| Go | 字符串用汇编：amd64 上 AVX2 和 AVX-512 转换，16 字节 ASCII 复制（amd64 SSE2、arm64 NEON）；其他平台和 `purego` 标签下用纯 Go | [Go](https://nino.xgamedev.net/zh/docs/v4/perf-runtimes#go) |
+| Rust | 字符串，在其唯一的 `unsafe` 模块里：x86_64 上 SSE2、SSSE3 和 SSE4.1（运行时检测），Arm64 上 NEON；其他平台每步两个 `u64` 字 | [Rust](https://nino.xgamedev.net/zh/docs/v4/perf-runtimes#rust) |
 
 ## 安装
 
