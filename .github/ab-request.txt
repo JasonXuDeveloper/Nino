@@ -1,2 +1,2 @@
 # <go|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-typescript 08d8d60b69d195dd4cd3af9b8c1093f80b5f1392 20b815dc57208597622e99b006878722085a503c
+typescript bdc53c1c fc6c7a4591ff lookup
