@@ -8,7 +8,7 @@ name: Unity
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main" ]
     paths:
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'
@@ -22,7 +22,7 @@ on:
       - 'nuget.config'
       - '.github/workflows/unity.yml'
   pull_request:
-    branches: [ "main", "develop" ]
+    branches: [ "main" ]
     paths:
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'
@@ -46,6 +46,11 @@ permissions:
   contents: read
   # unity-test-runner posts its results as a check run, even without githubToken.
   checks: write
+
+# Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
+defaults:
+  run:
+    shell: bash
 
 env:
   DOTNET_NOLOGO: true
@@ -105,11 +110,14 @@ jobs:
           cp ./src/Nino.Generator.CodeFixes/bin/Debug/netstandard2.0/Nino.Generator.CodeFixes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.CodeFixes.dll
           cp ./src/Nino.UnityTypes/bin/Debug/netstandard2.1/Nino.UnityTypes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
 
+      # Keyed by the project's sources, not by the DLLs the step above built into Packages: those differ in every
+      # commit, so every run missed the key and saved another 800 MB per version, which pushed the other caches out
+      # of the repository's 10 GB. Unity reimports what changed since the cached Library.
       - name: Cache Unity Library
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: src/Nino.Unity/Library
-          key: Library-Nino-${{ runner.os }}-${{ matrix.unity }}-${{ hashFiles('src/Nino.Unity/Assets/**', 'src/Nino.Unity/Packages/**', 'src/Nino.Unity/ProjectSettings/**') }}
+          key: Library-Nino-${{ runner.os }}-${{ matrix.unity }}-${{ hashFiles('src/Nino.Unity/Assets/**', 'src/Nino.Unity/ProjectSettings/**', 'src/Nino.Unity/Packages/**', '!src/Nino.Unity/Packages/**/*.dll') }}
           restore-keys: |
             Library-Nino-${{ runner.os }}-${{ matrix.unity }}-
 
