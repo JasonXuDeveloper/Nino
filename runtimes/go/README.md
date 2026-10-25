@@ -260,15 +260,19 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
   `StringPtr` and `Utf8Ptr` (generated code's `*string`) point into a block of up to 32 strings the reader keeps.
 - **Writing.** A string is written as Latin-1 when every char is at most U+00FF, else as UTF-16 (what .NET writes).
   WTF-8 surrogates are written back as the code units they stand for. A byte that is not UTF-8 is written as U+FFFD.
-  The text is converted into the writer's buffer eight bytes at a time (Latin-1 beyond ASCII a char at a time), in
-  one pass, through `unsafe` pointers within the text and the room reserved for it (`strings_write.go`); the reader,
-  which takes untrusted bytes, stays on checked slices. On amd64 and arm64, long runs of ASCII are copied or widened 16 bytes at a time in assembly
-  (SSE2, NEON). On amd64 with AVX2 (or AVX-512 BW, VL and VBMI2) a whole string is checked and converted 32 bytes
-  at a time instead (`strings_wire_amd64.s`, written by `go run ./internal/wiregen`): WTF-8 validation, Latin-1 or
-  UTF-16 chosen and written in one pass, with the Go loops taking over for text that is not WTF-8. `WriteStrings`
-  and `WriteStringPtrs` (what generated code calls for a `string[]` or `List<string>`) write a whole list in one
-  call into it. The `purego` build tag, and every other platform, use the Go loops (the same bytes, which the tests
-  compare).
+  The text is converted into the writer's buffer eight bytes at a time (Latin-1 beyond ASCII a char at a time), in one
+  pass, through `unsafe` pointers within the text and the room reserved for it (`strings_write.go`); the reader, which
+  takes untrusted bytes, stays on checked slices. On amd64 and arm64 a whole string is checked and converted a block
+  at a time in assembly instead (16 bytes with NEON and SSSE3, 32 with AVX2 and AVX-512), one kernel per instruction
+  set, each designed for it: NEON on arm64, SSSE3, AVX2 and AVX-512 (BW, VL and VBMI2) on amd64, the best the
+  processor has taken (`strings_wire_amd64.s` and `strings_wire_arm64.s`, written by `go run ./internal/wiregen`):
+  WTF-8 validation, Latin-1 or UTF-16 chosen and written in one pass, with the Go loops taking over for text that is
+  not WTF-8. `WriteStrings` and `WriteStringPtrs` (what generated code calls for a `string[]` or `List<string>`) write
+  a whole list in one call into it. Reading Latin-1 and UTF-16 into UTF-8 has kernels too (NEON; SSSE3 and AVX-512
+  with VBMI). The kernels read past the text only within its page. The `purego` build tag, x64 without SSSE3 and every
+  other platform use the Go loops (whose long runs of ASCII are copied or widened 16 bytes at a time with SSE2 or
+  NEON): the same bytes, which the tests compare with every kernel the machine has (lengths 0 to 256, every kind of
+  char at every position, invalid WTF-8, surrogates, text ending at a page boundary).
 - **Null.** A `string` has no null: `String` (and a `string` field of a tagged struct) reads a null string as `""`,
   and `""` is written back, not null. Read into a `*string` (`StringPtr`, `NullableString`; generated structs use
   `*string` for C# strings) to tell null from empty.
@@ -282,9 +286,10 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
 cd runtimes/go
 go vet ./...
 go test -race ./...                                    # unit tests, sample codecs, conformance corpus
-go test -tags purego ./...                             # the same without the string writer's assembly
+go test -tags purego ./...                             # the same without the string kernels' assembly
 go test -run='^$' -fuzz=FuzzReader -fuzztime=1m .      # any sequence of reads over any bytes
-go test -run='^$' -fuzz=FuzzWireString -fuzztime=1m .  # the string writer's assembly against the Go loops
+go test -run='^$' -fuzz=FuzzWireString -fuzztime=1m .  # the string writer's kernels against the Go loops
+go test -run='^$' -fuzz=FuzzReadVector -fuzztime=1m .  # the string reader's kernels against the Go loops
 go test -run='^$' -fuzz=FuzzDecode -fuzztime=1m ./internal/sample   # any bytes as any corpus type
 go test -run='^$' -fuzz=FuzzTagged -fuzztime=1m .                   # any bytes into tagged structs
 go test -run='^$' -fuzz=FuzzTaggedDecode -fuzztime=1m ./internal/sample   # any bytes as any corpus type, by tags
