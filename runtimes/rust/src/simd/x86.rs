@@ -232,13 +232,13 @@ fn units_sse41<const LONGEST: u8>(b0: __m128i, b1: __m128i, b2: __m128i) -> __m1
     _mm_blendv_epi8(u, high, at_least(0xEF))
 }
 
-/// Both halves' code units of the window `v` (see [`units_sse41`]), for its longest char: the low eight lanes' and the
-/// high eight's.
+/// Both halves' code units of the 16 bytes `v` (the bytes after them in `next`; see [`units_sse41`]), for the
+/// window's longest char: the low eight lanes' and the high eight's.
 #[inline]
-#[target_feature(enable = "sse4.1")]
-fn halves_sse41(v: __m128i, three: u32, four: u32) -> (__m128i, __m128i) {
+#[target_feature(enable = "ssse3,sse4.1")]
+fn halves_sse41(v: __m128i, next: __m128i, three: u32, four: u32) -> (__m128i, __m128i) {
     let zero = _mm_setzero_si128();
-    let (n1, n2) = (_mm_srli_si128::<1>(v), _mm_srli_si128::<2>(v));
+    let (n1, n2) = (_mm_alignr_epi8::<1>(next, v), _mm_alignr_epi8::<2>(next, v));
     let (lo, hi) = (|x| _mm_unpacklo_epi8(x, zero), |x| _mm_unpackhi_epi8(x, zero));
     if three == 0 {
         (units_sse41::<2>(lo(v), lo(n1), zero), units_sse41::<2>(hi(v), hi(n1), zero))
@@ -249,103 +249,291 @@ fn halves_sse41(v: __m128i, three: u32, four: u32) -> (__m128i, __m128i) {
     }
 }
 
-/// [`super::wide`] with SSSE3, SSE4.1 and POPCNT: in one pass, 16 bytes of text a step from [`window`], each char's
-/// bytes combined in its first byte's lane and the lanes of the chars that end in the window moved to the front
-/// ([`KEEP8`], [`KEEP16`]). As Latin-1 while no byte is above 0xC3 (no char above U+00FF); at the first that is, the
-/// text is written again from its start as UTF-16. The header is written last.
+/// The 32 bytes of the text from `i` (zeros past `len`) as two vectors, read without touching a byte outside
+/// `src[..len]` ([`window`] for each half that is not whole).
+///
+/// # Safety
+/// The CPU has SSSE3, `i < len`, and `len` bytes are readable at `src`.
+#[inline]
+#[target_feature(enable = "ssse3")]
+unsafe fn window32(src: *const u8, len: usize, i: usize) -> (__m128i, __m128i) {
+    // `i < len`: no difference or sum below wraps.
+    let rest = len.wrapping_sub(i);
+    // SAFETY: with 32 bytes left, both halves are whole; with more than 16, the first is and the second starts before
+    // `len`; else the first starts before `len`.
+    unsafe {
+        if rest >= 32 {
+            return (_mm_loadu_si128(src.add(i).cast()), _mm_loadu_si128(src.add(i).add(16).cast()));
+        }
+        if rest > 16 {
+            return (_mm_loadu_si128(src.add(i).cast()), window(src, len, i.wrapping_add(16)));
+        }
+        (window(src, len, i), _mm_setzero_si128())
+    }
+}
+
+/// [`super::wide`] with SSSE3, SSE4.1 and POPCNT: in one pass, 32 bytes of text a step from [`window32`] (text of up
+/// to 32 bytes, the most common, is one step), each char's bytes combined in its first byte's lane and the lanes of
+/// the chars that end in the window moved to the front ([`KEEP8`], [`KEEP16`]). As Latin-1 while no byte is above
+/// 0xC3 (no char above U+00FF); at the first that is, the text is written again from its start as UTF-16. The
+/// header is written last.
 ///
 /// # Safety
 /// The CPU has SSSE3, SSE4.1 and POPCNT, and `text.len() <= WIDE_MAX`.
 #[target_feature(enable = "ssse3,sse4.1,popcnt")]
 pub(crate) unsafe fn wide_sse41(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
-    // UTF-16 takes at most two bytes per byte of UTF-8, Latin-1 one; a step stores up to 32 bytes from where its
+    // UTF-16 takes at most two bytes per byte of UTF-8, Latin-1 one; a step stores up to 64 bytes from where its
     // output starts. `len <= i32::MAX`: no sum below wraps.
-    out.reserve(len.wrapping_mul(2).wrapping_add(4 + 32));
+    out.reserve(len.wrapping_mul(2).wrapping_add(4 + 64));
     let at = out.len();
     // Invariants: `i <= len` is a char boundary of the valid UTF-8 at `src`, and `o <= i` bytes (Latin-1) or
-    // `o <= 2 * i` (UTF-16) are written after the header, so each store (8 or 16 bytes at `o`, at most 32 from where
-    // the step started) ends within the room reserved: `4 + 2 * len + 32` bytes from `at`.
+    // `o <= 2 * i` (UTF-16) are written after the header, so each store (8 or 16 bytes at `o`, at most 64 from where
+    // the step started) ends within the room reserved: `4 + 2 * len + 64` bytes from `at`.
     // SAFETY: as just said.
-    let base = unsafe { out.as_mut_ptr().add(at) };
-    // SAFETY: as just said.
-    let dst = unsafe { base.add(4) };
+    let dst = unsafe { out.as_mut_ptr().add(at).add(4) };
     let (mut i, mut o) = (0usize, 0usize);
+    let zero = _mm_setzero_si128();
     let below_c0 = _mm_set1_epi8(-64);
+    // The bytes that start a char (not 0x80..0xBF), of both halves.
+    let starts = |lo: __m128i, hi: __m128i| {
+        let s = |v: __m128i| !(_mm_movemask_epi8(_mm_cmplt_epi8(v, below_c0)) as u32) & 0xFFFF;
+        u64::from(s(lo) | (s(hi) << 16))
+    };
     'latin1: {
         let (above_c3, low6, top2) = (_mm_set1_epi8(0xC3u8 as i8), _mm_set1_epi8(0x3F), _mm_set1_epi8(0xC0u8 as i8));
         while i < len {
+            let rest = len.wrapping_sub(i);
             // SAFETY: SSSE3, and `i < len`.
-            let v = unsafe { window(src, len, i) };
-            let over = _mm_subs_epu8(v, above_c3);
+            let (lo, hi) = unsafe { window32(src, len, i) };
+            let over = _mm_or_si128(_mm_subs_epu8(lo, above_c3), _mm_subs_epu8(hi, above_c3));
             if _mm_testz_si128(over, over) == 0 {
                 break 'latin1;
             }
-            let starts = !(_mm_movemask_epi8(_mm_cmplt_epi8(v, below_c0)) as u32) & 0xFFFF;
+            let s = starts(lo, hi);
             // SAFETY: `rest = len - i`; the byte after the window is read only when there is one.
-            let q = unsafe { span(src, i, len.wrapping_sub(i), 16, u64::from(starts)) };
-            // A two-byte char's code point: its lead byte's two low bits, then its continuation byte's six. An ASCII
-            // byte is its own; continuation bytes are dropped.
-            let two =
-                _mm_or_si128(_mm_and_si128(_mm_slli_epi16::<6>(v), top2), _mm_and_si128(_mm_srli_si128::<1>(v), low6));
-            let chars = _mm_blendv_epi8(v, two, v);
-            let keep = starts & first(q) as u32;
-            let (k0, k1) = ((keep & 0xFF) as usize, (keep >> 8) as usize);
-            // SAFETY: `k0, k1 < 256`; the stores end within the room (the invariants), the second at `o + k0.count`.
-            unsafe {
-                _mm_storel_epi64(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(chars, row(&KEEP8, k0)));
-                o = o.wrapping_add(k0.count_ones() as usize);
-                let high = _mm_srli_si128::<8>(chars);
-                _mm_storel_epi64(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(high, row(&KEEP8, k1)));
+            let q = unsafe { span(src, i, rest, 32, s) };
+            let keep = s & first(q);
+            for (v, next, keep) in [(lo, hi, keep & 0xFFFF), (hi, zero, keep >> 16)] {
+                // A two-byte char's code point: its lead byte's two low bits, then its continuation byte's six. An
+                // ASCII byte is its own; continuation bytes are dropped.
+                let two = _mm_or_si128(
+                    _mm_and_si128(_mm_slli_epi16::<6>(v), top2),
+                    _mm_and_si128(_mm_alignr_epi8::<1>(next, v), low6),
+                );
+                let chars = _mm_blendv_epi8(v, two, v);
+                let (k0, k1) = ((keep & 0xFF) as usize, ((keep >> 8) & 0xFF) as usize);
+                // SAFETY: `k0, k1 < 256`; the stores end within the room (the invariants).
+                unsafe {
+                    _mm_storel_epi64(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(chars, row(&KEEP8, k0)));
+                    o = o.wrapping_add(k0.count_ones() as usize);
+                    let high = _mm_srli_si128::<8>(chars);
+                    _mm_storel_epi64(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(high, row(&KEEP8, k1)));
+                }
+                o = o.wrapping_add(k1.count_ones() as usize);
             }
-            o = o.wrapping_add(k1.count_ones() as usize);
             i = i.wrapping_add(q);
         }
-        // SAFETY: the header's four bytes are reserved at `base`, and `o` bytes after it written.
+        // SAFETY: the header's four bytes are reserved at `at`, and `o` bytes after it written.
         unsafe { super::finish(out, at, o, true) };
         return;
     }
     // A char above U+00FF: UTF-16 from the start, over what was written.
     (i, o) = (0, 0);
-    let zero = _mm_setzero_si128();
     while i < len {
         let rest = len.wrapping_sub(i);
         // SAFETY: SSSE3, and `i < len`.
-        let v = unsafe { window(src, len, i) };
-        let high = _mm_movemask_epi8(v) as u32;
+        let (lo, hi) = unsafe { window32(src, len, i) };
+        let high = (_mm_movemask_epi8(lo) as u32) | ((_mm_movemask_epi8(hi) as u32) << 16);
         if high == 0 {
-            // ASCII: each byte widened, 32 bytes stored, as many as the window holds kept.
+            // ASCII: each byte widened, 64 bytes stored, as many as the window holds kept.
             // SAFETY: the stores end within the room (the invariants).
             unsafe {
-                _mm_storeu_si128(dst.add(o).cast::<__m128i>(), _mm_unpacklo_epi8(v, zero));
-                _mm_storeu_si128(dst.add(o).add(16).cast::<__m128i>(), _mm_unpackhi_epi8(v, zero));
+                _mm_storeu_si128(dst.add(o).cast::<__m128i>(), _mm_unpacklo_epi8(lo, zero));
+                _mm_storeu_si128(dst.add(o).add(16).cast::<__m128i>(), _mm_unpackhi_epi8(lo, zero));
+                _mm_storeu_si128(dst.add(o).add(32).cast::<__m128i>(), _mm_unpacklo_epi8(hi, zero));
+                _mm_storeu_si128(dst.add(o).add(48).cast::<__m128i>(), _mm_unpackhi_epi8(hi, zero));
             }
-            let n = rest.min(16);
+            let n = rest.min(32);
             i = i.wrapping_add(n);
             o = o.wrapping_add(n.wrapping_mul(2));
             continue;
         }
-        let starts = !(_mm_movemask_epi8(_mm_cmplt_epi8(v, below_c0)) as u32) & 0xFFFF;
+        let s = starts(lo, hi);
         // SAFETY: `rest = len - i`.
-        let q = unsafe { span(src, i, rest, 16, u64::from(starts)) };
-        // A four-byte char's lane and the lane two after it (its low surrogate), when it ends in the window.
-        // Lead bytes of chars of three bytes or more, and of four.
-        // (`v > -33` as signed bytes is ASCII too, which `high` takes out).
-        let three = _mm_movemask_epi8(_mm_cmpgt_epi8(v, _mm_set1_epi8(-33))) as u32 & high;
-        let four = _mm_movemask_epi8(_mm_cmpgt_epi8(v, _mm_set1_epi8(-17))) as u32 & high;
-        let keep = (starts | (four << 2)) & first(q) as u32;
-        let (low, high) = halves_sse41(v, three, four);
-        let (k0, k1) = ((keep & 0xFF) as usize, ((keep >> 8) & 0xFF) as usize);
-        // SAFETY: `k0, k1 < 256`; the stores end within the room (the invariants), the second at `o + 2 * k0.count`.
-        unsafe {
-            _mm_storeu_si128(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(low, row(&KEEP16, k0)));
-            o = o.wrapping_add((k0.count_ones() as usize).wrapping_mul(2));
-            _mm_storeu_si128(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(high, row(&KEEP16, k1)));
+        let q = unsafe { span(src, i, rest, 32, s) };
+        // Lead bytes of chars of three bytes or more, and of four (`v > -33` as signed bytes is ASCII too, which
+        // `high` takes out). A four-byte char's lane and the lane two after it (its low surrogate) are kept when the
+        // char ends in the window.
+        let at_least = |t: i8| {
+            let m = |v: __m128i| _mm_movemask_epi8(_mm_cmpgt_epi8(v, _mm_set1_epi8(t))) as u32;
+            (m(lo) | (m(hi) << 16)) & high
+        };
+        let (three, four) = (at_least(-33), at_least(-17));
+        let keep = (s | (u64::from(four) << 2)) & first(q);
+        for (v, next, keep) in [(lo, hi, keep & 0xFFFF), (hi, zero, (keep >> 16) & 0xFFFF)] {
+            let (low, high) = halves_sse41(v, next, three, four);
+            let (k0, k1) = ((keep & 0xFF) as usize, ((keep >> 8) & 0xFF) as usize);
+            // SAFETY: `k0, k1 < 256`; the stores end within the room (the invariants).
+            unsafe {
+                _mm_storeu_si128(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(low, row(&KEEP16, k0)));
+                o = o.wrapping_add((k0.count_ones() as usize).wrapping_mul(2));
+                _mm_storeu_si128(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(high, row(&KEEP16, k1)));
+            }
+            o = o.wrapping_add((k1.count_ones() as usize).wrapping_mul(2));
         }
-        o = o.wrapping_add((k1.count_ones() as usize).wrapping_mul(2));
         i = i.wrapping_add(q);
     }
-    // SAFETY: the header's four bytes are reserved at `base`, and `o` bytes after it written.
+    // SAFETY: the header's four bytes are reserved at `at`, and `o` bytes after it written.
+    unsafe { super::finish(out, at, o, false) };
+}
+
+// ------------------------------------------------------------------------------------------------ AVX2 writer
+
+/// [`units_sse41`] on 16 lanes.
+#[inline]
+#[target_feature(enable = "avx2")]
+fn units_avx2<const LONGEST: u8>(b0: __m256i, b1: __m256i, b2: __m256i) -> __m256i {
+    let set = _mm256_set1_epi16;
+    let c1 = _mm256_and_si256(b1, set(0x3F));
+    let u2 = _mm256_or_si256(_mm256_slli_epi16::<6>(_mm256_and_si256(b0, set(0x1F))), c1);
+    let at_least = |t: i16| _mm256_cmpgt_epi16(b0, set(t));
+    if LONGEST == 2 {
+        return _mm256_blendv_epi8(b0, u2, at_least(0xBF));
+    }
+    let u3 = _mm256_or_si256(
+        _mm256_or_si256(_mm256_slli_epi16::<12>(b0), _mm256_slli_epi16::<6>(c1)),
+        _mm256_and_si256(b2, set(0x3F)),
+    );
+    if LONGEST == 3 {
+        return _mm256_blendv_epi8(_mm256_blendv_epi8(b0, u2, at_least(0xBF)), u3, at_least(0xDF));
+    }
+    let low = _mm256_or_si256(_mm256_and_si256(u2, set(0x3FF)), set(0xDC00u16 as i16));
+    let top = _mm256_or_si256(
+        _mm256_or_si256(_mm256_slli_epi16::<8>(_mm256_and_si256(b0, set(7))), _mm256_slli_epi16::<2>(c1)),
+        _mm256_and_si256(_mm256_srli_epi16::<4>(b2), set(3)),
+    );
+    let high = _mm256_add_epi16(top, set(0xD7C0u16 as i16));
+    let u = _mm256_blendv_epi8(b0, low, at_least(0x7F));
+    let u = _mm256_blendv_epi8(u, u2, at_least(0xBF));
+    let u = _mm256_blendv_epi8(u, u3, at_least(0xDF));
+    _mm256_blendv_epi8(u, high, at_least(0xEF))
+}
+
+/// The code units of the 16 bytes `v` (the bytes after them in `next`), for the window's longest char.
+#[inline]
+#[target_feature(enable = "avx2")]
+fn lanes_avx2(v: __m128i, next: __m128i, three: u32, four: u32) -> __m256i {
+    let (n1, n2) = (_mm_alignr_epi8::<1>(next, v), _mm_alignr_epi8::<2>(next, v));
+    let (b0, b1, b2) = (_mm256_cvtepu8_epi16(v), _mm256_cvtepu8_epi16(n1), _mm256_cvtepu8_epi16(n2));
+    if three == 0 {
+        units_avx2::<2>(b0, b1, b2)
+    } else if four == 0 {
+        units_avx2::<3>(b0, b1, b2)
+    } else {
+        units_avx2::<4>(b0, b1, b2)
+    }
+}
+
+/// [`wide_sse41`] with AVX2: the same steps, the code units of a window's 32 bytes computed in two vectors of 16
+/// lanes instead of four of eight.
+///
+/// # Safety
+/// The CPU has AVX2, SSSE3, SSE4.1 and POPCNT, and `text.len() <= WIDE_MAX`.
+#[target_feature(enable = "avx2,ssse3,sse4.1,popcnt")]
+pub(crate) unsafe fn wide_avx2(out: &mut Vec<u8>, text: &str) {
+    let (src, len) = (text.as_ptr(), text.len());
+    // As in `wide_sse41`: `4 + 2 * len + 64` bytes of room.
+    out.reserve(len.wrapping_mul(2).wrapping_add(4 + 64));
+    let at = out.len();
+    // Invariants: as in `wide_sse41`.
+    // SAFETY: as just said.
+    let dst = unsafe { out.as_mut_ptr().add(at).add(4) };
+    let (mut i, mut o) = (0usize, 0usize);
+    let zero = _mm_setzero_si128();
+    let starts = |v: __m256i| u64::from(!(_mm256_movemask_epi8(_mm256_cmpgt_epi8(_mm256_set1_epi8(-64), v)) as u32));
+    'latin1: {
+        let (low6, top2) = (_mm256_set1_epi8(0x3F), _mm256_set1_epi8(0xC0u8 as i8));
+        while i < len {
+            let rest = len.wrapping_sub(i);
+            // SAFETY: SSSE3, and `i < len`.
+            let (lo, hi) = unsafe { window32(src, len, i) };
+            let v = _mm256_set_m128i(hi, lo);
+            let over = _mm256_subs_epu8(v, _mm256_set1_epi8(0xC3u8 as i8));
+            if _mm256_testz_si256(over, over) == 0 {
+                break 'latin1;
+            }
+            let s = starts(v);
+            // SAFETY: `rest = len - i`; the byte after the window is read only when there is one.
+            let q = unsafe { span(src, i, rest, 32, s) };
+            let keep = s & first(q);
+            let next = _mm256_set_m128i(zero, hi);
+            let two = _mm256_or_si256(
+                _mm256_and_si256(_mm256_slli_epi16::<6>(v), top2),
+                _mm256_and_si256(_mm256_alignr_epi8::<1>(next, v), low6),
+            );
+            let chars = _mm256_blendv_epi8(v, two, v);
+            for (half, keep) in
+                [(_mm256_castsi256_si128(chars), keep & 0xFFFF), (_mm256_extracti128_si256::<1>(chars), keep >> 16)]
+            {
+                let (k0, k1) = ((keep & 0xFF) as usize, ((keep >> 8) & 0xFF) as usize);
+                // SAFETY: `k0, k1 < 256`; the stores end within the room (the invariants).
+                unsafe {
+                    _mm_storel_epi64(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(half, row(&KEEP8, k0)));
+                    o = o.wrapping_add(k0.count_ones() as usize);
+                    let high = _mm_srli_si128::<8>(half);
+                    _mm_storel_epi64(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(high, row(&KEEP8, k1)));
+                }
+                o = o.wrapping_add(k1.count_ones() as usize);
+            }
+            i = i.wrapping_add(q);
+        }
+        // SAFETY: the header's four bytes are reserved at `at`, and `o` bytes after it written.
+        unsafe { super::finish(out, at, o, true) };
+        return;
+    }
+    (i, o) = (0, 0);
+    while i < len {
+        let rest = len.wrapping_sub(i);
+        // SAFETY: SSSE3, and `i < len`.
+        let (lo, hi) = unsafe { window32(src, len, i) };
+        let v = _mm256_set_m128i(hi, lo);
+        let high = _mm256_movemask_epi8(v) as u32;
+        if high == 0 {
+            // ASCII: each byte widened, 64 bytes stored, as many as the window holds kept.
+            // SAFETY: the stores end within the room (the invariants).
+            unsafe {
+                _mm256_storeu_si256(dst.add(o).cast(), _mm256_cvtepu8_epi16(lo));
+                _mm256_storeu_si256(dst.add(o).add(32).cast(), _mm256_cvtepu8_epi16(hi));
+            }
+            let n = rest.min(32);
+            i = i.wrapping_add(n);
+            o = o.wrapping_add(n.wrapping_mul(2));
+            continue;
+        }
+        let s = starts(v);
+        // SAFETY: `rest = len - i`.
+        let q = unsafe { span(src, i, rest, 32, s) };
+        let at_least = |t: i8| _mm256_movemask_epi8(_mm256_cmpgt_epi8(v, _mm256_set1_epi8(t))) as u32 & high;
+        let (three, four) = (at_least(-33), at_least(-17));
+        let keep = (s | (u64::from(four) << 2)) & first(q);
+        for (v, next, keep) in [(lo, hi, keep & 0xFFFF), (hi, zero, (keep >> 16) & 0xFFFF)] {
+            let units = lanes_avx2(v, next, three, four);
+            let (k0, k1) = ((keep & 0xFF) as usize, ((keep >> 8) & 0xFF) as usize);
+            // SAFETY: `k0, k1 < 256`.
+            let shuffle = unsafe { _mm256_set_m128i(row(&KEEP16, k1), row(&KEEP16, k0)) };
+            let packed = _mm256_shuffle_epi8(units, shuffle);
+            // SAFETY: the stores end within the room (the invariants).
+            unsafe {
+                _mm_storeu_si128(dst.add(o).cast::<__m128i>(), _mm256_castsi256_si128(packed));
+                o = o.wrapping_add((k0.count_ones() as usize).wrapping_mul(2));
+                _mm_storeu_si128(dst.add(o).cast::<__m128i>(), _mm256_extracti128_si256::<1>(packed));
+            }
+            o = o.wrapping_add((k1.count_ones() as usize).wrapping_mul(2));
+        }
+        i = i.wrapping_add(q);
+    }
+    // SAFETY: the header's four bytes are reserved at `at`, and `o` bytes after it written.
     unsafe { super::finish(out, at, o, false) };
 }
 
@@ -371,21 +559,46 @@ fn lanes64(n: usize) -> u64 {
 fn compress16(keep: u32, v: __m512i) -> __m512i {
     #[cfg(not(miri))]
     return _mm512_maskz_compress_epi16(keep, v);
+    // SAFETY: 64 bytes either way.
     #[cfg(miri)]
-    {
-        let lanes: [u16; 32] = unsafe { core::mem::transmute(v) };
-        let mut out = [0u16; 32];
-        let mut n = 0usize;
-        for (k, &lane) in lanes.iter().enumerate() {
-            if keep >> k & 1 != 0 {
-                if let Some(slot) = out.get_mut(n) {
-                    *slot = lane;
-                }
-                n = n.wrapping_add(1);
+    unsafe {
+        core::mem::transmute::<[u16; 32], __m512i>(compress_lanes(
+            u64::from(keep),
+            core::mem::transmute::<__m512i, [u16; 32]>(v),
+        ))
+    }
+}
+
+/// Moves the lanes of `lanes` that `keep` sets to the front, zeros after them: what `vpcompressb`/`w` do, for Miri.
+#[cfg(all(nino_avx512, miri))]
+fn compress_lanes<T: Copy + Default, const N: usize>(keep: u64, lanes: [T; N]) -> [T; N] {
+    let mut out = [T::default(); N];
+    let mut n = 0usize;
+    for (k, &lane) in lanes.iter().enumerate() {
+        if keep >> k & 1 != 0 {
+            if let Some(slot) = out.get_mut(n) {
+                *slot = lane;
             }
+            n = n.wrapping_add(1);
         }
-        // SAFETY: 64 bytes either way.
-        unsafe { core::mem::transmute::<[u16; 32], __m512i>(out) }
+    }
+    out
+}
+
+/// [`compress8`] for 32 bytes.
+#[cfg(nino_avx512)]
+#[inline]
+#[target_feature(enable = "avx512f,avx512bw,avx512vl,avx512vbmi2")]
+fn compress8x32(keep: u32, v: __m256i) -> __m256i {
+    #[cfg(not(miri))]
+    return _mm256_maskz_compress_epi8(keep, v);
+    // SAFETY: 32 bytes either way.
+    #[cfg(miri)]
+    unsafe {
+        core::mem::transmute::<[u8; 32], __m256i>(compress_lanes(
+            u64::from(keep),
+            core::mem::transmute::<__m256i, [u8; 32]>(v),
+        ))
     }
 }
 
@@ -396,22 +609,10 @@ fn compress16(keep: u32, v: __m512i) -> __m512i {
 fn compress8(keep: u64, v: __m512i) -> __m512i {
     #[cfg(not(miri))]
     return _mm512_maskz_compress_epi8(keep, v);
+    // SAFETY: 64 bytes either way.
     #[cfg(miri)]
-    {
-        // SAFETY: 64 bytes either way.
-        let lanes: [u8; 64] = unsafe { core::mem::transmute(v) };
-        let mut out = [0u8; 64];
-        let mut n = 0usize;
-        for (k, &lane) in lanes.iter().enumerate() {
-            if keep >> k & 1 != 0 {
-                if let Some(slot) = out.get_mut(n) {
-                    *slot = lane;
-                }
-                n = n.wrapping_add(1);
-            }
-        }
-        // SAFETY: 64 bytes either way.
-        unsafe { core::mem::transmute::<[u8; 64], __m512i>(out) }
+    unsafe {
+        core::mem::transmute::<[u8; 64], __m512i>(compress_lanes(keep, core::mem::transmute::<__m512i, [u8; 64]>(v)))
     }
 }
 
@@ -513,4 +714,315 @@ pub(crate) unsafe fn wide_avx512(out: &mut Vec<u8>, text: &str) {
     }
     // SAFETY: the header's four bytes are reserved at `at`, and `o` bytes after it written.
     unsafe { super::finish(out, at, o, false) };
+}
+
+// ------------------------------------------------------------------------------------------------ the reader's text
+
+/// [`super::latin1_utf8`] with SSSE3: 16 bytes a step, stored as they are when ASCII; else each byte as a 16-bit lane
+/// of its UTF-8 (a lead byte, and above 0x7F a continuation byte) and each half's lanes packed with one `pshufb`
+/// ([`super::EXPAND`]). The last bytes, and those past the room a step needs, a word at a time.
+///
+/// # Safety
+/// The CPU has SSSE3.
+/// `room` bytes are writable at `dst`, the UTF-8's length.
+#[target_feature(enable = "ssse3")]
+pub(crate) unsafe fn latin1_ssse3(bytes: &[u8], dst: *mut u8, room: usize) -> usize {
+    let (src, len) = (bytes.as_ptr(), bytes.len());
+    let (mut k, mut o) = (0usize, 0usize);
+    let (zero, lead_bits, cont_bits) = (_mm_setzero_si128(), _mm_set1_epi8(0xC0u8 as i8), _mm_set1_epi8(0x80u8 as i8));
+    // Invariant: `o <= room` is the UTF-8 of `bytes[..k]`, so `room - o` is that of the rest (no wrap). A step reads 16
+    // bytes and stores at most 32 from `o`.
+    while k.wrapping_add(16) <= len && room.wrapping_sub(o) >= 32 {
+        // SAFETY: `k + 16 <= len`.
+        let v = unsafe { _mm_loadu_si128(src.add(k).cast()) };
+        let high = _mm_movemask_epi8(v) as u32;
+        if high == 0 {
+            // SAFETY: 32 bytes of room from `o`.
+            unsafe { _mm_storeu_si128(dst.add(o).cast(), v) };
+            k = k.wrapping_add(16);
+            o = o.wrapping_add(16);
+            continue;
+        }
+        let is_high = _mm_cmplt_epi8(v, zero);
+        // A high byte's lead is 0xC0 and its two top bits (each byte's, from a 16-bit shift masked to two bits).
+        let top = _mm_and_si128(_mm_srli_epi16::<6>(v), _mm_set1_epi8(3));
+        let lead = _mm_or_si128(_mm_and_si128(is_high, _mm_or_si128(lead_bits, top)), _mm_andnot_si128(is_high, v));
+        let cont = _mm_or_si128(_mm_and_si128(v, _mm_set1_epi8(0x3F)), cont_bits);
+        let (m0, m1) = ((high & 0xFF) as usize, (high >> 8) as usize);
+        // SAFETY: `m0, m1 < 256`; 32 bytes of room from `o`, and the second store starts at most 16 after it.
+        unsafe {
+            _mm_storeu_si128(
+                dst.add(o).cast(),
+                _mm_shuffle_epi8(_mm_unpacklo_epi8(lead, cont), row(&super::EXPAND, m0)),
+            );
+            o = o.wrapping_add(8).wrapping_add(m0.count_ones() as usize);
+            _mm_storeu_si128(
+                dst.add(o).cast(),
+                _mm_shuffle_epi8(_mm_unpackhi_epi8(lead, cont), row(&super::EXPAND, m1)),
+            );
+            o = o.wrapping_add(8).wrapping_add(m1.count_ones() as usize);
+        }
+        k = k.wrapping_add(16);
+    }
+    // SAFETY: the invariant: the room from `o` holds the rest's UTF-8.
+    unsafe { super::latin1_words(bytes, k, dst, o) }
+}
+
+/// [`super::utf16_utf8`] with SSE4.1: eight units a step, by their longest UTF-8: ASCII narrowed; below U+0800 each
+/// unit's two bytes in its lane and the lanes packed with [`super::EXPAND`]; else four units at a time in 32-bit lanes
+/// of up to three bytes, packed with [`super::PACK3`]. Units with a surrogate, the last units, and those past the room
+/// a step needs, as the plain decoder does.
+///
+/// # Safety
+/// The CPU has SSSE3 and SSE4.1. `room` bytes are writable at `dst`, at least what the units count.
+#[target_feature(enable = "ssse3,sse4.1")]
+pub(crate) unsafe fn utf16_sse41(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usize {
+    let (src, n) = (units.as_ptr().cast::<u8>(), units.len());
+    let (mut k, mut o) = (0usize, 0usize);
+    let set = _mm_set1_epi16;
+    // Invariant: `o <= room` holds the UTF-8 of `units[..k]`, and `room - o` at least what the rest count (no wrap). A
+    // step reads eight units and stores at most 28 bytes from `o`.
+    while k.wrapping_add(8) <= n && room.wrapping_sub(o) >= 32 {
+        // SAFETY: `k + 8 <= n` units of two bytes.
+        let w = unsafe { _mm_loadu_si128(src.add(k.wrapping_mul(2)).cast()) };
+        if _mm_testz_si128(w, set(0xFF80u16 as i16)) != 0 {
+            // SAFETY: 32 bytes of room.
+            unsafe { _mm_storel_epi64(dst.add(o).cast(), _mm_packus_epi16(w, w)) };
+            k = k.wrapping_add(8);
+            o = o.wrapping_add(8);
+            continue;
+        }
+        let ascii = _mm_cmpeq_epi16(_mm_and_si128(w, set(0xFF80u16 as i16)), _mm_setzero_si128());
+        let two = _mm_or_si128(
+            _mm_or_si128(set(0xC0), _mm_srli_epi16::<6>(w)),
+            _mm_slli_epi16::<8>(_mm_or_si128(_mm_and_si128(w, set(0x3F)), set(0x80))),
+        );
+        if _mm_testz_si128(w, set(0xF800u16 as i16)) != 0 {
+            // Below U+0800: one or two bytes a unit.
+            let lanes = _mm_blendv_epi8(two, w, ascii);
+            let m = (!_mm_movemask_epi8(_mm_packs_epi16(ascii, ascii)) & 0xFF) as usize;
+            // SAFETY: `m < 256`; 32 bytes of room.
+            unsafe { _mm_storeu_si128(dst.add(o).cast(), _mm_shuffle_epi8(lanes, row(&super::EXPAND, m))) };
+            k = k.wrapping_add(8);
+            o = o.wrapping_add(8).wrapping_add(m.count_ones() as usize);
+            continue;
+        }
+        let surrogate = _mm_cmpeq_epi16(_mm_and_si128(w, set(0xF800u16 as i16)), set(0xD800u16 as i16));
+        if _mm_testz_si128(surrogate, surrogate) == 0 {
+            // SAFETY: the invariant; the plain decoder takes these eight units (and the low half of a pair after them).
+            (k, o) = unsafe { super::utf16_words(units, k, k.wrapping_add(8), dst, o) };
+            continue;
+        }
+        let at_least_800 = _mm_movemask_epi8(_mm_xor_si128(
+            _mm_cmpeq_epi16(_mm_and_si128(w, set(0xF800u16 as i16)), _mm_setzero_si128()),
+            set(-1),
+        )) as u32;
+        let index = (!_mm_movemask_epi8(ascii) as u32 & 0x5555) | (at_least_800 & 0xAAAA);
+        for (half, quad) in [(0u32, w), (8, _mm_srli_si128::<8>(w))] {
+            let u = _mm_cvtepu16_epi32(quad);
+            let s32 = _mm_set1_epi32;
+            let one = u;
+            let two = _mm_or_si128(
+                _mm_or_si128(s32(0xC0), _mm_srli_epi32::<6>(u)),
+                _mm_slli_epi32::<8>(_mm_or_si128(_mm_and_si128(u, s32(0x3F)), s32(0x80))),
+            );
+            let three = _mm_or_si128(
+                _mm_or_si128(
+                    _mm_or_si128(s32(0xE0), _mm_srli_epi32::<12>(u)),
+                    _mm_slli_epi32::<8>(_mm_or_si128(_mm_and_si128(_mm_srli_epi32::<6>(u), s32(0x3F)), s32(0x80))),
+                ),
+                _mm_slli_epi32::<16>(_mm_or_si128(_mm_and_si128(u, s32(0x3F)), s32(0x80))),
+            );
+            let lanes = _mm_blendv_epi8(one, two, _mm_cmpgt_epi32(u, s32(0x7F)));
+            let lanes = _mm_blendv_epi8(lanes, three, _mm_cmpgt_epi32(u, s32(0x7FF)));
+            let (shuffle, bytes) =
+                super::PACK3.get(((index >> half) & 0xFF) as usize).copied().unwrap_or(([0x80; 16], 0));
+            // SAFETY: 32 bytes of room from where the step started; the first half stores 16 bytes from there, the
+            // second from at most 12 after it.
+            unsafe {
+                _mm_storeu_si128(dst.add(o).cast(), _mm_shuffle_epi8(lanes, _mm_loadu_si128(shuffle.as_ptr().cast())))
+            };
+            o = o.wrapping_add(usize::from(bytes));
+        }
+        k = k.wrapping_add(8);
+    }
+    // SAFETY: the invariant.
+    unsafe { super::utf16_words(units, k, n, dst, o).1 }
+}
+
+/// Spreads the low 16 or 32 bits of `bits` to the bits of `mask` (`pdep`). Under Miri, bit by bit.
+#[cfg(nino_avx512)]
+#[inline]
+#[target_feature(enable = "bmi2")]
+fn deposit(bits: u64, mask: u64) -> u64 {
+    #[cfg(not(miri))]
+    return _pdep_u64(bits, mask);
+    #[cfg(miri)]
+    {
+        let (mut out, mut k) = (0u64, 0u32);
+        for b in 0..64 {
+            if mask >> b & 1 != 0 {
+                out |= (bits >> k & 1) << b;
+                k += 1;
+            }
+        }
+        out
+    }
+}
+
+/// [`super::latin1_utf8`] with AVX-512 (F, BW, VL, VBMI2) and BMI2: 32 bytes a step from a masked load (no byte past
+/// the text's end is touched); ASCII stored as it is, else each byte as a 16-bit lane of its UTF-8 and the bytes kept
+/// moved to the front with one `vpcompressb`; every store masked to the bytes written, so no room past them is needed.
+///
+/// # Safety
+/// The CPU has AVX-512 F, BW, VL and VBMI2, BMI2 and POPCNT. The UTF-8's length is writable at `dst`.
+#[cfg(nino_avx512)]
+#[target_feature(enable = "avx512f,avx512bw,avx512vl,avx512vbmi2,avx2,bmi2,popcnt")]
+pub(crate) unsafe fn latin1_avx512(bytes: &[u8], dst: *mut u8) -> usize {
+    let (src, len) = (bytes.as_ptr(), bytes.len());
+    let (mut k, mut o) = (0usize, 0usize);
+    // Invariant: `o` bytes of UTF-8 written for `bytes[..k]`; each store writes the UTF-8 of the bytes it took.
+    while k < len {
+        let take = len.wrapping_sub(k).min(32);
+        let valid = lanes64(take) as u32;
+        // SAFETY: the mask enables the `take` bytes from `k`, all before `len`.
+        let v = unsafe { _mm256_maskz_loadu_epi8(valid, src.add(k).cast()) };
+        let high = _mm256_movepi8_mask(v);
+        if high == 0 {
+            // SAFETY: as many bytes as were taken, all ASCII.
+            unsafe { _mm256_mask_storeu_epi8(dst.add(o).cast(), valid, v) };
+            k = k.wrapping_add(take);
+            o = o.wrapping_add(take);
+            continue;
+        }
+        let is_high = _mm256_movm_epi8(high);
+        let top = _mm256_and_si256(_mm256_srli_epi16::<6>(v), _mm256_set1_epi8(3));
+        let lead = _mm256_blendv_epi8(v, _mm256_or_si256(_mm256_set1_epi8(0xC0u8 as i8), top), is_high);
+        let cont = _mm256_or_si256(_mm256_and_si256(v, _mm256_set1_epi8(0x3F)), _mm256_set1_epi8(0x80u8 as i8));
+        let pairs = _mm512_or_si512(_mm512_cvtepu8_epi16(lead), _mm512_slli_epi16::<8>(_mm512_cvtepu8_epi16(cont)));
+        let keep = deposit(u64::from(valid), 0x5555_5555_5555_5555) | deposit(u64::from(high), 0xAAAA_AAAA_AAAA_AAAA);
+        let n = keep.count_ones() as usize;
+        // SAFETY: the `n` bytes stored are the UTF-8 of the bytes taken.
+        unsafe { _mm512_mask_storeu_epi8(dst.add(o).cast(), lanes64(n), compress8(keep, pairs)) };
+        k = k.wrapping_add(take);
+        o = o.wrapping_add(n);
+    }
+    o
+}
+
+/// [`super::utf16_utf8`] with AVX-512 (F, BW, VL, VBMI2) and BMI2: 16 units a step from masked loads, each unit's
+/// UTF-8 in a 32-bit lane (one to three bytes; a high surrogate followed by a low one, the pair's four, and that low
+/// one none; an unpaired surrogate U+FFFD's three), the bytes kept moved to the front with one `vpcompressb` and
+/// stored masked to them. A high surrogate in a step's last lane with a unit after it is left to the next step.
+///
+/// # Safety
+/// The CPU has AVX-512 F, BW, VL and VBMI2, BMI2 and POPCNT. What the units count is writable at `dst`.
+#[cfg(nino_avx512)]
+#[target_feature(enable = "avx512f,avx512bw,avx512vl,avx512vbmi2,avx2,bmi2,popcnt")]
+pub(crate) unsafe fn utf16_avx512(units: &[[u8; 2]], dst: *mut u8) -> usize {
+    let (src, n) = (units.as_ptr().cast::<u8>(), units.len());
+    let (mut k, mut o) = (0usize, 0usize);
+    let s32 = _mm512_set1_epi32;
+    let tagged = |u: __m512i, tag: i32| _mm512_cmpeq_epi32_mask(_mm512_and_si512(u, s32(0xFC00)), s32(tag));
+    // Invariant: `o` bytes written for `units[..k]`, no more than they count; a step writes no more than its units
+    // count (a pair counts six bytes and takes four).
+    while k < n {
+        let rest = n.wrapping_sub(k);
+        // SAFETY: the masks enable the units before `n` only (`rest` from `k`, `rest - 1` from `k + 1`); `k + 1 <= n`.
+        let (w, next) = unsafe {
+            let at = src.add(k.wrapping_mul(2));
+            (
+                _mm256_maskz_loadu_epi16(lanes64(rest) as u16, at.cast()),
+                _mm256_maskz_loadu_epi16(lanes64(rest.wrapping_sub(1)) as u16, at.add(2).cast()),
+            )
+        };
+        let all = lanes64(rest) as u16;
+        let ge80 = _mm256_mask_cmpgt_epu16_mask(all, w, _mm256_set1_epi16(0x7F));
+        if ge80 == 0 {
+            // ASCII: narrowed, stored masked to the units taken.
+            let take = rest.min(16);
+            // SAFETY: `take` bytes, one a unit, no more than the units count.
+            unsafe { _mm_mask_storeu_epi8(dst.add(o).cast(), all, _mm256_cvtepi16_epi8(w)) };
+            k = k.wrapping_add(take);
+            o = o.wrapping_add(take);
+            continue;
+        }
+        if _mm256_mask_cmpgt_epu16_mask(all, w, _mm256_set1_epi16(0x7FF)) == 0 {
+            // Below U+0800: each unit's one or two bytes in its 16-bit lane, compressed.
+            let two = _mm256_or_si256(
+                _mm256_or_si256(_mm256_set1_epi16(0xC0), _mm256_srli_epi16::<6>(w)),
+                _mm256_slli_epi16::<8>(_mm256_or_si256(
+                    _mm256_and_si256(w, _mm256_set1_epi16(0x3F)),
+                    _mm256_set1_epi16(0x80),
+                )),
+            );
+            let lanes = _mm256_mask_blend_epi16(ge80, w, two);
+            let keep = (deposit(u64::from(all), 0x5555_5555) | deposit(u64::from(ge80), 0xAAAA_AAAA)) as u32;
+            let (take, bytes) = (rest.min(16), keep.count_ones() as usize);
+            // SAFETY: the `bytes` stored are the UTF-8 of the units taken, what they count.
+            unsafe { _mm256_mask_storeu_epi8(dst.add(o).cast(), lanes64(bytes) as u32, compress8x32(keep, lanes)) };
+            k = k.wrapping_add(take);
+            o = o.wrapping_add(bytes);
+            continue;
+        }
+        let (u, x) = (_mm512_cvtepu16_epi32(w), _mm512_cvtepu16_epi32(next));
+        let (hs, ls) = (tagged(u, 0xD800), tagged(u, 0xDC00));
+        let mut valid = lanes64(rest) as u16;
+        let mut take = rest.min(16);
+        if rest > 16 && hs & 0x8000 != 0 {
+            // A high surrogate last, with a unit after it: the next step takes it with that unit.
+            valid = 0x7FFF;
+            take = 15;
+        }
+        let pair_high = hs & tagged(x, 0xDC00) & valid;
+        let pair_low = (pair_high << 1) & valid;
+        let unpaired = (hs | ls) & !pair_high & !pair_low & valid;
+        let two = _mm512_or_si512(
+            _mm512_or_si512(s32(0xC0), _mm512_srli_epi32::<6>(u)),
+            _mm512_slli_epi32::<8>(_mm512_or_si512(_mm512_and_si512(u, s32(0x3F)), s32(0x80))),
+        );
+        let three = _mm512_or_si512(
+            _mm512_or_si512(
+                _mm512_or_si512(s32(0xE0), _mm512_srli_epi32::<12>(u)),
+                _mm512_slli_epi32::<8>(_mm512_or_si512(
+                    _mm512_and_si512(_mm512_srli_epi32::<6>(u), s32(0x3F)),
+                    s32(0x80),
+                )),
+            ),
+            _mm512_slli_epi32::<16>(_mm512_or_si512(_mm512_and_si512(u, s32(0x3F)), s32(0x80))),
+        );
+        // A pair's code point and its four bytes.
+        let c = _mm512_add_epi32(
+            _mm512_or_si512(_mm512_slli_epi32::<10>(_mm512_and_si512(u, s32(0x3FF))), _mm512_and_si512(x, s32(0x3FF))),
+            s32(0x1_0000),
+        );
+        let cont = |v: __m512i, shift: u32| -> __m512i {
+            let bits = _mm512_and_si512(_mm512_srlv_epi32(v, s32(shift as i32)), s32(0x3F));
+            _mm512_or_si512(bits, s32(0x80))
+        };
+        let four = _mm512_or_si512(
+            _mm512_or_si512(
+                _mm512_or_si512(s32(0xF0), _mm512_srli_epi32::<18>(c)),
+                _mm512_slli_epi32::<8>(cont(c, 12)),
+            ),
+            _mm512_or_si512(_mm512_slli_epi32::<16>(cont(c, 6)), _mm512_slli_epi32::<24>(cont(c, 0))),
+        );
+        let ge80 = _mm512_cmpgt_epu32_mask(u, s32(0x7F));
+        let ge800 = _mm512_cmpgt_epu32_mask(u, s32(0x7FF));
+        let lanes = _mm512_mask_blend_epi32(ge80, u, two);
+        let lanes = _mm512_mask_blend_epi32(ge800, lanes, three);
+        let lanes = _mm512_mask_blend_epi32(unpaired, lanes, s32(0x00BD_BFEF));
+        let lanes = _mm512_mask_blend_epi32(pair_high, lanes, four);
+        let first = valid & !pair_low;
+        let keep = deposit(u64::from(first), 0x1111_1111_1111_1111)
+            | deposit(u64::from(first & ge80), 0x2222_2222_2222_2222)
+            | deposit(u64::from(first & ge800), 0x4444_4444_4444_4444)
+            | deposit(u64::from(pair_high), 0x8888_8888_8888_8888);
+        let bytes = keep.count_ones() as usize;
+        // SAFETY: the `bytes` stored are the UTF-8 of the units taken, no more than they count.
+        unsafe { _mm512_mask_storeu_epi8(dst.add(o).cast(), lanes64(bytes), compress8(keep, lanes)) };
+        k = k.wrapping_add(take);
+        o = o.wrapping_add(bytes);
+    }
+    o
 }
