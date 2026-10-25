@@ -2,7 +2,7 @@ using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>What <see cref="NinoScratch"/> writes into the scratch buffer: a struct, so the call is direct and inlined.</summary>
     internal interface INinoScratchWriter<T>

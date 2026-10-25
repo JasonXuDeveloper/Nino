@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using Nino.Core.Internal;
 
 namespace Nino.Core.CompilerServices
 {

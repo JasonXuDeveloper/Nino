@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>
     /// Helpers for the objects cached per thread between calls (scratch buffers, reference tables). Each cache is

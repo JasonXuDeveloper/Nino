@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Threading;
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>
     /// What <see cref="NinoRegistry.Remove"/> runs: each cache that can hold types of an assembly registers here, when it

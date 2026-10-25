@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using Nino.Core.Internal;
 
 #nullable disable
 namespace Nino.UnitTests;

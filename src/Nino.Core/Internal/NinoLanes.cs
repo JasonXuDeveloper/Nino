@@ -9,9 +9,8 @@ using System.Runtime.Intrinsics.Wasm;
 #endif
 using System.Runtime.Intrinsics.X86;
 #endif
-using Nino.Core.Internal;
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
 #if NET8_0_OR_GREATER
     /// <summary>

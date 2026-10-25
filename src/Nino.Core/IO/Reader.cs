@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Nino.Core.CompilerServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {

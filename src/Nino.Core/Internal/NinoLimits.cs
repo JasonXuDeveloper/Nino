@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>
     /// The settings of <see cref="NinoSettings"/> that read and write paths check, frozen when this class is first used

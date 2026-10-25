@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Runtime.CompilerServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
@@ -66,35 +67,6 @@ namespace Nino.Core
             var set = NinoRecycler.Reuse<TInterface, HashSet<T>>(ref value);
             default(HashSetFormatter<HashSet<T>, T, TFormatter>).Deserialize(ref set, ref reader);
             value = (TInterface)(object)set;
-        }
-    }
-
-    internal static partial class NinoCollections
-    {
-        /// <summary>
-        /// Writes a collection declared as an interface: count (-1 = null), then the elements. Lists and arrays
-        /// take their own (block-copying) paths.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteInterface<T, TFormatter>(IEnumerable<T> value, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            if (writer.TryWriteNullLength(value))
-                return;
-
-            if (value is List<T> list)
-            {
-                default(ListFormatter<List<T>, T, TFormatter>).Serialize(list, ref writer);
-                return;
-            }
-
-            if (value is T[] array)
-            {
-                default(ArrayFormatter<T, TFormatter>).Serialize(array, ref writer);
-                return;
-            }
-
-            WriteEnumerable<T, TFormatter>(value, ref writer);
         }
     }
 }

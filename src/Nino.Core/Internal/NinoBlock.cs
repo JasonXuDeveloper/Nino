@@ -10,9 +10,8 @@ using System.Runtime.Intrinsics.Wasm;
 #endif
 using System.Runtime.Intrinsics.X86;
 #endif
-using Nino.Core.Internal;
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>Collections of values written by an <see cref="INinoBlockFormatter{T}"/>.</summary>
     internal static class NinoBlock
