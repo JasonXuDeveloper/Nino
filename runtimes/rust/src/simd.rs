@@ -955,8 +955,9 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
         }
         return true;
     }
+    // Arm64: short text stays with `short_wide`, which beats the 32-byte windows' setup there (Neoverse-N2).
     #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
-    if text.len() <= WIDE_MAX {
+    if text.len() > SHORT_WIDE && text.len() <= WIDE_MAX {
         neon::wide(out, text);
         return true;
     }
@@ -1350,6 +1351,11 @@ pub(crate) fn latin1_string(bytes: &[u8]) -> String {
     }
 }
 
+/// Below this many bytes of input the 16-byte decoders (SSSE3, SSE4.1, NEON) lose to the plain one: their setup and
+/// last partial vector cost more than they save. AVX-512's masked loads and stores have no last partial vector.
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
+const SHORT_DECODE: usize = 32;
+
 /// Writes the UTF-8 of the Latin-1 `bytes` at `dst` with the kernel this target has; returns the bytes written.
 ///
 /// # Safety
@@ -1362,11 +1368,16 @@ unsafe fn latin1_utf8(bytes: &[u8], dst: *mut u8, room: usize) -> usize {
         match x86::tier() {
             #[cfg(nino_avx512)]
             x86::Tier::Avx512 => x86::latin1_avx512(bytes, dst),
+            _ if bytes.len() < SHORT_DECODE => latin1_words(bytes, 0, dst, 0),
             x86::Tier::Sse2 => latin1_words(bytes, 0, dst, 0),
             _ => x86::latin1_ssse3(bytes, dst, room),
         }
         #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
-        return neon::latin1(bytes, dst, room);
+        return if bytes.len() < SHORT_DECODE {
+            latin1_words(bytes, 0, dst, 0)
+        } else {
+            neon::latin1(bytes, dst, room)
+        };
         #[cfg(not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little"))))]
         return latin1_words(bytes, 0, dst, 0);
     }
@@ -1458,11 +1469,16 @@ unsafe fn utf16_utf8(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usize {
         match x86::tier() {
             #[cfg(nino_avx512)]
             x86::Tier::Avx512 => x86::utf16_avx512(units, dst),
+            _ if units.len() < SHORT_DECODE / 2 => utf16_words(units, 0, units.len(), dst, 0).1,
             x86::Tier::Sse2 | x86::Tier::Ssse3 => utf16_words(units, 0, units.len(), dst, 0).1,
             _ => x86::utf16_sse41(units, dst, room),
         }
         #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
-        return neon::utf16(units, dst, room);
+        return if units.len() < SHORT_DECODE / 2 {
+            utf16_words(units, 0, units.len(), dst, 0).1
+        } else {
+            neon::utf16(units, dst, room)
+        };
         #[cfg(not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little"))))]
         return utf16_words(units, 0, units.len(), dst, 0).1;
     }
@@ -1643,9 +1659,10 @@ mod tests {
     }
 
     /// Every one-pass writer this CPU can run (each tier's, not only the best).
-    fn one_pass() -> Vec<(&'static str, fn(&mut Vec<u8>, &str))> {
+    #[allow(clippy::vec_init_then_push)] // Which pushes run depends on the target.
+    fn one_pass() -> Vec<(&'static str, Writer)> {
         #[allow(unused_mut)]
-        let mut kernels: Vec<(&'static str, fn(&mut Vec<u8>, &str))> = vec![];
+        let mut kernels: Vec<(&'static str, Writer)> = vec![];
         #[cfg(target_arch = "x86_64")]
         {
             if x86::tier() >= x86::Tier::Sse41 {
@@ -1667,18 +1684,26 @@ mod tests {
         kernels
     }
 
+    /// A one-pass writer.
+    type Writer = fn(&mut Vec<u8>, &str);
     type Latin1Way = unsafe fn(&[u8], *mut u8, usize) -> usize;
+    type Ways<T> = Vec<(&'static str, T)>;
     type Utf16Way = unsafe fn(&[[u8; 2]], *mut u8, usize) -> usize;
 
     /// Every reader's decoder this CPU can run: the plain ones and each tier's kernels.
-    fn decoder_ways() -> (Vec<(&'static str, Latin1Way)>, Vec<(&'static str, Utf16Way)>) {
+    fn decoder_ways() -> (Ways<Latin1Way>, Ways<Utf16Way>) {
         #[allow(unused_mut)]
-        let mut latin1: Vec<(&'static str, Latin1Way)> =
-            // SAFETY (each): the test's room is the UTF-8's length.
-            vec![("words", |b, d, _| unsafe { latin1_words(b, 0, d, 0) })];
+        let mut latin1: Ways<Latin1Way> = vec![(
+            "words",
+            // SAFETY: the caller's room is the UTF-8's length.
+            |b, d, _| unsafe { latin1_words(b, 0, d, 0) },
+        )];
         #[allow(unused_mut)]
-        let mut utf16: Vec<(&'static str, Utf16Way)> =
-            vec![("words", |u, d, _| unsafe { utf16_words(u, 0, u.len(), d, 0).1 })];
+        let mut utf16: Ways<Utf16Way> = vec![(
+            "words",
+            // SAFETY: the caller's room is what the units count.
+            |u, d, _| unsafe { utf16_words(u, 0, u.len(), d, 0).1 },
+        )];
         #[cfg(target_arch = "x86_64")]
         {
             if x86::tier() >= x86::Tier::Ssse3 {

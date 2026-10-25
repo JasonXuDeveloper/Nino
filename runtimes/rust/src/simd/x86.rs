@@ -554,6 +554,8 @@ fn lanes64(n: usize) -> u64 {
 /// The 16-bit lanes of `v` that `keep` sets, moved to the front (`vpcompressw`). Under Miri, which does not have
 /// the instruction, lane by lane (the same result), so that the memory accesses around it are checked.
 #[cfg(nino_avx512)]
+// AVX-512 is stable since Rust 1.89, after the MSRV: build.rs sets `nino_avx512` only for a compiler that has it.
+#[allow(clippy::incompatible_msrv)]
 #[inline]
 #[target_feature(enable = "avx512f,avx512bw,avx512vbmi2")]
 fn compress16(keep: u32, v: __m512i) -> __m512i {
@@ -587,6 +589,8 @@ fn compress_lanes<T: Copy + Default, const N: usize>(keep: u64, lanes: [T; N]) -
 
 /// [`compress8`] for 32 bytes.
 #[cfg(nino_avx512)]
+// AVX-512 is stable since Rust 1.89, after the MSRV: build.rs sets `nino_avx512` only for a compiler that has it.
+#[allow(clippy::incompatible_msrv)]
 #[inline]
 #[target_feature(enable = "avx512f,avx512bw,avx512vl,avx512vbmi2")]
 fn compress8x32(keep: u32, v: __m256i) -> __m256i {
@@ -604,6 +608,8 @@ fn compress8x32(keep: u32, v: __m256i) -> __m256i {
 
 /// [`compress16`] for bytes (`vpcompressb`).
 #[cfg(nino_avx512)]
+// AVX-512 is stable since Rust 1.89, after the MSRV: build.rs sets `nino_avx512` only for a compiler that has it.
+#[allow(clippy::incompatible_msrv)]
 #[inline]
 #[target_feature(enable = "avx512f,avx512bw,avx512vbmi2")]
 fn compress8(keep: u64, v: __m512i) -> __m512i {
@@ -624,6 +630,8 @@ fn compress8(keep: u64, v: __m512i) -> __m512i {
 /// # Safety
 /// The CPU has AVX-512 F, BW, VL and VBMI2, AVX2, BMI1, BMI2, LZCNT and POPCNT, and `text.len() <= WIDE_MAX`.
 #[cfg(nino_avx512)]
+// AVX-512 is stable since Rust 1.89, after the MSRV: build.rs sets `nino_avx512` only for a compiler that has it.
+#[allow(clippy::incompatible_msrv)]
 #[target_feature(enable = "avx512f,avx512bw,avx512vl,avx512vbmi2,avx2,bmi1,bmi2,lzcnt,popcnt")]
 pub(crate) unsafe fn wide_avx512(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
@@ -877,6 +885,8 @@ fn deposit(bits: u64, mask: u64) -> u64 {
 /// # Safety
 /// The CPU has AVX-512 F, BW, VL and VBMI2, BMI2 and POPCNT. The UTF-8's length is writable at `dst`.
 #[cfg(nino_avx512)]
+// AVX-512 is stable since Rust 1.89, after the MSRV: build.rs sets `nino_avx512` only for a compiler that has it.
+#[allow(clippy::incompatible_msrv)]
 #[target_feature(enable = "avx512f,avx512bw,avx512vl,avx512vbmi2,avx2,bmi2,popcnt")]
 pub(crate) unsafe fn latin1_avx512(bytes: &[u8], dst: *mut u8) -> usize {
     let (src, len) = (bytes.as_ptr(), bytes.len());
@@ -918,6 +928,8 @@ pub(crate) unsafe fn latin1_avx512(bytes: &[u8], dst: *mut u8) -> usize {
 /// # Safety
 /// The CPU has AVX-512 F, BW, VL and VBMI2, BMI2 and POPCNT. What the units count is writable at `dst`.
 #[cfg(nino_avx512)]
+// AVX-512 is stable since Rust 1.89, after the MSRV: build.rs sets `nino_avx512` only for a compiler that has it.
+#[allow(clippy::incompatible_msrv)]
 #[target_feature(enable = "avx512f,avx512bw,avx512vl,avx512vbmi2,avx2,bmi2,popcnt")]
 pub(crate) unsafe fn utf16_avx512(units: &[[u8; 2]], dst: *mut u8) -> usize {
     let (src, n) = (units.as_ptr().cast::<u8>(), units.len());
@@ -996,16 +1008,14 @@ pub(crate) unsafe fn utf16_avx512(units: &[[u8; 2]], dst: *mut u8) -> usize {
             _mm512_or_si512(_mm512_slli_epi32::<10>(_mm512_and_si512(u, s32(0x3FF))), _mm512_and_si512(x, s32(0x3FF))),
             s32(0x1_0000),
         );
-        let cont = |v: __m512i, shift: u32| -> __m512i {
-            let bits = _mm512_and_si512(_mm512_srlv_epi32(v, s32(shift as i32)), s32(0x3F));
-            _mm512_or_si512(bits, s32(0x80))
-        };
+        // A continuation byte from six bits already shifted down (constant shifts: Miri lacks the variable ones).
+        let cont = |bits: __m512i| -> __m512i { _mm512_or_si512(_mm512_and_si512(bits, s32(0x3F)), s32(0x80)) };
         let four = _mm512_or_si512(
             _mm512_or_si512(
                 _mm512_or_si512(s32(0xF0), _mm512_srli_epi32::<18>(c)),
-                _mm512_slli_epi32::<8>(cont(c, 12)),
+                _mm512_slli_epi32::<8>(cont(_mm512_srli_epi32::<12>(c))),
             ),
-            _mm512_or_si512(_mm512_slli_epi32::<16>(cont(c, 6)), _mm512_slli_epi32::<24>(cont(c, 0))),
+            _mm512_or_si512(_mm512_slli_epi32::<16>(cont(_mm512_srli_epi32::<6>(c))), _mm512_slli_epi32::<24>(cont(c))),
         );
         let ge80 = _mm512_cmpgt_epu32_mask(u, s32(0x7F));
         let ge800 = _mm512_cmpgt_epu32_mask(u, s32(0x7FF));

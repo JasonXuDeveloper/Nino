@@ -20,6 +20,26 @@ fn bits(set: uint8x16_t) -> u32 {
     }
 }
 
+/// The bits set in each byte value. Arm64 before FEAT_CSSC has no scalar popcount: `count_ones` moves the value to a
+/// vector register and back, about ten cycles on the chain of output offsets; a load from this table is four.
+// A const block cannot call `get_mut`; `k < 256` indexes the table, and `k + 1 <= 256` cannot wrap.
+#[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+static ONES: [u8; 256] = {
+    let mut table = [0u8; 256];
+    let mut k = 0;
+    while k < 256 {
+        table[k] = (k as u8).count_ones() as u8;
+        k += 1;
+    }
+    table
+};
+
+/// The bits set in `k` (below 256), from [`ONES`].
+#[inline(always)]
+fn ones(k: usize) -> usize {
+    usize::from(ONES.get(k).copied().unwrap_or(0))
+}
+
 /// Row `k` of a table of shuffles, as a vector.
 ///
 /// # Safety
@@ -168,9 +188,9 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) {
                     let (k0, k1) = ((keep & 0xFF) as usize, ((keep >> 8) & 0xFF) as usize);
                     // `k0, k1 < 256`; the stores end within the room (the invariants).
                     vst1_u8(dst.add(o), vget_low_u8(vqtbl1q_u8(chars, row(&KEEP8, k0))));
-                    o = o.wrapping_add(k0.count_ones() as usize);
+                    o = o.wrapping_add(ones(k0));
                     vst1_u8(dst.add(o), vget_low_u8(vqtbl1q_u8(vextq_u8::<8>(chars, zero), row(&KEEP8, k1))));
-                    o = o.wrapping_add(k1.count_ones() as usize);
+                    o = o.wrapping_add(ones(k1));
                 }
                 i = i.wrapping_add(q);
             }
@@ -219,9 +239,9 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) {
                 let (k0, k1) = ((keep & 0xFF) as usize, ((keep >> 8) & 0xFF) as usize);
                 // `k0, k1 < 256`; the stores end within the room (the invariants).
                 vst1q_u8(dst.add(o), vqtbl1q_u8(vreinterpretq_u8_u16(low), row(&KEEP16, k0)));
-                o = o.wrapping_add((k0.count_ones() as usize).wrapping_mul(2));
+                o = o.wrapping_add(ones(k0).wrapping_mul(2));
                 vst1q_u8(dst.add(o), vqtbl1q_u8(vreinterpretq_u8_u16(high), row(&KEEP16, k1)));
-                o = o.wrapping_add((k1.count_ones() as usize).wrapping_mul(2));
+                o = o.wrapping_add(ones(k1).wrapping_mul(2));
             }
             i = i.wrapping_add(q);
         }
@@ -285,9 +305,9 @@ pub(crate) unsafe fn latin1(bytes: &[u8], dst: *mut u8, room: usize) -> usize {
             let (m0, m1) = ((high & 0xFF) as usize, (high >> 8) as usize);
             // `m0, m1 < 256`; 32 bytes of room from `o`, and the second store starts at most 16 after it.
             vst1q_u8(dst.add(o), vqtbl1q_u8(vzip1q_u8(lead, cont), row(&super::EXPAND, m0)));
-            o = o.wrapping_add(8).wrapping_add(m0.count_ones() as usize);
+            o = o.wrapping_add(8).wrapping_add(ones(m0));
             vst1q_u8(dst.add(o), vqtbl1q_u8(vzip2q_u8(lead, cont), row(&super::EXPAND, m1)));
-            o = o.wrapping_add(8).wrapping_add(m1.count_ones() as usize);
+            o = o.wrapping_add(8).wrapping_add(ones(m1));
             k = k.wrapping_add(16);
         }
         // The invariant: the room from `o` holds the rest's UTF-8.
@@ -331,7 +351,7 @@ pub(crate) unsafe fn utf16(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usiz
                 // `m < 256`; 32 bytes of room.
                 vst1q_u8(dst.add(o), vqtbl1q_u8(vreinterpretq_u8_u16(lanes), row(&super::EXPAND, m)));
                 k = k.wrapping_add(8);
-                o = o.wrapping_add(8).wrapping_add(m.count_ones() as usize);
+                o = o.wrapping_add(8).wrapping_add(ones(m));
                 continue;
             }
             let surrogate = vceqq_u16(vandq_u16(w, vdupq_n_u16(0xF800)), vdupq_n_u16(0xD800));
@@ -362,8 +382,8 @@ pub(crate) unsafe fn utf16(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usiz
                 for q in 0..4 {
                     // `half + q < 8`.
                     let unit = half.wrapping_add(q);
-                    index |= (((ge80 >> unit) & 1) as usize) << (2 * q);
-                    index |= (((ge800 >> unit) & 1) as usize) << (2 * q + 1);
+                    index |= (((ge80 >> unit) & 1) as usize) << q.wrapping_mul(2);
+                    index |= (((ge800 >> unit) & 1) as usize) << q.wrapping_mul(2).wrapping_add(1);
                 }
                 let (shuffle, count) = super::PACK3.get(index).copied().unwrap_or(([0x80; 16], 0));
                 // 32 bytes of room from where the step started; the first half stores 16 bytes from there, the second
