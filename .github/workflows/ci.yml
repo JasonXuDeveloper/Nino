@@ -38,6 +38,7 @@ on:
       - '.github/workflows/ci.yml'
       - '.github/scripts/test_shards.py'
   workflow_call:
+  workflow_dispatch:
 
 # Security: Minimal required permissions
 permissions:
@@ -360,17 +361,34 @@ jobs:
           ./aot-tests/aot/Nino.AotTests | tee aot.txt
           [ "$(grep 'payload sha256' trim.txt)" = "$(grep 'payload sha256' aot.txt)" ]
 
-  # The netstandard2.0 build of Nino.Core on Mono, whose class libraries (like .NET Framework's) give List<T> and the
-  # other collections Nino reads directly a field more than .NET's: Nino.RuntimeTests must write the same bytes there
-  # as on .NET.
-  mono:
-    name: Mono
-    runs-on: ubuntu-26.04
+  # Nino.RuntimeTests on every runtime whose internals Nino reads or builds (CollectionViews, HashTables,
+  # ConcurrentTables, SortedSetNodes, LinkedList nodes, ObjectTypes; Nino.Immutable's HashTrees and SortedTrees): each
+  # must write the same bytes as .NET on x64, see the same contents through the public API, survive compacting
+  # collections, and find every path meant for it (a layout that silently fell back to the public API fails). The
+  # net472 build (Nino.Core netstandard2.0) runs on Mono (x64 and Arm64) and on .NET Framework 4.8, 64-bit and
+  # 32-bit; the net10.0 build on .NET x64, Arm64, Windows x86 and Arm32 (qemu: GitHub has no Arm32 runner; it also
+  # checks the Int128 layout, aligned to 8 there).
+  runtime-tests:
+    name: Runtime internals (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { id: mono, name: .NET and Mono, runner: ubuntu-26.04 }
+          - { id: arm64, name: .NET and Mono on Arm64, runner: ubuntu-26.04-arm }
+          - { id: arm32, name: .NET on Arm32 under qemu, runner: ubuntu-26.04 }
+          - { id: framework, name: .NET Framework 4.8 and .NET on Windows, 64-bit and 32-bit, runner: windows-latest }
 
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -383,41 +401,119 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ runner.arch }}-mono-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-runtime-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
-            nuget-${{ runner.os }}-${{ runner.arch }}-mono-
+            nuget-${{ runner.os }}-${{ runner.arch }}-runtime-
             nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install Mono
+        if: matrix.id == 'mono' || matrix.id == 'arm64'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mono-complete
 
-      - name: Build
-        run: dotnet build tests/Nino.RuntimeTests/Nino.RuntimeTests.csproj -c Release
-
-      - name: Run on .NET and Mono
+      # The .NET runtime for linux-arm, run by qemu-user with the armhf C and C++ libraries.
+      - name: Install qemu and .NET for Arm32
+        if: matrix.id == 'arm32'
         run: |
-          dotnet tests/Nino.RuntimeTests/bin/Release/net10.0/Nino.RuntimeTests.dll | tee dotnet.txt
-          mono tests/Nino.RuntimeTests/bin/Release/net472/Nino.RuntimeTests.exe | tee mono.txt
-          diff <(grep -v '^#' dotnet.txt) <(grep -v '^#' mono.txt)
-          grep -qx 'ALL OK' mono.txt
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-user libc6-armhf-cross libstdc++6-armhf-cross
+          curl -sSfL https://dot.net/v1/dotnet-install.sh -o "$RUNNER_TEMP/dotnet-install.sh"
+          bash "$RUNNER_TEMP/dotnet-install.sh" --runtime dotnet --channel 10.0 --architecture arm \
+            --install-dir "$RUNNER_TEMP/dotnet-arm" --no-path
+
+      # 32-bit .NET on Windows (x86: 8-byte fields aligned to 4), beside the 64-bit SDK.
+      - name: Install .NET for x86
+        if: matrix.id == 'framework'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile "$env:RUNNER_TEMP/dotnet-install.ps1"
+          & "$env:RUNNER_TEMP/dotnet-install.ps1" -Runtime dotnet -Channel 10.0 -Architecture x86 `
+            -InstallDir "$env:RUNNER_TEMP/dotnet-x86" -NoPath
+
+      # 32-bit .NET Framework runs the same exe built for x86 (-p:NinoX86=true, its own output folder).
+      - name: Build
+        run: |
+          dotnet build tests/Nino.RuntimeTests/Nino.RuntimeTests.csproj -c Release
+          if [[ "${{ matrix.id }}" == framework ]]; then
+            dotnet build tests/Nino.RuntimeTests/Nino.RuntimeTests.csproj -c Release -f net472 -p:NinoX86=true
+          fi
+
+      # Each runtime's output without its comment lines (where it keeps the fields) must equal .NET's.
+      - name: Run
+        env:
+          BIN: tests/Nino.RuntimeTests/bin
+        run: |
+          set -uo pipefail
+          status=0
+          run() {
+            local name=$1; shift
+            echo "::group::$name"
+            "$@" > "$name.txt" 2>&1
+            local code=$?
+            cat "$name.txt"
+            echo "::endgroup::"
+            if (( code != 0 )) || ! grep -q '^ALL OK' "$name.txt"; then
+              echo "::error::Nino.RuntimeTests failed on $name (exit $code)"
+              status=1
+            fi
+          }
+          compare() {
+            if ! diff <(grep -v '^#' dotnet.txt) <(grep -v '^#' "$1.txt"); then
+              echo "::error::$1 wrote other bytes or found other paths than .NET (diff above)"
+              status=1
+            fi
+          }
+          run dotnet dotnet "$BIN/Release/net10.0/Nino.RuntimeTests.dll"
+          case "${{ matrix.id }}" in
+            mono|arm64)
+              run mono mono "$BIN/Release/net472/Nino.RuntimeTests.exe"
+              compare mono
+              # The GC checks the heap before every collection: objects made through Mono's internals must be
+              # what it expects.
+              MONO_GC_DEBUG=verify-before-collections run mono-gc-verify mono "$BIN/Release/net472/Nino.RuntimeTests.exe"
+              compare mono-gc-verify
+              ;;
+            arm32)
+              # W^X off: the runtime writes code through a second mapping of its pages, which qemu-user does not see
+              # as a change to the code it translated (dynamic methods then crash).
+              DOTNET_EnableWriteXorExecute=0 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
+                run arm32 qemu-arm -L /usr/arm-linux-gnueabihf "$RUNNER_TEMP/dotnet-arm/dotnet" \
+                "$BIN/Release/net10.0/Nino.RuntimeTests.dll"
+              grep -q '^# 64-bit: False' arm32.txt || { echo "::error::not a 32-bit process"; status=1; }
+              compare arm32
+              ;;
+            framework)
+              run framework "$BIN/Release/net472/Nino.RuntimeTests.exe"
+              grep -q '^# 64-bit: True, runtime: .NET Framework' framework.txt ||
+                { echo "::error::not 64-bit .NET Framework"; status=1; }
+              compare framework
+              run framework-x86 "$BIN/x86/Release/net472/Nino.RuntimeTests.exe"
+              grep -q '^# 64-bit: False, runtime: .NET Framework' framework-x86.txt ||
+                { echo "::error::not 32-bit .NET Framework"; status=1; }
+              compare framework-x86
+              run dotnet-x86 "$(cygpath -u "$RUNNER_TEMP")/dotnet-x86/dotnet.exe" "$BIN/Release/net10.0/Nino.RuntimeTests.dll"
+              grep -q '^# 64-bit: False, runtime: .NET 10' dotnet-x86.txt || { echo "::error::not 32-bit .NET"; status=1; }
+              compare dotnet-x86
+              ;;
+          esac
+          exit $status
 
   # The one check to require: fails if any configuration failed (Unity runs in unity.yml, one seat at a time),
   # or if the shards of a unit test configuration together did not run the whole suite.
   build-test:
     name: Build and Test
     runs-on: ubuntu-26.04
-    needs: [ unit-tests, integrations, trim-aot, mono ]
+    needs: [ unit-tests, integrations, trim-aot, runtime-tests ]
     # Not when the run itself was cancelled (a newer push supersedes it): its cancelled jobs are not failures.
     if: ${{ !cancelled() }}
     timeout-minutes: 10
     steps:
       - name: Check results
         run: |
-          echo "unit tests: ${{ needs.unit-tests.result }}, integrations: ${{ needs.integrations.result }}, trim/AOT: ${{ needs.trim-aot.result }}, Mono: ${{ needs.mono.result }}"
+          echo "unit tests: ${{ needs.unit-tests.result }}, integrations: ${{ needs.integrations.result }}, trim/AOT: ${{ needs.trim-aot.result }}, runtime internals: ${{ needs.runtime-tests.result }}"
           [ "${{ needs.unit-tests.result }}" = success ] || exit 1
           [ "${{ needs.integrations.result }}" = success ] || exit 1
           [ "${{ needs.trim-aot.result }}" = success ] || exit 1
-          [ "${{ needs.mono.result }}" = success ] || exit 1
+          [ "${{ needs.runtime-tests.result }}" = success ] || exit 1
 
       - name: Checkout the scripts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
