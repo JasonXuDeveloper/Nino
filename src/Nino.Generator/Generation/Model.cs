@@ -42,6 +42,23 @@ internal enum MemberAccess
     Cast,
 }
 
+/// <summary>How a member written raw is read (<c>RawLayout.ReadOf</c>).</summary>
+internal enum RawRead
+{
+    /// <summary>As its bytes: every bit pattern is a value.</summary>
+    Plain,
+
+    /// <summary>A <c>bool</c>: its byte is checked to be 0 or 1.</summary>
+    Bool,
+
+    /// <summary>
+    /// A type that may hold values no constructor makes, checked in <c>NinoSettings.Untrusted</c> mode
+    /// (<c>ReadChecked</c>): a struct (not a primitive or enum, whose sizes are constants), or a <c>DateTime</c>,
+    /// <c>decimal</c>, <c>DateOnly</c> or <c>TimeOnly</c>.
+    /// </summary>
+    Checked,
+}
+
 /// <summary>
 /// Size of a member written raw (as part of an unmanaged block). <see cref="Bytes"/> is the size when it is a
 /// compile-time constant (primitives, enums), else 0; <see cref="Expression"/> is the size as C# source either way.
@@ -51,6 +68,9 @@ internal enum MemberAccess
 internal sealed record RawSize(int Bytes, string Expression)
 {
     public string Layout { get; init; } = "raw";
+
+    /// <summary>How the member is read.</summary>
+    public RawRead Read { get; init; }
 
     /// <summary>Whether the size is a constant; otherwise the member is a struct (<c>NinoUnsafe.SizeOf&lt;T&gt;()</c>).</summary>
     public bool IsConstant => Bytes != 0;
