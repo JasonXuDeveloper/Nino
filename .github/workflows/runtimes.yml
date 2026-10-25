@@ -6,8 +6,9 @@ name: Runtimes
 # committed under runtimes/ and checked by the codegen job to be what nino-gen writes today (docs/codegen.md).
 on:
   push:
-    branches: [ "main", "develop" ]
-    paths:
+    branches: [ "main" ]
+    # The runtimes, and what .NET writes the corpus and the generated code with.
+    paths: &paths
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'
       - 'src/Nino.Generator.Roslyn4.12/**'
@@ -15,20 +16,17 @@ on:
       - 'tests/Nino.Codegen.Tests/**'
       - 'runtimes/**'
       - 'conformance/**'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - 'nuget.config'
       - '.github/workflows/runtimes.yml'
+      - '.github/actions/setup-dotnet/**'
   pull_request:
-    branches: [ "main", "develop" ]
-    paths:
-      - 'src/Nino.Core/**'
-      - 'src/Nino.Generator/**'
-      - 'src/Nino.Generator.Roslyn4.12/**'
-      - 'src/Nino.Codegen/**'
-      - 'tests/Nino.Codegen.Tests/**'
-      - 'runtimes/**'
-      - 'conformance/**'
-      - '.github/workflows/runtimes.yml'
+    branches: [ "main" ]
+    paths: *paths
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: read
@@ -37,30 +35,332 @@ env:
   DOTNET_NOLOGO: '1'
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
-  CARGO_TERM_COLOR: always
-  # CI builds from scratch (or from the cache's dependencies): incremental artifacts only cost time and cache space.
-  CARGO_INCREMENTAL: '0'
+  # The conformance corpus every runtime's tests read, and a missing one fails them instead of skipping them.
+  # (dtolnay/rust-toolchain sets CARGO_INCREMENTAL=0 and CARGO_TERM_COLOR=always.)
+  NINO_CORPUS: ${{ github.workspace }}/conformance/corpus
+  NINO_CORPUS_REQUIRED: '1'
 
 concurrency:
   group: runtimes-${{ github.ref }}
   cancel-in-progress: true
 
+# Every push to main starts some 80 jobs across ci.yml, runtimes.yml, fuzz.yml, codeql.yml and unity.yml, against an
+# account limit of 40 at a time: a job that only sets up a toolchain and runs a few seconds of tests still holds a
+# slot, and the long jobs queued behind it. So the short checks of one runner share a job (each a step that runs even
+# after another step failed, so one run shows every failure), the longest jobs come first, and the Rust jobs restore
+# their dependencies, and Miri its sysroot, from a cache that only main writes (the repository's 10 GB of caches are
+# shared with Unity's Library).
+# Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  # .NET still reads the committed corpus as recorded, and regenerating it changes nothing.
-  conformance:
-    name: Conformance corpus
+  # The crate's only unsafe code (runtimes/rust/src/simd.rs: the string writer's transcoding and the reader's text
+  # decoding) under Miri: its tests compare every block kind a target has, and the decoders, with plain ones. Miri
+  # interprets each target here: x86_64 with SSE2 only (SSE2 and words), SSSE3 (the pair steps) and SSE4.1 (the
+  # one-pass writer), little-endian Arm64 (NEON) and big-endian s390x (words).
+  # The tests take fewer cases under Miri (cfg(miri)). Each target is a runner of its own: one after the other, the
+  # four targets took over twenty minutes. Miri runs on one thread, so each runner runs the module's tests as two
+  # processes side by side: every_class_at_every_position, and every simd test but that one (so a test added to the
+  # module runs there). Two, not more: the runners' four vCPUs are two cores.
+  rust-miri:
+    name: Rust (Miri, ${{ matrix.target.name }})
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: runtimes/rust
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: Arm64 NEON, triple: aarch64-unknown-linux-gnu, rustflags: '' }
+          - { name: x86_64 SSSE3, triple: x86_64-unknown-linux-gnu, rustflags: -C target-feature=+ssse3 }
+          - { name: big-endian s390x, triple: s390x-unknown-linux-gnu, rustflags: '' }
+          - { name: x86_64 SSE4.1, triple: x86_64-unknown-linux-gnu, rustflags: '-C target-feature=+ssse3,+sse4.1,+popcnt' }
+          - { name: x86_64 SSE2, triple: x86_64-unknown-linux-gnu, rustflags: '' }
+    env:
+      RUSTFLAGS: ${{ matrix.target.rustflags }}
+      TRIPLE: ${{ matrix.target.triple }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The default toolchain, so the cache's key names the nightly it was built with.
+      - name: Toolchain (nightly, with Miri)
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: nightly
+          components: miri, rust-src
+
+      # The dependencies built for Miri, and Miri's sysroot for the target (the triple and RUSTFLAGS are in the key).
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: runtimes/rust -> target
+          key: ${{ matrix.target.triple }}
+          cache-directories: ~/.cache/miri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build under Miri
+        run: |
+          cargo +nightly miri setup --target "$TRIPLE"
+          cargo +nightly miri test -p nino-serialization --locked --lib --target "$TRIPLE" --no-run
+
+      - name: Test under Miri
+        run: |
+          set -uo pipefail
+          half() {
+            local name=$1; shift
+            cargo +nightly miri test -p nino-serialization --locked --lib --target "$TRIPLE" "$@" \
+              > "$RUNNER_TEMP/$name.txt" 2>&1
+          }
+          half every-class simd::tests::every_class_at_every_position & first=$!
+          half rest simd -- --skip every_class_at_every_position & rest=$!
+          status=0
+          wait $first || { status=1; echo "::error::every_class_at_every_position failed under Miri ($TRIPLE)"; }
+          wait $rest || { status=1; echo "::error::the other simd tests failed under Miri ($TRIPLE)"; }
+          for name in every-class rest; do
+            echo "::group::$name"; cat "$RUNNER_TEMP/$name.txt"; echo "::endgroup::"
+          done
+          exit $status
+
+  # Format, lints, the tests with every feature, and the MSRV. The tests without features are a job of their own:
+  # the debug build's simd tests take over three minutes, and the two runs one after the other took eight.
+  rust:
+    name: Rust
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: runtimes/rust
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The MSRV (rust-version in Cargo.toml)
+        id: msrv
+        run: echo "version=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Toolchain (the MSRV)
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+
+      # Installed last: the default.
+      - name: Toolchain (stable)
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      # Keyed by OS, CPU, job, compilers (the MSRV here) and Cargo.lock: a new stable never reuses the old one's builds.
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: runtimes/rust -> target
+          key: msrv-${{ steps.msrv.outputs.version }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        if: ${{ !cancelled() }}
+        run: cargo clippy --workspace --all-features --all-targets --locked -- -D warnings
+
+      - name: Test
+        if: ${{ !cancelled() }}
+        run: cargo test --workspace --all-features --locked
+
+      - name: MSRV
+        if: ${{ !cancelled() }}
+        env:
+          MSRV: ${{ steps.msrv.outputs.version }}
+        run: cargo +"$MSRV" check --workspace --all-features --all-targets --locked
+
+  rust-no-features:
+    name: Rust (without features)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: runtimes/rust
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Toolchain
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: stable
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: runtimes/rust -> target
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Test without features
+        run: cargo test -p nino-serialization --locked --lib --test spec --test values
+
+  # Arm64 natively: the string writer's NEON steps (runtimes/rust/src/simd.rs) and the rest of the crate, with the
+  # corpus, on the CPU they are written for (the rust-miri job interprets them, this one runs them).
+  rust-arm64:
+    name: Rust (Arm64)
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: runtimes/rust
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Toolchain
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: stable
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: runtimes/rust -> target
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Test
+        run: cargo test --workspace --all-features --locked
+
+  # The mutational fuzz in tests/conformance.rs (cargo-fuzz needs nightly), longer and optimized here, beside the
+  # tests instead of after them (an optimized build of its own). The crate's one unsafe module is checked by the
+  # rust-miri job.
+  rust-fuzz:
+    name: Rust fuzz (short)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: runtimes/rust
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Toolchain
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: stable
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: runtimes/rust -> target
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Fuzz (short)
+        env:
+          NINO_FUZZ_ITERATIONS: 20000
+        run: cargo test --release --all-features --locked --test conformance mutational_fuzz -- --nocapture
+
+      # The same over the code nino-gen generates (tests/generated).
+      - name: Fuzz the generated code (short)
+        if: ${{ !cancelled() }}
+        env:
+          NINO_FUZZ_ITERATIONS: 3000
+        run: cargo test --release --all-features --locked --test generated generated_fuzz -- --nocapture
+
+  # The Go fuzz targets, short, on the newest Go. go test fuzzes one target at a time, with every core, so the x64
+  # targets are split over two runners that each fuzz theirs one after the other (all on one runner took over four
+  # minutes); the string kernels' targets also run on Arm64 (NEON), in the go-arm64 job. A new target is a new entry
+  # in a row's list: <target>:<package>:<time>.
+  go-fuzz:
+    name: Go fuzz (${{ matrix.name }})
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: runtimes/go
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: 1
+            name: FuzzDecode, FuzzReader, FuzzString, FuzzReadVector
+            targets: FuzzDecode:./internal/sample:60s FuzzReader:.:45s FuzzString:.:30s FuzzReadVector:.:30s
+          - id: 2
+            name: FuzzTaggedDecode, FuzzTagged, FuzzWireString
+            targets: FuzzTaggedDecode:./internal/sample:60s FuzzTagged:.:45s FuzzWireString:.:30s
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache-dependency-path: runtimes/go/bench/go.sum
+
+      - name: Fuzz (short)
+        env:
+          TARGETS: ${{ matrix.targets }}
+        run: |
+          set -uo pipefail
+          status=0
+          for spec in $TARGETS; do
+            IFS=: read -r target package time <<< "$spec"
+            echo "::group::$target ($time)"
+            go test -run='^$' -fuzz="^${target}\$" -fuzztime="$time" "$package" || { status=1; echo "::error::$target failed"; }
+            echo "::endgroup::"
+          done
+          exit $status
+
+      - name: Keep failing fuzz inputs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: go-fuzz-failures-${{ matrix.id }}
+          path: runtimes/go/**/testdata/fuzz
+          if-no-files-found: ignore
+
+  # .NET still reads the committed corpus as recorded, and regenerating it changes nothing; and the generated files
+  # committed under runtimes/ (the corpus's types and tests/Nino.Codegen.Tests/Shapes.cs in Go, Rust and TypeScript)
+  # are what nino-gen writes today (the runtime jobs compile and run them).
+  dotnet:
+    name: Conformance corpus and code generation
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        uses: ./.github/actions/setup-dotnet
         with:
-          dotnet-version: 10.0.x
+          net8: true
 
-      - name: Build
+      - name: Build the conformance corpus writer
         run: dotnet build conformance/Nino.Conformance -c Release
 
       - name: Check the committed corpus with .NET
@@ -76,104 +376,89 @@ jobs:
             exit 1
           fi
 
-  # The generated files committed under runtimes/ (the corpus's types and tests/Nino.Codegen.Tests/Shapes.cs in Go,
-  # Rust and TypeScript) are what nino-gen writes today; the runtime jobs below compile and run them.
-  codegen:
-    name: Code generation
-    runs-on: ubuntu-26.04
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: |
-            10.0.x
-            8.0.x
-
       - name: Test nino-gen and check the generated files
+        if: ${{ !cancelled() }}
         run: dotnet test tests/Nino.Codegen.Tests -c Release
 
-  typescript:
-    name: TypeScript (Node ${{ matrix.node }}${{ matrix.runner == 'ubuntu-26.04-arm' && ', Arm64' || '' }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        # The oldest Node package.json's engines allow, and the newest release; the newest on Arm64 too (a runner of
-        # its own: an include that changed no value would join the x64 row instead).
-        node: [ '22', current ]
-        runner: [ ubuntu-26.04 ]
-        include:
-          - { node: current, runner: ubuntu-26.04-arm }
+  # The TypeScript runtime on the oldest Node package.json's engines allow and on the newest release, and the Go
+  # runtime: the oldest Go go.mod allows and the newest (which also checks the benchmark module and staticcheck). The
+  # string writer has assembly for amd64 (SSE2) and arm64 (NEON) and a portable fallback (build tag purego, and every
+  # other architecture): each runs its tests here and in go-arm64. Then the 32-bit and big-endian hosts, which the
+  # tests above never are: the portable string writer, the block copies that are memory copies only on
+  # little-endian hosts (endian_little.go, endian_other.go) and 32-bit int arithmetic. 386 runs natively; Arm32 and
+  # s390x (big-endian) under qemu-user (go test -exec; Go's binaries are static). No race detector on these.
+  # Each check is a step that runs even after another one failed.
+  go:
+    name: Go and TypeScript
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
     defaults:
       run:
-        working-directory: runtimes/typescript
-    env:
-      NINO_CORPUS_REQUIRED: '1'
+        working-directory: runtimes/go
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: ${{ matrix.node }}
+          persist-credentials: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
           cache: npm
           cache-dependency-path: runtimes/typescript/package-lock.json
 
-      - name: Type check and test (the corpus over the generated code included)
+      - name: TypeScript on Node 22 (type check and test, the corpus over the generated code included)
+        working-directory: runtimes/typescript
         run: |
           npm ci
           npm test
 
-  # The string writer has assembly for amd64 (SSE2) and arm64 (NEON) and a portable fallback (build tag purego, and
-  # every other architecture): each runs its tests, the NEON code and the fallback on an Arm64 runner too.
-  go:
-    name: Go (${{ matrix.name }})
-    runs-on: ${{ matrix.runner || 'ubuntu-26.04' }}
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: runtimes/go
-    env:
-      # The corpus test fails instead of skipping when CI is set and the corpus is missing.
-      NINO_CONFORMANCE_CORPUS: ${{ github.workspace }}/conformance/corpus
-      TAGS: ${{ matrix.tags }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # The oldest version go.mod allows, and the newest (which also checks the benchmark module and staticcheck).
-          - { name: '1.22', go: '1.22' }
-          - { name: stable, go: stable, full: true }
-          - { name: stable purego, go: stable, tags: purego }
-          - { name: stable Arm64, go: stable, runner: ubuntu-26.04-arm }
-          - { name: stable purego Arm64, go: stable, tags: purego, runner: ubuntu-26.04-arm }
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up the newest Node
+        if: ${{ !cancelled() }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: current
 
-      - name: Set up Go
+      - name: TypeScript on the newest Node
+        if: ${{ !cancelled() }}
+        working-directory: runtimes/typescript
+        run: |
+          npm ci
+          npm test
+
+      - name: Set up Go 1.22
+        if: ${{ !cancelled() }}
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: ${{ matrix.go }}
+          go-version: '1.22'
+          # The stable setup below caches the build and module caches.
+          cache: false
+
+      - name: Go 1.22
+        if: ${{ !cancelled() }}
+        run: |
+          go vet ./...
+          go test -race -count=1 ./...
+
+      - name: Set up the newest Go
+        if: ${{ !cancelled() }}
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
           cache-dependency-path: runtimes/go/bench/go.sum
 
       - name: Vet
-        run: go vet -tags "$TAGS" ./...
-
-      # The benchmark module needs Go 1.24 (testing.B.Loop): on 'stable' only.
-      - name: Vet the benchmark module
-        if: matrix.full
-        run: (cd bench && go vet ./...)
+        if: ${{ !cancelled() }}
+        run: |
+          go vet ./...
+          # The benchmark module needs Go 1.24 (testing.B.Loop): on 'stable' only.
+          (cd bench && go vet ./...)
 
       # A staticcheck release reads the export data of the Go releases out when it was made: bump it when a new Go
       # becomes 'stable' and this step fails with "export data version ... is greater than maximum supported".
       - name: Staticcheck
-        if: matrix.full
+        if: ${{ !cancelled() }}
         run: |
           if go install honnef.co/go/tools/cmd/staticcheck@2026.2.2; then
             "$(go env GOPATH)/bin/staticcheck" ./...
@@ -183,289 +468,105 @@ jobs:
           fi
 
       - name: Test (race detector)
-        run: go test -race -count=1 -tags "$TAGS" ./...
+        if: ${{ !cancelled() }}
+        run: go test -race -count=1 ./...
 
       - name: Test the benchmark module
-        if: matrix.full
+        if: ${{ !cancelled() }}
         run: (cd bench && go test -count=1 ./...)
 
-  # 32-bit and big-endian hosts, which the tests above never are: the portable string writer, the block copies that
-  # are memory copies only on little-endian hosts (endian_little.go, endian_other.go) and 32-bit int arithmetic. 386
-  # runs natively; Arm32 and s390x (big-endian) under qemu-user (go test -exec; Go's binaries are static). No race
-  # detector on these.
-  go-cross:
-    name: Go (${{ matrix.name }})
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: runtimes/go
-    env:
-      NINO_CONFORMANCE_CORPUS: ${{ github.workspace }}/conformance/corpus
-      GOARCH: ${{ matrix.goarch }}
-      EXEC: ${{ matrix.exec }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { name: '386', goarch: '386' }
-          - { name: Arm32 under qemu, goarch: arm, exec: qemu-arm }
-          - { name: big-endian s390x under qemu, goarch: s390x, exec: qemu-s390x }
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
+      - name: Test purego (race detector)
+        if: ${{ !cancelled() }}
+        run: |
+          go vet -tags purego ./...
+          go test -race -count=1 -tags purego ./...
 
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: stable
-          cache-dependency-path: runtimes/go/bench/go.sum
+      - name: Test on 386
+        if: ${{ !cancelled() }}
+        env:
+          GOARCH: '386'
+        run: go test -count=1 ./...
 
       - name: Install qemu
-        if: matrix.exec
+        if: ${{ !cancelled() }}
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qemu-user
 
-      - name: Test
-        run: go test -count=1 ${EXEC:+-exec "$EXEC"} ./...
+      - name: Test on Arm32 under qemu
+        if: ${{ !cancelled() }}
+        env:
+          GOARCH: arm
+        run: go test -count=1 -exec qemu-arm ./...
 
-  # The fuzz targets, short, on the newest Go: one runner each, side by side (go test fuzzes one target at a time, with
-  # every core; one after the other they took over four minutes). A new target is a new row here.
-  go-fuzz:
-    name: Go fuzz (${{ matrix.target }}${{ matrix.runner && ', Arm64' || '' }})
-    runs-on: ${{ matrix.runner || 'ubuntu-26.04' }}
-    timeout-minutes: 15
+      - name: Test on big-endian s390x under qemu
+        if: ${{ !cancelled() }}
+        env:
+          GOARCH: s390x
+        run: go test -count=1 -exec qemu-s390x ./...
+
+  # Arm64: the Go string writer's NEON assembly and its portable fallback, a short fuzz of the NEON code, and the
+  # TypeScript runtime on the newest Node.
+  go-arm64:
+    name: Go and TypeScript (Arm64)
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: runtimes/go
-    env:
-      NINO_CONFORMANCE_CORPUS: ${{ github.workspace }}/conformance/corpus
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { target: FuzzReader, package: ., time: 45s }
-          - { target: FuzzDecode, package: ./internal/sample, time: 60s }
-          - { target: FuzzTagged, package: ., time: 45s }
-          - { target: FuzzTaggedDecode, package: ./internal/sample, time: 60s }
-          - { target: FuzzString, package: ., time: 30s }
-          # The string writer's NEON assembly.
-          - { target: FuzzString, package: ., time: 30s, runner: ubuntu-26.04-arm }
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: current
+          cache: npm
+          cache-dependency-path: runtimes/typescript/package-lock.json
+
+      - name: TypeScript (type check and test, the corpus over the generated code included)
+        working-directory: runtimes/typescript
+        run: |
+          npm ci
+          npm test
+
       - name: Set up Go
+        if: ${{ !cancelled() }}
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
           cache-dependency-path: runtimes/go/bench/go.sum
 
-      - name: Fuzz (short)
-        run: go test -run='^$' -fuzz='^${{ matrix.target }}$' -fuzztime=${{ matrix.time }} ${{ matrix.package }}
+      - name: Test (race detector)
+        if: ${{ !cancelled() }}
+        run: |
+          go vet ./...
+          go test -race -count=1 ./...
+
+      - name: Test purego (race detector)
+        if: ${{ !cancelled() }}
+        run: |
+          go vet -tags purego ./...
+          go test -race -count=1 -tags purego ./...
+
+      # The NEON string kernels against the Go loops.
+      - name: Fuzz the NEON string code (short)
+        if: ${{ !cancelled() }}
+        run: |
+          set -uo pipefail
+          status=0
+          for target in FuzzString FuzzWireString FuzzReadVector; do
+            echo "::group::$target (30s)"
+            go test -run='^$' -fuzz="^${target}\$" -fuzztime=30s . || { status=1; echo "::error::$target failed"; }
+            echo "::endgroup::"
+          done
+          exit $status
 
       - name: Keep failing fuzz inputs
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: go-fuzz-failures-${{ matrix.target }}${{ matrix.runner && '-arm64' || '' }}
+          name: go-fuzz-failures-arm64
           path: runtimes/go/**/testdata/fuzz
           if-no-files-found: ignore
-
-  rust:
-    name: Rust
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: runtimes/rust
-    env:
-      CARGO_TERM_COLOR: always
-      RUSTFLAGS: -D warnings
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Toolchains (stable, and the MSRV from Cargo.toml)
-        id: toolchain
-        run: |
-          rustup toolchain install stable --profile minimal --component rustfmt,clippy
-          rustup default stable
-          msrv=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)
-          rustup toolchain install "$msrv" --profile minimal
-          echo "MSRV=$msrv" >> "$GITHUB_ENV"
-          echo "rustc=$(rustc -V | cut -d' ' -f2-3 | tr -c 'A-Za-z0-9.\n-' '_')-msrv-$msrv" >> "$GITHUB_OUTPUT"
-
-      # Keyed by OS, CPU and compilers: a new stable cannot use the old one's builds, and without the compiler in the
-      # key the first cache was restored for ever, its builds of the dependencies stale.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            runtimes/rust/target
-          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.rustc }}-${{ hashFiles('runtimes/rust/Cargo.lock') }}
-          restore-keys: rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.rustc }}-
-
-      - name: Format
-        run: cargo fmt --all --check
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-features --all-targets --locked -- -D warnings
-
-      # A missing corpus fails the conformance tests once the corpus is in the repository.
-      - name: Corpus
-        run: |
-          if [ -d ../../conformance/corpus ]; then echo "NINO_CORPUS_REQUIRED=1" >> "$GITHUB_ENV"; fi
-
-      - name: Test
-        run: cargo test --workspace --all-features --locked
-
-      - name: Test without features
-        run: cargo test -p nino-serialization --locked --lib --test spec --test values
-
-      - name: MSRV
-        run: cargo +"$MSRV" check --workspace --all-features --all-targets --locked
-
-  # The mutational fuzz in tests/conformance.rs (cargo-fuzz needs nightly), longer and optimized here, beside the
-  # tests instead of after them (an optimized build of its own). The crate's one unsafe module is checked by the
-  # rust-miri job.
-  rust-fuzz:
-    name: Rust fuzz (short)
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: runtimes/rust
-    env:
-      RUSTFLAGS: -D warnings
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Toolchain
-        id: toolchain
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
-          echo "rustc=$(rustc -V | cut -d' ' -f2-3 | tr -c 'A-Za-z0-9.\n-' '_')" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            runtimes/rust/target
-          key: rust-fuzz-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.rustc }}-${{ hashFiles('runtimes/rust/Cargo.lock') }}
-          restore-keys: rust-fuzz-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.rustc }}-
-
-      # A missing corpus fails the conformance tests once the corpus is in the repository.
-      - name: Corpus
-        run: |
-          if [ -d ../../conformance/corpus ]; then echo "NINO_CORPUS_REQUIRED=1" >> "$GITHUB_ENV"; fi
-
-      - name: Fuzz (short)
-        env:
-          NINO_FUZZ_ITERATIONS: 20000
-        run: cargo test --release --all-features --locked --test conformance mutational_fuzz -- --nocapture
-
-      # The same over the code nino-gen generates (tests/generated).
-      - name: Fuzz the generated code (short)
-        env:
-          NINO_FUZZ_ITERATIONS: 3000
-        run: cargo test --release --all-features --locked --test generated generated_fuzz -- --nocapture
-
-  # Arm64 natively: the string writer's NEON steps (runtimes/rust/src/simd.rs) and the rest of the crate, with the
-  # corpus, on the CPU they are written for (the rust-miri job interprets them, this one runs them).
-  rust-arm64:
-    name: Rust (Arm64)
-    runs-on: ubuntu-26.04-arm
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: runtimes/rust
-    env:
-      CARGO_TERM_COLOR: always
-      RUSTFLAGS: -D warnings
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Toolchain
-        id: toolchain
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
-          echo "rustc=$(rustc -V | cut -d' ' -f2-3 | tr -c 'A-Za-z0-9.\n-' '_')" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            runtimes/rust/target
-          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.rustc }}-${{ hashFiles('runtimes/rust/Cargo.lock') }}
-          restore-keys: rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.rustc }}-
-
-      - name: Corpus
-        run: |
-          if [ -d ../../conformance/corpus ]; then echo "NINO_CORPUS_REQUIRED=1" >> "$GITHUB_ENV"; fi
-
-      - name: Test
-        run: cargo test --workspace --all-features --locked
-
-  # The crate's only unsafe code (runtimes/rust/src/simd.rs: the string writer's transcoding and the reader's text
-  # decoding) under Miri: its tests compare every block kind a target has, and the decoders, with plain ones. Miri
-  # interprets each target here: x86_64 with SSE2 only (SSE2 and words), SSSE3 (the pair steps) and SSE4.1 (the
-  # one-pass writer), little-endian Arm64 (NEON) and big-endian s390x (words).
-  # The tests take fewer cases under Miri (cfg(miri)). Each target, and each half of the module's tests on it, is a
-  # runner of its own: one after the other, the four targets took over twenty minutes. The second half is "every
-  # simd test but the first", so a test added to the module runs there.
-  rust-miri:
-    name: Rust (Miri, ${{ matrix.target.name }}, ${{ matrix.tests.name }})
-    runs-on: ubuntu-26.04
-    timeout-minutes: 45
-    defaults:
-      run:
-        working-directory: runtimes/rust
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - { name: x86_64 SSE2, triple: x86_64-unknown-linux-gnu, rustflags: '' }
-          - { name: x86_64 SSSE3, triple: x86_64-unknown-linux-gnu, rustflags: -C target-feature=+ssse3 }
-          - { name: x86_64 SSE4.1, triple: x86_64-unknown-linux-gnu, rustflags: '-C target-feature=+ssse3,+sse4.1,+popcnt' }
-          - { name: Arm64 NEON, triple: aarch64-unknown-linux-gnu, rustflags: '' }
-          - { name: big-endian s390x, triple: s390x-unknown-linux-gnu, rustflags: '' }
-        tests:
-          - { name: every class at every position, filter: simd::tests::every_class_at_every_position, skip: '' }
-          - { name: the rest, filter: simd, skip: every_class_at_every_position }
-    env:
-      RUSTFLAGS: ${{ matrix.target.rustflags }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Toolchain (nightly, with Miri)
-        run: |
-          rustup toolchain install nightly --profile minimal --component miri,rust-src
-          cargo +nightly miri setup --target ${{ matrix.target.triple }}
-
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: rust-miri-${{ hashFiles('runtimes/rust/Cargo.lock') }}
-          restore-keys: rust-miri-
-
-      - name: Test under Miri
-        env:
-          FILTER: ${{ matrix.tests.filter }}
-          SKIP: ${{ matrix.tests.skip }}
-        run: >
-          cargo +nightly miri test -p nino-serialization --locked --lib --target ${{ matrix.target.triple }}
-          "$FILTER" ${SKIP:+-- --skip "$SKIP"}
