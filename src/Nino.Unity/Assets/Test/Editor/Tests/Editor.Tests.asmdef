@@ -5,7 +5,8 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "Test",
-        "CrossRef"
+        "CrossRef",
+        "Runtime.Tests"
     ],
     "includePlatforms": [
         "Editor"

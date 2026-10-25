@@ -6,6 +6,16 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.unity.burst": {
+      "version": "1.8.29",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.mathematics": "1.2.1",
+        "com.unity.modules.jsonserialize": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.ext.nunit": {
       "version": "1.0.6",
       "depth": 1,
@@ -22,15 +32,11 @@
       },
       "url": "https://packages.unity.com"
     },
-    "com.unity.test-framework": {
-      "version": "1.1.33",
-      "depth": 0,
+    "com.unity.mathematics": {
+      "version": "1.2.1",
+      "depth": 1,
       "source": "registry",
-      "dependencies": {
-        "com.unity.ext.nunit": "1.0.6",
-        "com.unity.modules.imgui": "1.0.0",
-        "com.unity.modules.jsonserialize": "1.0.0"
-      },
+      "dependencies": {},
       "url": "https://packages.unity.com"
     },
     "com.unity.modules.imgui": {
@@ -44,6 +50,17 @@
       "depth": 1,
       "source": "builtin",
       "dependencies": {}
+    },
+    "com.unity.test-framework": {
+      "version": "1.1.33",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.ext.nunit": "1.0.6",
+        "com.unity.modules.imgui": "1.0.0",
+        "com.unity.modules.jsonserialize": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
     }
   }
 }
