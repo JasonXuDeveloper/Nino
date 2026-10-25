@@ -9,7 +9,7 @@ name: Unity
 on:
   push:
     branches: [ "main" ]
-    paths:
+    paths: &paths
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'
       - 'src/Nino.Generator.CodeFixes/**'
@@ -23,18 +23,7 @@ on:
       - '.github/workflows/unity.yml'
   pull_request:
     branches: [ "main" ]
-    paths:
-      - 'src/Nino.Core/**'
-      - 'src/Nino.Generator/**'
-      - 'src/Nino.Generator.CodeFixes/**'
-      - 'src/Nino.UnityTypes/**'
-      - 'src/Nino.Unity/**'
-      - 'Directory.Build.props'
-      - 'Directory.Build.targets'
-      - 'Directory.Packages.props'
-      - 'global.json'
-      - 'nuget.config'
-      - '.github/workflows/unity.yml'
+    paths: *paths
   workflow_dispatch:
 
 # One group for every ref: one Unity run at a time in the repository, never cancelled while it runs.
@@ -77,9 +66,22 @@ jobs:
       (github.event.pull_request.head.repo.full_name == github.repository &&
        github.event.pull_request.user.login != 'dependabot[bot]')
 
+    env:
+      # The image with the Linux IL2CPP module, which the player step below needs: one image for both steps.
+      UNITY_IMAGE: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
+
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The editor's image is some 5.5 GB, and pulling it took over a minute and a half of the editor's test step.
+      # Pulled in the background instead, while .NET is set up, the DLLs built and the Library restored; the test
+      # step waits for it (and pulls it itself if this pull failed). The license is activated in the test step only.
+      - name: Pull the Unity image (in the background)
+        run: |
+          # shellcheck disable=SC2016  # expanded by the inner bash
+          nohup bash -c 'docker pull -q "$UNITY_IMAGE" > "$RUNNER_TEMP/pull.log" 2>&1; echo $? > "$RUNNER_TEMP/pull.status"' \
+            > /dev/null 2>&1 &
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -121,6 +123,17 @@ jobs:
           restore-keys: |
             Library-Nino-${{ runner.os }}-${{ matrix.unity }}-
 
+      - name: Wait for the Unity image
+        timeout-minutes: 15
+        # A stuck pull is not a test result: the test step pulls the image itself.
+        continue-on-error: true
+        run: |
+          until [[ -f $RUNNER_TEMP/pull.status ]]; do sleep 2; done
+          cat "$RUNNER_TEMP/pull.log"
+          if [[ $(cat "$RUNNER_TEMP/pull.status") != 0 ]]; then
+            echo "::warning::pulling $UNITY_IMAGE failed; the test step pulls it again"
+          fi
+
       # Edit mode and play mode tests in the editor (Mono, Burst's JIT).
       - name: Run the editor's tests
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
@@ -133,8 +146,7 @@ jobs:
           projectPath: ./src/Nino.Unity
           testMode: all
           artifactsPath: artifacts/editor
-          # The image with the Linux IL2CPP module, which the player step below needs: one image for both steps.
-          customImage: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
+          customImage: ${{ env.UNITY_IMAGE }}
           # No githubToken: posting the results as a check run calls the GitHub API, and a timeout there failed a run
           # whose tests had all passed. The results are uploaded below, and a failed test still fails this step.
           unityVersion: ${{ matrix.unity }}
@@ -157,7 +169,7 @@ jobs:
           projectPath: ./src/Nino.Unity
           testMode: standalone
           artifactsPath: artifacts/player
-          customImage: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
+          customImage: ${{ env.UNITY_IMAGE }}
           unityVersion: ${{ matrix.unity }}
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
