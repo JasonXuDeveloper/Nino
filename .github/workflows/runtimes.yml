@@ -97,14 +97,18 @@ jobs:
         run: dotnet test tests/Nino.Codegen.Tests -c Release
 
   typescript:
-    name: TypeScript (Node ${{ matrix.node }})
-    runs-on: ubuntu-26.04
+    name: TypeScript (Node ${{ matrix.node }}${{ matrix.runner == 'ubuntu-26.04-arm' && ', Arm64' || '' }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        # The oldest Node package.json's engines allow, and the newest release.
+        # The oldest Node package.json's engines allow, and the newest release; the newest on Arm64 too (a runner of
+        # its own: an include that changed no value would join the x64 row instead).
         node: [ '22', current ]
+        runner: [ ubuntu-26.04 ]
+        include:
+          - { node: current, runner: ubuntu-26.04-arm }
     defaults:
       run:
         working-directory: runtimes/typescript
@@ -126,7 +130,7 @@ jobs:
           npm test
 
   # The string writer has assembly for amd64 (SSE2) and arm64 (NEON) and a portable fallback (build tag purego, and
-  # every other architecture): each runs its tests, the NEON code on an Arm64 runner.
+  # every other architecture): each runs its tests, the NEON code and the fallback on an Arm64 runner too.
   go:
     name: Go (${{ matrix.name }})
     runs-on: ${{ matrix.runner || 'ubuntu-26.04' }}
@@ -147,6 +151,7 @@ jobs:
           - { name: stable, go: stable, full: true }
           - { name: stable purego, go: stable, tags: purego }
           - { name: stable Arm64, go: stable, runner: ubuntu-26.04-arm }
+          - { name: stable purego Arm64, go: stable, tags: purego, runner: ubuntu-26.04-arm }
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
