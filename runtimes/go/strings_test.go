@@ -251,6 +251,54 @@ func FuzzString(f *testing.F) {
 	})
 }
 
+// TestStringBlocks reads strings of every kind and length around the short-string limits into the blocks a reader
+// keeps, through one reader reset between values, and checks every string read is unchanged once all are read.
+func TestStringBlocks(t *testing.T) {
+	rnd := rand.New(rand.NewSource(7))
+	chars := []string{"a", "z", "é", "ÿ", "Ж", "字", "🎉"}
+	var texts []string
+	for n := 1; n <= 3*textShort; n += 1 + n/16 {
+		for range 4 {
+			var sb strings.Builder
+			for sb.Len() < n {
+				sb.WriteString(chars[rnd.Intn(len(chars))])
+			}
+			texts = append(texts, sb.String())
+		}
+	}
+	r := NewReader(nil)
+	var got []string
+	for start := 0; start < len(texts); start += 37 {
+		part := texts[start:min(start+37, len(texts))]
+		w := NewWriter(0)
+		for i, s := range part {
+			if i%2 == 0 {
+				w.String(s)
+			} else {
+				w.Utf8(s)
+			}
+		}
+		data := w.Bytes()
+		r.Reset(data)
+		for i := range part {
+			if i%2 == 0 {
+				got = append(got, r.String())
+			} else {
+				got = append(got, r.Utf8())
+			}
+		}
+		if err := r.Err(); err != nil {
+			t.Fatal(err)
+		}
+		clear(data)
+	}
+	for i, s := range texts {
+		if got[i] != s {
+			t.Fatalf("string %d: read %q, want %q", i, got[i], s)
+		}
+	}
+}
+
 // BenchmarkWriteString writes 300 short strings of each kind (ASCII, Latin-1, other text; as the bench module's
 // mixed case) and one text of about 1 KiB of each kind, ASCII also after one char that makes it Latin-1 or UTF-16
 // (the long runs the writer takes 16 bytes at a time where it has vector instructions).

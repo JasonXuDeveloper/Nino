@@ -14,8 +14,8 @@ import (
 // (or once per element in a loop); the top-level [Deserialize] returns no value when Err is set. Nothing in the
 // reader panics on any input.
 //
-// A Reader holds no reference to anything but the data and its own queues: reuse one with [Reader.Reset] to read
-// without allocating it again.
+// A Reader holds no reference to anything but the data, its own queues and the block short strings are read into:
+// reuse one with [Reader.Reset] to read without allocating it again.
 type Reader struct {
 	// The unread bytes up to the current end: the end of the data, of the region being read, or of a deferred
 	// body. Always a reslice of data, so its capacity gives the position (see pos).
@@ -28,6 +28,8 @@ type Reader struct {
 	regions int32
 	// Deferred bodies and open struct bodies, created on first use.
 	ctx *readContext
+	// The room left in the block short strings are converted into (see [Reader.shortString]), kept across Reset.
+	text []byte
 }
 
 // NewReader returns a reader of data.

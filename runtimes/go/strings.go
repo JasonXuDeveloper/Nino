@@ -50,6 +50,9 @@ func (r *Reader) NullableString() (s string, ok bool) {
 			return "", false
 		}
 		r.buf = b[n:]
+		if n <= textShort/2 {
+			return r.latin1Short(b[:n]), true
+		}
 		return latin1String(b[:n]), true
 	}
 	if h > 0 {
@@ -59,6 +62,9 @@ func (r *Reader) NullableString() (s string, ok bool) {
 			return "", false
 		}
 		r.buf = b[size:]
+		if h <= textShort/3 {
+			return r.utf16Short(b[:size]), true
+		}
 		return utf16String(b[:size]), true
 	}
 	r.buf = b
@@ -154,6 +160,9 @@ func (r *Reader) NullableUtf8() (s string, ok bool) {
 		r.Fail(CodeInvalidData, "invalid UTF-8 string")
 		return "", false
 	}
+	if size <= textShort {
+		return r.textCopy(b), true
+	}
 	return string(b), true
 }
 
@@ -221,6 +230,62 @@ func isASCIILong(b []byte) bool {
 		}
 	}
 	return true
+}
+
+// Short strings (at most textShort bytes of UTF-8) are converted straight into a block of memory the reader
+// keeps (r.text), one after the other, each its own part of the block, never written again once it is a string:
+// one allocation for many strings. A block is at most textBlock bytes, and never more than the text the data left
+// can hold, so what it allocates stays in proportion to the data. A string kept keeps its whole block alive.
+const (
+	textShort = 128
+	textBlock = 2048
+)
+
+// textRoom makes r.text hold at least n bytes (n <= textShort): a new block, as large as the text left can take.
+//
+//go:noinline
+func (r *Reader) textRoom(n int) {
+	r.text = make([]byte, min(textBlock, n+2*len(r.buf)))
+}
+
+// textCopy returns a copy of b (0 < len(b) <= textShort), in r.text.
+func (r *Reader) textCopy(b []byte) string {
+	if len(r.text) < len(b) {
+		r.textRoom(len(b))
+	}
+	t := r.text
+	m := copy(t, b)
+	r.text = t[m:]
+	return unsafe.String(unsafe.SliceData(t), m)
+}
+
+// latin1Short returns the text of Latin-1 bytes (0 < len(b) <= textShort/2) as UTF-8, in r.text.
+func (r *Reader) latin1Short(b []byte) string {
+	n := 2 * len(b)
+	if len(r.text) < n {
+		r.textRoom(n)
+	}
+	t := r.text
+	var m int
+	if isASCII(b) {
+		m = copy(t, b)
+	} else {
+		m = latin1UTF8(t, b)
+	}
+	r.text = t[m:]
+	return unsafe.String(unsafe.SliceData(t), m)
+}
+
+// utf16Short returns the text of UTF-16 code units (0 < len(b)/2 <= textShort/3) as WTF-8, in r.text.
+func (r *Reader) utf16Short(b []byte) string {
+	n := 3 * (len(b) / 2)
+	if len(r.text) < n {
+		r.textRoom(n)
+	}
+	t := r.text
+	m := utf16UTF8(t, b)
+	r.text = t[m:]
+	return unsafe.String(unsafe.SliceData(t), m)
 }
 
 // stringBytes is the bytes of s, without a copy (never written to).
