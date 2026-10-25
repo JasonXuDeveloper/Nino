@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Nino.Core.CompilerServices;
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>
     /// What Nino.Core reads about a runtime type by reflection, with the generator's rules: whether it is a

@@ -37,7 +37,7 @@ namespace Test.Runtime
                 ("ConcurrentTables.ReferenceChains",
                     (bool)Static("Nino.Core.Internal.ConcurrentTables", "ReferenceChains")),
                 ("ConcurrentTables.Builds", (bool)Static("Nino.Core.Internal.ConcurrentTables", "Builds")),
-                ("SortedSetNodes.Layout", (int)Static("Nino.Core.SortedSetNodes", "Layout") != 0),
+                ("SortedSetNodes.Layout", (int)Static("Nino.Core.Internal.SortedSetNodes", "Layout") != 0),
             };
             foreach (var view in new[]
                      {

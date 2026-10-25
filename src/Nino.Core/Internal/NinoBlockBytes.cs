@@ -1,7 +1,7 @@
 #if NET8_0_OR_GREATER
 using System;
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>
     /// The bytes of a value and of its block matched one to one, from a block map

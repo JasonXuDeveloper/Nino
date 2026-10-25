@@ -6,7 +6,7 @@ using Nino.Core.CompilerServices;
 using System.Runtime.Intrinsics;
 #endif
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>
     /// The string encoding (<see cref="Writer.Write(string)"/>): an <c>int32</c> header, then the chars.

@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>
     /// The top-level reads of whole payloads in <see cref="NinoSettings.Untrusted"/> mode: each public API that takes

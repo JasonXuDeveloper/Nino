@@ -4,6 +4,7 @@
 // from the repository root. MultiDimFormattersGenerationTests fails while this file is out of date.
 // </auto-generated>
 using System.Runtime.CompilerServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {

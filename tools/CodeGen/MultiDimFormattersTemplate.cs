@@ -25,6 +25,7 @@ namespace Nino.CodeGen
             sb.Append("// from the repository root. MultiDimFormattersGenerationTests fails while this file is out of date.\n");
             sb.Append("// </auto-generated>\n");
             sb.Append("using System.Runtime.CompilerServices;\n");
+            sb.Append("using Nino.Core.Internal;\n");
             sb.Append("\n");
             sb.Append("namespace Nino.Core\n");
             sb.Append("{\n");

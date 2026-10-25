@@ -11,9 +11,8 @@ using Nino.Core.CompilerServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.Arm;
 #endif
-using Nino.Core.Internal;
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>
     /// Layout of raw-copied unmanaged types. The wire format of such a type is its <b>canonical</b> layout: the one

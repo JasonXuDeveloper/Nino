@@ -148,7 +148,7 @@ public static class Program
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "LinkedList"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "HashSet"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "Dictionary"),
-        (typeof(NinoSerializer).Assembly, "Nino.Core.SortedSetNodes", "Layout"),
+        (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.SortedSetNodes", "Layout"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.HashTables", "Set"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.HashTables", "Map"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.HashTables", "SetReferenceChains"),
@@ -437,7 +437,7 @@ public static class Program
             expected[16] = 0xFE;
             for (int i = 17; i < 32; i++)
                 expected[i] = 0xFF;
-            var wideAlign = typeof(NinoSerializer).Assembly.GetType("Nino.Core.NinoLayout")
+            var wideAlign = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.NinoLayout")
                 ?.GetField("WideAlign", BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null);
             var array = NinoSerializer.Serialize(new[] { value, value });
             bool ok = NinoSerializer.Serialize(value).SequenceEqual(expected) &&

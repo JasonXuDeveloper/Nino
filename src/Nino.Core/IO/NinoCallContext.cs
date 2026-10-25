@@ -1,4 +1,5 @@
 using System;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
