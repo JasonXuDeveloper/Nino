@@ -41,6 +41,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
       - name: Machine
         run: |
           lscpu | grep -E 'Model name|Flags' | sed 's/^Flags:/Flags:/' | cut -c1-2000
@@ -88,14 +91,36 @@ jobs:
                 { echo '```'; grep -E '^[a-z].*|time:|change:|faster|slower|No change' "$out/rust-2.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
                 ;;
               typescript)
-                for ref in "$base" "$head"; do
-                  (cd "$RUNNER_TEMP/$ref/runtimes/typescript" && npm ci --silent)
+                # bench.ts is a library: node.ts (Node) and browser.mjs (Chromium) run it, on data and generated code
+                # that .NET writes (as bench/run.sh does). Both sides share the head's data and generated code and
+                # take their own src/nino.ts, the only file that differs between them.
+                B="$RUNNER_TEMP/$head/runtimes/typescript/bench"
+                (cd "$B" && npm ci --no-audit --no-fund > /dev/null)
+                if [[ ! -x "$(npm root -g)/playwright/cli.js" ]]; then
+                  npm install -g playwright@1.56.1 > /dev/null
+                  npx -y playwright@1.56.1 install --with-deps chromium > /dev/null
+                fi
+                dotnet build -c Release "$RUNNER_TEMP/$head/src/Nino.Codegen" > /dev/null
+                dotnet build -c Release "$B" > /dev/null
+                dotnet "$B/bin/Release/net10.0/Bench.dll" "$out/data"
+                dotnet "$RUNNER_TEMP/$head/src/Nino.Codegen/bin/Release/net8.0/nino-gen.dll" \
+                  --assembly "$B/bin/Release/net10.0/Bench.dll" --lang ts --out "$B/gen" --import-extension .ts > /dev/null
+                for side in base head; do
+                  ref=$base; [[ $side == head ]] && ref=$head
+                  cp "$RUNNER_TEMP/$ref/runtimes/typescript/src/nino.ts" "$B/gen/nino.ts"
+                  mkdir -p "$out/$side"
+                  (cd "$B" && npx esbuild bench.ts --bundle --format=esm --platform=browser --log-level=warning \
+                    --outfile="$out/$side/bench.js" &&
+                    npx esbuild node.ts --bundle --format=esm --platform=node --log-level=warning \
+                    --external:tinybench --outfile="$B/node-$side.mjs")
                 done
+                export NODE_PATH="$(npm root -g)"
+                : > "$out/ts.txt"
                 for round in 1 2 3; do
                   for side in base head; do
-                    ref=$base; [[ $side == head ]] && ref=$head
                     echo "--- $side round $round" | tee -a "$out/ts.txt"
-                    (cd "$RUNNER_TEMP/$ref/runtimes/typescript" && node --experimental-strip-types bench/bench.ts "${fargs[@]}") |
+                    (cd "$B" && node "node-$side.mjs" "$out/data" "${filter:-}" | sed 's/^/node /'
+                      node browser.mjs "$out/$side" "$out/data" "${filter:-}" | sed 's/^/chromium /') |
                       tee -a "$out/ts.txt"
                   done
                 done
