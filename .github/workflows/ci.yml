@@ -447,8 +447,8 @@ jobs:
           run() {
             local name=$1; shift
             echo "::group::$name"
-            "$@" > "$name.txt" 2>&1
-            local code=$?
+            local code=0
+            "$@" > "$name.txt" 2>&1 || code=$?  # the step's shell has -e: keep going to print the output
             cat "$name.txt"
             echo "::endgroup::"
             if (( code != 0 )) || ! grep -q '^ALL OK' "$name.txt"; then
