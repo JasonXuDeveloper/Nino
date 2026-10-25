@@ -1,3 +1,9 @@
-# <go|rust|typescript> <base sha> <head sha> [filter]   (see .github/workflows/runtime-ab.yml)
-typescript 63719654bde11bd54b49c930a9777b9dc9321bc7 9ced84b28a264316e3b47c41f334433cc3e5f26f str
-typescript 63719654bde11bd54b49c930a9777b9dc9321bc7 9ced84b28a264316e3b47c41f334433cc3e5f26f art
+# <go|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+rust d910e0f ec5ed42 strings-mixed - NINO_TIER=sse41
+rust d910e0f ec5ed42 strings-mixed - NINO_TIER=avx2
+rust d910e0f ec5ed42 strings-mixed
+rust:text d910e0f ec5ed42 text/write - NINO_TIER=sse41
+rust:text d910e0f ec5ed42 text/write - NINO_TIER=avx2
+rust:text d910e0f ec5ed42 text/write
+rust:text d910e0f ec5ed42 text/read - NINO_TIER=sse41
+rust:text d910e0f ec5ed42 text/read
