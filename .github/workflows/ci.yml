@@ -18,6 +18,7 @@ on:
       - 'runtimes/**'
       - 'conformance/**'
       - '.github/workflows/ci.yml'
+      - '.github/scripts/test_shards.py'
   pull_request:
     branches: [ "main", "develop" ]
     paths:
@@ -35,6 +36,7 @@ on:
       - 'runtimes/**'
       - 'conformance/**'
       - '.github/workflows/ci.yml'
+      - '.github/scripts/test_shards.py'
   workflow_call:
 
 # Security: Minimal required permissions
@@ -54,85 +56,106 @@ defaults:
   run:
     working-directory: .
 
+# The .NET CLI's banner, telemetry and first-run setup are noise and time in CI.
+env:
+  DOTNET_NOLOGO: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+
 jobs:
-  # The test configurations run side by side, each on its own runner: building is ~20 s, so each job builds what
-  # it tests instead of waiting on a shared build. "Build and Test" collects their results and fails if any failed.
+  # Every configuration runs the whole unit test suite, split over three runners (shards) that run side by side:
+  # the ShapeMatrix rows compile some 70 shapes each and take two thirds of the suite's time, so each half of them is
+  # a shard, and everything else the third. Each shard builds what it tests (building is under a minute, a shared
+  # build would cost more to upload and download). The shards' filters are complements of each other, each shard
+  # checks it ran every test its filter lists, and "Build and Test" checks that the shards of each configuration
+  # together ran every test of the suite (.github/scripts/test_shards.py).
   unit-tests:
-    name: Unit tests (${{ matrix.name }})
-    runs-on: ${{ matrix.runner || 'ubuntu-26.04' }}
+    name: Unit tests (${{ matrix.config.name }}, ${{ matrix.shard.name }})
+    runs-on: ${{ matrix.config.runner || 'ubuntu-26.04' }}
     timeout-minutes: 30
+    defaults:
+      run:
+        # Bash on Windows too: the shard filters and the checks below are written once.
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
-        include:
+        config:
           # The Roslyn 4.12 generator (interceptors on).
-          - name: net10.0
+          - id: net10
+            name: net10.0
             framework: net10.0
-            properties: ''
             coverage: true
-            # This one builds the whole solution, so every project still has to compile.
-            project: ''
           # What Unity and older compilers run: Nino.Core netstandard2.1, regular calls instead of interceptors.
-          - name: netstandard2.1 without interceptors
+          - id: ns21
+            name: netstandard2.1 without interceptors
             framework: net8.0
             properties: -p:NinoCoreTfm=netstandard2.1 -p:NinoRegularCalls=true
-            coverage: false
-            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
           # The .NET 8 SDK's preview interceptor attribute: Nino.Core netstandard2.0, the Roslyn 4.8 generator.
           # Each Nino.Core build is checked against the pinned bytes of GoldenBytesTests.
-          - name: netstandard2.0 with Roslyn 4.8
+          - id: ns20
+            name: netstandard2.0 with Roslyn 4.8
             framework: net8.0
             properties: -p:NinoCoreTfm=netstandard2.0 -p:NinoGeneratorBuild=4.8
-            coverage: false
-            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
           # Arm64: its byte shuffle (tbl), 16-byte vectors only, and the net8.0 build's own shuffle path.
-          - name: net10.0 on Arm64
+          - id: arm64-net10
+            name: net10.0 on Arm64
             runner: ubuntu-24.04-arm
             framework: net10.0
-            properties: ''
-            coverage: false
-            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
-          - name: net8.0 on Arm64
+          - id: arm64-net8
+            name: net8.0 on Arm64
             runner: ubuntu-24.04-arm
             framework: net8.0
-            properties: ''
-            coverage: false
-            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
           # x64 CPUs without AVX-512 (most desktops: 32-byte vectors, no byte permute), and without any SIMD.
-          - name: net10.0 without AVX-512
+          - id: no-avx512
+            name: net10.0 without AVX-512
             framework: net10.0
-            properties: ''
-            coverage: false
-            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
             avx512: '0'
           # Older x64 CPUs (SSSE3, no AVX2): 16-byte vectors, two shuffles a vector where Arm64 has one table lookup.
-          - name: net10.0 without AVX2
+          - id: no-avx2
+            name: net10.0 without AVX2
             framework: net10.0
-            properties: ''
-            coverage: false
-            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
             avx2: '0'
-          - name: net10.0 without SIMD
+          - id: no-simd
+            name: net10.0 without SIMD
             framework: net10.0
-            properties: ''
-            coverage: false
-            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
             simd: '0'
           # Windows: its paths, file system and line endings. A contributor's analyzer test failed there (PR #203)
           # while every Linux job passed.
-          - name: net10.0 on Windows
+          - id: windows
+            name: net10.0 on Windows
             runner: windows-latest
             framework: net10.0
-            properties: ''
-            coverage: false
-            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
+        # MSTest filters (VSTest syntax, parentheses escaped). b and c split ShapeMatrixTests' rows; c is the
+        # complement of b, so a row added to the matrix lands in c, and a is the complement of both.
+        shard:
+          - id: a
+            name: all but ShapeMatrix
+            filter: FullyQualifiedName!~ShapeMatrixTests
+          - id: b
+            name: ShapeMatrix rows 0-7
+            filter: >-
+              FullyQualifiedName~ShapeMatrixTests&(Name~\(0\)|Name~\(1\)|Name~\(2\)|Name~\(3\)|Name~\(4\)|Name~\(5\)|Name~\(6\)|Name~\(7\))
+          - id: c
+            name: ShapeMatrix rows 8+
+            filter: >-
+              FullyQualifiedName~ShapeMatrixTests&Name!~\(0\)&Name!~\(1\)&Name!~\(2\)&Name!~\(3\)&Name!~\(4\)&Name!~\(5\)&Name!~\(6\)&Name!~\(7\)
+    env:
+      PROJECT: tests/Nino.UnitTests/Nino.UnitTests.csproj
+      FRAMEWORK: ${{ matrix.config.framework }}
+      PROPERTIES: ${{ matrix.config.properties }}
+      FILTER: ${{ matrix.shard.filter }}
+      # Relative to the workspace: Git Bash on Windows and dotnet agree on it.
+      RESULTS: TestResults
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             ${{ vars.DOTNET_VERSION || '10.0.x' }}
@@ -140,72 +163,133 @@ jobs:
             8.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-unit-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-
+            nuget-${{ runner.os }}-${{ runner.arch }}-unit-
+            nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build
-        run: >
-          dotnet build ${{ matrix.project }} -c Debug
-          ${{ matrix.project && format('-f {0}', matrix.framework) || '' }} ${{ matrix.properties }}
+        run: |
+          read -ra props <<< "$PROPERTIES"
+          dotnet build "$PROJECT" -c Debug -f "$FRAMEWORK" "${props[@]}"
 
       - name: Test
         env:
-          DOTNET_EnableAVX512: ${{ matrix.avx512 || '1' }}
-          DOTNET_EnableAVX2: ${{ matrix.avx2 || '1' }}
-          DOTNET_EnableHWIntrinsic: ${{ matrix.simd || '1' }}
-        run: >
-          dotnet test tests/Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f ${{ matrix.framework }}
-          ${{ matrix.properties }} --logger trx --results-directory ./TestResults
-          ${{ matrix.coverage && '--collect:"XPlat Code Coverage"' || '' }}
+          DOTNET_EnableAVX512: ${{ matrix.config.avx512 || '1' }}
+          DOTNET_EnableAVX2: ${{ matrix.config.avx2 || '1' }}
+          DOTNET_EnableHWIntrinsic: ${{ matrix.config.simd || '1' }}
+          COVERAGE: ${{ matrix.config.coverage && '--collect:XPlat Code Coverage' || '' }}
+        run: |
+          read -ra props <<< "$PROPERTIES"
+          dotnet test "$PROJECT" --no-build -c Debug -f "$FRAMEWORK" "${props[@]}" --filter "$FILTER" \
+            --logger "trx;LogFileName=unit.trx" --results-directory "$RESULTS" ${COVERAGE:+"$COVERAGE"}
 
-      # The ASP.NET Core integration, on both of its frameworks (the solution build compiled them).
-      - name: Test integrations
-        if: ${{ matrix.project == '' }}
-        run: >
-          dotnet test tests/Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj --no-build -c Debug
-          --logger trx --results-directory ./TestResults
+      # The shard ran every test its filter selects (and some); on shard a, the list of the whole suite, which
+      # "Build and Test" compares with what the three shards ran.
+      - name: Check the shard ran its tests
+        run: |
+          set -euo pipefail
+          read -ra props <<< "$PROPERTIES"
+          listed=$(dotnet test "$PROJECT" --no-build -c Debug -f "$FRAMEWORK" "${props[@]}" --list-tests --filter "$FILTER" | grep -c '^    ' || true)
+          ran=$(grep -o '<UnitTestResult ' "$RESULTS/unit.trx" | wc -l)
+          echo "listed $listed, ran $ran"
+          if (( listed == 0 || ran != listed )); then
+            echo "::error::shard ${{ matrix.shard.id }} ran $ran tests, its filter lists $listed"
+            exit 1
+          fi
+          if [[ "${{ matrix.shard.id }}" == a ]]; then
+            dotnet test "$PROJECT" --no-build -c Debug -f "$FRAMEWORK" "${props[@]}" --list-tests > "$RESULTS/suite.txt"
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        # A storage timeout is not a test result.
+        continue-on-error: true
+        with:
+          name: test-results-unit-${{ matrix.config.id }}-${{ matrix.shard.id }}
+          path: ${{ env.RESULTS }}
+          retention-days: 30
+
+  # The whole solution must compile; the ASP.NET Core integration, Nino.Codegen in builds and nino-gen, and the
+  # TypeScript runtime run here, beside the unit tests instead of after them.
+  integrations:
+    name: Integrations and code generation
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            ${{ vars.DOTNET_VERSION || '10.0.x' }}
+            10.0.x
+            8.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-solution-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-${{ runner.arch }}-solution-
+            nuget-${{ runner.os }}-${{ runner.arch }}-
 
       # Nino.Codegen in builds: Node runs the generated TypeScript (type stripping, Node 22.18+) and tsc checks it;
       # scratch projects build with build/Nino.Codegen.targets for TypeScript, Go and Rust, and the old
       # NinoTypeScript* properties.
-      - uses: actions/setup-node@v7
-        if: ${{ matrix.project == '' }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: runtimes/typescript/package-lock.json
 
       # Go and Rust run the generated code against the bytes .NET writes (GoTests, RustTests; without them on the
       # PATH those tests are inconclusive). Set up as runtimes.yml does: go.mod's version, rustup's stable.
       - name: Set up Go
-        if: ${{ matrix.project == '' }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: runtimes/go/go.mod
           cache-dependency-path: runtimes/go/bench/go.sum
 
       - name: Set up Rust
-        if: ${{ matrix.project == '' }}
+        id: rust
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
           echo "CARGO_TARGET_DIR=${{ runner.temp }}/nino-codegen-cargo" >> "$GITHUB_ENV"
+          echo "CARGO_INCREMENTAL=0" >> "$GITHUB_ENV"
+          echo "rustc=$(rustc -V | cut -d' ' -f2-3 | tr -c 'A-Za-z0-9.\n-' '_')" >> "$GITHUB_OUTPUT"
 
+      # Keyed by the compiler: a new stable cannot use the old one's builds.
       - name: Cache Cargo
-        if: ${{ matrix.project == '' }}
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             ${{ runner.temp }}/nino-codegen-cargo
-          key: codegen-rust-${{ runner.os }}-${{ hashFiles('runtimes/rust/Cargo.lock') }}
-          restore-keys: codegen-rust-${{ runner.os }}-
+          key: codegen-rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-${{ hashFiles('runtimes/rust/Cargo.lock') }}
+          restore-keys: codegen-rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-
+
+      - name: Build the solution
+        run: dotnet build -c Debug
+
+      # The ASP.NET Core integration, on both of its frameworks.
+      - name: Test integrations
+        run: >
+          dotnet test tests/Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj --no-build -c Debug
+          --logger trx --results-directory ./TestResults
 
       - name: Test Nino.Codegen in builds
-        if: ${{ matrix.project == '' }}
         run: |
           npm install -g typescript@5
           dotnet test tests/Nino.Codegen.Integration.Tests/Nino.Codegen.Integration.Tests.csproj --no-build -c Debug --logger trx --results-directory ./TestResults
@@ -213,7 +297,6 @@ jobs:
       # nino-gen (src/Nino.Codegen): its model and command line, and the generated files under runtimes/ are what
       # it writes today (runtimes.yml compiles and runs them).
       - name: Test the code generator
-        if: ${{ matrix.project == '' }}
         run: >
           dotnet test tests/Nino.Codegen.Tests/Nino.Codegen.Tests.csproj --no-build -c Debug
           --logger trx --results-directory ./TestResults
@@ -221,7 +304,6 @@ jobs:
       # The TypeScript runtime on its own (runtimes/typescript/test): type checks, then node:test, the conformance
       # corpus over the generated code included.
       - name: Test the TypeScript runtime
-        if: ${{ matrix.project == '' }}
         working-directory: ./runtimes/typescript
         env:
           NINO_CORPUS_REQUIRED: '1'
@@ -230,12 +312,12 @@ jobs:
           npm test
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         # A storage timeout is not a test result.
         continue-on-error: true
         with:
-          name: test-results-${{ strategy.job-index }}
+          name: test-results-integrations
           path: ./TestResults
           retention-days: 30
 
@@ -249,22 +331,23 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             ${{ vars.DOTNET_VERSION || '10.0.x' }}
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-aot-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-
+            nuget-${{ runner.os }}-${{ runner.arch }}-aot-
+            nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Publish trimmed and NativeAOT
         run: |
@@ -287,14 +370,23 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             ${{ vars.DOTNET_VERSION || '10.0.x' }}
             10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-mono-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-${{ runner.arch }}-mono-
+            nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install Mono
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mono-complete
@@ -318,22 +410,23 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             ${{ vars.DOTNET_VERSION || '10.0.x' }}
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-unity-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-
+            nuget-${{ runner.os }}-${{ runner.arch }}-unity-
+            nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build the DLLs Unity loads
         run: |
@@ -349,7 +442,7 @@ jobs:
           cp ./src/Nino.UnityTypes/bin/Debug/netstandard2.1/Nino.UnityTypes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
 
       - name: Cache Unity Library
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: src/Nino.Unity/Library
           key: Library-Nino-${{ runner.os }}-${{ hashFiles('src/Nino.Unity/Assets/**', 'src/Nino.Unity/Packages/**', 'src/Nino.Unity/ProjectSettings/**') }}
@@ -359,7 +452,7 @@ jobs:
             Library-
 
       - name: Run Unity tests
-        uses: game-ci/unity-test-runner@v4
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: unity-tests
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
@@ -375,7 +468,7 @@ jobs:
           cliVersion: 'v0.1.72'
 
       - name: Upload Unity results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         # A storage timeout is not a test result.
         continue-on-error: true
@@ -386,16 +479,45 @@ jobs:
             ${{ steps.unity-tests.outputs.coveragePath }}
           retention-days: 30
 
-  # The one check to require: fails if any configuration failed (a skipped Unity run, on fork PRs, is not a failure).
+  # The one check to require: fails if any configuration failed (a skipped Unity run, on fork PRs, is not a failure),
+  # or if the shards of a unit test configuration together did not run the whole suite.
   build-test:
     name: Build and Test
     runs-on: ubuntu-26.04
-    needs: [ unit-tests, trim-aot, mono, unity-tests ]
+    needs: [ unit-tests, integrations, trim-aot, mono, unity-tests ]
     # Not when the run itself was cancelled (a newer push supersedes it): its cancelled jobs are not failures.
     if: ${{ !cancelled() }}
+    timeout-minutes: 10
     steps:
+      - name: Check results
+        run: |
+          echo "unit tests: ${{ needs.unit-tests.result }}, integrations: ${{ needs.integrations.result }}, trim/AOT: ${{ needs.trim-aot.result }}, Mono: ${{ needs.mono.result }}, Unity tests: ${{ needs.unity-tests.result }}"
+          [ "${{ needs.unit-tests.result }}" = success ] || exit 1
+          [ "${{ needs.integrations.result }}" = success ] || exit 1
+          [ "${{ needs.trim-aot.result }}" = success ] || exit 1
+          [ "${{ needs.mono.result }}" = success ] || exit 1
+          case "${{ needs.unity-tests.result }}" in success|skipped) ;; *) exit 1 ;; esac
+
+      - name: Checkout the scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Download the unit test results
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        # The uploads may have failed on a storage timeout: the check below then warns about the missing shards (each
+        # shard checked its own part already).
+        continue-on-error: true
+        with:
+          pattern: test-results-unit-*
+          path: unit-results
+
+      - name: Check every test ran
+        run: python3 .github/scripts/test_shards.py unit-results
+
       - name: Merge test results
-        uses: actions/upload-artifact/merge@v7
+        uses: actions/upload-artifact/merge@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         continue-on-error: true
         with:
@@ -403,15 +525,6 @@ jobs:
           pattern: test-results-*
           delete-merged: true
           retention-days: 30
-
-      - name: Check results
-        working-directory: .
-        run: |
-          echo "unit tests: ${{ needs.unit-tests.result }}, trim/AOT: ${{ needs.trim-aot.result }}, Mono: ${{ needs.mono.result }}, Unity tests: ${{ needs.unity-tests.result }}"
-          [ "${{ needs.unit-tests.result }}" = success ] || exit 1
-          [ "${{ needs.trim-aot.result }}" = success ] || exit 1
-          [ "${{ needs.mono.result }}" = success ] || exit 1
-          case "${{ needs.unity-tests.result }}" in success|skipped) ;; *) exit 1 ;; esac
 
   # Run benchmarks on PRs only
   benchmark:
@@ -435,10 +548,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             ${{ vars.DOTNET_VERSION || '10.0.x' }}
@@ -446,15 +559,13 @@ jobs:
             8.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-benchmark-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-benchmark-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore
+            nuget-${{ runner.os }}-${{ runner.arch }}-benchmark-
+            nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build benchmark project
         run: |
@@ -484,7 +595,7 @@ jobs:
           fi
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: benchmark-results-pr-${{ github.event.pull_request.number }}-${{ strategy.job-index }}

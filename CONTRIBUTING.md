@@ -16,12 +16,19 @@ dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoRegularCalls=true
 dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoGeneratorBuild=4.8   # the .NET 8 SDK generator build
 ```
 
-CI (`.github/workflows/ci.yml`) runs the unit tests on net10.0 (the whole solution is built there), on Nino.Core
+CI (`.github/workflows/ci.yml`) runs the unit tests on net10.0, on Nino.Core
 netstandard2.1 without interceptors (what Unity runs), on netstandard2.0 with the Roslyn 4.8 generator, on Arm64
 (net10.0 and net8.0), on x64 without AVX-512, without AVX2 and without SIMD (`DOTNET_EnableAVX512=0`,
-`DOTNET_EnableAVX2=0`, `DOTNET_EnableHWIntrinsic=0`) and on Windows; it also runs the ASP.NET Core tests and those of Nino.Codegen in builds
-(`Nino.AspNetCore.Tests`, `Nino.Codegen.Integration.Tests`, Node 22.18+), publishes `Nino.AotTests` trimmed and Native AOT,
-runs `Nino.RuntimeTests` (net472) under Mono against .NET, and runs the Unity tests (`src/Nino.Unity`, Unity 2022.3).
+`DOTNET_EnableAVX2=0`, `DOTNET_EnableHWIntrinsic=0`) and on Windows, each configuration split over three runners
+(everything but `ShapeMatrixTests`, and each half of its rows; "Build and Test" checks the three ran the whole suite,
+`.github/scripts/test_shards.py`). Beside them it builds the whole solution and runs the ASP.NET Core tests and those
+of Nino.Codegen (`Nino.AspNetCore.Tests`, `Nino.Codegen.Integration.Tests`, `Nino.Codegen.Tests`, Node 22.18+),
+publishes `Nino.AotTests` trimmed and Native AOT, runs `Nino.RuntimeTests` (net472) under Mono against .NET, and runs
+the Unity tests (`src/Nino.Unity`, Unity 2022.3). Locally, the same split keeps a run in memory:
+`--filter "FullyQualifiedName!~ShapeMatrixTests"`, then `--filter "FullyQualifiedName~ShapeMatrixTests"`.
+
+The workflows pin every action to a commit SHA with its version in a comment (`uses: actions/checkout@<sha> # v7.0.1`);
+Dependabot updates both, all actions in one pull request. `actionlint` (with `.github/actionlint.yaml`) checks them.
 
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) also needs
 `python3 benchmarks/asm.py compare origin/main` ([benchmarks/README.md](benchmarks/README.md)), which lists every
