@@ -1,3 +1,4 @@
-# <go|go:<dir>|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-go 6d02b8b51e48fe3e13163183209b3664c61fa898 0b6ed1c40e340d469b279fd6b6c82cff621b3705 /strings
-go:. 6d02b8b51e48fe3e13163183209b3664c61fa898 0b6ed1c40e340d469b279fd6b6c82cff621b3705 StringTiers
+# <go|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+typescript 9c7aad2a3b295c61af204a7bdeea1cf459a605de 44e8a3f83314a8048137cc2e469606fd630069b4
+typescript 9c7aad2a3b295c61af204a7bdeea1cf459a605de 4266163056f5c0f100e1184895cddb902660bf3c
+typescript 9c7aad2a3b295c61af204a7bdeea1cf459a605de ec41ab75d1152b0879d5e5c808aab57b8e71c950
