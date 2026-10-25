@@ -57,15 +57,22 @@ jobs:
           rustup toolchain install stable --profile minimal >/dev/null
           out="$RUNNER_TEMP/out"
           mkdir -p "$out"
-          while read -r -u 3 lang base head filter; do
+          while read -r -u 3 lang base head filter envs; do
             [[ -z ${lang:-} || $lang == \#* ]] && continue
             for ref in "$base" "$head"; do
               git cat-file -e "$ref^{commit}"
-              git worktree add -q --detach "$RUNNER_TEMP/$ref" "$ref"
+              [[ -d "$RUNNER_TEMP/$ref" ]] || git worktree add -q --detach "$RUNNER_TEMP/$ref" "$ref"
             done
             fargs=()
             [[ -n ${filter:-} ]] && fargs=("$filter")
-            echo "## $lang ${base:0:7} -> ${head:0:7} ${filter:-}" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "## $lang ${base:0:7} -> ${head:0:7} ${filter:-} ${envs:-}" | tee -a "$GITHUB_STEP_SUMMARY"
+            # rust:<bench> picks the criterion bench (default compare); `envs` is "<base env> <head env>", each
+            # NAME=VALUE or -, set for that side only.
+            bench=compare
+            if [[ $lang == rust:* ]]; then bench=${lang#rust:}; lang=rust; fi
+            read -r base_env head_env <<< "${envs:-- -}"
+            [[ $base_env == - ]] && base_env=NINO_AB_NONE=1
+            [[ ${head_env:--} == - ]] && head_env=NINO_AB_NONE=1
             case $lang in
               go)
                 : > "$out/base.txt"; : > "$out/head.txt"
@@ -83,10 +90,10 @@ jobs:
                 export CARGO_TARGET_DIR="$RUNNER_TEMP/target"
                 rm -rf "$CARGO_TARGET_DIR/criterion"
                 for round in 1 2; do
-                  (cd "$RUNNER_TEMP/$base/runtimes/rust" &&
-                    cargo bench -q -p nino-bench --bench compare -- --save-baseline base "${fargs[@]}") > /dev/null
-                  (cd "$RUNNER_TEMP/$head/runtimes/rust" &&
-                    cargo bench -q -p nino-bench --bench compare -- --baseline base "${fargs[@]}") | tee "$out/rust-$round.txt"
+                  (cd "$RUNNER_TEMP/$base/runtimes/rust" && export "$base_env" &&
+                    cargo bench -q -p nino-bench --bench "$bench" -- --save-baseline base "${fargs[@]}" < /dev/null) > /dev/null
+                  (cd "$RUNNER_TEMP/$head/runtimes/rust" && export "$head_env" &&
+                    cargo bench -q -p nino-bench --bench "$bench" -- --baseline base "${fargs[@]}" < /dev/null) | tee "$out/rust-$round.txt"
                 done
                 { echo '```'; grep -E '^[a-z].*|time:|change:|faster|slower|No change' "$out/rust-2.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
                 ;;
