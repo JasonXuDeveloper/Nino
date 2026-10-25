@@ -1031,21 +1031,28 @@ fn raw_struct(
             impl #krate::Raw for #name {
                 const SIZE: usize = #layout_fn().1;
                 const ALIGN: usize = #layout_fn().2;
+                #[inline]
                 fn decode_raw(bytes: &[u8]) -> #krate::Result<Self> {
                     const OFFSETS: [usize; #n] = #layout_fn().0;
+                    // Whether the members leave bytes uncovered (padding, or a size given larger).
+                    const PADDED: bool = 0usize #(+ <#tys as #krate::Raw>::SIZE)* != <#name as #krate::Raw>::SIZE;
                     let bytes = bytes.get(..<Self as #krate::Raw>::SIZE).ok_or_else(|| #krate::Error::of(#krate::ErrorKind::UnexpectedEnd))?;
                     let _ = &OFFSETS;
                     let value = Self {
                         #( #fields: <#tys as #krate::Raw>::decode_raw(bytes.get(OFFSETS[#idx]..).unwrap_or_default())?, )*
                     };
-                    // Padding is zero (what .NET writes): written back, the bytes are the same.
-                    let mut check = [0u8; <Self as #krate::Raw>::SIZE];
-                    #krate::Raw::encode_raw(&value, &mut check);
-                    if check[..] != *bytes {
-                        return ::core::result::Result::Err(#krate::Error::of(#krate::ErrorKind::InvalidBits));
+                    // Padding is zero (what .NET writes): written back, the bytes are the same. Members that cover
+                    // every byte have checked their own.
+                    if PADDED {
+                        let mut check = [0u8; <Self as #krate::Raw>::SIZE];
+                        #krate::Raw::encode_raw(&value, &mut check);
+                        if check[..] != *bytes {
+                            return ::core::result::Result::Err(#krate::Error::of(#krate::ErrorKind::InvalidBits));
+                        }
                     }
                     ::core::result::Result::Ok(value)
                 }
+                #[inline]
                 fn encode_raw(&self, out: &mut [u8]) {
                     const OFFSETS: [usize; #n] = #layout_fn().0;
                     let _ = (&OFFSETS, &out);
@@ -1060,7 +1067,7 @@ fn raw_struct(
                 const MIN_SIZE: usize = <Self as #krate::Raw>::SIZE;
                 #[inline]
                 fn read(r: &mut #krate::Reader<'_>) -> #krate::Result<Self> {
-                    <Self as #krate::Raw>::decode_raw(r.take(<Self as #krate::Raw>::SIZE)?)
+                    <Self as #krate::Raw>::decode_raw(&r.array::<{ <Self as #krate::Raw>::SIZE }>()?)
                 }
             }
             const _: () = {
@@ -1073,8 +1080,9 @@ fn raw_struct(
             impl #krate::NinoWrite for #name {
                 #[inline]
                 fn write<'a>(&'a self, w: &mut #krate::Writer<'a>) -> #krate::Result<()> {
-                    let out = w.reserve(<Self as #krate::Raw>::SIZE);
-                    #krate::Raw::encode_raw(self, out);
+                    let mut out = [0u8; <Self as #krate::Raw>::SIZE];
+                    #krate::Raw::encode_raw(self, &mut out);
+                    w.array(out);
                     ::core::result::Result::Ok(())
                 }
             }

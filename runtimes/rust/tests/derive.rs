@@ -732,6 +732,20 @@ fn derived_values() {
     let mut bad = nino::serialize(&Padded { a: 1, b: 2 }).unwrap();
     bad[3] = 1;
     assert!(nino::deserialize::<Padded>(&bad).is_err());
+    // Padding inside a member is checked by the member (bytes 1 and 7), the tail past Flag by Nested (26, 31).
+    let nested = Nested { inner: Padded { a: 1, b: 2 }, position: Vec2 { x: 1.0, y: 2.0 }, kind: 3, flag: true };
+    let good = nino::serialize(&nested).unwrap();
+    assert_eq!(nino::deserialize_exact::<Nested>(&good).unwrap(), nested);
+    for at in [1, 7, 26, 31] {
+        let mut bad = good.clone();
+        bad[at] = 1;
+        assert!(nino::deserialize::<Nested>(&bad).is_err(), "padding byte {at}");
+    }
+    // A packed struct has no padding: every byte is a member's.
+    let packed = Packed { a: 0xFF, b: -1, c: -1 };
+    let bytes = nino::serialize(&packed).unwrap();
+    assert_eq!(bytes, [0xFF; 11]);
+    assert_eq!(nino::deserialize_exact::<Packed>(&bytes).unwrap(), packed);
     // A deep chain through the derive: deferred like the generated codecs.
     let mut chain = None;
     for v in (1..=1000).rev() {
