@@ -1,4 +1,4 @@
 # <go|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase6/string-varint: varint string headers (main 7d6fe84 -> ab-string-varint 1e61cca); TypeScript reads each side's own .NET data.
-go 7d6fe84 1e61cca
-typescript 7d6fe84 1e61cca
+# phase5/ts-strings: short UTF-16 windows, inline code units, short wide writes, shortText 24 (e41c104) and 32 (840ef72), against main c73ee57.
+typescript c73ee57 e41c104
+typescript e41c104 840ef72
