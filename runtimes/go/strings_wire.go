@@ -105,14 +105,18 @@ func WriteStrings(w *Writer, v []string) {
 		return
 	}
 	w.Length(len(v))
-	for len(v) > 0 {
-		if useWire {
-			if done := w.wireStrings(unsafe.Pointer(unsafe.SliceData(v)), v, nil); done > 0 {
-				v = v[done:]
-				continue
-			}
+	if !useWire {
+		for _, s := range v {
+			w.String(s)
 		}
-		// A string the vector path leaves (not UTF-8, very long), or no vector path.
+		return
+	}
+	for len(v) > 0 {
+		if done := w.wireStrings(unsafe.Pointer(unsafe.SliceData(v)), v, nil); done > 0 {
+			v = v[done:]
+			continue
+		}
+		// A string the vector path leaves (not UTF-8, very long).
 		w.String(v[0])
 		v = v[1:]
 	}
@@ -126,12 +130,16 @@ func WriteStringPtrs(w *Writer, v []*string) {
 		return
 	}
 	w.Length(len(v))
+	if !useWire {
+		for _, s := range v {
+			w.StringPtr(s)
+		}
+		return
+	}
 	for len(v) > 0 {
-		if useWire {
-			if done := w.wireStrings(unsafe.Pointer(unsafe.SliceData(v)), nil, v); done > 0 {
-				v = v[done:]
-				continue
-			}
+		if done := w.wireStrings(unsafe.Pointer(unsafe.SliceData(v)), nil, v); done > 0 {
+			v = v[done:]
+			continue
 		}
 		w.StringPtr(v[0])
 		v = v[1:]
