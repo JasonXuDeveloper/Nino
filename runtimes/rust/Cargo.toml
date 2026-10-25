@@ -15,13 +15,13 @@ name = "nino"
 
 # No required dependencies: each optional one converts Nino's own value types to that crate's.
 [dependencies]
-uuid = { version = "1", optional = true, default-features = false }
-rust_decimal = { version = "1", optional = true, default-features = false }
-chrono = { version = "0.4", optional = true, default-features = false }
-num-bigint = { version = "0.4", optional = true, default-features = false, features = ["std"] }
-indexmap = { version = "2", optional = true, default-features = false, features = ["std"] }
+uuid = { version = "1.26.1", optional = true, default-features = false }
+rust_decimal = { version = "1.43", optional = true, default-features = false }
+chrono = { version = "0.4.45", optional = true, default-features = false }
+num-bigint = { version = "0.5.1", optional = true, default-features = false, features = ["std"] }
+indexmap = { version = "2.14.2", optional = true, default-features = false, features = ["std"] }
 nino-derive = { package = "nino-serialization-derive", version = "0.1.0", path = "nino-derive", optional = true }
-serde = { version = "1", optional = true, default-features = false, features = ["std", "derive"] }
+serde = { version = "1.0.229", optional = true, default-features = false, features = ["std", "derive"] }
 
 [features]
 default = []
@@ -32,10 +32,10 @@ serde = ["dep:serde", "indexmap?/serde", "uuid?/serde"]
 
 # Test-only: the conformance test and its JSON comparison. The crate itself has no required dependencies.
 [dev-dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["unbounded_depth"] }
-indexmap = "2"
-trybuild = "1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["unbounded_depth"] }
+indexmap = "2.14.2"
+trybuild = "1.0.122"
 
 # Reads the corpus's maps and sets in wire order (IndexMap), so they are written back byte for byte.
 [[test]]

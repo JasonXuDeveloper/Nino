@@ -249,7 +249,7 @@ fn check_type(ty: &Type, field: &syn::Ident) -> syn::Result<()> {
     let bad = |why: &str| Err(Error::new(ty.span(), format!("field `{field}`: {why}")));
     match ty {
         Type::Reference(_) => bad("references cannot be read into; use an owned type"),
-        Type::Ptr(_) | Type::BareFn(_) | Type::TraitObject(_) | Type::ImplTrait(_) | Type::Never(_) => {
+        Type::Ptr(_) | Type::FnPtr(_) | Type::TraitObject(_) | Type::ImplTrait(_) | Type::Never(_) => {
             bad("this type has no Nino encoding")
         }
         Type::Slice(_) => bad("use Vec<T> for a sequence"),

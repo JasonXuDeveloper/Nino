@@ -12,6 +12,6 @@ repository = "https://github.com/JasonXuDeveloper/Nino"
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "1"
-quote = "1"
-syn = { version = "2", default-features = false, features = ["derive", "parsing", "printing", "proc-macro", "clone-impls"] }
+proc-macro2 = "1.0.107"
+quote = "1.0.47"
+syn = { version = "3.0.9", default-features = false, features = ["derive", "parsing", "printing", "proc-macro", "clone-impls"] }

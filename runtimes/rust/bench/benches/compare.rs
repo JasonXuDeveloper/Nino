@@ -1,5 +1,6 @@
-//! Nino against Protocol Buffers (prost), MessagePack (rmp-serde), bincode, postcard and serde_json on the same
-//! values. The protobuf messages mirror the values field for field (`proto` below), derived with prost: no protoc.
+//! Nino against Protocol Buffers (prost), MessagePack (rmp-serde), bincode (2, standard configuration), postcard and
+//! serde_json on the same values. The protobuf messages mirror the values field for field (`proto` below), derived
+//! with prost: no protoc.
 //!
 //! `cargo bench -p nino-bench` (add a filter: `cargo bench -p nino-bench -- record`). Numbers are local and rough:
 //! compare them on one machine, back to back.
@@ -209,6 +210,9 @@ fn mixed_strings() -> Vec<String> {
 
 // ---------------------------------------------------------------------------------------------- the harness
 
+/// bincode 2's standard configuration (little-endian, variable-length integers).
+const BINCODE: bincode::config::Configuration = bincode::config::standard();
+
 /// One group per case: serialize and deserialize with each serializer, Nino first. `$elements` is the number of
 /// values in the case (criterion's throughput); `$proto` is the case as a protobuf message of type `$p`.
 macro_rules! formats {
@@ -237,7 +241,7 @@ macro_rules! formats {
         g.bench_function(BenchmarkId::new("serialize", "bincode"), |b| {
             b.iter(|| {
                 out.clear();
-                bincode::serialize_into(&mut out, black_box(&value)).unwrap();
+                bincode::serde::encode_into_std_write(black_box(&value), &mut out, BINCODE).unwrap();
                 black_box(out.len())
             })
         });
@@ -259,7 +263,7 @@ macro_rules! formats {
             })
         });
 
-        let bincode_bytes = bincode::serialize(&value).unwrap();
+        let bincode_bytes = bincode::serde::encode_to_vec(&value, BINCODE).unwrap();
         let postcard_bytes = postcard::to_allocvec(&value).unwrap();
         let rmp_bytes = rmp_serde::to_vec(&value).unwrap();
         let json_bytes = serde_json::to_vec(&value).unwrap();
@@ -283,7 +287,9 @@ macro_rules! formats {
             b.iter(|| black_box(<$p as prost::Message>::decode(black_box(&prost_bytes[..])).unwrap()))
         });
         g.bench_function(BenchmarkId::new("deserialize", "bincode"), |b| {
-            b.iter(|| black_box(bincode::deserialize::<$t>(black_box(&bincode_bytes)).unwrap()))
+            b.iter(|| {
+                black_box(bincode::serde::decode_from_slice::<$t, _>(black_box(&bincode_bytes), BINCODE).unwrap().0)
+            })
         });
         g.bench_function(BenchmarkId::new("deserialize", "postcard"), |b| {
             b.iter(|| black_box(postcard::from_bytes::<$t>(black_box(&postcard_bytes)).unwrap()))

@@ -271,8 +271,8 @@ cargo bench -p nino-bench -- record      # one group
 ```
 
 `bench/benches/compare.rs` compares Nino with Protocol Buffers (prost, messages derived in the bench: no protoc),
-MessagePack (rmp-serde), bincode, postcard and serde_json on the same values, with criterion. Each group covers
-serialize and deserialize, and prints every format's encoded size:
+MessagePack (rmp-serde), bincode (2, its standard configuration: variable-length integers), postcard and serde_json on
+the same values, with criterion. Each group covers serialize and deserialize, and prints every format's encoded size:
 
 - a record;
 - 1,000 records;
