@@ -232,8 +232,11 @@ const kernelModule =
   // wasm:end
 /** The most chars a kernel takes (the size of its array of code units). */
 const kernelText = 4096;
-/** Where in the kernels' memory text is copied in and written out (`kernelText` UTF-16 code units). */
-const transfer = 4096;
+/**
+ * Where in the kernels' memory text is copied in and written out (`kernelText` UTF-16 code units): after the bytes of
+ * `deserialize`'s reader, which start the memory.
+ */
+const transfer = scratchSize;
 /**
  * In Chromium the kernels read Latin-1 text longer than `mediumText` up to `kernelLatin1` chars (TextDecoder costs
  * the same for longer text), UTF-16 text longer than `kernelUtf16` (shorter: `decodeShortUtf16`), and write text
