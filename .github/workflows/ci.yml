@@ -58,7 +58,8 @@ jobs:
   # them. Each shard runs its own copy of the build output (the coverage collector instruments the assemblies in
   # place). The shards' filters are complements of each other, each shard checks it ran every test its filter lists,
   # and "Build and Test" checks that the shards of each configuration together ran every test of the suite
-  # (.github/scripts/test_shards.py).
+  # (.github/scripts/test_shards.py). Windows runners are slower: there the three shards took three minutes, the
+  # longest job of the workflow, so its shards are split over two runners (a and b, then c), each building on its own.
   unit-tests:
     name: Unit tests (${{ matrix.config.name }})
     runs-on: ${{ matrix.config.runner || 'ubuntu-26.04' }}
@@ -109,12 +110,22 @@ jobs:
           # Windows: its paths, file system and line endings. A contributor's analyzer test failed there (PR #203)
           # while every Linux job passed.
           - id: windows
-            name: net10.0 on Windows
+            name: net10.0 on Windows, shards a and b
             runner: windows-latest
             framework: net10.0
+            shards: a b
+            part: -1
+          - id: windows
+            name: net10.0 on Windows, shard c
+            runner: windows-latest
+            framework: net10.0
+            shards: c
+            part: -2
     env:
       PROJECT: tests/Nino.UnitTests/Nino.UnitTests.csproj
       CONFIG: ${{ matrix.config.id }}
+      # The shards this runner runs (all three but on Windows).
+      SHARDS: ${{ matrix.config.shards || 'a b c' }}
       FRAMEWORK: ${{ matrix.config.framework }}
       PROPERTIES: ${{ matrix.config.properties }}
       # Relative to the workspace: Git Bash on Windows and dotnet agree on it.
@@ -145,10 +156,10 @@ jobs:
           read -ra props <<< "$PROPERTIES"
           dotnet build "$PROJECT" -c Debug -f "$FRAMEWORK" "${props[@]}"
           out=$(dirname "$PROJECT")/bin/Debug
-          for shard in a b c; do cp -R "$out/$FRAMEWORK" "$out/shard-$shard"; done
+          for shard in $SHARDS; do cp -R "$out/$FRAMEWORK" "$out/shard-$shard"; done
 
       # Each shard writes its results to $RESULTS/test-results-unit-<config>-<shard> (the layout test_shards.py reads)
-      # and its output to a file, printed when all three have ended. Then each checks it ran every test its filter
+      # and its output to a file, printed when all have ended. Then each checks it ran every test its filter
       # selects (and some); shard a also writes the list of the whole suite, which "Build and Test" compares with what
       # the three shards ran.
       - name: Test
@@ -178,15 +189,15 @@ jobs:
             if [[ $id == a ]]; then "${run[@]}" --list-tests > "$dir/suite.txt"; fi
           }
           mkdir -p "$RESULTS"
-          declare -A pid
-          shard a "$FILTER_A" > "$RESULTS/shard-$CONFIG-a.log" 2>&1 & pid[a]=$!
-          shard b "$FILTER_B" > "$RESULTS/shard-$CONFIG-b.log" 2>&1 & pid[b]=$!
-          shard c "$FILTER_C" > "$RESULTS/shard-$CONFIG-c.log" 2>&1 & pid[c]=$!
+          declare -A pid filters=([a]="$FILTER_A" [b]="$FILTER_B" [c]="$FILTER_C")
+          for id in $SHARDS; do
+            shard "$id" "${filters[$id]}" > "$RESULTS/shard-$CONFIG-$id.log" 2>&1 & pid[$id]=$!
+          done
           status=0
-          for id in a b c; do
+          for id in $SHARDS; do
             if ! wait "${pid[$id]}"; then status=1; echo "::error::shard $id failed (its output below)"; fi
           done
-          for id in a b c; do
+          for id in $SHARDS; do
             echo "::group::shard $id"; cat "$RESULTS/shard-$CONFIG-$id.log"; echo "::endgroup::"
           done
           exit $status
@@ -197,7 +208,7 @@ jobs:
         # A storage timeout is not a test result.
         continue-on-error: true
         with:
-          name: test-results-unit-${{ matrix.config.id }}
+          name: test-results-unit-${{ matrix.config.id }}${{ matrix.config.part }}
           path: ${{ env.RESULTS }}
           retention-days: 30
 
