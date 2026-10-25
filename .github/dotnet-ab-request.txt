@@ -1,5 +1,4 @@
 # <base sha> <head sha> <rounds> <BenchmarkDotNet filters...> (see .github/workflows/dotnet-ab.yml); one job per line.
-# perf(core): copy downward on AMD where a forward copy hits 4K aliasing, against its parent on main.
-6371965 bf82fb7 3 *CommonTypesTest.Nino*Inventory* *CommonTypesTest.MemoryPack*Inventory* *FixedSizeTest.Nino* *FixedSizeTest.MemoryPack* *CollectionsTest.Nino*TupleList* *CollectionsTest.MemoryPack*TupleList* *CollectionsTest.Nino*KeyValuePairs* *CollectionsTest.MemoryPack*KeyValuePairs*
-6371965 bf82fb7 3 *SimpleTest.Nino*Vectors* *SimpleTest.MemoryPack*Vectors* *SimpleTest.Nino*SimpleStruct* *SimpleTest.MemoryPack*SimpleStruct* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.MemoryPack*StringBuilder*
-6371965 bf82fb7 3 *PooledTest.Nino* *PooledTest.MemoryPack* *PooledGraphTest.Nino* *PooledGraphTest.MemoryPack*
+# perf(core): copy downward on AMD where a forward copy hits 4K aliasing, against its parent on main: the raw and
+# padded copies alone, more rounds (each a new process, so a new distance between buffers).
+6371965 bf82fb7 8 *CommonTypesTest.*SerializeInventory* *CollectionsTest.*SerializeKeyValuePairs* *CollectionsTest.*SerializeTupleList* *SimpleTest.*SerializeVectors*
