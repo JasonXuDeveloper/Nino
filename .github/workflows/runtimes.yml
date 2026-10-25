@@ -189,6 +189,47 @@ jobs:
         if: matrix.full
         run: (cd bench && go test -count=1 ./...)
 
+  # 32-bit and big-endian hosts, which the tests above never are: the portable string writer, the block copies that
+  # are memory copies only on little-endian hosts (endian_little.go, endian_other.go) and 32-bit int arithmetic. 386
+  # runs natively; Arm32 and s390x (big-endian) under qemu-user (go test -exec; Go's binaries are static). No race
+  # detector on these.
+  go-cross:
+    name: Go (${{ matrix.name }})
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: runtimes/go
+    env:
+      NINO_CONFORMANCE_CORPUS: ${{ github.workspace }}/conformance/corpus
+      GOARCH: ${{ matrix.goarch }}
+      EXEC: ${{ matrix.exec }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: '386', goarch: '386' }
+          - { name: Arm32 under qemu, goarch: arm, exec: qemu-arm }
+          - { name: big-endian s390x under qemu, goarch: s390x, exec: qemu-s390x }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache-dependency-path: runtimes/go/bench/go.sum
+
+      - name: Install qemu
+        if: matrix.exec
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qemu-user
+
+      - name: Test
+        run: go test -count=1 ${EXEC:+-exec "$EXEC"} ./...
+
   # The fuzz targets, short, on the newest Go: one runner each, side by side (go test fuzzes one target at a time, with
   # every core; one after the other they took over four minutes). A new target is a new row here.
   go-fuzz:
