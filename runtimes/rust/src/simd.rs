@@ -1,5 +1,6 @@
 //! The string writer's transcoding of UTF-8 into Latin-1 or UTF-16 LE, straight into a `Vec`'s spare capacity: the
-//! crate's only `unsafe` code. The reader does not use it.
+//! crate's only `unsafe` code. The reader does not use it. ASCII text of up to 32 bytes, the most common string, is
+//! copied with its header by [`ascii_short`] without a call to `memcpy`.
 //!
 //! Text is taken a block of 16 bytes at a time ([`Block`]). A block of ASCII is stored as it is (Latin-1) or with
 //! each byte widened to a code unit (UTF-16). Where the target has a byte shuffle (SSSE3 on x86_64, found at run
@@ -95,6 +96,108 @@ fn spread(w: u64) -> u64 {
     let w = w & 0xFFFF_FFFF;
     let w = (w | (w << 16)) & 0x0000_FFFF_0000_FFFF;
     (w | (w << 8)) & 0x00FF_00FF_00FF_00FF
+}
+
+/// The longest text [`ascii_short`] takes.
+pub(crate) const SHORT: usize = 32;
+
+/// Appends a Latin-1 string's header and bytes for `bytes` (at most [`SHORT`] of them) and returns true when they are
+/// all ASCII; else appends nothing and returns false. The bytes are read as the first and last 16 (or 8, or 4) bytes,
+/// which may overlap, or as three bytes, tested, and stored as they were read: no loop, no call to `memcpy`. Every
+/// target.
+#[inline(always)]
+pub(crate) fn ascii_short(out: &mut Vec<u8>, bytes: &[u8]) -> bool {
+    let (src, len) = (bytes.as_ptr(), bytes.len());
+    if len > SHORT {
+        return false;
+    }
+    // `len <= 32`: none of the sums or differences below can wrap, and `!len` fits an `i32`.
+    let header = if len == 0 { 0 } else { !(len as i32) };
+    let at = out.len();
+    if len >= 16 {
+        let last = len.wrapping_sub(16);
+        // SAFETY: `16 <= len` bytes are readable at `src`, so sixteen are at `src` and at `src + len - 16`.
+        let (a, b) =
+            unsafe { (src.cast::<[u8; 16]>().read_unaligned(), src.add(last).cast::<[u8; 16]>().read_unaligned()) };
+        if (u128::from_ne_bytes(a) | u128::from_ne_bytes(b)) & 0x8080_8080_8080_8080_8080_8080_8080_8080 != 0 {
+            return false;
+        }
+        out.reserve(len.wrapping_add(4));
+        // SAFETY: the room reserved holds `4 + len` bytes from `at`; the stores cover `at .. at + 4 + len` exactly
+        // (the second block ends at `4 + last + 16 = 4 + len`), and initialize all of it.
+        unsafe {
+            let dst = out.as_mut_ptr().add(at);
+            dst.cast::<[u8; 4]>().write_unaligned(header.to_le_bytes());
+            dst.add(4).cast::<[u8; 16]>().write_unaligned(a);
+            dst.add(4).add(last).cast::<[u8; 16]>().write_unaligned(b);
+            out.set_len(at.wrapping_add(4).wrapping_add(len));
+        }
+        return true;
+    }
+    if len >= 8 {
+        let last = len.wrapping_sub(8);
+        // SAFETY: `8 <= len` bytes are readable at `src`, so eight are at `src` and at `src + len - 8`.
+        let (a, b) =
+            unsafe { (src.cast::<[u8; 8]>().read_unaligned(), src.add(last).cast::<[u8; 8]>().read_unaligned()) };
+        if (u64::from_ne_bytes(a) | u64::from_ne_bytes(b)) & HIGH != 0 {
+            return false;
+        }
+        out.reserve(len.wrapping_add(4));
+        // SAFETY: the room reserved holds `4 + len` bytes from `at`; the stores cover `at .. at + 4 + len` exactly
+        // (the second word ends at `4 + last + 8 = 4 + len`), and initialize all of it.
+        unsafe {
+            let dst = out.as_mut_ptr().add(at);
+            dst.cast::<[u8; 4]>().write_unaligned(header.to_le_bytes());
+            dst.add(4).cast::<[u8; 8]>().write_unaligned(a);
+            dst.add(4).add(last).cast::<[u8; 8]>().write_unaligned(b);
+            out.set_len(at.wrapping_add(4).wrapping_add(len));
+        }
+        return true;
+    }
+    if len >= 4 {
+        let last = len.wrapping_sub(4);
+        // SAFETY: `4 <= len` bytes are readable at `src`.
+        let (a, b) =
+            unsafe { (src.cast::<[u8; 4]>().read_unaligned(), src.add(last).cast::<[u8; 4]>().read_unaligned()) };
+        if (u32::from_ne_bytes(a) | u32::from_ne_bytes(b)) & (HIGH as u32) != 0 {
+            return false;
+        }
+        out.reserve(len.wrapping_add(4));
+        // SAFETY: as above, with four-byte halves.
+        unsafe {
+            let dst = out.as_mut_ptr().add(at);
+            dst.cast::<[u8; 4]>().write_unaligned(header.to_le_bytes());
+            dst.add(4).cast::<[u8; 4]>().write_unaligned(a);
+            dst.add(4).add(last).cast::<[u8; 4]>().write_unaligned(b);
+            out.set_len(at.wrapping_add(4).wrapping_add(len));
+        }
+        return true;
+    }
+    // 0 to 3 bytes: the first, the middle and the last (some of them the same byte).
+    let (middle, last) = (len / 2, len.saturating_sub(1));
+    let [c0, c1, c2] = if len == 0 {
+        [0; 3]
+    } else {
+        // SAFETY: `middle` and `last` are below `len`, which is not 0.
+        unsafe { [src.read(), src.add(middle).read(), src.add(last).read()] }
+    };
+    if (c0 | c1 | c2) & 0x80 != 0 {
+        return false;
+    }
+    out.reserve(len.wrapping_add(4));
+    // SAFETY: the room reserved holds `4 + len` bytes from `at`; for `len` 1 to 3 the stores at `4`, `4 + middle` and
+    // `4 + last` cover `4 .. 4 + len`, and none is past it.
+    unsafe {
+        let dst = out.as_mut_ptr().add(at);
+        dst.cast::<[u8; 4]>().write_unaligned(header.to_le_bytes());
+        if len != 0 {
+            dst.add(4).write(c0);
+            dst.add(4).add(middle).write(c1);
+            dst.add(4).add(last).write(c2);
+        }
+        out.set_len(at.wrapping_add(4).wrapping_add(len));
+    }
+    true
 }
 
 #[cfg(any(test, not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))))]
@@ -1079,6 +1182,30 @@ mod tests {
                         let text: String = (0..len).map(|i| if i == at { c } else { filler }).collect();
                         check(&text);
                     }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn short_ascii() {
+        // Every length up to SHORT and past it, all ASCII and with a non-ASCII char at each position, after a prefix.
+        for len in 0..=SHORT + 2 {
+            for at in (0..len).map(Some).chain([None]) {
+                let text: String =
+                    (0..len).map(|i| if Some(i) == at { 'é' } else { char::from(b'a' + i as u8) }).collect();
+                let mut out = vec![0xAA; 3];
+                let done = ascii_short(&mut out, text.as_bytes());
+                if text.len() <= SHORT && text.is_ascii() {
+                    let header = if len == 0 { 0 } else { !(len as i32) };
+                    let mut expected = vec![0xAA; 3];
+                    expected.extend_from_slice(&header.to_le_bytes());
+                    expected.extend_from_slice(text.as_bytes());
+                    assert!(done, "{text:?}");
+                    assert_eq!(out, expected, "{text:?}");
+                } else {
+                    assert!(!done, "{text:?}");
+                    assert_eq!(out, [0xAA; 3], "{text:?}");
                 }
             }
         }

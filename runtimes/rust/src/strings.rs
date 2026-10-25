@@ -79,7 +79,13 @@ pub(crate) fn utf16_len(bytes: &[u8]) -> u64 {
 #[inline]
 pub(crate) fn write(w: &mut Writer<'_>, text: &str) -> Result<()> {
     let bytes = text.as_bytes();
-    if is_ascii(bytes) {
+    if bytes.len() <= crate::simd::SHORT {
+        if crate::simd::ascii_short(w.buffer(), bytes) {
+            return Ok(());
+        }
+        return write_wide(w, text);
+    }
+    if is_ascii_long(bytes) {
         let count = i32::try_from(bytes.len()).map_err(|_| Error::too_large())?;
         w.header_bytes(if count == 0 { 0 } else { !count }, bytes);
         return Ok(());
