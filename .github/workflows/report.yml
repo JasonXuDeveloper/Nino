@@ -110,7 +110,7 @@ jobs:
     needs: target
     if: needs.target.outputs.skip != 'true'
     # Named images, not ubuntu-latest: the OS under the benchmark changes only when these lines do.
-    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-26.04' }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
     timeout-minutes: 150
     strategy:
       fail-fast: false
@@ -443,7 +443,7 @@ jobs:
               echo ""
               # Never write the words "Performance Report" here: parsers find the x64 report by them.
               echo "The benchmark classes of the x64 report below, with the same BenchmarkDotNet settings"
-              echo "(\`${BDN_ARGS}\`), on GitHub's \`ubuntu-24.04-arm\` runners. Compare the serializers within"
+              echo "(\`${BDN_ARGS}\`), on GitHub's \`ubuntu-26.04-arm\` runners. Compare the serializers within"
               echo "this table: the runners differ from the x64 ones, so times across the two tables say little."
               echo ""
               python3 "$GITHUB_WORKSPACE/benchmarks/compact_report.py" "$ARM64_REPORT"
@@ -510,7 +510,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: '3.12'
+          python-version: '3.x'
 
       # README.md, README.zh.md, the README chart and the runtime tables of docs/v4-benchmarks.md show the newest v4
       # release: regenerate them (benchmarks/readme.py, between the <!--bench:...--> markers) from this run and push
@@ -634,7 +634,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: matrix.lang == 'typescript'
         with:
-          node-version: 22
+          node-version: current
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: matrix.lang == 'go'

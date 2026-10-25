@@ -97,9 +97,14 @@ jobs:
         run: dotnet test tests/Nino.Codegen.Tests -c Release
 
   typescript:
-    name: TypeScript
+    name: TypeScript (Node ${{ matrix.node }})
     runs-on: ubuntu-26.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest Node package.json's engines allow, and the newest release.
+        node: [ '22', current ]
     defaults:
       run:
         working-directory: runtimes/typescript
@@ -111,7 +116,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
           cache: npm
           cache-dependency-path: runtimes/typescript/package-lock.json
 
@@ -141,7 +146,7 @@ jobs:
           - { name: '1.22', go: '1.22' }
           - { name: stable, go: stable, full: true }
           - { name: stable purego, go: stable, tags: purego }
-          - { name: stable Arm64, go: stable, runner: ubuntu-24.04-arm }
+          - { name: stable Arm64, go: stable, runner: ubuntu-26.04-arm }
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -200,7 +205,7 @@ jobs:
           - { target: FuzzTaggedDecode, package: ./internal/sample, time: 60s }
           - { target: FuzzString, package: ., time: 30s }
           # The string writer's NEON assembly.
-          - { target: FuzzString, package: ., time: 30s, runner: ubuntu-24.04-arm }
+          - { target: FuzzString, package: ., time: 30s, runner: ubuntu-26.04-arm }
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -331,7 +336,7 @@ jobs:
   # corpus, on the CPU they are written for (the rust-miri job interprets them, this one runs them).
   rust-arm64:
     name: Rust (Arm64)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 30
     defaults:
       run:

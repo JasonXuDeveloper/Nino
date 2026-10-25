@@ -84,7 +84,7 @@ jobs:
           - name: without AVX2
             avx2: '0'
           - name: Arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
     env:
       DOTNET_EnableHWIntrinsic: ${{ matrix.simd || '1' }}
       DOTNET_EnableAVX512: ${{ matrix.avx512 || '1' }}

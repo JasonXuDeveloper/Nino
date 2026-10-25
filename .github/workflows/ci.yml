@@ -100,11 +100,11 @@ jobs:
           # Arm64: its byte shuffle (tbl), 16-byte vectors only, and the net8.0 build's own shuffle path.
           - id: arm64-net10
             name: net10.0 on Arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
             framework: net10.0
           - id: arm64-net8
             name: net8.0 on Arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
             framework: net8.0
           # x64 CPUs without AVX-512 (most desktops: 32-byte vectors, no byte permute), and without any SIMD.
           - id: no-avx512
@@ -248,7 +248,7 @@ jobs:
       # NinoTypeScript* properties.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: current
           cache: npm
           cache-dependency-path: runtimes/typescript/package-lock.json
 
@@ -291,7 +291,7 @@ jobs:
 
       - name: Test Nino.Codegen in builds
         run: |
-          npm install -g typescript@5
+          npm install -g typescript@latest
           dotnet test tests/Nino.Codegen.Integration.Tests/Nino.Codegen.Integration.Tests.csproj --no-build -c Debug --logger trx --results-directory ./TestResults
 
       # nino-gen (src/Nino.Codegen): its model and command line, and the generated files under runtimes/ are what
@@ -402,9 +402,14 @@ jobs:
           grep -qx 'ALL OK' mono.txt
 
   unity-tests:
-    name: Unity tests
+    name: Unity tests (${{ matrix.unity }})
     runs-on: ubuntu-26.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest Unity the package supports (package.json: 2022.3) at its newest patch, and the newest Unity 6 LTS.
+        unity: [ '2022.3.76f1', '6000.3.27f1' ]
     # Skip Unity tests for external PRs (secrets not available in forks)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
@@ -445,11 +450,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: src/Nino.Unity/Library
-          key: Library-Nino-${{ runner.os }}-${{ hashFiles('src/Nino.Unity/Assets/**', 'src/Nino.Unity/Packages/**', 'src/Nino.Unity/ProjectSettings/**') }}
+          key: Library-Nino-${{ runner.os }}-${{ matrix.unity }}-${{ hashFiles('src/Nino.Unity/Assets/**', 'src/Nino.Unity/Packages/**', 'src/Nino.Unity/ProjectSettings/**') }}
           restore-keys: |
-            Library-Nino-${{ runner.os }}-
-            Library-Nino-
-            Library-
+            Library-Nino-${{ runner.os }}-${{ matrix.unity }}-
 
       - name: Run Unity tests
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
@@ -463,7 +466,7 @@ jobs:
           testMode: editmode
           # No githubToken: posting the results as a check run calls the GitHub API, and a timeout there failed a run
           # whose tests had all passed. The results are uploaded below, and a failed test still fails this step.
-          unityVersion: '2022.3.51f1'
+          unityVersion: ${{ matrix.unity }}
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
 
@@ -473,7 +476,7 @@ jobs:
         # A storage timeout is not a test result.
         continue-on-error: true
         with:
-          name: test-results-unity
+          name: test-results-unity-${{ matrix.unity }}
           path: |
             ./artifacts
             ${{ steps.unity-tests.outputs.coveragePath }}

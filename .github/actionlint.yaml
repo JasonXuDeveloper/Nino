@@ -3,3 +3,4 @@ self-hosted-runner:
   # GitHub-hosted images newer than actionlint's list of labels.
   labels:
     - ubuntu-26.04
+    - ubuntu-26.04-arm
