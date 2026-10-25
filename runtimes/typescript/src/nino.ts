@@ -2,7 +2,10 @@
 // Nino writes in .NET. Little-endian and unaligned; lengths are int32, -1 = null. Do not edit: it is overwritten on
 // every build.
 
-/** The Nino version that wrote this file; the generated types expect the same one. */
+/**
+ * The Nino version of this runtime: nino-gen's for the copy it writes next to the generated types (which expect the
+ * same one), the package's for the npm package (scripts/version.mjs).
+ */
 export const ninoVersion = "__NINO_VERSION__";
 
 /** Reads and writes one type's values. Generated for every [NinoType]. */
