@@ -1,6 +1,7 @@
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.CodeGen;
+using Nino.Tests;
 
 namespace Nino.UnitTests;
 

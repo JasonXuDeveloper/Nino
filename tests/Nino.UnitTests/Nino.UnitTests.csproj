@@ -91,6 +91,7 @@
     </ItemGroup>
 
     <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props"/>
+    <Import Project="..\Shared\RepositoryFiles.props"/>
     <PropertyGroup Condition="'$(NinoRegularCalls)' == 'true'">
         <InterceptorsNamespaces></InterceptorsNamespaces>
         <InterceptorsPreviewNamespaces></InterceptorsPreviewNamespaces>
