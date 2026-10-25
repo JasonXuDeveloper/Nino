@@ -1,0 +1,9 @@
+<Project>
+    <!-- RepositoryFiles (Nino.Tests.RepositoryFiles): the files of the repository a test checks. The repository root
+         is passed to the test assembly as assembly metadata. -->
+    <ItemGroup>
+        <Compile Include="$(MSBuildThisFileDirectory)RepositoryFiles.cs" Link="Shared\RepositoryFiles.cs"/>
+        <AssemblyMetadata Include="NinoRepositoryRoot"
+                          Value="$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..'))"/>
+    </ItemGroup>
+</Project>
