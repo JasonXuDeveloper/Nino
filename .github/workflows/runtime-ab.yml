@@ -98,7 +98,10 @@ jobs:
                 (cd "$B" && npm ci --no-audit --no-fund > /dev/null)
                 if [[ ! -x "$(npm root -g)/playwright/cli.js" ]]; then
                   npm install -g playwright@1.56.1 > /dev/null
-                  npx -y playwright@1.56.1 install --with-deps chromium > /dev/null
+                  # Playwright 1.56 does not know Ubuntu 26.04: install the 24.04 dependencies, else none.
+                  arch=x64; [[ $(uname -m) == aarch64 ]] && arch=arm64
+                  PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-$arch npx -y playwright@1.56.1 install --with-deps chromium > /dev/null ||
+                    PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-$arch npx -y playwright@1.56.1 install chromium > /dev/null
                 fi
                 dotnet build -c Release "$RUNNER_TEMP/$head/src/Nino.Codegen" > /dev/null
                 dotnet build -c Release "$B" > /dev/null
