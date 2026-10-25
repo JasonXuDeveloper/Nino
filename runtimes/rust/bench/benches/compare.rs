@@ -32,45 +32,55 @@ pub struct Point {
     pub y: i32,
 }
 
-// What the templates generate: a run of fixed-size members is one bounds check.
+// The Nino codecs below are what nino-gen's Rust templates generate for these two types
+// (src/Nino.Codegen/Templates/rust/types.sbn): a raw struct read and written as one block, a class's members one by
+// one, and a class held as `Option<Box<_>>` wherever it is a member, an element or the value written.
+impl nino::Raw for Point {
+    const SIZE: usize = 8;
+    const ALIGN: usize = 4;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..8).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        Ok(Self {
+            x: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            y: <i32 as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.x, o);
+        }
+        if let Some(o) = out.get_mut(4..) {
+            nino::Raw::encode_raw(&self.y, o);
+        }
+    }
+}
+
 impl NinoRead for Point {
     const MIN_SIZE: usize = 8;
 
-    #[inline]
     fn read(r: &mut Reader<'_>) -> Result<Self> {
-        let b = r.array::<8>()?;
-        let (x, y) = b.split_at(4);
-        Ok(Point {
-            x: i32::from_le_bytes(x.try_into().unwrap_or_default()),
-            y: i32::from_le_bytes(y.try_into().unwrap_or_default()),
-        })
+        <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
     }
 }
 
 impl NinoWrite for Point {
-    #[inline]
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let mut b = [0u8; 8];
-        b[..4].copy_from_slice(&self.x.to_le_bytes());
-        b[4..].copy_from_slice(&self.y.to_le_bytes());
+        nino::Raw::encode_raw(self, &mut b);
         w.array(b);
         Ok(())
     }
 }
 
 impl NinoReadBody for Record {
-    #[inline]
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.id = r.i32()?;
-        self.name = r.string()?;
-        let b = r.array::<17>()?;
-        self.score = i64::from_le_bytes(b[..8].try_into().unwrap_or_default());
-        self.ratio = f64::from_le_bytes(b[8..16].try_into().unwrap_or_default());
-        self.active = match b[16] {
-            0 => false,
-            1 => true,
-            v => return Err(nino::Error::new(nino::ErrorKind::InvalidBool, v.into())),
-        };
+        self.id = r.read()?;
+        self.name = r.read()?;
+        self.score = r.read()?;
+        self.ratio = r.read()?;
+        self.active = r.read()?;
         self.tags = r.read()?;
         self.origin = r.read()?;
         Ok(())
@@ -78,37 +88,35 @@ impl NinoReadBody for Record {
 }
 
 impl NinoWriteBody for Record {
-    #[inline]
     fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        w.i32(self.id);
-        w.string(self.name.as_deref())?;
-        w.i64(self.score);
-        w.f64(self.ratio);
-        w.bool(self.active);
+        w.write(&self.id)?;
+        w.write(&self.name)?;
+        w.write(&self.score)?;
+        w.write(&self.ratio)?;
+        w.write(&self.active)?;
         w.write(&self.tags)?;
-        w.write(&self.origin)
+        w.write(&self.origin)?;
+        Ok(())
     }
 }
 
 impl NinoRead for Record {
-    #[inline]
+    const MAY_DEFER: bool = true;
+
     fn read(r: &mut Reader<'_>) -> Result<Self> {
         r.read_sealed_value()
     }
 
-    #[inline]
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
 }
 
 impl NinoWrite for Record {
-    #[inline]
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write_sealed(Some(self))
     }
 
-    #[inline]
     fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
         w.write_sealed(value)
     }
@@ -305,15 +313,17 @@ macro_rules! formats {
 }
 
 fn benches(c: &mut Criterion) {
-    let one = |v: &Option<Record>| proto::record(v.as_ref().unwrap());
-    let many = |v: &Vec<Option<Record>>| proto::Records { values: v.iter().flatten().map(proto::record).collect() };
-    formats!(c, "record", 1, Some(record(42)), Option<Record>, one, proto::Record);
+    let one = |v: &Option<Box<Record>>| proto::record(v.as_ref().unwrap());
+    let many = |v: &Vec<Option<Box<Record>>>| proto::Records {
+        values: v.iter().flatten().map(|r| proto::record(r)).collect(),
+    };
+    formats!(c, "record", 1, Some(Box::new(record(42))), Option<Box<Record>>, one, proto::Record);
     formats!(
         c,
         "records-1000",
         1000,
-        (0..1000).map(|i| Some(record(i))).collect(),
-        Vec<Option<Record>>,
+        (0..1000).map(|i| Some(Box::new(record(i)))).collect(),
+        Vec<Option<Box<Record>>>,
         many,
         proto::Records
     );
