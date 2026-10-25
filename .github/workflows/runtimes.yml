@@ -381,12 +381,13 @@ jobs:
         run: dotnet test tests/Nino.Codegen.Tests -c Release
 
   # The TypeScript runtime on the oldest Node package.json's engines allow and on the newest release, and the Go
-  # runtime: the oldest Go go.mod allows and the newest (which also checks the benchmark module and staticcheck). The
-  # string writer has assembly for amd64 (SSE2) and arm64 (NEON) and a portable fallback (build tag purego, and every
-  # other architecture): each runs its tests here and in go-arm64. Then the 32-bit and big-endian hosts, which the
-  # tests above never are: the portable string writer, the block copies that are memory copies only on
-  # little-endian hosts (endian_little.go, endian_other.go) and 32-bit int arithmetic. 386 runs natively; Arm32 and
-  # s390x (big-endian) under qemu-user (go test -exec; Go's binaries are static). No race detector on these.
+  # runtime: the oldest Go go.mod allows and the newest (which also checks the benchmark module, staticcheck and the
+  # generated assembly). The string writer has assembly for amd64 (SSE2) and arm64 (NEON) and a portable fallback
+  # (build tag purego, and every other architecture): each runs its tests here and in go-arm64. Then the 32-bit and
+  # big-endian hosts, which the tests above never are: the portable string writer, the block copies that are memory
+  # copies only on little-endian hosts (endian_little.go, endian_other.go) and 32-bit int arithmetic. 386 runs
+  # natively; Arm32 and s390x (big-endian) under qemu-user (go test -exec; Go's binaries are static). No race detector
+  # on these.
   # Each check is a step that runs even after another one failed.
   go:
     name: Go and TypeScript
@@ -446,7 +447,10 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
-          cache-dependency-path: runtimes/go/bench/go.sum
+          # The modules the benchmarks and the assembly generator (avo) download.
+          cache-dependency-path: |
+            runtimes/go/bench/go.sum
+            runtimes/go/internal/asm/go.sum
 
       - name: Vet
         if: ${{ !cancelled() }}
@@ -474,6 +478,13 @@ jobs:
       - name: Test the benchmark module
         if: ${{ !cancelled() }}
         run: (cd bench && go test -count=1 ./...)
+
+      # The string kernels' assembly is what internal/asm (its own module, with avo) writes: go generate leaves the
+      # committed strings_wire_amd64.s and strings_wire_arm64.s unchanged.
+      - name: Check the generated assembly
+        if: ${{ !cancelled() }}
+        working-directory: runtimes/go/internal/asm
+        run: go vet . && go test -count=1 .
 
       - name: Test purego (race detector)
         if: ${{ !cancelled() }}
