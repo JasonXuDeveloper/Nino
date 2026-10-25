@@ -1,7 +1,6 @@
 # [cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...> (see .github/workflows/dotnet-ab.yml); one job per line.
-# phase5/inventory: Intel only (new runs until a slot lands on Intel, about one x64 runner in 36): main against the
-# downward copy on every x64 CPU where the gap aliases (7b68bba); line 3 main alone with CopyGapProbe.
-cpu=intel cceab9b 7b68bba 6 *CommonTypesTest.*SerializeInventory* *CollectionsTest.*SerializeKeyValuePairs* *CollectionsTest.*SerializeTupleList* *SimpleTest.*SerializeVectors*
-cpu=intel cceab9b 7b68bba 6 *CommonTypesTest.*SerializeInventory* *CollectionsTest.*SerializeKeyValuePairs* *CollectionsTest.*SerializeTupleList* *SimpleTest.*SerializeVectors*
-cpu=intel cceab9b cceab9b 1 *CommonTypesTest.*SerializeInventory* *CopyGapProbe*
-# draw 1 17:02
+# phase5/inventory: the Inventory copy by alignment (InventoryAlignProbe), and SerializeInventory with the addresses
+# its process landed on (InventoryRealProbe), on Intel x64 and on an EPYC 9V74.
+cpu=intel 11f707b 11f707b 3 *InventoryRealProbe* *InventoryAlignProbe* *CommonTypesTest.NinoSerializeInventory *CommonTypesTest.MemoryPackSerializeInventory
+cpu=intel 11f707b 11f707b 3 *InventoryRealProbe* *InventoryAlignProbe* *CommonTypesTest.NinoSerializeInventory *CommonTypesTest.MemoryPackSerializeInventory
+cpu=9V74 11f707b 11f707b 3 *InventoryRealProbe* *InventoryAlignProbe* *CommonTypesTest.NinoSerializeInventory *CommonTypesTest.MemoryPackSerializeInventory

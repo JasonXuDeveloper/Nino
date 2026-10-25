@@ -113,6 +113,7 @@ jobs:
                 --filter "${F[@]}" --artifacts "$out/$side-$round" < /dev/null) > "$out/$side-$round.log" 2>&1 ||
                 { tail -50 "$out/$side-$round.log"; exit 1; }
               report "$out/$side-$round" "$out/$side-$round.md"
+              grep -h '// ADDR' "$out/$side-$round.log" | sort -u || true  # what a probe printed about its process
               echo "=== REPORT $side round $round ($(git -C "$RUNNER_TEMP/$side" rev-parse --short HEAD))"
               cat "$out/$side-$round.md"
             done
