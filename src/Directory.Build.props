@@ -1,0 +1,10 @@
+<Project>
+    <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))"/>
+
+    <!-- Every library and Roslyn component: no implicit usings, and the recommended analyzer rules. Not the projects
+         Unity generates for its IDE in Nino.Unity, whose code Unity compiles with its own settings. -->
+    <PropertyGroup Condition="!$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)').Replace('\', '/').Contains('/src/Nino.Unity/'))">
+        <ImplicitUsings>disable</ImplicitUsings>
+        <AnalysisLevel>latest-recommended</AnalysisLevel>
+    </PropertyGroup>
+</Project>

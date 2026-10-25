@@ -8,9 +8,8 @@
         <AssemblyName>UnityEngine.CoreModule</AssemblyName>
         <RootNamespace>UnityEngine</RootNamespace>
         <Version>0.0.0.0</Version>
-        <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
-        <NoWarn>$(NoWarn);CA1051;CA1716;CA1720;CA1815;CA1819;CA2225;IDE1006</NoWarn>
+        <NoWarn>$(NoWarn);CA1051;CA1069;CA1716;CA1720;CA1815;CA1819;CA2225;IDE1006</NoWarn>
     </PropertyGroup>
 
 </Project>

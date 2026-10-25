@@ -70,7 +70,7 @@ namespace UnityEngine
 
     public sealed class AnimationCurve
     {
-        private Keyframe[] _keys = new Keyframe[0];
+        private Keyframe[] _keys = System.Array.Empty<Keyframe>();
 
         public AnimationCurve()
         {
