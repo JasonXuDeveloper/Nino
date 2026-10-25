@@ -112,6 +112,12 @@ How each Rust type handles them:
 - `Utf8` (or a field marked `#[nino(utf8)]`) is a `[NinoUtf8]` member. The reader checks that the byte count is
   between c and 3c, where c is the char count, and that the bytes are valid UTF-8.
 
+For text-heavy types, prefer `[NinoUtf8]` (`#[nino(utf8)]` or `Utf8`) where the .NET side can declare it. A `String`
+in the default encoding is transcoded to Latin-1 or UTF-16 on every write and back to UTF-8 on every read, so formats
+that store UTF-8 (bincode, postcard, MessagePack, protobuf) copy their strings faster than Nino can transcode them.
+A `[NinoUtf8]` member is written as a count of its UTF-16 code units and one copy of its bytes, and read as one
+validated copy.
+
 ## Features
 
 | Feature | Adds |
