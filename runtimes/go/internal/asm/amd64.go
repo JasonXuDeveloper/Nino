@@ -213,8 +213,9 @@ func single(name string, w writer) {
 
 // many is wireStrings* of a tier: func(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool)
 // (done, written int). It writes strings from strs (count of them: strings, or pointers to them when ptrs, nil the
-// null string) at dst (room bytes), each with its header, while each has room for 4+2*len+wireSlack bytes and is
-// WTF-8 of fewer than wireMaxText bytes; it returns how many it wrote and the bytes they took.
+// null string) at dst (room bytes), each with its one-byte header, while each has room for 1+2*len+wireSlack bytes
+// and is WTF-8 of fewer than wireMaxText (64) bytes, so of at most 63 chars; it returns how many it wrote and the
+// bytes they took.
 func many(name string, w writer) {
 	function(name, "func(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)")
 	f := frame{wide: c.AllocLocal(8), start: c.AllocLocal(8)}
@@ -238,10 +239,10 @@ func many(name string, w writer) {
 	c.JNZ(l("header"))
 	c.Comment("nil: the null string.")
 	c.MOVQ(out, RDI)
-	c.LEAQ(Mem{Base: RDI, Disp: 4}, RAX)
+	c.LEAQ(Mem{Base: RDI, Disp: 1}, RAX)
 	c.CMPQ(RAX, end)
 	c.JA(l("finish"))
-	c.MOVL(U32(0xffffffff), Mem{Base: RDI})
+	c.MOVB(U8(0), Mem{Base: RDI})
 	c.MOVQ(RAX, out)
 	c.INCQ(R14)
 	c.JMP(l("next"))
@@ -256,21 +257,21 @@ func many(name string, w writer) {
 	c.MOVQ(out, RDI)
 	c.TESTQ(RBX, RBX)
 	c.JNZ(l("text"))
-	c.LEAQ(Mem{Base: RDI, Disp: 4}, RAX)
+	c.LEAQ(Mem{Base: RDI, Disp: 1}, RAX)
 	c.CMPQ(RAX, end)
 	c.JA(l("finish"))
-	c.MOVL(U32(0), Mem{Base: RDI})
+	c.MOVB(U8(1), Mem{Base: RDI})
 	c.MOVQ(RAX, out)
 	c.INCQ(R14)
 	c.JMP(l("next"))
 
 	c.Label("text")
-	cmpConst(RBX, "wireMaxText", 1<<30)
+	cmpConst(RBX, "wireMaxText", 64)
 	c.JAE(l("finish"))
-	c.LEAQ(slack(4, RDI, RBX, 2), RAX)
+	c.LEAQ(slack(1, RDI, RBX, 2), RAX)
 	c.CMPQ(RAX, end)
 	c.JA(l("finish"))
-	c.ADDQ(U8(4), RDI)
+	c.INCQ(RDI)
 	c.MOVQ(RDI, f.start)
 	c.MOVQ(RDI, f.wide)
 	w.kernel(f)
@@ -282,18 +283,20 @@ func many(name string, w writer) {
 	c.JEQ(l("finish"))
 	c.TESTQ(RAX, RAX)
 	c.JS(l("store16"))
-	c.MOVL(EAX, ECX)
-	c.NOTL(ECX)
-	c.MOVL(ECX, Mem{Base: RDI})
-	c.LEAQ(Mem{Base: RDI, Disp: 4, Index: RAX, Scale: 1}, RDI)
+	c.Comment("Latin-1: the header 2n+1.")
+	c.LEAL(Mem{Base: RAX, Index: RAX, Scale: 1, Disp: 1}, ECX)
+	c.MOVB(CL, Mem{Base: RDI})
+	c.LEAQ(Mem{Base: RDI, Disp: 1, Index: RAX, Scale: 1}, RDI)
 	c.MOVQ(RDI, out)
 	c.INCQ(R14)
 	c.JMP(l("next"))
 
 	c.Label("store16")
+	c.Comment("UTF-16: the header 2n.")
 	c.NOTQ(RAX)
-	c.MOVL(EAX, Mem{Base: RDI})
-	c.LEAQ(Mem{Base: RDI, Disp: 4, Index: RAX, Scale: 2}, RDI)
+	c.LEAL(Mem{Base: RAX, Index: RAX, Scale: 1}, ECX)
+	c.MOVB(CL, Mem{Base: RDI})
+	c.LEAQ(Mem{Base: RDI, Disp: 1, Index: RAX, Scale: 2}, RDI)
 	c.MOVQ(RDI, out)
 	c.INCQ(R14)
 	c.JMP(l("next"))

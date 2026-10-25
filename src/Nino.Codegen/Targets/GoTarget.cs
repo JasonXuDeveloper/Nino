@@ -429,9 +429,9 @@ namespace Nino.Codegen.Targets
                 case ValueKind.RawTuple:
                     return Raw(value);
                 case ValueKind.String:
-                    return new GoShape(key ? "keystring" : "string") { MinSize = 4 };
+                    return new GoShape(key ? "keystring" : "string") { MinSize = 1 };
                 case ValueKind.Utf8:
-                    return new GoShape(key ? "keyutf8" : "utf8") { MinSize = 4 };
+                    return new GoShape(key ? "keyutf8" : "utf8") { MinSize = 1 };
                 case ValueKind.Object:
                     _usesObject = true;
                     return new GoShape("object") { MinSize = 4 };

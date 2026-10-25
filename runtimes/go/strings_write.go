@@ -92,26 +92,26 @@ func (w *Writer) String(s string) {
 	n := len(s)
 	at := len(w.buf)
 	// Room for the header and one byte a byte (the sum wraps only on 32-bit hosts, for text that does not fit the
-	// header anyway); growing, the slack too.
-	end := at + 4 + n
+	// header anyway); growing, the slack too. The header takes one byte up to 63 chars; the text has at most n.
+	end := at + 1 + n
 	if uint(n-1) >= maxInt32 || end < at {
 		w.emptyString(n)
 		return
 	}
+	if n >= 64 {
+		// Out of line, so that this path makes no call (nothing kept on the stack around one).
+		w.longString(s, at)
+		return
+	}
 	if end > cap(w.buf) {
-		w.grow(4 + n + stringSlack)
+		w.grow(1 + n + stringSlack)
 	}
 	w.buf = w.buf[:end]
 	b := w.buf[at:end]
 	src := unsafe.Pointer(unsafe.StringData(s))
-	dst := unsafe.Pointer(&b[4])
+	dst := unsafe.Pointer(&b[1])
 	// Each word is stored before it is checked: at a byte of 0x80 or above, the ASCII bytes before it are written.
 	if n >= 8 {
-		if hasASCIIRuns && n >= asciiLong {
-			// Out of line, so that this path makes no call (nothing kept on the stack around one).
-			w.longString(s, at)
-			return
-		}
 		// The words before the last, then the last eight bytes (over the bytes before them).
 		for i := 0; i < n-8; i += 8 {
 			word := load64(src, i)
@@ -132,26 +132,68 @@ func (w *Writer) String(s string) {
 		if cap(w.buf)-end >= 8-n {
 			store64(dst, 0, word)
 		} else {
-			copy(b[4:], s)
+			copy(b[1:], s)
 		}
 		if high := word & highBits; high != 0 {
 			w.wideString(s, at, bits.TrailingZeros64(high)>>3, word)
 			return
 		}
 	}
-	w.buf = w.buf[:at+4+n]
-	binary.LittleEndian.PutUint32(b, uint32(^int32(n)))
+	b[0] = byte(2*n + 1)
 }
 
-// longString is [Writer.String] of text of [asciiLong] bytes or more where the platform has vector instructions:
-// copied 16 bytes at a time while it is ASCII (asciiCopy), then a word at a time as in String.
+// stringRoom is the bytes reserved for the header of a string of n bytes: that of 2n, n chars of Latin-1 or UTF-16
+// (no char takes fewer bytes in UTF-8). A string of fewer chars may have a shorter header
+// ([Writer.endLongString]).
+func stringRoom(n int) int {
+	if n < 64 {
+		return 1
+	}
+	return headerSize(uint32(2 * n))
+}
+
+// endShort writes the header v of the string at at, whose size bytes of text (fewer than 64, room 1: see
+// stringRoom) were written after a byte for its header, and cuts the buffer after it. Fewer than 64 chars take a
+// one-byte header, so nothing moves; the callers test room themselves, so that this inlines.
+func (w *Writer) endShort(at, size int, v uint32) {
+	b := w.buf[:at+1+size]
+	b[at] = byte(v)
+	w.buf = b
+}
+
+// endLongString writes the header v of the string at at, whose size bytes of text were written after room bytes for
+// its header (see [stringRoom]), moving the text down when the header is shorter (fewer chars than bytes, around
+// 64 and 32,768 chars), and cuts the buffer after it. Out of line: only text of 64 bytes or more takes it.
+//
+//go:noinline
+func (w *Writer) endLongString(at, room, size int, v uint32) {
+	hs := headerSize(v)
+	b := w.buf[at : at+room+size]
+	if hs != room {
+		copy(b[hs:], b[room:])
+	}
+	w.buf = w.buf[:at+hs+size]
+	putHeader(b, v)
+}
+
+// longString is [Writer.String] of text of 64 bytes or more: its header may be longer than a byte. Where the
+// platform has vector instructions it is copied 16 bytes at a time while it is ASCII (asciiCopy), then a word at a
+// time as in String.
 //
 //go:noinline
 func (w *Writer) longString(s string, at int) {
 	n := len(s)
+	room := stringRoom(n)
+	if at+room+n > cap(w.buf) {
+		w.grow(room + n + stringSlack)
+	}
+	w.buf = w.buf[:at+room+n]
 	src := unsafe.Pointer(unsafe.StringData(s))
-	dst := unsafe.Pointer(&w.buf[at+4])
-	i := asciiCopy(dst, src, n)
+	dst := unsafe.Pointer(&w.buf[at+room])
+	i := 0
+	if hasASCIIRuns {
+		i = asciiCopy(dst, src, n)
+	}
 	for ; i < n-8; i += 8 {
 		word := load64(src, i)
 		store64(dst, i, word)
@@ -166,8 +208,7 @@ func (w *Writer) longString(s string, at int) {
 		w.wideString(s, at, n-8+bits.TrailingZeros64(high)>>3, 0)
 		return
 	}
-	w.buf = w.buf[:at+4+n]
-	binary.LittleEndian.PutUint32(w.buf[at:], uint32(^int32(n)))
+	putHeader(w.buf[at:], uint32(2*n+1))
 }
 
 // emptyString writes the empty string, or fails for a string of n bytes, more than a string's header can count.
@@ -175,54 +216,65 @@ func (w *Writer) longString(s string, at int) {
 //go:noinline
 func (w *Writer) emptyString(n int) {
 	if n == 0 {
-		w.U32(0)
+		w.U8(1)
 		return
 	}
 	w.Fail(CodeTooLarge, "string")
 }
 
-// wideString writes the string started at at (room reserved for the header and a byte a byte) from byte
-// i on, its first byte of 0x80 or above, the bytes before it ASCII and written (short is the text as a word when
+// wideString writes the string started at at (room reserved for the header, [stringRoom], and a byte a byte) from
+// byte i on, its first byte of 0x80 or above, the bytes before it ASCII and written (short is the text as a word when
 // it is fewer than eight bytes, see [textWord]): Latin-1 when every char is at most U+00FF, else UTF-16. Latin-1 is
 // written in place; at the first char above U+00FF (or byte that is not UTF-8), the Latin-1 bytes written so far are
 // widened in place to code units, and the rest of the text is written as UTF-16 after them, so no byte of the text
-// is decoded twice. The header is written last. Each count is at most len(s), which fits the header.
+// is decoded twice. The header is written last ([Writer.endShort], [Writer.endLongString]). Each count is at most len(s), which fits the
+// header.
 //
 //go:noinline
 func (w *Writer) wideString(s string, at, i int, short uint64) {
 	n := len(s)
+	room := stringRoom(n)
 	src := unsafe.Pointer(unsafe.StringData(s))
-	if useWire && cap(w.buf)-at-4 >= 2*n+wireSlack {
+	if useWire && cap(w.buf)-at-room >= 2*n+wireSlack {
 		// The vector path, where the platform has one (strings_wire_amd64.s), for UTF-8 (WTF-8) text in a buffer
 		// with room for its stores.
-		dst := unsafe.Pointer(&w.buf[at+4])
+		dst := unsafe.Pointer(&w.buf[at+room])
 		if r := wireString(dst, i, src, n); r != wireInvalid {
 			if r >= 0 {
 				j := i + r
-				w.buf = w.buf[:at+4+j]
-				binary.LittleEndian.PutUint32(w.buf[at:], uint32(^int32(j)))
+				if room == 1 {
+					w.endShort(at, j, uint32(2*j+1))
+				} else {
+					w.endLongString(at, room, j, uint32(2*j+1))
+				}
 				return
 			}
 			units := i + ^r
 			widenInPlace(dst, i)
-			w.buf = w.buf[:at+4+2*units]
-			binary.LittleEndian.PutUint32(w.buf[at:], uint32(units))
+			if room == 1 {
+				w.endShort(at, 2*units, uint32(2*units))
+			} else {
+				w.endLongString(at, room, 2*units, uint32(2*units))
+			}
 			return
 		}
 	}
 	j := i
 	if load8(src, i)&0xFE == 0xC2 {
 		// A char of U+0080 to U+00FF (or a lead of one, the rest not checked yet) first: try Latin-1.
-		i, j = latin1Into(unsafe.Pointer(&w.buf[at+4]), src, i, n)
+		i, j = latin1Into(unsafe.Pointer(&w.buf[at+room]), src, i, n)
 		if i == n {
-			w.buf = w.buf[:at+4+j]
-			binary.LittleEndian.PutUint32(w.buf[at:], uint32(^int32(j)))
+			if room == 1 {
+				w.endShort(at, j, uint32(2*j+1))
+			} else {
+				w.endLongString(at, room, j, uint32(2*j+1))
+			}
 			return
 		}
 	}
 	// Each byte left takes at most one code unit (the sum wraps only on 32-bit hosts, for text of about 2^30 bytes).
-	w.buf = w.buf[:at+4+j]
-	end := at + 4 + 2*j + 2*(n-i)
+	w.buf = w.buf[:at+room+j]
+	end := at + room + 2*j + 2*(n-i)
 	if end < at {
 		w.buf = w.buf[:at]
 		w.Fail(CodeTooLarge, "string")
@@ -232,13 +284,16 @@ func (w *Writer) wideString(s string, at, i int, short uint64) {
 		w.grow(end - len(w.buf) + stringSlack)
 	}
 	w.buf = w.buf[:end]
-	dst := unsafe.Pointer(&w.buf[at+4])
+	dst := unsafe.Pointer(&w.buf[at+room])
 	if j > 0 {
 		widenInPlace(dst, j)
 	}
-	units := utf16Into(dst, 2*j, cap(w.buf)-at-4, s, i, short)
-	w.buf = w.buf[:at+4+2*units]
-	binary.LittleEndian.PutUint32(w.buf[at:], uint32(units))
+	units := utf16Into(dst, 2*j, cap(w.buf)-at-room, s, i, short)
+	if room == 1 {
+		w.endShort(at, 2*units, uint32(2*units))
+	} else {
+		w.endLongString(at, room, 2*units, uint32(2*units))
+	}
 }
 
 // textWord returns the eight bytes of the text at src (n bytes) from i on, little-endian; fewer than eight are left

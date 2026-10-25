@@ -167,15 +167,22 @@ func TestStringsSpecExamples(t *testing.T) {
 		null bool
 		hex  string
 	}{
-		{"", true, "FFFFFFFF"},
-		{"", false, "00000000"},
-		{"abc", false, "FCFFFFFF 616263"},
-		{"é", false, "FEFFFFFF E9"},
-		{"ÿ", false, "FEFFFFFF FF"},
-		{"a中", false, "02000000 6100 2D4E"},
-		{"😀", false, "02000000 3DD8 00DE"},
-		{"\xED\xA0\x80", false, "01000000 00D8"},
-		{"a\xED\xA0\x80", false, "02000000 6100 00D8"},
+		{"", true, "00"},
+		{"", false, "01"},
+		{"abc", false, "07 616263"},
+		{"é", false, "03 E9"},
+		{"ÿ", false, "03 FF"},
+		{"a中", false, "04 6100 2D4E"},
+		{"😀", false, "04 3DD8 00DE"},
+		{"\xED\xA0\x80", false, "02 00D8"},
+		{"a\xED\xA0\x80", false, "04 6100 00D8"},
+		{strings.Repeat("a", 63), false, "7F" + strings.Repeat("61", 63)},
+		{strings.Repeat("a", 64), false, "808100" + strings.Repeat("61", 64)},
+		{strings.Repeat("é", 64), false, "808100" + strings.Repeat("E9", 64)},
+		{strings.Repeat("中", 64), false, "808000" + strings.Repeat("2D4E", 64)},
+		{strings.Repeat("a", 32767), false, "80FFFF" + strings.Repeat("61", 32767)},
+		{strings.Repeat("a", 32768), false, "8101000100" + strings.Repeat("61", 32768)},
+		{strings.Repeat("中", 63), false, "7E" + strings.Repeat("2D4E", 63)},
 	}
 	for _, c := range cases {
 		got := encode(t, func(w *Writer) { w.NullableString(c.text, !c.null) })
@@ -190,7 +197,7 @@ func TestStringsSpecExamples(t *testing.T) {
 
 func TestStringSurrogates(t *testing.T) {
 	// A lone low surrogate, a pair, a lone high surrogate at the end: kept as code units and as WTF-8.
-	data := hx("04000000 00DC 3DD8 00DE 00D8")
+	data := hx("08 00DC 3DD8 00DE 00D8")
 	r := NewReader(data)
 	s := r.String()
 	if s != "\xED\xB0\x80😀\xED\xA0\x80" {
@@ -209,11 +216,11 @@ func TestStringSurrogates(t *testing.T) {
 		t.Fatalf("UTF16 round trip %X", got)
 	}
 	// Invalid UTF-8 in a Go string is written as U+FFFD.
-	expectBytes(t, encode(t, func(w *Writer) { w.String("a\xFF") }), "02000000 6100 FDFF")
+	expectBytes(t, encode(t, func(w *Writer) { w.String("a\xFF") }), "04 6100 FDFF")
 	// UTF16 with Latin-1 units narrows.
 	expectBytes(t, encode(t, func(w *Writer) { w.UTF16([]uint16{'a', 0xE9}); w.UTF16(nil); w.UTF16([]uint16{}) }),
-		"FDFFFFFF 61E9 FFFFFFFF 00000000")
-	r = NewReader(hx("FDFFFFFF 61E9 00000000 FFFFFFFF"))
+		"05 61E9 00 01")
+	r = NewReader(hx("05 61E9 01 00"))
 	if u := r.UTF16(); len(u) != 2 || u[1] != 0xE9 {
 		t.Fatal("UTF16 Latin-1")
 	}
@@ -232,7 +239,7 @@ func TestStringLatin1Long(t *testing.T) {
 	}
 	s := sb.String()
 	got := encode(t, func(w *Writer) { w.String(s) })
-	if len(got) != 1004 {
+	if len(got) != 1003 {
 		t.Fatalf("Latin-1 expected, %d bytes", len(got))
 	}
 	if NewReader(got).String() != s {
@@ -241,11 +248,22 @@ func TestStringLatin1Long(t *testing.T) {
 }
 
 func TestStringErrors(t *testing.T) {
-	expectCode(t, hx("FDFFFFFF 61"), CodeEndOfData, func(r *Reader) { _ = r.String() })
-	expectCode(t, hx("00000080"), CodeEndOfData, func(r *Reader) { _ = r.String() })
-	expectCode(t, hx("02000000 6100"), CodeEndOfData, func(r *Reader) { _ = r.String() })
-	expectCode(t, hx("FFFFFF7F"), CodeEndOfData, func(r *Reader) { _ = r.String() })
-	expectCode(t, hx("FFFFFF7F"), CodeEndOfData, func(r *Reader) { r.UTF16() })
+	expectCode(t, hx("05 61"), CodeEndOfData, func(r *Reader) { _ = r.String() })
+	expectCode(t, hx("81FFFFFFFF"), CodeEndOfData, func(r *Reader) { _ = r.String() })
+	expectCode(t, hx("04 6100"), CodeEndOfData, func(r *Reader) { _ = r.String() })
+	expectCode(t, hx("81FEFFFFFF"), CodeEndOfData, func(r *Reader) { _ = r.String() })
+	expectCode(t, hx("81FEFFFFFF"), CodeEndOfData, func(r *Reader) { r.UTF16() })
+	expectCode(t, hx(""), CodeEndOfData, func(r *Reader) { _ = r.String() })
+	expectCode(t, hx("80"), CodeEndOfData, func(r *Reader) { _ = r.String() })
+	expectCode(t, hx("8080"), CodeEndOfData, func(r *Reader) { _ = r.String() })
+	expectCode(t, hx("81FFFFFF"), CodeEndOfData, func(r *Reader) { _ = r.String() })
+	expectCode(t, hx("808100 61"), CodeEndOfData, func(r *Reader) { _ = r.String() })
+	// Not minimal, or a first byte no header starts with.
+	for _, h := range []string{"800000", "800700 616263", "807F00", "8100000000", "81FFFF0000", "82", "8200000000",
+		"FFFFFFFF0F"} {
+		expectCode(t, hx(h), CodeInvalidData, func(r *Reader) { _ = r.String() })
+		expectCode(t, hx(h), CodeInvalidData, func(r *Reader) { r.UTF16() })
+	}
 }
 
 func TestUtf8Strings(t *testing.T) {
@@ -254,10 +272,13 @@ func TestUtf8Strings(t *testing.T) {
 		null bool
 		hex  string
 	}{
-		{"", true, "FFFFFFFF"},
-		{"", false, "00000000"},
-		{"abc", false, "03000000 03000000 616263"},
-		{"é😀", false, "03000000 06000000 C3A9F09F9880"},
+		{"", true, "00"},
+		{"", false, "01"},
+		{"abc", false, "04 03 616263"},
+		{"é😀", false, "04 06 C3A9F09F9880"},
+		{strings.Repeat("a", 126), false, "7F 7E" + strings.Repeat("61", 126)},
+		{strings.Repeat("a", 127), false, "808000 7F" + strings.Repeat("61", 127)},
+		{strings.Repeat("中", 43), false, "2C 808100" + strings.Repeat("E4B8AD", 43)},
 	}
 	for _, c := range cases {
 		got := encode(t, func(w *Writer) { w.NullableUTF8(c.text, !c.null) })
@@ -269,30 +290,38 @@ func TestUtf8Strings(t *testing.T) {
 		}
 	}
 	// An unpaired surrogate (WTF-8) and invalid UTF-8 are written as U+FFFD.
-	expectBytes(t, encode(t, func(w *Writer) { w.UTF8("a\xED\xA0\x80") }), "02000000 04000000 61EFBFBD")
-	expectBytes(t, encode(t, func(w *Writer) { w.UTF8("a\xFF") }), "02000000 04000000 61EFBFBD")
+	expectBytes(t, encode(t, func(w *Writer) { w.UTF8("a\xED\xA0\x80") }), "03 04 61EFBFBD")
+	expectBytes(t, encode(t, func(w *Writer) { w.UTF8("a\xFF") }), "03 04 61EFBFBD")
 }
 
 func TestUtf8Errors(t *testing.T) {
 	bad := map[string]string{
-		"overlong":           "01000000 02000000 C081",
-		"encoded surrogate":  "01000000 03000000 EDA080",
-		"past U+10FFFF":      "02000000 04000000 F4908080",
-		"cut sequence":       "01000000 02000000 E282",
-		"too many chars":     "01000000 02000000 6162",
-		"too few chars":      "03000000 03000000 61C3A9",
-		"bytes below chars":  "03000000 02000000 6162",
-		"non-ASCII as ASCII": "02000000 02000000 61E9",
+		"overlong":           "02 02 C081",
+		"encoded surrogate":  "02 03 EDA080",
+		"past U+10FFFF":      "03 04 F4908080",
+		"cut sequence":       "02 02 E282",
+		"too many chars":     "02 02 6162",
+		"too few chars":      "04 03 61C3A9",
+		"bytes below chars":  "04 02 6162",
+		"non-ASCII as ASCII": "03 02 61E9",
+		"count not minimal":  "800200 01 61",
+		"size not minimal":   "02 800100 61",
+		"size not minimal 5": "02 8101000000 61",
+		"count past 2^31-1":  "8101000080 01 61",
+		"size past 2^31-1":   "02 8100000080 61",
+		"size bad marker":    "02 82 61",
+		"count bad marker":   "FF 01 61",
 	}
 	for name, h := range bad {
 		t.Run(name, func(t *testing.T) {
 			expectCode(t, hx(h), CodeInvalidData, func(r *Reader) { r.UTF8() })
 		})
 	}
-	expectCode(t, hx("FEFFFFFF"), CodeInvalidLength, func(r *Reader) { r.UTF8() })
-	expectCode(t, hx("01000000 05000000 61"), CodeEndOfData, func(r *Reader) { r.UTF8() })
-	expectCode(t, hx("01000000 FFFFFFFF 61"), CodeEndOfData, func(r *Reader) { r.UTF8() })
-	expectCode(t, hx("01000000"), CodeEndOfData, func(r *Reader) { r.UTF8() })
+	expectCode(t, hx("02 05 61"), CodeEndOfData, func(r *Reader) { r.UTF8() })
+	expectCode(t, hx("02 81FFFFFF0F 61"), CodeEndOfData, func(r *Reader) { r.UTF8() })
+	expectCode(t, hx("02"), CodeEndOfData, func(r *Reader) { r.UTF8() })
+	expectCode(t, hx("80"), CodeEndOfData, func(r *Reader) { r.UTF8() })
+	expectCode(t, hx("02 8105"), CodeEndOfData, func(r *Reader) { r.UTF8() })
 }
 
 func TestDecimal(t *testing.T) {
@@ -535,18 +564,18 @@ func TestCollections(t *testing.T) {
 	strs := []string{"a", "", "中"}
 	got := encode(t, func(w *Writer) { WriteSlice(w, strs, (*Writer).String) })
 	r := NewReader(got)
-	back := ReadSlice(r, 4, (*Reader).String)
+	back := ReadSlice(r, 1, (*Reader).String)
 	if len(back) != 3 || back[2] != "中" || r.Err() != nil {
 		t.Fatal(back)
 	}
 	expectBytes(t, encode(t, func(w *Writer) {
 		WriteEntries(w, []Entry[int32, string]{{1, "a"}}, (*Writer).I32, (*Writer).String)
-	}), "01000000 01000000 FEFFFFFF61")
-	m := ReadMap(NewReader(hx("02000000 01000000 FEFFFFFF61 02000000 00000000")), 5, (*Reader).I32, (*Reader).String)
+	}), "01000000 01000000 0361")
+	m := ReadMap(NewReader(hx("02000000 01000000 0361 02000000 01")), 5, (*Reader).I32, (*Reader).String)
 	if len(m) != 2 || m[1] != "a" || m[2] != "" {
 		t.Fatal(m)
 	}
-	expectCode(t, hx("02000000 01000000 FEFFFFFF61 01000000 00000000"), CodeDuplicateKey, func(r *Reader) {
+	expectCode(t, hx("02000000 01000000 0361 01000000 01"), CodeDuplicateKey, func(r *Reader) {
 		ReadMap(r, 5, (*Reader).I32, (*Reader).String)
 	})
 	expectCode(t, hx("02000000 01000000 01000000"), CodeDuplicateKey, func(r *Reader) { ReadSet(r, 4, (*Reader).I32) })
@@ -565,8 +594,8 @@ func TestCollections(t *testing.T) {
 		t.Fatalf("%X", got)
 	}
 	// An element that fails ends the read with no result.
-	r = NewReader(hx("02000000 FEFFFFFF61 FEFFFFFF"))
-	if ReadSlice(r, 4, (*Reader).String) != nil || r.Err() == nil {
+	r = NewReader(hx("02000000 0361 03"))
+	if ReadSlice(r, 1, (*Reader).String) != nil || r.Err() == nil {
 		t.Fatal("partial result")
 	}
 }
@@ -735,7 +764,7 @@ func TestSerializeAPI(t *testing.T) {
 	}
 	dst := make([]byte, 0, 16)
 	out, err := Append(dst, "ab", (*Writer).String)
-	if err != nil || !bytes.Equal(out, hx("FDFFFFFF 6162")) || &out[0] != &dst[:1][0] {
+	if err != nil || !bytes.Equal(out, hx("05 6162")) || &out[0] != &dst[:1][0] {
 		t.Fatal(out, err)
 	}
 	if out, err := Append(dst, DateTimeOffset{OffsetMinutes: 2000}, (*Writer).DateTimeOffset); err == nil || len(out) != 0 {

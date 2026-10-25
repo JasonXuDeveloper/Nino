@@ -298,7 +298,7 @@ func BenchmarkStringTiers(b *testing.B) {
 			setReadTier(tier)
 			for range b.N {
 				r := NewReader(data)
-				ReadSlice(r, 4, (*Reader).String)
+				ReadSlice(r, 1, (*Reader).String)
 			}
 		})
 	}

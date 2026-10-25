@@ -3,7 +3,7 @@ package nino
 // Constants of the wire format (Nino.Core's NinoWire and NinoDepth). Every multi-byte value is little-endian and
 // unaligned; there is no header, so the declared type decides how the bytes are read.
 const (
-	// NullLength is the length of a null string, array or collection.
+	// NullLength is the length of a null array or collection (a null string is the header 0).
 	NullLength = -1
 	// NullTypeID is the type id of a null polymorphic value; never a real type id.
 	NullTypeID = 0

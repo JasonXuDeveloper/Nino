@@ -40,7 +40,7 @@ func WriteIntMap(w *nino.Writer, v []nino.Entry[int32, int32]) {
 }
 
 func ReadStringIntMap(r *nino.Reader) []nino.Entry[string, int32] {
-	return nino.ReadUniqueEntries(r, 8, keyString, (*nino.Reader).I32)
+	return nino.ReadUniqueEntries(r, 5, keyString, (*nino.Reader).I32)
 }
 
 func WriteStringIntMap(w *nino.Writer, v []nino.Entry[string, int32]) {

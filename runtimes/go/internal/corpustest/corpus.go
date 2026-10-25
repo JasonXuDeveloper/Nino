@@ -131,8 +131,8 @@ func LoadIndex(t testing.TB, dir string) Index {
 	t.Helper()
 	var ix Index
 	ReadJSON(t, filepath.Join(dir, "index.json"), &ix)
-	if ix.CorpusVersion != 1 {
-		t.Fatalf("corpus version %d: this test reads version 1", ix.CorpusVersion)
+	if ix.CorpusVersion != 2 {
+		t.Fatalf("corpus version %d: this test reads version 2", ix.CorpusVersion)
 	}
 	return ix
 }

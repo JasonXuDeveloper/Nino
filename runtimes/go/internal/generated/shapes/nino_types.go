@@ -166,24 +166,24 @@ func init() {
 	codecV0 = BoxCodec(NinoArg[int64]{Read: (*nino.Reader).I64, Write: (*nino.Writer).I64, MinSize: 8})
 	codecV1 = KeysCodec(codecV0)
 	codecV2 = BoxCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
-	codecV3 = BoxCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
-	codecV4 = PairCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4}, NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+	codecV3 = BoxCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 1})
+	codecV4 = PairCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4}, NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 1})
 	codecV5 = BoxCodec(codecV2)
-	codecV6 = PairCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4}, NinoArg[Gappy]{Read: readGappy, Write: writeGappy, MinSize: 8})
+	codecV6 = PairCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 1}, NinoArg[Gappy]{Read: readGappy, Write: writeGappy, MinSize: 8})
 	codecV7 = BoxCodec(codecV6)
 	codecV8 = BagCodec(codecV0)
-	codecV9 = NodeCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+	codecV9 = NodeCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 1})
 	codecV10 = BoxCodec(NinoArg[IThing]{Read: ReadIThing, Write: WriteIThing, MinSize: 4})
 	codecV11 = BoxCodec(NinoArg[[]int32]{Read: nino.ReadPrimitives[int32], Write: nino.WritePrimitives[int32], MinSize: 4})
 	codecV12 = PairCodec(codecV2, NinoArg[[]nino.Entry[int32, *string]]{Read: readV2, Write: writeV3, MinSize: 4})
 	codecV13 = PairCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4}, NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
 	codecV14 = RawPairCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
-	codecV15 = BoxCodec(NinoArg[NinoTuple2[int32, *string]]{Read: readV4, Write: writeV5, MinSize: 8})
+	codecV15 = BoxCodec(NinoArg[NinoTuple2[int32, *string]]{Read: readV4, Write: writeV5, MinSize: 5})
 	codecV16 = BoxCodec(NinoArg[*int32]{Read: readV6, Write: writeV7, MinSize: 1})
-	codecV17 = BoxCodec(NinoArg[nino.Entry[int32, *string]]{Read: readV8, Write: writeV9, MinSize: 8})
+	codecV17 = BoxCodec(NinoArg[nino.Entry[int32, *string]]{Read: readV8, Write: writeV9, MinSize: 5})
 	codecV18 = BoxCodec(NinoArg[[]*string]{Read: readV10, Write: writeV11, MinSize: 4})
 	codecV19 = KeysCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
-	codecV20 = KeysCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+	codecV20 = KeysCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 1})
 	codecV21 = OpenHolderCodec(NinoArg[int64]{Read: (*nino.Reader).I64, Write: (*nino.Writer).I64, MinSize: 8}, NinoArg[OpenType[int64]]{Read: readSlot1, Write: writeSlot1, MinSize: 4})
 	typeV0 = newMoreOpenCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
 	typeV1 = newMoreOpenCodec(NinoArg[int64]{Read: (*nino.Reader).I64, Write: (*nino.Writer).I64, MinSize: 8})
@@ -293,7 +293,7 @@ func (c *bagCodec[T]) writeD0(w *nino.Writer, v []T) {
 }
 
 func (c *bagCodec[T]) readD1(r *nino.Reader) []nino.Entry[string, T] {
-	return nino.ReadUniqueEntries(r, 4+c.p0.MinSize, keyString, c.p0.Read)
+	return nino.ReadUniqueEntries(r, 1+c.p0.MinSize, keyString, c.p0.Read)
 }
 
 func (c *bagCodec[T]) writeD1(w *nino.Writer, v []nino.Entry[string, T]) {
@@ -1595,7 +1595,7 @@ func writeV1(w *nino.Writer, v []Forest) {
 }
 
 func readV2(r *nino.Reader) []nino.Entry[int32, *string] {
-	return nino.ReadUniqueEntries(r, 8, (*nino.Reader).I32, (*nino.Reader).StringPtr)
+	return nino.ReadUniqueEntries(r, 5, (*nino.Reader).I32, (*nino.Reader).StringPtr)
 }
 
 func writeV3(w *nino.Writer, v []nino.Entry[int32, *string]) {
@@ -1642,7 +1642,7 @@ func writeV9(w *nino.Writer, v nino.Entry[int32, *string]) {
 }
 
 func readV10(r *nino.Reader) []*string {
-	v := nino.ReadSlice(r, 4, (*nino.Reader).StringPtr)
+	v := nino.ReadSlice(r, 1, (*nino.Reader).StringPtr)
 	if v == nil {
 		return nil
 	}
@@ -1724,7 +1724,7 @@ func readV24(r *nino.Reader) []*Box[int32] {
 }
 
 func readV25(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
-	return nino.ReadUniqueEntries(r, 4, keyString, codecV13.Read)
+	return nino.ReadUniqueEntries(r, 1, keyString, codecV13.Read)
 }
 
 func writeV26(w *nino.Writer, v []*Box[int32]) {

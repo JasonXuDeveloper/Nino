@@ -525,10 +525,10 @@ next:
 
 	// nil: the null string.
 	MOVQ 16(SP), DI
-	LEAQ 4(DI), AX
+	LEAQ 1(DI), AX
 	CMPQ AX, 24(SP)
 	JA   finish
-	MOVL $0xffffffff, (DI)
+	MOVB $0x00, (DI)
 	MOVQ AX, 16(SP)
 	INCQ R14
 	JMP  next
@@ -543,10 +543,10 @@ header:
 	MOVQ  16(SP), DI
 	TESTQ BX, BX
 	JNZ   text
-	LEAQ  4(DI), AX
+	LEAQ  1(DI), AX
 	CMPQ  AX, 24(SP)
 	JA    finish
-	MOVL  $0x00000000, (DI)
+	MOVB  $0x01, (DI)
 	MOVQ  AX, 16(SP)
 	INCQ  R14
 	JMP   next
@@ -554,10 +554,10 @@ header:
 text:
 	CMPQ  BX, $const_wireMaxText
 	JAE   finish
-	LEAQ  const_wireSlack+4(DI)(BX*2), AX
+	LEAQ  const_wireSlack+1(DI)(BX*2), AX
 	CMPQ  AX, 24(SP)
 	JA    finish
-	ADDQ  $0x04, DI
+	INCQ  DI
 	MOVQ  DI, 8(SP)
 	MOVQ  DI, (SP)
 	XORQ  DX, DX
@@ -911,18 +911,21 @@ done:
 	JEQ   finish
 	TESTQ AX, AX
 	JS    store16
-	MOVL  AX, CX
-	NOTL  CX
-	MOVL  CX, (DI)
-	LEAQ  4(DI)(AX*1), DI
-	MOVQ  DI, 16(SP)
-	INCQ  R14
-	JMP   next
+
+	// Latin-1: the header 2n+1.
+	LEAL 1(AX)(AX*1), CX
+	MOVB CL, (DI)
+	LEAQ 1(DI)(AX*1), DI
+	MOVQ DI, 16(SP)
+	INCQ R14
+	JMP  next
 
 store16:
+	// UTF-16: the header 2n.
 	NOTQ AX
-	MOVL AX, (DI)
-	LEAQ 4(DI)(AX*2), DI
+	LEAL (AX)(AX*1), CX
+	MOVB CL, (DI)
+	LEAQ 1(DI)(AX*2), DI
 	MOVQ DI, 16(SP)
 	INCQ R14
 	JMP  next
@@ -1225,10 +1228,10 @@ next:
 
 	// nil: the null string.
 	MOVQ 16(SP), DI
-	LEAQ 4(DI), AX
+	LEAQ 1(DI), AX
 	CMPQ AX, 24(SP)
 	JA   finish
-	MOVL $0xffffffff, (DI)
+	MOVB $0x00, (DI)
 	MOVQ AX, 16(SP)
 	INCQ R14
 	JMP  next
@@ -1243,10 +1246,10 @@ header:
 	MOVQ  16(SP), DI
 	TESTQ BX, BX
 	JNZ   text
-	LEAQ  4(DI), AX
+	LEAQ  1(DI), AX
 	CMPQ  AX, 24(SP)
 	JA    finish
-	MOVL  $0x00000000, (DI)
+	MOVB  $0x01, (DI)
 	MOVQ  AX, 16(SP)
 	INCQ  R14
 	JMP   next
@@ -1254,10 +1257,10 @@ header:
 text:
 	CMPQ  BX, $const_wireMaxText
 	JAE   finish
-	LEAQ  const_wireSlack+4(DI)(BX*2), AX
+	LEAQ  const_wireSlack+1(DI)(BX*2), AX
 	CMPQ  AX, 24(SP)
 	JA    finish
-	ADDQ  $0x04, DI
+	INCQ  DI
 	MOVQ  DI, 8(SP)
 	MOVQ  DI, (SP)
 	XORQ  DX, DX
@@ -1505,18 +1508,21 @@ done:
 	JEQ   finish
 	TESTQ AX, AX
 	JS    store16
-	MOVL  AX, CX
-	NOTL  CX
-	MOVL  CX, (DI)
-	LEAQ  4(DI)(AX*1), DI
-	MOVQ  DI, 16(SP)
-	INCQ  R14
-	JMP   next
+
+	// Latin-1: the header 2n+1.
+	LEAL 1(AX)(AX*1), CX
+	MOVB CL, (DI)
+	LEAQ 1(DI)(AX*1), DI
+	MOVQ DI, 16(SP)
+	INCQ R14
+	JMP  next
 
 store16:
+	// UTF-16: the header 2n.
 	NOTQ AX
-	MOVL AX, (DI)
-	LEAQ 4(DI)(AX*2), DI
+	LEAL (AX)(AX*1), CX
+	MOVB CL, (DI)
+	LEAQ 1(DI)(AX*2), DI
 	MOVQ DI, 16(SP)
 	INCQ R14
 	JMP  next
@@ -2471,10 +2477,10 @@ next:
 
 	// nil: the null string.
 	MOVQ 16(SP), DI
-	LEAQ 4(DI), AX
+	LEAQ 1(DI), AX
 	CMPQ AX, 24(SP)
 	JA   finish
-	MOVL $0xffffffff, (DI)
+	MOVB $0x00, (DI)
 	MOVQ AX, 16(SP)
 	INCQ R14
 	JMP  next
@@ -2489,10 +2495,10 @@ header:
 	MOVQ  16(SP), DI
 	TESTQ BX, BX
 	JNZ   text
-	LEAQ  4(DI), AX
+	LEAQ  1(DI), AX
 	CMPQ  AX, 24(SP)
 	JA    finish
-	MOVL  $0x00000000, (DI)
+	MOVB  $0x01, (DI)
 	MOVQ  AX, 16(SP)
 	INCQ  R14
 	JMP   next
@@ -2500,10 +2506,10 @@ header:
 text:
 	CMPQ BX, $const_wireMaxText
 	JAE  finish
-	LEAQ const_wireSlack+4(DI)(BX*2), AX
+	LEAQ const_wireSlack+1(DI)(BX*2), AX
 	CMPQ AX, 24(SP)
 	JA   finish
-	ADDQ $0x04, DI
+	INCQ DI
 	MOVQ DI, 8(SP)
 	MOVQ DI, (SP)
 	XORQ DX, DX
@@ -2891,18 +2897,21 @@ done:
 	JEQ   finish
 	TESTQ AX, AX
 	JS    store16
-	MOVL  AX, CX
-	NOTL  CX
-	MOVL  CX, (DI)
-	LEAQ  4(DI)(AX*1), DI
-	MOVQ  DI, 16(SP)
-	INCQ  R14
-	JMP   next
+
+	// Latin-1: the header 2n+1.
+	LEAL 1(AX)(AX*1), CX
+	MOVB CL, (DI)
+	LEAQ 1(DI)(AX*1), DI
+	MOVQ DI, 16(SP)
+	INCQ R14
+	JMP  next
 
 store16:
+	// UTF-16: the header 2n.
 	NOTQ AX
-	MOVL AX, (DI)
-	LEAQ 4(DI)(AX*2), DI
+	LEAL (AX)(AX*1), CX
+	MOVB CL, (DI)
+	LEAQ 1(DI)(AX*2), DI
 	MOVQ DI, 16(SP)
 	INCQ R14
 	JMP  next

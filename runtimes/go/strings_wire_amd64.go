@@ -19,8 +19,8 @@ import "unsafe"
 func wireStringAVX2(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int
 
 // wireStringsAVX2 writes strings from strs (count of them: strings, or pointers to them when ptrs, nil the null
-// string) at dst (room bytes), each with its header, while each has room for 4+2*len+wireSlack bytes and is WTF-8 of fewer
-// than wireMaxText bytes; it returns how many it wrote and the bytes they took.
+// string) at dst (room bytes), each with its one-byte header, while each has room for 1+2*len+wireSlack bytes and is WTF-8
+// of fewer than wireMaxText (64) bytes; it returns how many it wrote and the bytes they took.
 //
 //go:noescape
 func wireStringsAVX2(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)

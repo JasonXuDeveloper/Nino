@@ -287,7 +287,9 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
   macOS, AVX-512 is detected through sysctl as golang.org/x/sys/cpu does, from macOS 12.2 on):
   WTF-8 validation, Latin-1 or UTF-16 chosen and written in one pass, with the Go loops taking over for text that is
   not WTF-8. `WriteStrings` and `WriteStringPtrs` (what generated code calls for a `string[]` or `List<string>`) write
-  a whole list in one call into it. Reading Latin-1 and UTF-16 into UTF-8 has kernels too (NEON; SSSE3 and AVX-512
+  a whole list in one call into it (strings of fewer than 64 bytes, whose header is one byte; a longer one goes
+  through the single-string kernel, which reserves the header its byte length could need and moves the text down
+  when the header is shorter). Reading Latin-1 and UTF-16 into UTF-8 has kernels too (NEON; SSSE3 and AVX-512
   with VBMI). The kernels read past the text only within its page. The `purego` build tag, x64 without SSSE3 and every
   other platform use the Go loops (whose long runs of ASCII are copied or widened 16 bytes at a time with SSE2 or
   NEON): the same bytes, which the tests compare with every kernel the machine has (lengths 0 to 256, every kind of

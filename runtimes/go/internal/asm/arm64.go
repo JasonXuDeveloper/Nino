@@ -840,8 +840,8 @@ const manyNEON = `
 // func wireStringsNEON(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)
 //
 // It writes strings from strs (count of them: strings, or pointers to them when ptrs, nil the null string) at dst
-// (room bytes), each with its header, while each has room for 4+2*len+wireSlack bytes and is WTF-8 of fewer than
-// wireMaxText bytes; it returns how many it wrote and the bytes they took.
+// (room bytes), each with its one-byte header, while each has room for 1+2*len+wireSlack bytes and is WTF-8 of fewer
+// than wireMaxText (64) bytes, so of at most 63 chars; it returns how many it wrote and the bytes they took.
 TEXT ·wireStringsNEON(SB), NOSPLIT, $0-56
 	MOVD    dst+0(FP), R15           // where the next string goes
 	MOVD    room+8(FP), R16
@@ -860,11 +860,10 @@ mnext:
 	MOVD    (R9)(R14<<3), R9
 	CBNZ    R9, mheader
 	// nil: the null string.
-	ADD     $4, R15, R10
+	ADD     $1, R15, R10
 	CMP     R16, R10
 	BHI     mfinish
-	MOVW    $-1, R11
-	MOVW    R11, (R15)
+	MOVB    ZR, (R15)
 	MOVD    R10, R15
 	ADD     $1, R14
 	B       mnext
@@ -876,10 +875,11 @@ mheader:
 	MOVD    (R9), R1
 	MOVD    8(R9), R2
 	CBNZ    R2, mtext
-	ADD     $4, R15, R10
+	ADD     $1, R15, R10
 	CMP     R16, R10
 	BHI     mfinish
-	MOVW    ZR, (R15)
+	MOVD    $1, R11
+	MOVB    R11, (R15)
 	MOVD    R10, R15
 	ADD     $1, R14
 	B       mnext
@@ -889,10 +889,10 @@ mtext:
 	CMP     R10, R2
 	BHS     mfinish
 	ADD     R2<<1, R15, R10
-	ADD     $(4+const_wireSlack), R10
+	ADD     $(1+const_wireSlack), R10
 	CMP     R16, R10
 	BHI     mfinish
-	ADD     $4, R15, R4
+	ADD     $1, R15, R4
 	MOVD    R4, R5
 `
 
@@ -902,18 +902,21 @@ mdone:
 	CMP     R8, R7
 	BEQ     mfinish
 	TBNZ    $63, R7, mstore16
-	MVN     R7, R8
-	MOVW    R8, (R15)
-	ADD     $4, R7, R7
-	ADD     R7, R15, R15
+	// Latin-1: the header 2n+1, as (n+1)+n, n+1 also the bytes the string took.
+	ADD     $1, R7, R8
+	ADD     R7, R8, R11
+	MOVB    R11, (R15)
+	ADD     R8, R15, R15
 	ADD     $1, R14
 	B       mnext
 
 mstore16:
+	// UTF-16: the header 2n.
 	MVN     R7, R7
-	MOVW    R7, (R15)
+	LSL     $1, R7, R8
+	MOVB    R8, (R15)
 	ADD     R7<<1, R15, R15
-	ADD     $4, R15
+	ADD     $1, R15
 	ADD     $1, R14
 	B       mnext
 
@@ -927,8 +930,8 @@ mfinish:
 
 // writersNEON are wireStringNEON and wireStringsNEON.
 func writersNEON() string {
-	return singleNEON + setupNEON + kernelNEON("s") + singleNEONEnd +
-		manyNEON + setupNEON + manyNEONLoop + kernelNEON("m") + manyNEONEnd
+	many := manyNEON + setupNEON + manyNEONLoop + kernelNEON("m") + manyNEONEnd
+	return singleNEON + setupNEON + kernelNEON("s") + singleNEONEnd + many
 }
 
 // sub replaces each {key} in s with its value (pairs of key and value).

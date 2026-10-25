@@ -140,7 +140,7 @@ func (b *builder) fill(c *codec, variant uint8) error {
 	case reflect.Int, reflect.Uint, reflect.Uintptr:
 		return typeErr(t, "%s has no fixed size: use int32 or int64 (uint32 or uint64)", t.Kind())
 	case reflect.String:
-		c.kind, c.min, c.utf8 = kString, 4, variant == variantUTF8
+		c.kind, c.min, c.utf8 = kString, 1, variant == variantUTF8
 		if c.utf8 {
 			c.read = func(r *Reader, v reflect.Value) { v.SetString(r.UTF8()) }
 			c.write = func(w *Writer, v reflect.Value) { w.UTF8(v.String()) }
@@ -273,7 +273,7 @@ func (b *builder) pointer(c *codec, variant uint8) error {
 	et := t.Elem()
 	switch {
 	case et.Kind() == reflect.String:
-		c.kind, c.min, c.utf8 = kStringPtr, 4, variant == variantUTF8
+		c.kind, c.min, c.utf8 = kStringPtr, 1, variant == variantUTF8
 		utf8 := c.utf8
 		c.read = func(r *Reader, v reflect.Value) {
 			var s string

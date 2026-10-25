@@ -11,7 +11,7 @@ import (
 // successfully must write back to bytes that read to the same value.
 func FuzzReader(f *testing.F) {
 	f.Add([]byte{0, 1, 2, 3}, []byte("\x01\x02\x00\x00\x00abc"))
-	f.Add([]byte{4, 5, 6}, hx("FEFFFFFF61 03000000 0400000061626364"))
+	f.Add([]byte{4, 5, 6}, hx("0361 03000000 0400000061626364"))
 	f.Add([]byte{7, 8, 9, 10}, hx("0A000080 01000000 00 00000000 00000000"))
 	f.Add([]byte{11, 12, 13, 14, 15}, hx("02000000 FF00 01000000 02000000 03000000 0400000005000000"))
 	f.Add([]byte{16, 17, 18, 19}, hx("01000000 07 01 0000 D00102030405060708090A0B0C0D0E0F"))
