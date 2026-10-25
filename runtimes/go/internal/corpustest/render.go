@@ -1,4 +1,4 @@
-package sample
+package corpustest
 
 import (
 	"encoding/hex"
@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/big"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -17,7 +18,26 @@ import (
 // render converts a decoded value to the corpus's lossless JSON (conformance/README.md, Json.cs), as the values
 // encoding/json decodes with UseNumber: nil, bool, string, json.Number, []any, map[string]any. Test code: it uses
 // reflection, which the runtime and the codecs do not.
-func render(v any) any { return renderValue(reflect.ValueOf(v)) }
+//
+// A struct is a class or struct of the corpus, named by its NinoTypeName method (generated code) or else
+// "Conformance." and its Go name (internal/sample), except for the generic pairs and grids both packages declare:
+// nino.Entry, Tuple2 or NinoTuple2 render as an array of their items, Grid or NinoGrid as {lengths, items}.
+//
+// An object of a tracked type is {"$id": n, ...} where it is first met (depth first, members in order: the order the
+// corpus numbers them) and {"$ref": n} after.
+func Render(v any) any {
+	renderIDs = map[any]int{}
+	return renderValue(reflect.ValueOf(v))
+}
+
+// renderIDs numbers the tracked objects Render has met.
+var renderIDs map[any]int
+
+// tracked reports whether the struct a pointer points to is of a type that tracks references.
+func tracked(v reflect.Value) bool {
+	named, ok := v.Interface().(interface{ NinoLayout() string })
+	return ok && v.Elem().Kind() == reflect.Struct && strings.Contains(named.NinoLayout(), "trackReferences=true")
+}
 
 var (
 	tBytes    = reflect.TypeOf([]byte(nil))
@@ -117,6 +137,17 @@ func renderValue(v reflect.Value) any {
 		if v.IsNil() {
 			return nil
 		}
+		if t.Kind() == reflect.Pointer && tracked(v) {
+			key := v.Interface()
+			if n, ok := renderIDs[key]; ok {
+				return map[string]any{"$ref": num(int64(n))}
+			}
+			n := len(renderIDs) + 1
+			renderIDs[key] = n
+			out := renderValue(v.Elem()).(map[string]any)
+			out["$id"] = num(int64(n))
+			return out
+		}
 		return renderValue(v.Elem())
 	case reflect.Slice:
 		if v.IsNil() {
@@ -130,22 +161,37 @@ func renderValue(v reflect.Value) any {
 	case reflect.Struct:
 		name := t.Name()
 		switch {
-		case strings.HasPrefix(name, "Entry["), strings.HasPrefix(name, "Tuple2["):
+		case strings.HasPrefix(name, "Entry["), strings.HasPrefix(name, "Tuple2["), strings.HasPrefix(name, "NinoTuple2["):
 			out := make([]any, t.NumField())
 			for i := range out {
 				out[i] = renderValue(v.Field(i))
 			}
 			return out
-		case strings.HasPrefix(name, "Grid["):
+		case strings.HasPrefix(name, "Grid["), strings.HasPrefix(name, "NinoGrid["):
 			lengths := v.FieldByName("Lengths")
 			return map[string]any{
 				"lengths": []any{num(lengths.Index(0).Int()), num(lengths.Index(1).Int())},
 				"items":   renderValue(v.FieldByName("Items")),
 			}
 		}
-		out := map[string]any{"$type": dotnetName(t)}
+		out := map[string]any{"$type": dotnetName(v)}
 		for i := 0; i < t.NumField(); i++ {
-			out[t.Field(i).Name] = renderValue(v.Field(i))
+			f := v.Field(i)
+			if f.Type() == tBytes && !f.IsNil() && !declaredAsArray(v, t.Field(i).Name) {
+				// A List<byte> is a []byte too: the corpus writes it as a list of numbers.
+				items := make([]any, f.Len())
+				for j := range items {
+					items[j] = num(int64(f.Index(j).Uint()))
+				}
+				out[t.Field(i).Name] = items
+				continue
+			}
+			name := t.Field(i).Name
+			if t.Field(i).Tag.Get("nino") == "-" {
+				// A [NinoType] collection's elements.
+				name = "$elements"
+			}
+			out[name] = renderValue(f)
 		}
 		return out
 	}
@@ -154,18 +200,24 @@ func renderValue(v reflect.Value) any {
 
 func num(n int64) json.Number { return json.Number(strconv.FormatInt(n, 10)) }
 
-func dotnetName(t reflect.Type) string {
-	switch t.Name() {
-	case "BoxInt32":
-		return "Conformance.Box<System.Int32>"
-	case "BoxString":
-		return "Conformance.Box<System.String>"
-	case "BoxPoints":
-		return "Conformance.Box<System.Collections.Generic.List<Conformance.Point>>"
-	case "BoxVec2":
-		return "Conformance.Box<Conformance.Vec2>"
+// declaredAsArray reports whether the member is a byte[] or sbyte[] in .NET, from the type's NinoLayout. A type
+// without one (a hand-written type that gives List<byte> a type of its own) declares every []byte an array.
+func declaredAsArray(v reflect.Value, member string) bool {
+	typed, ok := v.Interface().(interface{ NinoLayout() string })
+	if !ok {
+		return true
 	}
-	return "Conformance." + t.Name()
+	layout := typed.NinoLayout()
+	m := regexp.MustCompile(`(?:members=|;)` + regexp.QuoteMeta(member) + `:([^:]+):`).FindStringSubmatch(layout)
+	return m != nil && (m[1] == "byte[]" || m[1] == "sbyte[]")
+}
+
+// dotnetName is the .NET name of a class or struct: its NinoTypeName, or "Conformance." and its Go name.
+func dotnetName(v reflect.Value) string {
+	if named, ok := v.Interface().(interface{ NinoTypeName() string }); ok {
+		return named.NinoTypeName()
+	}
+	return "Conformance." + v.Type().Name()
 }
 
 // renderString renders a string read as WTF-8: a JSON string, or {"utf16": [units]} when it holds any surrogate
