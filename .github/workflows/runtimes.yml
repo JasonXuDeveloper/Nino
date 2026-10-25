@@ -416,9 +416,10 @@ jobs:
       - name: Test
         run: cargo test --workspace --all-features --locked
 
-  # The crate's only unsafe code, the string writer's transcoding (runtimes/rust/src/simd.rs), under Miri: its tests
-  # compare every block kind a target has with a plain decoder. Miri interprets each target here: x86_64 without
-  # SSSE3 (SSE2 and words) and with it (the pair steps), little-endian Arm64 (NEON) and big-endian s390x (words).
+  # The crate's only unsafe code (runtimes/rust/src/simd.rs: the string writer's transcoding and the reader's text
+  # decoding) under Miri: its tests compare every block kind a target has, and the decoders, with plain ones. Miri
+  # interprets each target here: x86_64 with SSE2 only (SSE2 and words), SSSE3 (the pair steps) and SSE4.1 (the
+  # one-pass writer), little-endian Arm64 (NEON) and big-endian s390x (words).
   # The tests take fewer cases under Miri (cfg(miri)). Each target, and each half of the module's tests on it, is a
   # runner of its own: one after the other, the four targets took over twenty minutes. The second half is "every
   # simd test but the first", so a test added to the module runs there.
@@ -435,6 +436,7 @@ jobs:
         target:
           - { name: x86_64 SSE2, triple: x86_64-unknown-linux-gnu, rustflags: '' }
           - { name: x86_64 SSSE3, triple: x86_64-unknown-linux-gnu, rustflags: -C target-feature=+ssse3 }
+          - { name: x86_64 SSE4.1, triple: x86_64-unknown-linux-gnu, rustflags: '-C target-feature=+ssse3,+sse4.1,+popcnt' }
           - { name: Arm64 NEON, triple: aarch64-unknown-linux-gnu, rustflags: '' }
           - { name: big-endian s390x, triple: s390x-unknown-linux-gnu, rustflags: '' }
         tests:

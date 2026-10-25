@@ -6,8 +6,8 @@ Reads and writes [Nino](https://github.com/JasonXuDeveloper/Nino)'s binary wire 
 with the NuGet packages (`cargo add nino-serialization@=4.0.0-rc.8`, `features = ["derive"]` for the derive).
 
 - Edition 2021, MSRV 1.88.
-- `#![deny(unsafe_code)]`: the only `unsafe` code is the string writer's transcoding (`src/simd.rs`), checked under
-  Miri. The reader has none.
+- `#![deny(unsafe_code)]`: the only `unsafe` code is `src/simd.rs`, checked under Miri: the string writer's
+  transcoding, and the reader's decoding of text into a `String` it builds. The reader's bounds checks are safe code.
 - No required dependencies. Every integration is an opt-in feature.
 
 ```rust
@@ -23,7 +23,7 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 | `deserialize`, `deserialize_exact` | Read a value. `deserialize_exact` also rejects trailing bytes (`ErrorKind::TrailingData`). |
 | `NinoRead`, `NinoWrite` | A type's whole encoding. Implemented here for the types in the table below, and by generated or derived code for each `[NinoType]`. |
 | `NinoReadBody`, `NinoWriteBody` | A class's body, behind its presence byte or type id. They carry `TYPE_ID` (0 when it has none) and `DEFERRABLE` (whether .NET may defer it, spec §10.5). |
-| `Reader`, `Writer` | What the codecs call: primitives, lengths, the three string encodings, classes (`read_sealed`, `read_class`, `write_sealed`, `write_class`), structs (`enter_struct`/`exit_struct`), version-tolerant and keyed regions (`begin_region`, `end_region`, `end_member`), and deferral (`mark`, `trail`, `Step`, `field!`). |
+| `Reader`, `Writer` | What the codecs call: primitives, lengths, the three string encodings, classes (`read_sealed`, `read_sealed_boxed`, `read_class`, `write_sealed`, `write_class`), structs (`enter_struct`/`exit_struct`), version-tolerant and keyed regions (`begin_region`, `end_region`, `end_member`), and deferral (`mark`, `trail`, `Step`, `field!`). |
 | `type_id(name)` | The type id of a .NET full name: FNV-1a over its UTF-16 code units, as a `const fn`. |
 | `Error`, `ErrorKind` | Every failure. `ErrorKind` is `#[non_exhaustive]`. |
 
@@ -257,11 +257,17 @@ cargo test --workspace --all-features
     `TRYBUILD=overwrite cargo test --features derive --test compile_fail` rewrites the expected messages.
 
 - **Unsafe code** (`src/simd.rs`): writing a `String` transcodes its UTF-8 to Latin-1 or UTF-16 straight into the
-  buffer, a block of 16 bytes at a time: SSE2 on x86_64, plus SSSE3 (checked at run time) for two-byte chars in text
-  of 48 bytes or more; NEON on little-endian Arm64; two `u64` words elsewhere. Its tests compare every way the target
-  has with a plain decoder for every char class at every position of text up to 200 chars, runs and random text, and
-  `string_encodings` (`tests/values.rs`) compares `serialize` with .NET's bytes the same way. CI runs the module's
-  tests under Miri on x86_64 (with and without SSSE3), Arm64 and big-endian s390x:
+  buffer. On x86_64 with SSE4.1 (checked at run time), non-ASCII text of any length takes one pass of 16-byte windows
+  that combines each char's bytes in a lane and packs the lanes with a shuffle, as Latin-1 until a char above U+00FF
+  and then as UTF-16. Elsewhere, text up to 64 bytes is decoded char by char and longer text a block of 16 bytes at
+  a time: SSE2, plus SSSE3 for two-byte chars in text of 48 bytes or more; NEON on little-endian Arm64; two `u64`
+  words on other targets. Reading a string decodes its Latin-1 or UTF-16 straight into the `String`'s allocation
+  (sized from the code units first) and builds it unchecked: what the decoder writes is valid UTF-8 by construction,
+  with U+FFFD for each unpaired surrogate as before. Its tests compare every way the target has, and the decoders,
+  with plain ones for every char class at every position of text up to 256 chars, runs and random input (unpaired
+  and reversed surrogates included), and `string_encodings` (`tests/values.rs`) compares `serialize` with .NET's
+  bytes the same way. CI runs the module's tests under Miri on x86_64 (SSE2 only, SSSE3, SSE4.1), Arm64 and
+  big-endian s390x:
   `cargo +nightly miri test -p nino-serialization --lib simd` (`--target aarch64-unknown-linux-gnu`, ...).
 
 ## Benchmarks
@@ -282,6 +288,7 @@ the same values, with criterion. Each group covers serialize and deserialize, an
 - 1,000 ASCII strings;
 - 1,000 strings of ASCII, Latin-1 and other text in turn (the same as the Go and TypeScript benchmarks').
 
-The Nino codecs there are written in the shape the templates generate. Compare changes back to back on one machine;
-local numbers are not published. Each release's notes get a "🦀 Rust runtime benchmark" section from one run of
+The Nino codecs there are what the templates generate for those types: a class's members read and written one by
+one, a raw struct as one block, and a class held as `Option<Box<_>>` (every serializer gets the same values). Compare
+changes back to back on one machine; local numbers are not published. Each release's notes get a "🦀 Rust runtime benchmark" section from one run of
 this benchmark on a GitHub runner (`report.yml`, `benchmarks/runtimes_report.py`).

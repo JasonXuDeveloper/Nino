@@ -292,6 +292,9 @@ func (r *Reader) latin1Short(b []byte) string {
 	var m int
 	if isASCII(b) {
 		m = copy(t, b)
+	} else if useRead && len(t) >= n+64 {
+		// The vector path (strings_wire_amd64.s), with room for its stores.
+		m = readLatin1(unsafe.Pointer(unsafe.SliceData(t)), unsafe.Pointer(unsafe.SliceData(b)), len(b))
 	} else {
 		m = latin1UTF8(t, b)
 	}
@@ -306,7 +309,13 @@ func (r *Reader) utf16Short(b []byte) string {
 		r.textRoom(n)
 	}
 	t := r.text
-	m := utf16UTF8(t, b)
+	var m int
+	if useRead && len(t) >= n+64 {
+		// The vector path (strings_wire_amd64.s), with room for its stores.
+		m = readUTF16(unsafe.Pointer(unsafe.SliceData(t)), unsafe.Pointer(unsafe.SliceData(b)), len(b)/2)
+	} else {
+		m = utf16UTF8(t, b)
+	}
 	r.text = t[m:]
 	return unsafe.String(unsafe.SliceData(t), m)
 }

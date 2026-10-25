@@ -136,6 +136,17 @@ describe("serialize", () => {
     assert.equal(serialize(text, "after").length, 9);
   });
 
+  it("keeps every result intact across values of changing sizes", () => {
+    const codec: NinoCodec<number[]> = { read: (r) => r.array(i32.read)!, write: (w, v) => w.array(v, i32.write) };
+    const sizes = [1, 5000, 3, 70000, 20000, 2, 300000, 1, 20000, 20000, 20000, 20000, 20000, 20000, 20000, 20000, 9];
+    const values = sizes.map((n, k) => Array.from({ length: n }, (_, i) => i * 31 + k));
+    const results = values.map((v) => serialize(codec, v));
+    results.forEach((bytes, k) => {
+      assert.deepEqual(deserialize(codec, bytes), values[k]);
+      assert.equal(bytes.byteOffset % 8, 0);
+    });
+  });
+
   it("reads data at any offset of any buffer", () => {
     const bytes = serialize(text, "offset");
     for (let offset = 0; offset < 9; offset++) {

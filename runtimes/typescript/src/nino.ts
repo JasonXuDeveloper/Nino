@@ -12,7 +12,7 @@ export interface NinoCodec<T> {
 }
 
 let shared: NinoWriter | null = null;
-/** The size of the buffers `serialize` writes its results into. */
+/** The smallest buffer `serialize` writes its results into (see `NinoWriter.next`). */
 const slabSize = 64 * 1024;
 
 /**
@@ -88,7 +88,7 @@ const hexValues = Int8Array.from({ length: 128 }, (_, c) =>
   c >= 48 && c <= 57 ? c - 48 : (c | 32) >= 97 && (c | 32) <= 102 ? (c | 32) - 87 : -1);
 /** Chars per `String.fromCharCode` call, well under any engine's argument limit. */
 const chunk = 4096;
-/** Text longer than this is read by a native decoder, whose call costs more than reading a short text in JavaScript. */
+/** With Node's methods, text longer than this is written by a native call, which costs more for shorter text. */
 const shortText = 8;
 /** Without Node's methods, the longest text read and written in JavaScript: TextDecoder and TextEncoder cost more. */
 const mediumText = 32;
@@ -235,13 +235,96 @@ function decodeLatin1(data: Uint8Array, at: number, length: number): string {
   return wide.test(text) ? fromCodes(bytes) : text;
 }
 
+/** The UTF-16 code unit at `at`. */
+function u(d: Uint8Array, at: number): number {
+  return d[at] | (d[at + 1] << 8);
+}
+
+/**
+ * The text of up to 24 UTF-16 code units at `at`, in one call: flat, unpaired surrogates kept, and in Chromium and
+ * Node cheaper than a native decoder or an array of codes.
+ */
+function decodeShortUtf16(d: Uint8Array, at: number, length: number): string {
+  const c = String.fromCharCode;
+  switch (length) {
+    case 0: return "";
+    case 1: return c(u(d, at));
+    case 2: return c(u(d, at), u(d, at + 2));
+    case 3: return c(u(d, at), u(d, at + 2), u(d, at + 4));
+    case 4: return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6));
+    case 5: return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8));
+    case 6: return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10));
+    case 7: return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12));
+    case 8:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14));
+    case 9:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16));
+    case 10:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18));
+    case 11:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20));
+    case 12:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22));
+    case 13:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24));
+    case 14:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26));
+    case 15:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28));
+    case 16:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30));
+    case 17:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32));
+    case 18:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34));
+    case 19:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36));
+    case 20:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38));
+    case 21:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38), u(d, at + 40));
+    case 22:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38), u(d, at + 40),
+        u(d, at + 42));
+    case 23:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38), u(d, at + 40),
+        u(d, at + 42), u(d, at + 44));
+    default:
+      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
+        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
+        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38), u(d, at + 40),
+        u(d, at + 42), u(d, at + 44), u(d, at + 46));
+  }
+}
+
 /** The text of `length` UTF-16 code units at `at`. */
 function decodeUtf16(data: Uint8Array, at: number, length: number): string {
-  if (length <= shortText) {
-    let text = "";
-    for (let i = 0; i < length; i++) text += String.fromCharCode(data[at + 2 * i] | (data[at + 2 * i + 1] << 8));
-    return text;
-  }
+  if (length <= 24) return decodeShortUtf16(data, at, length);
   if (nodeText !== null) return nodeText.ucs2Slice.call(data, at, at + 2 * length);
   if (length <= mediumText) {
     codes.length = length;
@@ -681,6 +764,8 @@ export class NinoWriter {
   private regions = 0;
   private structs = 0;
   private deferrals: NinoDeferrals<NinoWriter> | null = null;
+  // The size of the last value `detach` returned.
+  private last = 0;
 
   /** Moves past `size` bytes, growing the buffer if needed: returns where they start. */
   reserve(size: number): number {
@@ -697,19 +782,35 @@ export class NinoWriter {
     return at;
   }
 
+  /**
+   * The int32 `value` at `at` (reserved), as four byte stores: in Chromium cheaper than the view's setter at an
+   * unaligned offset, and the same in Node.
+   */
+  private int32At(at: number, value: number): void {
+    const buffer = this.buffer;
+    buffer[at] = value;
+    buffer[at + 1] = value >> 8;
+    buffer[at + 2] = value >> 16;
+    buffer[at + 3] = value >> 24;
+  }
+
   /** The bytes written so far, copied. */
   toBytes(): Uint8Array<ArrayBuffer> { return this.buffer.slice(this.start, this.pos); }
 
   /**
    * Starts a value after the last one `detach` returned, 8-byte aligned (so it can be viewed as wider typed arrays),
-   * in a new buffer when little room is left.
+   * in a new buffer when less room is left than the last value took (room for 16 such values, up to 1 MiB).
    */
   next(): void {
     let at = (this.pos + 7) & ~7;
-    if (this.end - at < slabSize >> 4) {
-      this.buffer = new Uint8Array(slabSize);
+    // A new buffer when the room left is less than the last value took: values of one type are about one size, and
+    // growing a buffer copies what the value wrote so far.
+    const last = this.last;
+    if (this.end - at < Math.max(slabSize >> 4, last)) {
+      const size = Math.max(slabSize, Math.min(16 * last, 1 << 20), 2 * last);
+      this.buffer = new Uint8Array(size);
       this.view = new DataView(this.buffer.buffer);
-      this.end = slabSize;
+      this.end = size;
       at = 0;
     }
     this.start = this.pos = at;
@@ -719,7 +820,11 @@ export class NinoWriter {
   }
 
   /** The value started by `next`, as a view of the buffer, which the writer does not write to again. */
-  detach(): Uint8Array<ArrayBuffer> { return new Uint8Array(this.buffer.buffer, this.start, this.pos - this.start); }
+  detach(): Uint8Array<ArrayBuffer> {
+    const size = this.pos - this.start;
+    this.last = size;
+    return new Uint8Array(this.buffer.buffer, this.start, size);
+  }
 
   /** The bytes written so far, without a copy: valid until the writer writes again. */
   written(): Uint8Array { return this.buffer.subarray(this.start, this.pos); }
@@ -740,7 +845,7 @@ export class NinoWriter {
   u16(value: number): void { const at = this.reserve(2); this.view.setUint16(at, value, true); }
   i16(value: number): void { const at = this.reserve(2); this.view.setInt16(at, value, true); }
   u32(value: number): void { const at = this.reserve(4); this.view.setUint32(at, value, true); }
-  i32(value: number): void { const at = this.reserve(4); this.view.setInt32(at, value, true); }
+  i32(value: number): void { this.int32At(this.reserve(4), value | 0); }
   // A bigint out of range wraps to 64 bits, as setBig(U)Int64 converts it.
   u64(value: bigint): void { const at = this.reserve(8); this.view.setBigUint64(at, value, true); }
   i64(value: bigint): void { const at = this.reserve(8); this.view.setBigInt64(at, value, true); }
@@ -828,13 +933,13 @@ export class NinoWriter {
         buffer[at + 4 + i] = c;
       }
       if (i === length) {
-        this.view.setInt32(at, length === 0 ? 0 : ~length, true);
+        this.int32At(at, length === 0 ? 0 : ~length);
         return;
       }
       this.pos = at;
     } else if (!wide.test(value)) {
       const at = this.reserve(4 + length);
-      this.view.setInt32(at, ~length, true);
+      this.int32At(at, ~length);
       this.encodeLatin1(value, at + 4);
       return;
     }

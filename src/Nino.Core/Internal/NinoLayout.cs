@@ -493,13 +493,19 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
             if (_mask512 != null && total >= Vector512<byte>.Count)
             {
-                CopyVectors<Vector512<byte>, Vectors512>(ref destination, ref source, total, _mask512, _period512);
+                CopyVectors<Vector512<byte>, Vectors512>(ref destination, ref source, total, _mask512, _period512,
+                    NinoUnsafe.AmdCopy);
                 return;
             }
 #endif
             if (_vectorMask != null && total >= Vector<byte>.Count)
             {
-                CopyVectors<Vector<byte>, Vectors>(ref destination, ref source, total, _vectorMask, _vectorPeriod);
+#if NET8_0_OR_GREATER
+                CopyVectors<Vector<byte>, Vectors>(ref destination, ref source, total, _vectorMask, _vectorPeriod,
+                    NinoUnsafe.AmdCopy);
+#else
+                CopyVectors<Vector<byte>, Vectors>(ref destination, ref source, total, _vectorMask, _vectorPeriod, false);
+#endif
                 return;
             }
 
@@ -540,8 +546,9 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
 #endif
+        // amd is NinoUnsafe.AmdCopy, read by the caller (see NinoUnsafe.CopyVectors).
         private static unsafe void CopyVectors<TVector, TOps>(ref byte destination, ref byte source, int total,
-            byte[] masks, int repeat)
+            byte[] masks, int repeat, bool amd)
             where TVector : struct
             where TOps : struct, IMaskVectors<TVector>
         {
@@ -549,6 +556,13 @@ namespace Nino.Core
             nuint width = (nuint)Unsafe.SizeOf<TVector>();
             nuint period = (nuint)repeat;
             ref byte mask = ref NinoUnsafe.GetArrayDataReference(masks);
+#if NET8_0_OR_GREATER
+            if (amd && period == width && NinoUnsafe.Aliases(ref destination, ref source))
+            {
+                CopyVectorsDown<TVector, TOps>(ref destination, ref source, total, ref mask);
+                return;
+            }
+#endif
             ops.Store(ops.And(ops.Load(ref source, 0), ops.Load(ref mask, 0)), ref destination, 0);
 
             nuint i = width - ((nuint)Unsafe.AsPointer(ref AlignedSide(ref destination, ref source)) & (width - 1));
@@ -592,6 +606,68 @@ namespace Nino.Core
             ops.Store(ops.And(ops.Load(ref source, end), ops.Load(ref mask, TailOffset(m, i, end, period))),
                 ref destination, end);
         }
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// The copy <see cref="Copy"/> takes on AMD where the destination aliases the source, whatever the CPU and the
+        /// addresses (tests); false where Copy would not take it (a block shorter than a vector, a mask that does not
+        /// repeat every vector).
+        /// </summary>
+        internal bool CopyDown(ref byte destination, ref byte source, int count)
+        {
+            int total = checked(count * _mask.Length);
+            if (_mask512 != null && total >= Vector512<byte>.Count)
+            {
+                if (_period512 != Vector512<byte>.Count)
+                    return false;
+                CopyVectorsDown<Vector512<byte>, Vectors512>(ref destination, ref source, total,
+                    ref NinoUnsafe.GetArrayDataReference(_mask512));
+                return true;
+            }
+
+            if (_vectorMask == null || total < Vector<byte>.Count || _vectorPeriod != Vector<byte>.Count)
+                return false;
+            CopyVectorsDown<Vector<byte>, Vectors>(ref destination, ref source, total,
+                ref NinoUnsafe.GetArrayDataReference(_vectorMask));
+            return true;
+        }
+
+        /// <summary>
+        /// <see cref="CopyVectors{TVector, TOps}"/> from the end down, for a mask that repeats every vector: on AMD, where
+        /// a forward copy runs into 4K aliasing (<see cref="NinoUnsafe.Aliases"/>). The last vector unaligned, then
+        /// four aligned stores at a time downward, then the first vector unaligned.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static unsafe void CopyVectorsDown<TVector, TOps>(ref byte destination, ref byte source, int total,
+            ref byte mask)
+            where TVector : struct
+            where TOps : struct, IMaskVectors<TVector>
+        {
+            var ops = default(TOps);
+            nuint width = (nuint)Unsafe.SizeOf<TVector>();
+            nuint end = (nuint)total - width;
+            ops.Store(ops.And(ops.Load(ref source, end), ops.Load(ref mask, end & (width - 1))), ref destination, end);
+            // The aligned stores end at i (exclusive), the last one at the aligned offset at or before the last vector;
+            // each starts at the same offset into the mask.
+            nuint i = end + width - ((nuint)Unsafe.AsPointer(ref Unsafe.Add(ref destination, end)) & (width - 1));
+            var v = ops.Load(ref mask, i & (width - 1));
+            for (; i >= 4 * width; i -= 4 * width)
+            {
+                var a = ops.And(ops.Load(ref source, i - width), v);
+                var b = ops.And(ops.Load(ref source, i - 2 * width), v);
+                var c = ops.And(ops.Load(ref source, i - 3 * width), v);
+                var e = ops.And(ops.Load(ref source, i - 4 * width), v);
+                ops.Store(a, ref destination, i - width);
+                ops.Store(b, ref destination, i - 2 * width);
+                ops.Store(c, ref destination, i - 3 * width);
+                ops.Store(e, ref destination, i - 4 * width);
+            }
+
+            for (; i >= width; i -= width)
+                ops.Store(ops.And(ops.Load(ref source, i - width), v), ref destination, i - width);
+            ops.Store(ops.And(ops.Load(ref source, 0), ops.Load(ref mask, 0)), ref destination, 0);
+        }
+#endif
 
         /// <summary>
         /// The side <see cref="CopyVectors{TVector, TOps}"/> aligns: the destination (unaligned vector stores straddle cache lines),

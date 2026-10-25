@@ -291,10 +291,10 @@ impl<T: NinoRead> NinoRead for Box<T> {
     #[inline]
     fn read(r: &mut Reader<'_>) -> Result<Self> {
         if !T::MAY_DEFER {
-            return T::read(r).map(Box::new);
+            return T::read_boxed(r);
         }
         let mark = r.mark();
-        let value = Box::new(T::read(r)?);
+        let value = T::read_boxed(r)?;
         r.trail(mark, Step::Field(box_inner::<T>));
         Ok(value)
     }
@@ -302,10 +302,10 @@ impl<T: NinoRead> NinoRead for Box<T> {
     #[inline]
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         if !T::MAY_DEFER {
-            return Ok(T::read_option(r)?.map(Box::new));
+            return T::read_boxed_option(r);
         }
         let mark = r.mark();
-        let value = T::read_option(r)?.map(Box::new);
+        let value = T::read_boxed_option(r)?;
         r.trail(mark, Step::Field(box_inner::<T>));
         Ok(value)
     }

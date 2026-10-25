@@ -17,8 +17,9 @@ name: Release
 #            rust-lang/crates-io-auth-action; each crate's trusted publisher: JasonXuDeveloper/Nino, release.yml).
 #   npm:     from the tag, build and publish nino-serialization to npm (Trusted Publishing; a pre-release under the
 #            dist-tag "next", so "latest" stays the newest stable). Both skip what the registry already has.
-# Trusted Publishing is set up on a package that exists: the first version of each crate and of the npm package is
-# published by hand (cargo publish, npm publish), then the trusted publisher is added in the registry's settings.
+# Trusted Publishing is set up on a package that exists: a package's first version is published by hand from the
+# tag (CONTRIBUTING.md), or by this workflow with an API token (repository secrets CARGO_REGISTRY_TOKEN, NPM_TOKEN,
+# needed only then); then its trusted publisher is added in the registry's settings.
 # The Go module needs no registry: proxy.golang.org serves it from the runtimes/go/vX.Y.Z tag.
 #
 # Unity reads the package from the tag, so the tag must point at the commit that carries the DLLs: both are made
@@ -228,15 +229,38 @@ jobs:
         with:
           ref: v${{ inputs.version }}
 
+      # Trusted Publishing is configured on a crate that exists: a crate's first version is published with the
+      # repository secret CARGO_REGISTRY_TOKEN (a crates.io API token with the publish-new scope), every later one
+      # through Trusted Publishing.
+      - name: Check which crates exist
+        id: check
+        run: |
+          for crate in nino-serialization-derive nino-serialization; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -A 'Nino release workflow (github.com/JasonXuDeveloper/Nino)' \
+              "https://crates.io/api/v1/crates/$crate")
+            if [[ "$code" != 200 ]]; then echo "$crate is not on crates.io yet"; echo "new=true" >> "$GITHUB_OUTPUT"; fi
+          done
+
       - name: crates.io login (Trusted Publishing)
         id: auth
+        if: steps.check.outputs.new != 'true'
         uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
 
       - name: Publish to crates.io
         working-directory: runtimes/rust
         env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          NEW: ${{ steps.check.outputs.new }}
+          OIDC_TOKEN: ${{ steps.auth.outputs.token }}
+          FIRST_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
+          if [[ "$NEW" == true ]]; then
+            if [[ -z "$FIRST_TOKEN" ]]; then
+              echo "::error::a crate is not on crates.io yet: publish its first version by hand from the tag (CONTRIBUTING.md) and re-run this job, or add the repository secret CARGO_REGISTRY_TOKEN"; exit 1
+            fi
+            export CARGO_REGISTRY_TOKEN="$FIRST_TOKEN"
+          else
+            export CARGO_REGISTRY_TOKEN="$OIDC_TOKEN"
+          fi
           rustup toolchain install stable --profile minimal
           # The derive crate first: nino-serialization pins its exact version. A crate already published is skipped,
           # so a failed run can be re-run.
@@ -264,11 +288,21 @@ jobs:
           node-version: lts/*
           registry-url: https://registry.npmjs.org
 
+      # As for the crates: the package's first version is published with the repository secret NPM_TOKEN (an npm
+      # granular access token that can publish), every later one through Trusted Publishing (no token).
       - name: Publish to npm
         working-directory: runtimes/typescript
+        env:
+          FIRST_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if npm view "nino-serialization@$VERSION" version >/dev/null 2>&1; then
             echo "nino-serialization $VERSION is on npm"; exit 0
+          fi
+          if ! npm view nino-serialization name >/dev/null 2>&1; then
+            if [[ -z "$FIRST_TOKEN" ]]; then
+              echo "::error::nino-serialization is not on npm yet: publish its first version by hand from the tag (CONTRIBUTING.md) and re-run this job, or add the repository secret NPM_TOKEN"; exit 1
+            fi
+            export NODE_AUTH_TOKEN="$FIRST_TOKEN"
           fi
           # Trusted Publishing needs npm 11.5.1 or later.
           npm install -g npm@latest

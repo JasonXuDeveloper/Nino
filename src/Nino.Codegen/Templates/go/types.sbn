@@ -198,6 +198,10 @@ func helper_body(h)
     ret $o + "\tnino.WriteFixed(w, v, " + $s.element.size + ", " + encode_fn($s.element) + ")\n}\n"
   else if $s.element.block
     ret $o + "\tnino.WritePrimitives(w, v)\n}\n"
+  else if $s.element.kind == "string" && !$s.element.field
+    ret $o + "\tnino.WriteStringPtrs(w, v)\n}\n"
+  else if $s.element.kind == "keystring" && !$s.element.field
+    ret $o + "\tnino.WriteStrings(w, v)\n}\n"
   end
   ret $o + "\tnino.WriteSlice(w, v, " + wfn($s.element) + ")\n}\n"
 end

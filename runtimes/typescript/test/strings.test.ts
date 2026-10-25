@@ -27,7 +27,7 @@ const wide = (n: number) => Array.from({ length: n }, (_, i) => String.fromCharC
 /** Texts of every length the runtime treats differently (short, medium, the reader's window, chunks). */
 const texts = [
   "", "a", "é", "\u0080\u0081\u009f", "ÿ", "﻿", "😀", "\ud800", "\udc00x", "a\ud800b", "x\udbff",
-  ...[1, 7, 8, 9, 12, 13, 15, 16, 17, 31, 32, 33, 255, 256, 257, 4095, 4096, 4097, 5000].flatMap((n) =>
+  ...[1, 7, 8, 9, 12, 13, 15, 16, 17, 23, 24, 25, 31, 32, 33, 255, 256, 257, 4095, 4096, 4097, 5000].flatMap((n) =>
     [ascii(n), latin1(n), wide(n), ascii(n) + "中", "中" + latin1(n), ascii(n) + "\ud800"]),
 ];
 

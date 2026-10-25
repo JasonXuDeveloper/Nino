@@ -7,7 +7,6 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
-using System.Security.Cryptography;
 using Nino.Core;
 
 [NinoType]
@@ -68,9 +67,7 @@ public static class Program
             T into = back;
             NinoDeserializer.Deserialize(bytes, ref into);
             same &= bytes.SequenceEqual(NinoSerializer.Serialize(into)) && Contents(into) == contents;
-            string hash;
-            using (var sha = SHA256.Create())
-                hash = BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").Substring(0, 16);
+            string hash = Fnv64(bytes).ToString("X16");
             if (!same) _failed++;
             Console.WriteLine($"{name,-24} {bytes.Length,6} {hash} {(same ? "ok" : "MISMATCH")}");
         }
@@ -79,6 +76,18 @@ public static class Program
             _failed++;
             Console.WriteLine($"{name,-24} EXCEPTION {e.GetType().Name}: {e.Message}");
         }
+    }
+
+    /// <summary>
+    /// FNV-1a over <paramref name="bytes"/>: compares what each runtime wrote, in managed code (SHA256 needs OpenSSL,
+    /// which the Arm32 job's qemu sysroot lacks).
+    /// </summary>
+    private static ulong Fnv64(byte[] bytes)
+    {
+        ulong h = 14695981039346656037;
+        foreach (byte b in bytes)
+            h = (h ^ b) * 1099511628211;
+        return h;
     }
 
     /// <summary>

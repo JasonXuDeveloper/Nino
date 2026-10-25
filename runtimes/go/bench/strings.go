@@ -39,7 +39,7 @@ func MixedStrings() []string {
 // ReadStrings and WriteStrings are a string[] (List<string> writes the same bytes).
 func ReadStrings(r *nino.Reader) []string { return nino.ReadSlice(r, 4, (*nino.Reader).String) }
 
-func WriteStrings(w *nino.Writer, v []string) { nino.WriteSlice(w, v, (*nino.Writer).String) }
+func WriteStrings(w *nino.Writer, v []string) { nino.WriteStrings(w, v) }
 
 // The values as Protocol Buffers messages (benchpb/bench.proto).
 

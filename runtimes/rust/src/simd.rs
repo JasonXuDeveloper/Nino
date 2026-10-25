@@ -1,7 +1,10 @@
-//! The string writer's transcoding of UTF-8 into Latin-1 or UTF-16 LE, straight into a `Vec`'s spare capacity: the
-//! crate's only `unsafe` code. The reader does not use it. ASCII text of up to 32 bytes, the most common string, is
-//! copied with its header by [`ascii_short`] without a call to `memcpy`, and other text of up to 64 bytes is decoded
-//! char by char with its header by [`short_wide`]; longer text goes through [`transcode`].
+//! The crate's only `unsafe` code: the string writer's transcoding of UTF-8 into Latin-1 or UTF-16 LE, straight into a
+//! `Vec`'s spare capacity, and the reader's decoding of Latin-1 and UTF-16 into a `String` it builds
+//! ([`latin1_string`], [`utf16_string`]: from bytes the reader has bounds-checked, and unchecked only over the UTF-8
+//! they write themselves). ASCII text of up to 32 bytes, the most common string, is copied with its header by
+//! [`ascii_short`] without a call to `memcpy`. Other text goes through [`wide`]: on x86_64 with SSE4.1, one pass
+//! ([`wide_sse41`]) for any length; elsewhere, text of up to 64 bytes is decoded char by char with its header by
+//! [`short_wide`], and longer text goes through [`transcode`].
 //!
 //! Text is taken a block of 16 bytes at a time ([`Block`]). A block of ASCII is stored as it is (Latin-1) or with
 //! each byte widened to a code unit (UTF-16). Where the target has a byte shuffle (SSSE3 on x86_64, found at run
@@ -13,10 +16,10 @@
 //! at a time. Bytes stored past what a step writes are overwritten by the next one, or lie past the `Vec`'s length
 //! at the end: room for a whole block is reserved past the longest the text can take.
 //!
-//! Every target writes the same bytes: x86_64 takes SSE2 (its baseline) and SSSE3, little-endian Arm64 NEON, and
-//! every other target (32-bit, WebAssembly, big-endian) two `u64` words a block. The tests compare each way a target
-//! has with a plain decoder for every char class at every position, and CI runs them under Miri (x86_64 with and
-//! without SSSE3, Arm64, big-endian s390x).
+//! Every target writes the same bytes: x86_64 takes SSE2 (its baseline), SSSE3 and SSE4.1, little-endian Arm64 NEON,
+//! and every other target (32-bit, WebAssembly, big-endian) two `u64` words a block. The tests compare each way a
+//! target has with a plain decoder for every char class at every position, and CI runs them under Miri (x86_64 with
+//! SSE2 only, SSSE3 and SSE4.1, Arm64, big-endian s390x).
 
 #![allow(unsafe_code)]
 #![deny(unsafe_op_in_unsafe_fn, clippy::undocumented_unsafe_blocks)]
@@ -70,6 +73,9 @@ trait Block {
 pub(crate) struct Words;
 
 const HIGH: u64 = 0x8080_8080_8080_8080;
+
+/// The top bit of each 16-bit lane of a word.
+const HIGH16: u64 = 0x8000_8000_8000_8000;
 
 /// The ASCII bytes before the first one with its high bit set, of two words read little-endian.
 #[cfg(any(test, not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))))]
@@ -916,6 +922,319 @@ pub(crate) fn transcode(out: &mut Vec<u8>, text: &str) -> bool {
     return transcode_with::<Words>(out, text);
 }
 
+/// The longest text [`wide`] takes to [`wide_sse41`]: its header (a count of chars or code units, at most one per byte)
+/// fits an `i32`.
+#[cfg(target_arch = "x86_64")]
+const WIDE_MAX: usize = i32::MAX as usize;
+
+/// Appends the header and chars of `text`, which has a char above U+007F: as Latin-1 when every char is at most
+/// U+00FF, else as UTF-16 LE code units. Returns false, having written nothing, when it does not take the text: on
+/// x86_64 without SSE4.1, or elsewhere, text longer than [`SHORT_WIDE`], which [`transcode`] takes.
+#[inline]
+pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
+    // Three loads and tests after the first call (std caches what the CPU has).
+    #[cfg(target_arch = "x86_64")]
+    if text.len() <= WIDE_MAX
+        && std::arch::is_x86_feature_detected!("sse4.1")
+        && std::arch::is_x86_feature_detected!("ssse3")
+        && std::arch::is_x86_feature_detected!("popcnt")
+    {
+        // SAFETY: the CPU has SSSE3, SSE4.1 and POPCNT, and the text is at most `WIDE_MAX` bytes.
+        unsafe { wide_sse41(out, text) };
+        return true;
+    }
+    if text.len() <= SHORT_WIDE {
+        short_wide(out, text);
+        return true;
+    }
+    false
+}
+
+/// For a bit set of eight lanes of `WIDTH` bytes: the shuffle that moves the lanes in the set, in order, to the front
+/// (and zeros after them).
+// Every index is below the array's length (k < 8, m < 256, WIDTH <= 2).
+#[cfg(target_arch = "x86_64")]
+#[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+const fn keep_shuffles<const WIDTH: usize>() -> [[u8; 16]; 256] {
+    let mut table = [[0x80u8; 16]; 256];
+    let mut m = 0;
+    while m < 256 {
+        let mut o = 0;
+        let mut k = 0;
+        while k < 8 {
+            if m & (1 << k) != 0 {
+                let mut b = 0;
+                while b < WIDTH {
+                    table[m][o] = (WIDTH * k + b) as u8;
+                    o += 1;
+                    b += 1;
+                }
+            }
+            k += 1;
+        }
+        m += 1;
+    }
+    table
+}
+
+/// [`keep_shuffles`] for bytes (Latin-1) and for 16-bit code units.
+#[cfg(target_arch = "x86_64")]
+static KEEP8: [[u8; 16]; 256] = keep_shuffles::<1>();
+#[cfg(target_arch = "x86_64")]
+static KEEP16: [[u8; 16]; 256] = keep_shuffles::<2>();
+
+/// `DOWN[s]`: the shuffle that moves byte `k + s` to byte `k` (zeros past 15). `UP[s]`: the one that moves byte
+/// `k - s` to byte `k` for `s <= k < s + 8` (zeros elsewhere).
+// Every index is below the array's length (s <= 16, k < 16).
+#[cfg(target_arch = "x86_64")]
+#[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+const fn shift_shuffles<const N: usize>(down: bool) -> [[u8; 16]; N] {
+    let mut table = [[0x80u8; 16]; N];
+    let mut s = 0;
+    while s < N {
+        let mut k = 0;
+        while k < 16 {
+            if down && k + s < 16 {
+                table[s][k] = (k + s) as u8;
+            } else if !down && s <= k && k < s + 8 {
+                table[s][k] = (k - s) as u8;
+            }
+            k += 1;
+        }
+        s += 1;
+    }
+    table
+}
+
+#[cfg(target_arch = "x86_64")]
+static DOWN: [[u8; 16]; 17] = shift_shuffles::<17>(true);
+#[cfg(target_arch = "x86_64")]
+static UP: [[u8; 16]; 9] = shift_shuffles::<9>(false);
+
+/// Row `k` of a table of shuffles, as a vector.
+///
+/// # Safety
+/// `k < N`.
+#[cfg(target_arch = "x86_64")]
+#[inline(always)]
+unsafe fn row<const N: usize>(table: &[[u8; 16]; N], k: usize) -> core::arch::x86_64::__m128i {
+    // SAFETY: `k < N` (the caller's contract): a row of 16 bytes; SSE2 is part of every x86_64 target.
+    unsafe { core::arch::x86_64::_mm_loadu_si128(table.get_unchecked(k).as_ptr().cast()) }
+}
+
+/// The 16 bytes of the text from `i` (zeros past `len`), read without touching a byte outside `src[..len]`: one load
+/// while 16 are left; else the text's last 16 shifted down; in text shorter than 16 bytes, two overlapping words, or
+/// for fewer than eight bytes, a word built in a register.
+///
+/// # Safety
+/// The CPU has SSSE3, `i < len`, and `len` bytes are readable at `src`.
+#[cfg(target_arch = "x86_64")]
+#[inline]
+#[target_feature(enable = "ssse3")]
+unsafe fn window(src: *const u8, len: usize, i: usize) -> core::arch::x86_64::__m128i {
+    use core::arch::x86_64::{
+        __m128i, _mm_cvtsi64_si128, _mm_loadl_epi64, _mm_loadu_si128, _mm_or_si128, _mm_shuffle_epi8,
+    };
+    // `i < len`: no difference below wraps, and every shift is by less than 64.
+    let rest = len.wrapping_sub(i);
+    if rest >= 16 {
+        // SAFETY: `i + 16 <= len`.
+        return unsafe { _mm_loadu_si128(src.add(i).cast::<__m128i>()) };
+    }
+    if len >= 16 {
+        // SAFETY: the last 16 bytes end at `len`.
+        let last = unsafe { _mm_loadu_si128(src.add(len.wrapping_sub(16)).cast::<__m128i>()) };
+        // SAFETY: `16 - rest` is 1..15, a row of `DOWN`.
+        return _mm_shuffle_epi8(last, unsafe { row(&DOWN, 16usize.wrapping_sub(rest)) });
+    }
+    // SAFETY: `i < len`.
+    let src = unsafe { src.add(i) };
+    if rest >= 8 {
+        // SAFETY: the first eight bytes from `src` and the last eight before `src + rest` (`8 <= rest`).
+        let (first, last) = unsafe {
+            (_mm_loadl_epi64(src.cast::<__m128i>()), _mm_loadl_epi64(src.add(rest.wrapping_sub(8)).cast::<__m128i>()))
+        };
+        // SAFETY: `rest - 8` is 0..7, a row of `UP`.
+        return _mm_or_si128(first, _mm_shuffle_epi8(last, unsafe { row(&UP, rest.wrapping_sub(8)) }));
+    }
+    let word = if rest >= 4 {
+        // SAFETY: the first four bytes from `src` and the last four before `src + rest` (`4 <= rest`).
+        let (first, last) = unsafe {
+            (src.cast::<[u8; 4]>().read_unaligned(), src.add(rest.wrapping_sub(4)).cast::<[u8; 4]>().read_unaligned())
+        };
+        u64::from(u32::from_le_bytes(first))
+            | (u64::from(u32::from_le_bytes(last)) << (rest.wrapping_sub(4).wrapping_mul(8)))
+    } else {
+        // One to three bytes: the first, the middle and the last (some of them the same byte).
+        let (mid, end) = (rest / 2, rest.wrapping_sub(1));
+        // SAFETY: `mid <= end < rest`.
+        let (a, m, l) = unsafe { (src.read(), src.add(mid).read(), src.add(end).read()) };
+        u64::from(a) | (u64::from(m) << mid.wrapping_mul(8)) | (u64::from(l) << end.wrapping_mul(8))
+    };
+    _mm_cvtsi64_si128(word as i64)
+}
+
+/// [`wide`] with SSSE3, SSE4.1 and POPCNT: in one pass, 16 bytes of text a step from [`window`], each char's bytes
+/// combined in its first byte's lane and the lanes of the chars that end in the window moved to the front
+/// ([`KEEP8`], [`KEEP16`]). As Latin-1 while no byte is above 0xC3 (no char above U+00FF); at the first that is, the
+/// text is written again from its start as UTF-16. A four-byte char ends a step before it and is written alone, as
+/// a surrogate pair. The header is written last.
+///
+/// # Safety
+/// The CPU has SSSE3, SSE4.1 and POPCNT, and `text.len() <= WIDE_MAX`.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "ssse3,sse4.1,popcnt")]
+unsafe fn wide_sse41(out: &mut Vec<u8>, text: &str) {
+    use core::arch::x86_64::{
+        __m128i, _mm_and_si128, _mm_blendv_epi8, _mm_cmpgt_epi16, _mm_cmpgt_epi8, _mm_cmplt_epi8, _mm_movemask_epi8,
+        _mm_or_si128, _mm_set1_epi16, _mm_set1_epi8, _mm_setzero_si128, _mm_shuffle_epi8, _mm_slli_epi16,
+        _mm_srli_si128, _mm_storel_epi64, _mm_storeu_si128, _mm_subs_epu8, _mm_testz_si128, _mm_unpackhi_epi8,
+        _mm_unpacklo_epi8,
+    };
+    let (src, len) = (text.as_ptr(), text.len());
+    // UTF-16 takes at most two bytes per byte of UTF-8, Latin-1 one; a step stores up to 32 bytes from where its
+    // output starts. `len <= i32::MAX`: no sum below wraps.
+    out.reserve(len.wrapping_mul(2).wrapping_add(4 + 32));
+    let at = out.len();
+    // Invariants: `i <= len` is a char boundary of the valid UTF-8 at `src`, and `o <= i` bytes (Latin-1) or
+    // `o <= 2 * i` (UTF-16) are written after the header, so each store (8 or 16 bytes at `o`, at most 32 from where
+    // the step started) ends within the room reserved: `4 + 2 * len + 32` bytes from `at`.
+    // SAFETY: as just said.
+    let base = unsafe { out.as_mut_ptr().add(at) };
+    // SAFETY: as just said.
+    let dst = unsafe { base.add(4) };
+    let (mut i, mut o) = (0usize, 0usize);
+    let below_c0 = _mm_set1_epi8(-64);
+    // The chars that end in the window at `i` (a bit set of lanes): all that start there at the text's end; else
+    // those before the last char start in it, or all when the byte after it starts a char.
+    let span = |i: usize, starts: u32, rest: usize| -> usize {
+        if rest <= 16 {
+            rest
+        // SAFETY: `i + 16 < len`.
+        } else if unsafe { src.add(i.wrapping_add(16)).read() } as i8 >= -64 {
+            16
+        } else {
+            // A char starts in the first 13 bytes: the next window takes it.
+            31usize.wrapping_sub(starts.leading_zeros() as usize)
+        }
+    };
+    'latin1: {
+        let (above_c3, low6, top2) = (_mm_set1_epi8(0xC3u8 as i8), _mm_set1_epi8(0x3F), _mm_set1_epi8(0xC0u8 as i8));
+        while i < len {
+            // SAFETY: SSSE3, and `i < len`.
+            let v = unsafe { window(src, len, i) };
+            let over = _mm_subs_epu8(v, above_c3);
+            if _mm_testz_si128(over, over) == 0 {
+                break 'latin1;
+            }
+            let starts = !(_mm_movemask_epi8(_mm_cmplt_epi8(v, below_c0)) as u32) & 0xFFFF;
+            let q = span(i, starts, len.wrapping_sub(i));
+            // A two-byte char's code point: its lead byte's two low bits, then its continuation byte's six. An ASCII
+            // byte is its own; continuation bytes are dropped.
+            let two =
+                _mm_or_si128(_mm_and_si128(_mm_slli_epi16::<6>(v), top2), _mm_and_si128(_mm_srli_si128::<1>(v), low6));
+            let chars = _mm_blendv_epi8(v, two, v);
+            let keep = starts & 1u32.wrapping_shl(q as u32).wrapping_sub(1);
+            let (k0, k1) = ((keep & 0xFF) as usize, (keep >> 8) as usize);
+            // SAFETY: `k0, k1 < 256`; the stores end within the room (the invariants), the second at `o + k0.count`.
+            unsafe {
+                _mm_storel_epi64(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(chars, row(&KEEP8, k0)));
+                o = o.wrapping_add(k0.count_ones() as usize);
+                let high = _mm_srli_si128::<8>(chars);
+                _mm_storel_epi64(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(high, row(&KEEP8, k1)));
+            }
+            o = o.wrapping_add(k1.count_ones() as usize);
+            i = i.wrapping_add(q);
+        }
+        let header = if o == 0 { 0 } else { !(o as i32) };
+        // SAFETY: the header's four bytes are reserved at `base`, and `o` bytes after it written.
+        unsafe {
+            base.cast::<[u8; 4]>().write_unaligned(header.to_le_bytes());
+            out.set_len(at.wrapping_add(4).wrapping_add(o));
+        }
+        return;
+    }
+    // A char above U+00FF: UTF-16 from the start, over what was written.
+    (i, o) = (0, 0);
+    let zero = _mm_setzero_si128();
+    let (low6, low5, low4) = (_mm_set1_epi16(0x3F), _mm_set1_epi16(0x1F), _mm_set1_epi16(0x0F));
+    let (above_bf, above_df) = (_mm_set1_epi16(0xBF), _mm_set1_epi16(0xDF));
+    while i < len {
+        let rest = len.wrapping_sub(i);
+        // SAFETY: SSSE3, and `i < len`.
+        let v = unsafe { window(src, len, i) };
+        let high = _mm_movemask_epi8(v) as u32;
+        if high == 0 {
+            // ASCII: each byte widened, 32 bytes stored, as many as the window holds kept.
+            // SAFETY: the stores end within the room (the invariants).
+            unsafe {
+                _mm_storeu_si128(dst.add(o).cast::<__m128i>(), _mm_unpacklo_epi8(v, zero));
+                _mm_storeu_si128(dst.add(o).add(16).cast::<__m128i>(), _mm_unpackhi_epi8(v, zero));
+            }
+            let n = rest.min(16);
+            i = i.wrapping_add(n);
+            o = o.wrapping_add(n.wrapping_mul(2));
+            continue;
+        }
+        let starts = !(_mm_movemask_epi8(_mm_cmplt_epi8(v, below_c0)) as u32) & 0xFFFF;
+        let q = span(i, starts, rest);
+        // Lead bytes of four-byte chars among the chars taken: the step ends before the first.
+        let four = _mm_movemask_epi8(_mm_cmpgt_epi8(v, _mm_set1_epi8(-17))) as u32
+            & high
+            & 1u32.wrapping_shl(q as u32).wrapping_sub(1);
+        let q = if four == 0 {
+            q
+        } else if four & 1 == 0 {
+            four.trailing_zeros() as usize
+        } else {
+            // A four-byte char at `i`: a surrogate pair. Valid UTF-8 has its four bytes, and it takes four bytes
+            // of output.
+            // SAFETY: as just said.
+            let b = |k: usize| u32::from(unsafe { src.add(i.wrapping_add(k)).read() });
+            let c = ((b(0) & 0x07) << 18) | ((b(1) & 0x3F) << 12) | ((b(2) & 0x3F) << 6) | (b(3) & 0x3F);
+            let v = c.wrapping_sub(0x1_0000);
+            let pair = (0xD800 | (v >> 10)) | ((0xDC00 | (v & 0x3FF)) << 16);
+            // SAFETY: as just said.
+            unsafe { dst.add(o).cast::<[u8; 4]>().write_unaligned(pair.to_le_bytes()) };
+            i = i.wrapping_add(4);
+            o = o.wrapping_add(4);
+            continue;
+        };
+        let (n1, n2) = (_mm_srli_si128::<1>(v), _mm_srli_si128::<2>(v));
+        // Each byte in a 16-bit lane with the two after it: the code unit of a char of one, two or three bytes
+        // starting there, chosen by its first byte.
+        let units = |b0: __m128i, b1: __m128i, b2: __m128i| {
+            let c1 = _mm_and_si128(b1, low6);
+            let u2 = _mm_or_si128(_mm_slli_epi16::<6>(_mm_and_si128(b0, low5)), c1);
+            let u3 = _mm_or_si128(
+                _mm_or_si128(_mm_slli_epi16::<12>(_mm_and_si128(b0, low4)), _mm_slli_epi16::<6>(c1)),
+                _mm_and_si128(b2, low6),
+            );
+            let u = _mm_blendv_epi8(b0, u2, _mm_cmpgt_epi16(b0, above_bf));
+            _mm_blendv_epi8(u, u3, _mm_cmpgt_epi16(b0, above_df))
+        };
+        let low = units(_mm_unpacklo_epi8(v, zero), _mm_unpacklo_epi8(n1, zero), _mm_unpacklo_epi8(n2, zero));
+        let high = units(_mm_unpackhi_epi8(v, zero), _mm_unpackhi_epi8(n1, zero), _mm_unpackhi_epi8(n2, zero));
+        let keep = starts & 1u32.wrapping_shl(q as u32).wrapping_sub(1);
+        let (k0, k1) = ((keep & 0xFF) as usize, (keep >> 8) as usize);
+        // SAFETY: `k0, k1 < 256`; the stores end within the room (the invariants), the second at `o + 2 * k0.count`.
+        unsafe {
+            _mm_storeu_si128(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(low, row(&KEEP16, k0)));
+            o = o.wrapping_add((k0.count_ones() as usize).wrapping_mul(2));
+            _mm_storeu_si128(dst.add(o).cast::<__m128i>(), _mm_shuffle_epi8(high, row(&KEEP16, k1)));
+        }
+        o = o.wrapping_add((k1.count_ones() as usize).wrapping_mul(2));
+        i = i.wrapping_add(q);
+    }
+    // `o / 2` code units, at most `len`.
+    let header = (o / 2) as i32;
+    // SAFETY: the header's four bytes are reserved at `base`, and `o` bytes after it written.
+    unsafe {
+        base.cast::<[u8; 4]>().write_unaligned(header.to_le_bytes());
+        out.set_len(at.wrapping_add(4).wrapping_add(o));
+    }
+}
+
 /// The eight bytes of `src[i..len]` from `i` as a word read little-endian, zero past `len`.
 ///
 /// # Safety
@@ -1182,6 +1501,188 @@ unsafe fn utf16<B: Block>(bytes: &[u8], dst: *mut u8) -> usize {
     o
 }
 
+// ------------------------------------------------------------------------------------------------ the reader's text
+
+/// Latin-1 bytes (each byte is the code point U+0000..U+00FF) as a `String`: ASCII copied as it is, other bytes as
+/// two bytes of UTF-8, written straight into the room of a `Vec` that becomes the `String` unchecked. Each Latin-1
+/// byte is a Unicode scalar value, so what is written is valid UTF-8.
+#[inline(never)]
+pub(crate) fn latin1_string(bytes: &[u8]) -> String {
+    // Short ASCII (the most common text): two words, or two pairs of words, that may overlap; no call to `memcpy`.
+    let len = bytes.len();
+    if let (Some(first), Some(last)) = (bytes.first_chunk::<8>(), bytes.last_chunk::<8>()) {
+        if len <= 16 && (u64::from_le_bytes(*first) | u64::from_le_bytes(*last)) & HIGH == 0 {
+            let mut text = Vec::<u8>::with_capacity(len);
+            let dst = text.spare_capacity_mut().as_mut_ptr().cast::<u8>();
+            // SAFETY: `8 <= len <= 16` bytes of room: the first eight and the last eight; ASCII is valid UTF-8.
+            unsafe {
+                dst.cast::<[u8; 8]>().write_unaligned(*first);
+                dst.add(len.wrapping_sub(8)).cast::<[u8; 8]>().write_unaligned(*last);
+                text.set_len(len);
+                return String::from_utf8_unchecked(text);
+            }
+        }
+    }
+    if let (Some(first), Some(last)) = (bytes.first_chunk::<16>(), bytes.last_chunk::<16>()) {
+        let high = u128::from(HIGH) | (u128::from(HIGH) << 64);
+        if len <= 32 && (u128::from_le_bytes(*first) | u128::from_le_bytes(*last)) & high == 0 {
+            let mut text = Vec::<u8>::with_capacity(len);
+            let dst = text.spare_capacity_mut().as_mut_ptr().cast::<u8>();
+            // SAFETY: `16 <= len <= 32` bytes of room: the first 16 and the last 16; ASCII is valid UTF-8.
+            unsafe {
+                dst.cast::<[u8; 16]>().write_unaligned(*first);
+                dst.add(len.wrapping_sub(16)).cast::<[u8; 16]>().write_unaligned(*last);
+                text.set_len(len);
+                return String::from_utf8_unchecked(text);
+            }
+        }
+    }
+    // A byte above 0x7F takes two bytes of UTF-8: `len + high <= 2 * len`, which cannot wrap (`len <= isize::MAX`).
+    let high = bytes.iter().filter(|&&b| b >= 0x80).count();
+    if high == 0 {
+        // SAFETY: ASCII is valid UTF-8.
+        return unsafe { String::from_utf8_unchecked(bytes.to_vec()) };
+    }
+    let mut text = Vec::<u8>::with_capacity(bytes.len().wrapping_add(high));
+    let dst = text.spare_capacity_mut().as_mut_ptr().cast::<u8>();
+    // Invariant: `o <= i + (high bytes before i)`, so that the output of the bytes from `i` (at least as many bytes,
+    // one more for each high byte) still fits the room: every store below ends within `len + high`.
+    let mut o = 0usize;
+    let (words, tail) = bytes.as_chunks::<8>();
+    for w in words {
+        let word = u64::from_le_bytes(*w);
+        if word & HIGH == 0 {
+            // SAFETY: eight bytes of input left from here, so at least eight bytes of room (the invariant).
+            unsafe { dst.add(o).cast::<[u8; 8]>().write_unaligned(*w) };
+            o = o.wrapping_add(8);
+            continue;
+        }
+        for &b in w {
+            // SAFETY: the invariant.
+            o = unsafe { latin1_char(dst, o, b) };
+        }
+    }
+    for &b in tail {
+        // SAFETY: the invariant.
+        o = unsafe { latin1_char(dst, o, b) };
+    }
+    // SAFETY: the `o` bytes from the start are written (`o <= capacity`), and they are valid UTF-8 (see above).
+    unsafe {
+        text.set_len(o);
+        String::from_utf8_unchecked(text)
+    }
+}
+
+/// Writes the UTF-8 of the Latin-1 byte `b` at `dst + o`; returns the offset after it.
+///
+/// # Safety
+/// One byte (two for `b >= 0x80`) is writable at `dst + o`.
+#[inline(always)]
+unsafe fn latin1_char(dst: *mut u8, o: usize, b: u8) -> usize {
+    // SAFETY: the caller's contract. `o + 2` cannot wrap: it is within an allocation.
+    unsafe {
+        if b < 0x80 {
+            dst.add(o).write(b);
+            return o.wrapping_add(1);
+        }
+        dst.add(o).write(0xC0 | (b >> 6));
+        dst.add(o).add(1).write(0x80 | (b & 0x3F));
+    }
+    o.wrapping_add(2)
+}
+
+/// UTF-16 LE code units as a `String`, each unpaired surrogate as U+FFFD (as `char::decode_utf16` with the
+/// replacement char): written straight into the room of a `Vec` that becomes the `String` unchecked. Every sequence
+/// written is the UTF-8 of a Unicode scalar value (a code unit outside the surrogates, a valid surrogate pair or
+/// U+FFFD), so the whole is valid UTF-8.
+#[inline(never)]
+pub(crate) fn utf16_string(units: &[[u8; 2]]) -> String {
+    // Room: one byte for a unit below U+0080, two below U+0800, three for the rest. A surrogate pair takes four
+    // bytes (six counted), an unpaired surrogate three (U+FFFD). At most `3 * len`, which cannot wrap (`2 * len`
+    // bytes exist).
+    let room = units.iter().fold(0usize, |n, u| {
+        let u = u16::from_le_bytes(*u);
+        n.wrapping_add(1).wrapping_add(usize::from(u >= 0x80)).wrapping_add(usize::from(u >= 0x800))
+    });
+    let mut text = Vec::<u8>::with_capacity(room);
+    let dst = text.spare_capacity_mut().as_mut_ptr().cast::<u8>();
+    // Invariant: the room left is at least what the units from `k` count, so each write below fits.
+    let (mut k, mut o) = (0usize, 0usize);
+    while let Some(&[a, b]) = units.get(k) {
+        // Four units of ASCII at a time, while four are left.
+        if let Some(four) = units.get(k..k.wrapping_add(4)).and_then(|q| q.as_flattened().first_chunk::<8>()) {
+            let w = u64::from_le_bytes(*four);
+            if w & 0xFF80_FF80_FF80_FF80 == 0 {
+                let packed = (w & 0xFF) | ((w >> 8) & 0xFF00) | ((w >> 16) & 0xFF_0000) | ((w >> 24) & 0xFF00_0000);
+                // SAFETY: four units below U+0080 count four bytes of room.
+                unsafe { dst.add(o).cast::<[u8; 4]>().write_unaligned((packed as u32).to_le_bytes()) };
+                k = k.wrapping_add(4);
+                o = o.wrapping_add(4);
+                continue;
+            }
+            // Four units of U+0080..U+07FF (Greek, Cyrillic, Hebrew, Arabic, ...): each `0x80 <= u < 0x800`, so
+            // bits 11..15 clear and some of bits 7..10 set.
+            let lanes = w & 0x0780_0780_0780_0780;
+            if w & 0xF800_F800_F800_F800 == 0
+                && lanes.wrapping_add(0x7FFF_7FFF_7FFF_7FFF) & 0x8000_8000_8000_8000 == HIGH16
+            {
+                // Each unit as a lead byte (its five high bits) then a continuation byte (its six low bits).
+                let lead = 0x00C0_00C0_00C0_00C0 | ((w >> 6) & 0x001F_001F_001F_001F);
+                let cont = 0x0080_0080_0080_0080 | (w & 0x003F_003F_003F_003F);
+                let pairs = (lead | (cont << 8)).to_le_bytes();
+                // SAFETY: four units of two bytes each count eight bytes of room.
+                unsafe { dst.add(o).cast::<[u8; 8]>().write_unaligned(pairs) };
+                k = k.wrapping_add(4);
+                o = o.wrapping_add(8);
+                continue;
+            }
+        }
+        let u = u32::from(u16::from_le_bytes([a, b]));
+        k = k.wrapping_add(1);
+        // SAFETY: each write is within the room the unit (and for a pair, the next one) counts, as said beside it.
+        unsafe {
+            if u < 0x80 {
+                // One byte counted.
+                dst.add(o).write(u as u8);
+                o = o.wrapping_add(1);
+            } else if u < 0x800 {
+                // Two bytes counted.
+                dst.add(o).cast::<[u8; 2]>().write_unaligned([0xC0 | (u >> 6) as u8, 0x80 | (u & 0x3F) as u8]);
+                o = o.wrapping_add(2);
+            } else if u & 0xF800 != 0xD800 {
+                // Three bytes counted.
+                let bytes = [0xE0 | (u >> 12) as u8, 0x80 | ((u >> 6) & 0x3F) as u8, 0x80 | (u & 0x3F) as u8];
+                dst.add(o).cast::<[u8; 3]>().write_unaligned(bytes);
+                o = o.wrapping_add(3);
+            } else {
+                let low = units.get(k).map_or(0, |&n| u32::from(u16::from_le_bytes(n)));
+                if u < 0xDC00 && low & 0xFC00 == 0xDC00 {
+                    // A pair: six bytes counted, four written.
+                    let c = (((u & 0x3FF) << 10) | (low & 0x3FF)).wrapping_add(0x1_0000);
+                    let bytes = [
+                        0xF0 | (c >> 18) as u8,
+                        0x80 | ((c >> 12) & 0x3F) as u8,
+                        0x80 | ((c >> 6) & 0x3F) as u8,
+                        0x80 | (c & 0x3F) as u8,
+                    ];
+                    dst.add(o).cast::<[u8; 4]>().write_unaligned(bytes);
+                    k = k.wrapping_add(1);
+                    o = o.wrapping_add(4);
+                } else {
+                    // Unpaired: U+FFFD, three bytes counted.
+                    dst.add(o).cast::<[u8; 3]>().write_unaligned([0xEF, 0xBF, 0xBD]);
+                    o = o.wrapping_add(3);
+                }
+            }
+        }
+    }
+    // SAFETY: the `o` bytes from the start are written (`o <= room`), and they are valid UTF-8 (see above).
+    unsafe {
+        text.set_len(o);
+        String::from_utf8_unchecked(text)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1219,15 +1720,34 @@ mod tests {
 
     fn check(text: &str) {
         let expected = reference(text);
+        // The ways that write the header too: the header, then the same bytes.
+        let count = if expected.1 { expected.0.len() } else { expected.0.len() / 2 } as i32;
+        let mut want = vec![0xAA; 3];
+        want.extend_from_slice(&(if expected.1 && count != 0 { !count } else { count }).to_le_bytes());
+        want.extend_from_slice(&expected.0);
         if text.len() <= SHORT_WIDE && !text.is_ascii() {
-            // short_wide: the header, then the same bytes.
-            let count = if expected.1 { expected.0.len() } else { expected.0.len() / 2 } as i32;
-            let mut want = vec![0xAA; 3];
-            want.extend_from_slice(&(if expected.1 { !count } else { count }).to_le_bytes());
-            want.extend_from_slice(&expected.0);
             let mut out = vec![0xAA; 3];
             short_wide(&mut out, text);
             assert_eq!(out, want, "short_wide: {text:?}");
+        }
+        if !text.is_ascii() {
+            let mut out = vec![0xAA; 3];
+            if wide(&mut out, text) {
+                assert_eq!(out, want, "wide: {text:?}");
+            } else {
+                assert_eq!(out, [0xAA; 3], "wide: {text:?}");
+            }
+        }
+        #[cfg(target_arch = "x86_64")]
+        if std::arch::is_x86_feature_detected!("sse4.1")
+            && std::arch::is_x86_feature_detected!("ssse3")
+            && std::arch::is_x86_feature_detected!("popcnt")
+        {
+            // ASCII text too, which `wide` is not given.
+            let mut out = vec![0xAA; 3];
+            // SAFETY: the CPU has the features, and the text is short.
+            unsafe { wide_sse41(&mut out, text) };
+            assert_eq!(out, want, "sse4.1: {text:?}");
         }
         for (name, way) in ways() {
             // After a few bytes already in the buffer, so the output is unaligned.
@@ -1247,7 +1767,7 @@ mod tests {
     const CLASSES: [char; 12] =
         ['a', '\u{7F}', '\u{80}', 'é', 'ÿ', 'Ā', '\u{7FF}', '\u{800}', '字', '\u{FFFF}', '\u{10000}', '😀'];
 
-    /// Every length up to 200 chars with every char class at every position. Under Miri, which is slow, the lengths
+    /// Every length up to 256 chars with every char class at every position. Under Miri, which is slow, the lengths
     /// around a block's and a word's edges and the pair steps' threshold, at the first, a middle and the last
     /// position.
     fn shapes() -> Vec<(usize, Vec<usize>)> {
@@ -1257,7 +1777,7 @@ mod tests {
                 .map(|len: usize| (len, if len == 0 { vec![] } else { vec![0, len / 2, len.saturating_sub(1)] }))
                 .collect()
         } else {
-            (0..=200).map(|len| (len, (0..len).collect())).collect()
+            (0..=256).map(|len| (len, (0..len).collect())).collect()
         }
     }
 
@@ -1275,6 +1795,69 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    /// The reader's decoders against the plain ones, for every length up to 256 code units (or bytes) with each class
+    /// at each position (fewer under Miri), and random input: unpaired, reversed and split surrogates included.
+    #[test]
+    fn decoders() {
+        let latin1 = |bytes: &[u8]| {
+            assert_eq!(latin1_string(bytes), bytes.iter().map(|&b| char::from(b)).collect::<String>(), "{bytes:?}");
+        };
+        let utf16 = |units: &[u16]| {
+            let le: Vec<[u8; 2]> = units.iter().map(|u| u.to_le_bytes()).collect();
+            assert_eq!(utf16_string(&le), String::from_utf16_lossy(units), "{units:?}");
+        };
+        let bytes: [u8; 6] = [b'a', 0x7F, 0x80, 0xBF, 0xE9, 0xFF];
+        let units: [u16; 12] = [0x61, 0x7F, 0x80, 0x7FF, 0x800, 0xD7FF, 0xD800, 0xDBFF, 0xDC00, 0xDFFF, 0xE000, 0xFFFF];
+        let lengths: Vec<usize> = if cfg!(miri) { vec![0, 1, 3, 4, 5, 7, 8, 9, 16, 17] } else { (0..=256).collect() };
+        for &len in &lengths {
+            let positions: Vec<usize> =
+                if cfg!(miri) { [0, len / 2, len.saturating_sub(1)].into() } else { (0..len).collect() };
+            for &filler in &bytes {
+                latin1(&vec![filler; len]);
+                for &at in &positions {
+                    for &b in &bytes {
+                        latin1(&(0..len).map(|i| if i == at { b } else { filler }).collect::<Vec<_>>());
+                    }
+                }
+            }
+            for &filler in &[0x61u16, 0xE9, 0x416, 0x5B57] {
+                utf16(&vec![filler; len]);
+                for &at in &positions {
+                    for &u in &units {
+                        utf16(&(0..len).map(|i| if i == at { u } else { filler }).collect::<Vec<_>>());
+                        // A pair or a reversed one at `at`.
+                        let mut v: Vec<u16> = vec![filler; len.max(2)];
+                        let pair = [u, if u < 0xDC00 { 0xDC00 | (u & 0x3FF) } else { 0xD800 | (u & 0x3FF) }];
+                        if let Some(two) = v.get_mut(at.min(len.max(2) - 2)..).and_then(|t| t.first_chunk_mut::<2>()) {
+                            *two = pair;
+                        }
+                        utf16(&v);
+                    }
+                }
+            }
+        }
+        let mut seed = 0x2545_F491_4F6C_DD1Du64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for _ in 0..if cfg!(miri) { 20 } else { 20_000 } {
+            let len = (next() % 300) as usize;
+            let raw: Vec<u8> = (0..len).map(|_| next() as u8 & if next() & 1 == 0 { 0x7F } else { 0xFF }).collect();
+            latin1(&raw);
+            let wide: Vec<u16> = (0..len)
+                .map(|_| {
+                    let r = next();
+                    let class = units.get((r % 13) as usize).copied().unwrap_or(0x41);
+                    class ^ ((r >> 8) as u16 & if class < 0x80 { 0x1F } else { 0x3FF })
+                })
+                .collect();
+            utf16(&wide);
         }
     }
 

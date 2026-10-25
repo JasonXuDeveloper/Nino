@@ -47,6 +47,12 @@ describe("primitives", () => {
   it("wraps out-of-range integers as the typed views do", () => {
     assert.equal(bytes((w) => w.u8(256 + 7)), "07");
     assert.equal(bytes((w) => w.i32(2 ** 32 + 5)), "05000000");
+    // i32 writes four bytes itself: the same as DataView.setInt32 for every number.
+    for (const v of [0, -1, 1.9, -1.9, 2 ** 31, -(2 ** 31) - 1, 2 ** 53 + 2, -(2 ** 60), NaN, Infinity, -Infinity, -0, 1e300]) {
+      const view = new DataView(new ArrayBuffer(4));
+      view.setInt32(0, v, true);
+      assert.equal(bytes((w) => w.i32(v)), toHex(new Uint8Array(view.buffer)), String(v));
+    }
     assert.equal(bytes((w) => w.u64(-1n)), "ffffffffffffffff");
   });
 
