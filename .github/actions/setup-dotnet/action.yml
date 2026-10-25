@@ -1,14 +1,20 @@
 name: Set up .NET
 description: >-
-  The .NET 10 SDK (and the .NET 8 one where asked) through actions/setup-dotnet, with its NuGet package cache
-  (~/.nuget/packages, keyed by the OS and every project file and central package version).
+  The .NET 10 SDK (and the .NET 8 one where asked) through actions/setup-dotnet, and where asked the NuGet package
+  cache of one job (~/.nuget/packages).
 inputs:
   net8:
     description: Also install the .NET 8 SDK, for net8.0 builds and tests.
     default: 'false'
   cache:
-    description: Restore the NuGet package cache, and save it when its key missed. Off for release builds.
-    default: 'true'
+    # One cache per job, not one per OS: setup-dotnet's own cache (one key per OS and project files) was saved by
+    # whichever job finished first, the short runtime internals jobs, so the unit test job on Windows restored a
+    # cache without its packages and then took a minute to download them. Linux runners restore from nuget.org in
+    # seconds, as fast as from a cache, so only the Windows jobs ask for one.
+    description: >-
+      A name for this job's NuGet package cache, keyed by it, the OS and every project file and central package
+      version, and restored from the newest of the same name when a project changed; empty (or 'false') for none.
+    default: ''
 runs:
   using: composite
   steps:
@@ -16,10 +22,6 @@ runs:
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
       with:
         dotnet-version: 10.0.x
-        cache: ${{ inputs.cache == 'true' }}
-        cache-dependency-path: |
-          **/*.csproj
-          **/Directory.Packages.props
 
     - if: inputs.net8 == 'true'
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -27,7 +29,10 @@ runs:
         dotnet-version: |
           10.0.x
           8.0.x
-        cache: ${{ inputs.cache == 'true' }}
-        cache-dependency-path: |
-          **/*.csproj
-          **/Directory.Packages.props
+
+    - if: inputs.cache != '' && inputs.cache != 'false'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.nuget/packages
+        key: nuget-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', 'global.json') }}
+        restore-keys: nuget-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache }}-
