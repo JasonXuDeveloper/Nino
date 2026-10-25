@@ -33,8 +33,8 @@ pub(crate) fn write(w: &mut Writer<'_>, text: &str) -> Result<()> {
     let bytes = text.as_bytes();
     if bytes.len() <= crate::simd::SHORT {
         if !crate::simd::ascii_short(w.buffer(), bytes) {
-            // `wide` takes text of up to 32 bytes on every target.
-            crate::simd::wide(w.buffer(), text);
+            // Text of up to 32 bytes is taken on every target.
+            crate::simd::wide_short_text(w.buffer(), text);
         }
         return Ok(());
     }

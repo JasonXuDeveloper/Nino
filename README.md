@@ -108,7 +108,7 @@ path writes the same bytes as the portable code, which takes over where a CPU or
 | Unity (Mono, IL2CPP) | With `com.unity.burst`: Burst-compiled kernels, AVX2 (blocks of 256 values or more) and SSSE3 on x86 and x64, Neon on Arm64; Nino.Core's own paths on Armv7, WebGL and without Burst | [Unity](https://nino.xgamedev.net/en/docs/v4/perf-unity) |
 | .NET Framework, .NET Core 3.0–7 | No intrinsics (the netstandard builds): blocks through `memmove`, text a word at a time | |
 | Go | Strings in assembly: AVX2 and AVX-512 conversion on amd64, 16-byte ASCII copies (SSE2 on amd64, NEON on arm64); plain Go elsewhere and with the `purego` tag | [Go](https://nino.xgamedev.net/en/docs/v4/perf-runtimes#go) |
-| Rust | Strings, in its one `unsafe` module: SSE2, SSSE3 and SSE4.1 on x86_64 (found at run time), NEON on Arm64; two `u64` words a step elsewhere | [Rust](https://nino.xgamedev.net/en/docs/v4/perf-runtimes#rust) |
+| Rust | Strings, in its one `unsafe` module: AVX-512, AVX2, SSE4.1, SSSE3 and SSE2 on x86_64 (found at run time), NEON on Arm64; two `u64` words a step elsewhere | [Rust](https://nino.xgamedev.net/en/docs/v4/perf-runtimes#rust) |
 
 ## Install
 
