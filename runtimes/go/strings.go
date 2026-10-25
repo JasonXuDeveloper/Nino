@@ -581,18 +581,6 @@ func pairBad(word uint64) uint64 {
 	return (word&pairs2 ^ pairs2Want) | ((word&0x001E001E001E001E+0x00FE00FE00FE00FE)&laneHigh ^ laneHigh)
 }
 
-// latin1Pairs reads word as four 2-byte UTF-8 chars of U+0080 to U+00FF and returns a value whose lowest set bit
-// lies in the first 16-bit lane that is not one (0 when all four are), and the four chars as Latin-1 bytes (those
-// from that lane on are not chars).
-func latin1Pairs(word uint64) (bad uint64, units uint32) {
-	// A lead byte of C2 or C3 is 1100001x.
-	bad = word&0xC0FEC0FEC0FEC0FE ^ 0x80C280C280C280C2
-	// Each lane's char: 1, the lead's low bit, then the continuation's six.
-	v := 0x0080008000800080 | (word&0x0001000100010001)<<6 | (word>>8)&0x003F003F003F003F
-	v = (v | v>>8) & 0x0000FFFF0000FFFF
-	return bad, uint32(v | v>>16)
-}
-
 // widen returns four ASCII bytes as four UTF-16 code units, little-endian.
 func widen(v uint32) uint64 {
 	w := uint64(v)

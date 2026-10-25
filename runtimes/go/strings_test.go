@@ -163,7 +163,7 @@ func TestStringEncodings(t *testing.T) {
 
 // checkAppended writes s after a byte into writers with room for that byte and the string's header, then one byte
 // a byte of s, or two (as much as UTF-16 can take): the bytes must be that byte then want, the writer must not have
-// grown when it had room for them (the last chars are written one at a time, see latin1Tail), and want follows when
+// grown when it had room for them (the last chars are written one at a time, see utf16Tail), and want follows when
 // s is written again.
 func checkAppended(t *testing.T, s string, want []byte) {
 	t.Helper()

@@ -259,9 +259,9 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
   `StringPtr` and `Utf8Ptr` (generated code's `*string`) point into a block of up to 32 strings the reader keeps.
 - **Writing.** A string is written as Latin-1 when every char is at most U+00FF, else as UTF-16 (what .NET writes).
   WTF-8 surrogates are written back as the code units they stand for. A byte that is not UTF-8 is written as U+FFFD.
-  The text is converted into the writer's buffer eight bytes at a time, in one pass, through `unsafe` pointers
-  within the text and the room reserved for it (`strings_write.go`); the reader, which takes untrusted bytes, stays
-  on checked slices. On amd64 and arm64, long runs of ASCII are copied or widened 16 bytes at a time in assembly
+  The text is converted into the writer's buffer eight bytes at a time (Latin-1 beyond ASCII a char at a time), in
+  one pass, through `unsafe` pointers within the text and the room reserved for it (`strings_write.go`); the reader,
+  which takes untrusted bytes, stays on checked slices. On amd64 and arm64, long runs of ASCII are copied or widened 16 bytes at a time in assembly
   (SSE2, NEON); the `purego` build tag, and every other platform, use the Go loops (the same bytes).
 - **Null.** A `string` has no null: `String` (and a `string` field of a tagged struct) reads a null string as `""`,
   and `""` is written back, not null. Read into a `*string` (`StringPtr`, `NullableString`; generated structs use

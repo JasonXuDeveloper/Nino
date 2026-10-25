@@ -7,14 +7,15 @@ import (
 	"unsafe"
 )
 
-// Writing strings: the text is converted straight into the writer's buffer, eight bytes of it at a time.
+// Writing strings: the text is converted straight into the writer's buffer, eight bytes of it at a time (Latin-1
+// text with chars above ASCII a char at a time, see latin1Chars).
 //
 // The loops address the text and the buffer through unsafe pointers, so they carry no bounds checks: the text is
 // a Go string (read only within its length), and the room written is reserved first, as much as the text can take,
-// the buffer cut to the bytes written at the end. Every store in the loops is a whole word (8 or 16 bytes) whatever
-// is left, so they run when the buffer's capacity holds that much past the most the string can take, which it nearly
-// always does (a buffer that grows for a string gets [stringSlack] more); in a buffer that ends sooner the chars are
-// written one at a time (latin1Tail, utf16Tail). A buffer with room for a string's bytes is never grown for it.
+// the buffer cut to the bytes written at the end. Every store in the UTF-16 loops is a whole word (8 or 16 bytes)
+// whatever is left, so they run when the buffer's capacity holds that much past the most the string can take, which
+// it nearly always does (a buffer that grows for a string gets [stringSlack] more); in a buffer that ends sooner the
+// chars are written one at a time (utf16Tail). Latin-1 is written only within the string's bytes. A buffer with room for a string's bytes is never grown for it.
 // Each word is read and written with encoding/binary's little-endian order, so the code is the same on every
 // platform: the compiler makes each one load or store on hosts that allow unaligned ones (amd64, arm64, ppc64le,
 // ...), byte-reversed on big-endian hosts that have such loads (ppc64, s390x), and byte by byte elsewhere. The
@@ -31,9 +32,6 @@ const stringSlack = 16
 
 // asciiLong is the fewest bytes of text left for which the writer calls asciiCopy or widenASCII.
 const asciiLong = 64
-
-// latin1Long is the fewest bytes of text [latin1Into] takes a word at a time.
-const latin1Long = 32
 
 // load64 returns the eight bytes at p+i, little-endian.
 func load64(p unsafe.Pointer, i int) uint64 {
@@ -197,13 +195,7 @@ func (w *Writer) wideString(s string, at, i int, short uint64) {
 	j := i
 	if load8(src, i)&0xFE == 0xC2 {
 		// A char of U+0080 to U+00FF (or a lead of one, the rest not checked yet) first: try Latin-1.
-		dst := unsafe.Pointer(&w.buf[at+4])
-		if cap(w.buf)-len(w.buf) >= stringSlack {
-			i, j = latin1Into(dst, src, i, n, short)
-		} else {
-			// No room for whole words up to the end (j <= i <= n).
-			i, j = latin1Tail(dst, s, i, j)
-		}
+		i, j = latin1Into(unsafe.Pointer(&w.buf[at+4]), src, i, n)
 		if i == n {
 			w.buf = w.buf[:at+4+j]
 			binary.LittleEndian.PutUint32(w.buf[at:], uint32(^int32(j)))
@@ -245,97 +237,63 @@ func textWord(src unsafe.Pointer, i, n int, short uint64) uint64 {
 	return short >> (8 * i & 63)
 }
 
-// latin1Into writes the Latin-1 bytes of s (UTF-8) from byte i on at dst+i (room bytes from dst on, at least
-// len(s)), and returns where it stopped: len(s) and the bytes dst holds, or the first char above U+00FF or byte
-// that is not UTF-8 and the bytes dst holds before it. short is s as a word when it is fewer than eight bytes (see
-// [textWord]).
-func latin1Into(dst, src unsafe.Pointer, i, n int, short uint64) (int, int) {
+// latin1Into writes the Latin-1 bytes of s (UTF-8, at src, n bytes) from byte i on at dst+i (room for n bytes from
+// dst on), and returns where it stopped: n and the bytes dst holds, or the first char above U+00FF or byte that is
+// not UTF-8 and the bytes dst holds before it. It writes only the bytes of the chars (a Latin-1 char is never longer
+// than its UTF-8), so it needs no room past them.
+func latin1Into(dst, src unsafe.Pointer, i, n int) (int, int) {
 	j := i
-	// Long text: a word of ASCII bytes and whole chars of two bytes of U+0080 to U+00FF (C2 or C3, then a
-	// continuation byte) is written at once, byte by byte without a branch, the leads dropped; a lead in the last
-	// byte waits for the next word. The next word's position depends on one bit of this one, so words overlap in
-	// the pipeline. Short text, and any other word, by the steps below: fewer instructions, but each step waits on
-	// the one before.
-	if n-i >= latin1Long {
+	for {
+		var run bool
+		i, j, run = latin1Chars(dst, src, i, j, n)
+		if !run {
+			return i, j
+		}
+		// A run of ASCII: 16 bytes at a time where the platform has vector instructions (asciiCopy), then eight at
+		// a time, outside the char loop so that loop makes no call.
+		if n-i >= asciiLong {
+			k := asciiCopy(unsafe.Add(dst, j), unsafe.Add(src, i), n-i)
+			i, j = i+k, j+k
+		}
 		for n-i >= 8 {
 			word := load64(src, i)
-			high := word & highBits
-			if high == 0 && n-i >= asciiLong {
-				// A long ASCII run 16 bytes at a time where the platform has vector instructions (asciiCopy).
-				if k := asciiCopy(unsafe.Add(dst, j), unsafe.Add(src, i), n-i); k > 0 {
-					i, j = i+k, j+k
-					continue
-				}
-			}
-			// The lead bytes C2 and C3 (each byte of v zero), and the continuation bytes (10xxxxxx).
-			v := (word ^ 0xC2C2C2C2C2C2C2C2) & 0xFEFEFEFEFEFEFEFE
-			lead := ^((v&0x7F7F7F7F7F7F7F7F + 0x7F7F7F7F7F7F7F7F) | v) & highBits
-			cont := word &^ (word << 1) & highBits
-			top := lead >> 63
-			lead &^= top << 63
-			high &^= top << 63
-			if high != lead|cont || cont != lead<<8 {
+			if word&highBits != 0 {
 				break
 			}
-			// Each continuation after C3 plus 0x40; every byte but the leads kept, in order.
-			cw := word + (word&(lead>>7))<<14
-			keep := (^lead & highBits &^ (top << 63)) >> 7
-			d := unsafe.Add(dst, j)
-			*(*byte)(d) = byte(cw)
-			d = unsafe.Add(d, keep&1)
-			*(*byte)(d) = byte(cw >> 8)
-			d = unsafe.Add(d, keep>>8&1)
-			*(*byte)(d) = byte(cw >> 16)
-			d = unsafe.Add(d, keep>>16&1)
-			*(*byte)(d) = byte(cw >> 24)
-			d = unsafe.Add(d, keep>>24&1)
-			*(*byte)(d) = byte(cw >> 32)
-			d = unsafe.Add(d, keep>>32&1)
-			*(*byte)(d) = byte(cw >> 40)
-			d = unsafe.Add(d, keep>>40&1)
-			*(*byte)(d) = byte(cw >> 48)
-			d = unsafe.Add(d, keep>>48&1)
-			*(*byte)(d) = byte(cw >> 56)
-			i, j = i+8-int(top), j+bits.OnesCount64(keep)
+			store64(dst, j, word)
+			i, j = i+8, j+8
 		}
 	}
-	for i < n {
-		word := textWord(src, i, n, short)
-		// The ASCII bytes from the first on (the word stored whole, what follows them written over or cut), then the
-		// run of 2-byte chars after them. Eight ASCII bytes shift by 0 (&63, no check of the shift): the word then
-		// starts with ASCII, which is no such char.
-		store64(dst, j, word)
-		t := asciiPrefix(word, n-i)
-		bad, units := latin1Pairs(word >> (8 * t & 63))
-		k := bits.TrailingZeros64(bad) >> 4
-		if t+k == 0 {
-			break
-		}
-		store32(dst, j+t, units)
-		i, j = i+t+2*k, j+t+k
-	}
-	return i, j
 }
 
-// latin1Tail is [latin1Into] a char at a time, writing only the bytes of the chars: for a buffer without room for
-// whole words past them.
-//
-//go:noinline
-func latin1Tail(dst unsafe.Pointer, s string, i, j int) (int, int) {
-	for i < len(s) {
-		c := s[i]
+// latin1Chars is the char loop of [latin1Into]: a char at a time, which in short text with chars of U+0080 to
+// U+00FF among ASCII (French, German...) beats converting a word at a time, its branches being predictable where the
+// word steps wait on each other. It returns where it stopped, the bytes dst holds then, and whether it stopped after
+// eight ASCII bytes in a row with at least eight more left (a run, taken a word at a time by latin1Into).
+func latin1Chars(dst, src unsafe.Pointer, i, j, n int) (int, int, bool) {
+	run := 0
+	for i < n {
+		c := load8(src, i)
 		if c < 0x80 {
-			i++
-		} else if c&0xFE == 0xC2 && i+1 < len(s) && s[i+1]&0xC0 == 0x80 {
-			c = c<<6 | s[i+1]&0x3F
-			i += 2
-		} else {
+			*(*byte)(unsafe.Add(dst, j)) = c
+			i, j = i+1, j+1
+			if run++; run == 8 && n-i >= 8 {
+				return i, j, true
+			}
+			continue
+		}
+		// C2 or C3, then a continuation byte: the char's low six bits, and the lead's low bit above them.
+		if c&0xFE != 0xC2 || i+1 >= n {
 			break
 		}
-		*(*byte)(unsafe.Add(dst, j)) = c
-		j++
+		c1 := load8(src, i+1)
+		if c1&0xC0 != 0x80 {
+			break
+		}
+		*(*byte)(unsafe.Add(dst, j)) = c<<6 | c1&0x3F
+		i, j, run = i+2, j+1, 0
 	}
-	return i, j
+	return i, j, false
 }
 
 // widenInPlace widens the n Latin-1 bytes at dst (which holds 2*n bytes) to n UTF-16 code units, from the end so no
