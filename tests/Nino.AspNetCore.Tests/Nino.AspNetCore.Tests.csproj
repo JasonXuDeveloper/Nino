@@ -24,9 +24,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj"/>
         <ProjectReference Include="..\..\src\Nino.AspNetCore\Nino.AspNetCore.csproj"/>
-        <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
-                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
-    <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props"/>
+    <Import Project="..\..\build\UseNinoGenerator.props"/>
 </Project>

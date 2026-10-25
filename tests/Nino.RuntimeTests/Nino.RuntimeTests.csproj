@@ -27,9 +27,7 @@
         <ProjectReference Include="..\..\src\Nino.Immutable\Nino.Immutable.csproj" Condition="'$(TargetFramework)' == 'net472'"
                           SetTargetFramework="TargetFramework=netstandard2.0"/>
         <ProjectReference Include="..\..\src\Nino.Immutable\Nino.Immutable.csproj" Condition="'$(TargetFramework)' != 'net472'"/>
-        <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
-                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
-    <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props"/>
+    <Import Project="..\..\build\UseNinoGenerator.props"/>
 </Project>

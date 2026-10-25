@@ -3,7 +3,7 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     /// <summary>
     /// Generic types with non-public members: on .NET 9+ (the compilation defines <c>NET9_0_OR_GREATER</c>) generated

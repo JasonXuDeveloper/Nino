@@ -329,11 +329,6 @@ internal sealed class TypeFacts
 
     // ----- nesting bound -------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// <c>NinoDepth.Inline</c> in Nino.Core: a class body opened with this many bodies open is deferred.
-    /// </summary>
-    public const int InlineDepth = 128;
-
     /// <summary>A nesting no bound covers (<see cref="DepthBound"/>).</summary>
     public const int Unbounded = int.MaxValue;
 
@@ -341,13 +336,13 @@ internal sealed class TypeFacts
     /// How deep below the current depth a value of <paramref name="type"/> can check the depth: the largest
     /// <c>k</c> such that writing or reading it may open a class body with <c>depth + k</c> bodies open, where
     /// <c>depth</c> is the count when it starts; -1 when it opens no class body, <see cref="Unbounded"/> when that is
-    /// not known at compile time or not below <see cref="InlineDepth"/>. A sealed class checks at 0 and its members
-    /// one level below; a struct counts no level; collections, nullables and tuples of Nino.Core are their
+    /// not known at compile time or not below <see cref="NinoWire.InlineDepth"/>. A sealed class checks at 0 and its
+    /// members one level below; a struct counts no level; collections, nullables and tuples of Nino.Core are their
     /// elements. Unbounded: recursive types (directly or through other types and collections), classes that are not
     /// sealed or interfaces (a subtype may come from anywhere), generic types, types generated elsewhere, custom
     /// formatters, other libraries' formatters and <c>object</c>. When <c>depth + k</c> stays below
-    /// <see cref="InlineDepth"/>, no body inside is deferred and the count is seen by nothing: the shallow twins
-    /// (<see cref="HasShallow"/>) skip it. Computed from symbols only, so a type, the types holding it and the
+    /// <see cref="NinoWire.InlineDepth"/>, no body inside is deferred and the count is seen by nothing: the shallow
+    /// twins (<see cref="HasShallow"/>) skip it. Computed from symbols only, so a type, the types holding it and the
     /// interceptors agree.
     /// </summary>
     public int DepthBound(ITypeSymbol type, bool utf8)
@@ -437,13 +432,13 @@ internal sealed class TypeFacts
 
         // A struct counts no level; a class body checks at 0 and opens its members' one level below.
         int bound = isStruct ? inner : inner + 1;
-        return bound >= InlineDepth ? Unbounded : bound;
+        return bound >= NinoWire.InlineDepth ? Unbounded : bound;
     }
 
     /// <summary>
     /// The twin of the generated formatter of <paramref name="type"/> for where its <see cref="DepthBound"/> is known
-    /// to stay below <see cref="InlineDepth"/>: the same bytes, counting and checking no depth, its members through
-    /// the twins of theirs. Sealed classes and structs that open a class body (a sealed class opens its own), not
+    /// to stay below <see cref="NinoWire.InlineDepth"/>: the same bytes, counting and checking no depth, its members
+    /// through the twins of theirs. Sealed classes and structs that open a class body (a sealed class opens its own), not
     /// tracked (their own formatter is used there, which is correct anywhere); null for any other type.
     /// <see cref="TypeNames.Top"/> for a sealed class that has a <c>__Top</c> twin (<see cref="TypeRules.HasTop"/>,
     /// whose body nests nothing): that twin already counts and checks no depth, and is correct wherever no body inside

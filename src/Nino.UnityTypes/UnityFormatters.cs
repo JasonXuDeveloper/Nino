@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Nino.Core;
 using Nino.Core.CompilerServices;
+using Nino.Core.Internal;
 using Nino.UnityTypes;
 using UnityEngine;
 
@@ -150,7 +151,7 @@ namespace Nino.UnityTypes
             // Only the color keys can be null (the whole gradient); a null alpha key count is invalid data.
             int alphaCount = reader.ReadLength(AlphaKeySize);
             if (alphaCount < 0)
-                throw new NinoDataException($"Nino: invalid length {alphaCount}.");
+                NinoThrow.InvalidLength(alphaCount);
             var alphaKeys = new GradientAlphaKey[alphaCount];
             next = ref reader.ReadBlock(alphaKeys.Length * AlphaKeySize + sizeof(int));
             for (int i = 0; i < alphaKeys.Length; i++)
@@ -168,8 +169,8 @@ namespace Nino.UnityTypes
     }
 
     /// <summary>
-    /// <c>RectOffset</c>: a has-value byte (0 = null), then left, right, top and bottom (int32). An existing offset is
-    /// refilled.
+    /// <c>RectOffset</c>: a presence byte (<see cref="NinoWire.Null"/> or <see cref="NinoWire.NotNull"/>), then left,
+    /// right, top and bottom (int32). An existing offset is refilled.
     /// </summary>
     public struct RectOffsetFormatter : INinoFormatter<RectOffset>
     {
@@ -177,12 +178,12 @@ namespace Nino.UnityTypes
         {
             if (value == null)
             {
-                writer.Write(false);
+                writer.Write(NinoWire.Null);
                 return;
             }
 
             ref byte next = ref writer.Reserve(1 + 4 * sizeof(int));
-            next = 1;
+            next = NinoWire.NotNull;
             NinoUnsafe.Write(ref next, 1, value.left);
             NinoUnsafe.Write(ref next, 5, value.right);
             NinoUnsafe.Write(ref next, 9, value.top);
@@ -191,7 +192,7 @@ namespace Nino.UnityTypes
 
         public void Deserialize(ref RectOffset value, ref Reader reader)
         {
-            if (!reader.Read<bool>())
+            if (!reader.ReadPresent())
             {
                 value = null;
                 return;

@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Codegen;
 using Nino.Core;
+using Nino.Tests;
 
 namespace Nino.Codegen.Integration.Tests
 {
@@ -47,18 +48,7 @@ namespace Scratch
         private static string Metadata(string key) =>
             typeof(BuildTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(a => a.Key == key).Value;
 
-        private static string Root
-        {
-            get
-            {
-                for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-                    if (File.Exists(Path.Combine(dir.FullName, "Nino.slnx")))
-                        return dir.FullName;
-                throw new InvalidOperationException("No Nino.slnx above " + AppContext.BaseDirectory);
-            }
-        }
-
-        private static string Targets => Path.Combine(Root, "src", "Nino.Codegen", "build", "Nino.Codegen.targets");
+        private static string Targets => RepositoryFiles.Of("src", "Nino.Codegen", "build", "Nino.Codegen.targets");
 
         /// <summary>A scratch project in a new directory: <paramref name="body"/> goes inside its &lt;Project&gt;.</summary>
         private static string Project(string body)

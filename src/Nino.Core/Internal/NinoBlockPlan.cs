@@ -10,9 +10,8 @@ using System.Runtime.Intrinsics.Wasm;
 using System.Runtime.Intrinsics.X86;
 #endif
 using Nino.Core.CompilerServices;
-using Nino.Core.Internal;
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>
     /// How values of <typeparamref name="T"/> map to their blocks (<see cref="INinoBlockFormatter{T}.BlockMap"/>),

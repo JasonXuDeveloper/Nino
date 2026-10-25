@@ -5,7 +5,7 @@ using Nino.Core.CompilerServices;
 using System.Runtime.InteropServices;
 #endif
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>
     /// Checks of values read from the data that Nino never writes otherwise: a <c>bool</c> other than 0 or 1, in every

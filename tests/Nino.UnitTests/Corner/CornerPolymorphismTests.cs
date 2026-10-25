@@ -4,10 +4,10 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 using Nino.Core.CompilerServices;
-using Nino.UnitTests.Corner.Elsewhere;
+using Nino.UnitTests.Elsewhere;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     [NinoType]
     public abstract class AbstractShape
@@ -230,7 +230,7 @@ namespace Nino.UnitTests.Corner
     }
 }
 
-namespace Nino.UnitTests.Corner.Elsewhere
+namespace Nino.UnitTests.Elsewhere
 {
     [NinoType]
     public class TriangleShape : AbstractShape
@@ -250,7 +250,7 @@ namespace Nino.UnitTests.Corner.Elsewhere
     }
 }
 
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     [TestClass]
     public class CornerPolymorphismTests
@@ -520,7 +520,7 @@ namespace Nino.UnitTests.Corner
             var compiled = CornerCompiler.Compile(@"
 using System.Collections.Generic;
 using Nino.Core;
-using Nino.UnitTests.Corner;
+using Nino.UnitTests;
 namespace HotCorner
 {
     [NinoType] public class HotShape : AbstractShape { public int Hot; public List<AbstractShape> Children; public override double Area => Hot; }

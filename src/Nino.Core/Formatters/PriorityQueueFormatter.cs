@@ -1,6 +1,7 @@
 #if NET8_0_OR_GREATER
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {

@@ -111,8 +111,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         if (formerNames.Count > 1)
             sink.Report(NinoDiagnostics.MultipleTypeFormerNames, formerNames[1], type, type.ToDisplayString());
         if (formerNames.Count != 0 && TypeNames.AllTypeParameters(type).Count != 0 &&
-            (type.TypeKind == TypeKind.Interface || type.IsAbstract || type.TypeKind == TypeKind.Class && !type.IsSealed ||
-             type.NinoAncestors().Any()))
+            (TypeRules.HasSubtypes(TypeRules.Kind(type)) || type.NinoAncestors().Any()))
             sink.Report(NinoDiagnostics.GenericTypeFormerName, formerNames[0], type, type.ToDisplayString(),
                 formerNames[0].ConstructorArguments.FirstOrDefault().Value as string ?? "");
     }

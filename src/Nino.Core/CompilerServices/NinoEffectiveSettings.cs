@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Nino.Core.Internal;
 
 namespace Nino.Core.CompilerServices
 {

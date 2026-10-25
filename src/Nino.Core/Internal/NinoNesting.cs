@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Nino.Core
+namespace Nino.Core.Internal
 {
     /// <summary>
     /// Which types can hold themselves through collections, with no <c>[NinoType]</c> body in between

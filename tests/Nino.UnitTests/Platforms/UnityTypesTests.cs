@@ -102,6 +102,15 @@ public class UnityTypesTests
     }
 
     [TestMethod]
+    public void RectOffsetPresenceIsZeroOrOne()
+    {
+        // A presence byte no writer writes is invalid data, as for every other nullable value.
+        byte[] data = NinoSerializer.Serialize(new RectOffset(1, -2, 3, 4));
+        data[0] = 2;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<RectOffset>(data));
+    }
+
+    [TestMethod]
     public void AsMembers()
     {
         var back = RoundTrip(new UnityClassHolder

@@ -7,7 +7,6 @@
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
         <OutputType>Library</OutputType>
-        <IsPackable>false</IsPackable>
         <NoWarn>$(NoWarn);CS0649</NoWarn>
     </PropertyGroup>
 
@@ -24,9 +23,19 @@
              not referenced: Nino's generator would publish their layouts in this assembly too, next to Shapes.cs. -->
         <ProjectReference Include="..\..\conformance\Nino.Conformance\Nino.Conformance.csproj"
                           ReferenceOutputAssembly="false"/>
-        <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
-                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
-    <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props"/>
+    <!-- The corpus's types as this build built them: their target path (MSBuild's GetTargetPath), for the tests. -->
+    <Target Name="NinoConformancePath" BeforeTargets="GetAssemblyAttributes">
+        <MSBuild Projects="..\..\conformance\Nino.Conformance\Nino.Conformance.csproj" Targets="GetTargetPath"
+                 Properties="Configuration=$(Configuration)">
+            <Output TaskParameter="TargetOutputs" PropertyName="_NinoConformancePath"/>
+        </MSBuild>
+        <ItemGroup>
+            <AssemblyMetadata Include="NinoConformance" Value="$(_NinoConformancePath)"/>
+        </ItemGroup>
+    </Target>
+
+    <Import Project="..\..\build\UseNinoGenerator.props"/>
+    <Import Project="..\Shared\RepositoryFiles.props"/>
 </Project>

@@ -6,7 +6,7 @@ using Nino.Core;
 using Nino.UnitTests.Subset.Corner;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     // Two versions of a nested schema (this assembly defines WEAK_VERSION_TOLERANCE, so every type is tolerant).
     // Sealed classes carry no type id, so V1 data can be read as V2 and back.

@@ -9,7 +9,7 @@ using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     /// <summary>
     /// Every combination of the ways a type hierarchy can be declared, generated, compiled with the generator and

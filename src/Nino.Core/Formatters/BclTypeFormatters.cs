@@ -11,6 +11,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Nino.Core.CompilerServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
@@ -654,37 +655,5 @@ namespace Nino.Core
         }
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-    }
-
-    internal static partial class NinoCollections
-    {
-        /// <summary>Writes a span as a <c>T[]</c> of its elements is written: length, then the elements.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteSpan<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            // Elements of a fixed size (BlockSize, a constant): the length and the block in one reservation, one
-            // capacity check where the length and the block would each take one.
-            int block = NinoElements.BlockSize<T, TFormatter>();
-            if (block > 0)
-            {
-                ref byte elements = ref writer.ReserveCounted(values.Length, block);
-                if (!values.IsEmpty)
-                    NinoElements.WriteBlock<T, TFormatter>(ref elements, values);
-                return;
-            }
-
-            writer.WriteLength(values.Length);
-            NinoElements.Write<T, TFormatter>(values, ref writer);
-        }
-
-        /// <summary>Reads a new <c>T[]</c> (null for a null length).</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T[] ReadArray<T, TFormatter>(ref Reader reader) where TFormatter : struct, INinoFormatter<T>
-        {
-            T[] array = null;
-            default(ArrayFormatter<T, TFormatter>).Deserialize(ref array, ref reader);
-            return array;
-        }
     }
 }

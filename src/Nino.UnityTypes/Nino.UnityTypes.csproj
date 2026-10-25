@@ -5,9 +5,7 @@
          same name and version. -->
     <PropertyGroup>
         <TargetFramework>netstandard2.1</TargetFramework>
-        <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
-        <AnalysisLevel>latest-recommended</AnalysisLevel>
         <DebugType>embedded</DebugType>
     </PropertyGroup>
 

@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     /// <summary>
     /// The generator (RawRules.IsRawUnmanaged) and Nino.Core (NinoReflection.IsRawUnmanaged) decide which values are
@@ -122,7 +122,7 @@ namespace RawRules
             {
                 bool generated = (bool)isRaw.Invoke(raw, new object[] { field.Type });
                 var type = runtimeProbe.GetField(field.Name)!.FieldType;
-                bool runtime = Nino.Core.NinoReflection.IsRawUnmanaged(type);
+                bool runtime = Nino.Core.Internal.NinoReflection.IsRawUnmanaged(type);
                 fields++;
                 if (generated)
                     rawCount++;
@@ -142,6 +142,7 @@ namespace RawRules
             // it and its own registration use, writes it member by member (5 bytes).
             var result = CornerCompiler.Compile(@"
 using Nino.Core;
+using Nino.Core.Internal;
 [NinoType] public struct Pad<T> { public byte A; public T B; }
 [NinoType] public sealed class Box<T> { public T V; }
 [NinoType] public sealed class Holder { public Pad<int> P; }

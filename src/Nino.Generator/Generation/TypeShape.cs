@@ -16,13 +16,7 @@ internal sealed class TypeShape
 {
     public TypeShape(INamedTypeSymbol type, NinoTypeOptions attr, TypeFacts facts)
     {
-        Kind = type.TypeKind == TypeKind.Interface || type.IsAbstract
-            ? FormatterKind.Polymorphic
-            : type.IsValueType
-                ? FormatterKind.Struct
-                : type.IsSealed
-                    ? FormatterKind.SealedClass
-                    : FormatterKind.Class;
+        Kind = TypeRules.Kind(type);
         Options = attr;
         Generic = TypeNames.AllTypeArguments(type).Count != 0;
         Tracked = TypeRules.IsTracked(type);
@@ -87,6 +81,22 @@ internal sealed class TypeShape
 /// </summary>
 internal static class TypeRules
 {
+    /// <summary>The kind of the type's formatter.</summary>
+    public static FormatterKind Kind(INamedTypeSymbol type) =>
+        type.TypeKind == TypeKind.Interface || type.IsAbstract
+            ? FormatterKind.Polymorphic
+            : type.IsValueType
+                ? FormatterKind.Struct
+                : type.IsSealed
+                    ? FormatterKind.SealedClass
+                    : FormatterKind.Class;
+
+    /// <summary>Whether a type of <paramref name="kind"/> may have subtypes: an interface, an abstract or unsealed class.</summary>
+    public static bool HasSubtypes(FormatterKind kind) => kind is FormatterKind.Polymorphic or FormatterKind.Class;
+
+    /// <summary>Whether a type of <paramref name="kind"/> can be instantiated: not an interface or abstract class.</summary>
+    public static bool IsConcrete(FormatterKind kind) => kind != FormatterKind.Polymorphic;
+
     /// <summary>Whether the type, a base class or an interface asks for reference tracking.</summary>
     public static bool IsTracked(INamedTypeSymbol type) =>
         type.GetNinoTypeOptions() is { TrackReferences: true } ||
@@ -97,7 +107,7 @@ internal static class TypeRules
     /// Whether the formatter dispatches its subtypes through generated code (<see cref="TypeModel.DispatchesSubtypes"/>).
     /// </summary>
     public static bool DispatchesSubtypes(FormatterKind kind, bool trackReferences) =>
-        !trackReferences && kind is FormatterKind.Polymorphic or FormatterKind.Class;
+        !trackReferences && HasSubtypes(kind);
 
     /// <summary>Whether the formatter has a <c>__Top</c> twin (<see cref="TypeModel.HasTop"/>).</summary>
     public static bool HasTop(FormatterKind kind, bool generic, bool trackReferences, bool rawStruct, bool nests) =>

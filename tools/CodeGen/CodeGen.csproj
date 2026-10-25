@@ -11,7 +11,6 @@
         <Nullable>disable</Nullable>
         <ImplicitUsings>disable</ImplicitUsings>
         <RootNamespace>Nino.CodeGen</RootNamespace>
-        <IsPackable>false</IsPackable>
     </PropertyGroup>
 
 </Project>

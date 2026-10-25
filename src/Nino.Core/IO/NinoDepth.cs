@@ -20,7 +20,7 @@ namespace Nino.Core
     internal static class NinoDepth
     {
         /// <summary>Open class bodies after which the next one is deferred.</summary>
-        public const int Inline = 128;
+        public const int Inline = NinoWire.InlineDepth;
 
         // Open class bodies after which reading or writing fails, for types that cannot be deferred (built by their
         // constructor, or compared by value): NinoSettings.MaxDepth (NinoLimits.MaxDepth), 512 by default.

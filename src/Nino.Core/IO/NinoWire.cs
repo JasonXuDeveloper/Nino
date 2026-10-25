@@ -55,5 +55,11 @@ namespace Nino.Core
 
         /// <summary>Position of the offset minutes inside a <c>DateTimeOffset</c>.</summary>
         public const int DateTimeOffsetMinutesPosition = sizeof(long);
+
+        /// <summary>
+        /// Open class bodies after which the next one is deferred (<c>NinoDepth</c>): where a body's bytes go depends
+        /// on it, so the generator's depth bounds and the runtime must agree on it.
+        /// </summary>
+        public const int InlineDepth = 128;
     }
 }

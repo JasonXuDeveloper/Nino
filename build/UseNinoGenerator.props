@@ -1,0 +1,18 @@
+<Project>
+    <!-- The generator as the Nino.Generator package gives it to a project, from this repository's sources: its build
+         as an analyzer and the interceptors (Nino.Generator.props). Imported by the projects of this repository that
+         serialize their own types (tests, fuzzing, conformance). The Roslyn 4.12 build, as on current SDKs;
+         -p:NinoGeneratorBuild=4.8 takes the Roslyn 4.8 build (the .NET 8 SDK's preview interceptors), and
+         -p:NinoRegularCalls=true leaves the calls without interceptors (as Unity and older compilers make them). -->
+    <ItemGroup>
+        <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"
+                          Condition="'$(NinoGeneratorBuild)' != '4.8'"/>
+        <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\Nino.Generator.Roslyn4.8\Nino.Generator.Roslyn4.8.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"
+                          Condition="'$(NinoGeneratorBuild)' == '4.8'"/>
+    </ItemGroup>
+
+    <Import Project="$(MSBuildThisFileDirectory)..\src\Nino.Generator\build\Nino.Generator.props"
+            Condition="'$(NinoRegularCalls)' != 'true'"/>
+</Project>

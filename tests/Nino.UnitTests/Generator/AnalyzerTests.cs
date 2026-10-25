@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Nino.Tests;
 using Verify = Microsoft.CodeAnalysis.CSharp.Testing.CSharpAnalyzerVerifier<
     Nino.Generator.Analysis.NinoAnalyzer,
     Microsoft.CodeAnalysis.Testing.DefaultVerifier>;
