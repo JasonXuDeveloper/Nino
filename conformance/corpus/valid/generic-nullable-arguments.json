@@ -1,0 +1,97 @@
+{
+  "case": "generic-nullable-arguments",
+  "description": "Nullables and pairs inside the type arguments of a generic type: raw nullables in arrays and lists at a fixed stride, item by item elsewhere.",
+  "type": "Conformance.WrappedArgs",
+  "features": [
+    "nullable",
+    "seq",
+    "map"
+  ],
+  "size": 149,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Vec2": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x53124224; deferrable=false; members=raw(8){X:float@0:raw(4),Y:float@4:raw(4)}",
+    "Conformance.Wrap<T>": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T)",
+    "Conformance.WrappedArgs": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xE29BBB74; deferrable=true; members=NullableArray:Conformance.Wrap<System.Nullable<int>[]>:type(Conformance.Wrap<System.Nullable<int>[]>);NullableList:Conformance.Wrap<System.Collections.Generic.List<System.Nullable<int>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Nullable<int>>>);NullableSet:Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<int>>>:type(Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<int>>>);NullableStructs:Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>);NullableValues:Conformance.Wrap<System.Collections.Generic.Dictionary<int, System.Nullable<double>>>:type(Conformance.Wrap<System.Collections.Generic.Dictionary<int, System.Nullable<double>>>);Pairs:Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, string>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, string>>>);PairArray:Conformance.Wrap<System.Collections.Generic.KeyValuePair<string, System.Nullable<int>>[]>:type(Conformance.Wrap<System.Collections.Generic.KeyValuePair<string, System.Nullable<int>>[]>)"
+  },
+  "typeIds": {
+    "Conformance.Wrap<System.Collections.Generic.Dictionary<System.Int32,System.Nullable<System.Double>>>": "0xE26E5056",
+    "Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<System.Int32>>>": "0x988F30EC",
+    "Conformance.Wrap<System.Collections.Generic.KeyValuePair<System.String,System.Nullable<System.Int32>>[]>": "0x9685493E",
+    "Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<System.Int32,System.String>>>": "0xA5D0382F",
+    "Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>": "0xF06AFF3E",
+    "Conformance.Wrap<System.Collections.Generic.List<System.Nullable<System.Int32>>>": "0x5FD20FBE",
+    "Conformance.Wrap<System.Nullable<System.Int32>[]>": "0x75F316F7"
+  },
+  "value": {
+    "$type": "Conformance.WrappedArgs",
+    "NullableArray": {
+      "$type": "Conformance.Wrap<System.Nullable<System.Int32>[]>",
+      "Value": [
+        1,
+        null,
+        3
+      ]
+    },
+    "NullableList": {
+      "$type": "Conformance.Wrap<System.Collections.Generic.List<System.Nullable<System.Int32>>>",
+      "Value": [
+        null,
+        2
+      ]
+    },
+    "NullableSet": {
+      "$type": "Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<System.Int32>>>",
+      "Value": [
+        4,
+        null
+      ]
+    },
+    "NullableStructs": {
+      "$type": "Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>",
+      "Value": [
+        {
+          "$type": "Conformance.Vec2",
+          "X": "0x3f800000",
+          "Y": "0x40000000"
+        },
+        null
+      ]
+    },
+    "NullableValues": {
+      "$type": "Conformance.Wrap<System.Collections.Generic.Dictionary<System.Int32,System.Nullable<System.Double>>>",
+      "Value": [
+        [
+          1,
+          "0x3fe0000000000000"
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    },
+    "Pairs": {
+      "$type": "Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<System.Int32,System.String>>>",
+      "Value": [
+        [
+          1,
+          "one"
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    },
+    "PairArray": {
+      "$type": "Conformance.Wrap<System.Collections.Generic.KeyValuePair<System.String,System.Nullable<System.Int32>>[]>",
+      "Value": [
+        [
+          "k",
+          null
+        ]
+      ]
+    }
+  }
+}

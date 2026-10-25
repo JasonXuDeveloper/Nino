@@ -1,0 +1,102 @@
+{
+  "case": "references-forms",
+  "description": "Tracked objects through an object member (type id, then header), a sealed member (header alone), a non-sealed member (header, then type id), collections and a version-tolerant type: one numbering.",
+  "type": "Conformance.TrackedMix",
+  "features": [
+    "track-references",
+    "type-id",
+    "object",
+    "version-tolerant"
+  ],
+  "optional": "track-references",
+  "size": 157,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Tracked": "format=Positional; header=TypeId; trackReferences=true; raw=false; typeId=0x8E7C9360; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked)",
+    "Conformance.TrackedLeaf": "format=Positional; header=NullFlag; trackReferences=true; raw=false; typeId=0x671FC086; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked);Name:string:string",
+    "Conformance.TrackedMix": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x429143A4; deferrable=true; members=Any:object:object;Node:Conformance.TrackedNode:type(Conformance.TrackedNode);Base:Conformance.Tracked:type(Conformance.Tracked);Nodes:System.Collections.Generic.List<Conformance.TrackedNode>:seq(type(Conformance.TrackedNode));ById:System.Collections.Generic.Dictionary<int, Conformance.TrackedNode>:map(raw(4),type(Conformance.TrackedNode));Tolerant:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)",
+    "Conformance.TrackedNode": "format=Positional; header=NullFlag; trackReferences=true; raw=false; typeId=0x8AEB65A0; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedNode:type(Conformance.TrackedNode)",
+    "Conformance.TrackedTolerant": "format=VersionTolerant; header=NullFlag; trackReferences=true; raw=false; typeId=0xB5BC74F3; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)"
+  },
+  "value": {
+    "$type": "Conformance.TrackedMix",
+    "Any": {
+      "$id": 1,
+      "$type": "Conformance.TrackedNode",
+      "Value": 2,
+      "Next": {
+        "$id": 2,
+        "$type": "Conformance.TrackedNode",
+        "Value": 1,
+        "Next": {
+          "$ref": 2
+        }
+      }
+    },
+    "Node": {
+      "$ref": 2
+    },
+    "Base": {
+      "$id": 3,
+      "$type": "Conformance.TrackedLeaf",
+      "Value": 3,
+      "Next": {
+        "$ref": 3
+      },
+      "Other": {
+        "$id": 4,
+        "$type": "Conformance.Tracked",
+        "Value": 4,
+        "Next": null,
+        "Other": null
+      },
+      "Name": "base"
+    },
+    "Nodes": [
+      {
+        "$ref": 1
+      },
+      null,
+      {
+        "$id": 5,
+        "$type": "Conformance.TrackedNode",
+        "Value": 7,
+        "Next": null
+      },
+      {
+        "$ref": 2
+      }
+    ],
+    "ById": [
+      [
+        1,
+        {
+          "$ref": 2
+        }
+      ],
+      [
+        2,
+        null
+      ],
+      [
+        7,
+        {
+          "$ref": 1
+        }
+      ]
+    ],
+    "Tolerant": {
+      "$id": 6,
+      "$type": "Conformance.TrackedTolerant",
+      "Value": 5,
+      "Next": {
+        "$id": 7,
+        "$type": "Conformance.TrackedTolerant",
+        "Value": 6,
+        "Next": {
+          "$ref": 6
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "case": "references-base-unknown-id",
+  "type": "Conformance.TrackedMix",
+  "category": "references",
+  "expected": "error",
+  "exercises": "A non-sealed tracked member, new, with the type id of TrackedNode.",
+  "optional": "track-references",
+  "size": 53,
+  "layouts": {
+    "Conformance.Tracked": "format=Positional; header=TypeId; trackReferences=true; raw=false; typeId=0x8E7C9360; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked)",
+    "Conformance.TrackedLeaf": "format=Positional; header=NullFlag; trackReferences=true; raw=false; typeId=0x671FC086; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked);Name:string:string",
+    "Conformance.TrackedMix": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x429143A4; deferrable=true; members=Any:object:object;Node:Conformance.TrackedNode:type(Conformance.TrackedNode);Base:Conformance.Tracked:type(Conformance.Tracked);Nodes:System.Collections.Generic.List<Conformance.TrackedNode>:seq(type(Conformance.TrackedNode));ById:System.Collections.Generic.Dictionary<int, Conformance.TrackedNode>:map(raw(4),type(Conformance.TrackedNode));Tolerant:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)",
+    "Conformance.TrackedNode": "format=Positional; header=NullFlag; trackReferences=true; raw=false; typeId=0x8AEB65A0; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedNode:type(Conformance.TrackedNode)",
+    "Conformance.TrackedTolerant": "format=VersionTolerant; header=NullFlag; trackReferences=true; raw=false; typeId=0xB5BC74F3; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "NinoDataException"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "case": "generic-slots",
+  "description": "Generic abstract classes, classes and interfaces written behind type ids: each closed type is its own slot, holding generic and non-generic subtypes.",
+  "type": "Conformance.GenericSlots",
+  "features": [
+    "type-id",
+    "generic-type-id"
+  ],
+  "size": 105,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Crate<T>": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Content:T:type(T)",
+    "Conformance.GenericSlots": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x81599708; deferrable=true; members=IntShelf:Conformance.Shelf<int>:type(Conformance.Shelf<int>);TextShelf:Conformance.Shelf<string>:type(Conformance.Shelf<string>);Crate:Conformance.Crate<int>:type(Conformance.Crate<int>);TextCrate:Conformance.Crate<string>:type(Conformance.Crate<string>);Holder:Conformance.IHolder<long>:type(Conformance.IHolder<long>);Shelves:System.Collections.Generic.List<Conformance.Shelf<int>>:seq(type(Conformance.Shelf<int>))",
+    "Conformance.Holder<T>": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Held:T:type(T);Count:int:raw(4)",
+    "Conformance.IHolder<T>": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=false; members=",
+    "Conformance.IntShelf": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x6370ECA9; deferrable=true; members=Item:int:raw(4);Extra:int:raw(4)",
+    "Conformance.LabeledCrate<T>": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Content:T:type(T);Label:string:string",
+    "Conformance.ListShelf<T>": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Item:T:type(T);More:System.Collections.Generic.List<T>:seq(type(T))",
+    "Conformance.Shelf<T>": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=false; members=Item:T:type(T)"
+  },
+  "typeIds": {
+    "Conformance.Crate<System.String>": "0x3AFC7DCB",
+    "Conformance.Holder<System.Int64>": "0xADCAB43E",
+    "Conformance.LabeledCrate<System.Int32>": "0x6BB12E03",
+    "Conformance.ListShelf<System.Int32>": "0x7CA7720B",
+    "Conformance.ListShelf<System.String>": "0x1E7701F4"
+  },
+  "value": {
+    "$type": "Conformance.GenericSlots",
+    "IntShelf": {
+      "$type": "Conformance.IntShelf",
+      "Item": 1,
+      "Extra": 2
+    },
+    "TextShelf": {
+      "$type": "Conformance.ListShelf<System.String>",
+      "Item": "x",
+      "More": [
+        "y"
+      ]
+    },
+    "Crate": {
+      "$type": "Conformance.LabeledCrate<System.Int32>",
+      "Content": 3,
+      "Label": "l"
+    },
+    "TextCrate": {
+      "$type": "Conformance.Crate<System.String>",
+      "Content": "c"
+    },
+    "Holder": {
+      "$type": "Conformance.Holder<System.Int64>",
+      "Held": "9223372036854775807",
+      "Count": 1
+    },
+    "Shelves": [
+      {
+        "$type": "Conformance.ListShelf<System.Int32>",
+        "Item": 4,
+        "More": [
+          5
+        ]
+      },
+      null,
+      {
+        "$type": "Conformance.IntShelf",
+        "Item": 0,
+        "Extra": 0
+      }
+    ]
+  }
+}

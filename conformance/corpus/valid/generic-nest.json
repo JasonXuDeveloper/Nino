@@ -1,0 +1,42 @@
+{
+  "case": "generic-nest",
+  "description": "A generic type holding itself with another type argument (Nest<T> holds Nest<List<T>>): every level is another closed type.",
+  "type": "Conformance.NestHolder",
+  "features": [
+    "seq"
+  ],
+  "size": 33,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Nest<T>": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T);Deeper:Conformance.Nest<System.Collections.Generic.List<T>>:type(Conformance.Nest<System.Collections.Generic.List<T>>)",
+    "Conformance.NestHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xE929FD9A; deferrable=true; members=Nest:Conformance.Nest<int>:type(Conformance.Nest<int>)"
+  },
+  "typeIds": {
+    "Conformance.Nest<System.Collections.Generic.List<System.Collections.Generic.List<System.Int32>>>": "0x8CCF5AA1",
+    "Conformance.Nest<System.Collections.Generic.List<System.Int32>>": "0x963E464E",
+    "Conformance.Nest<System.Int32>": "0x2E575D41"
+  },
+  "value": {
+    "$type": "Conformance.NestHolder",
+    "Nest": {
+      "$type": "Conformance.Nest<System.Int32>",
+      "Value": 1,
+      "Deeper": {
+        "$type": "Conformance.Nest<System.Collections.Generic.List<System.Int32>>",
+        "Value": [
+          2
+        ],
+        "Deeper": {
+          "$type": "Conformance.Nest<System.Collections.Generic.List<System.Collections.Generic.List<System.Int32>>>",
+          "Value": [
+            [
+              3
+            ],
+            null
+          ],
+          "Deeper": null
+        }
+      }
+    }
+  }
+}
