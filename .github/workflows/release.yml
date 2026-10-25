@@ -2,7 +2,7 @@ name: Release
 
 # Run manually: Actions -> Release -> Run workflow (on main), enter the version (e.g. 4.0.0 or 4.1.0-beta.1).
 #   tag:     bump the version of every package (.github/scripts/bump_version.py: Directory.Build.props, the Unity
-#            package.json, the Rust crates, the npm package), build, test, copy the Unity DLLs, commit "Bump to vX.Y.Z",
+#            package.json, the Rust crates, the npm package), build, test, copy the Unity DLLs, commit "chore(release): bump to vX.Y.Z",
 #            tag vX.Y.Z (and the OpenUPM tag of a pre-release, and runtimes/go/vX.Y.Z for the Go module), push.
 #   publish: from the tag, pack and push to NuGet (Trusted Publishing: a short-lived key from this workflow's OIDC
 #            token, no stored secret), create the GitHub release with the notes of .github/scripts/release_notes.py
@@ -49,6 +49,11 @@ env:
   VERSION: ${{ inputs.version }}
   UNITY_PACKAGE: src/Nino.Unity/Packages/com.jasonxudeveloper.nino
 
+# Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   tag:
     runs-on: ubuntu-26.04
@@ -57,7 +62,8 @@ jobs:
     outputs:
       unity_version: ${{ steps.version.outputs.unity_version }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -87,17 +93,17 @@ jobs:
         if: steps.version.outputs.exists != 'true'
         env:
           UNITY_VERSION: ${{ steps.version.outputs.unity_version }}
-        run: python3 .github/scripts/bump_version.py "$VERSION" "$UNITY_VERSION"
+        # The files it changed, for the release commit.
+        run: python3 .github/scripts/bump_version.py "$VERSION" "$UNITY_VERSION" | tee "$RUNNER_TEMP/bumped.txt"
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
         with:
-          dotnet-version: |
-            10.0.x
-            8.0.x
+          net8: true
+          cache: false
 
       - name: Build and test the bumped version
         if: steps.version.outputs.exists != 'true'
-        working-directory: .
         run: |
           dotnet build --configuration Release
           dotnet test tests/Nino.UnitTests/Nino.UnitTests.csproj --no-build --configuration Release
@@ -121,11 +127,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Directory.Build.props "$UNITY_PACKAGE/package.json" "$UNITY_PACKAGE/Runtime/"*.dll \
-            runtimes/rust/Cargo.toml runtimes/rust/nino-derive/Cargo.toml runtimes/rust/Cargo.lock \
-            runtimes/typescript/package.json runtimes/typescript/package-lock.json
+          # What bump_version.py changed, and the Unity DLLs.
+          xargs -d '\n' git add -- "$UNITY_PACKAGE/Runtime/"*.dll < "$RUNNER_TEMP/bumped.txt"
           if ! git diff --cached --quiet; then
-            git commit -m "Bump to v$VERSION"
+            git commit -m "chore(release): bump to v$VERSION"
           fi
           git tag -a "v$VERSION" -m "v$VERSION"
           # The Go module's version: a module in a subdirectory is tagged <directory>/vX.Y.Z.
@@ -149,24 +154,24 @@ jobs:
       # The package ids that are packed, checked and pushed (Nino.Core's is Nino.Serialization).
       PACKAGE_IDS: Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino.Codegen Nino.Codegen.Tool Nino
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: v${{ inputs.version }}
           fetch-depth: 0 # the release notes walk the history since the previous release
+          persist-credentials: false
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
         with:
-          dotnet-version: |
-            10.0.x
-            8.0.x
+          net8: true
+          cache: false
 
       - name: Pack
-        working-directory: .
         run: |
           dotnet build --configuration Release
-          for proj in Nino.Core Nino.Generator Nino.Immutable Nino.AspNetCore Nino.Codegen Nino.Codegen.Tool Nino; do
-            dotnet pack "src/$proj/$proj.csproj" --no-build --configuration Release --output artifacts
-          done
+          # The solution: the projects Directory.Build.props marks IsPackable, each packed once, in one MSBuild run.
+          dotnet pack --no-build --configuration Release --output artifacts
           ls artifacts
           # shellcheck disable=SC2086 # PACKAGE_IDS is a list of ids
           for id in $PACKAGE_IDS; do
@@ -225,9 +230,11 @@ jobs:
       contents: read
       id-token: write # the OIDC token crates.io exchanges for a temporary API token
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: v${{ inputs.version }}
+          persist-credentials: false
 
       # Trusted Publishing is configured on a crate that exists: a crate's first version is published with the
       # repository secret CARGO_REGISTRY_TOKEN (a crates.io API token with the publish-new scope), every later one
@@ -279,11 +286,14 @@ jobs:
       contents: read
       id-token: write # npm's Trusted Publishing (and its provenance statement)
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: v${{ inputs.version }}
+          persist-credentials: false
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
           registry-url: https://registry.npmjs.org
@@ -304,8 +314,8 @@ jobs:
             fi
             export NODE_AUTH_TOKEN="$FIRST_TOKEN"
           fi
-          # Trusted Publishing needs npm 11.5.1 or later.
-          npm install -g npm@latest
+          # Trusted Publishing needs npm 11.5.1 or later: a fixed release, not whatever is newest on the day.
+          npm install -g npm@11.21.0
           npm ci
           cp ../../LICENSE LICENSE
           TAG=latest
