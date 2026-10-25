@@ -5,10 +5,16 @@ name: CodeQL
 # and fails. The default setup must be off for these results to be accepted (Settings → Code security → CodeQL
 # analysis → Disable CodeQL, or "Switch to advanced").
 on:
+  # Not for a push that changes only documentation (Markdown, docs/, the license): no language here analyzes it.
   push:
     branches: [ "main", "claude/zen-goldberg-5qqqcu" ]
+    paths-ignore: &docs
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
   pull_request:
     branches: [ "main" ]
+    paths-ignore: *docs
   schedule:
     - cron: '23 4 * * 1'
   workflow_dispatch:

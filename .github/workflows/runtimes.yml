@@ -139,6 +139,10 @@ jobs:
         working-directory: runtimes/rust
     env:
       RUSTFLAGS: -D warnings
+      # The tests built with optimizations, debug assertions and overflow checks still on (opt-level is all this
+      # changes): the simd tests compare every block kind at every length and position, and unoptimized they took
+      # over three minutes of each Rust job.
+      CARGO_PROFILE_DEV_OPT_LEVEL: '1'
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -195,6 +199,7 @@ jobs:
         working-directory: runtimes/rust
     env:
       RUSTFLAGS: -D warnings
+      CARGO_PROFILE_DEV_OPT_LEVEL: '1'
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -226,6 +231,7 @@ jobs:
         working-directory: runtimes/rust
     env:
       RUSTFLAGS: -D warnings
+      CARGO_PROFILE_DEV_OPT_LEVEL: '1'
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

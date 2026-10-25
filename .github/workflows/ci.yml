@@ -137,6 +137,7 @@ jobs:
         uses: ./.github/actions/setup-dotnet
         with:
           net8: true
+          cache: ${{ runner.os == 'Windows' && 'unit-tests' || '' }}
 
       # The build, and a copy of its output per shard next to it (tests find the repository by walking up from it).
       - name: Build
@@ -302,34 +303,6 @@ jobs:
           path: ./TestResults
           retention-days: 30
 
-  # Nino.Core and generated code must stay trim and NativeAOT safe: Nino.AotTests is published both ways with every
-  # trim/AOT warning an error (TreatWarningsAsErrors, TrimmerSingleWarn=false), then run; both runs must write the
-  # same bytes.
-  trim-aot:
-    name: Trim and NativeAOT
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup .NET
-        uses: ./.github/actions/setup-dotnet
-
-      - name: Publish trimmed and NativeAOT
-        run: |
-          dotnet publish tests/Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=trim -o ./aot-tests/trim
-          dotnet publish tests/Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=aot -o ./aot-tests/aot
-
-      - name: Run
-        run: |
-          ./aot-tests/trim/Nino.AotTests | tee trim.txt
-          ./aot-tests/aot/Nino.AotTests | tee aot.txt
-          [ "$(grep 'payload sha256' trim.txt)" = "$(grep 'payload sha256' aot.txt)" ]
-
   # Nino.RuntimeTests on every runtime whose internals Nino reads or builds (CollectionViews, HashTables,
   # ConcurrentTables, SortedSetNodes, LinkedList nodes, ObjectTypes; Nino.Immutable's HashTrees and SortedTrees): each
   # must write the same bytes as .NET on x64, see the same contents through the public API, survive compacting
@@ -337,8 +310,13 @@ jobs:
   # net472 build (Nino.Core netstandard2.0) runs on Mono (x64 and Arm64) and on .NET Framework 4.8, 64-bit and
   # 32-bit; the net10.0 build on .NET x64, Arm64, Windows x86 and Arm32 (qemu: GitHub has no Arm32 runner; it also
   # checks the Int128 layout, aligned to 8 there).
+  # The x64 Linux runner also publishes Nino.AotTests trimmed and NativeAOT: Nino.Core and generated code must stay
+  # trim and NativeAOT safe, every trim/AOT warning an error (TreatWarningsAsErrors, TrimmerSingleWarn=false), and
+  # both runs must write the same bytes. One runner for the three short Linux x64 checks instead of three (about a
+  # minute each, mostly setup): a push starts more jobs than the account runs at once, and each runner here was one
+  # the unit tests waited for.
   runtime-tests:
-    name: Runtime internals (${{ matrix.name }})
+    name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     defaults:
@@ -348,10 +326,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { id: mono, name: .NET and Mono, runner: ubuntu-26.04 }
-          - { id: arm64, name: .NET and Mono on Arm64, runner: ubuntu-26.04-arm }
-          - { id: arm32, name: .NET on Arm32 under qemu, runner: ubuntu-26.04 }
-          - { id: framework, name: .NET Framework 4.8 and .NET on Windows, 64-bit and 32-bit, runner: windows-latest }
+          - { id: linux, name: 'Runtime internals (.NET, Mono, Arm32 under qemu), trim and NativeAOT', runner: ubuntu-26.04 }
+          - { id: arm64, name: Runtime internals (.NET and Mono on Arm64), runner: ubuntu-26.04-arm }
+          - { id: framework, name: 'Runtime internals (.NET Framework 4.8 and .NET on Windows, 64-bit and 32-bit)', runner: windows-latest }
 
     steps:
       - name: Checkout code
@@ -361,17 +338,19 @@ jobs:
 
       - name: Setup .NET
         uses: ./.github/actions/setup-dotnet
+        with:
+          cache: ${{ matrix.id == 'framework' && 'runtime-tests' || '' }}
 
       - name: Install Mono
-        if: matrix.id == 'mono' || matrix.id == 'arm64'
+        if: matrix.id == 'arm64'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mono-complete
 
-      # The .NET runtime for linux-arm, run by qemu-user with the armhf C and C++ libraries.
-      - name: Install qemu and .NET for Arm32
-        if: matrix.id == 'arm32'
+      # Mono, and the .NET runtime for linux-arm, run by qemu-user with the armhf C and C++ libraries.
+      - name: Install Mono, qemu and .NET for Arm32
+        if: matrix.id == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qemu-user libc6-armhf-cross libstdc++6-armhf-cross
+          sudo apt-get install -y --no-install-recommends mono-complete qemu-user libc6-armhf-cross libstdc++6-armhf-cross
           curl -sSfL https://dot.net/v1/dotnet-install.sh -o "$RUNNER_TEMP/dotnet-install.sh"
           bash "$RUNNER_TEMP/dotnet-install.sh" --runtime dotnet --channel 10.0 --architecture arm \
             --install-dir "$RUNNER_TEMP/dotnet-arm" --no-path
@@ -420,7 +399,7 @@ jobs:
           }
           run dotnet dotnet "$BIN/Release/net10.0/Nino.RuntimeTests.dll"
           case "${{ matrix.id }}" in
-            mono|arm64)
+            linux|arm64)
               run mono mono "$BIN/Release/net472/Nino.RuntimeTests.exe"
               compare mono
               # The GC checks the heap before every collection: objects made through Mono's internals must be
@@ -428,7 +407,9 @@ jobs:
               MONO_GC_DEBUG=verify-before-collections run mono-gc-verify mono "$BIN/Release/net472/Nino.RuntimeTests.exe"
               compare mono-gc-verify
               ;;
-            arm32)
+          esac
+          case "${{ matrix.id }}" in
+            linux)
               # W^X off: the runtime writes code through a second mapping of its pages, which qemu-user does not see
               # as a change to the code it translated (dynamic methods then crash). Suspension by signal off: qemu
               # (8.2 and 10.2) delivers the runtime's GC suspension signal at an odd Thumb address now and then and
@@ -456,22 +437,34 @@ jobs:
           esac
           exit $status
 
+      - name: Publish trimmed and NativeAOT
+        if: ${{ matrix.id == 'linux' && !cancelled() }}
+        run: |
+          dotnet publish tests/Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=trim -o ./aot-tests/trim
+          dotnet publish tests/Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=aot -o ./aot-tests/aot
+
+      - name: Run trimmed and NativeAOT
+        if: ${{ matrix.id == 'linux' && !cancelled() }}
+        run: |
+          ./aot-tests/trim/Nino.AotTests | tee trim.txt
+          ./aot-tests/aot/Nino.AotTests | tee aot.txt
+          [ "$(grep 'payload sha256' trim.txt)" = "$(grep 'payload sha256' aot.txt)" ]
+
   # The one check to require: fails if any configuration failed (Unity runs in unity.yml, one seat at a time),
   # or if the shards of a unit test configuration together did not run the whole suite.
   build-test:
     name: Build and Test
     runs-on: ubuntu-26.04
-    needs: [ unit-tests, integrations, trim-aot, runtime-tests ]
+    needs: [ unit-tests, integrations, runtime-tests ]
     # Not when the run itself was cancelled (a newer push supersedes it): its cancelled jobs are not failures.
     if: ${{ !cancelled() }}
     timeout-minutes: 10
     steps:
       - name: Check results
         run: |
-          echo "unit tests: ${{ needs.unit-tests.result }}, integrations: ${{ needs.integrations.result }}, trim/AOT: ${{ needs.trim-aot.result }}, runtime internals: ${{ needs.runtime-tests.result }}"
+          echo "unit tests: ${{ needs.unit-tests.result }}, integrations: ${{ needs.integrations.result }}, runtime internals and trim/AOT: ${{ needs.runtime-tests.result }}"
           [ "${{ needs.unit-tests.result }}" = success ] || exit 1
           [ "${{ needs.integrations.result }}" = success ] || exit 1
-          [ "${{ needs.trim-aot.result }}" = success ] || exit 1
           [ "${{ needs.runtime-tests.result }}" = success ] || exit 1
 
       - name: Checkout the scripts
