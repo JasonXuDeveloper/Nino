@@ -565,6 +565,112 @@ impl AnimalSlot {
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD4664648; deferrable=true; members=Value:Conformance.Animal:type(Conformance.Animal)";
 }
 
+/// `Conformance.Bag`: Positional, header TypeId.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct Bag {
+    #[cfg_attr(feature = "serde", serde(rename = "$elements"))]
+    pub elements: Vec<i32>,
+    pub tag: Option<nino::WideString>,
+}
+
+impl NinoReadBody for Bag {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.elements = r.read()?;
+        self.tag = r.read()?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for Bag {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.elements)?;
+        w.write(&self.tag)?;
+        Ok(())
+    }
+}
+
+impl Bag {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0xCC960662u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.Bag";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xCC960662; deferrable=true; members=[elements]::seq(raw(4));Tag:string:string";
+}
+
+/// `Conformance.BagHolder`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct BagHolder {
+    pub bag: Option<BagRef>,
+    pub tolerant: Option<Box<TolerantBag>>,
+    pub keyed: Option<Box<KeyedBag>>,
+    pub set: Option<Box<PointSet>>,
+    pub bags: Option<Vec<Option<BagRef>>>,
+}
+
+impl NinoReadBody for BagHolder {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.bag = r.read_in(nino::field!(Self, bag))?;
+        self.tolerant = r.read_in(nino::field!(Self, tolerant))?;
+        self.keyed = r.read_in(nino::field!(Self, keyed))?;
+        self.set = r.read_in(nino::field!(Self, set))?;
+        self.bags = r.read_in(nino::field!(Self, bags))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for BagHolder {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.bag)?;
+        w.write(&self.tolerant)?;
+        w.write(&self.keyed)?;
+        w.write(&self.set)?;
+        w.write(&self.bags)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for BagHolder {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl NinoWrite for BagHolder {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl BagHolder {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x79A1F522u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.BagHolder";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x79A1F522; deferrable=true; members=Bag:Conformance.Bag:type(Conformance.Bag);Tolerant:Conformance.TolerantBag:type(Conformance.TolerantBag);Keyed:Conformance.KeyedBag:type(Conformance.KeyedBag);Set:Conformance.PointSet:type(Conformance.PointSet);Bags:System.Collections.Generic.List<Conformance.Bag>:seq(type(Conformance.Bag))";
+}
+
 /// `Conformance.Targets.BigSlot`: Positional, header NullFlag.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -1340,6 +1446,34 @@ impl Collections {
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFECE6DDB; deferrable=true; members=Ints:int[]:seq(raw(4));IntList:System.Collections.Generic.List<int>:seq(raw(4));IntSet:System.Collections.Generic.HashSet<int>:seq(raw(4));Longs:long[]:seq(raw(8));Doubles:double[]:seq(raw(8));Bools:bool[]:seq(raw(1));Chars:char[]:seq(raw(2));Strings:System.Collections.Generic.List<string>:seq(string);StringSet:System.Collections.Generic.HashSet<string>:seq(string);Points:Conformance.Point[]:seq(type(Conformance.Point));PointList:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point));IntMap:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4));StringMap:System.Collections.Generic.Dictionary<string, string>:map(string,string);PointMap:System.Collections.Generic.Dictionary<string, Conformance.Point>:map(string,type(Conformance.Point));ListMap:System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>>:map(raw(4),seq(string));SortedInts:System.Collections.Generic.SortedDictionary<int, string>:map(raw(4),string);SortedStrings:System.Collections.Generic.SortedDictionary<string, int>:map(string,raw(4));Nested:System.Collections.Generic.List<System.Collections.Generic.List<int>>:seq(seq(raw(4)));Jagged:int[][]:seq(seq(raw(4)));Grid:int[,]:grid(2,raw(4));StringGrid:string[,]:grid(2,string)";
 }
 
+/// `Conformance.Crate<T>`: Positional, header TypeId.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct Crate<T> {
+    pub content: T,
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for Crate<T> {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.content = r.read_in(nino::field!(Self, content))?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for Crate<T> {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.content)?;
+        Ok(())
+    }
+}
+
+impl<T> Crate<T> {
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.Crate<T>";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Content:T:type(T)";
+}
+
 /// `Conformance.Dates`: Positional, header NullFlag.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -1785,6 +1919,81 @@ impl Floats {
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3504C24D; deferrable=true; members=F16:System.Half:raw(2);F32:float:raw(4);F64:double:raw(8)";
 }
 
+/// `Conformance.GenericSlots`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct GenericSlots {
+    pub int_shelf: Option<ShelfInt32Ref>,
+    pub text_shelf: Option<ShelfStringRef>,
+    pub crate_: Option<CrateInt32Ref>,
+    pub text_crate: Option<CrateStringRef>,
+    pub holder: Option<IHolderInt64Ref>,
+    pub shelves: Option<Vec<Option<ShelfInt32Ref>>>,
+}
+
+impl NinoReadBody for GenericSlots {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.int_shelf = r.read_in(nino::field!(Self, int_shelf))?;
+        self.text_shelf = r.read_in(nino::field!(Self, text_shelf))?;
+        self.crate_ = r.read_in(nino::field!(Self, crate_))?;
+        self.text_crate = r.read_in(nino::field!(Self, text_crate))?;
+        self.holder = r.read_in(nino::field!(Self, holder))?;
+        self.shelves = r.read_in(nino::field!(Self, shelves))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for GenericSlots {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.int_shelf)?;
+        w.write(&self.text_shelf)?;
+        w.write(&self.crate_)?;
+        w.write(&self.text_crate)?;
+        w.write(&self.holder)?;
+        w.write(&self.shelves)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for GenericSlots {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl NinoWrite for GenericSlots {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl GenericSlots {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x81599708u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.GenericSlots";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x81599708; deferrable=true; members=IntShelf:Conformance.Shelf<int>:type(Conformance.Shelf<int>);TextShelf:Conformance.Shelf<string>:type(Conformance.Shelf<string>);Crate:Conformance.Crate<int>:type(Conformance.Crate<int>);TextCrate:Conformance.Crate<string>:type(Conformance.Crate<string>);Holder:Conformance.IHolder<long>:type(Conformance.IHolder<long>);Shelves:System.Collections.Generic.List<Conformance.Shelf<int>>:seq(type(Conformance.Shelf<int>))";
+}
+
 /// `Conformance.Targets.Grid`: Positional, header NullFlag.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -1843,6 +2052,67 @@ impl Grid {
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.Grid";
     /// The layout this code was generated from (`NinoTypeLayout`).
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF8F3033A; deferrable=true; members=Values:int[,]:grid(2,raw(4))";
+}
+
+/// `Conformance.Holder<T>`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct Holder<T> {
+    pub held: T,
+    pub count: i32,
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for Holder<T> {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.held = r.read_in(nino::field!(Self, held))?;
+        self.count = r.read()?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for Holder<T> {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.held)?;
+        w.write(&self.count)?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for Holder<T> {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Holder<T> {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl<T> Holder<T> {
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.Holder<T>";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Held:T:type(T);Count:int:raw(4)";
 }
 
 /// `Conformance.Inner`: Positional, header NullFlag.
@@ -2091,6 +2361,69 @@ impl IntSet {
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xAA98C54B; deferrable=true; members=Values:System.Collections.Generic.HashSet<int>:seq(raw(4))";
 }
 
+/// `Conformance.IntShelf`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct IntShelf {
+    pub item: i32,
+    pub extra: i32,
+}
+
+impl NinoReadBody for IntShelf {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.item = r.read()?;
+        self.extra = r.read()?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for IntShelf {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.item)?;
+        w.write(&self.extra)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for IntShelf {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl NinoWrite for IntShelf {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl IntShelf {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x6370ECA9u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.IntShelf";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x6370ECA9; deferrable=true; members=Item:int:raw(4);Extra:int:raw(4)";
+}
+
 /// `Conformance.Integers`: Positional, header NullFlag.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -2176,6 +2509,88 @@ impl Integers {
     pub const NINO_TYPE_NAME: &str = "Conformance.Integers";
     /// The layout this code was generated from (`NinoTypeLayout`).
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x14BD31D3; deferrable=true; members=I8:sbyte:raw(1);U8:byte:raw(1);I16:short:raw(2);U16:ushort:raw(2);I32:int:raw(4);U32:uint:raw(4);I64:long:raw(8);U64:ulong:raw(8);I128:System.Int128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)};U128:System.UInt128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}";
+}
+
+/// `Conformance.KeyedBag`: Keyed, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct KeyedBag {
+    #[cfg_attr(feature = "serde", serde(rename = "$elements"))]
+    pub elements: indexmap::IndexMap<nino::WideString, i32>,
+    pub version: i32,
+}
+
+impl NinoReadBody for KeyedBag {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        let body = r.begin_region()?;
+        self.elements = r.read()?;
+        while r.has_more() {
+            let key = r.i32()?;
+            let member = r.begin_region()?;
+            match key as u32 {
+                0x8E2BF89F => self.version = r.read()?,
+                _ => {
+                    r.end_region(member, self)?;
+                    continue;
+                }
+            }
+            r.end_member(member, self)?;
+        }
+        r.end_region(body, self)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for KeyedBag {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let body = w.begin_region();
+        w.write(&self.elements)?;
+        w.i32(0x8E2BF89Fu32 as i32);
+        let member = w.begin_region();
+        w.write(&self.version)?;
+        w.end_region(member)?;
+        w.end_region(body)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for KeyedBag {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl NinoWrite for KeyedBag {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl KeyedBag {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x414A8EE4u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.KeyedBag";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x414A8EE4; deferrable=true; members=[elements]::map(string,raw(4));Version:int:raw(4):key=0x8E2BF89F";
 }
 
 /// `Conformance.KeyedChain`: Keyed, header NullFlag.
@@ -2641,6 +3056,128 @@ impl Label {
     pub const NINO_TYPE_NAME: &str = "Conformance.Label";
     /// The layout this code was generated from (`NinoTypeLayout`).
     pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=false; typeId=0x344F08B8; deferrable=false; members=Name:string:string;Weight:int:raw(4)";
+}
+
+/// `Conformance.LabeledCrate<T>`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct LabeledCrate<T> {
+    pub content: T,
+    pub label: Option<nino::WideString>,
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for LabeledCrate<T> {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.content = r.read_in(nino::field!(Self, content))?;
+        self.label = r.read()?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for LabeledCrate<T> {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.content)?;
+        w.write(&self.label)?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for LabeledCrate<T> {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for LabeledCrate<T> {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl<T> LabeledCrate<T> {
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.LabeledCrate<T>";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Content:T:type(T);Label:string:string";
+}
+
+/// `Conformance.ListShelf<T>`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct ListShelf<T> {
+    pub item: T,
+    pub more: Option<Vec<T>>,
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for ListShelf<T> {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.item = r.read_in(nino::field!(Self, item))?;
+        self.more = r.read_in(nino::field!(Self, more))?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for ListShelf<T> {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.item)?;
+        w.write(&self.more)?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for ListShelf<T> {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for ListShelf<T> {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl<T> ListShelf<T> {
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.ListShelf<T>";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Item:T:type(T);More:System.Collections.Generic.List<T>:seq(type(T))";
 }
 
 /// `Conformance.Targets.LongList`: Positional, header NullFlag.
@@ -3322,6 +3859,70 @@ impl PointList {
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.PointList";
     /// The layout this code was generated from (`NinoTypeLayout`).
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2EA152CC; deferrable=true; members=Values:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point))";
+}
+
+/// `Conformance.PointSet`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct PointSet {
+    #[cfg_attr(feature = "serde", serde(rename = "$elements"))]
+    pub elements: indexmap::IndexSet<i32>,
+    pub origin: Option<Box<Point>>,
+}
+
+impl NinoReadBody for PointSet {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.elements = r.read()?;
+        self.origin = r.read_in(nino::field!(Self, origin))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for PointSet {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.elements)?;
+        w.write(&self.origin)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for PointSet {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl NinoWrite for PointSet {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl PointSet {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x14E7B060u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.PointSet";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x14E7B060; deferrable=true; members=[elements]::seq(raw(4));Origin:Conformance.Point:type(Conformance.Point)";
 }
 
 /// `Conformance.Puppy`: Positional, header NullFlag.
@@ -4255,6 +4856,76 @@ impl TextValue {
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string";
 }
 
+/// `Conformance.TolerantBag`: VersionTolerant, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct TolerantBag {
+    #[cfg_attr(feature = "serde", serde(rename = "$elements"))]
+    pub elements: Vec<Option<nino::WideString>>,
+    pub tag: Option<nino::WideString>,
+}
+
+impl NinoReadBody for TolerantBag {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.elements = r.read()?;
+        let body = r.begin_region()?;
+        if r.has_more() {
+            self.tag = r.read()?;
+        }
+        r.end_region(body, self)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for TolerantBag {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.elements)?;
+        let body = w.begin_region();
+        w.write(&self.tag)?;
+        w.end_region(body)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for TolerantBag {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl NinoWrite for TolerantBag {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl TolerantBag {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x2101A619u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.TolerantBag";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x2101A619; deferrable=true; members=[elements]::seq(string);Tag:string:string";
+}
+
 /// `Conformance.TolerantBase`: VersionTolerant, header TypeId.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -4790,6 +5461,299 @@ impl TolerantV2 {
     pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0xF7BB17A9; deferrable=true; members=A:int:raw(4);B:string:string;C:long:raw(8);D:System.Collections.Generic.List<int>:seq(raw(4))";
 }
 
+/// `Conformance.Tracked`: Positional, header TypeId.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct Tracked {
+    pub value: i32,
+    pub next: Option<TrackedRef>,
+    pub other: Option<TrackedRef>,
+}
+
+impl NinoReadBody for Tracked {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.value = r.read()?;
+        self.next = r.read_in(nino::field!(Self, next))?;
+        self.other = r.read_in(nino::field!(Self, other))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for Tracked {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.value)?;
+        w.write(&self.next)?;
+        w.write(&self.other)?;
+        Ok(())
+    }
+}
+
+impl Tracked {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x8E7C9360u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.Tracked";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=true; raw=false; typeId=0x8E7C9360; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked)";
+}
+
+/// `Conformance.TrackedHolder`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct TrackedHolder {
+    pub a: Option<TrackedRef>,
+    pub b: Option<TrackedRef>,
+    pub all: Option<Vec<Option<TrackedRef>>>,
+    pub any: Option<AnyObject>,
+}
+
+impl NinoReadBody for TrackedHolder {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.a = r.read_in(nino::field!(Self, a))?;
+        self.b = r.read_in(nino::field!(Self, b))?;
+        self.all = r.read_in(nino::field!(Self, all))?;
+        self.any = r.read_in(nino::field!(Self, any))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for TrackedHolder {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.a)?;
+        w.write(&self.b)?;
+        w.write(&self.all)?;
+        w.write(&self.any)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for TrackedHolder {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl NinoWrite for TrackedHolder {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl TrackedHolder {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0xFA74F460u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.TrackedHolder";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFA74F460; deferrable=true; members=A:Conformance.Tracked:type(Conformance.Tracked);B:Conformance.Tracked:type(Conformance.Tracked);All:System.Collections.Generic.List<Conformance.Tracked>:seq(type(Conformance.Tracked));Any:object:object";
+}
+
+/// `Conformance.TrackedLeaf`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct TrackedLeaf {
+    pub value: i32,
+    pub next: Option<TrackedRef>,
+    pub other: Option<TrackedRef>,
+    pub name: Option<nino::WideString>,
+}
+
+impl NinoReadBody for TrackedLeaf {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.value = r.read()?;
+        self.next = r.read_in(nino::field!(Self, next))?;
+        self.other = r.read_in(nino::field!(Self, other))?;
+        self.name = r.read()?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for TrackedLeaf {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.value)?;
+        w.write(&self.next)?;
+        w.write(&self.other)?;
+        w.write(&self.name)?;
+        Ok(())
+    }
+}
+
+impl TrackedLeaf {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x671FC086u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.TrackedLeaf";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=true; raw=false; typeId=0x671FC086; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked);Name:string:string";
+}
+
+/// `Conformance.TrackedMix`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct TrackedMix {
+    pub any: Option<AnyObject>,
+    pub node: Option<nino::Shared<TrackedNode>>,
+    pub base: Option<TrackedRef>,
+    pub nodes: Option<Vec<Option<nino::Shared<TrackedNode>>>>,
+    pub by_id: Option<indexmap::IndexMap<i32, Option<nino::Shared<TrackedNode>>>>,
+    pub tolerant: Option<nino::Shared<TrackedTolerant>>,
+}
+
+impl NinoReadBody for TrackedMix {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.any = r.read_in(nino::field!(Self, any))?;
+        self.node = r.read_in(nino::field!(Self, node))?;
+        self.base = r.read_in(nino::field!(Self, base))?;
+        self.nodes = r.read_in(nino::field!(Self, nodes))?;
+        self.by_id = r.read_in(nino::field!(Self, by_id))?;
+        self.tolerant = r.read_in(nino::field!(Self, tolerant))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for TrackedMix {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.any)?;
+        w.write(&self.node)?;
+        w.write(&self.base)?;
+        w.write(&self.nodes)?;
+        w.write(&self.by_id)?;
+        w.write(&self.tolerant)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for TrackedMix {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl NinoWrite for TrackedMix {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl TrackedMix {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x429143A4u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.TrackedMix";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x429143A4; deferrable=true; members=Any:object:object;Node:Conformance.TrackedNode:type(Conformance.TrackedNode);Base:Conformance.Tracked:type(Conformance.Tracked);Nodes:System.Collections.Generic.List<Conformance.TrackedNode>:seq(type(Conformance.TrackedNode));ById:System.Collections.Generic.Dictionary<int, Conformance.TrackedNode>:map(raw(4),type(Conformance.TrackedNode));Tolerant:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)";
+}
+
+/// `Conformance.TrackedNode`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct TrackedNode {
+    pub value: i32,
+    pub next: Option<nino::Shared<TrackedNode>>,
+}
+
+impl NinoReadBody for TrackedNode {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.value = r.read()?;
+        self.next = r.read_in(nino::field!(Self, next))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for TrackedNode {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.value)?;
+        w.write(&self.next)?;
+        Ok(())
+    }
+}
+
+impl TrackedNode {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x8AEB65A0u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.TrackedNode";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=true; raw=false; typeId=0x8AEB65A0; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedNode:type(Conformance.TrackedNode)";
+}
+
+/// `Conformance.TrackedTolerant`: VersionTolerant, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct TrackedTolerant {
+    pub value: i32,
+    pub next: Option<nino::Shared<TrackedTolerant>>,
+}
+
+impl NinoReadBody for TrackedTolerant {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        let body = r.begin_region()?;
+        if r.has_more() {
+            self.value = r.read()?;
+        }
+        if r.has_more() {
+            self.next = r.read_in(nino::field!(Self, next))?;
+        }
+        r.end_region(body, self)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for TrackedTolerant {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let body = w.begin_region();
+        w.write(&self.value)?;
+        w.write(&self.next)?;
+        w.end_region(body)?;
+        Ok(())
+    }
+}
+
+impl TrackedTolerant {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0xB5BC74F3u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.TrackedTolerant";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=NullFlag; trackReferences=true; raw=false; typeId=0xB5BC74F3; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)";
+}
+
 /// `Conformance.TreeHolder`: Positional, header NullFlag.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -5036,6 +6000,142 @@ impl VersionSlot {
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9D692494; deferrable=true; members=Value:System.Version:version";
 }
 
+/// `Conformance.Wrap<T>`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct Wrap<T> {
+    pub value: T,
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for Wrap<T> {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.value = r.read_in(nino::field!(Self, value))?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for Wrap<T> {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.value)?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for Wrap<T> {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Wrap<T> {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl<T> Wrap<T> {
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.Wrap<T>";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T)";
+}
+
+/// `Conformance.WrappedArgs`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct WrappedArgs {
+    pub nullable_array: Option<Box<Wrap<Option<nino::RawNullables<i32>>>>>,
+    pub nullable_list: Option<Box<Wrap<Option<nino::RawNullables<i32>>>>>,
+    pub nullable_set: Option<Box<Wrap<Option<indexmap::IndexSet<Option<i32>>>>>>,
+    pub nullable_structs: Option<Box<Wrap<Option<nino::RawNullables<Vec2>>>>>,
+    pub nullable_values: Option<Box<Wrap<Option<indexmap::IndexMap<i32, Option<f64>>>>>>,
+    pub pairs: Option<Box<Wrap<Option<Vec<(i32, Option<nino::WideString>)>>>>>,
+    pub pair_array: Option<Box<Wrap<Option<Vec<(Option<nino::WideString>, Option<i32>)>>>>>,
+}
+
+impl NinoReadBody for WrappedArgs {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.nullable_array = r.read_in(nino::field!(Self, nullable_array))?;
+        self.nullable_list = r.read_in(nino::field!(Self, nullable_list))?;
+        self.nullable_set = r.read_in(nino::field!(Self, nullable_set))?;
+        self.nullable_structs = r.read_in(nino::field!(Self, nullable_structs))?;
+        self.nullable_values = r.read_in(nino::field!(Self, nullable_values))?;
+        self.pairs = r.read_in(nino::field!(Self, pairs))?;
+        self.pair_array = r.read_in(nino::field!(Self, pair_array))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for WrappedArgs {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.nullable_array)?;
+        w.write(&self.nullable_list)?;
+        w.write(&self.nullable_set)?;
+        w.write(&self.nullable_structs)?;
+        w.write(&self.nullable_values)?;
+        w.write(&self.pairs)?;
+        w.write(&self.pair_array)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for WrappedArgs {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl NinoWrite for WrappedArgs {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl WrappedArgs {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0xE29BBB74u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.WrappedArgs";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xE29BBB74; deferrable=true; members=NullableArray:Conformance.Wrap<System.Nullable<int>[]>:type(Conformance.Wrap<System.Nullable<int>[]>);NullableList:Conformance.Wrap<System.Collections.Generic.List<System.Nullable<int>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Nullable<int>>>);NullableSet:Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<int>>>:type(Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<int>>>);NullableStructs:Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>);NullableValues:Conformance.Wrap<System.Collections.Generic.Dictionary<int, System.Nullable<double>>>:type(Conformance.Wrap<System.Collections.Generic.Dictionary<int, System.Nullable<double>>>);Pairs:Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, string>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, string>>>);PairArray:Conformance.Wrap<System.Collections.Generic.KeyValuePair<string, System.Nullable<int>>[]>:type(Conformance.Wrap<System.Collections.Generic.KeyValuePair<string, System.Nullable<int>>[]>)";
+}
+
 /// `Conformance.Zoo`: Positional, header NullFlag.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -5230,6 +6330,8 @@ impl NinoWrite for AnimalRef {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum AnyObject {
     AnimalSlot(Box<AnimalSlot>),
+    Bag(Box<Bag>),
+    BagHolder(Box<BagHolder>),
     BigSlot(Box<BigSlot>),
     BigValues(Box<BigValues>),
     BlueLink(Box<BlueLink>),
@@ -5249,12 +6351,15 @@ pub enum AnyObject {
     EmptyStruct(Box<EmptyStruct>),
     Enums(Box<Enums>),
     Floats(Box<Floats>),
+    GenericSlots(Box<GenericSlots>),
     Grid(Box<Grid>),
     Inner(Box<Inner>),
     IntArray(Box<IntArray>),
     IntMap(Box<IntMap>),
     IntSet(Box<IntSet>),
+    IntShelf(Box<IntShelf>),
     Integers(Box<Integers>),
+    KeyedBag(Box<KeyedBag>),
     KeyedChain(Box<KeyedChain>),
     KeyedHolder(Box<KeyedHolder>),
     KeyedStruct(Box<KeyedStruct>),
@@ -5276,6 +6381,7 @@ pub enum AnyObject {
     Plain(Box<Plain>),
     Point(Box<Point>),
     PointList(Box<PointList>),
+    PointSet(Box<PointSet>),
     Puppy(Box<Puppy>),
     RecordChain(Box<RecordChain>),
     RedLink(Box<RedLink>),
@@ -5291,6 +6397,7 @@ pub enum AnyObject {
     Strings(Box<Strings>),
     Structs(Box<Structs>),
     TextValue(Box<TextValue>),
+    TolerantBag(Box<TolerantBag>),
     TolerantBase(Box<TolerantBase>),
     TolerantChain(Box<TolerantChain>),
     TolerantEmpty(Box<TolerantEmpty>),
@@ -5299,11 +6406,18 @@ pub enum AnyObject {
     TolerantRoot(Box<TolerantRoot>),
     TolerantV1(Box<TolerantV1>),
     TolerantV2(Box<TolerantV2>),
+    Tracked(nino::Shared<Tracked>),
+    TrackedHolder(Box<TrackedHolder>),
+    TrackedLeaf(nino::Shared<TrackedLeaf>),
+    TrackedMix(Box<TrackedMix>),
+    TrackedNode(nino::Shared<TrackedNode>),
+    TrackedTolerant(nino::Shared<TrackedTolerant>),
     TreeHolder(Box<TreeHolder>),
     TreeNode(Box<TreeNode>),
     Utf8Value(Box<Utf8Value>),
     Vec2(Box<Vec2>),
     VersionSlot(Box<VersionSlot>),
+    WrappedArgs(Box<WrappedArgs>),
     Zoo(Box<Zoo>),
     /// `Conformance.Box<Conformance.Vec2>`.
     BoxVec2(Box<BoxType<Vec2>>),
@@ -5313,12 +6427,42 @@ pub enum AnyObject {
     BoxInt32(Box<BoxType<i32>>),
     /// `Conformance.Box<System.String>`.
     BoxString(Box<BoxType<Option<nino::WideString>>>),
+    /// `Conformance.Crate<System.Int32>`.
+    CrateInt32(Box<Crate<i32>>),
+    /// `Conformance.Crate<System.String>`.
+    CrateString(Box<Crate<Option<nino::WideString>>>),
+    /// `Conformance.Holder<System.Int64>`.
+    HolderInt64(Box<Holder<i64>>),
+    /// `Conformance.LabeledCrate<System.Int32>`.
+    LabeledCrateInt32(Box<LabeledCrate<i32>>),
+    /// `Conformance.LabeledCrate<System.String>`.
+    LabeledCrateString(Box<LabeledCrate<Option<nino::WideString>>>),
+    /// `Conformance.ListShelf<System.Int32>`.
+    ListShelfInt32(Box<ListShelf<i32>>),
+    /// `Conformance.ListShelf<System.String>`.
+    ListShelfString(Box<ListShelf<Option<nino::WideString>>>),
+    /// `Conformance.Wrap<System.Collections.Generic.Dictionary<System.Int32,System.Nullable<System.Double>>>`.
+    WrapDictionaryInt32NullableDouble(Box<Wrap<Option<indexmap::IndexMap<i32, Option<f64>>>>>),
+    /// `Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<System.Int32>>>`.
+    WrapHashSetNullableInt32(Box<Wrap<Option<indexmap::IndexSet<Option<i32>>>>>),
+    /// `Conformance.Wrap<System.Collections.Generic.KeyValuePair<System.String,System.Nullable<System.Int32>>[]>`.
+    WrapKeyValuePair(Box<Wrap<Option<Vec<(Option<nino::WideString>, Option<i32>)>>>>),
+    /// `Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<System.Int32,System.String>>>`.
+    WrapListKeyValuePairInt32String(Box<Wrap<Option<Vec<(i32, Option<nino::WideString>)>>>>),
+    /// `Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>`.
+    WrapListNullableVec2(Box<Wrap<Option<nino::RawNullables<Vec2>>>>),
+    /// `Conformance.Wrap<System.Collections.Generic.List<System.Nullable<System.Int32>>>`.
+    WrapListNullableInt32(Box<Wrap<Option<nino::RawNullables<i32>>>>),
+    /// `Conformance.Wrap<System.Nullable<System.Int32>[]>`.
+    WrapNullable(Box<Wrap<Option<nino::RawNullables<i32>>>>),
 }
 
 impl AnyObject {
     fn body(&mut self) -> &mut dyn core::any::Any {
         match self {
             Self::AnimalSlot(v) => &mut **v,
+            Self::Bag(v) => &mut **v,
+            Self::BagHolder(v) => &mut **v,
             Self::BigSlot(v) => &mut **v,
             Self::BigValues(v) => &mut **v,
             Self::BlueLink(v) => &mut **v,
@@ -5338,12 +6482,15 @@ impl AnyObject {
             Self::EmptyStruct(v) => &mut **v,
             Self::Enums(v) => &mut **v,
             Self::Floats(v) => &mut **v,
+            Self::GenericSlots(v) => &mut **v,
             Self::Grid(v) => &mut **v,
             Self::Inner(v) => &mut **v,
             Self::IntArray(v) => &mut **v,
             Self::IntMap(v) => &mut **v,
             Self::IntSet(v) => &mut **v,
+            Self::IntShelf(v) => &mut **v,
             Self::Integers(v) => &mut **v,
+            Self::KeyedBag(v) => &mut **v,
             Self::KeyedChain(v) => &mut **v,
             Self::KeyedHolder(v) => &mut **v,
             Self::KeyedStruct(v) => &mut **v,
@@ -5365,6 +6512,7 @@ impl AnyObject {
             Self::Plain(v) => &mut **v,
             Self::Point(v) => &mut **v,
             Self::PointList(v) => &mut **v,
+            Self::PointSet(v) => &mut **v,
             Self::Puppy(v) => &mut **v,
             Self::RecordChain(v) => &mut **v,
             Self::RedLink(v) => &mut **v,
@@ -5380,6 +6528,7 @@ impl AnyObject {
             Self::Strings(v) => &mut **v,
             Self::Structs(v) => &mut **v,
             Self::TextValue(v) => &mut **v,
+            Self::TolerantBag(v) => &mut **v,
             Self::TolerantBase(v) => &mut **v,
             Self::TolerantChain(v) => &mut **v,
             Self::TolerantEmpty(v) => &mut **v,
@@ -5388,16 +6537,37 @@ impl AnyObject {
             Self::TolerantRoot(v) => &mut **v,
             Self::TolerantV1(v) => &mut **v,
             Self::TolerantV2(v) => &mut **v,
+            Self::Tracked(v) => v,
+            Self::TrackedHolder(v) => &mut **v,
+            Self::TrackedLeaf(v) => v,
+            Self::TrackedMix(v) => &mut **v,
+            Self::TrackedNode(v) => v,
+            Self::TrackedTolerant(v) => v,
             Self::TreeHolder(v) => &mut **v,
             Self::TreeNode(v) => &mut **v,
             Self::Utf8Value(v) => &mut **v,
             Self::Vec2(v) => &mut **v,
             Self::VersionSlot(v) => &mut **v,
+            Self::WrappedArgs(v) => &mut **v,
             Self::Zoo(v) => &mut **v,
             Self::BoxVec2(v) => &mut **v,
             Self::BoxListPoint(v) => &mut **v,
             Self::BoxInt32(v) => &mut **v,
             Self::BoxString(v) => &mut **v,
+            Self::CrateInt32(v) => &mut **v,
+            Self::CrateString(v) => &mut **v,
+            Self::HolderInt64(v) => &mut **v,
+            Self::LabeledCrateInt32(v) => &mut **v,
+            Self::LabeledCrateString(v) => &mut **v,
+            Self::ListShelfInt32(v) => &mut **v,
+            Self::ListShelfString(v) => &mut **v,
+            Self::WrapDictionaryInt32NullableDouble(v) => &mut **v,
+            Self::WrapHashSetNullableInt32(v) => &mut **v,
+            Self::WrapKeyValuePair(v) => &mut **v,
+            Self::WrapListKeyValuePairInt32String(v) => &mut **v,
+            Self::WrapListNullableVec2(v) => &mut **v,
+            Self::WrapListNullableInt32(v) => &mut **v,
+            Self::WrapNullable(v) => &mut **v,
         }
     }
 }
@@ -5418,6 +6588,8 @@ impl NinoRead for AnyObject {
         let mark = r.mark();
         let value = match id {
             AnimalSlot::TYPE_ID => Self::AnimalSlot(Box::new(r.read_class()?)),
+            Bag::TYPE_ID => Self::Bag(Box::new(r.read_class()?)),
+            BagHolder::TYPE_ID => Self::BagHolder(Box::new(r.read_class()?)),
             BigSlot::TYPE_ID => Self::BigSlot(Box::new(r.read_class()?)),
             BigValues::TYPE_ID => Self::BigValues(Box::new(r.read_class()?)),
             BlueLink::TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
@@ -5437,12 +6609,15 @@ impl NinoRead for AnyObject {
             EmptyStruct::TYPE_ID => Self::EmptyStruct(Box::new(r.read()?)),
             Enums::TYPE_ID => Self::Enums(Box::new(r.read_class()?)),
             Floats::TYPE_ID => Self::Floats(Box::new(r.read_class()?)),
+            GenericSlots::TYPE_ID => Self::GenericSlots(Box::new(r.read_class()?)),
             Grid::TYPE_ID => Self::Grid(Box::new(r.read_class()?)),
             Inner::TYPE_ID => Self::Inner(Box::new(r.read_class()?)),
             IntArray::TYPE_ID => Self::IntArray(Box::new(r.read_class()?)),
             IntMap::TYPE_ID => Self::IntMap(Box::new(r.read_class()?)),
             IntSet::TYPE_ID => Self::IntSet(Box::new(r.read_class()?)),
+            IntShelf::TYPE_ID => Self::IntShelf(Box::new(r.read_class()?)),
             Integers::TYPE_ID => Self::Integers(Box::new(r.read_class()?)),
+            KeyedBag::TYPE_ID => Self::KeyedBag(Box::new(r.read_class()?)),
             KeyedChain::TYPE_ID => Self::KeyedChain(Box::new(r.read_class()?)),
             KeyedHolder::TYPE_ID => Self::KeyedHolder(Box::new(r.read_class()?)),
             KeyedStruct::TYPE_ID => Self::KeyedStruct(Box::new(r.read()?)),
@@ -5464,6 +6639,7 @@ impl NinoRead for AnyObject {
             Plain::TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
             Point::TYPE_ID => Self::Point(Box::new(r.read_class()?)),
             PointList::TYPE_ID => Self::PointList(Box::new(r.read_class()?)),
+            PointSet::TYPE_ID => Self::PointSet(Box::new(r.read_class()?)),
             Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
             RecordChain::TYPE_ID => Self::RecordChain(Box::new(r.read_class()?)),
             RedLink::TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
@@ -5479,6 +6655,7 @@ impl NinoRead for AnyObject {
             Strings::TYPE_ID => Self::Strings(Box::new(r.read_class()?)),
             Structs::TYPE_ID => Self::Structs(Box::new(r.read_class()?)),
             TextValue::TYPE_ID => Self::TextValue(Box::new(r.read_class()?)),
+            TolerantBag::TYPE_ID => Self::TolerantBag(Box::new(r.read_class()?)),
             TolerantBase::TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
             TolerantChain::TYPE_ID => Self::TolerantChain(Box::new(r.read_class()?)),
             TolerantEmpty::TYPE_ID => Self::TolerantEmpty(Box::new(r.read_class()?)),
@@ -5487,16 +6664,37 @@ impl NinoRead for AnyObject {
             TolerantRoot::TYPE_ID => Self::TolerantRoot(Box::new(r.read_class()?)),
             TolerantV1::TYPE_ID => Self::TolerantV1(Box::new(r.read_class()?)),
             TolerantV2::TYPE_ID => Self::TolerantV2(Box::new(r.read_class()?)),
+            Tracked::TYPE_ID => Self::Tracked(r.read_shared_after_id()?),
+            TrackedHolder::TYPE_ID => Self::TrackedHolder(Box::new(r.read_class()?)),
+            TrackedLeaf::TYPE_ID => Self::TrackedLeaf(r.read_shared_after_id()?),
+            TrackedMix::TYPE_ID => Self::TrackedMix(Box::new(r.read_class()?)),
+            TrackedNode::TYPE_ID => Self::TrackedNode(r.read_shared_after_id()?),
+            TrackedTolerant::TYPE_ID => Self::TrackedTolerant(r.read_shared_after_id()?),
             TreeHolder::TYPE_ID => Self::TreeHolder(Box::new(r.read_class()?)),
             TreeNode::TYPE_ID => Self::TreeNode(Box::new(r.read_class()?)),
             Utf8Value::TYPE_ID => Self::Utf8Value(Box::new(r.read_class()?)),
             Vec2::TYPE_ID => Self::Vec2(Box::new(r.read()?)),
             VersionSlot::TYPE_ID => Self::VersionSlot(Box::new(r.read_class()?)),
+            WrappedArgs::TYPE_ID => Self::WrappedArgs(Box::new(r.read_class()?)),
             Zoo::TYPE_ID => Self::Zoo(Box::new(r.read_class()?)),
             -1580784064 => Self::BoxVec2(Box::new(r.read_class()?)),
             -1116656767 => Self::BoxListPoint(Box::new(r.read_class()?)),
             -794599344 => Self::BoxInt32(Box::new(r.read_class()?)),
             -110345065 => Self::BoxString(Box::new(r.read_class()?)),
+            -770690324 => Self::CrateInt32(Box::new(r.read_class()?)),
+            989625803 => Self::CrateString(Box::new(r.read_class()?)),
+            -1379224514 => Self::HolderInt64(Box::new(r.read_class()?)),
+            1806773763 => Self::LabeledCrateInt32(Box::new(r.read_class()?)),
+            1781842924 => Self::LabeledCrateString(Box::new(r.read_class()?)),
+            2091348491 => Self::ListShelfInt32(Box::new(r.read_class()?)),
+            511115764 => Self::ListShelfString(Box::new(r.read_class()?)),
+            -496086954 => Self::WrapDictionaryInt32NullableDouble(Box::new(r.read_class()?)),
+            -1735446292 => Self::WrapHashSetNullableInt32(Box::new(r.read_class()?)),
+            -1769649858 => Self::WrapKeyValuePair(Box::new(r.read_class()?)),
+            -1513080785 => Self::WrapListKeyValuePairInt32String(Box::new(r.read_class()?)),
+            -261423298 => Self::WrapListNullableVec2(Box::new(r.read_class()?)),
+            1607602110 => Self::WrapListNullableInt32(Box::new(r.read_class()?)),
+            1978865399 => Self::WrapNullable(Box::new(r.read_class()?)),
             _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
         };
         r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<AnyObject>()?.body())));
@@ -5509,6 +6707,14 @@ impl NinoWrite for AnyObject {
         match self {
             Self::AnimalSlot(v) => {
                 w.i32(AnimalSlot::TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::Bag(v) => {
+                w.i32(Bag::TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::BagHolder(v) => {
+                w.i32(BagHolder::TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BigSlot(v) => {
@@ -5587,6 +6793,10 @@ impl NinoWrite for AnyObject {
                 w.i32(Floats::TYPE_ID);
                 w.write_class(&**v)
             }
+            Self::GenericSlots(v) => {
+                w.i32(GenericSlots::TYPE_ID);
+                w.write_class(&**v)
+            }
             Self::Grid(v) => {
                 w.i32(Grid::TYPE_ID);
                 w.write_class(&**v)
@@ -5607,8 +6817,16 @@ impl NinoWrite for AnyObject {
                 w.i32(IntSet::TYPE_ID);
                 w.write_class(&**v)
             }
+            Self::IntShelf(v) => {
+                w.i32(IntShelf::TYPE_ID);
+                w.write_class(&**v)
+            }
             Self::Integers(v) => {
                 w.i32(Integers::TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::KeyedBag(v) => {
+                w.i32(KeyedBag::TYPE_ID);
                 w.write_class(&**v)
             }
             Self::KeyedChain(v) => {
@@ -5695,6 +6913,10 @@ impl NinoWrite for AnyObject {
                 w.i32(PointList::TYPE_ID);
                 w.write_class(&**v)
             }
+            Self::PointSet(v) => {
+                w.i32(PointSet::TYPE_ID);
+                w.write_class(&**v)
+            }
             Self::Puppy(v) => {
                 w.i32(Puppy::TYPE_ID);
                 w.write_class(&**v)
@@ -5755,6 +6977,10 @@ impl NinoWrite for AnyObject {
                 w.i32(TextValue::TYPE_ID);
                 w.write_class(&**v)
             }
+            Self::TolerantBag(v) => {
+                w.i32(TolerantBag::TYPE_ID);
+                w.write_class(&**v)
+            }
             Self::TolerantBase(v) => {
                 w.i32(TolerantBase::TYPE_ID);
                 w.write_class(&**v)
@@ -5787,6 +7013,42 @@ impl NinoWrite for AnyObject {
                 w.i32(TolerantV2::TYPE_ID);
                 w.write_class(&**v)
             }
+            Self::Tracked(v) => {
+                w.i32(Tracked::TYPE_ID);
+                if !w.shared_header(v) {
+                    return Ok(());
+                }
+                w.write_shared_body(v)
+            }
+            Self::TrackedHolder(v) => {
+                w.i32(TrackedHolder::TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::TrackedLeaf(v) => {
+                w.i32(TrackedLeaf::TYPE_ID);
+                if !w.shared_header(v) {
+                    return Ok(());
+                }
+                w.write_shared_body(v)
+            }
+            Self::TrackedMix(v) => {
+                w.i32(TrackedMix::TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::TrackedNode(v) => {
+                w.i32(TrackedNode::TYPE_ID);
+                if !w.shared_header(v) {
+                    return Ok(());
+                }
+                w.write_shared_body(v)
+            }
+            Self::TrackedTolerant(v) => {
+                w.i32(TrackedTolerant::TYPE_ID);
+                if !w.shared_header(v) {
+                    return Ok(());
+                }
+                w.write_shared_body(v)
+            }
             Self::TreeHolder(v) => {
                 w.i32(TreeHolder::TYPE_ID);
                 w.write_class(&**v)
@@ -5807,6 +7069,10 @@ impl NinoWrite for AnyObject {
                 w.i32(VersionSlot::TYPE_ID);
                 w.write_class(&**v)
             }
+            Self::WrappedArgs(v) => {
+                w.i32(WrappedArgs::TYPE_ID);
+                w.write_class(&**v)
+            }
             Self::Zoo(v) => {
                 w.i32(Zoo::TYPE_ID);
                 w.write_class(&**v)
@@ -5825,6 +7091,121 @@ impl NinoWrite for AnyObject {
             }
             Self::BoxString(v) => {
                 w.i32(-110345065);
+                w.write_class(&**v)
+            }
+            Self::CrateInt32(v) => {
+                w.i32(-770690324);
+                w.write_class(&**v)
+            }
+            Self::CrateString(v) => {
+                w.i32(989625803);
+                w.write_class(&**v)
+            }
+            Self::HolderInt64(v) => {
+                w.i32(-1379224514);
+                w.write_class(&**v)
+            }
+            Self::LabeledCrateInt32(v) => {
+                w.i32(1806773763);
+                w.write_class(&**v)
+            }
+            Self::LabeledCrateString(v) => {
+                w.i32(1781842924);
+                w.write_class(&**v)
+            }
+            Self::ListShelfInt32(v) => {
+                w.i32(2091348491);
+                w.write_class(&**v)
+            }
+            Self::ListShelfString(v) => {
+                w.i32(511115764);
+                w.write_class(&**v)
+            }
+            Self::WrapDictionaryInt32NullableDouble(v) => {
+                w.i32(-496086954);
+                w.write_class(&**v)
+            }
+            Self::WrapHashSetNullableInt32(v) => {
+                w.i32(-1735446292);
+                w.write_class(&**v)
+            }
+            Self::WrapKeyValuePair(v) => {
+                w.i32(-1769649858);
+                w.write_class(&**v)
+            }
+            Self::WrapListKeyValuePairInt32String(v) => {
+                w.i32(-1513080785);
+                w.write_class(&**v)
+            }
+            Self::WrapListNullableVec2(v) => {
+                w.i32(-261423298);
+                w.write_class(&**v)
+            }
+            Self::WrapListNullableInt32(v) => {
+                w.i32(1607602110);
+                w.write_class(&**v)
+            }
+            Self::WrapNullable(v) => {
+                w.i32(1978865399);
+                w.write_class(&**v)
+            }
+        }
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match value {
+            Some(v) => v.write(w),
+            None => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+
+/// A `Conformance.Bag` slot: a type id, then the body of one of these types.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum BagRef {
+    Bag(Box<Bag>),
+}
+
+impl BagRef {
+    fn body(&mut self) -> &mut dyn core::any::Any {
+        match self {
+            Self::Bag(v) => &mut **v,
+        }
+    }
+}
+
+impl NinoRead for BagRef {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        Self::read_option(r)?.ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedNull))
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let id = r.i32()?;
+        if id == 0 {
+            return Ok(None);
+        }
+        let mark = r.mark();
+        let value = match id {
+            Bag::TYPE_ID => Self::Bag(Box::new(r.read_class()?)),
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        };
+        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<BagRef>()?.body())));
+        Ok(Some(value))
+    }
+}
+
+impl NinoWrite for BagRef {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::Bag(v) => {
+                w.i32(Bag::TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -5900,6 +7281,142 @@ impl NinoWrite for CircleRef {
     }
 }
 
+/// A `Conformance.Crate<System.Int32>` slot: a type id, then the body of one of these types.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum CrateInt32Ref {
+    /// `Conformance.Crate<System.Int32>`.
+    CrateInt32(Box<Crate<i32>>),
+    /// `Conformance.LabeledCrate<System.Int32>`.
+    LabeledCrateInt32(Box<LabeledCrate<i32>>),
+}
+
+impl CrateInt32Ref {
+    fn body(&mut self) -> &mut dyn core::any::Any {
+        match self {
+            Self::CrateInt32(v) => &mut **v,
+            Self::LabeledCrateInt32(v) => &mut **v,
+        }
+    }
+}
+
+impl NinoRead for CrateInt32Ref {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        Self::read_option(r)?.ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedNull))
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let id = r.i32()?;
+        if id == 0 {
+            return Ok(None);
+        }
+        let mark = r.mark();
+        let value = match id {
+            -770690324 => Self::CrateInt32(Box::new(r.read_class()?)),
+            1806773763 => Self::LabeledCrateInt32(Box::new(r.read_class()?)),
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        };
+        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<CrateInt32Ref>()?.body())));
+        Ok(Some(value))
+    }
+}
+
+impl NinoWrite for CrateInt32Ref {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::CrateInt32(v) => {
+                w.i32(-770690324);
+                w.write_class(&**v)
+            }
+            Self::LabeledCrateInt32(v) => {
+                w.i32(1806773763);
+                w.write_class(&**v)
+            }
+        }
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match value {
+            Some(v) => v.write(w),
+            None => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+
+/// A `Conformance.Crate<System.String>` slot: a type id, then the body of one of these types.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum CrateStringRef {
+    /// `Conformance.Crate<System.String>`.
+    CrateString(Box<Crate<Option<nino::WideString>>>),
+    /// `Conformance.LabeledCrate<System.String>`.
+    LabeledCrateString(Box<LabeledCrate<Option<nino::WideString>>>),
+}
+
+impl CrateStringRef {
+    fn body(&mut self) -> &mut dyn core::any::Any {
+        match self {
+            Self::CrateString(v) => &mut **v,
+            Self::LabeledCrateString(v) => &mut **v,
+        }
+    }
+}
+
+impl NinoRead for CrateStringRef {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        Self::read_option(r)?.ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedNull))
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let id = r.i32()?;
+        if id == 0 {
+            return Ok(None);
+        }
+        let mark = r.mark();
+        let value = match id {
+            989625803 => Self::CrateString(Box::new(r.read_class()?)),
+            1781842924 => Self::LabeledCrateString(Box::new(r.read_class()?)),
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        };
+        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<CrateStringRef>()?.body())));
+        Ok(Some(value))
+    }
+}
+
+impl NinoWrite for CrateStringRef {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::CrateString(v) => {
+                w.i32(989625803);
+                w.write_class(&**v)
+            }
+            Self::LabeledCrateString(v) => {
+                w.i32(1781842924);
+                w.write_class(&**v)
+            }
+        }
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match value {
+            Some(v) => v.write(w),
+            None => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+
 /// A `Conformance.Dog` slot: a type id, then the body of one of these types.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -5950,6 +7467,66 @@ impl NinoWrite for DogRef {
             }
             Self::Puppy(v) => {
                 w.i32(Puppy::TYPE_ID);
+                w.write_class(&**v)
+            }
+        }
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match value {
+            Some(v) => v.write(w),
+            None => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+
+/// A `Conformance.IHolder<System.Int64>` slot: a type id, then the body of one of these types.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum IHolderInt64Ref {
+    /// `Conformance.Holder<System.Int64>`.
+    HolderInt64(Box<Holder<i64>>),
+}
+
+impl IHolderInt64Ref {
+    fn body(&mut self) -> &mut dyn core::any::Any {
+        match self {
+            Self::HolderInt64(v) => &mut **v,
+        }
+    }
+}
+
+impl NinoRead for IHolderInt64Ref {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        Self::read_option(r)?.ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedNull))
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let id = r.i32()?;
+        if id == 0 {
+            return Ok(None);
+        }
+        let mark = r.mark();
+        let value = match id {
+            -1379224514 => Self::HolderInt64(Box::new(r.read_class()?)),
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        };
+        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<IHolderInt64Ref>()?.body())));
+        Ok(Some(value))
+    }
+}
+
+impl NinoWrite for IHolderInt64Ref {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::HolderInt64(v) => {
+                w.i32(-1379224514);
                 w.write_class(&**v)
             }
         }
@@ -6157,6 +7734,133 @@ impl NinoWrite for PlainRef {
     }
 }
 
+/// A `Conformance.Shelf<System.Int32>` slot: a type id, then the body of one of these types.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ShelfInt32Ref {
+    IntShelf(Box<IntShelf>),
+    /// `Conformance.ListShelf<System.Int32>`.
+    ListShelfInt32(Box<ListShelf<i32>>),
+}
+
+impl ShelfInt32Ref {
+    fn body(&mut self) -> &mut dyn core::any::Any {
+        match self {
+            Self::IntShelf(v) => &mut **v,
+            Self::ListShelfInt32(v) => &mut **v,
+        }
+    }
+}
+
+impl NinoRead for ShelfInt32Ref {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        Self::read_option(r)?.ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedNull))
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let id = r.i32()?;
+        if id == 0 {
+            return Ok(None);
+        }
+        let mark = r.mark();
+        let value = match id {
+            IntShelf::TYPE_ID => Self::IntShelf(Box::new(r.read_class()?)),
+            2091348491 => Self::ListShelfInt32(Box::new(r.read_class()?)),
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        };
+        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<ShelfInt32Ref>()?.body())));
+        Ok(Some(value))
+    }
+}
+
+impl NinoWrite for ShelfInt32Ref {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::IntShelf(v) => {
+                w.i32(IntShelf::TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::ListShelfInt32(v) => {
+                w.i32(2091348491);
+                w.write_class(&**v)
+            }
+        }
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match value {
+            Some(v) => v.write(w),
+            None => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+
+/// A `Conformance.Shelf<System.String>` slot: a type id, then the body of one of these types.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ShelfStringRef {
+    /// `Conformance.ListShelf<System.String>`.
+    ListShelfString(Box<ListShelf<Option<nino::WideString>>>),
+}
+
+impl ShelfStringRef {
+    fn body(&mut self) -> &mut dyn core::any::Any {
+        match self {
+            Self::ListShelfString(v) => &mut **v,
+        }
+    }
+}
+
+impl NinoRead for ShelfStringRef {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        Self::read_option(r)?.ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedNull))
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let id = r.i32()?;
+        if id == 0 {
+            return Ok(None);
+        }
+        let mark = r.mark();
+        let value = match id {
+            511115764 => Self::ListShelfString(Box::new(r.read_class()?)),
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        };
+        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<ShelfStringRef>()?.body())));
+        Ok(Some(value))
+    }
+}
+
+impl NinoWrite for ShelfStringRef {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::ListShelfString(v) => {
+                w.i32(511115764);
+                w.write_class(&**v)
+            }
+        }
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match value {
+            Some(v) => v.write(w),
+            None => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+
 /// A `Conformance.TolerantBase` slot: a type id, then the body of one of these types.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -6208,6 +7912,90 @@ impl NinoWrite for TolerantBaseRef {
             Self::TolerantLeaf(v) => {
                 w.i32(TolerantLeaf::TYPE_ID);
                 w.write_class(&**v)
+            }
+        }
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match value {
+            Some(v) => v.write(w),
+            None => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+
+/// A `Conformance.Tracked` slot: a type id, then the body of one of these types.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum TrackedRef {
+    Tracked(nino::Shared<Tracked>),
+    TrackedLeaf(nino::Shared<TrackedLeaf>),
+}
+
+impl TrackedRef {
+    fn body(&mut self) -> &mut dyn core::any::Any {
+        match self {
+            Self::Tracked(v) => v,
+            Self::TrackedLeaf(v) => v,
+        }
+    }
+}
+
+impl NinoRead for TrackedRef {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        Self::read_option(r)?.ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedNull))
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        // Its reference header first: an object read before, by number, of a type the slot allows.
+        let header = r.ref_header()?;
+        if header == 0 {
+            return Ok(None);
+        }
+        if header > 0 {
+            let any = r.back_ref(header)?;
+            if let Some(v) = nino::Shared::<Tracked>::downcast(&any) {
+                return Ok(Some(Self::Tracked(v)));
+            }
+            if let Some(v) = nino::Shared::<TrackedLeaf>::downcast(&any) {
+                return Ok(Some(Self::TrackedLeaf(v)));
+            }
+            return Err(nino::Error::new(nino::ErrorKind::InvalidReference, header));
+        }
+        let id = r.i32()?;
+        let mark = r.mark();
+        let value = match id {
+            Tracked::TYPE_ID => Self::Tracked(r.read_shared_new()?),
+            TrackedLeaf::TYPE_ID => Self::TrackedLeaf(r.read_shared_new()?),
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        };
+        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<TrackedRef>()?.body())));
+        Ok(Some(value))
+    }
+}
+
+impl NinoWrite for TrackedRef {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::Tracked(v) => {
+                if !w.shared_header(v) {
+                    return Ok(());
+                }
+                w.i32(Tracked::TYPE_ID);
+                w.write_shared_body(v)
+            }
+            Self::TrackedLeaf(v) => {
+                if !w.shared_header(v) {
+                    return Ok(());
+                }
+                w.i32(TrackedLeaf::TYPE_ID);
+                w.write_shared_body(v)
             }
         }
     }
@@ -6293,6 +8081,8 @@ pub trait NinoVisit<R> {
 pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
     Some(match name {
         "Conformance.Animal" => f.visit::<Option<AnimalRef>>(),
+        "Conformance.Bag" => f.visit::<Option<BagRef>>(),
+        "Conformance.BagHolder" => f.visit::<Option<Box<BagHolder>>>(),
         "Conformance.BigValues" => f.visit::<Option<Box<BigValues>>>(),
         "Conformance.BlueLink" => f.visit::<Option<Box<BlueLink>>>(),
         "Conformance.Bytes" => f.visit::<Option<Box<Bytes>>>(),
@@ -6307,9 +8097,12 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Conformance.EmptyStruct" => f.visit::<EmptyStruct>(),
         "Conformance.Enums" => f.visit::<Option<Box<Enums>>>(),
         "Conformance.Floats" => f.visit::<Option<Box<Floats>>>(),
+        "Conformance.GenericSlots" => f.visit::<Option<Box<GenericSlots>>>(),
         "Conformance.IShape" => f.visit::<Option<IShapeRef>>(),
         "Conformance.Inner" => f.visit::<Option<Box<Inner>>>(),
+        "Conformance.IntShelf" => f.visit::<Option<Box<IntShelf>>>(),
         "Conformance.Integers" => f.visit::<Option<Box<Integers>>>(),
+        "Conformance.KeyedBag" => f.visit::<Option<Box<KeyedBag>>>(),
         "Conformance.KeyedChain" => f.visit::<Option<Box<KeyedChain>>>(),
         "Conformance.KeyedHolder" => f.visit::<Option<Box<KeyedHolder>>>(),
         "Conformance.KeyedStruct" => f.visit::<KeyedStruct>(),
@@ -6326,6 +8119,7 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Conformance.Padded" => f.visit::<Padded>(),
         "Conformance.Plain" => f.visit::<Option<PlainRef>>(),
         "Conformance.Point" => f.visit::<Option<Box<Point>>>(),
+        "Conformance.PointSet" => f.visit::<Option<Box<PointSet>>>(),
         "Conformance.Puppy" => f.visit::<Option<Box<Puppy>>>(),
         "Conformance.RecordChain" => f.visit::<Option<Box<RecordChain>>>(),
         "Conformance.RedLink" => f.visit::<Option<Box<RedLink>>>(),
@@ -6359,6 +8153,7 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Conformance.Targets.TextValue" => f.visit::<Option<Box<TextValue>>>(),
         "Conformance.Targets.Utf8Value" => f.visit::<Option<Box<Utf8Value>>>(),
         "Conformance.Targets.VersionSlot" => f.visit::<Option<Box<VersionSlot>>>(),
+        "Conformance.TolerantBag" => f.visit::<Option<Box<TolerantBag>>>(),
         "Conformance.TolerantBase" => f.visit::<Option<TolerantBaseRef>>(),
         "Conformance.TolerantChain" => f.visit::<Option<Box<TolerantChain>>>(),
         "Conformance.TolerantEmpty" => f.visit::<Option<Box<TolerantEmpty>>>(),
@@ -6367,9 +8162,16 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Conformance.TolerantRoot" => f.visit::<Option<Box<TolerantRoot>>>(),
         "Conformance.TolerantV1" => f.visit::<Option<Box<TolerantV1>>>(),
         "Conformance.TolerantV2" => f.visit::<Option<Box<TolerantV2>>>(),
+        "Conformance.Tracked" => f.visit::<Option<TrackedRef>>(),
+        "Conformance.TrackedHolder" => f.visit::<Option<Box<TrackedHolder>>>(),
+        "Conformance.TrackedLeaf" => f.visit::<Option<nino::Shared<TrackedLeaf>>>(),
+        "Conformance.TrackedMix" => f.visit::<Option<Box<TrackedMix>>>(),
+        "Conformance.TrackedNode" => f.visit::<Option<nino::Shared<TrackedNode>>>(),
+        "Conformance.TrackedTolerant" => f.visit::<Option<nino::Shared<TrackedTolerant>>>(),
         "Conformance.TreeHolder" => f.visit::<Option<Box<TreeHolder>>>(),
         "Conformance.TreeNode" => f.visit::<Option<Box<TreeNode>>>(),
         "Conformance.Vec2" => f.visit::<Vec2>(),
+        "Conformance.WrappedArgs" => f.visit::<Option<Box<WrappedArgs>>>(),
         "Conformance.Zoo" => f.visit::<Option<Box<Zoo>>>(),
         _ => return None,
     })

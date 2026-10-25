@@ -186,11 +186,29 @@ namespace Shapes.Generic
         public Node<T> Next;
     }
 
-    /// <summary>Written behind a type id (not sealed): left out, with a warning.</summary>
+    /// <summary>Written behind a type id (not sealed): each closed type is a slot of its own.</summary>
     [NinoType]
     public class Open<T>
     {
         public T Value;
+    }
+
+    /// <summary>A generic subtype: its closed types sit in the slots of <see cref="Open{T}"/> with the same argument.</summary>
+    [NinoType]
+    public class MoreOpen<T> : Open<T>
+    {
+        public T Extra;
+    }
+
+    /// <summary>
+    /// Holds slots of its own type parameter: its codec is given the slot of <c>Open&lt;T&gt;</c> for each argument it
+    /// is closed with.
+    /// </summary>
+    [NinoType]
+    public sealed class OpenHolder<T>
+    {
+        public Open<T> Inner;
+        public List<Open<T>> All;
     }
 
     /// <summary>Unmanaged when closed: a closed use .NET copies as raw memory is a raw struct of its own.</summary>
@@ -241,10 +259,20 @@ namespace Shapes.Generic
         public Keys<string> StringKeys;
     }
 
-    /// <summary>Left out with Open: a type holding one is left out too.</summary>
+    /// <summary>A slot of a closed generic type the assembly names.</summary>
     [NinoType]
     public sealed class OpenUse
     {
         public Open<int> Open;
+    }
+
+    /// <summary>
+    /// Closed types the assembly never names: <c>Open&lt;long&gt;</c> and <c>MoreOpen&lt;long&gt;</c>, reached through
+    /// <c>OpenHolder&lt;long&gt;</c>.
+    /// </summary>
+    [NinoType]
+    public sealed class OpenHolderUse
+    {
+        public OpenHolder<long> Holder;
     }
 }

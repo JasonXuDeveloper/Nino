@@ -480,6 +480,43 @@ namespace Conformance
                 Refs("header-minus-2", "A reference header of -2 (only -1, 0 and n > 0).", NotNull, I32(-2),
                     I32(tracked), I32(1));
                 Refs("header-int-min", "A reference header of int.MinValue.", NotNull, I32(int.MinValue));
+
+                // TrackedMix: Any (object: type id, header, body), Node (sealed: header), Base (header, type id),
+                // Nodes, ById (null), Tolerant (header).
+                byte[] TrackedAny() => Concat(I32(tracked), I32(-1), I32(1), I32(0), I32(0));
+                void Mix(string name, string exercises, params byte[][] parts)
+                {
+                    Add<TrackedMix>("references", name, exercises, parts);
+                    cases[^1].Optional = "track-references";
+                }
+
+                Control<TrackedMix>("references-mix", NotNull, TrackedAny(), I32(0), I32(1), I32(-1), I32(-1), I32(0));
+                Mix("type-mismatch", "A sealed TrackedNode member referring back to object 1, a Tracked.", NotNull,
+                    TrackedAny(), I32(1), I32(0), I32(-1), I32(-1), I32(0));
+                Refs("object-mismatch",
+                    "An object member naming TrackedNode's type id, referring back to object 1, a Tracked.", NotNull,
+                    I32(-1), I32(tracked), I32(1), I32(0), I32(0), I32(0), I32(-1), I32(Id(typeof(TrackedNode))),
+                    I32(1));
+                Mix("base-header-past", "A non-sealed tracked member referring back to object 2 of 1.", NotNull,
+                    TrackedAny(), I32(0), I32(2), I32(-1), I32(-1), I32(0));
+                Mix("base-unknown-id", "A non-sealed tracked member, new, with the type id of TrackedNode.", NotNull,
+                    TrackedAny(), I32(0), I32(-1), I32(Id(typeof(TrackedNode))), I32(5), I32(0), I32(-1), I32(-1),
+                    I32(0));
+            }
+
+            // ---------------------------------------------------------- [NinoType] collections
+
+            {
+                int bag = Id(typeof(Bag));
+                // BagHolder: Bag (type id), Tolerant, Keyed, Set (null flags), Bags (count).
+                Control<BagHolder>("nino-collection", NotNull, I32(bag), I32(1), I32(7), I32(-1), new byte[] { 0, 0, 0 },
+                    I32(-1));
+                Add<BagHolder>("nino-collection", "elements-null",
+                    "A [NinoType] collection whose element count is -1 (null): the collection itself is not null.",
+                    NotNull, I32(bag), I32(-1), I32(-1), new byte[] { 0, 0, 0 }, I32(-1));
+                Add<BagHolder>("nino-collection", "elements-past-end",
+                    "A [NinoType] collection claiming 1,000,000 elements with one present.", NotNull, I32(bag),
+                    I32(1_000_000), I32(7), I32(-1), new byte[] { 0, 0, 0 }, I32(-1));
             }
 
             foreach (var (name, type, bytes) in controls)

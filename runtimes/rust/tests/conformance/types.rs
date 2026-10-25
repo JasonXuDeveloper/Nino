@@ -6893,6 +6893,10 @@ impl J for Nested {
     }
 }
 
+/// The types whose cases tests/generated.rs runs (the code nino-gen writes) and this emulation skips.
+pub const NOT_EMULATED: &[&str] =
+    &["Conformance.BagHolder", "Conformance.GenericSlots", "Conformance.NestHolder", "Conformance.WrappedArgs"];
+
 /// Runs `f` with the type a case is read as, or returns `None` for a type this runtime leaves out.
 pub fn with_type<R>(name: &str, f: impl Visit<R>) -> Option<R> {
     Some(match name {

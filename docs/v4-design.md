@@ -565,7 +565,11 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
   1. The generator registers every closed generic `[NinoType]` its compilation names: member types (including
      element and type arguments, `List<Box<int>>`), base types (`class IntBox : Box<int>`), type arguments of
      `NinoSerializer`/`NinoDeserializer` calls, and recursively the members and bases of those closed types (four
-     levels deep). They are cases of the same lazy by-id dispatch (`NinoGenUsages`), under the closed type's id
+     levels deep). A closed type that is a slot (`Shelf<string>`: abstract, an interface or a class that is not
+     sealed) also brings the closed types of the generic `[NinoType]`s deriving from its definition, in this
+     compilation or the definition's assembly, with the arguments the slot gives them (`ListShelf<T> : Shelf<T>`:
+     `ListShelf<string>`; a definition whose constraints the arguments may not meet is left out): data another
+     process wrote names them by id, though no code here does. They are cases of the same lazy by-id dispatch (`NinoGenUsages`), under the closed type's id
      (`[NinoFormerName]` types also under the name id): `NinoFormatterCache<Box<int>>.TryRegister<Box_1Formatter<int>>()`
      and `NinoPolymorphic.Register<Box<int>, Box_1Formatter<int>>(id)`, so AOT runtimes have the instantiation and a
      reader can map the id back to the type without having seen it. Closed types of a generic `[NinoType]` from

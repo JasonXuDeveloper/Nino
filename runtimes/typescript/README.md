@@ -28,6 +28,11 @@ more than the data holds:
 - Class bodies nested past 128 are deferred, as in .NET, so deep data costs a bounded stack; bodies that cannot be
   deferred, and structs that hold themselves, fail past 512.
 - A slot written behind a type id reads only the ids of the types allowed there.
+- Reference tracking (`trackReferences`, §7.9): a reference header other than -1, 0 or the number of an object read so
+  far is rejected, as is a back reference to an object the slot does not allow, and a header of 0 after a type id
+  (null is a type id of 0). Each object takes at least its 4 header bytes, so the table of objects grows with the
+  data. The reader records an object as it creates it, before its body, so a body can hold it (a cycle); the writer
+  numbers objects by identity.
 - Maps are read into `Map`s, never plain objects, so keys such as `__proto__` are data.
 - `bool`s and presence bytes are 0 or 1; UTF-8 strings are strict UTF-8 of the char count given.
 - A section of deferred bodies is checked when its region is opened, before any member is read: only the outermost

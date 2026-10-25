@@ -97,7 +97,7 @@ namespace Nino.Codegen
                 }
             }
 
-            foreach (var warning in warnings)
+            foreach (var warning in model.Warnings.Concat(warnings))
                 output.WriteLine($"nino-gen : warning NINOGEN002: {warning}");
             Write(options.Output, files);
             output.WriteLine($"nino-gen: {string.Join(", ", files.Keys)} -> {Path.GetFullPath(options.Output)}");

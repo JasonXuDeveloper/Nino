@@ -816,7 +816,12 @@ internal sealed class BodyEmitter
         if (_m.Keyed)
             r = BeginRegionRead(r);
         if (_m.IsCollection)
+        {
             _w.Line($"default({CollectionFormatter}).Deserialize(ref value, ref {r});");
+            // The elements are the object: a count of -1 (null) would leave nothing to read the members into.
+            _w.Line($"{CoreCompilerServices}NinoObject.EnsureElements(value);");
+        }
+
         if (Tolerant)
             r = BeginRegionRead(r);
 

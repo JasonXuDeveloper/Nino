@@ -590,6 +590,37 @@ impl Keywords {
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x58F430A5; deferrable=true; members=Type:int:raw(4);Self:int:raw(4);Match:int:raw(4);Default:string:string;Body:int:raw(4);Key:int:raw(4);Value:int:raw(4);R:int:raw(4);W:int:raw(4);V:int:raw(4)";
 }
 
+/// `Shapes.Generic.MoreOpen<T>`: Positional, header TypeId.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MoreOpen<T> {
+    pub value: T,
+    pub extra: T,
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for MoreOpen<T> {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.value = r.read_in(nino::field!(Self, value))?;
+        self.extra = r.read_in(nino::field!(Self, extra))?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for MoreOpen<T> {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.value)?;
+        w.write(&self.extra)?;
+        Ok(())
+    }
+}
+
+impl<T> MoreOpen<T> {
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.MoreOpen<T>";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T);Extra:T:type(T)";
+}
+
 /// `Shapes.NinoGrid`: Positional, header NullFlag.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -730,6 +761,228 @@ impl<T> Node<T> {
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Node<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
     pub const NINO_LAYOUT: &str = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T):key=0xC373233E;Next:Shapes.Generic.Node<T>:type(Shapes.Generic.Node<T>):key=0xC9A6113A";
+}
+
+/// `Shapes.Generic.Open<T>`: Positional, header TypeId.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Open<T> {
+    pub value: T,
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for Open<T> {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.value = r.read_in(nino::field!(Self, value))?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for Open<T> {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.value)?;
+        Ok(())
+    }
+}
+
+impl<T> Open<T> {
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Open<T>";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T)";
+}
+
+/// `Shapes.Generic.OpenHolder<T>`: Positional, header NullFlag.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OpenHolder<T, S0> {
+    pub inner: Option<S0>,
+    pub all: Option<Vec<Option<S0>>>,
+    /// Its type parameters no field holds (Rust requires each to be used).
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub _params: core::marker::PhantomData<fn() -> (T,)>,
+}
+
+impl<T: Default, S0> Default for OpenHolder<T, S0> {
+    fn default() -> Self {
+        Self {
+            inner: Default::default(),
+            all: Default::default(),
+            _params: core::marker::PhantomData,
+        }
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static, S0: NinoRead + NinoWrite + 'static> NinoReadBody for OpenHolder<T, S0> {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.inner = r.read_in(nino::field!(Self, inner))?;
+        self.all = r.read_in(nino::field!(Self, all))?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static, S0: NinoRead + NinoWrite + 'static> NinoWriteBody for OpenHolder<T, S0> {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.inner)?;
+        w.write(&self.all)?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static, S0: NinoRead + NinoWrite + 'static> NinoRead for OpenHolder<T, S0> {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static, S0: NinoRead + NinoWrite + 'static> NinoWrite for OpenHolder<T, S0> {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl<T, S0> OpenHolder<T, S0> {
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.OpenHolder<T>";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Inner:Shapes.Generic.Open<T>:type(Shapes.Generic.Open<T>);All:System.Collections.Generic.List<Shapes.Generic.Open<T>>:seq(type(Shapes.Generic.Open<T>))";
+}
+
+/// `Shapes.Generic.OpenHolderUse`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OpenHolderUse {
+    pub holder: Option<Box<OpenHolder<i64, OpenInt64Ref>>>,
+}
+
+impl NinoReadBody for OpenHolderUse {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.holder = r.read_in(nino::field!(Self, holder))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for OpenHolderUse {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.holder)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for OpenHolderUse {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl NinoWrite for OpenHolderUse {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl OpenHolderUse {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x9E569D67u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.OpenHolderUse";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9E569D67; deferrable=true; members=Holder:Shapes.Generic.OpenHolder<long>:type(Shapes.Generic.OpenHolder<long>)";
+}
+
+/// `Shapes.Generic.OpenUse`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OpenUse {
+    pub open: Option<OpenInt32Ref>,
+}
+
+impl NinoReadBody for OpenUse {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.open = r.read_in(nino::field!(Self, open))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for OpenUse {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.open)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for OpenUse {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl NinoWrite for OpenUse {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl OpenUse {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0xFA892147u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.OpenUse";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFA892147; deferrable=true; members=Open:Shapes.Generic.Open<int>:type(Shapes.Generic.Open<int>)";
 }
 
 /// `Shapes.Outer+Inner`: Positional, header NullFlag.
@@ -1404,6 +1657,142 @@ impl NinoWrite for IThingRef {
     }
 }
 
+/// A `Shapes.Generic.Open<System.Int32>` slot: a type id, then the body of one of these types.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum OpenInt32Ref {
+    /// `Shapes.Generic.MoreOpen<System.Int32>`.
+    MoreOpenInt32(Box<MoreOpen<i32>>),
+    /// `Shapes.Generic.Open<System.Int32>`.
+    OpenInt32(Box<Open<i32>>),
+}
+
+impl OpenInt32Ref {
+    fn body(&mut self) -> &mut dyn core::any::Any {
+        match self {
+            Self::MoreOpenInt32(v) => &mut **v,
+            Self::OpenInt32(v) => &mut **v,
+        }
+    }
+}
+
+impl NinoRead for OpenInt32Ref {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        Self::read_option(r)?.ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedNull))
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let id = r.i32()?;
+        if id == 0 {
+            return Ok(None);
+        }
+        let mark = r.mark();
+        let value = match id {
+            -1765026582 => Self::MoreOpenInt32(Box::new(r.read_class()?)),
+            -1170110497 => Self::OpenInt32(Box::new(r.read_class()?)),
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        };
+        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<OpenInt32Ref>()?.body())));
+        Ok(Some(value))
+    }
+}
+
+impl NinoWrite for OpenInt32Ref {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::MoreOpenInt32(v) => {
+                w.i32(-1765026582);
+                w.write_class(&**v)
+            }
+            Self::OpenInt32(v) => {
+                w.i32(-1170110497);
+                w.write_class(&**v)
+            }
+        }
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match value {
+            Some(v) => v.write(w),
+            None => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+
+/// A `Shapes.Generic.Open<System.Int64>` slot: a type id, then the body of one of these types.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum OpenInt64Ref {
+    /// `Shapes.Generic.MoreOpen<System.Int64>`.
+    MoreOpenInt64(Box<MoreOpen<i64>>),
+    /// `Shapes.Generic.Open<System.Int64>`.
+    OpenInt64(Box<Open<i64>>),
+}
+
+impl OpenInt64Ref {
+    fn body(&mut self) -> &mut dyn core::any::Any {
+        match self {
+            Self::MoreOpenInt64(v) => &mut **v,
+            Self::OpenInt64(v) => &mut **v,
+        }
+    }
+}
+
+impl NinoRead for OpenInt64Ref {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        Self::read_option(r)?.ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedNull))
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let id = r.i32()?;
+        if id == 0 {
+            return Ok(None);
+        }
+        let mark = r.mark();
+        let value = match id {
+            -355893823 => Self::MoreOpenInt64(Box::new(r.read_class()?)),
+            2087250468 => Self::OpenInt64(Box::new(r.read_class()?)),
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        };
+        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<OpenInt64Ref>()?.body())));
+        Ok(Some(value))
+    }
+}
+
+impl NinoWrite for OpenInt64Ref {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::MoreOpenInt64(v) => {
+                w.i32(-355893823);
+                w.write_class(&**v)
+            }
+            Self::OpenInt64(v) => {
+                w.i32(2087250468);
+                w.write_class(&**v)
+            }
+        }
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match value {
+            Some(v) => v.write(w),
+            None => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+
 /// `Shapes.Forest`: a collection of itself. Nothing but the depth counter bounds its nesting.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -1445,6 +1834,8 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
     Some(match name {
         "Shapes.ForestHolder" => f.visit::<Option<Box<ForestHolder>>>(),
         "Shapes.Gappy" => f.visit::<Gappy>(),
+        "Shapes.Generic.OpenHolderUse" => f.visit::<Option<Box<OpenHolderUse>>>(),
+        "Shapes.Generic.OpenUse" => f.visit::<Option<Box<OpenUse>>>(),
         "Shapes.Generic.Uses" => f.visit::<Option<Box<Uses>>>(),
         "Shapes.Holder" => f.visit::<Option<Box<Holder>>>(),
         "Shapes.IThing" => f.visit::<Option<IThingRef>>(),

@@ -46,6 +46,9 @@ pub enum ErrorKind {
     InvalidText,
     /// Data this runtime cannot represent (a body deferred inside a set element or a dictionary key).
     Unsupported,
+    /// A reference header (reference tracking) other than 0, -1 or the number of an object read before, or one
+    /// naming an object of a type the slot does not allow.
+    InvalidReference,
 }
 
 /// A Nino error: its [`ErrorKind`] and, where there is one, the value that was rejected (a length, a byte, a
@@ -135,6 +138,7 @@ impl fmt::Display for Error {
             ErrorKind::TrailingData => write!(f, "Nino: {v} bytes after the value"),
             ErrorKind::Unsupported => write!(f, "Nino: data this runtime cannot represent"),
             ErrorKind::InvalidText => write!(f, "Nino: text that is not a value of the type"),
+            ErrorKind::InvalidReference => write!(f, "Nino: invalid object reference {v}"),
         }
     }
 }

@@ -294,10 +294,17 @@ namespace Samples
         public object Anything;
     }
 
-    /// <summary>Left out of TypeScript (reference tracking), with a warning.</summary>
+    /// <summary>Reference tracking: a node may hold itself, and the same node is written once.</summary>
     [NinoType(trackReferences: true)]
     public sealed class Node
     {
         public Node Next;
+    }
+
+    /// <summary>Left out of TypeScript (<c>Half</c> has no TypeScript form), with a warning.</summary>
+    [NinoType]
+    public sealed class Halves
+    {
+        public Half Value;
     }
 }

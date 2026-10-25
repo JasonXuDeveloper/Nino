@@ -29,9 +29,11 @@ namespace Nino.Codegen.Targets
     /// <summary>
     /// Go: a struct per type with its <c>nino</c> tags and <c>NinoLayout</c>, and codecs in the style of
     /// <c>runtimes/go/internal/sample</c> (<c>Templates/go/types.sbn</c>): a class through <c>nino.Class</c>, a
-    /// polymorphic slot as a Go interface switching over the ids its declared type allows, a run of fixed-size members
-    /// with one bounds check. A type it cannot express (open generics, reference tracking, <c>[NinoType]</c>
-    /// collections) is left out with a warning, and so is every type holding one.
+    /// polymorphic slot as a Go interface switching over the ids its declared type allows (a generic one as a generic
+    /// interface, marked with the type arguments: <c>Shelf[int32]</c>), a run of fixed-size members with one bounds
+    /// check, tracked types behind reference headers, a <c>[NinoType]</c> collection with its elements in a field. A
+    /// type it cannot express (a generic type holding itself with other type arguments, which Go's generics reject) is
+    /// left out with a warning, and so is every type holding one.
     /// </summary>
     public sealed class GoTarget
     {
@@ -52,6 +54,8 @@ namespace Nino.Codegen.Targets
         private readonly List<GoClosed> _closed = new();
         private readonly HashSet<ClosedTypeModel> _closedSupported = new();
         private readonly List<GoSlotClosed> _slotClosed = new();
+        private readonly Dictionary<SlotModel, GoSlot> _slotByModel = new();
+        private readonly List<GoSlot> _slots = new();
         private GoGeneric? _context;
         private bool _usesObject;
         private bool _usesGrid;
@@ -82,14 +86,42 @@ namespace Nino.Codegen.Targets
             AssignNames(types.Cast<object>().Concat(_enums).Concat(_rawStructs));
 
             var classes = types.Select(t => new GoType(this, t)).ToList();
-            // Shape every member once more, so every helper, tuple and enum is known before the template asks.
+            // Shape every member once more, so every helper, tuple, enum and slot is known before the template asks.
             foreach (var c in classes)
+            {
                 _ = c.Members;
-            // Those a slot can hold: an object slot any, a typed slot those assignable to its type.
-            foreach (var closed in _model.ClosedTypes.Where(c => _closedSupported.Contains(c) && (_usesObject ||
-                         types.Any(t => t.Header == HeaderKind.TypeId && t.ClosedAssignable.Contains(c)))))
-                _slotClosed.Add(new GoSlotClosed(
-                    "typeV" + _slotClosed.Count.ToString(CultureInfo.InvariantCulture), closed, ClosedShape(closed)));
+                _ = c.ElementsMember;
+                _ = c.Markers;
+            }
+
+            // Those a slot can hold: an object slot any, a typed slot those assignable to its type, a slot of a closed
+            // generic type those assignable to it (shaping one may add slots its codec needs: until none is added).
+            var added = new HashSet<ClosedTypeModel>();
+            var goTypes = new Dictionary<string, ClosedTypeModel>(StringComparer.Ordinal);
+            for (bool more = true; more;)
+            {
+                more = false;
+                foreach (var closed in _model.ClosedTypes.Where(c => _closedSupported.Contains(c) && !added.Contains(c) &&
+                             (_usesObject || types.Any(t => t.Header == HeaderKind.TypeId && t.ClosedAssignable.Contains(c)) ||
+                              _slots.Any(slot => slot.Model.ClosedAssignable.Contains(c)))).ToList())
+                {
+                    added.Add(closed);
+                    var shape = ClosedShape(closed);
+                    // Two .NET types of one Go type (Box<int?[]> and Box<List<int?>> are both Box[[]*int32]): a
+                    // writer cannot tell them apart, so only the first is in the slots.
+                    if (goTypes.TryGetValue(GoTypeKey(shape), out var same))
+                    {
+                        Warnings.Add($"{closed.RuntimeName} is left out of the polymorphic slots in Go: it is the same " +
+                                     $"Go type as {same.RuntimeName}.");
+                        continue;
+                    }
+
+                    goTypes[GoTypeKey(shape)] = closed;
+                    _slotClosed.Add(new GoSlotClosed(
+                        "typeV" + _slotClosed.Count.ToString(CultureInfo.InvariantCulture), closed, shape));
+                    more = true;
+                }
+            }
 
             var renderer = new TemplateRenderer("go");
             renderer.Set("source", source);
@@ -106,9 +138,11 @@ namespace Nino.Codegen.Targets
             renderer.Set("uses_object", _usesObject);
             renderer.Set("uses_grid", _usesGrid);
             renderer.Set("closed", _closed.ToList());
-            renderer.Set("uses_args", _closed.Count != 0 || types.Any(t => t.IsGenericDefinition));
+            renderer.Set("uses_args", _closed.Count != 0 || _slots.Count != 0 || types.Any(t => t.IsGenericDefinition));
             renderer.Set("objects", ObjectTypes().Select(t => new GoType(this, t)).ToList());
             renderer.Set("slot_closed", _slotClosed.ToList());
+            renderer.Set("generic_slots", _slots.ToList());
+            renderer.Set("uses_elements", types.Any(t => t.Elements != null));
             renderer.Function("helper", new Func<GoShape, string, string>(Helper));
             renderer.Function("helper_count", new Func<int>(() => _helpers.Count));
             renderer.Function("helper_at", new Func<int, GoHelper>(i => _helpers[i]));
@@ -139,10 +173,10 @@ namespace Nino.Codegen.Targets
         {
             foreach (var type in _model.Types)
             {
-                string? reason = CodegenModel.GenericProblem(type) is { } generic ? generic
-                    : type.TrackReferences ? "reference tracking (trackReferences) is not supported"
-                    : type.Elements != null ? "[NinoType] collections are not supported"
-                    : null;
+                string? reason = CodegenModel.GenericProblem(type) ?? type.SlotProblem ?? MarkerProblem(type)
+                    ?? (type.TrackReferences && type.IsGenericDefinition
+                        ? "a generic type with trackReferences is not supported"
+                        : null);
                 if (reason == null)
                     _supported.Add(type);
                 else
@@ -162,6 +196,16 @@ namespace Nino.Codegen.Targets
 
             Reset();
         }
+
+        /// <summary>
+        /// Why a type cannot be marked as a value of the generic slots it sits in (<see cref="TypeModel.SlotBases"/>): Go
+        /// marks it with one method per generic definition, taking the type arguments, so it cannot sit in two slots of
+        /// one definition with other arguments (<c>IHolder&lt;int&gt;</c> and <c>IHolder&lt;string&gt;</c>).
+        /// </summary>
+        private static string? MarkerProblem(TypeModel type) => type.SlotBases.GroupBy(b => b.Type)
+            .Where(g => g.Select(b => b.TypeKey).Distinct(StringComparer.Ordinal).Count() > 1)
+            .Select(g => $"it implements {g.Key!.FullName} with two sets of type arguments, which one Go method " +
+                         "cannot mark").FirstOrDefault();
 
         /// <summary>
         /// The closed generic types the assembly names (<see cref="CodegenModel.ClosedTypes"/>) that Go can write
@@ -191,8 +235,16 @@ namespace Nino.Codegen.Targets
         private GoShape ClosedShape(ClosedTypeModel closed) => new("generic")
         {
             Type = closed.Definition, Items = closed.Value.Arguments.Select(a => Shape(a, false)).ToList(),
+            Slots = closed.Value.SlotArguments.Select(a => Shape(a, false)).ToList(),
             MinSize = closed.IsValueType ? 0 : 1,
         };
+
+        /// <summary>The slots of closed generic types and the types and closed types each allows.</summary>
+        internal List<GoType> SlotAllowed(GoSlot slot) => slot.Model.Assignable.Where(_supported.Contains)
+            .OrderBy(Name, StringComparer.Ordinal).Select(t => new GoType(this, t)).ToList();
+
+        internal List<GoSlotClosed> SlotAllowedClosed(GoSlot slot) =>
+            _slotClosed.Where(c => slot.Model.ClosedAssignable.Contains(c.Closed)).ToList();
 
         /// <summary>The closed generic types a slot declared as <paramref name="type"/> allows.</summary>
         internal List<GoSlotClosed> AllowedClosed(TypeModel type) =>
@@ -213,6 +265,8 @@ namespace Nino.Codegen.Targets
             _generics.Clear();
             _closedByKey.Clear();
             _closed.Clear();
+            _slotByModel.Clear();
+            _slots.Clear();
             _context = null;
             _usesObject = false;
             _usesGrid = false;
@@ -225,8 +279,15 @@ namespace Nino.Codegen.Targets
                 if (type.Raw)
                     Shape(type.RawValue!, false);
                 else
+                {
+                    if (type.Elements != null)
+                        ShapeIn(type, type.Elements);
                     foreach (var member in type.Members)
                         ShapeIn(type, member.Value);
+                    foreach (var slot in type.SlotBases)
+                        Markers(type, slot);
+                }
+
                 return null;
             }
             catch (UnsupportedException e)
@@ -389,9 +450,12 @@ namespace Nino.Codegen.Targets
                     var definition = value.Type!;
                     if (!_supported.Contains(definition))
                         throw new UnsupportedException($"{definition.FullName} is not written to Go");
+                    if (definition.Header == HeaderKind.TypeId)
+                        return SlotShape(value);
                     var shape = new GoShape("generic")
                     {
                         Type = definition, Items = value.Arguments.Select(a => Shape(a, false)).ToList(),
+                        Slots = value.SlotArguments.Select(a => Shape(a, false)).ToList(),
                         MinSize = definition.IsValueType ? 0 : 1,
                     };
                     if (_context != null && value.IsSelf(_context.Type))
@@ -474,6 +538,82 @@ namespace Nino.Codegen.Targets
             }
         }
 
+        /// <summary>
+        /// A generic type written behind a type id (<c>Shelf&lt;int&gt;</c>), a value of its generic interface
+        /// (<c>Shelf[int32]</c>): closed, read and written by the slot's functions (<c>readSlot0</c>); in a generic
+        /// definition, with its parameters, by the slot codec its codec was given (<c>c.s0</c>).
+        /// </summary>
+        private GoShape SlotShape(ValueModel value)
+        {
+            var shape = new GoShape("genslot")
+            {
+                Type = value.Type, Items = value.Arguments.Select(a => Shape(a, false)).ToList(), MinSize = 4,
+            };
+            if (value.Slot is { } model)
+            {
+                if (!_slotByModel.TryGetValue(model, out var slot))
+                {
+                    slot = new GoSlot(this, "slot" + _slots.Count.ToString(CultureInfo.InvariantCulture), model, shape);
+                    _slotByModel[model] = slot;
+                    _slots.Add(slot);
+                    // Its closed types are shaped too, so a slot holding one that cannot be written is found here.
+                    foreach (var closed in model.ClosedAssignable.Where(_closedSupported.Contains))
+                        ClosedShape(closed);
+                }
+
+                shape.Slot = slot;
+                return shape;
+            }
+
+            int index = _context?.Type.SlotParameters.FindIndex(p => p.TypeKey == value.TypeKey) ?? -1;
+            if (index < 0)
+                throw new UnsupportedException($"{value.ClrName} is a slot outside its generic type");
+            shape.Field = "c.s" + index.ToString(CultureInfo.InvariantCulture);
+            return shape;
+        }
+
+        /// <summary>
+        /// A generic slot a type sits in (one of <see cref="TypeModel.SlotBases"/>): the arguments its marker method
+        /// takes (<c>isShelf(int32)</c>), in the type's own terms.
+        /// </summary>
+        internal GoMarker Markers(TypeModel type, ValueModel slot)
+        {
+            var definition = slot.Type!;
+            if (!_supported.Contains(definition))
+                throw new UnsupportedException($"{definition.FullName} is not written to Go");
+            var outer = _context;
+            _context = type.IsGenericDefinition ? GenericOf(type) : null;
+            try
+            {
+                var items = slot.Arguments.Select(a => Shape(a, false)).ToList();
+                return new GoMarker(SlotName(definition), items);
+            }
+            finally
+            {
+                _context = outer;
+            }
+        }
+
+        /// <summary>The Go type of a shape, as text that is equal for equal Go types (the template spells it).</summary>
+        private static string GoTypeKey(GoShape s) => s.Kind switch
+        {
+            "prim" => s.Primitive!,
+            "enum" => "enum:" + s.Enum!.FullName,
+            "rawstruct" or "emptystruct" => "struct:" + s.Struct!.FullName,
+            "rawnullable" or "nullable" => "*" + GoTypeKey(s.Inner!),
+            "rawtuple" or "tuple" => (s.Pair ? "entry" : "tuple") + "[" + string.Join(",", s.Items.Select(GoTypeKey)) + "]",
+            "string" or "utf8" => "*string",
+            "keystring" or "keyutf8" => "string",
+            "struct" or "class" or "slot" => s.Kind + ":" + s.Type!.FullName,
+            "param" => "param:" + s.Parameter,
+            "generic" or "genslot" => s.Kind + ":" + s.Type!.FullName + "[" + string.Join(",", s.Items.Select(GoTypeKey)) + "]",
+            "named" => "named:" + s.Named!.FullName,
+            "seq" => "[]" + GoTypeKey(s.Element!),
+            "map" => "[]entry[" + GoTypeKey(s.Key!) + "," + GoTypeKey(s.Value!) + "]",
+            "grid" => "grid[" + GoTypeKey(s.Element!) + "]",
+            _ => s.Kind,
+        };
+
         /// <summary>Whether values of the shape are Go-comparable and compared by value in .NET (sets, keys).</summary>
         private static bool Comparable(GoShape shape) => shape.Kind is "prim" or "enum" or "rawstruct" or "rawtuple";
 
@@ -487,7 +627,7 @@ namespace Nino.Codegen.Targets
             return type.Header switch
             {
                 HeaderKind.None => new GoShape("struct") { Type = type, MinSize = StructMinSize(type) },
-                HeaderKind.NullFlag => new GoShape("class") { Type = type, MinSize = 1 },
+                HeaderKind.NullFlag => new GoShape("class") { Type = type, MinSize = type.TrackReferences ? 4 : 1 },
                 _ => new GoShape("slot") { Type = type, MinSize = 4 },
             };
         }
@@ -787,6 +927,15 @@ namespace Nino.Codegen.Targets
 
         public List<GoShape> Items { get; internal set; } = new();
 
+        /// <summary>
+        /// The slot codecs a generic type's codec is given (<see cref="ValueModel.SlotArguments"/>), after the codecs
+        /// of its type arguments.
+        /// </summary>
+        public List<GoShape> Slots { get; internal set; } = new();
+
+        /// <summary>The slot of a closed generic type written behind a type id (<c>genslot</c>), with its functions.</summary>
+        public GoSlot? Slot { get; internal set; }
+
         public List<int> Offsets { get; internal set; } = new();
 
         /// <summary>A <c>KeyValuePair</c>: a <c>nino.Entry</c>.</summary>
@@ -822,7 +971,9 @@ namespace Nino.Codegen.Targets
             yield return Pair ? "pair" : "";
             yield return FlagOffset + "/" + ValueOffset + "/" + Rank;
             yield return string.Join("/", Offsets);
-            foreach (var child in new[] { Inner, Element, Key, Value }.Concat(Items))
+            yield return Slot?.Name ?? "";
+            yield return Field ?? "";
+            foreach (var child in new[] { Inner, Element, Key, Value }.Concat(Items).Concat(Slots))
                 yield return child?.Identity ?? "-";
         }
     }
@@ -900,6 +1051,51 @@ namespace Nino.Codegen.Targets
         public bool IsStruct => Closed.IsValueType;
 
         public string RuntimeName => Closed.RuntimeName;
+    }
+
+    /// <summary>
+    /// The slot of a closed generic type written behind a type id (<c>Shelf&lt;int&gt;</c>): its functions
+    /// (<c>readSlot0</c>, <c>writeSlot0</c>) switch over the ids of the types and closed types assignable to it.
+    /// </summary>
+    public sealed class GoSlot
+    {
+        private readonly GoTarget _target;
+
+        internal GoSlot(GoTarget target, string name, SlotModel model, GoShape shape)
+        {
+            _target = target;
+            Name = name;
+            Model = model;
+            Shape = shape;
+        }
+
+        public string Name { get; }
+
+        public SlotModel Model { get; }
+
+        /// <summary>The slot's type, its generic interface with the arguments.</summary>
+        public GoShape Shape { get; }
+
+        public string RuntimeName => Model.RuntimeName;
+
+        public List<GoType> Allowed => _target.SlotAllowed(this);
+
+        public List<GoSlotClosed> AllowedClosed => _target.SlotAllowedClosed(this);
+    }
+
+    /// <summary>A generic slot a type sits in: the marker method of its interface, with the arguments.</summary>
+    public sealed class GoMarker
+    {
+        internal GoMarker(string slotName, List<GoShape> items)
+        {
+            SlotName = slotName;
+            Items = items;
+        }
+
+        /// <summary>The generic interface (<c>Shelf</c>, <c>CrateType</c>): the method is <c>is</c> and its name.</summary>
+        public string SlotName { get; }
+
+        public List<GoShape> Items { get; }
     }
 
     public sealed class GoHelper
@@ -1102,9 +1298,41 @@ namespace Nino.Codegen.Targets
 
         private List<GoMember> BuildMembers()
         {
-            var names = GoTarget.FieldNames(Model.Members.Select(m => m.Name));
-            return Model.Members.Select((m, i) => new GoMember(m, names[i], _target.ShapeIn(Model, m.Value))).ToList();
+            var names = FieldNames();
+            int skip = Model.Elements != null ? 1 : 0;
+            return Model.Members.Select((m, i) => new GoMember(m, names[i + skip], _target.ShapeIn(Model, m.Value))).ToList();
         }
+
+        /// <summary>The Go field names: <c>Elements</c> first for a <c>[NinoType]</c> collection, then the members'.</summary>
+        private List<string> FieldNames()
+        {
+            var names = Model.Members.Select(m => m.Name);
+            return GoTarget.FieldNames(Model.Elements != null ? names.Prepend("Elements") : names);
+        }
+
+        /// <summary>The elements of a <c>[NinoType]</c> collection (a field before the members), or null.</summary>
+        public GoMember? ElementsMember => Model.Elements == null ? null
+            : _elements ??= new GoMember(new MemberModel("$elements", "", Model.Elements), FieldNames()[0],
+                _target.ShapeIn(Model, Model.Elements));
+
+        private GoMember? _elements;
+
+        /// <summary>Its fields: the elements (if a collection), then the members.</summary>
+        public List<GoMember> Fields => ElementsMember == null ? Members : new[] { ElementsMember }.Concat(Members).ToList();
+
+        /// <summary>A class written behind reference headers (trackReferences).</summary>
+        public bool Tracked => Model.TrackReferences;
+
+        /// <summary>The generic slots it sits in: a marker method each.</summary>
+        public List<GoMarker> Markers => _markers ??= Model.SlotBases.Select(b => _target.Markers(Model, b)).ToList();
+
+        private List<GoMarker>? _markers;
+
+        /// <summary>The generic interface of a generic definition written behind a type id (<c>Shelf</c>, <c>CrateType</c>).</summary>
+        public string GenericSlotName => _target.SlotName(Model);
+
+        /// <summary>The slots its codec is given (<see cref="TypeModel.SlotParameters"/>), as values of its own parameters.</summary>
+        public List<GoShape> SlotParameters => Model.SlotParameters.Select(p => _target.ShapeIn(Model, p)).ToList();
 
         /// <summary>The type parameters of a generic definition (empty otherwise).</summary>
         public IReadOnlyList<string> Parameters => Model.TypeParameters;

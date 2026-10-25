@@ -80,8 +80,20 @@ every mode, some only with `NinoSettings.Untrusted` set, and the rest not at all
 - A keyed member must use up its whole length (`end_member`) (.NET: in every mode).
 - A deferred-body section must be the outermost region, must be filled exactly by its entries, and every entry's key
   must be at or below its own offset (.NET: in every mode).
+- A tracked class in a slot that does not track (`object`, an untracked base) must not have a reference header of 0
+  after its type id: null is a type id of 0, and .NET never writes the other form (.NET: reads it as null).
 
-Reference tracking (`trackReferences=true`) is not supported. Values written with it fail to read.
+### Reference tracking
+
+A type declared with `trackReferences=true` is held as a [`Shared<T>`](src/shared.rs): one object any number of
+places hold (a clone is the same object), which may hold itself; it compares by identity, and
+`Shared::empty` then `fill` builds a cycle. The code nino-gen writes uses it (`Option<nino::Shared<Node>>`), through
+`Reader::read_shared`, `ref_header`, `back_ref`, `read_shared_new`, `read_shared_after_id` and their writer
+counterparts; the derive does not take `trackReferences` yet. As .NET does, the reader records each object as it
+creates it, before its body (a deferred body waits in the queue until the bodies inside it are read), and rejects a
+header other than -1, 0 or the number of an object read so far, and a back reference to an object of a type the slot
+does not allow (`ErrorKind::InvalidReference`). Every object takes at least its 4 header bytes, so the table of
+objects grows with the input.
 
 ## Strings
 

@@ -120,8 +120,37 @@ namespace Nino.Codegen.Tests
 
             Assert.IsNull(CodegenModel.GenericProblem(bag));
             Assert.IsNull(CodegenModel.GenericProblem(node));
-            // Written behind a type id, the hash of its closed .NET name: no other language can name it.
-            Assert.IsNotNull(CodegenModel.GenericProblem(Type(model, "Shapes.Generic.Open`1")));
+            // Written behind a type id, the hash of its closed .NET name: each closed type is a slot of its own.
+            var open = Type(model, "Shapes.Generic.Open`1");
+            Assert.IsNull(CodegenModel.GenericProblem(open));
+            var openUse = Type(model, "Shapes.Generic.OpenUse").Members.Single().Value;
+            Assert.AreEqual(ValueKind.Generic, openUse.Kind);
+            Assert.AreEqual("Shapes.Generic.Open<System.Int32>", openUse.Slot!.RuntimeName);
+        }
+
+        [TestMethod]
+        public void SlotsOfGenericTypesAllowTheClosedTypesOfTheirSubtypes()
+        {
+            using var model = Load(GeneratedFilesTests.Shapes);
+            var names = model.ClosedTypes.Select(c => c.RuntimeName).ToList();
+            // Reached through OpenHolder<long>'s slots of Open<T>, though the assembly names neither.
+            CollectionAssert.IsSubsetOf(new[]
+            {
+                "Shapes.Generic.Open<System.Int64>", "Shapes.Generic.MoreOpen<System.Int64>",
+                "Shapes.Generic.MoreOpen<System.Int32>",
+            }, names);
+            var slot = model.Slots.Single(s => s.RuntimeName == "Shapes.Generic.Open<System.Int64>");
+            CollectionAssert.AreEquivalent(new[] { "Shapes.Generic.MoreOpen<System.Int64>", "Shapes.Generic.Open<System.Int64>" },
+                slot.ClosedAssignable.Select(c => c.RuntimeName).ToList());
+            // OpenHolder<T>'s codec is given the slot of Open<T>; OpenHolder<long> gives it Open<long>'s.
+            var holder = Type(model, "Shapes.Generic.OpenHolder`1");
+            Assert.AreEqual("Shapes.Generic.Open`1[!0]", holder.SlotParameters.Single().TypeKey);
+            var use = Type(model, "Shapes.Generic.OpenHolderUse").Members.Single().Value;
+            Assert.AreEqual("Shapes.Generic.Open<System.Int64>", use.SlotArguments.Single().Slot!.RuntimeName);
+            // MoreOpen<T> sits in the slots of itself and of Open<T>, with its own parameter.
+            var more = Type(model, "Shapes.Generic.MoreOpen`1");
+            CollectionAssert.AreEquivalent(new[] { "Shapes.Generic.MoreOpen`1[!0]", "Shapes.Generic.Open`1[!0]" },
+                more.SlotBases.Select(b => b.TypeKey).ToList());
         }
 
         [TestMethod]

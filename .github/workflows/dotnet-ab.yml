@@ -7,7 +7,10 @@ name: .NET A/B (test branch)
 #
 #   <base sha> <head sha> <rounds> <BenchmarkDotNet filters...>
 #
-# Each line is a job of its own on each runner (up to three lines). Both commits must be on a branch of this
+# Each line is a job of its own on each runner (up to three lines). A line may start with cpu=<regex> (an
+# extended regular expression on lscpu's model name, for example cpu='Intel|Neoverse'): the x64 runner pool mixes
+# Intel and AMD processors, so such a line runs on up to six x64 runners at once (slots), each going on only when its
+# processor matches; a line without it runs on one runner of each kind as before. Both commits must be on a branch of this
 # repository (main, or this branch: push them here, merging, never force-pushing). Both are built with head's
 # benchmark project. The reports and the ab.py tables go to the log. Numbers are for development only.
 on:
@@ -24,12 +27,29 @@ concurrency:
 
 jobs:
   ab:
-    name: A/B on ${{ matrix.runner }} (line ${{ matrix.line }})
+    name: A/B on ${{ matrix.runner }} (line ${{ matrix.line }}, slot ${{ matrix.slot }})
     strategy:
       fail-fast: false
       matrix:
         runner: [ubuntu-26.04, ubuntu-26.04-arm]
         line: [1, 2, 3]
+        slot: [1]
+        include:
+          - { runner: ubuntu-26.04, line: 1, slot: 2 }
+          - { runner: ubuntu-26.04, line: 1, slot: 3 }
+          - { runner: ubuntu-26.04, line: 1, slot: 4 }
+          - { runner: ubuntu-26.04, line: 1, slot: 5 }
+          - { runner: ubuntu-26.04, line: 1, slot: 6 }
+          - { runner: ubuntu-26.04, line: 2, slot: 2 }
+          - { runner: ubuntu-26.04, line: 2, slot: 3 }
+          - { runner: ubuntu-26.04, line: 2, slot: 4 }
+          - { runner: ubuntu-26.04, line: 2, slot: 5 }
+          - { runner: ubuntu-26.04, line: 2, slot: 6 }
+          - { runner: ubuntu-26.04, line: 3, slot: 2 }
+          - { runner: ubuntu-26.04, line: 3, slot: 3 }
+          - { runner: ubuntu-26.04, line: 3, slot: 4 }
+          - { runner: ubuntu-26.04, line: 3, slot: 5 }
+          - { runner: ubuntu-26.04, line: 3, slot: 6 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 300
     steps:
@@ -46,6 +66,7 @@ jobs:
         env:
           RUNNER: ${{ matrix.runner }}
           LINE: ${{ matrix.line }}
+          SLOT: ${{ matrix.slot }}
         run: |
           set -euo pipefail
           set -f  # the filters are patterns for BenchmarkDotNet, not for the shell
@@ -54,6 +75,11 @@ jobs:
           sudo prlimit --pid $$ --nice=40:40 || echo "::warning::could not raise the nice limit: normal priority"
           request=$(grep -v -e '^#' -e '^[[:space:]]*$' .github/dotnet-ab-request.txt | sed -n "${LINE}p")
           if [[ -z $request ]]; then echo "No line $LINE"; exit 0; fi
+          cpu=''
+          if [[ $request == cpu=* ]]; then read -r cpu request <<< "$request"; cpu=${cpu#cpu=}; cpu=${cpu//\'/}; fi
+          model=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -1)
+          if [[ -z $cpu && $SLOT != 1 ]]; then echo "Line $LINE has no cpu=: slot 1 only"; exit 0; fi
+          if [[ -n $cpu ]] && ! grep -Eq -- "$cpu" <<< "$model"; then echo "$model does not match $cpu: skipped"; exit 0; fi
           read -r base head rounds filters <<< "$request"
           read -ra F <<< "$filters"
           out="$RUNNER_TEMP/out"
@@ -74,7 +100,7 @@ jobs:
             ((${#files[@]})) || return 1
             if ((${#files[@]} == 1)); then cp "${files[0]}" "$2"; else python3 benchmarks/merge_reports.py "${files[@]}" > "$2"; fi
           }
-          echo "## $RUNNER line $LINE: ${base:0:7} -> ${head:0:7}, $rounds rounds: $filters" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "## $RUNNER line $LINE slot $SLOT ($model): ${base:0:7} -> ${head:0:7}, $rounds rounds: $filters" | tee -a "$GITHUB_STEP_SUMMARY"
           for round in $(seq "$rounds"); do
             for side in base head; do
               (cd "$RUNNER_TEMP/$side/benchmarks/Nino.Benchmark" && NINO_BENCH_QUICK=1 dotnet bin/Release/net10.0/Nino.Benchmark.dll \
@@ -85,5 +111,5 @@ jobs:
               cat "$out/$side-$round.md"
             done
             echo "=== AB round $round"
-            { echo "### Round $round"; python3 benchmarks/ab.py "$out/base-$round.md" "$out/head-$round.md"; } | tee -a "$GITHUB_STEP_SUMMARY"
+            { echo "### Round $round ($model)"; python3 benchmarks/ab.py "$out/base-$round.md" "$out/head-$round.md" || true; } | tee -a "$GITHUB_STEP_SUMMARY"
           done

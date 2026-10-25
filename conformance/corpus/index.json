@@ -109,7 +109,16 @@
     "deep-records-512",
     "references-shared",
     "references-null",
-    "tree-collections"
+    "tree-collections",
+    "references-forms",
+    "references-deep-cycle",
+    "references-deep-tolerant",
+    "nino-collections",
+    "nino-collections-null",
+    "generic-slots",
+    "generic-slots-null",
+    "generic-nest",
+    "generic-nullable-arguments"
   ],
   "malicious": [
     "length-int-array-int-max",
@@ -260,6 +269,12 @@
     "references-back-reference-empty",
     "references-back-reference-past",
     "references-header-minus-2",
-    "references-header-int-min"
+    "references-header-int-min",
+    "references-type-mismatch",
+    "references-object-mismatch",
+    "references-base-header-past",
+    "references-base-unknown-id",
+    "nino-collection-elements-null",
+    "nino-collection-elements-past-end"
   ]
 }

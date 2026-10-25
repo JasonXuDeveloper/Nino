@@ -32,7 +32,7 @@ Every case reads a whole input as one top-level value of the case's `type` (`Nin
 | `case` | the name, also the file name |
 | `description` | what the case shows |
 | `type` | the type the bytes are read as: its runtime-form name (`NinoTypeId.GetName`: `Namespace.Outer+Inner`, generic arguments in `<>` separated by `,`) |
-| `features` | the wire features it exercises (tags, for filtering: `int`, `float`, `string`, `utf8`, `seq`, `map`, `grid`, `nullable`, `raw-struct`, `type-id`, `generic-type-id`, `version-tolerant`, `keyed`, `versioning`, `deferral`, `deferral-section`, `depth-limit`, `track-references`, ...) |
+| `features` | the wire features it exercises (tags, for filtering: `int`, `float`, `string`, `utf8`, `seq`, `map`, `grid`, `nullable`, `raw-struct`, `type-id`, `generic-type-id`, `version-tolerant`, `keyed`, `versioning`, `deferral`, `deferral-section`, `depth-limit`, `track-references`, `nino-collection`, ...) |
 | `optional` | present when the case needs a feature a runtime may leave out: `track-references` (reference tracking) |
 | `size` | the length of the `.bin` |
 | `roundTrip` | whether writing the value read gives the `.bin` back. False only where the bytes are not what .NET writes for that type: data of another version of the type (`*-old-to-new`, `*-v1-to-v2`), or a form .NET reads but does not write (`string-utf16-header-for-latin1`) |

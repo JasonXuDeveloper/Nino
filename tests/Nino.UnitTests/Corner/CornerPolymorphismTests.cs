@@ -174,6 +174,60 @@ namespace Nino.UnitTests.Corner
     {
         public List<GenericSub<DateTimeKind>> Held;
     }
+    // Generic slots: each member names only the slot (SlotShelf<SlotArg>...), never the closed subtypes it holds,
+    // which the generated registry maps from the generic subtypes of the slot's definition.
+    public enum SlotArg : byte { A, B }
+
+    [NinoType]
+    public abstract class SlotShelf<T>
+    {
+        public T Item;
+    }
+
+    [NinoType]
+    public sealed class ListSlotShelf<T> : SlotShelf<T>
+    {
+        public List<T> More;
+    }
+
+    [NinoType]
+    public class SlotCrate<T>
+    {
+        public T Content;
+    }
+
+    [NinoType]
+    public sealed class LabeledSlotCrate<T> : SlotCrate<T>
+    {
+        public string Label;
+    }
+
+    [NinoType]
+    public interface ISlotHolder<T>
+    {
+    }
+
+    [NinoType]
+    public sealed class SlotHolder<T> : ISlotHolder<T>
+    {
+        public T Held;
+    }
+
+    // Its argument is a struct: the slot of SlotShelf<string> has no such subtype.
+    [NinoType]
+    public sealed class StructSlotShelf<T> : SlotShelf<T> where T : struct
+    {
+        public T Extra;
+    }
+
+    [NinoType]
+    public sealed class GenericSlotsHolder
+    {
+        public SlotShelf<SlotArg> Shelf;
+        public SlotShelf<string> TextShelf;
+        public SlotCrate<SlotArg> Crate;
+        public ISlotHolder<SlotArg> Holder;
+    }
 }
 
 namespace Nino.UnitTests.Corner.Elsewhere
@@ -343,6 +397,40 @@ namespace Nino.UnitTests.Corner
             var back = (GenericSub<DateTimeKind>)NinoDeserializer.Deserialize<NonGenericBase>(bytes);
             Assert.AreEqual(9, back.Id);
             Assert.AreEqual(DateTimeKind.Utc, back.Payload);
+        }
+
+        [TestMethod]
+        public void ClosedSubtypesOfAGenericSlotAreReadableFromTheirIdsAlone()
+        {
+            // Nothing has written or named these closed types: a process that only reads maps their ids.
+            foreach (var (slot, type) in new[]
+                     {
+                         (typeof(SlotShelf<SlotArg>), typeof(ListSlotShelf<SlotArg>)),
+                         (typeof(SlotShelf<SlotArg>), typeof(StructSlotShelf<SlotArg>)),
+                         (typeof(SlotShelf<string>), typeof(ListSlotShelf<string>)),
+                         (typeof(SlotCrate<SlotArg>), typeof(LabeledSlotCrate<SlotArg>)),
+                         (typeof(ISlotHolder<SlotArg>), typeof(SlotHolder<SlotArg>)),
+                     })
+            {
+                var find = typeof(NinoPolymorphic<>).MakeGenericType(slot).GetMethod("Find", new[] { typeof(int) })!;
+                var found = find.Invoke(null, new object[] { NinoTypeId.Of(type) });
+                Assert.IsNotNull(found, type.Name);
+                Assert.AreEqual(type, found.GetType().GetProperty("Type")!.GetValue(found), type.Name);
+            }
+
+            // Bytes as another process writes them.
+            var bytes = NinoSerializer.Serialize(new GenericSlotsHolder
+            {
+                Shelf = new ListSlotShelf<SlotArg> { Item = SlotArg.B, More = new List<SlotArg> { SlotArg.A } },
+                TextShelf = new ListSlotShelf<string> { Item = "x" },
+                Crate = new LabeledSlotCrate<SlotArg> { Content = SlotArg.B, Label = "l" },
+                Holder = new SlotHolder<SlotArg> { Held = SlotArg.A },
+            });
+            var back = NinoDeserializer.Deserialize<GenericSlotsHolder>(bytes);
+            Assert.AreEqual(SlotArg.A, ((ListSlotShelf<SlotArg>)back.Shelf).More[0]);
+            Assert.AreEqual("x", back.TextShelf.Item);
+            Assert.AreEqual("l", ((LabeledSlotCrate<SlotArg>)back.Crate).Label);
+            Assert.AreEqual(SlotArg.A, ((SlotHolder<SlotArg>)back.Holder).Held);
         }
 
         [TestMethod]

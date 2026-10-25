@@ -11,14 +11,21 @@ func struct_decl(name, fields, keyed)
   $names = []
   $types = []
   $tags = []
+  $position = 0
   for $f in fields
     $names = array.add $names $f.name
     $types = array.add $types (gotype($f.shape))
-    $tag = keyed ? $f.csharp : ("" + for.index)
-    if $f.shape.kind == "utf8" || $f.shape.kind == "keyutf8"
-      $tag = $tag + ",utf8"
+    if $f.csharp == "$elements"
+      # A [NinoType] collection's elements: no member of the struct tags (they reject the type's layout).
+      $tag = "nino:\"-\""
+    else
+      $tag = keyed ? $f.csharp : ("" + $position)
+      $position = $position + 1
+      if $f.shape.kind == "utf8" || $f.shape.kind == "keyutf8"
+        $tag = $tag + ",utf8"
+      end
+      $tag = "nino:\"" + $tag + "\""
     end
-    $tag = "nino:\"" + $tag + "\""
     for $t in extra_tags
       $tag = $tag + " " + $t + ":\"" + tag_name($f.csharp) + "\""
     end
@@ -44,9 +51,13 @@ end
 # The statements reading the members into `v` (a *T for a class body, a T for a struct).
 func read_members(c)
   $o = ""
+  # A [NinoType] collection's elements: before the members (positional), before the region (version tolerant), or
+  # first in it (keyed). Null elements are invalid (the collection is the object itself).
+  $e = c.elements_member
+  $elements = $e ? "\tv." + $e.name + " = ninoElements(r, " + read($e.shape) + ")\n" : ""
   if c.format == "keyed"
     # Members by key, in any order, each at most once; a key this version does not know is skipped.
-    $o = $o + "\tg := r.BeginRegion()\n"
+    $o = $o + "\tg := r.BeginRegion()\n" + $elements
     if c.seen_words == 1
       $o = $o + "\tvar seen uint64\n"
     else if c.seen_words > 1
@@ -64,12 +75,13 @@ func read_members(c)
     $o = $o + "\t\tdefault:\n\t\t\tr.SkipEntry(e)\n\t\t\tcontinue\n\t\t}\n\t\tr.EndEntry(e)\n\t}\n\tr.EndRegion(g)\n"
   else if c.format == "tolerant"
     # Members written by an older version end early; those of a newer one are skipped.
-    $o = $o + "\tg := r.BeginRegion()\n"
+    $o = $o + $elements + "\tg := r.BeginRegion()\n"
     for $m in c.members
       $o = $o + "\tif r.More() {\n\t\tv." + $m.name + " = " + read($m.shape) + "\n\t}\n"
     end
     $o = $o + "\tr.EndRegion(g)\n"
   else
+    $o = $o + $elements
     # Each run of fixed-size members takes its bytes with one bounds check.
     for $run in c.runs
       if $run.items.size == 1
@@ -88,19 +100,23 @@ end
 
 func write_members(c)
   $o = ""
+  $e = c.elements_member
+  # Nil elements are an empty collection: the collection is the object itself, never null.
+  $elements = $e ? "\t" + write($e.shape, "ninoNonNil(v." + $e.name + ")") + "\n" : ""
   if c.format == "keyed"
-    $o = $o + "\tg := w.BeginRegion()\n"
+    $o = $o + "\tg := w.BeginRegion()\n" + $elements
     for $m in c.members
       $o = $o + "\t" + (for.first ? "e := " : "e = ") + "w.BeginEntry(" + $m.model.key + ")\n\t" + write($m.shape, "v." + $m.name) + "\n\tw.EndEntry(e)\n"
     end
     $o = $o + "\tw.EndRegion(g)\n"
   else if c.format == "tolerant"
-    $o = $o + "\tg := w.BeginRegion()\n"
+    $o = $o + $elements + "\tg := w.BeginRegion()\n"
     for $m in c.members
       $o = $o + "\t" + write($m.shape, "v." + $m.name) + "\n"
     end
     $o = $o + "\tw.EndRegion(g)\n"
   else
+    $o = $o + $elements
     for $run in c.runs
       if $run.items.size == 1
         $o = $o + "\t" + write($run.items[0].member.shape, "v." + $run.items[0].member.name) + "\n"
@@ -206,21 +222,31 @@ func helper_body(h)
   ret $o + "\tnino.WriteSlice(w, v, " + wfn($s.element) + ")\n}\n"
 end
 
-# A slot's dispatch: the type id, then the body of one of the types the declared type allows.
-func slot_functions(c)
-  $f = c.slot_functions
-  $s = c.slot_name
-  $o = "// Read" + $f + " reads a value of a slot declared as " + c.model.full_name + ": a type id, then the body of a\n// type it allows.\n"
-  $o = $o + "func Read" + $f + "(r *nino.Reader) " + $s + " {\n\tswitch id := r.TypeID(); id {\n\tcase nino.NullTypeID:\n\t\treturn nil\n"
-  for $t in c.allowed
+# A slot's dispatch: the type id, then the body of one of the types the declared type allows. `read` and `write`
+# name the functions, `slot` is the Go type of the slot, `iface` whether it is an interface (else a *T of the class
+# `own`, whose id is `id`), `tracked` whether the declared type tracks references: its reference header comes first,
+# then (for a new object) the type id. A tracked type in a slot that does not track has its header after its id.
+func dispatch(read, write, slot, allowed, allowed_closed, iface, tracked, own, id)
+  $o = "func " + read + "(r *nino.Reader) " + slot + " {\n"
+  if tracked
+    $o = $o + "\th := r.Ref()\n\tif h == 0 {\n\t\treturn nil\n\t}\n\tif h > 0 {\n\t\treturn nino.Back[" + slot + "](r, h)\n\t}\n"
+    $o = $o + "\tswitch id := r.TypeID(); id {\n"
+  else
+    $o = $o + "\tswitch id := r.TypeID(); id {\n\tcase nino.NullTypeID:\n\t\treturn nil\n"
+  end
+  for $t in allowed
     $o = $o + "\tcase " + $t.id + ":\n"
     if $t.kind == "raw" || $t.kind == "struct"
       $o = $o + "\t\treturn Read" + $t.name + "(r)\n"
+    else if tracked
+      $o = $o + "\t\treturn nino.ReadTrackedNew(r, &" + lower($t.name) + "Class)\n"
+    else if $t.tracked
+      $o = $o + "\t\treturn nino.ReadTrackedClass(r, &" + lower($t.name) + "Class)\n"
     else
       $o = $o + "\t\treturn nino.ReadClass(r, &" + lower($t.name) + "Class)\n"
     end
   end
-  for $k in c.allowed_closed
+  for $k in allowed_closed
     $o = $o + "\tcase " + $k.id + ":\n"
     if $k.is_struct
       $o = $o + "\t\treturn " + $k.name + ".read(r)\n"
@@ -229,19 +255,26 @@ func slot_functions(c)
     end
   end
   $o = $o + "\tdefault:\n\t\tr.UnknownType(id)\n\t\treturn nil\n\t}\n}\n\n"
-  if !c.interface_slot
+  if !iface
     # A class without subtypes: a *T, nil or the class itself.
-    ret $o + "func Write" + $f + "(w *nino.Writer, v " + $s + ") {\n\tnino.WriteTyped(w, " + c.id + ", v, &" + lower(c.name) + "Class)\n}\n"
+    if tracked
+      ret $o + "func " + write + "(w *nino.Writer, v " + slot + ") {\n\tif v == nil {\n\t\tw.I32(0)\n\t} else if w.Ref(v) {\n\t\tw.TypeID(" + id + ")\n\t\tnino.WriteClass(w, v, &" + lower(own) + "Class)\n\t}\n}\n"
+    end
+    ret $o + "func " + write + "(w *nino.Writer, v " + slot + ") {\n\tnino.WriteTyped(w, " + id + ", v, &" + lower(own) + "Class)\n}\n"
   end
-  $o = $o + "func Write" + $f + "(w *nino.Writer, v " + $s + ") {\n\tswitch v := v.(type) {\n\tcase nil:\n\t\tw.TypeID(nino.NullTypeID)\n"
-  for $t in c.allowed
+  $o = $o + "func " + write + "(w *nino.Writer, v " + slot + ") {\n\tswitch v := v.(type) {\n\tcase nil:\n\t\t" + (tracked ? "w.I32(0)" : "w.TypeID(nino.NullTypeID)") + "\n"
+  for $t in allowed
     if $t.kind == "raw" || $t.kind == "struct"
       $o = $o + "\tcase " + $t.name + ":\n\t\tw.TypeID(" + $t.id + ")\n\t\tWrite" + $t.name + "(w, v)\n"
+    else if tracked
+      $o = $o + "\tcase *" + $t.name + ":\n\t\tif v == nil {\n\t\t\tw.I32(0)\n\t\t} else if w.Ref(v) {\n\t\t\tw.TypeID(" + $t.id + ")\n\t\t\tnino.WriteClass(w, v, &" + lower($t.name) + "Class)\n\t\t}\n"
+    else if $t.tracked
+      $o = $o + "\tcase *" + $t.name + ":\n\t\tnino.WriteTypedTracked(w, " + $t.id + ", v, &" + lower($t.name) + "Class)\n"
     else
       $o = $o + "\tcase *" + $t.name + ":\n\t\tnino.WriteTyped(w, " + $t.id + ", v, &" + lower($t.name) + "Class)\n"
     end
   end
-  for $k in c.allowed_closed
+  for $k in allowed_closed
     if $k.is_struct
       $o = $o + "\tcase " + closed_type($k) + ":\n\t\tw.TypeID(" + $k.id + ")\n\t\t" + $k.name + ".write(w, v)\n"
     else
@@ -249,6 +282,42 @@ func slot_functions(c)
     end
   end
   ret $o + "\tdefault:\n\t\tw.Fail(nino.CodeUnknownType, \"not a type the slot allows\")\n\t}\n}\n"
+end
+
+# The dispatch of a slot declared as a [NinoType] (ReadAnimal, WriteAnimal).
+func slot_functions(c)
+  $f = c.slot_functions
+  $o = "// Read" + $f + " reads a value of a slot declared as " + c.model.full_name + ": a type id, then the body of a\n// type it allows.\n"
+  ret $o + dispatch("Read" + $f, "Write" + $f, c.slot_name, c.allowed, c.allowed_closed, c.interface_slot, c.tracked, c.name, c.id)
+end
+
+# The dispatch of a slot of a closed generic type (readSlot0, writeSlot0).
+func generic_slot_functions(g)
+  $o = "// read" + upper_first(g.name) + " reads a value of a slot declared as " + g.runtime_name + ": a type id, then the body\n// of a type it allows.\n"
+  ret $o + dispatch("read" + upper_first(g.name), "write" + upper_first(g.name), gotype(g.shape), g.allowed, g.allowed_closed, true, false, "", 0)
+end
+
+# The marker methods of the generic slots a type sits in (receiver `recv`): isShelf(int32).
+func markers(c, recv)
+  $o = ""
+  for $m in c.markers
+    $o = $o + "func (" + recv + ") is" + $m.slot_name + "(" + join_types($m.items) + ") {\n}\n\n"
+  end
+  ret $o
+end
+
+# The generic interface of a generic definition written behind a type id: its values are the types marked with it.
+func generic_interface(c)
+  ret "// " + c.generic_slot_name + " is a value of a slot declared as `" + c.runtime_name + "` with type arguments.\ntype " + c.generic_slot_name + c.type_params + " interface {\n\tnino.Typed\n\tis" + c.generic_slot_name + "(" + (array.join c.parameters ", ") + ")\n}\n"
+end
+
+# The codecs a generic type's codec is built from: those of its type arguments, then its slots'.
+func codec_args(s)
+  $all = args(s.items)
+  if s.slots.size != 0
+    $all = ($all == "" ? "" : $all + ", ") + args(s.slots)
+  end
+  ret $all
 end
 
 # A closed generic type in a slot: Box[int32].
@@ -263,7 +332,12 @@ func generic_type(c)
   $value = c.kind == "struct" ? $self : "*" + $self
   $codec = lower(c.name) + "Codec"
   $recv = "func (c *" + $codec + c.type_args + ") "
-  $o = "// " + c.name + " is `" + c.runtime_name + "`.\n" + struct_decl(c.name + c.type_params, c.members, c.format == "keyed") + "\n"
+  # A generic type written behind its own type id: no codec of its own (a slot reads it), only its closed types'.
+  $typed = c.kind == "typeid"
+  $o = "// " + c.name + " is `" + c.runtime_name + "`.\n" + struct_decl(c.name + c.type_params, c.fields, c.format == "keyed") + "\n"
+  if $typed
+    $o = $o + generic_interface(c) + "\n"
+  end
   $o = $o + "func (" + $self + ") NinoLayout() string {\n\treturn " + go_string(c.layout) + "\n}\n\n"
   if c.closed.size != 0
     # The .NET name of the closed types the assembly names; the definition's for any other.
@@ -277,17 +351,28 @@ func generic_type(c)
   end
   $names = []
   $kinds = []
-  if c.kind == "class"
+  if c.kind == "class" || $typed
     $names = array.add $names "class"
     $kinds = array.add $kinds ("nino.Class[" + $self + "]")
   end
-  $names = array.add $names "self"
-  $kinds = array.add $kinds ("NinoArg[" + $value + "]")
+  if !$typed
+    $names = array.add $names "self"
+    $kinds = array.add $kinds ("NinoArg[" + $value + "]")
+  end
   $params = []
+  $pnames = []
   for $p in c.parameters
     $names = array.add $names ("p" + for.index)
     $kinds = array.add $kinds ("NinoArg[" + $p + "]")
     $params = array.add $params ("p" + for.index + " NinoArg[" + $p + "]")
+    $pnames = array.add $pnames ("p" + for.index)
+  end
+  # The slots of generic types written behind type ids with its parameters: given by whoever builds the codec.
+  for $sp in c.slot_parameters
+    $names = array.add $names ("s" + for.index)
+    $kinds = array.add $kinds ("NinoArg[" + gotype($sp) + "]")
+    $params = array.add $params ("s" + for.index + " NinoArg[" + gotype($sp) + "]")
+    $pnames = array.add $pnames ("s" + for.index)
   end
   $derived = c.derived
   for $d in $derived
@@ -307,24 +392,26 @@ func generic_type(c)
   $o = $o + "}\n\n"
   $o = $o + "// " + c.name + "Codec returns the codec of " + $self + " (as a member of its type is written) from the codec of each\n// type argument, in order.\n"
   $closed = c.closed
-  if $closed.size != 0
+  # A generic type behind its own id always has its NinoTypeID (a value of its generic interface).
+  $ids = $closed.size != 0 || $typed || c.markers.size != 0
+  if $typed
+    $o = $o + "func new" + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + ") *" + $codec + c.type_args + " {\n"
+  else if $closed.size != 0
     # Its closed types in slots keep their codecs (their class bodies), so the codec is built apart.
     $o = $o + "func " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + ") NinoArg[" + $value + "] {\n"
-    $pnames = []
-    for $p in c.parameters
-      $pnames = array.add $pnames ("p" + for.index)
-    end
     $o = $o + "\treturn new" + c.name + "Codec(" + (array.join $pnames ", ") + ").self\n}\n\n"
     $o = $o + "func new" + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + ") *" + $codec + c.type_args + " {\n"
   else
     $o = $o + "func " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + ") NinoArg[" + $value + "] {\n"
   end
   $fields = []
-  for $p in c.parameters
-    $fields = array.add $fields ("p" + for.index + ": p" + for.index)
+  for $p in $pnames
+    $fields = array.add $fields ($p + ": " + $p)
   end
   $o = $o + "\tc := &" + $codec + c.type_args + "{" + (array.join $fields ", ") + "}\n"
-  if c.kind == "class"
+  if $typed
+    $o = $o + "\tc.class = nino.Class[" + $self + "]{Read: c.readBody, Write: c.writeBody, Deferrable: " + c.deferrable + "}\n"
+  else if c.kind == "class"
     $o = $o + "\tc.class = nino.Class[" + $self + "]{Read: c.readBody, Write: c.writeBody, Deferrable: " + c.deferrable + "}\n"
     $o = $o + "\tc.self = NinoArg[" + $value + "]{Read: c.read, Write: c.write, MinSize: 1}\n"
   else
@@ -332,13 +419,13 @@ func generic_type(c)
   end
   for $d in $derived
     if $d.generic
-      $o = $o + "\tc." + $d.name + " = " + type_of($d.shape.type).name + "Codec(" + args($d.shape.items) + ")\n"
+      $o = $o + "\tc." + $d.name + " = " + type_of($d.shape.type).name + "Codec(" + codec_args($d.shape) + ")\n"
     else
       $o = $o + "\tc." + $d.name + " = NinoArg[" + gotype($d.shape) + "]{Read: c.read" + upper_first($d.name) + ", Write: c.write" + upper_first($d.name) + ", MinSize: " + $d.shape.min + "}\n"
     end
   end
-  $o = $o + ($closed.size != 0 ? "\treturn c\n}\n\n" : "\treturn c.self\n}\n\n")
-  if $closed.size != 0
+  $o = $o + ($closed.size != 0 || $typed ? "\treturn c\n}\n\n" : "\treturn c.self\n}\n\n")
+  if $ids
     $recv0 = c.kind == "struct" ? "v " + $self : "v *" + $self
     $o = $o + "// NinoTypeID returns the id of the closed type: one the assembly names, else 0 (no slot allows it).\n"
     $o = $o + "func (" + $recv0 + ") NinoTypeID() int32 {\n\tswitch any(v).(type) {\n"
@@ -350,7 +437,11 @@ func generic_type(c)
       $o = $o + "func (" + (c.kind == "struct" ? $self : "*" + $self) + ") is" + $slot.slot_name + "() {\n}\n\n"
     end
   end
-  if c.kind == "class"
+  $o = $o + markers(c, c.kind == "struct" ? $self : "*" + $self)
+  if $typed
+    $o = $o + $recv + "readBody(r *nino.Reader, v *" + $self + ") {\n" + read_members(c) + "}\n\n"
+    $o = $o + $recv + "writeBody(w *nino.Writer, v *" + $self + ") {\n" + write_members(c) + "}\n"
+  else if c.kind == "class"
     $o = $o + $recv + "read(r *nino.Reader) " + $value + " {\n\treturn nino.ReadSealed(r, &c.class)\n}\n\n"
     $o = $o + $recv + "write(w *nino.Writer, v " + $value + ") {\n\tnino.WriteSealed(w, v, &c.class)\n}\n\n"
     $o = $o + $recv + "readBody(r *nino.Reader, v *" + $self + ") {\n" + read_members(c) + "}\n\n"
@@ -490,10 +581,10 @@ if $classes.size != 0 || closed.size != 0 || slot_closed.size != 0
   end
   # Arguments first: a codec copies the codecs it is given.
   for $k in closed
-    "\t" + $k.name + " = " + type_of($k.shape.type).name + "Codec(" + args($k.shape.items) + ")\n"
+    "\t" + $k.name + " = " + type_of($k.shape.type).name + "Codec(" + codec_args($k.shape) + ")\n"
   end
   for $k in slot_closed
-    "\t" + $k.name + " = new" + type_of($k.shape.type).name + "Codec(" + args($k.shape.items) + ")\n"
+    "\t" + $k.name + " = new" + type_of($k.shape.type).name + "Codec(" + codec_args($k.shape) + ")\n"
   end
   if uses_object
     # What a slot declared as object allows: every type here (an explicit allow-list, where .NET accepts any type
@@ -503,7 +594,7 @@ if $classes.size != 0 || closed.size != 0 || slot_closed.size != 0
       if o.kind == "raw" || o.kind == "struct"
         "\t\tnino.StructType(" + o.id + ", func(r *nino.Reader, v *" + o.name + ") { *v = Read" + o.name + "(r) }, func(w *nino.Writer, v *" + o.name + ") { Write" + o.name + "(w, *v) }),\n"
       else
-        "\t\tnino.ClassType(" + o.id + ", &" + lower(o.name) + "Class),\n"
+        "\t\tnino." + (o.tracked ? "TrackedClassType" : "ClassType") + "(" + o.id + ", &" + lower(o.name) + "Class),\n"
       end
     end
     for $k in slot_closed
@@ -522,6 +613,11 @@ end
 
 for c in types
   "\n"
+  if c.is_abstract && c.parameters.size != 0
+    # A generic abstract class or interface: a generic interface, each closed slot of it dispatching on its own.
+    generic_interface(c)
+    continue
+  end
   if c.is_abstract
     # An abstract class or interface: a slot of the types that implement it.
     "// " + c.slot_name + " is a value of a slot declared as `" + c.model.full_name + "`.\ntype " + c.slot_name + " interface {\n\tnino.Typed\n\tis" + c.slot_name + "()\n}\n\n"
@@ -533,7 +629,7 @@ for c in types
     continue
   end
   if c.kind != "raw"
-    "// " + c.name + " is `" + c.model.full_name + "`.\n" + struct_decl(c.name, c.members, c.format == "keyed") + "\n"
+    "// " + c.name + " is `" + c.model.full_name + "`.\n" + struct_decl(c.name, c.fields, c.format == "keyed") + "\n"
   end
   "func (" + c.name + ") NinoLayout() string {\n\treturn " + go_string(c.layout) + "\n}\n\n"
   "func (" + c.name + ") NinoTypeName() string {\n\treturn " + go_string(c.runtime_name) + "\n}\n\n"
@@ -541,6 +637,7 @@ for c in types
   for $slot in c.slots
     "func (" + receiver(c) + ") is" + $slot.slot_name + "() {\n}\n\n"
   end
+  markers(c, receiver(c))
   if c.kind == "raw"
     "func Read" + c.name + "(r *nino.Reader) " + c.name + " {\n\treturn " + read(c.raw_shape) + "\n}\n\n"
     "func Write" + c.name + "(w *nino.Writer, v " + c.name + ") {\n\t" + write(c.raw_shape, "v") + "\n}\n"
@@ -568,7 +665,11 @@ for c in types
     "}\n"
     continue
   end
-  if c.kind == "class"
+  if c.kind == "class" && c.tracked
+    # Its reference header, then its body for an object not written before.
+    "func Read" + c.name + "(r *nino.Reader) *" + c.name + " {\n\treturn nino.ReadTracked(r, &" + lower(c.name) + "Class)\n}\n\n"
+    "func Write" + c.name + "(w *nino.Writer, v *" + c.name + ") {\n\tnino.WriteTracked(w, v, &" + lower(c.name) + "Class)\n}\n\n"
+  else if c.kind == "class"
     "func Read" + c.name + "(r *nino.Reader) *" + c.name + " {\n\treturn nino.ReadSealed(r, &" + lower(c.name) + "Class)\n}\n\n"
     "func Write" + c.name + "(w *nino.Writer, v *" + c.name + ") {\n\tnino.WriteSealed(w, v, &" + lower(c.name) + "Class)\n}\n\n"
   else
@@ -584,6 +685,17 @@ end
 if uses_object
   "\nfunc readObject(r *nino.Reader) nino.Typed {\n\tv, _ := nino.ReadAny(r, objects).(nino.Typed)\n\treturn v\n}\n"
   "\nfunc writeObject(w *nino.Writer, v nino.Typed) {\n\tnino.WriteAny(w, v, objects)\n}\n"
+end
+
+# The slots of closed generic types written behind type ids.
+for g in generic_slots
+  "\n" + generic_slot_functions(g)
+end
+
+if uses_elements
+  "\n// ninoElements checks the elements of a [NinoType] collection: null is invalid (the collection is the object).\n"
+  "func ninoElements[T any](r *nino.Reader, v []T) []T {\n\tif v == nil && !r.Failed() {\n\t\tr.Fail(nino.CodeInvalidData, \"null elements of a collection\")\n\t}\n\treturn v\n}\n"
+  "\n// ninoNonNil writes nil elements as an empty collection.\nfunc ninoNonNil[T any](v []T) []T {\n\tif v == nil {\n\t\treturn []T{}\n\t}\n\treturn v\n}\n"
 end
 
 # The functions shared by values of one shape.

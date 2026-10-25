@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"runtime"
 	"sort"
-	"strings"
 	"testing"
 
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
@@ -111,12 +110,39 @@ func readFile(t testing.TB, path string) []byte {
 	return b
 }
 
-// unsupported is the reason a type cannot be read here, or "".
+// unsupported is the reason a type cannot be read here, or "": nino-gen leaves it out of Go (NINOGEN002).
 func unsupported(typeName string) string {
-	if strings.HasPrefix(typeName, "Conformance.Tracked") {
-		return "reference tracking is not implemented"
+	if typeName == "Conformance.NestHolder" {
+		return "Nest<T> holds itself with other type arguments, which Go's generics reject"
 	}
 	return ""
+}
+
+// goTypeOf names the closed generic types that are one Go type with another (nino-gen's NINOGEN002 warnings: "left
+// out of the polymorphic slots in Go"): Wrap<int?[]>, Wrap<List<int?>> and Wrap<HashSet<int?>> are all
+// Wrap[[]*int32], whose NinoTypeName is the first one's. Their bytes are the same; only the name differs.
+var goTypeOf = map[string]string{
+	"Conformance.Wrap<System.Nullable<System.Int32>[]>":                                "Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<System.Int32>>>",
+	"Conformance.Wrap<System.Collections.Generic.List<System.Nullable<System.Int32>>>": "Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<System.Int32>>>",
+}
+
+// sameGoType replaces, in an expected value, the .NET names of goTypeOf with the name Go gives their type.
+func sameGoType(v any) any {
+	switch v := v.(type) {
+	case map[string]any:
+		for k, x := range v {
+			if name, ok := x.(string); ok && k == "$type" && goTypeOf[name] != "" {
+				v[k] = goTypeOf[name]
+				continue
+			}
+			v[k] = sameGoType(x)
+		}
+	case []any:
+		for i, x := range v {
+			v[i] = sameGoType(x)
+		}
+	}
+	return v
 }
 
 // codecs looks up the generated codec of a .NET type.
@@ -160,6 +186,7 @@ func TestConformanceValid(t *testing.T) {
 			if err := d.Decode(&want); err != nil {
 				t.Fatal(err)
 			}
+			want = sameGoType(want)
 			if got := render(v); !reflect.DeepEqual(got, want) {
 				g, _ := json.Marshal(got)
 				w, _ := json.Marshal(want)

@@ -25,8 +25,8 @@ namespace Nino.Codegen.Targets
     /// <summary>
     /// TypeScript: a class per type, an <c>as const</c> object per enum and a <c>NinoCodec</c> per type, which read and
     /// write exactly the bytes the layout describes (<c>Templates/typescript/types.sbn</c>). A type whose layout it
-    /// cannot express (generics, reference tracking, <c>[NinoType]</c> collections, encodings without a TypeScript
-    /// form) is left out with a warning, and so is every type holding one.
+    /// cannot express (encodings without a TypeScript form, reference tracking of a generic type) is left out with a
+    /// warning, and so is every type holding one.
     /// </summary>
     public sealed class TypeScriptTarget
     {
@@ -49,6 +49,9 @@ namespace Nino.Codegen.Targets
         private readonly List<TsDerived> _closed = new();
         private readonly HashSet<ClosedTypeModel> _closedSupported = new();
         private readonly List<TsSlotClosed> _slotClosed = new();
+        // The slots of closed generic types written behind type ids that the values hold (slot$0...).
+        private readonly Dictionary<SlotModel, TsSlot> _slotByModel = new();
+        private readonly List<TsSlot> _slots = new();
         private TypeModel? _context;
 
         public List<string> Warnings { get; } = new();
@@ -106,13 +109,21 @@ namespace Nino.Codegen.Targets
             var registered = Registered(layouts).Select(t => new TsClass(this, t)).ToList();
             var codecs = layouts.Where(t => !t.IsGenericDefinition).OrderBy(Name, StringComparer.Ordinal)
                 .Select(t => new TsClass(this, t)).ToList();
-            var generics = layouts.Where(t => t.IsGenericDefinition).OrderBy(Name, StringComparer.Ordinal)
+            // Abstract generic classes and generic interfaces have no codec: their closed types are slots.
+            var generics = layouts.Where(t => t.IsGenericDefinition && t.IsConcrete).OrderBy(Name, StringComparer.Ordinal)
                 .Select(t => new TsClass(this, t)).ToList();
             // Every member shaped, so every codec the module and the generic codecs build is known.
             foreach (var c in classes.Concat(generics))
                 _ = c.Derived;
             foreach (var slot in _slotClosed)
                 slot.Shape = ClosedShape(slot.Closed);
+            // The slots' closed types are named; a slot's own codec is shaped once all are.
+            foreach (var slot in _slots)
+            {
+                slot.Closed = _slotClosed.Where(c => slot.Model.ClosedAssignable.Contains(c.Closed)).ToList();
+                slot.Assignable = slot.Model.Assignable.Where(_supported.Contains).OrderBy(Name, StringComparer.Ordinal)
+                    .Select(t => new TsClass(this, t)).ToList();
+            }
             // A closed codec of a type a slot holds builds its subclass, so the values it reads can sit in the slot.
             foreach (var closed in _closed)
                 closed.Subclass = _slotClosed.FirstOrDefault(c => c.Shape!.Identity == closed.Key)?.Name;
@@ -130,6 +141,7 @@ namespace Nino.Codegen.Targets
             renderer.Set("generics", generics);
             renderer.Set("closed", _closed);
             renderer.Set("slot_closed", _slotClosed);
+            renderer.Set("slots", _slots);
             renderer.Function("name", new Func<object, string>(Name));
             renderer.Function("helper", new Func<TsShape, string, string>(Helper));
             renderer.Function("helper_count", new Func<int>(() => _helpers.Count));
@@ -141,12 +153,14 @@ namespace Nino.Codegen.Targets
 
         private void ResolveSupported()
         {
+            // A generic type holding itself with other arguments is fine: its codecs build those of the types it holds
+            // when the data first needs them.
             foreach (var type in _model.Types)
             {
-                string? reason = CodegenModel.GenericProblem(type) is { } generic ? generic
-                    : type.TrackReferences ? "reference tracking (trackReferences) is not supported"
-                    : type.Elements != null ? "[NinoType] collections are not supported"
-                    : null;
+                string? reason = type.SlotProblem
+                    ?? (type.TrackReferences && type.IsGenericDefinition
+                        ? "reference tracking (trackReferences) of a generic type is not supported"
+                        : null);
                 if (reason == null)
                     _supported.Add(type);
                 else
@@ -161,6 +175,8 @@ namespace Nino.Codegen.Targets
                 _derived.Clear();
                 _closedByKey.Clear();
                 _closed.Clear();
+                _slotByModel.Clear();
+                _slots.Clear();
                 var failing = _model.Types.Where(_supported.Contains)
                     .Select(t => (Type: t, Reason: Check(t))).FirstOrDefault(f => f.Reason != null);
                 if (failing.Type == null)
@@ -173,6 +189,8 @@ namespace Nino.Codegen.Targets
             _closedByKey.Clear();
             _closed.Clear();
             _structOpens.Clear();
+            _slotByModel.Clear();
+            _slots.Clear();
         }
 
         /// <summary>
@@ -201,13 +219,19 @@ namespace Nino.Codegen.Targets
             _closedByKey.Clear();
             _closed.Clear();
             _structOpens.Clear();
+            _slotByModel.Clear();
+            _slots.Clear();
         }
 
-        /// <summary>A closed generic type in a slot: the shapes of its arguments (its codecs built in the module).</summary>
+        /// <summary>
+        /// A closed generic type in a slot: the shapes of its arguments and of the slots its codecs need (its codecs
+        /// built in the module).
+        /// </summary>
         private TsShape ClosedShape(ClosedTypeModel closed) => new("generic")
         {
             Type = closed.Definition, Items = closed.Value.Arguments.Select(Shape).ToList(), Opens = true,
             Header = closed.Definition.Header == HeaderKind.None ? "none" : "null",
+            Slots = closed.Value.SlotArguments.Select(Shape).ToList(),
         };
 
         /// <summary>
@@ -219,14 +243,43 @@ namespace Nino.Codegen.Targets
         {
             bool usesObject = layouts.Any(t => !t.Raw && t.Members.Any(m => m.Value.Walk().Any(v => v.Kind == ValueKind.Object)));
             var used = new HashSet<string>(_names.Values, StringComparer.Ordinal);
+            // The slots of closed generic types the supported types hold, through the codecs they build too.
+            var slots = UsedSlots(layouts);
             foreach (var closed in _model.ClosedTypes.Where(c => _closedSupported.Contains(c) && (usesObject ||
-                         layouts.Any(t => t.Header == HeaderKind.TypeId && t.ClosedAssignable.Contains(c)))))
+                         layouts.Any(t => t.Header == HeaderKind.TypeId && t.ClosedAssignable.Contains(c)) ||
+                         slots.Any(slot => slot.ClosedAssignable.Contains(c)))))
             {
                 string name = GoTarget.ClosedName(closed.Clr);
                 while (!used.Add(name))
                     name += "_";
                 _slotClosed.Add(new TsSlotClosed(name, "closed$" + _slotClosed.Count, closed));
             }
+        }
+
+        /// <summary>
+        /// The slots of closed generic types (<see cref="CodegenModel.Slots"/>) a value of the supported types may be
+        /// read through: those their members hold, and those the codecs of the closed types in them need, until no
+        /// more are added.
+        /// </summary>
+        private HashSet<SlotModel> UsedSlots(List<TypeModel> layouts)
+        {
+            var slots = new HashSet<SlotModel>();
+            var values = new Queue<ValueModel>(layouts.Where(t => !t.Raw).SelectMany(CodegenModel.OwnValues));
+            var closedSeen = new HashSet<ClosedTypeModel>();
+            while (values.Count != 0)
+            {
+                foreach (var value in values.Dequeue().Walk())
+                {
+                    foreach (var argument in value.SlotArguments)
+                        values.Enqueue(argument);
+                    if (value.Slot is not { } slot || !_supported.Contains(slot.Definition) || !slots.Add(slot))
+                        continue;
+                    foreach (var closed in slot.ClosedAssignable.Where(c => _closedSupported.Contains(c) && closedSeen.Add(c)))
+                        values.Enqueue(closed.Value);
+                }
+            }
+
+            return slots;
         }
 
         /// <summary>The closed generic types a slot declared as <paramref name="type"/> allows.</summary>
@@ -245,8 +298,15 @@ namespace Nino.Codegen.Targets
                 if (type.Raw)
                     Shape(type.RawValue!);
                 else
+                {
+                    if (type.Elements != null)
+                        ShapeIn(type, type.Elements);
                     foreach (var member in type.Members)
                         ShapeIn(type, member.Value);
+                    if (type.BaseValue != null)
+                        BaseShape(type, type.BaseValue);
+                }
+
                 return null;
             }
             catch (UnsupportedException e)
@@ -296,10 +356,13 @@ namespace Nino.Codegen.Targets
             var definition = value.Type!;
             if (!_supported.Contains(definition))
                 throw new UnsupportedException($"{definition.FullName} is not written to TypeScript");
+            if (definition.Header == HeaderKind.TypeId)
+                return SlotShape(value);
             var shape = new TsShape("generic")
             {
                 Type = definition, Items = value.Arguments.Select(Shape).ToList(), Opens = true,
                 Header = definition.Header == HeaderKind.None ? "none" : "null",
+                Slots = value.SlotArguments.Select(Shape).ToList(),
             };
             if (_context != null && value.IsSelf(_context))
             {
@@ -327,6 +390,55 @@ namespace Nino.Codegen.Targets
 
             shape.Field = closed.Name;
             return shape;
+        }
+
+        /// <summary>
+        /// A generic type written behind a type id (<c>Shelf&lt;int&gt;</c>): closed, the slot's codec the module builds
+        /// (<c>slot$0</c>); in a generic definition, with its parameters, the slot its codec was given (<c>c.s0</c>).
+        /// </summary>
+        private TsShape SlotShape(ValueModel value)
+        {
+            var shape = new TsShape("generic")
+            {
+                Type = value.Type, Items = value.Arguments.Select(Shape).ToList(), Opens = true, Header = "typeid",
+            };
+            if (value.Slot is { } model)
+            {
+                if (!_slotByModel.TryGetValue(model, out var slot))
+                {
+                    slot = new TsSlot("slot$" + _slots.Count, model, shape);
+                    _slotByModel[model] = slot;
+                    _slots.Add(slot);
+                    // Its closed types are shaped too, so a slot holding one that cannot be written is found here.
+                    foreach (var closed in model.ClosedAssignable.Where(c => _closedSupported.Contains(c)))
+                        ClosedShape(closed);
+                }
+
+                shape.Field = slot.Name;
+                return shape;
+            }
+
+            int index = _context?.SlotParameters.FindIndex(p => p.TypeKey == value.TypeKey) ?? -1;
+            if (index < 0)
+                throw new UnsupportedException($"{value.ClrName} is a slot outside its generic type");
+            shape.Field = "c.s" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            shape.Context = _context;
+            return shape;
+        }
+
+        /// <summary>A base class or interface with the arguments a type gives it: its TypeScript type.</summary>
+        internal TsShape BaseShape(TypeModel owner, ValueModel value)
+        {
+            var outer = _context;
+            _context = owner.IsGenericDefinition ? owner : null;
+            try
+            {
+                return new TsShape("generic") { Type = value.Type, Items = value.Arguments.Select(Shape).ToList() };
+            }
+            finally
+            {
+                _context = outer;
+            }
         }
 
         /// <summary>A value holding a type parameter of the type being written: its code takes that type's codecs.</summary>
@@ -451,6 +563,11 @@ namespace Nino.Codegen.Targets
             return type.Header switch
             {
                 HeaderKind.None => new TsShape("type") { Type = type, Header = "none", Opens = body, Reaches = reaches },
+                // A tracked sealed class: its reference header instead of the presence byte.
+                HeaderKind.NullFlag when type.TrackReferences => new TsShape("type")
+                {
+                    Type = type, Header = "ref", Opens = body, Reaches = reaches,
+                },
                 HeaderKind.NullFlag => Nullable(new TsShape("type")
                 {
                     Type = type, Header = "null", Opens = body, Reaches = reaches,
@@ -574,7 +691,7 @@ namespace Nino.Codegen.Targets
                 return opens;
             // A struct that holds itself opens what its other members open.
             _structOpens[type] = false;
-            opens = _supported.Contains(type) && type.Members.Any(m => Opens(ShapeIn(type, m.Value)));
+            opens = _supported.Contains(type) && Nests(type);
             _structOpens[type] = opens;
             return opens;
         }
@@ -583,7 +700,8 @@ namespace Nino.Codegen.Targets
         /// Whether a class body may hold other class bodies (<c>NinoBody.Nests</c>): it counts the depth for them, and
         /// at depth 0, ends with the bodies deferred below it. Saying so of one that does not changes no byte.
         /// </summary>
-        internal bool Nests(TypeModel type) => type.Members.Any(m => Opens(ShapeIn(type, m.Value)));
+        internal bool Nests(TypeModel type) =>
+            type.Members.Select(m => m.Value).Append(type.Elements).Any(v => v != null && Opens(ShapeIn(type, v)));
 
         /// <summary>
         /// Whether a struct can hold itself without a class body between (through collections, nullables,
@@ -600,7 +718,8 @@ namespace Nino.Codegen.Targets
                 var next = pending.Pop();
                 if (!_supported.Contains(next))
                     continue;
-                foreach (var reached in next.Members.SelectMany(m => ShapeIn(next, m.Value).Reaches))
+                foreach (var reached in next.Members.Select(m => m.Value).Append(next.Elements)
+                             .Where(v => v != null).SelectMany(v => ShapeIn(next, v!).Reaches))
                 {
                     if (reached == type)
                         return true;
@@ -831,6 +950,9 @@ namespace Nino.Codegen.Targets
 
         public List<TsShape> Items { get; internal set; } = new();
 
+        /// <summary>The slots a generic type's codec is built with, after the codecs of its arguments.</summary>
+        public List<TsShape> Slots { get; internal set; } = new();
+
         public List<int> Offsets { get; internal set; } = new();
 
         public int FlagOffset { get; internal set; }
@@ -864,7 +986,37 @@ namespace Nino.Codegen.Targets
             yield return string.Join("/", Offsets);
             foreach (var child in new[] { Inner, Element, Key, Value }.Concat(Items))
                 yield return child?.Identity ?? "-";
+            yield return string.Join("/", Slots.Select(slot => slot.Field));
         }
+    }
+
+    /// <summary>
+    /// The slot of a closed generic type written behind a type id (<c>slot$0</c>, a codec the module builds): the type
+    /// id, then the body of a type assignable to it.
+    /// </summary>
+    public sealed class TsSlot
+    {
+        internal TsSlot(string name, SlotModel model, TsShape shape)
+        {
+            Name = name;
+            Model = model;
+            Shape = shape;
+        }
+
+        public string Name { get; }
+
+        public SlotModel Model { get; }
+
+        /// <summary>The closed type as a generic shape (its TypeScript type).</summary>
+        public TsShape Shape { get; }
+
+        /// <summary>The closed generic types it allows, each a subclass with its codecs.</summary>
+        public List<TsSlotClosed> Closed { get; internal set; } = new();
+
+        /// <summary>The types of its own it allows (not generic).</summary>
+        public List<TsClass> Assignable { get; internal set; } = new();
+
+        public string RuntimeName => Model.RuntimeName;
     }
 
     /// <summary>Fixed-size members next to one another, which take their bytes at once, or one other member.</summary>
@@ -969,6 +1121,20 @@ namespace Nino.Codegen.Targets
         public string RuntimeName => Closed.RuntimeName;
     }
 
+    /// <summary>A base class or interface: its name, and its shape when it is generic.</summary>
+    public sealed class TsBase
+    {
+        internal TsBase(string name, TsShape? shape)
+        {
+            Name = name;
+            Shape = shape;
+        }
+
+        public string Name { get; }
+
+        public TsShape? Shape { get; }
+    }
+
     public sealed class TsMember
     {
         internal TsMember(MemberModel member, string name, TsShape shape)
@@ -1067,7 +1233,46 @@ namespace Nino.Codegen.Targets
 
         public string? BaseName => _target.BaseLayout(Model) is { } b ? _target.Name(b) : null;
 
+        /// <summary>A generic base class with the arguments this class gives it (<c>Shelf&lt;number&gt;</c>), else null.</summary>
+        public TsShape? BaseShape => _target.BaseLayout(Model) is { } b && b == Model.BaseType && Model.BaseValue != null
+            ? _target.BaseShape(Model, Model.BaseValue)
+            : null;
+
         public List<string> InterfaceNames => _target.SupportedInterfaces(Model).Select(i => _target.Name(i)).ToList();
+
+        /// <summary>The interfaces it implements, a generic one with its arguments (as a shape), else by name.</summary>
+        public List<TsBase> Interfaces => Model.Interfaces.Select((i, n) => (i, n))
+            .Where(x => _target.SupportedInterfaces(Model).Contains(x.i))
+            .Select(x => new TsBase(_target.Name(x.i),
+                Model.InterfaceValues[x.n] is { } value ? _target.BaseShape(Model, value) : null)).ToList();
+
+        /// <summary>
+        /// Members declared on a generic base class: set again in the constructor, where this class gives the base's
+        /// type parameter a type with another default.
+        /// </summary>
+        public List<TsMember> Rebound => Model.BaseValue == null ? new List<TsMember>()
+            : Members.Where(m => !Own.Contains(m) && m.Shape.Kind != "param").ToList();
+
+        /// <summary>
+        /// The elements of a <c>[NinoType]</c> collection (<c>$elements</c>): a sequence or a map, written before its
+        /// members.
+        /// </summary>
+        public TsShape? Elements => Model.Elements == null ? null : _target.ShapeIn(Model, Model.Elements);
+
+        /// <summary>Whether the class declares <c>$elements</c> (its base class does not).</summary>
+        public bool DeclaresElements => Model.Elements != null && _target.BaseLayout(Model)?.Elements == null;
+
+        /// <summary>Whether its values carry a reference header (<c>trackReferences</c>).</summary>
+        public bool Tracked => Model.TrackReferences;
+
+        /// <summary>
+        /// A generic type holding itself with other type arguments: its codec builds the codecs of the types it holds
+        /// when the data first needs them, as there is no end to them.
+        /// </summary>
+        public bool Lazy => CodegenModel.GenericProblem(Model) != null;
+
+        /// <summary>The slots its codec is given (<c>s0</c>...): closed generic types written behind type ids.</summary>
+        public List<TsShape> SlotParameters => Model.SlotParameters.Select(p => _target.ShapeIn(Model, p)).ToList();
 
         /// <summary>
         /// In a class hierarchy, V8 creates objects about twice as fast from constructors as from field initializers

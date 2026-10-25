@@ -105,7 +105,8 @@ p, err := nino.DeserializeExact(data, ReadPoint)   // ... or rejected
   out-of-range date, a length past `int32`), so it never writes bytes that .NET would misread.
 
 The polymorphic dispatch, the depth counting and the region handling are the same code paths as in .NET (spec §7.8
-to §7.10). Reference tracking (`trackReferences`, §7.9) is not implemented, as in the TypeScript runtime.
+to §7.10). Reference tracking (`trackReferences`, §7.9) is in `refs.go`, for generated code ("Reference tracking in
+generated code" below).
 
 ## Struct tags
 
@@ -167,7 +168,7 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
 - `members=...`: the published members. With them the plan is checked against the layout: the number of members
   (all for positional, a prefix for version-tolerant, any subset for keyed), each field's encoding against the
   member's, and the keys and former keys (the published ones are used, as the spec requires).
-- `trackReferences=true` is an error (reference tracking is not implemented).
+- `trackReferences=true` is an error (reference tracking is for generated code only).
 - `deferrable=false` (spec §7.10.1): a type .NET never defers (a record, a type built through its constructor), so it
   nests in place past 128 bodies and fails past 512. Without the part (layouts from an older .NET generator) a type
   is deferrable.
@@ -239,10 +240,27 @@ either's data. `nino-gen --lang go` (docs/codegen.md; `--tags`, `--tag-names`; i
   included). A closed generic type (layout `typeId=0`) written by hand gets `NinoTypeID()` returning `TypeID` of
   its .NET name. nino-gen generates a generic `[NinoType]` as a generic struct (`Box[T any]`) whose codec is built
   from the codecs of its type arguments (`BoxCodec[T any](p0 NinoArg[T]) NinoArg[*Box[T]]`), and a member
-  `Box<int>` as `*Box[int32]`; a generic type written behind a type id is left out (docs/codegen.md, "Generic
-  types").
+  `Box<int>` as `*Box[int32]`. A generic type written behind a type id is an interface per definition
+  (`Shelf[T]`, with marker methods its implementations have) and a member `Shelf<int>` a field `Shelf[int32]`
+  (docs/codegen.md, "Generic types behind a type id").
+- **an `Elements` field first** on a `[NinoType]` collection (`class Bag : List<int>`), tagged `nino:"-"`
+  (`$elements` in the extra tags): the elements are read and written by the generated functions, before the members.
 - **`NinoTypeID()`** on the pointer type of every class that can sit behind a type id.
 - **`NinoTypeName()`** returning the .NET full name.
+
+Reference tracking (`trackReferences`) and `[NinoType]` collections are read and written by generated code only: their
+layouts are an error for struct tags (`*TagError`), so the tagged path reads none of their data.
+
+### Reference tracking in generated code
+
+A tracked class is a pointer, the same pointer for every reference to it in the data, which may hold itself. The
+generated functions build it from `refs.go`: `ReadTracked`/`WriteTracked` (a tracked class without subtypes),
+`Reader.Ref`, `Back[T]` and `ReadTrackedNew` (a tracked slot: the header, then the type id), and
+`ReadTrackedClass`/`WriteTypedTracked`/`TrackedClassType` (a tracked class in a slot that does not track: the type id,
+then the header). A reader records each object as it creates it, before its body (deferred bodies too); a writer
+numbers objects by pointer. A header other than -1, 0 or the number of an object read so far, and a back reference to
+an object the slot does not allow, fail with `CodeInvalidData`; each object takes at least its 4 header bytes, so the
+table grows with the data.
 
 `internal/sample` follows these conventions (camel policy, `json` and `yaml`); its `layouts.go` is what the
 generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen's output for the corpus's types (and
@@ -260,15 +278,19 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
   `StringPtr` and `Utf8Ptr` (generated code's `*string`) point into a block of up to 32 strings the reader keeps.
 - **Writing.** A string is written as Latin-1 when every char is at most U+00FF, else as UTF-16 (what .NET writes).
   WTF-8 surrogates are written back as the code units they stand for. A byte that is not UTF-8 is written as U+FFFD.
-  The text is converted into the writer's buffer eight bytes at a time (Latin-1 beyond ASCII a char at a time), in
-  one pass, through `unsafe` pointers within the text and the room reserved for it (`strings_write.go`); the reader,
-  which takes untrusted bytes, stays on checked slices. On amd64 and arm64, long runs of ASCII are copied or widened 16 bytes at a time in assembly
-  (SSE2, NEON). On amd64 with AVX2 (or AVX-512 BW, VL and VBMI2) a whole string is checked and converted 32 bytes
-  at a time instead (`strings_wire_amd64.s`, written by `go run ./internal/wiregen`): WTF-8 validation, Latin-1 or
-  UTF-16 chosen and written in one pass, with the Go loops taking over for text that is not WTF-8. `WriteStrings`
-  and `WriteStringPtrs` (what generated code calls for a `string[]` or `List<string>`) write a whole list in one
-  call into it. The `purego` build tag, and every other platform, use the Go loops (the same bytes, which the tests
-  compare).
+  The text is converted into the writer's buffer eight bytes at a time (Latin-1 beyond ASCII a char at a time), in one
+  pass, through `unsafe` pointers within the text and the room reserved for it (`strings_write.go`); the reader, which
+  takes untrusted bytes, stays on checked slices. On amd64 and arm64 a whole string is checked and converted a block
+  at a time in assembly instead (16 bytes with NEON and SSSE3, 32 with AVX2 and AVX-512), one kernel per instruction
+  set, each designed for it: NEON on arm64, SSSE3, AVX2 and AVX-512 (BW, VL and VBMI2) on amd64, the best the
+  processor has taken (`strings_wire_amd64.s` and `strings_wire_arm64.s`, written by `go run ./internal/wiregen`):
+  WTF-8 validation, Latin-1 or UTF-16 chosen and written in one pass, with the Go loops taking over for text that is
+  not WTF-8. `WriteStrings` and `WriteStringPtrs` (what generated code calls for a `string[]` or `List<string>`) write
+  a whole list in one call into it. Reading Latin-1 and UTF-16 into UTF-8 has kernels too (NEON; SSSE3 and AVX-512
+  with VBMI). The kernels read past the text only within its page. The `purego` build tag, x64 without SSSE3 and every
+  other platform use the Go loops (whose long runs of ASCII are copied or widened 16 bytes at a time with SSE2 or
+  NEON): the same bytes, which the tests compare with every kernel the machine has (lengths 0 to 256, every kind of
+  char at every position, invalid WTF-8, surrogates, text ending at a page boundary).
 - **Null.** A `string` has no null: `String` (and a `string` field of a tagged struct) reads a null string as `""`,
   and `""` is written back, not null. Read into a `*string` (`StringPtr`, `NullableString`; generated structs use
   `*string` for C# strings) to tell null from empty.
@@ -282,25 +304,28 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
 cd runtimes/go
 go vet ./...
 go test -race ./...                                    # unit tests, sample codecs, conformance corpus
-go test -tags purego ./...                             # the same without the string writer's assembly
+go test -tags purego ./...                             # the same without the string kernels' assembly
 go test -run='^$' -fuzz=FuzzReader -fuzztime=1m .      # any sequence of reads over any bytes
-go test -run='^$' -fuzz=FuzzWireString -fuzztime=1m .  # the string writer's assembly against the Go loops
+go test -run='^$' -fuzz=FuzzWireString -fuzztime=1m .  # the string writer's kernels against the Go loops
+go test -run='^$' -fuzz=FuzzReadVector -fuzztime=1m .  # the string reader's kernels against the Go loops
 go test -run='^$' -fuzz=FuzzDecode -fuzztime=1m ./internal/sample   # any bytes as any corpus type
 go test -run='^$' -fuzz=FuzzTagged -fuzztime=1m .                   # any bytes into tagged structs
 go test -run='^$' -fuzz=FuzzTaggedDecode -fuzztime=1m ./internal/sample   # any bytes as any corpus type, by tags
 ```
 
-The conformance test reads `conformance/corpus` at the repository root, or the directory `NINO_CORPUS` names (as the
-Rust and TypeScript tests do; `NINO_CONFORMANCE_CORPUS`, its former name, is still read). It runs every case:
+The conformance test reads `conformance/corpus` at the repository root, or the directory `NINO_CONFORMANCE_CORPUS`
+names. It runs every case:
 
 - each valid case is read, compared with its JSON, and written back to its exact bytes;
 - each malicious case must fail, without a panic and within a bounded allocation;
 - each strict prefix of a valid case must fail.
 
-Without the corpus the test skips, except when `NINO_CORPUS_REQUIRED=1` or `CI` is set, where it fails. Cases that need reference tracking are
-skipped. The struct-tag path runs the same cases (`TestTagged*`), skipping reference tracking and multi-dimensional
+Without the corpus the test skips, except when `CI` is set, where it fails. The hand-written sample skips the cases of
+reference tracking, `[NinoType]` collections, generic types behind a type id and Nullable or KeyValuePair type
+arguments, which `internal/generated` (nino-gen's code) runs, and the one of a generic type holding itself with other
+arguments, which Go cannot express. The struct-tag path runs the same cases (`TestTagged*`), skipping reference tracking and multi-dimensional
 arrays, which it rejects. `FuzzDecode` and `FuzzTaggedDecode` are seeded from the corpus when
-`NINO_CORPUS` is set.
+`NINO_CONFORMANCE_CORPUS` is set.
 
 Checks of the generated machine code: `go build -gcflags=-d=ssa/check_bce/debug=1 .` lists the bounds checks left
 (the primitive reads and writes have none past their one length check; `Writer.Extend` keeps one slice check), and

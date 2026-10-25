@@ -36,6 +36,7 @@ mod impls;
 mod reader;
 #[cfg(feature = "serde")]
 mod serde_impls;
+mod shared;
 mod simd;
 mod strings;
 mod traits;
@@ -46,6 +47,7 @@ pub use defer::Step;
 pub use error::{Error, ErrorKind, Result};
 pub use impls::dyn_step;
 pub use reader::{Reader, Region, DEPTH_INLINE, DEPTH_MAX};
+pub use shared::Shared;
 pub use traits::{NinoRead, NinoReadBody, NinoWrite, NinoWriteBody};
 pub use types::{
     BigInteger, BitArray, DateOnly, DateTime, DateTimeKind, DateTimeOffset, Decimal, Grid, Guid, Half, Raw,
