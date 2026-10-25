@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using Nino.Tests;
 using Samples;
 
 namespace Nino.Codegen.Integration.Tests
@@ -96,17 +97,6 @@ namespace Nino.Codegen.Integration.Tests
             if (ordered)
                 cases.Add(("Samples.Generics", NinoSerializer.Serialize(Full())));
             return cases;
-        }
-
-        internal static string Root
-        {
-            get
-            {
-                for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-                    if (File.Exists(Path.Combine(dir.FullName, "Nino.slnx")))
-                        return dir.FullName;
-                throw new InvalidOperationException("No Nino.slnx above " + AppContext.BaseDirectory);
-            }
         }
 
         internal static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
@@ -235,7 +225,7 @@ func main() {
                     "--assembly", typeof(Player).Assembly.Location, "--lang", "go", "--package", "samples",
                     "--out", Path.Combine(dir, "samples"),
                 }, log), log.ToString());
-                string runtime = Path.Combine(GenericSamples.Root, "runtimes", "go");
+                string runtime = RepositoryFiles.Of("runtimes", "go");
                 File.WriteAllText(Path.Combine(dir, "go.mod"),
                     "module ninotest\n\ngo 1.22\n\nrequire github.com/JasonXuDeveloper/Nino/runtimes/go/v4 v4.0.0\n\n" +
                     "replace github.com/JasonXuDeveloper/Nino/runtimes/go/v4 => " + runtime.Replace('\\', '/') + "\n");
@@ -317,7 +307,7 @@ fn main() {
                     "--assembly", typeof(Player).Assembly.Location, "--lang", "rust", "--maps", maps,
                     "--name", "nino_types.rs", "--out", Path.Combine(dir, "src"),
                 }, log), log.ToString());
-                string runtime = Path.Combine(GenericSamples.Root, "runtimes", "rust").Replace('\\', '/');
+                string runtime = RepositoryFiles.Of("runtimes", "rust").Replace('\\', '/');
                 bool indexmap = maps == "indexmap";
                 File.WriteAllText(Path.Combine(dir, "Cargo.toml"),
                     "[package]\nname = \"ninotest-" + maps + "\"\nversion = \"0.0.0\"\nedition = \"2021\"\npublish = false\n\n" +
