@@ -1356,11 +1356,19 @@ pub(crate) fn latin1_string(bytes: &[u8]) -> String {
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
 const SHORT_DECODE: usize = 32;
 
+/// [`SHORT_DECODE`] for UTF-16, in code units (measured on x86_64 with SSE4.1 and on Neoverse-N2).
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
+const SHORT_UTF16: usize = 24;
+
 /// Writes the UTF-8 of the Latin-1 `bytes` at `dst` with the kernel this target has; returns the bytes written.
 ///
 /// # Safety
 /// `room` bytes are writable at `dst`, at least the UTF-8's length (one byte per byte, two above 0x7F).
 #[inline(always)]
+#[cfg_attr(
+    not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little"))),
+    allow(unused_variables) // `room` is for the vector kernels.
+)]
 unsafe fn latin1_utf8(bytes: &[u8], dst: *mut u8, room: usize) -> usize {
     // SAFETY: the caller's contract, and the CPU has what each kernel needs (its tier).
     unsafe {
@@ -1462,6 +1470,10 @@ pub(crate) fn utf16_string(units: &[[u8; 2]]) -> String {
 /// # Safety
 /// `room` bytes are writable at `dst`, at least what the units count (see [`utf16_string`]).
 #[inline(always)]
+#[cfg_attr(
+    not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little"))),
+    allow(unused_variables) // `room` is for the vector kernels.
+)]
 unsafe fn utf16_utf8(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usize {
     // SAFETY: the caller's contract, and the CPU has what each kernel needs (its tier).
     unsafe {
@@ -1469,12 +1481,12 @@ unsafe fn utf16_utf8(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usize {
         match x86::tier() {
             #[cfg(nino_avx512)]
             x86::Tier::Avx512 => x86::utf16_avx512(units, dst),
-            _ if units.len() < SHORT_DECODE / 2 => utf16_words(units, 0, units.len(), dst, 0).1,
+            _ if units.len() < SHORT_UTF16 => utf16_words(units, 0, units.len(), dst, 0).1,
             x86::Tier::Sse2 | x86::Tier::Ssse3 => utf16_words(units, 0, units.len(), dst, 0).1,
             _ => x86::utf16_sse41(units, dst, room),
         }
         #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
-        return if units.len() < SHORT_DECODE / 2 {
+        return if units.len() < SHORT_UTF16 {
             utf16_words(units, 0, units.len(), dst, 0).1
         } else {
             neon::utf16(units, dst, room)

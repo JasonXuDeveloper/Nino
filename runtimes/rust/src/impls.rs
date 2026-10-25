@@ -240,18 +240,6 @@ impl NinoWrite for String {
     fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
         w.string(value.map(String::as_str))
     }
-
-    /// One reservation for the run: each string's header and bytes (its size as ASCII or Latin-1, at least half its
-    /// size as UTF-16), so the strings' own reservations find the room there.
-    #[inline]
-    fn write_many<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
-        let room = values.iter().fold(0usize, |n, s| n.saturating_add(s.len()).saturating_add(4));
-        w.buffer().reserve(room);
-        for v in values {
-            crate::strings::write(w, v)?;
-        }
-        Ok(())
-    }
 }
 
 impl NinoWrite for str {
