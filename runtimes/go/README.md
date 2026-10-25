@@ -313,19 +313,19 @@ go test -run='^$' -fuzz=FuzzTagged -fuzztime=1m .                   # any bytes 
 go test -run='^$' -fuzz=FuzzTaggedDecode -fuzztime=1m ./internal/sample   # any bytes as any corpus type, by tags
 ```
 
-The conformance test reads `conformance/corpus` at the repository root, or the directory `NINO_CONFORMANCE_CORPUS`
-names. It runs every case:
+The conformance test reads `conformance/corpus` at the repository root, or the directory `NINO_CORPUS` names (as the
+Rust and TypeScript tests do; `NINO_CONFORMANCE_CORPUS`, its former name, is still read). It runs every case:
 
 - each valid case is read, compared with its JSON, and written back to its exact bytes;
 - each malicious case must fail, without a panic and within a bounded allocation;
 - each strict prefix of a valid case must fail.
 
-Without the corpus the test skips, except when `CI` is set, where it fails. The hand-written sample skips the cases of
-reference tracking, `[NinoType]` collections, generic types behind a type id and Nullable or KeyValuePair type
-arguments, which `internal/generated` (nino-gen's code) runs, and the one of a generic type holding itself with other
-arguments, which Go cannot express. The struct-tag path runs the same cases (`TestTagged*`), skipping reference tracking and multi-dimensional
-arrays, which it rejects. `FuzzDecode` and `FuzzTaggedDecode` are seeded from the corpus when
-`NINO_CONFORMANCE_CORPUS` is set.
+Without the corpus the test skips, except when `NINO_CORPUS_REQUIRED=1` or `CI` is set, where it fails. The
+hand-written sample skips the cases of reference tracking, `[NinoType]` collections, generic types behind a type id
+and Nullable or KeyValuePair type arguments, which `internal/generated` (nino-gen's code) runs, and the one of a
+generic type holding itself with other arguments, which Go cannot express. The struct-tag path runs the same cases
+(`TestTagged*`), skipping reference tracking and multi-dimensional arrays, which it rejects. `FuzzDecode` and
+`FuzzTaggedDecode` are seeded from the corpus when `NINO_CORPUS` is set.
 
 Checks of the generated machine code: `go build -gcflags=-d=ssa/check_bce/debug=1 .` lists the bounds checks left
 (the primitive reads and writes have none past their one length check; `Writer.Extend` keeps one slice check), and

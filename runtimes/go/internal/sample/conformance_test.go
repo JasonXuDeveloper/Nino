@@ -16,23 +16,38 @@ import (
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
-// The conformance corpus (conformance/corpus at the repository root, or NINO_CONFORMANCE_CORPUS): every valid case
+// The conformance corpus (conformance/corpus at the repository root, or NINO_CORPUS): every valid case
 // is read and compared with its JSON, then written back and compared with its bytes; every malicious case must fail
 // (or, where the corpus allows, return a value) without panicking and within bounded memory; every strict prefix of
 // a valid case must fail.
 
 func corpusDir(t testing.TB) string {
-	dir := os.Getenv("NINO_CONFORMANCE_CORPUS")
+	dir := corpusEnv()
 	if dir == "" {
 		dir = filepath.Join("..", "..", "..", "..", "conformance", "corpus")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "index.json")); err != nil {
-		if os.Getenv("CI") != "" {
-			t.Fatalf("conformance corpus not found at %s (required in CI)", dir)
+		if corpusRequired() {
+			t.Fatalf("conformance corpus not found at %s (required: NINO_CORPUS_REQUIRED or CI is set)", dir)
 		}
-		t.Skipf("conformance corpus not found at %s: set NINO_CONFORMANCE_CORPUS", dir)
+		t.Skipf("conformance corpus not found at %s: set NINO_CORPUS", dir)
 	}
 	return dir
+}
+
+// corpusEnv is the corpus directory the environment names: NINO_CORPUS, as the Rust and TypeScript tests read it, or
+// NINO_CONFORMANCE_CORPUS, its former name here.
+func corpusEnv() string {
+	if dir := os.Getenv("NINO_CORPUS"); dir != "" {
+		return dir
+	}
+	return os.Getenv("NINO_CONFORMANCE_CORPUS")
+}
+
+// corpusRequired reports whether a missing corpus fails the tests: NINO_CORPUS_REQUIRED=1, as for Rust and
+// TypeScript, or CI set.
+func corpusRequired() bool {
+	return os.Getenv("NINO_CORPUS_REQUIRED") == "1" || os.Getenv("CI") != ""
 }
 
 type validCase struct {
