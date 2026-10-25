@@ -48,8 +48,8 @@ jobs:
     outputs:
       tag: ${{ steps.determine_target.outputs.target_ref }}
       skip: ${{ steps.check_benchmark.outputs.skip }}
-      unity_skip: ${{ steps.check_unity.outputs.skip }}
       matrix: ${{ steps.shards.outputs.matrix }}
+      unity_skip: ${{ steps.check_unity.outputs.skip }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -118,7 +118,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ steps.determine_target.outputs.target_ref }}
         run: |
-          if gh release view "$TAG_NAME" --json body --jq '.body' | grep -qF "$UNITY_HEADING"; then
+          gh release view "$TAG_NAME" --json body --jq '.body' > "$RUNNER_TEMP/unity-body.md"
+          if grep -qF "$UNITY_HEADING" "$RUNNER_TEMP/unity-body.md"; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "⏭️ The Unity benchmark already exists for this release"
           else
@@ -612,7 +613,8 @@ jobs:
         run: |
           set -euo pipefail
           gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > current_notes.md
-          python3 benchmarks/release_body.py runtimes --body current_notes.md --sections sections --out updated_notes.md
+          python3 benchmarks/release_body.py append --body current_notes.md --out updated_notes.md \
+            sections/runtime-section-{typescript,go,rust,typescript-arm64,go-arm64,rust-arm64}/section.md
           if [[ -f updated_notes.md ]]; then
             gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes-file updated_notes.md
           fi
@@ -676,15 +678,9 @@ jobs:
             exit 0
           fi
           cat section.md
+          # Once (by its heading), within GitHub's limit (benchmarks/release_body.py).
           gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > current_notes.md
-          if grep -qF "$UNITY_HEADING" current_notes.md; then
-            echo "⏭️ The Unity section is already in the release notes"
-            exit 0
+          python3 benchmarks/release_body.py append --body current_notes.md --out updated_notes.md section.md
+          if [[ -f updated_notes.md ]]; then
+            gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes-file updated_notes.md
           fi
-          if (( $(wc -c < current_notes.md) + $(wc -c < section.md) > 124000 )); then
-            echo "::warning::No room for the Unity section in the release body (GitHub's 125,000 characters)"
-            exit 0
-          fi
-          { cat current_notes.md; printf '\n\n'; cat section.md; } > updated_notes.md
-          gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes-file updated_notes.md
-          echo "✅ Added the Unity section"

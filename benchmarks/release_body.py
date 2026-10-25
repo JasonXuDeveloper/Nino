@@ -4,7 +4,7 @@
 usage:
   release_body.py dotnet --body current.md --tag TAG --settings BDN_ARGS --x64 merged.md [--v3 merged.md]
                          [--arm64 merged.md] --out DIR
-  release_body.py runtimes --body current.md --sections DIR --out updated.md
+  release_body.py append --body current.md --out updated.md SECTION...
   release_body.py complete --body current.md
 
 dotnet: the Performance Report (x64), the v3 comparison and the Arm64 section of a release, each only when the body
@@ -13,9 +13,10 @@ DIR/assets.tsv, the files to attach to the release (source path, tab, asset name
 (or has no report). The sections go before the Performance Report: parsers that
 read every table from "Performance Report" to the end of the body then never see their tables.
 
-runtimes: appends the sections of the runtimes outside .NET (DIR/runtime-section-<lang>[-arm64]/section.md, from
-runtimes_report.py) that the body lacks, x64 first, then Arm64. Writes the new body to updated.md only when it added
-one, and exits 0 either way.
+append: appends each section file (the runtimes outside .NET, from runtimes_report.py; the Unity benchmark, from
+unity_report.py) whose heading, its first line, the body lacks, in the order given, while the body stays within
+GitHub's limit; a missing or empty file is left out with a warning. Writes the new body to updated.md only when it
+added one, and exits 0 either way.
 
 complete: prints true when the body has every .NET section (the benchmark then need not run), false otherwise.
 
@@ -45,9 +46,6 @@ FULL_X64_ASSET = "benchmark-x64-full.md"
 FULL_ARM64_ASSET = "benchmark-arm64-full.md"
 FULL_V3_ASSET = "benchmark-v3-full.md"
 ARM64_ASSET = "arm64-benchmark.md"
-
-# The runtime sections, in the order they are appended.
-RUNTIMES = ("typescript", "go", "rust", "typescript-arm64", "go-arm64", "rust-arm64")
 
 
 def run(script, *args):
@@ -203,23 +201,21 @@ def complete(args):
     print(str(PERF_MARK in body and V3_HEADING in body and ARM64_HEADING in body).lower())
 
 
-def runtimes(args):
+def append(args):
     body = open(args.body, encoding="utf-8").read()
     text = body
     added = 0
-    for lang in RUNTIMES:
-        path = os.path.join(args.sections, f"runtime-section-{lang}", "section.md")
+    for path in args.sections:
         section = open(path, encoding="utf-8").read() if os.path.isfile(path) else ""
         if not section:
-            print(f"⚠️ No {lang} section (see its runtimes job): left out", file=sys.stderr)
+            print(f"⚠️ No section in {path} (see the job that writes it): left out", file=sys.stderr)
             continue
         heading = section.split("\n", 1)[0]
         if heading in body:
             print(f"⏭️ {heading} already in the release notes", file=sys.stderr)
             continue
         if len(text) + 2 + len(section) > BODY_LIMIT:
-            print(f"::warning::No room for the {lang} section in the release body (GitHub's {BODY_LIMIT:,} "
-                  "characters)")
+            print(f"::warning::No room for {heading} in the release body (GitHub's {BODY_LIMIT:,} characters)")
             continue
         text += "\n\n" + section
         added += 1
@@ -227,7 +223,7 @@ def runtimes(args):
         print("⏭️ Nothing to add", file=sys.stderr)
         return
     open(args.out, "w", encoding="utf-8").write(text)
-    print(f"✅ Added {added} runtime section(s)", file=sys.stderr)
+    print(f"✅ Added {added} section(s)", file=sys.stderr)
 
 
 def main():
@@ -243,11 +239,11 @@ def main():
     one.add_argument("--out", required=True)
     one.add_argument("--now", help="the time the Performance Report names (default: now)")
     one.set_defaults(run=dotnet)
-    two = commands.add_parser("runtimes")
+    two = commands.add_parser("append")
     two.add_argument("--body", required=True)
-    two.add_argument("--sections", required=True)
     two.add_argument("--out", required=True)
-    two.set_defaults(run=runtimes)
+    two.add_argument("sections", nargs="+")
+    two.set_defaults(run=append)
     three = commands.add_parser("complete")
     three.add_argument("--body", required=True)
     three.set_defaults(run=complete)

@@ -1,4 +1,3 @@
-#if !NET8_0_OR_GREATER
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -10,7 +9,8 @@ namespace Nino.Core
     /// Native kernels for the netstandard builds of Nino.Core, which have no hardware intrinsics: Unity (Mono, IL2CPP,
     /// HybridCLR) and .NET Framework take scalar code for the work below unless kernels are registered. Unity's package
     /// registers Burst-compiled ones (its Nino.Burst assembly, compiled when com.unity.burst is installed) at startup;
-    /// without any, nothing changes. The .NET 8 and later builds use their own vector paths and have no such hook.
+    /// without any, nothing changes. The .NET 8 and later builds use their own vector paths: the type is there too, so
+    /// code built against any of Nino.Core's targets runs on all of them, but those builds never call the kernels.
     /// </summary>
     /// <remarks>
     /// Each kernel must produce exactly the bytes of its scalar reference (<see cref="PermuteScalar"/>,
@@ -154,4 +154,3 @@ namespace Nino.Core
         }
     }
 }
-#endif

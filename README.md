@@ -93,7 +93,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 | 📨 **[Message queues & event streams](https://nino.xgamedev.net/en/docs/v4/advanced/message-queues)** | Polymorphic event types behind one base type, small payloads, and formats that let producers and consumers upgrade at different times. |
 | 🗄️ **[Caching](https://nino.xgamedev.net/en/docs/v4/advanced/caching)** | Values for Redis, `IDistributedCache`/`HybridCache` or in-process caches, with schema changes across deployments. |
 | 💾 **[Persistence & storage](https://nino.xgamedev.net/en/docs/v4/advanced/persistence)** | Version tolerance and keyed members let you add, reorder and remove fields across releases. Reference tracking keeps object graphs with shared references and cycles. |
-| 🎮 **[Unity](https://nino.xgamedev.net/en/docs/v4/advanced/unity)** | Unity 2022.3+, Mono and IL2CPP, HybridCLR hot-update assemblies. `Vector3`, `Quaternion`, `Color32` and other unmanaged structs are copied as raw memory; `AnimationCurve`, `Gradient` and `RectOffset` are built in. With `com.unity.burst` installed, arrays of tuples and structs and Latin-1 strings are moved by Burst-compiled SIMD kernels (SSSE3, Arm64 Neon). Install from OpenUPM. |
+| 🎮 **[Unity](https://nino.xgamedev.net/en/docs/v4/advanced/unity)** | Unity 2022.3+, Mono and IL2CPP, HybridCLR hot-update assemblies. `Vector3`, `Quaternion`, `Color32` and other unmanaged structs are copied as raw memory; `AnimationCurve`, `Gradient` and `RectOffset` are built in. With `com.unity.burst` installed, arrays of tuples and structs and Latin-1 strings are moved by Burst-compiled SIMD kernels (AVX2, SSSE3, Arm64 Neon). Install from OpenUPM. |
 | 👾 **[Godot 4 (.NET)](https://nino.xgamedev.net/en/docs/v4/platforms)** | A regular NuGet package for Godot's .NET projects. Godot's math structs (`Vector3`, `Transform3D`, …) are unmanaged and copied as raw memory. |
 
 ## SIMD on every platform
@@ -105,7 +105,7 @@ path writes the same bytes as the portable code, which takes over where a CPU or
 | Platform | Vector paths | Benchmark |
 |---|---|---|
 | .NET 8 and 10 | x64: AVX-512 (byte permutes, 64-byte copies), AVX2, SSSE3; Arm64: AdvSimd (`TBL` lookups, paired loads and stores); WebAssembly (.NET 10): `PackedSimd` swizzles; portable code elsewhere | [.NET](https://nino.xgamedev.net/en/docs/v4/perf) |
-| Unity (Mono, IL2CPP) | With `com.unity.burst`: Burst-compiled kernels, SSSE3 on x86 and x64, Neon on Arm64; Nino.Core's own paths on Armv7, WebGL and without Burst | [Unity](https://nino.xgamedev.net/en/docs/v4/perf-unity) |
+| Unity (Mono, IL2CPP) | With `com.unity.burst`: Burst-compiled kernels, AVX2 (blocks of 256 values or more) and SSSE3 on x86 and x64, Neon on Arm64; Nino.Core's own paths on Armv7, WebGL and without Burst | [Unity](https://nino.xgamedev.net/en/docs/v4/perf-unity) |
 | .NET Framework, .NET Core 3.0–7 | No intrinsics (the netstandard builds): blocks through `memmove`, text a word at a time | |
 | Go | Strings in assembly: AVX2 and AVX-512 conversion on amd64, 16-byte ASCII copies (SSE2 on amd64, NEON on arm64); plain Go elsewhere and with the `purego` tag | [Go](https://nino.xgamedev.net/en/docs/v4/perf-runtimes#go) |
 | Rust | Strings, in its one `unsafe` module: SSE2, SSSE3 and SSE4.1 on x86_64 (found at run time), NEON on Arm64; two `u64` words a step elsewhere | [Rust](https://nino.xgamedev.net/en/docs/v4/perf-runtimes#rust) |
