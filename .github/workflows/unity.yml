@@ -44,6 +44,8 @@ concurrency:
 
 permissions:
   contents: read
+  # unity-test-runner posts its results as a check run, even without githubToken.
+  checks: write
 
 env:
   DOTNET_NOLOGO: true
