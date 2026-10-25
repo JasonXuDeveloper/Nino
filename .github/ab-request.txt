@@ -1,8 +1,6 @@
 # <go|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase5/ts-strings: short UTF-16 windows, inline code units, short wide writes, shortText 24 (e41c104) and 32 (840ef72), against main c73ee57.
-typescript c73ee57 e41c104
-typescript e41c104 840ef72
-# phase6/string-varint: varint string headers (main c73ee57 -> ab-string-varint feb33ea).
-go c73ee57 feb33ea
-typescript c73ee57 feb33ea
-rust c73ee57 feb33ea
+# ab/ts-strings-2: main c73ee57 + A/B-only string scenarios (a84786e); inline UTF-16 code units and short wide writes
+# (a93ae31); then shortText 24 (45bd1a5) and 32 (a8340ec).
+typescript a84786e a93ae31
+typescript a93ae31 45bd1a5
+typescript a93ae31 a8340ec
