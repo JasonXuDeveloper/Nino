@@ -104,6 +104,7 @@ func TestStringEncodings(t *testing.T) {
 		if w.Err() != nil || !bytes.Equal(w.Bytes(), want) {
 			t.Fatalf("%q: wrote % X, want % X (%v)", s, w.Bytes(), want, w.Err())
 		}
+		checkAppended(t, s, want)
 		r := NewReader(want)
 		got, ok := r.NullableString()
 		if !ok || r.Err() != nil || r.More() || got != refText(units) {
@@ -140,6 +141,31 @@ func TestStringEncodings(t *testing.T) {
 			sb.WriteString(stringKinds[rnd.Intn(len(stringKinds))])
 		}
 		check(sb.String())
+	}
+}
+
+// checkAppended writes s after a byte into writers with room for that byte and the string's header, then one byte
+// a byte of s, or two (as much as UTF-16 can take): the bytes must be that byte then want, the writer must not have
+// grown when it had room for them (the last chars are written one at a time, see latin1Tail), and want follows when
+// s is written again.
+func checkAppended(t *testing.T, s string, want []byte) {
+	t.Helper()
+	for _, size := range []int{1 + 4 + len(s), 1 + 4 + 2*len(s)} {
+		w := NewWriter(size)
+		w.U8(0xAB)
+		first := &w.buf[:1][0]
+		w.String(s)
+		got := w.Bytes()
+		if w.Err() != nil || len(got) != 1+len(want) || got[0] != 0xAB || !bytes.Equal(got[1:], want) {
+			t.Fatalf("%q: wrote % X after a byte, want % X (%v)", s, got, want, w.Err())
+		}
+		if latin1 := want[3] == 0xFF; (latin1 || size > 1+4+len(s)) && &got[0] != first {
+			t.Fatalf("%q: grew the buffer with room for the string", s)
+		}
+		w.String(s)
+		if got := w.Bytes(); w.Err() != nil || !bytes.Equal(got[1+len(want):], want) {
+			t.Fatalf("%q: wrote % X again, want % X (%v)", s, got[1+len(want):], want, w.Err())
+		}
 	}
 }
 
@@ -185,6 +211,7 @@ func FuzzString(f *testing.F) {
 		if got := encode(t, func(w *Writer) { w.String(s) }); !bytes.Equal(got, want) {
 			t.Fatalf("%q: wrote % X, want % X", s, got, want)
 		}
+		checkAppended(t, s, want)
 		if got := NewReader(want).String(); got != refText(units) {
 			t.Fatalf("%q: read %q, want %q", s, got, refText(units))
 		}

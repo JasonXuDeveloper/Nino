@@ -255,6 +255,9 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
   `Reader.UTF16` for the code units themselves.
 - **Writing.** A string is written as Latin-1 when every char is at most U+00FF, else as UTF-16 (what .NET writes).
   WTF-8 surrogates are written back as the code units they stand for. A byte that is not UTF-8 is written as U+FFFD.
+  The text is converted into the writer's buffer eight bytes at a time, in one pass, through `unsafe` pointers
+  within the text and the room reserved for it (`strings_write.go`); the reader, which takes untrusted bytes, stays
+  on checked slices.
 - **Null.** A `string` has no null: `String` (and a `string` field of a tagged struct) reads a null string as `""`,
   and `""` is written back, not null. Read into a `*string` (`StringPtr`, `NullableString`; generated structs use
   `*string` for C# strings) to tell null from empty.

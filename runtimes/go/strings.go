@@ -264,7 +264,8 @@ func latin1Wide(b []byte) string {
 // latin1UTF8 writes Latin-1 bytes as UTF-8 to dst and returns how many bytes it wrote (all of them when dst holds
 // two bytes for each byte of 0x80 or above). Eight bytes are read at a time: their leading ASCII bytes are copied at
 // once (the word is stored whole: what follows them is written over or cut), and four bytes of 0x80 or above are
-// written as eight bytes at once. As in [latin1Into], each word is read before any byte at its position.
+// written as eight bytes at once. Each word is read before any byte at its position, and the byte that ends an ASCII
+// run is taken from the word: the compiler then reads the word as one load, not eight.
 func latin1UTF8(dst, b []byte) int {
 	i, j := 0, 0
 	for i < len(b) {
@@ -457,30 +458,6 @@ func decodeUnits(b []byte) []uint16 {
 	return units
 }
 
-// String writes a string: one byte a char when every char is at most U+00FF, else UTF-16. Each byte of invalid
-// UTF-8 is written as U+FFFD.
-func (w *Writer) String(s string) {
-	n := len(s)
-	if n == 0 {
-		w.U32(0)
-		return
-	}
-	if !isASCII(stringBytes(s)) {
-		w.wideString(s)
-		return
-	}
-	if n > maxInt32 {
-		w.Fail(CodeTooLarge, "string")
-		return
-	}
-	b := w.Extend(4 + n)
-	if len(b) < 4 {
-		return
-	}
-	binary.LittleEndian.PutUint32(b, uint32(^int32(n)))
-	copy(b[4:], s)
-}
-
 // NullableString writes s, or null when ok is false.
 func (w *Writer) NullableString(s string, ok bool) {
 	if !ok {
@@ -497,111 +474,6 @@ func (w *Writer) StringPtr(s *string) {
 		return
 	}
 	w.String(*s)
-}
-
-// wideString writes text that is not ASCII: Latin-1 when every char is at most U+00FF, else UTF-16. Room for one
-// byte per byte of the text is taken and filled with Latin-1 in one pass over it. At the first char above U+00FF
-// (or byte that is not UTF-8), the Latin-1 bytes written so far are widened in place to code units, and the rest of
-// the text is written as UTF-16 after them, so no byte of the text is decoded twice. The header is written last.
-//
-//go:noinline
-func (w *Writer) wideString(s string) {
-	at := len(w.buf)
-	b := w.Extend(4 + len(s))
-	if len(b) < 4 {
-		return
-	}
-	n, rest := latin1Into(b[4:], stringBytes(s))
-	if rest == 0 {
-		w.endString(at, n, true)
-		return
-	}
-	// Each byte left takes at most one code unit.
-	w.buf = w.buf[:at+4+n]
-	if w.Extend(n+2*rest) == nil {
-		return
-	}
-	dst := w.buf[at+4:]
-	widenInPlace(dst, n)
-	w.endString(at, n+utf16Into(dst[2*n:], stringBytes(s)[len(s)-rest:]), false)
-}
-
-// endString cuts the buffer to a string started at at, of count chars (bytes for Latin-1, code units for UTF-16),
-// and writes its header.
-func (w *Writer) endString(at, count int, latin1 bool) {
-	if count > maxInt32 {
-		w.buf = w.buf[:at]
-		w.Fail(CodeTooLarge, "string")
-		return
-	}
-	header, size := int32(count), 2*count
-	if latin1 {
-		header, size = ^header, count
-	}
-	w.buf = w.buf[:at+4+size]
-	binary.LittleEndian.PutUint32(w.buf[at:], uint32(header))
-}
-
-// latin1Into writes the Latin-1 bytes of src (UTF-8) to dst, which holds len(src) bytes, and returns how many it
-// wrote and how many bytes of src are left: none, or the bytes from the first char above U+00FF or byte that is not
-// UTF-8 on. Eight bytes are read at a time and stored whole, their ASCII bytes kept (what follows is written over
-// or cut); a run of chars of two bytes (U+0080 to U+00FF: C2 or C3, then a continuation byte) is taken four at a
-// time.
-//
-// Each word is read before any byte at its position, and the byte that ends an ASCII run is taken from the word:
-// the compiler then reads the word as one load, not eight.
-func latin1Into(dst, src []byte) (n, rest int) {
-	i, j := 0, 0
-	for i < len(src) && j < len(dst) {
-		var c byte
-		if i+8 <= len(src) && j+8 <= len(dst) {
-			word := binary.LittleEndian.Uint64(src[i:])
-			high := word & highBits
-			if word&0x80 == 0 {
-				binary.LittleEndian.PutUint64(dst[j:], word)
-				if high == 0 {
-					// A run of ASCII, in a loop of its own (nothing else to keep in registers).
-					i, j = i+8, j+8
-					for i+8 <= len(src) && j+8 <= len(dst) {
-						word = binary.LittleEndian.Uint64(src[i:])
-						if word&highBits != 0 {
-							break
-						}
-						binary.LittleEndian.PutUint64(dst[j:], word)
-						i, j = i+8, j+8
-					}
-					continue
-				}
-				t := bits.TrailingZeros64(high) >> 3
-				i, j = i+t, j+t
-				c = byte(word >> (8 * t))
-			} else if bad, units := latin1Pairs(word); bad == 0 {
-				// The common case on its own, so the next word's position does not wait on the count.
-				binary.LittleEndian.PutUint32(dst[j:], units)
-				i, j = i+8, j+4
-				continue
-			} else if k := bits.TrailingZeros64(bad) >> 4; k > 0 {
-				binary.LittleEndian.PutUint32(dst[j:], units)
-				i, j = i+2*k, j+k
-				continue
-			} else {
-				c = byte(word)
-			}
-		} else {
-			c = src[i]
-			if c < 0x80 {
-				dst[j] = c
-				i, j = i+1, j+1
-				continue
-			}
-		}
-		if c&0xFE != 0xC2 || i+1 >= len(src) || src[i+1]&0xC0 != 0x80 {
-			return j, len(src) - i
-		}
-		dst[j] = c<<6 | src[i+1]&0x3F
-		i, j = i+2, j+1
-	}
-	return j, len(src) - i
 }
 
 // pairs2 and pairs2Want: the bits of four 2-byte UTF-8 chars (as 16-bit lanes, little-endian: the lead byte low)
@@ -631,134 +503,6 @@ func latin1Pairs(word uint64) (bad uint64, units uint32) {
 	v := 0x0080008000800080 | (word&0x0001000100010001)<<6 | (word>>8)&0x003F003F003F003F
 	v = (v | v>>8) & 0x0000FFFF0000FFFF
 	return bad, uint32(v | v>>16)
-}
-
-// widenInPlace widens the n Latin-1 bytes at the start of dst (which holds 2*n bytes) to n UTF-16 code units, from
-// the end so no byte is written over before it is read.
-func widenInPlace(dst []byte, n int) {
-	for ; n >= 8 && 2*n <= len(dst); n -= 8 {
-		word := binary.LittleEndian.Uint64(dst[n-8:])
-		binary.LittleEndian.PutUint64(dst[2*n-16:], widen(uint32(word)))
-		binary.LittleEndian.PutUint64(dst[2*n-8:], widen(uint32(word>>32)))
-	}
-	for ; n > 0 && 2*n <= len(dst); n-- {
-		binary.LittleEndian.PutUint16(dst[2*n-2:], uint16(dst[n-1]))
-	}
-}
-
-// utf16Into writes the UTF-16 code units of s (WTF-8, see [Reader.String]) to dst, which holds 2*len(s) bytes (no
-// char takes more units than bytes), and returns how many it wrote. Eight bytes are read at a time: their leading
-// ASCII bytes are widened at once (the 16 bytes stored whole, as in [latin1Into]), and a run of 2-byte chars (U+0080
-// to U+07FF: Latin, Greek, Cyrillic, Hebrew, Arabic...) is converted four at a time. Other valid chars of two to
-// four bytes and unpaired surrogates are decoded inline; each other byte (not UTF-8) is U+FFFD.
-func utf16Into(dst, src []byte) int {
-	i, j := 0, 0
-	for i < len(src) && j+2 <= len(dst) {
-		var c uint32
-		if i+8 <= len(src) && j+16 <= len(dst) {
-			word := binary.LittleEndian.Uint64(src[i:])
-			if word&0x80 == 0 {
-				binary.LittleEndian.PutUint64(dst[j:], widen(uint32(word)))
-				binary.LittleEndian.PutUint64(dst[j+8:], widen(uint32(word>>32)))
-				high := word & highBits
-				if high == 0 {
-					// A run of ASCII, in a loop of its own (nothing else to keep in registers).
-					i, j = i+8, j+16
-					for i+8 <= len(src) && j+16 <= len(dst) {
-						word = binary.LittleEndian.Uint64(src[i:])
-						if word&highBits != 0 {
-							break
-						}
-						binary.LittleEndian.PutUint64(dst[j:], widen(uint32(word)))
-						binary.LittleEndian.PutUint64(dst[j+8:], widen(uint32(word>>32)))
-						i, j = i+8, j+16
-					}
-					continue
-				}
-				t := bits.TrailingZeros64(high) >> 3
-				i, j = i+t, j+2*t
-				c = uint32(byte(word >> (8 * t)))
-			} else if word&0xE0 == 0xC0 {
-				// Lead xxxyyyyy and continuation 10zzzzzz: the unit yyyyyzzzzzz.
-				units := (word&0x001F001F001F001F)<<6 | (word>>8)&0x003F003F003F003F
-				bad := pairBad(word)
-				if bad == 0 {
-					// The common case on its own, so the next word's position does not wait on the count.
-					binary.LittleEndian.PutUint64(dst[j:], units)
-					i, j = i+8, j+8
-					continue
-				}
-				// The first lane is a valid char unless its lead is C0 or C1, or no continuation follows.
-				k := bits.TrailingZeros64(bad) >> 4
-				if k == 0 {
-					c = uint32(byte(word))
-				} else {
-					binary.LittleEndian.PutUint64(dst[j:], units)
-					i, j = i+2*k, j+2*k
-					continue
-				}
-			} else if word&0xF0 == 0xE0 {
-				// Two 3-byte chars: lead 1110xxxx, then two continuation bytes; at least U+0800 (not overlong).
-				// ED A0 to ED BF are unpaired surrogates (WTF-8), written as those units.
-				form := word&0xC0C0F0C0C0F0 ^ 0x8080E08080E0
-				u0 := uint32(word&0x0F)<<12 | uint32(word>>8&0x3F)<<6 | uint32(word>>16&0x3F)
-				u1 := uint32(word>>24&0x0F)<<12 | uint32(word>>32&0x3F)<<6 | uint32(word>>40&0x3F)
-				if form&0xFFFFFF != 0 || u0 < 0x800 {
-					c = uint32(byte(word))
-				} else if form>>24 == 0 && u1 >= 0x800 {
-					binary.LittleEndian.PutUint32(dst[j:], u0|u1<<16)
-					i, j = i+6, j+4
-					continue
-				} else {
-					binary.LittleEndian.PutUint16(dst[j:], uint16(u0))
-					i, j = i+3, j+2
-					continue
-				}
-			} else if cp := uint32(word&0x07)<<18 | uint32(word>>8&0x3F)<<12 | uint32(word>>16&0x3F)<<6 |
-				uint32(word>>24&0x3F); word&0xC0C0C0F8 == 0x808080F0 && cp-0x10000 < 0x100000 {
-				// A 4-byte char (lead 11110xxx, three continuation bytes) of U+10000 to U+10FFFF: a surrogate pair.
-				cp -= 0x10000
-				binary.LittleEndian.PutUint32(dst[j:], (0xD800+cp>>10)|(0xDC00+cp&0x3FF)<<16)
-				i, j = i+4, j+4
-				continue
-			} else {
-				c = uint32(byte(word))
-			}
-		} else {
-			c = uint32(src[i])
-			if c < 0x80 {
-				binary.LittleEndian.PutUint16(dst[j:], uint16(c))
-				i, j = i+1, j+2
-				continue
-			}
-		}
-		// c is src[i], at least 0x80.
-		switch {
-		case c < 0xE0 && c >= 0xC2 && i+1 < len(src) && src[i+1]&0xC0 == 0x80:
-			c = (c&0x1F)<<6 | uint32(src[i+1]&0x3F)
-			i += 2
-		case c < 0xF0 && c >= 0xE0 && i+2 < len(src) && src[i+1]&0xC0 == 0x80 && src[i+2]&0xC0 == 0x80 &&
-			(c != 0xE0 || src[i+1] >= 0xA0):
-			// ED A0 to ED BF is an unpaired surrogate (WTF-8): written as that code unit, as nextUnit reads it.
-			c = (c&0x0F)<<12 | uint32(src[i+1]&0x3F)<<6 | uint32(src[i+2]&0x3F)
-			i += 3
-		case c < 0xF5 && c >= 0xF0 && i+3 < len(src) && j+4 <= len(dst) && src[i+1]&0xC0 == 0x80 && src[i+2]&0xC0 == 0x80 &&
-			src[i+3]&0xC0 == 0x80 && (c != 0xF0 || src[i+1] >= 0x90) && (c != 0xF4 || src[i+1] < 0x90):
-			c = ((c&0x07)<<18 | uint32(src[i+1]&0x3F)<<12 | uint32(src[i+2]&0x3F)<<6 | uint32(src[i+3]&0x3F)) - 0x10000
-			i += 4
-			binary.LittleEndian.PutUint32(dst[j:], (0xD800+c>>10)|(0xDC00+c&0x3FF)<<16)
-			j += 4
-			continue
-		default:
-			// Not UTF-8 (every valid form, and each unpaired surrogate's, is taken above): U+FFFD for the byte, as
-			// nextUnit reads it.
-			c = utf8.RuneError
-			i++
-		}
-		binary.LittleEndian.PutUint16(dst[j:], uint16(c))
-		j += 2
-	}
-	return j >> 1
 }
 
 // widen returns four ASCII bytes as four UTF-16 code units, little-endian.
