@@ -14,7 +14,8 @@ name: Unity
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    # TEST BRANCH ONLY (never on main): claude/zen-goldberg-5qqqcu runs the benchmark once.
+    branches: [ "main", "develop", "claude/zen-goldberg-5qqqcu" ]
     paths:
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'
@@ -77,7 +78,7 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   # The benchmark's run: the release player, and Nino.Core's Release build (the one the package ships).
-  BENCHMARK: ${{ inputs.benchmark && 'true' || 'false' }}
+  BENCHMARK: ${{ (inputs.benchmark || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu') && 'true' || 'false' }}
 
 jobs:
   unity-tests:
