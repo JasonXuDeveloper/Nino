@@ -281,7 +281,7 @@ func BenchmarkWriteString(b *testing.B) {
 		b.Run(c.name, func(b *testing.B) {
 			w := NewWriter(1 << 16)
 			b.ReportAllocs()
-			for b.Loop() {
+			for i := 0; i < b.N; i++ {
 				w.Reset()
 				for _, s := range c.v {
 					w.String(s)
