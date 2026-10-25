@@ -154,122 +154,29 @@ func (b *builder) plan(t reflect.Type) (*plan, error) {
 	return p, nil
 }
 
+// buildPlan fills the plan of p.typ: its declaration (layout, header, type id), its format, the order of its fields
+// and each field's codec, checked against the layout's members.
 func (b *builder) buildPlan(p *plan) error {
 	t := p.typ
-	if s, ok := layoutOf(t); ok {
-		d, err := parseLayout(s)
-		if err != nil {
-			return &TagError{Type: t, Detail: err.Error()}
-		}
-		p.layout = d
+	d, err := declare(p)
+	if err != nil {
+		return err
 	}
-	d := p.layout
-	if d == nil {
-		d = &layoutDecl{}
-	}
-	p.entry = isEntryType(t)
-	if d.track == yes {
-		return typeErr(t, "trackReferences=true: reference tracking is not supported by struct tags (use generated code)")
-	}
-	p.header = d.header
-	if d.deferrable == no {
-		p.deferrable = false
-	}
-	if d.hasTypeID {
-		p.id, p.hasID = d.typeID, true
-	}
-	if id, ok := typedID(t); ok {
-		if p.hasID && id != p.id {
-			return typeErr(t, "NinoTypeID returns 0x%08X but the layout's typeId is 0x%08X", uint32(id), uint32(p.id))
-		}
-		p.id, p.hasID = id, true
-	}
-
 	var infos []rawFieldInfo
 	if err := collectFields(t, t, "", nil, &infos); err != nil {
 		return err
 	}
-	positions, names := 0, 0
-	for _, fi := range infos {
-		if fi.tag.name == "" {
-			continue
-		}
-		if fi.tag.position >= 0 {
-			positions++
-		} else {
-			names++
-		}
+	positions, err := chooseFormat(p, d, infos)
+	if err != nil {
+		return err
 	}
-	if positions > 0 && names > 0 {
-		return typeErr(t, "positions and names mixed in the nino tags: positional and version-tolerant types take positions, keyed types names")
+	order, pks, err := fieldOrder(p, d, infos, positions)
+	if err != nil {
+		return err
 	}
-	p.format = formatPositional
-	if d.hasFormat {
-		p.format = d.format
-	} else if names > 0 {
-		p.format = formatKeyed
+	if err := checkMemberCount(p, d, len(infos)); err != nil {
+		return err
 	}
-	if p.format == formatKeyed && positions > 0 {
-		return typeErr(t, "a keyed type takes member names in its tags, not positions")
-	}
-	if p.format != formatKeyed && names > 0 {
-		return typeErr(t, "a positional or version-tolerant type takes positions in its tags (nino:\"0\"), not names")
-	}
-	for _, fi := range infos {
-		if len(fi.tag.formers) > 0 && p.format != formatKeyed {
-			return &TagError{Type: t, Field: fi.path, Detail: "former names apply to keyed types only"}
-		}
-	}
-	if d.raw == yes && p.format != formatPositional {
-		return typeErr(t, "raw=true needs format=Positional")
-	}
-
-	// Order the fields.
-	order := make([]int, len(infos)) // order[i]: member index of infos[i]
-	pks := make([]pendingKey, len(infos))
-	if p.format == formatKeyed {
-		var err error
-		if pks, err = keyedOrder(p, d, infos, order); err != nil {
-			return err
-		}
-	} else if positions > 0 {
-		at := map[int]string{}
-		for i, fi := range infos {
-			if fi.tag.position < 0 {
-				return &TagError{Type: t, Field: fi.path, Detail: "no position: in a type with positions every field takes one (or nino:\"-\")"}
-			}
-			if prev, ok := at[fi.tag.position]; ok {
-				return &TagError{Type: t, Field: fi.path, Detail: fmt.Sprintf("position %d is also %s's", fi.tag.position, prev)}
-			}
-			at[fi.tag.position] = fi.path
-			order[i] = fi.tag.position
-		}
-		for pos := 0; pos < len(infos); pos++ {
-			if _, ok := at[pos]; !ok {
-				missing := pos
-				return typeErr(t, "positions have a gap at %d: positions must be 0 to %d (a positional body has no room for a missing member)", missing, len(infos)-1)
-			}
-		}
-	} else {
-		for i := range infos {
-			order[i] = i
-		}
-	}
-	// Against the layout's members.
-	members := d.members
-	rawLayout := d.rawEnc
-	if d.hasMembers && rawLayout == nil && p.format != formatKeyed {
-		switch {
-		case p.format == formatPositional && len(infos) != len(members):
-			return typeErr(t, "%d fields for the %d members of the layout: a positional body holds every member", len(infos), len(members))
-		case p.format == formatTolerant && len(infos) > len(members):
-			return typeErr(t, "%d fields for the %d members of the layout", len(infos), len(members))
-		}
-	}
-	if rawLayout != nil && rawLayout.fields != nil && len(infos) != len(rawLayout.fields) {
-		return typeErr(t, "%d fields for the %d fields of the raw layout", len(infos), len(rawLayout.fields))
-	}
-
 	p.fields = make([]field, len(infos))
 	for i, fi := range infos {
 		f := &p.fields[order[i]]
@@ -277,41 +184,11 @@ func (b *builder) buildPlan(p *plan) error {
 		f.key, f.formers = pks[i].key, pks[i].formers
 		if p.format == formatKeyed {
 			f.member = pks[i].member
-		} else if d.hasMembers && rawLayout == nil {
+		} else if d.hasMembers && d.rawEnc == nil {
 			f.member = order[i]
 		}
-		var enc *encoding
-		if f.member >= 0 {
-			enc = members[f.member].enc
-		}
-		variant := variantDefault
-		if fi.tag.utf8 {
-			variant = variantUTF8
-		}
-		if enc != nil && enc.kind == "utf8" && !fi.tag.utf8 {
-			variant = variantUTF8 // the layout says utf8: follow it
-		}
-		if enc != nil && enc.kind == "seq" && len(enc.args) == 1 && enc.args[0].kind == "nullable" {
-			variant = variantElementNullable
-		}
-		if enc != nil {
-			switch enc.kind {
-			case "grid", "group", "bits", "timezone", "formatter":
-				return &TagError{Type: t, Field: fi.path, Detail: fmt.Sprintf("layout member %s is %s: the encoding %s is not supported by struct tags", members[f.member].name, enc.text, enc.kind)}
-			}
-		}
-		c, err := b.codec(fi.sf.Type, variant, t)
-		if err != nil {
-			if te, ok := err.(*TagError); ok && te.Field == "" && te.Type == fi.sf.Type {
-				return &TagError{Type: t, Field: fi.path, Detail: te.Detail}
-			}
+		if err := b.fieldCodec(p, d, fi, f); err != nil {
 			return err
-		}
-		f.c = c
-		if enc != nil {
-			if err := checkEncoding(c, enc); err != nil {
-				return &TagError{Type: t, Field: fi.path, Detail: fmt.Sprintf("layout member %s is %s: %v", members[f.member].name, enc.text, err)}
-			}
 		}
 	}
 	if p.format == formatKeyed && len(p.fields) > 16 {
@@ -324,6 +201,176 @@ func (b *builder) buildPlan(p *plan) error {
 		}
 	}
 	return b.rawLayout(p, d)
+}
+
+// declare takes the plan's header, deferrability and type id from the type's layout (if it declares one) and its
+// NinoTypeID, and returns the layout (empty when there is none).
+func declare(p *plan) (*layoutDecl, error) {
+	t := p.typ
+	if s, ok := layoutOf(t); ok {
+		d, err := parseLayout(s)
+		if err != nil {
+			return nil, &TagError{Type: t, Detail: err.Error()}
+		}
+		p.layout = d
+	}
+	d := p.layout
+	if d == nil {
+		d = &layoutDecl{}
+	}
+	p.entry = isEntryType(t)
+	if d.track == yes {
+		return nil, typeErr(t, "trackReferences=true: reference tracking is not supported by struct tags (use generated code)")
+	}
+	p.header = d.header
+	if d.deferrable == no {
+		p.deferrable = false
+	}
+	if d.hasTypeID {
+		p.id, p.hasID = d.typeID, true
+	}
+	if id, ok := typedID(t); ok {
+		if p.hasID && id != p.id {
+			return nil, typeErr(t, "NinoTypeID returns 0x%08X but the layout's typeId is 0x%08X", uint32(id), uint32(p.id))
+		}
+		p.id, p.hasID = id, true
+	}
+	return d, nil
+}
+
+// chooseFormat sets the plan's format (the layout's, else keyed when the tags take names) and checks the tags
+// agree with it. It returns the number of fields whose tag takes a position.
+func chooseFormat(p *plan, d *layoutDecl, infos []rawFieldInfo) (int, error) {
+	t := p.typ
+	positions, names := 0, 0
+	for _, fi := range infos {
+		if fi.tag.name == "" {
+			continue
+		}
+		if fi.tag.position >= 0 {
+			positions++
+		} else {
+			names++
+		}
+	}
+	if positions > 0 && names > 0 {
+		return 0, typeErr(t, "positions and names mixed in the nino tags: positional and version-tolerant types take positions, keyed types names")
+	}
+	p.format = formatPositional
+	if d.hasFormat {
+		p.format = d.format
+	} else if names > 0 {
+		p.format = formatKeyed
+	}
+	if p.format == formatKeyed && positions > 0 {
+		return 0, typeErr(t, "a keyed type takes member names in its tags, not positions")
+	}
+	if p.format != formatKeyed && names > 0 {
+		return 0, typeErr(t, "a positional or version-tolerant type takes positions in its tags (nino:\"0\"), not names")
+	}
+	for _, fi := range infos {
+		if len(fi.tag.formers) > 0 && p.format != formatKeyed {
+			return 0, &TagError{Type: t, Field: fi.path, Detail: "former names apply to keyed types only"}
+		}
+	}
+	if d.raw == yes && p.format != formatPositional {
+		return 0, typeErr(t, "raw=true needs format=Positional")
+	}
+	return positions, nil
+}
+
+// fieldOrder returns the member index of each field (order[i] for infos[i]) and, for a keyed type, its keys: the
+// keyed order, else the tags' positions, else the fields' order.
+func fieldOrder(p *plan, d *layoutDecl, infos []rawFieldInfo, positions int) ([]int, []pendingKey, error) {
+	t := p.typ
+	order := make([]int, len(infos))
+	pks := make([]pendingKey, len(infos))
+	switch {
+	case p.format == formatKeyed:
+		var err error
+		if pks, err = keyedOrder(p, d, infos, order); err != nil {
+			return nil, nil, err
+		}
+	case positions > 0:
+		at := map[int]string{}
+		for i, fi := range infos {
+			if fi.tag.position < 0 {
+				return nil, nil, &TagError{Type: t, Field: fi.path, Detail: "no position: in a type with positions every field takes one (or nino:\"-\")"}
+			}
+			if prev, ok := at[fi.tag.position]; ok {
+				return nil, nil, &TagError{Type: t, Field: fi.path, Detail: fmt.Sprintf("position %d is also %s's", fi.tag.position, prev)}
+			}
+			at[fi.tag.position] = fi.path
+			order[i] = fi.tag.position
+		}
+		for pos := 0; pos < len(infos); pos++ {
+			if _, ok := at[pos]; !ok {
+				return nil, nil, typeErr(t, "positions have a gap at %d: positions must be 0 to %d (a positional body has no room for a missing member)", pos, len(infos)-1)
+			}
+		}
+	default:
+		for i := range infos {
+			order[i] = i
+		}
+	}
+	return order, pks, nil
+}
+
+// checkMemberCount checks the number of fields against the layout's members, or its raw layout's fields.
+func checkMemberCount(p *plan, d *layoutDecl, n int) error {
+	t := p.typ
+	if d.hasMembers && d.rawEnc == nil && p.format != formatKeyed {
+		switch {
+		case p.format == formatPositional && n != len(d.members):
+			return typeErr(t, "%d fields for the %d members of the layout: a positional body holds every member", n, len(d.members))
+		case p.format == formatTolerant && n > len(d.members):
+			return typeErr(t, "%d fields for the %d members of the layout", n, len(d.members))
+		}
+	}
+	if d.rawEnc != nil && d.rawEnc.fields != nil && n != len(d.rawEnc.fields) {
+		return typeErr(t, "%d fields for the %d fields of the raw layout", n, len(d.rawEnc.fields))
+	}
+	return nil
+}
+
+// fieldCodec builds the codec of field f (its member already set), in the variant its tag and its layout member
+// ask for, and checks it against the member's encoding.
+func (b *builder) fieldCodec(p *plan, d *layoutDecl, fi rawFieldInfo, f *field) error {
+	t := p.typ
+	var enc *encoding
+	if f.member >= 0 {
+		enc = d.members[f.member].enc
+	}
+	variant := variantDefault
+	if fi.tag.utf8 {
+		variant = variantUTF8
+	}
+	if enc != nil && enc.kind == "utf8" && !fi.tag.utf8 {
+		variant = variantUTF8 // the layout says utf8: follow it
+	}
+	if enc != nil && enc.kind == "seq" && len(enc.args) == 1 && enc.args[0].kind == "nullable" {
+		variant = variantElementNullable
+	}
+	if enc != nil {
+		switch enc.kind {
+		case "grid", "group", "bits", "timezone", "formatter":
+			return &TagError{Type: t, Field: fi.path, Detail: fmt.Sprintf("layout member %s is %s: the encoding %s is not supported by struct tags", d.members[f.member].name, enc.text, enc.kind)}
+		}
+	}
+	c, err := b.codec(fi.sf.Type, variant, t)
+	if err != nil {
+		if te, ok := err.(*TagError); ok && te.Field == "" && te.Type == fi.sf.Type {
+			return &TagError{Type: t, Field: fi.path, Detail: te.Detail}
+		}
+		return err
+	}
+	f.c = c
+	if enc != nil {
+		if err := checkEncoding(c, enc); err != nil {
+			return &TagError{Type: t, Field: fi.path, Detail: fmt.Sprintf("layout member %s is %s: %v", d.members[f.member].name, enc.text, err)}
+		}
+	}
+	return nil
 }
 
 type pendingKey struct {
