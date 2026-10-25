@@ -124,7 +124,7 @@ const hexValues = Int8Array.from({ length: 128 }, (_, c) =>
 /** Chars per `String.fromCharCode` call, well under any engine's argument limit. */
 const chunk = 4096;
 /** With Node's methods, text longer than this is written by a native call, which costs more for shorter text. */
-const shortText = 8;
+const shortText = 48;
 /** Without Node's methods, the longest text read and written in JavaScript: TextDecoder and TextEncoder cost more. */
 const mediumText = 32;
 /**
