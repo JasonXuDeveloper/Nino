@@ -1,2 +1,4 @@
 # <go|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-typescript 28f5a97e54c3 edb806f2ee81 lookup
+# phase6/string-varint: varint string headers (main 7d6fe84 -> ab-string-varint 1e61cca); TypeScript reads each side's own .NET data.
+go 7d6fe84 1e61cca
+typescript 7d6fe84 1e61cca

@@ -103,8 +103,9 @@ jobs:
                 ;;
               typescript)
                 # bench.ts is a library: node.ts (Node) and browser.mjs (Chromium) run it, on data and generated code
-                # that .NET writes (as bench/run.sh does). Both sides share the head's data and generated code and
-                # take their own src/nino.ts, the only file that differs between them.
+                # that .NET writes (as bench/run.sh does). Both sides share the head's generated code and take their
+                # own src/nino.ts; each reads the data its own .NET writes (the same bytes unless the two differ in
+                # the wire format).
                 B="$RUNNER_TEMP/$head/runtimes/typescript/bench"
                 (cd "$B" && npm ci --no-audit --no-fund > /dev/null)
                 if [[ ! -x "$(npm root -g)/playwright/cli.js" ]]; then
@@ -117,6 +118,9 @@ jobs:
                 dotnet build -c Release "$RUNNER_TEMP/$head/src/Nino.Codegen" > /dev/null
                 dotnet build -c Release "$B" > /dev/null
                 dotnet "$B/bin/Release/net10.0/Bench.dll" "$out/data"
+                BB="$RUNNER_TEMP/$base/runtimes/typescript/bench"
+                dotnet build -c Release "$BB" > /dev/null
+                dotnet "$BB/bin/Release/net10.0/Bench.dll" "$out/data-base"
                 dotnet "$RUNNER_TEMP/$head/src/Nino.Codegen/bin/Release/net8.0/nino-gen.dll" \
                   --assembly "$B/bin/Release/net10.0/Bench.dll" --lang ts --out "$B/gen" --import-extension .ts > /dev/null
                 for side in base head; do
@@ -133,8 +137,9 @@ jobs:
                 for round in 1 2 3; do
                   for side in base head; do
                     echo "--- $side round $round" | tee -a "$out/ts.txt"
-                    (cd "$B" && node "node-$side.mjs" "$out/data" "${filter:-}" | sed 's/^/node /'
-                      node browser.mjs "$out/$side" "$out/data" "${filter:-}" | sed 's/^/chromium /') |
+                    data="$out/data"; [[ $side == base ]] && data="$out/data-base"
+                    (cd "$B" && node "node-$side.mjs" "$data" "${filter:-}" | sed 's/^/node /'
+                      node browser.mjs "$out/$side" "$data" "${filter:-}" | sed 's/^/chromium /') |
                       tee -a "$out/ts.txt"
                   done
                 done
