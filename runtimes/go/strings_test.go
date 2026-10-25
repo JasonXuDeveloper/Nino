@@ -276,7 +276,7 @@ func TestStringBlocks(t *testing.T) {
 			if i%2 == 0 {
 				w.String(s)
 			} else {
-				w.Utf8(s)
+				w.UTF8(s)
 			}
 		}
 		data := w.Bytes()
@@ -287,12 +287,12 @@ func TestStringBlocks(t *testing.T) {
 				s := r.String()
 				got = append(got, &s)
 			case 1:
-				s := r.Utf8()
+				s := r.UTF8()
 				got = append(got, &s)
 			case 2:
 				got = append(got, r.StringPtr())
 			default:
-				got = append(got, r.Utf8Ptr())
+				got = append(got, r.UTF8Ptr())
 			}
 		}
 		if err := r.Err(); err != nil {

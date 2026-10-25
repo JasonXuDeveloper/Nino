@@ -94,7 +94,7 @@ func TestEndOfDataEveryWidth(t *testing.T) {
 		},
 		"take":   func(r *Reader) { r.Take(3) },
 		"string": func(r *Reader) { _ = r.String() },
-		"utf8":   func(r *Reader) { r.Utf8() },
+		"utf8":   func(r *Reader) { r.UTF8() },
 		"region": func(r *Reader) { r.BeginRegion() },
 		"dto":    func(r *Reader) { r.DateTimeOffset() },
 	}
@@ -260,17 +260,17 @@ func TestUtf8Strings(t *testing.T) {
 		{"é😀", false, "03000000 06000000 C3A9F09F9880"},
 	}
 	for _, c := range cases {
-		got := encode(t, func(w *Writer) { w.NullableUtf8(c.text, !c.null) })
+		got := encode(t, func(w *Writer) { w.NullableUTF8(c.text, !c.null) })
 		expectBytes(t, got, c.hex)
 		r := NewReader(got)
-		s, ok := r.NullableUtf8()
+		s, ok := r.NullableUTF8()
 		if s != c.text || ok == c.null || r.Err() != nil || r.More() {
 			t.Fatalf("%q: read %q %v %v", c.text, s, ok, r.Err())
 		}
 	}
 	// An unpaired surrogate (WTF-8) and invalid UTF-8 are written as U+FFFD.
-	expectBytes(t, encode(t, func(w *Writer) { w.Utf8("a\xED\xA0\x80") }), "02000000 04000000 61EFBFBD")
-	expectBytes(t, encode(t, func(w *Writer) { w.Utf8("a\xFF") }), "02000000 04000000 61EFBFBD")
+	expectBytes(t, encode(t, func(w *Writer) { w.UTF8("a\xED\xA0\x80") }), "02000000 04000000 61EFBFBD")
+	expectBytes(t, encode(t, func(w *Writer) { w.UTF8("a\xFF") }), "02000000 04000000 61EFBFBD")
 }
 
 func TestUtf8Errors(t *testing.T) {
@@ -286,13 +286,13 @@ func TestUtf8Errors(t *testing.T) {
 	}
 	for name, h := range bad {
 		t.Run(name, func(t *testing.T) {
-			expectCode(t, hx(h), CodeInvalidData, func(r *Reader) { r.Utf8() })
+			expectCode(t, hx(h), CodeInvalidData, func(r *Reader) { r.UTF8() })
 		})
 	}
-	expectCode(t, hx("FEFFFFFF"), CodeInvalidLength, func(r *Reader) { r.Utf8() })
-	expectCode(t, hx("01000000 05000000 61"), CodeEndOfData, func(r *Reader) { r.Utf8() })
-	expectCode(t, hx("01000000 FFFFFFFF 61"), CodeEndOfData, func(r *Reader) { r.Utf8() })
-	expectCode(t, hx("01000000"), CodeEndOfData, func(r *Reader) { r.Utf8() })
+	expectCode(t, hx("FEFFFFFF"), CodeInvalidLength, func(r *Reader) { r.UTF8() })
+	expectCode(t, hx("01000000 05000000 61"), CodeEndOfData, func(r *Reader) { r.UTF8() })
+	expectCode(t, hx("01000000 FFFFFFFF 61"), CodeEndOfData, func(r *Reader) { r.UTF8() })
+	expectCode(t, hx("01000000"), CodeEndOfData, func(r *Reader) { r.UTF8() })
 }
 
 func TestDecimal(t *testing.T) {
@@ -416,8 +416,8 @@ func TestInt128AndHalf(t *testing.T) {
 	if !ok {
 		t.Fatal("Int128Of")
 	}
-	expectBytes(t, encode(t, func(w *Writer) { w.Int128(v) }), "FEFFFFFFFFFFFFFF FFFFFFFFFFFFFFFF")
-	if NewReader(hx("FEFFFFFFFFFFFFFF FFFFFFFFFFFFFFFF")).Int128().Big().Int64() != -2 {
+	expectBytes(t, encode(t, func(w *Writer) { w.I128(v) }), "FEFFFFFFFFFFFFFF FFFFFFFFFFFFFFFF")
+	if NewReader(hx("FEFFFFFFFFFFFFFF FFFFFFFFFFFFFFFF")).I128().Big().Int64() != -2 {
 		t.Fatal("Int128 read")
 	}
 	limit := new(big.Int).Lsh(big.NewInt(1), 127)

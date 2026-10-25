@@ -119,23 +119,23 @@ func (r *Reader) UTF16() []uint16 {
 	return nil
 }
 
-// Utf8 reads a [NinoUtf8] string; null reads as "".
-func (r *Reader) Utf8() string {
-	s, _ := r.NullableUtf8()
+// UTF8 reads a [NinoUtf8] string; null reads as "".
+func (r *Reader) UTF8() string {
+	s, _ := r.NullableUTF8()
 	return s
 }
 
-// Utf8Ptr reads a [NinoUtf8] string: nil for null.
-func (r *Reader) Utf8Ptr() *string {
-	s, ok := r.NullableUtf8()
+// UTF8Ptr reads a [NinoUtf8] string: nil for null.
+func (r *Reader) UTF8Ptr() *string {
+	s, ok := r.NullableUTF8()
 	if !ok {
 		return nil
 	}
 	return r.stringBox(s)
 }
 
-// NullableUtf8 reads a [NinoUtf8] string: ok is false for null.
-func (r *Reader) NullableUtf8() (s string, ok bool) {
+// NullableUTF8 reads a [NinoUtf8] string: ok is false for null.
+func (r *Reader) NullableUTF8() (s string, ok bool) {
 	c := r.I32()
 	if c <= 0 {
 		if c == 0 {
@@ -324,7 +324,7 @@ func isASCIILong(b []byte) bool {
 // one allocation for many strings. A block is at most textBlock bytes, and never more than the text the data left
 // can hold, so what it allocates stays in proportion to the data. A string kept keeps its whole block alive.
 //
-// Pointers to strings (StringPtr, Utf8Ptr; what generated code reads a C# string into) point into a block of up to
+// Pointers to strings (StringPtr, UTF8Ptr; what generated code reads a C# string into) point into a block of up to
 // stringBoxes strings the reader keeps, so a pointer kept keeps that block, and the strings in it, alive.
 const (
 	stringBoxes = 32
@@ -727,8 +727,8 @@ func (w *Writer) UTF16(units []uint16) {
 	}
 }
 
-// Utf8 writes a [NinoUtf8] string. Each byte of invalid UTF-8 is written as U+FFFD.
-func (w *Writer) Utf8(s string) {
+// UTF8 writes a [NinoUtf8] string. Each byte of invalid UTF-8 is written as U+FFFD.
+func (w *Writer) UTF8(s string) {
 	n := len(s)
 	if n == 0 {
 		w.U32(0)
@@ -758,22 +758,22 @@ func (w *Writer) Utf8(s string) {
 	copy(b[8:], s)
 }
 
-// NullableUtf8 writes a [NinoUtf8] string, or null when ok is false.
-func (w *Writer) NullableUtf8(s string, ok bool) {
+// NullableUTF8 writes a [NinoUtf8] string, or null when ok is false.
+func (w *Writer) NullableUTF8(s string, ok bool) {
 	if !ok {
 		w.Null()
 		return
 	}
-	w.Utf8(s)
+	w.UTF8(s)
 }
 
-// Utf8Ptr writes a utf8 string: nil is null.
-func (w *Writer) Utf8Ptr(s *string) {
+// UTF8Ptr writes a [NinoUtf8] string: nil is null.
+func (w *Writer) UTF8Ptr(s *string) {
 	if s == nil {
 		w.Null()
 		return
 	}
-	w.Utf8(*s)
+	w.UTF8(*s)
 }
 
 // wideUtf8 writes text that is not valid UTF-8, char by char.

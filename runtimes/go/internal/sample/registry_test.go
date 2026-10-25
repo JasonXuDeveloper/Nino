@@ -90,6 +90,6 @@ var codecs = map[string]codec{
 	"Conformance.Targets.StringMap":     targetOf(ReadStringIntMap, WriteStringIntMap),
 	"Conformance.Targets.StringSet":     targetOf(ReadStringSet, WriteStringList),
 	"Conformance.Targets.TextValue":     targetOf((*nino.Reader).StringPtr, (*nino.Writer).StringPtr),
-	"Conformance.Targets.Utf8Value":     targetOf((*nino.Reader).Utf8Ptr, (*nino.Writer).Utf8Ptr),
+	"Conformance.Targets.Utf8Value":     targetOf((*nino.Reader).UTF8Ptr, (*nino.Writer).UTF8Ptr),
 	"Conformance.Targets.VersionSlot":   targetOf((*nino.Reader).Version, (*nino.Writer).Version),
 }

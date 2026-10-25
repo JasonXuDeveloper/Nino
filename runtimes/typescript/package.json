@@ -32,11 +32,11 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=15"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "build:wasm": "node wasm/build.ts",
+    "build": "tsc -p tsconfig.build.json && node scripts/version.mjs",
+    "build:wasm": "node wasm/embed.ts",
     "typecheck": "tsc -p .",
     "test": "tsc -p . && npm run test:node && npm run test:browser && npm run test:no-wasm",
     "test:node": "node --test \"test/**/*.test.ts\"",
@@ -46,6 +46,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
+    "fast-check": "4.10.2",
     "typescript": "^7.0.2"
   }
 }

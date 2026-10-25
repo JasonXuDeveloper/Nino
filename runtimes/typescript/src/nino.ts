@@ -2,7 +2,10 @@
 // Nino writes in .NET. Little-endian and unaligned; lengths are int32, -1 = null. Do not edit: it is overwritten on
 // every build.
 
-/** The Nino version that wrote this file; the generated types expect the same one. */
+/**
+ * The Nino version of this runtime: nino-gen's for the copy it writes next to the generated types (which expect the
+ * same one), the package's for the npm package (scripts/version.mjs).
+ */
 export const ninoVersion = "__NINO_VERSION__";
 
 /** Reads and writes one type's values. Generated for every [NinoType]. */
@@ -36,22 +39,40 @@ export function serialize<T>(codec: NinoCodec<T>, value: T): Uint8Array<ArrayBuf
 
 /**
  * Deserializes one value written by `NinoSerializer.Serialize<T>` (or `serialize`). Nothing it returns refers to
- * `data`, which it does not change.
+ * `data`, which it does not change. Bytes after the value are not read (see `deserializeExact`).
  */
 export function deserialize<T>(codec: NinoCodec<T>, data: Uint8Array): T {
+  return readValue(codec, data, false);
+}
+
+/** `deserialize` that also throws a `NinoError` when bytes follow the value. */
+export function deserializeExact<T>(codec: NinoCodec<T>, data: Uint8Array): T {
+  return readValue(codec, data, true);
+}
+
+function readValue<T>(codec: NinoCodec<T>, data: Uint8Array, exact: boolean): T {
   let reader = scratchReader;
   if (reader === null || data.length > scratchSize) {
-    if (reader !== null || scratchMade || data.length > scratchSize) return codec.read(new NinoReader(data));
+    if (reader !== null || scratchMade || data.length > scratchSize) {
+      return readAll(codec, new NinoReader(data), exact ? data.length : -1);
+    }
     reader = makeScratch();
   }
   // A codec that deserializes (a custom one) while this runs gets a reader of its own.
   scratchReader = null;
   try {
     reader["load"](data);
-    return codec.read(reader);
+    return readAll(codec, reader, exact ? data.length : -1);
   } finally {
     scratchReader = reader;
   }
+}
+
+/** One value from `reader`, which must then be at `end` (the length of the data), unless `end` is -1. */
+function readAll<T>(codec: NinoCodec<T>, reader: NinoReader, end: number): T {
+  const value = codec.read(reader);
+  if (end >= 0 && reader.pos !== end) throw new NinoError(`${end - reader.pos} bytes after the value.`);
+  return value;
 }
 
 /**
@@ -92,6 +113,8 @@ const wide = /[^\x00-\xff]/;
 const nonAscii = /[^\x00-\x7f]/;
 /** Milliseconds between 0001-01-01 and 1970-01-01. */
 const unixEpochMilliseconds = 62135596800000;
+/** Milliseconds between 0001-01-01 and 10000-01-01: past `DateTime.MaxValue`. */
+const maxDateMilliseconds = 315537897600000;
 /** The char codes of each byte's high and low hex digit. */
 const hexHigh = Uint8Array.from({ length: 256 }, (_, i) => "0123456789abcdef".charCodeAt(i >> 4));
 const hexLow = Uint8Array.from({ length: 256 }, (_, i) => "0123456789abcdef".charCodeAt(i & 15));
@@ -100,8 +123,12 @@ const hexValues = Int8Array.from({ length: 128 }, (_, c) =>
   c >= 48 && c <= 57 ? c - 48 : (c | 32) >= 97 && (c | 32) <= 102 ? (c | 32) - 87 : -1);
 /** Chars per `String.fromCharCode` call, well under any engine's argument limit. */
 const chunk = 4096;
-/** With Node's methods, text longer than this is written by a native call, which costs more for shorter text. */
-const shortText = 8;
+/**
+ * With Node's methods, text longer than this is written by a native call (`latin1Write`, `ucs2Write`, after a regex
+ * for chars past U+00FF); shorter text is narrowed char by char in JavaScript, which costs less up to about 48 chars
+ * on x64 and Arm64 (32 and 64 measured the same, 8 took twice as long on short text).
+ */
+const shortText = 48;
 /** Without Node's methods, the longest text read and written in JavaScript: TextDecoder and TextEncoder cost more. */
 const mediumText = 32;
 /**
@@ -207,12 +234,16 @@ interface Kernels {
 /** The module (wasm/text.wat), base64. Generated: `npm run build:wasm` writes it. */
 const kernelModule =
   // wasm:begin
+  // wasm:source sha256:8236fe8bc177570b7fe91f090e92de136a666423240cdcc8af50573fdc337719
   "AGFzbQEAAAABJwZedwFgA29jAH8Bf2ADYwB/fwFkb2ACf38Bb2ADb39/AX9gAn9/AAJHAg53YXNtOmpzLXN0cmluZxFpbnRvQ2hhckNvZGVBcnJheQABDndhc206anMtc3RyaW5nEWZyb21DaGFyQ29kZUFycmF5AAIDBQQDAwQFBQQBAQEBBgsBZAAAQYAg+wcACwcsBQZtZW1vcnkCAAZsYXRpbjEAAgV1dGYxNgADBm5hcnJvdwAEBXdpZGVuAAUKuwgE0gIDAWQAAn8BeyMAIQIgAUFwcSEEAkADQCADIARPDQEgACADav0ABAAhBSACIANBAGogBf0WAPsOACACIANBAWogBf0WAfsOACACIANBAmogBf0WAvsOACACIANBA2ogBf0WA/sOACACIANBBGogBf0WBPsOACACIANBBWogBf0WBfsOACACIANBBmogBf0WBvsOACACIANBB2ogBf0WB/sOACACIANBCGogBf0WCPsOACACIANBCWogBf0WCfsOACACIANBCmogBf0WCvsOACACIANBC2ogBf0WC/sOACACIANBDGogBf0WDPsOACACIANBDWogBf0WDfsOACACIANBDmogBf0WDvsOACACIANBD2ogBf0WD/sOACADQRBqIQMMAAsLAkADQCADIAFPDQEgAiADIAAgA2otAAD7DgAgA0EBaiEDDAALCyACQQAgARABC+ABAwFkAAJ/AXsjACECIAFBeHEhBAJAA0AgAyAETw0BIAAgA0EBdGr9AAQAIQUgAiADQQBqIAX9GQD7DgAgAiADQQFqIAX9GQH7DgAgAiADQQJqIAX9GQL7DgAgAiADQQNqIAX9GQP7DgAgAiADQQRqIAX9GQT7DgAgAiADQQVqIAX9GQX7DgAgAiADQQZqIAX9GQb7DgAgAiADQQdqIAX9GQf7DgAgA0EIaiEDDAALCwJAA0AgAyABTw0BIAIgAyAAIANBAXRqLwEA+w4AIANBAWohAwwACwsgAkEAIAEQAQuYAgMBZAADfwF7IwAhAyAAIANBABAAGiABQXhxIQUCQANAIAQgBU8NASAHIAMgBEEAavsNAP0aACEHIAcgAyAEQQFq+w0A/RoBIQcgByADIARBAmr7DQD9GgIhByAHIAMgBEEDavsNAP0aAyEHIAcgAyAEQQRq+w0A/RoEIQcgByADIARBBWr7DQD9GgUhByAHIAMgBEEGavsNAP0aBiEHIAcgAyAEQQdq+w0A/RoHIQcgB/0MAP8A/wD/AP8A/wD/AP8A//1O/VMNASACIARqIAcgB/1m/VsDAAAgBEEIaiEEDAALCwJAA0AgBCABTw0BIAMgBPsNACEGIAZB/wFLDQEgAiAEaiAGOgAAIARBAWohBAwACwsgBAvoAQMBZAACfwF7IwAhAiAAQXhxIQQCQANAIAMgBE8NASAFIAIgA0EAavsNAP0aACEFIAUgAiADQQFq+w0A/RoBIQUgBSACIANBAmr7DQD9GgIhBSAFIAIgA0EDavsNAP0aAyEFIAUgAiADQQRq+w0A/RoEIQUgBSACIANBBWr7DQD9GgUhBSAFIAIgA0EGavsNAP0aBiEFIAUgAiADQQdq+w0A/RoHIQUgASADQQF0aiAF/QsEACADQQhqIQMMAAsLAkADQCADIABPDQEgASADQQF0aiACIAP7DQA7AQAgA0EBaiEDDAALCws=";
   // wasm:end
-/** The most chars a kernel takes (the size of its array of code units). */
+/** The most chars a kernel takes: the size of its array of code units (test/wasm.test.ts checks text.wat's). */
 const kernelText = 4096;
-/** Where in the kernels' memory text is copied in and written out (`kernelText` UTF-16 code units). */
-const transfer = 4096;
+/**
+ * Where in the kernels' memory text is copied in and written out (`kernelText` UTF-16 code units): after the bytes of
+ * `deserialize`'s reader, which start the memory.
+ */
+const transfer = scratchSize;
 /**
  * In Chromium the kernels read Latin-1 text longer than `mediumText` up to `kernelLatin1` chars (TextDecoder costs
  * the same for longer text), UTF-16 text longer than `kernelUtf16` (shorter: `decodeShortUtf16`), and write text
@@ -545,12 +576,17 @@ export class NinoReader {
   dateTimeAt(at: number): Date {
     // ticks / 10000 in exact Number arithmetic (no BigInt): 2^32 = 429496 * 10000 + 7296.
     const lo = this.view.getUint32(at, true), hi = this.view.getUint32(at + 4, true) & 0x3fffffff;
-    return new Date(hi * 429496 + Math.floor((hi * 7296 + lo) / 10000) - unixEpochMilliseconds);
+    const ms = hi * 429496 + Math.floor((hi * 7296 + lo) / 10000);
+    // Ticks past DateTime.MaxValue's (§9.10), as the Go and Rust readers check and the writer requires.
+    if (ms >= maxDateMilliseconds) throw new NinoError("invalid DateTime.");
+    return new Date(ms - unixEpochMilliseconds);
   }
 
   /** `System.Decimal` at `at`, as its exact decimal text. */
   decimalAt(at: number): string {
     const view = this.view, flags = view.getInt32(at, true), hi = view.getUint32(at + 4, true);
+    // Only the sign and a scale of at most 28 (§9.10), as the Go and Rust readers check and the writer requires.
+    if ((flags & 0x7f00ffff) !== 0 || ((flags >> 16) & 0xff) > 28) throw new NinoError("invalid decimal.");
     const lo = view.getUint32(at + 8, true), mid = view.getUint32(at + 12, true);
     // The 96-bit integer: below 2^53 in exact Number arithmetic, else as a BigInt.
     let digits = hi === 0 && mid < 0x200000 ? (mid * 4294967296 + lo).toString()
@@ -1062,7 +1098,7 @@ export class NinoWriter {
   dateTimeAt(at: number, value: Date): void {
     // (milliseconds since 0001) * 10000 as two 32-bit halves, exact in Number arithmetic (no BigInt).
     const ms = value.getTime() + unixEpochMilliseconds;
-    if (!(ms >= 0 && ms < 315537897600000)) throw new NinoError(`date out of range: ${value.getTime()}.`);
+    if (!(ms >= 0 && ms < maxDateMilliseconds)) throw new NinoError(`date out of range: ${value.getTime()}.`);
     const a = Math.floor(ms / 65536) * 10000, b = (ms % 65536) * 10000;
     const low = (a % 65536) * 65536 + b;
     this.view.setUint32(at, low % 4294967296, true);
@@ -1104,7 +1140,8 @@ export class NinoWriter {
     if (value === null || value === undefined) { this.i32(-1); return; }
     const length = value.length;
     if (length <= (nodeText === null ? kernelWrite : shortText)) {
-      // Narrowed in one pass while every char fits in a byte; from the first wider char on, UTF-16 instead.
+      // `narrow`, written out here: the common path stays one function (calls to `narrow` and `utf16` measured
+      // 8-12% slower in Chromium on short text, x64 and Arm64).
       const at = this.reserve(4 + length), buffer = this.buffer;
       let i = 0;
       for (; i < length; i++) {
@@ -1122,25 +1159,51 @@ export class NinoWriter {
       this.longString(value, length);
       return;
     } else if (!wide.test(value)) {
-      const at = this.reserve(4 + length);
-      this.int32At(at, ~length);
-      this.encodeLatin1(value, at + 4);
+      this.latin1(value, length);
       return;
     }
     const at = this.reserve(4 + 2 * length);
-    this.view.setInt32(at, length, true);
+    this.int32At(at, length);
     if (nodeText !== null) {
       nodeText.ucs2Write.call(this.buffer, value, at + 4, 2 * length);
       return;
     }
+    // `utf16`, written out here for the same reason as `narrow` above.
     const view = this.view;
     for (let i = 0; i < length; i++) view.setUint16(at + 4 + 2 * i, value.charCodeAt(i), true);
+  }
+
+  /**
+   * The `length` chars of `value` one byte each, after their count, in one pass while every char fits in a byte.
+   * Returns false, writing nothing, at the first wider char.
+   */
+  private narrow(value: string, length: number): boolean {
+    const at = this.reserve(4 + length), buffer = this.buffer;
+    let i = 0;
+    for (; i < length; i++) {
+      const c = value.charCodeAt(i);
+      if (c > 0xff) break;
+      buffer[at + 4 + i] = c;
+    }
+    if (i === length) {
+      this.int32At(at, length === 0 ? 0 : ~length);
+      return true;
+    }
+    this.pos = at;
+    return false;
+  }
+
+  /** The `length` chars of `value`, every one at most U+00FF, one byte each after their count. */
+  private latin1(value: string, length: number): void {
+    const at = this.reserve(4 + length);
+    this.int32At(at, ~length);
+    this.encodeLatin1(value, at + 4);
   }
 
   /** Without Node's methods: the `length` chars of `value` as UTF-16 code units, after their count. */
   private utf16(value: string, length: number): void {
     const at = this.reserve(4 + 2 * length);
-    this.view.setInt32(at, length, true);
+    this.int32At(at, length);
     const view = this.view;
     for (let i = 0; i < length; i++) view.setUint16(at + 4 + 2 * i, value.charCodeAt(i), true);
   }
@@ -1149,23 +1212,9 @@ export class NinoWriter {
   private longString(value: string, length: number): void {
     if (length <= kernelText && (length <= kernelAscii || wide.test(value)) && this.stringKernels(value, length)) return;
     if (length <= loopText) {
-      // As `string` narrows short text.
-      const at = this.reserve(4 + length), buffer = this.buffer;
-      let i = 0;
-      for (; i < length; i++) {
-        const c = value.charCodeAt(i);
-        if (c > 0xff) break;
-        buffer[at + 4 + i] = c;
-      }
-      if (i === length) {
-        this.int32At(at, ~length);
-        return;
-      }
-      this.pos = at;
+      if (this.narrow(value, length)) return;
     } else if (!wide.test(value)) {
-      const at = this.reserve(4 + length);
-      this.int32At(at, ~length);
-      this.encodeLatin1(value, at + 4);
+      this.latin1(value, length);
       return;
     }
     this.utf16(value, length);
@@ -1200,16 +1249,16 @@ export class NinoWriter {
     if (!nonAscii.test(value)) {
       // ASCII: as many bytes as chars, the same as Latin-1.
       const at = this.reserve(8 + length);
-      this.view.setInt32(at, length, true);
-      this.view.setInt32(at + 4, length, true);
+      this.int32At(at, length);
+      this.int32At(at + 4, length);
       this.encodeLatin1(value, at + 8);
       return;
     }
     // At most 3 bytes per UTF-16 code unit; the bytes not written are given back.
     const at = this.reserve(8 + 3 * length);
     const { written } = utf8Encoder.encodeInto(value, new Uint8Array(this.buffer.buffer, at + 8, 3 * length));
-    this.view.setInt32(at, length, true);
-    this.view.setInt32(at + 4, written, true);
+    this.int32At(at, length);
+    this.int32At(at + 4, written);
     this.pos = at + 8 + written;
   }
 

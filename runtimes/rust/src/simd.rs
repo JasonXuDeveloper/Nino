@@ -2,24 +2,30 @@
 //! `Vec`'s spare capacity, and the reader's decoding of Latin-1 and UTF-16 into a `String` it builds
 //! ([`latin1_string`], [`utf16_string`]: from bytes the reader has bounds-checked, and unchecked only over the UTF-8
 //! they write themselves). ASCII text of up to 32 bytes, the most common string, is copied with its header by
-//! [`ascii_short`] without a call to `memcpy`. Other text goes through [`wide`]: on x86_64 with SSE4.1, one pass
-//! ([`wide_sse41`]) for any length; elsewhere, text of up to 64 bytes is decoded char by char with its header by
-//! [`short_wide`], and longer text goes through [`transcode`].
+//! [`ascii_short`] without a call to `memcpy`. Other text goes through [`wide`], to a one-pass kernel for the
+//! instruction set the CPU has ([`x86`]: AVX-512, AVX2 or SSE4.1, found once at run time; [`neon`] on little-endian
+//! Arm64 for text over [`SHORT_WIDE`] bytes): each char's bytes combined in a lane and the lanes packed, as Latin-1
+//! until a char above U+00FF, then again from the start as UTF-16. Without one, text of up to 64 bytes is decoded
+//! char by char with its header by [`short_wide`], and longer text goes through [`transcode`].
 //!
-//! Text is taken a block of 16 bytes at a time ([`Block`]). A block of ASCII is stored as it is (Latin-1) or with
-//! each byte widened to a code unit (UTF-16). Where the target has a byte shuffle (SSSE3 on x86_64, found at run
-//! time; NEON's `tbl` on Arm64) and the text is 48 bytes or more ([`PAIRS_FROM`]), a block of one- and two-byte chars
-//! (Latin-1, Greek, Cyrillic, Hebrew, Arabic, ...) is transcoded whole: the bytes that start a char select, for each
-//! half, a shuffle from [`PAIRS`] that puts each char's bytes into a 16-bit lane, where its code unit is computed;
-//! the text's last bytes are taken the same way, from its last 16. Elsewhere, a block step advances past its leading
-//! ASCII, and the chars after it are decoded one by one (three and four bytes always), the text's last bytes a word
-//! at a time. Bytes stored past what a step writes are overwritten by the next one, or lie past the `Vec`'s length
-//! at the end: room for a whole block is reserved past the longest the text can take.
+//! [`transcode`] takes text a block of 16 bytes at a time ([`Block`]). A block of ASCII is stored as it is (Latin-1)
+//! or with each byte widened to a code unit (UTF-16). Where the target has a byte shuffle (SSSE3 on x86_64, found at
+//! run time; NEON's `tbl` on Arm64) and the text is 48 bytes or more ([`PAIRS_FROM`]), a block of one- and two-byte
+//! chars (Latin-1, Greek, Cyrillic, Hebrew, Arabic, ...) is transcoded whole: the bytes that start a char select, for
+//! each half, a shuffle from [`PAIRS`] that puts each char's bytes into a 16-bit lane, where its code unit is
+//! computed; the text's last bytes are taken the same way, from its last 16. Elsewhere, a block step advances past
+//! its leading ASCII, and the chars after it are decoded one by one (three and four bytes always), the text's last
+//! bytes a word at a time. Bytes stored past what a step writes are overwritten by the next one, or lie past the
+//! `Vec`'s length at the end: room for a whole step is reserved past the longest the text can take.
 //!
-//! Every target writes the same bytes: x86_64 takes SSE2 (its baseline), SSSE3 and SSE4.1, little-endian Arm64 NEON,
-//! and every other target (32-bit, WebAssembly, big-endian) two `u64` words a block. The tests compare each way a
-//! target has with a plain decoder for every char class at every position, and CI runs them under Miri (x86_64 with
-//! SSE2 only, SSSE3 and SSE4.1, Arm64, big-endian s390x).
+//! The decoders take Latin-1 of [`SHORT_DECODE`] bytes or more and UTF-16 of [`SHORT_UTF16`] units or more with the
+//! CPU's vector kernel (AVX-512, SSSE3 or SSE4.1 on x86_64, NEON on Arm64), the rest eight bytes a word.
+//!
+//! Every target writes the same bytes: x86_64 takes SSE2 (its baseline), SSSE3, SSE4.1, AVX2 and AVX-512 (the last
+//! only when built with Rust 1.89 or later, `nino_avx512` from `build.rs`), little-endian Arm64 NEON, and every other
+//! target (32-bit, WebAssembly, big-endian) two `u64` words a block. The tests compare every kernel the CPU has (not
+//! only the one it picks) with a plain decoder for every char class at every position, and CI runs them under Miri
+//! (x86_64 with SSE2 only, SSSE3, SSE4.1, AVX2 and AVX-512, Arm64, big-endian s390x).
 
 #![allow(unsafe_code)]
 #![deny(unsafe_op_in_unsafe_fn, clippy::undocumented_unsafe_blocks)]
@@ -962,6 +968,16 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
         return true;
     }
     wide_short(out, text)
+}
+
+/// [`wide`] for text of up to [`SHORT`] bytes: [`short_wide`] directly on every target but x86_64 (where [`wide`]
+/// takes such text to it), so the writer's inlined path is that call alone.
+#[inline(always)]
+pub(crate) fn wide_short_text(out: &mut Vec<u8>, text: &str) {
+    #[cfg(not(target_arch = "x86_64"))]
+    short_wide(out, text);
+    #[cfg(target_arch = "x86_64")]
+    wide(out, text);
 }
 
 /// [`wide`] without a one-pass kernel: [`short_wide`] for text of up to [`SHORT_WIDE`] bytes.

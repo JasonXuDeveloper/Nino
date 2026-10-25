@@ -17,6 +17,9 @@ const bytes = serialize(PlayerCodec, player); // what NinoSerializer.Serialize<P
 const back = deserialize(PlayerCodec, bytes);
 ```
 
+`deserialize` reads one value and leaves any bytes after it unread; `deserializeExact` also throws a `NinoError`
+when bytes follow the value (Go's `DeserializeExact`, Rust's `deserialize_exact`).
+
 ## Guarantees
 
 The reader takes untrusted input, as the .NET, Go and Rust readers do. Any data that is not a value of the type read
@@ -66,8 +69,11 @@ does not allow compiling WebAssembly (`'wasm-unsafe-eval'`), keeps the JavaScrip
 may still report the blocked compilation as a CSP violation. `useWasm(false)` turns the module off, `useWasm(true)`
 back on, and `useWasm()` tells whether text goes through it.
 
-`npm run build:wasm` assembles `wasm/text.wat` (`wasm/build.ts`, no dependencies) into `nino.ts`; the tests check
-that the two match.
+`npm run build:wasm` assembles `wasm/text.wat` with [wasm-tools](https://github.com/bytecodealliance/wasm-tools)
+(`wasm-tools parse`, then `strip --all`) and writes the module into `nino.ts`, with the SHA-256 of the `text.wat` it
+came from (`wasm/embed.ts`). Install wasm-tools with `cargo install --locked wasm-tools`, or put the binary of a
+[release](https://github.com/bytecodealliance/wasm-tools/releases) on the `PATH`. Only a change to `text.wat` needs
+it: the tests check the hash, and rebuild and compare the module byte for byte where wasm-tools is installed.
 
 ## Tests
 
@@ -83,6 +89,9 @@ it (`NINO_WASM=0`). `test/wasm.test.ts` compares the module's paths with the Jav
 (`test/generated`, checked by Nino.Codegen.Tests): every valid case read and written back byte for byte, every
 malicious case and every truncated prefix of a valid case rejected with a `NinoError`. After a change to the runtime
 that Nino.Codegen embeds, also run the `Nino.Codegen.Integration.Tests` .NET tests.
+
+The runtime itself (the package's `dist`, ES2022) runs on Node 15 and later, as `engines` says; the tests need
+Node 22.18 or later, which runs their TypeScript as it is (type stripping).
 
 ## Benchmarks
 

@@ -6,8 +6,9 @@ Reads and writes [Nino](https://github.com/JasonXuDeveloper/Nino)'s binary wire 
 with the NuGet packages (`cargo add nino-serialization@=4.0.0-rc.8`, `features = ["derive"]` for the derive).
 
 - Edition 2021, MSRV 1.88.
-- `#![deny(unsafe_code)]`: the only `unsafe` code is `src/simd.rs`, checked under Miri: the string writer's
-  transcoding, and the reader's decoding of text into a `String` it builds. The reader's bounds checks are safe code.
+- `#![deny(unsafe_code)]`: the only `unsafe` code is `src/simd.rs` and its submodules (`simd/x86.rs`, `simd/neon.rs`),
+  checked under Miri: the string writer's transcoding, and the reader's decoding of text into a `String` it builds.
+  The reader's bounds checks are safe code.
 - No required dependencies. Every integration is an opt-in feature.
 
 ```rust
@@ -115,8 +116,8 @@ How each Rust type handles them:
 For text-heavy types, prefer `[NinoUtf8]` (`#[nino(utf8)]` or `Utf8`) where the .NET side can declare it. A `String`
 in the default encoding is transcoded to Latin-1 or UTF-16 on every write and back to UTF-8 on every read, so formats
 that store UTF-8 (bincode, postcard, MessagePack, protobuf) copy their strings faster than Nino can transcode them.
-A `[NinoUtf8]` member is written as a count of its UTF-16 code units and one copy of its bytes, and read as one
-validated copy.
+A `[NinoUtf8]` member is written as a count of its UTF-16 code units and one copy of its bytes, and read with std's
+UTF-8 check, that count and one copy.
 
 ## Features
 
@@ -274,19 +275,31 @@ cargo test --workspace --all-features
   - `tests/compile_fail.rs` (trybuild) checks every rejection and its message. After a deliberate change to a message,
     `TRYBUILD=overwrite cargo test --features derive --test compile_fail` rewrites the expected messages.
 
-- **Unsafe code** (`src/simd.rs`): writing a `String` transcodes its UTF-8 to Latin-1 or UTF-16 straight into the
-  buffer. On x86_64 with SSE4.1 (checked at run time), non-ASCII text of any length takes one pass of 16-byte windows
-  that combines each char's bytes in a lane and packs the lanes with a shuffle, as Latin-1 until a char above U+00FF
-  and then as UTF-16. Elsewhere, text up to 64 bytes is decoded char by char and longer text a block of 16 bytes at
-  a time: SSE2, plus SSSE3 for two-byte chars in text of 48 bytes or more; NEON on little-endian Arm64; two `u64`
-  words on other targets. Reading a string decodes its Latin-1 or UTF-16 straight into the `String`'s allocation
-  (sized from the code units first) and builds it unchecked: what the decoder writes is valid UTF-8 by construction,
-  with U+FFFD for each unpaired surrogate as before. Its tests compare every way the target has, and the decoders,
-  with plain ones for every char class at every position of text up to 256 chars, runs and random input (unpaired
-  and reversed surrogates included), and `string_encodings` (`tests/values.rs`) compares `serialize` with .NET's
-  bytes the same way. CI runs the module's tests under Miri on x86_64 (SSE2 only, SSSE3, SSE4.1), Arm64 and
-  big-endian s390x:
-  `cargo +nightly miri test -p nino-serialization --lib simd` (`--target aarch64-unknown-linux-gnu`, ...).
+- **Unsafe code** (`src/simd.rs`, `src/simd/x86.rs`, `src/simd/neon.rs`): writing a `String` transcodes its UTF-8 to
+  Latin-1 or UTF-16 straight into the buffer, in one pass that combines each char's bytes in a lane and packs the
+  lanes with a shuffle (or a compress), as Latin-1 until a char above U+00FF and then as UTF-16. Each instruction set
+  has its own kernel, found once at run time on x86_64 (`is_x86_feature_detected!`, cached):
+  - x86_64 with AVX-512 (F, BW, VL, VBMI2; built with Rust 1.89 or later): 64 bytes a step with masked loads and
+    stores, packed by `vpcompressb`/`vpcompressw`;
+  - x86_64 with AVX2 (and BMI1, BMI2, LZCNT): 32-byte windows, each char's code unit computed in 16-bit lanes;
+  - x86_64 with SSE4.1: 16-byte windows;
+  - little-endian Arm64 (NEON): text over 64 bytes in 32-byte windows, runs of three-byte chars (CJK) 48 bytes a step
+    (`ld3`); shorter text char by char;
+  - elsewhere (and x86_64 with SSSE3 or SSE2 only): text up to 64 bytes char by char, longer text a block of 16 bytes
+    at a time (SSE2, plus SSSE3 for two-byte chars in text of 48 bytes or more; two `u64` words on other targets).
+
+  Reading a string decodes its Latin-1 or UTF-16 straight into the `String`'s allocation (sized from the code units
+  first) and builds it unchecked: what the decoder writes is valid UTF-8 by construction, with U+FFFD for each unpaired
+  surrogate as before. Latin-1 of 32 bytes or more and UTF-16 of 24 units or more take a vector decoder (AVX-512; SSSE3
+  for Latin-1 and SSE4.1 for UTF-16 on x86_64; NEON on Arm64), shorter text and other targets a plain one eight bytes a
+  word. Its tests compare every kernel the CPU has (not only the one it picks), and the decoders, with plain ones for
+  every char class at every position of text up to 256 chars, runs and random input (unpaired and reversed surrogates
+  included), and `string_encodings` (`tests/values.rs`) compares `serialize` with .NET's bytes the same way. CI runs the
+  module's tests under Miri on x86_64 (SSE2 only, SSSE3, SSE4.1, AVX2, AVX-512), Arm64 and big-endian s390x (Miri lacks
+  the AVX-512 compress instructions and `pdep`: under Miri those kernels pack with a plain loop, the rest of them as on
+  the CPU):
+  `cargo +nightly miri test -p nino-serialization --lib simd` (`--target aarch64-unknown-linux-gnu`, or
+  `RUSTFLAGS='-C target-feature=+avx2,...'`, ...).
 
 ## Benchmarks
 

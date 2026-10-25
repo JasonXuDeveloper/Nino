@@ -60,14 +60,6 @@ fn detect() -> Tier {
     } else {
         Tier::Sse2
     };
-    let tier = match std::env::var("NINO_TIER").ok().as_deref() {
-        // TEMP-BENCH
-        Some("sse2") => Tier::Sse2,
-        Some("ssse3") => Tier::Ssse3,
-        Some("sse41") => Tier::Sse41,
-        Some("avx2") => Tier::Avx2.min(tier),
-        _ => tier, // TEMP-BENCH
-    }; // TEMP-BENCH
     TIER.store(tier as u8, Ordering::Relaxed);
     tier
 }

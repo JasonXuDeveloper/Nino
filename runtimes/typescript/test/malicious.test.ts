@@ -1,9 +1,10 @@
 // Data that is not what a writer writes: truncated at every offset, forged lengths and counts, bad presence bytes,
-// unknown type ids. Every read must throw a NinoError (never read past the end, return garbage, allocate by a forged
+// unknown type ids, and random or mutated bytes (fast-check). Every read must throw a NinoError (never read past the end, return garbage, allocate by a forged
 // count, or loop), as Nino's Reader does in .NET.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deserialize, NinoError, NinoReader, NinoRegistry, serialize, type NinoCodec } from "../src/nino.ts";
+import fc from "fast-check";
+import { deserialize, deserializeExact, NinoError, NinoReader, NinoRegistry, serialize, type NinoCodec } from "../src/nino.ts";
 import { chain, ChainCodec, hex, int32 } from "./codecs.ts";
 import { Dog, StringMap, StringMapCodec, Zoo, ZooCodec } from "./generated/Nino.Conformance.ts";
 
@@ -208,21 +209,52 @@ describe("malicious data", () => {
     assert.throws(() => deserialize(StringMapCodec, bytes), NinoError);
   });
 
-  it("reads random bytes without anything but a NinoError", () => {
-    let seed = 12345;
-    const random = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) & 0xff;
-    const valid = serialize(ItemCodec, item());
-    for (let i = 0; i < 3000; i++) {
-      // Random data, or valid data with a few bytes changed.
-      const data = i % 2 === 0 ? Uint8Array.from({ length: random() }, random) : valid.slice();
-      if (i % 2 === 1) for (let k = 0; k < 4; k++) data[random() % data.length] = random();
-      for (const codec of [ItemCodec, ChainCodec] as NinoCodec<unknown>[]) {
+  // Property tests (fast-check): random bytes, and valid data with bytes changed, inserted or cut out.
+  const valid = serialize(ItemCodec, item()), chainBytes = serialize(ChainCodec, chain(200));
+  const mutated = (bytes: Uint8Array) => fc.tuple(
+    fc.array(fc.tuple(fc.nat(), fc.integer({ min: 0, max: 255 })), { minLength: 1, maxLength: 8 }),
+    fc.option(fc.tuple(fc.nat(), fc.uint8Array({ maxLength: 8 }))),
+    fc.option(fc.tuple(fc.nat(), fc.nat({ max: 16 }))),
+  ).map(([changes, insert, cut]) => {
+    let data = bytes.slice();
+    for (const [at, value] of changes) data[at % data.length] = value;
+    if (insert !== null) {
+      const at = insert[0] % (data.length + 1);
+      data = Uint8Array.from([...data.subarray(0, at), ...insert[1], ...data.subarray(at)]);
+    }
+    if (cut !== null) {
+      const at = cut[0] % (data.length + 1);
+      data = Uint8Array.from([...data.subarray(0, at), ...data.subarray(at + cut[1])]);
+    }
+    return data;
+  });
+  const inputs = fc.oneof(fc.uint8Array({ maxLength: 300 }), mutated(valid), mutated(chainBytes));
+  const codecs = [ItemCodec, ChainCodec] as NinoCodec<unknown>[];
+
+  it("reads random and mutated bytes without anything but a NinoError", () => {
+    fc.assert(fc.property(inputs, (data) => {
+      for (const codec of codecs) {
         try {
           deserialize(codec, data);
         } catch (e) {
-          assert.ok(e instanceof NinoError, `${(e as Error).name}: ${(e as Error).message}`);
+          if (!(e instanceof NinoError)) throw e;
         }
       }
-    }
+    }), { numRuns: 3000 });
+  });
+
+  it("writes back whatever it accepts, and reads that to the same value", () => {
+    fc.assert(fc.property(inputs, (data) => {
+      for (const codec of codecs) {
+        let value: unknown;
+        try {
+          value = deserialize(codec, data);
+        } catch (e) {
+          if (e instanceof NinoError) continue;
+          throw e;
+        }
+        assert.deepEqual(deserializeExact(codec, serialize(codec, value)), value);
+      }
+    }), { numRuns: 3000 });
   });
 });

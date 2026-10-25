@@ -58,10 +58,12 @@ defaults:
 jobs:
   # The crate's only unsafe code (runtimes/rust/src/simd.rs: the string writer's transcoding and the reader's text
   # decoding) under Miri: its tests compare every block kind a target has, and the decoders, with plain ones. Miri
-  # interprets each target here: x86_64 with SSE2 only (SSE2 and words), SSSE3 (the pair steps) and SSE4.1 (the
-  # one-pass writer), little-endian Arm64 (NEON) and big-endian s390x (words).
+  # interprets each target here: x86_64 with SSE2 only (SSE2 and words), SSSE3 (the pair steps), SSE4.1 (the one-pass
+  # writer and the decoders), AVX2 and AVX-512 (their kernels; Miri lacks vpcompressb/w and pdep, which those kernels
+  # replace with plain loops under cfg(miri)), little-endian Arm64 (NEON) and big-endian s390x (words). The tests run
+  # every kernel the target's features allow, so each row checks its tier and those below it.
   # The tests take fewer cases under Miri (cfg(miri)). Each target is a runner of its own: one after the other, the
-  # four targets took over twenty minutes. Miri runs on one thread, so each runner runs the module's tests as two
+  # targets took over twenty minutes. Miri runs on one thread, so each runner runs the module's tests as two
   # processes side by side: every_class_at_every_position, and every simd test but that one (so a test added to the
   # module runs there). Two, not more: the runners' four vCPUs are two cores.
   rust-miri:
@@ -80,6 +82,8 @@ jobs:
           - { name: big-endian s390x, triple: s390x-unknown-linux-gnu, rustflags: '' }
           - { name: x86_64 SSE4.1, triple: x86_64-unknown-linux-gnu, rustflags: '-C target-feature=+ssse3,+sse4.1,+popcnt' }
           - { name: x86_64 SSE2, triple: x86_64-unknown-linux-gnu, rustflags: '' }
+          - { name: x86_64 AVX2, triple: x86_64-unknown-linux-gnu, rustflags: '-C target-feature=+ssse3,+sse4.1,+popcnt,+avx2,+bmi1,+bmi2,+lzcnt' }
+          - { name: x86_64 AVX-512, triple: x86_64-unknown-linux-gnu, rustflags: '-C target-feature=+ssse3,+sse4.1,+popcnt,+avx2,+bmi1,+bmi2,+lzcnt,+avx512f,+avx512bw,+avx512vl,+avx512vbmi2' }
     env:
       RUSTFLAGS: ${{ matrix.target.rustflags }}
       TRIPLE: ${{ matrix.target.triple }}
