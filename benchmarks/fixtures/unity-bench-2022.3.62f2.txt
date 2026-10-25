@@ -1,0 +1,6 @@
+[Licensing::Client] unrelated line
+NINO_UNITY_BUILD|unity=2022.3.62f2|target=StandaloneLinux64|backend=IL2CPP|il2cpp_config=Release|il2cpp_codegen=OptimizeSpeed|stripping=Minimal|development=false|burst=1.8.29
+2026-10-25T10:00:00Z NINO_UNITY_ENV|unity=2022.3.62f2|backend=IL2CPP|development=false|isa=SSSE3|cpu=AMD EPYC 7763 64-Core Processor|cores=4|os=Linux 7.0 Ubuntu 22.04 64bit|family=Linux|arch=X64|rounds=31|batch_ms=10
+NINO_UNITY_BENCH|(int, long)[100000]|Serialize|100000|8163310.0|612000.5
+NINO_UNITY_BENCH|broken|Serialize|x|1|2
+NINO_UNITY_CI|nino_core=Release|runner=ubuntu-26.04

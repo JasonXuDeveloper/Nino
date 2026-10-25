@@ -60,6 +60,16 @@ benchmark fails is left out without touching the rest. The same three run on an 
 benchmark** (`runtimes_report.py --arch arm64`: the same tables; no Arm64 heading contains an x64 one, which the docs
 site finds by its first occurrence).
 
+The last section, **🎮 Unity benchmark (Burst, IL2CPP)**, times Nino in a Unity IL2CPP player without and with the
+Burst kernels (`Nino.Burst`), for each Unity version `unity.yml` tests: `report.yml` calls `unity.yml` with
+`benchmark: true` for the tag, which builds the test player without the Development flag
+(`Test.Editor.Burst.BenchmarkPlayerBuild`, from `-ninoBenchmark`) with `Test.Runtime.Burst.BurstBenchmark` in it. The
+player logs one `NINO_UNITY_BENCH|case|operation|n|ns without|ns with` line per case and a `NINO_UNITY_ENV` line, the
+editor a `NINO_UNITY_BUILD` line (IL2CPP's settings, the Burst version), and
+[`unity_report.py`](unity_report.py) turns them into a line per Unity version naming the player and the machine and a
+table per version (tested by `test_unity_report.py` on `fixtures/unity-bench-*.txt`). It waits for the Unity
+license's seat like every Unity run, and a failure leaves only this section out (the run shows it as failed).
+
 The README numbers and chart (`docs/assets/benchmark.svg` and `.png`) and the runtime tables of
 `docs/v4-benchmarks.md` follow the newest v4 release too: for that release, `report.yml` runs
 [`readme.py`](readme.py) on its reports, which rewrites everything between the `<!--bench:...-->` markers of

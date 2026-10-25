@@ -1,0 +1,2 @@
+NINO_UNITY_BUILD|unity=2022.3.62f2|backend=IL2CPP|il2cpp_config=Release|development=false|burst=1.8.29
+NINO_UNITY_CI|nino_core=Release|runner=ubuntu-26.04
