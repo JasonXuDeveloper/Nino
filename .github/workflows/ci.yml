@@ -454,7 +454,10 @@ jobs:
   # or if the shards of a unit test configuration together did not run the whole suite.
   build-test:
     name: Build and Test
-    runs-on: ubuntu-26.04
+    # It only reads the results (Python 3 and the artifacts): any Ubuntu does. Not ubuntu-26.04, whose runners the
+    # jobs above had just taken: this job waited 45 and 82 s for one in two of four runs, at the end of every run's
+    # critical path, while every job before it had started within seconds.
+    runs-on: ubuntu-24.04
     needs: [ unit-tests, integrations, runtime-tests ]
     # Not when the run itself was cancelled (a newer push supersedes it): its cancelled jobs are not failures.
     if: ${{ !cancelled() }}
