@@ -144,6 +144,8 @@ type readContext struct {
 	topActive   bool
 	// Open struct bodies counted by EnterStruct.
 	structs int32
+	// The objects of tracked types read so far, in order (refs.go).
+	refs []any
 }
 
 func (c *readContext) reset() {
@@ -151,6 +153,10 @@ func (c *readContext) reset() {
 	c.region.clear()
 	c.topActive = false
 	c.structs = 0
+	if c.refs != nil {
+		clear(c.refs)
+		c.refs = c.refs[:0]
+	}
 }
 
 func (r *Reader) context() *readContext {
@@ -384,6 +390,8 @@ type writeContext struct {
 	currentGen             int
 	// Open struct bodies counted by EnterStruct.
 	structs int32
+	// The number of each object of a tracked type written so far (refs.go).
+	refs map[any]int32
 }
 
 func (c *writeContext) reset() {
@@ -392,6 +400,7 @@ func (c *writeContext) reset() {
 	c.topActive = false
 	c.current, c.currentAnchor, c.currentGen = nil, nil, 0
 	c.structs = 0
+	clear(c.refs)
 }
 
 func (w *Writer) context() *writeContext {

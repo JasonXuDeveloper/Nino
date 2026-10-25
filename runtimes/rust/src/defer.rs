@@ -21,6 +21,7 @@ use std::rc::Rc;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::reader::{take_i32, Reader, Region, DEPTH_INLINE};
+use crate::shared::Shared;
 use crate::traits::{NinoReadBody, NinoWriteBody};
 use crate::writer::Writer;
 
@@ -61,6 +62,11 @@ struct Pending {
     item: Option<Box<dyn Any>>,
     records: (usize, usize),
     log: (usize, usize),
+    /// A tracked object's body read in place while bodies inside it were deferred (`hold`): it waits here, with
+    /// the steps logged inside it, until those are put in place, then goes into its [`crate::Shared`].
+    own: Option<Vec<Trail>>,
+    /// Put in place (by the walk of the held body it is inside).
+    done: bool,
 }
 
 /// One container's step for the deferrals `lo..hi` made inside it.
@@ -77,6 +83,8 @@ pub(crate) struct ReadDeferrals {
     pending: Vec<Pending>,
     log: Vec<Trail>,
     top_active: bool,
+    /// The objects of tracked types read so far, in order: a back reference `n` is `refs[n - 1]` (shared.rs).
+    pub(crate) refs: Vec<Rc<dyn Any>>,
 }
 
 fn read_deferred<T: NinoReadBody>(r: &mut Reader<'_>) -> Result<Box<dyn Any>> {
@@ -89,6 +97,12 @@ fn attach<T: NinoReadBody>(slot: &mut dyn Any, item: Box<dyn Any>) -> Result<()>
     let slot = slot.downcast_mut::<T>().ok_or_else(misplaced)?;
     *slot = *item.downcast::<T>().map_err(|_| misplaced())?;
     Ok(())
+}
+
+/// Puts a tracked object's body into its [`Shared`], which was created (and maybe referred to) before.
+fn attach_shared<T: NinoReadBody>(slot: &mut dyn Any, item: Box<dyn Any>) -> Result<()> {
+    let slot = slot.downcast_mut::<Shared<T>>().ok_or_else(misplaced)?;
+    slot.fill(*item.downcast::<T>().map_err(|_| misplaced())?).map_err(|_| misplaced())
 }
 
 /// A step that does not lead where it was recorded: a bug, reported rather than a panic.
@@ -107,14 +121,82 @@ impl ReadDeferrals {
     }
 
     pub(crate) fn defer<T: NinoReadBody>(&mut self, position: usize, _regions: u32) {
+        self.defer_with(position, read_deferred::<T>, attach::<T>);
+    }
+
+    fn defer_with(&mut self, position: usize, read: ReadFn, attach: AttachFn) {
         self.pending.push(Pending {
             position,
-            read: read_deferred::<T>,
-            attach: attach::<T>,
+            read,
+            attach,
             item: None,
             records: (0, 0),
             log: (0, 0),
+            own: None,
+            done: false,
         });
+    }
+
+    /// Defers the body of a tracked object: read later into its [`Shared`] (the placeholder), which exists now.
+    pub(crate) fn defer_shared<T: NinoReadBody>(&mut self, position: usize) {
+        self.defer_with(position, read_deferred::<T>, attach_shared::<T>);
+    }
+
+    /// The steps logged so far.
+    pub(crate) fn log_mark(&self) -> usize {
+        self.log.len()
+    }
+
+    /// A tracked object's body was read in place, at deferral mark `mark` and log mark `log_mark`, and bodies inside
+    /// it were deferred (`pending_len() > mark`): its value waits in the queue, before them, until they are put into
+    /// it; then it goes into its [`Shared`]. The steps logged inside it move with it, so the walks from outside it
+    /// stop at the `Shared` (which they cannot see into).
+    pub(crate) fn hold<T: NinoReadBody>(
+        &mut self,
+        position: usize,
+        mark: usize,
+        log_mark: usize,
+        value: T,
+    ) -> Result<()> {
+        if mark > self.pending.len() || log_mark > self.log.len() {
+            return Err(misplaced());
+        }
+        let mut own = self.log.split_off(log_mark);
+        // Every step logged inside the body covers deferrals made inside it, which move one place down.
+        for t in &mut own {
+            t.lo = t.lo.checked_add(1).ok_or_else(misplaced)?;
+            t.hi = t.hi.checked_add(1).ok_or_else(misplaced)?;
+        }
+        // So do the bodies held inside it, and what they hold.
+        for p in self.pending.get_mut(mark..).into_iter().flatten() {
+            if let Some(held) = &mut p.own {
+                p.records = (
+                    p.records.0.checked_add(1).ok_or_else(misplaced)?,
+                    p.records.1.checked_add(1).ok_or_else(misplaced)?,
+                );
+                for t in held {
+                    t.lo = t.lo.checked_add(1).ok_or_else(misplaced)?;
+                    t.hi = t.hi.checked_add(1).ok_or_else(misplaced)?;
+                }
+            }
+        }
+        let end = self.pending.len().checked_add(1).ok_or_else(misplaced)?;
+        let first = mark.checked_add(1).ok_or_else(misplaced)?;
+        let log = (log_mark, log_mark.checked_add(own.len()).ok_or_else(misplaced)?);
+        self.pending.insert(
+            mark,
+            Pending {
+                position,
+                read: read_deferred::<T>,
+                attach: attach_shared::<T>,
+                item: Some(Box::new(value)),
+                records: (first, end),
+                log,
+                own: Some(own),
+                done: false,
+            },
+        );
+        Ok(())
     }
 
     #[inline]
@@ -168,6 +250,11 @@ pub(crate) fn flush_top<O: Any>(r: &mut Reader<'_>, owner: &mut O) -> Result<()>
         if !more {
             break Ok(());
         }
+        // A held body (a tracked object read in place) is read already.
+        if r.defer.as_deref().and_then(|d| d.pending.get(i)).is_some_and(|p| p.own.is_some()) {
+            i = i.saturating_add(1);
+            continue;
+        }
         if let Err(e) = read_item(r, i, |r, body| {
             r.depth = 1;
             body(r)
@@ -199,7 +286,14 @@ pub(crate) fn end_outer_region<'d, O: Any>(r: &mut Reader<'d>, region: Region<'d
     }
     let depth = section_depth(r.depth);
     let mut i = start;
-    while let Some(position) = r.defer.as_deref().and_then(|d| d.pending.get(i)).map(|p| p.position) {
+    while let Some((position, held)) =
+        r.defer.as_deref().and_then(|d| d.pending.get(i)).map(|p| (p.position, p.own.is_some()))
+    {
+        // A held body (a tracked object read in place) has no entry in the section.
+        if held {
+            i = i.saturating_add(1);
+            continue;
+        }
         loop {
             let key = take_i32(&mut section)?;
             let length = take_i32(&mut section)?;
@@ -242,12 +336,23 @@ fn put_in_place<O: Any>(
     // Last first: what was deferred inside a body comes after it in the queue, and goes into it before it moves.
     for i in (0..pending.len()).rev() {
         let Some(p) = pending.get_mut(i) else { return Err(misplaced()) };
+        if p.done {
+            continue;
+        }
         let Some(mut value) = p.item.take() else { return Err(misplaced()) };
-        let (records, log) = (p.records, p.log);
+        let (records, log, own) = (p.records, p.log, p.own.take());
         let mut cursor = log.1;
-        walk(&mut *value, &trails, &base, &mut cursor, log.0, records.0, records.1, &mut pending)?;
+        match &own {
+            // A held body's steps were moved out of the log: they are numbered from its log mark.
+            Some(own) => {
+                let base = Base { records: start, log: log.0 };
+                walk(&mut *value, own, &base, &mut cursor, log.0, records.0, records.1, &mut pending)?
+            }
+            None => walk(&mut *value, &trails, &base, &mut cursor, log.0, records.0, records.1, &mut pending)?,
+        }
         if let Some(p) = pending.get_mut(i) {
             p.item = Some(value);
+            p.own = own;
         }
     }
     let mut cursor = log;
@@ -286,8 +391,13 @@ fn walk(
         for record in (leaves_from..end).rev() {
             let index = record.checked_sub(base.records).ok_or_else(misplaced)?;
             let p = pending.get_mut(index).ok_or_else(misplaced)?;
+            // Inside a held body, and put into it by its walk.
+            if p.done {
+                continue;
+            }
             let item = p.item.take().ok_or_else(misplaced)?;
             (p.attach)(&mut *value, item)?;
+            p.done = true;
         }
         let Some(trail) = child else { return Ok(()) };
         *cursor = cursor.saturating_sub(1);
@@ -314,6 +424,8 @@ pub(crate) struct WriteItem<'a> {
 
 #[derive(Default)]
 pub(crate) struct WriteDeferrals<'a> {
+    /// The number of each object of a tracked type written so far, by address (shared.rs).
+    pub(crate) refs: std::collections::HashMap<usize, i32>,
     top: Vec<WriteItem<'a>>,
     region: Vec<WriteItem<'a>>,
     top_active: bool,

@@ -407,7 +407,7 @@ fn expand_struct(
         if l.track {
             return Err(Error::new(
                 opts.layout.as_ref().map_or(Span::call_site(), |s| s.span()),
-                "reference tracking (trackReferences=true) is not supported by this runtime",
+                "reference tracking (trackReferences=true) is not supported by the derive: use the code nino-gen writes (nino::Shared)",
             ));
         }
     }

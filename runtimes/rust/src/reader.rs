@@ -34,7 +34,7 @@ pub struct Reader<'d> {
     /// Open regions.
     pub(crate) regions: u32,
     /// Open bodies of structs that can hold themselves ([`Reader::enter_struct`]).
-    structs: u32,
+    pub(crate) structs: u32,
     /// Deferred bodies, created on the first deferral.
     pub(crate) defer: Option<Box<ReadDeferrals>>,
     /// Bytes of memory collections may still allocate before reading their elements ([`Reader::capacity`]).

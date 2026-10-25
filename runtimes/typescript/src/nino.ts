@@ -467,6 +467,8 @@ export class NinoReader {
   // Where the outermost region ends when a section of deferred bodies follows its members (only the outermost region
   // holds one), else 0.
   private sectionEnd = 0;
+  // Reference tracking: the objects of tracked types read so far, in the order of their headers (made on the first).
+  private refs: unknown[] | null = null;
 
   constructor(data: Uint8Array) {
     this.data = data;
@@ -482,6 +484,7 @@ export class NinoReader {
     this.text = "";
     this.textSize = 256;
     this.deferrals = null;
+    this.refs = null;
   }
 
   /** Moves past `size` bytes: returns where they start. */
@@ -805,6 +808,64 @@ export class NinoReader {
   /** Generated code: closes a body opened by `enterStruct`. */
   exitStruct(): void { this.structs--; }
 
+  /**
+   * Generated code: a reference header (wire-format spec §7.9): -1 for a new object, which the caller reads (and
+   * records with `track` as soon as it exists), 0 for null, or n > 0 for the n-th object read before.
+   */
+  ref(): number {
+    const header = this.i32();
+    if (header < -1 || header > (this.refs?.length ?? 0)) throw new NinoError(`invalid object reference ${header}.`);
+    return header;
+  }
+
+  /** Generated code: the n-th object read (`ref`), which must be a `type`. */
+  backRef<T>(index: number, type: abstract new (...args: never[]) => T): T {
+    const value = this.refs![index - 1];
+    if (!(value instanceof type)) throw new NinoError(`object reference ${index} is not a ${type.name}.`);
+    return value;
+  }
+
+  /** Generated code: the n-th object read (`ref`), which must be one of `types` (those an interface allows). */
+  backRefOf<T>(index: number, types: readonly (abstract new (...args: never[]) => unknown)[]): T {
+    const value = this.refs![index - 1];
+    if (!types.some((type) => value instanceof type)) throw new NinoError(`object reference ${index} is not a type allowed here.`);
+    return value as T;
+  }
+
+  /**
+   * Generated code: the elements of a [NinoType] collection, which are never null (the collection is the object
+   * holding them).
+   */
+  elements<T>(value: T | null): T {
+    if (value === null) throw new NinoError("a [NinoType] collection's elements are null.");
+    return value;
+  }
+
+  /**
+   * Generated code: records a new object of a tracked type when it is created, before its members are read: later
+   * references to it (from inside it, too) are back references.
+   */
+  track(value: unknown): void {
+    (this.refs ??= []).push(value);
+  }
+
+  /** Generated code: a tracked sealed class, its reference header then its body when new; null, or an earlier object. */
+  tracked<T>(type: abstract new (...args: never[]) => T, read: (reader: NinoReader) => T): T | null {
+    const header = this.ref();
+    return header === -1 ? read(this) : header === 0 ? null : this.backRef(header, type);
+  }
+
+  /**
+   * Generated code: a tracked object behind a type id its declared type (`object`, a base or interface not tracked)
+   * does not track: its reference header, then its body when new. A null object is a type id of 0, never a header
+   * of 0 here.
+   */
+  trackedOf<T>(type: abstract new (...args: never[]) => T, read: (reader: NinoReader) => T): T {
+    const header = this.ref();
+    if (header === 0) throw new NinoError("a null object reference after a type id.");
+    return header === -1 ? read(this) : this.backRef(header, type);
+  }
+
   /** Every body is closed: reads the bodies deferred outside regions, in order, each from depth 1. */
   private readTop(): void {
     const d = this.deferrals!;
@@ -882,6 +943,8 @@ export class NinoWriter {
   private deferrals: NinoDeferrals<NinoWriter> | null = null;
   // The size of the last value `detach` returned.
   private last = 0;
+  // Reference tracking: the number of each object of a tracked type written so far (made on the first).
+  private refs: Map<object, number> | null = null;
 
   /** Moves past `size` bytes, growing the buffer if needed: returns where they start. */
   reserve(size: number): number {
@@ -933,6 +996,7 @@ export class NinoWriter {
     // A value that failed may have left bodies open.
     this.depth = this.regions = this.structs = 0;
     this.deferrals = null;
+    this.refs = null;
   }
 
   /** The value started by `next`, as a view of the buffer, which the writer does not write to again. */
@@ -1265,6 +1329,26 @@ export class NinoWriter {
 
   /** Generated code: closes a body opened by `enterStruct`. */
   exitStruct(): void { this.structs--; }
+
+  /**
+   * Generated code: the reference header of an object of a tracked type (wire-format spec §7.9): 0 for null, its
+   * number for an object written before, or -1 for a new one: then it returns true, and the caller writes its body.
+   */
+  ref<T extends object>(value: T | null | undefined): value is T {
+    if (value === null || value === undefined) {
+      this.i32(0);
+      return false;
+    }
+    const refs = this.refs ??= new Map();
+    const index = refs.get(value);
+    if (index !== undefined) {
+      this.i32(index);
+      return false;
+    }
+    refs.set(value, refs.size + 1);
+    this.i32(-1);
+    return true;
+  }
 
   /** Every body is closed and no region is open: writes the bodies deferred outside regions, in order. */
   private writeTop(): void {
