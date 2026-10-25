@@ -67,6 +67,9 @@ env:
   LIBFUZZER_SECONDS: ${{ github.event_name == 'schedule' && '240' || inputs.libfuzzer_seconds || '10' }}
 
 jobs:
+  # Each fuzzer runs on one core (a supervisor and one worker process at a time), so an x64 runner (four vCPUs, two
+  # cores) fuzzes two SIMD levels side by side, each with the whole budget: half the runners, the same inputs per
+  # configuration. Every vector path has a scalar twin; each SIMD level is its own code path to fuzz.
   mutational:
     name: Mutational (${{ matrix.name }})
     runs-on: ${{ matrix.runner || 'ubuntu-26.04' }}
@@ -75,22 +78,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: SIMD
-          # Every vector path has a scalar twin; each SIMD level is its own code path to fuzz.
-          - name: without SIMD
-            simd: '0'
-          - name: without AVX-512
-            avx512: '0'
-          - name: without AVX2
-            avx2: '0'
-          - name: Arm64
+          # <name>:<DOTNET_EnableHWIntrinsic>:<DOTNET_EnableAVX512>:<DOTNET_EnableAVX2>, one per process.
+          - id: x64-1
+            name: SIMD, without SIMD
+            configs: SIMD:1:1:1 without-SIMD:0:1:1
+          - id: x64-2
+            name: without AVX-512, without AVX2
+            configs: without-AVX-512:1:0:1 without-AVX2:1:1:0
+          - id: arm64
+            name: Arm64
             runner: ubuntu-26.04-arm
-    env:
-      DOTNET_EnableHWIntrinsic: ${{ matrix.simd || '1' }}
-      DOTNET_EnableAVX512: ${{ matrix.avx512 || '1' }}
-      DOTNET_EnableAVX2: ${{ matrix.avx2 || '1' }}
+            configs: Arm64:1:1:1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -110,38 +112,66 @@ jobs:
         run: dotnet build tests/Nino.Fuzz/Nino.Fuzz.csproj -c Release -f net10.0
 
       # The fuzzer must find the crashes, hang and exception planted in its SelfTest target, or it would report
-      # nothing on a platform where its supervisor or guard pages do not work.
-      - name: Self test
-        run: dotnet tests/Nino.Fuzz/bin/Release/net10.0/Nino.Fuzz.dll selftest
-
-      - name: Fuzz
-        run: >
-          dotnet tests/Nino.Fuzz/bin/Release/net10.0/Nino.Fuzz.dll fuzz
-          --seconds "$SECONDS_BUDGET" --seed "${{ github.run_number }}"
-          --findings "${{ runner.temp }}/findings"
+      # nothing on a platform where its supervisor or guard pages do not work. Then each configuration fuzzes;
+      # its output is printed when all have ended.
+      - name: Self test and fuzz
+        env:
+          CONFIGS: ${{ matrix.configs }}
+          FINDINGS: ${{ runner.temp }}/findings
+          SEED: ${{ github.run_number }}
+        run: |
+          set -uo pipefail
+          fuzz() {
+            local name=$1
+            DOTNET_EnableHWIntrinsic=$2 DOTNET_EnableAVX512=$3 DOTNET_EnableAVX2=$4 bash -c '
+              set -eo pipefail
+              dll=tests/Nino.Fuzz/bin/Release/net10.0/Nino.Fuzz.dll
+              dotnet "$dll" selftest
+              dotnet "$dll" fuzz --seconds "$SECONDS_BUDGET" --seed "$SEED" --findings "$FINDINGS/$1"' _ "$name"
+          }
+          declare -A pid
+          for config in $CONFIGS; do
+            IFS=: read -r name simd avx512 avx2 <<< "$config"
+            fuzz "$name" "$simd" "$avx512" "$avx2" > "$RUNNER_TEMP/$name.txt" 2>&1 & pid[$name]=$!
+          done
+          status=0
+          for config in $CONFIGS; do
+            name=${config%%:*}
+            if ! wait "${pid[$name]}"; then status=1; echo "::error::$name failed (its output below)"; fi
+          done
+          for config in $CONFIGS; do
+            name=${config%%:*}
+            echo "::group::$name"; cat "$RUNNER_TEMP/$name.txt"; echo "::endgroup::"
+          done
+          exit $status
 
       - name: Upload findings
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: fuzz-findings-${{ matrix.name }}
+          name: fuzz-findings-${{ matrix.id }}
           path: ${{ runner.temp }}/findings
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 30
 
-  # The targets split over three runners (target i on shard i mod 3): libFuzzer runs one target at a time, so one
-  # runner took the sum of every target's time (an hour at night).
+  # The targets split over runners (target i on shard i mod n): libFuzzer runs one target at a time, so one runner
+  # takes the sum of every target's time. Three at night and by hand (an hour on one runner), two on pushes and
+  # pull requests (ten seconds a target: the build is a third of the time).
   libfuzzer:
-    name: libFuzzer (SharpFuzz, ${{ matrix.shard }}/3)
+    name: libFuzzer (SharpFuzz, ${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-26.04
     timeout-minutes: ${{ github.event_name == 'pull_request' && 30 || 120 }}
     strategy:
       fail-fast: false
       matrix:
-        shard: [ 1, 2, 3 ]
+        shard: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '[1, 2, 3]' || '[1, 2]') }}
+    env:
+      LIBFUZZER_SHARDS: ${{ strategy.job-total }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -175,7 +205,7 @@ jobs:
           mapfile -t all < <(dotnet tests/Nino.Fuzz/bin/Release/net10.0/Nino.Fuzz.dll targets)
           mine=()
           for i in "${!all[@]}"; do
-            if (( i % 3 == SHARD - 1 )); then mine+=("${all[i]}"); fi
+            if (( i % LIBFUZZER_SHARDS == SHARD - 1 )); then mine+=("${all[i]}"); fi
           done
           echo "targets: ${#all[@]}, this shard: ${mine[*]}"
           (( ${#all[@]} > 0 ))

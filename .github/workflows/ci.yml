@@ -52,10 +52,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Set global defaults
+# Bash everywhere, Windows included: GitHub runs it with -e and -o pipefail, so a command piped into tee or grep
+# fails its step when it fails.
 defaults:
   run:
-    working-directory: .
+    shell: bash
 
 # The .NET CLI's banner, telemetry and first-run setup are noise and time in CI.
 env:
@@ -64,20 +65,19 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
 
 jobs:
-  # Every configuration runs the whole unit test suite, split over three runners (shards) that run side by side:
-  # the ShapeMatrix rows compile some 70 shapes each and take two thirds of the suite's time, so each half of them is
-  # a shard, and everything else the third. Each shard builds what it tests (building is under a minute, a shared
-  # build would cost more to upload and download). The shards' filters are complements of each other, each shard
-  # checks it ran every test its filter lists, and "Build and Test" checks that the shards of each configuration
-  # together ran every test of the suite (.github/scripts/test_shards.py).
+  # Every configuration runs the whole unit test suite in three shards, side by side on one runner: the ShapeMatrix
+  # rows compile some 70 shapes each and take two thirds of the suite's time, so each half of them is a shard, and
+  # everything else the third. A shard takes about one and a half of the runner's four vCPUs (Roslyn), so the three
+  # together take about as long as the longest alone did on a runner of its own, without a runner (and a build) per
+  # shard: those 27 runners took most of the account's 40 concurrent jobs, and the other workflows' jobs waited behind
+  # them. Each shard runs its own copy of the build output (the coverage collector instruments the assemblies in
+  # place). The shards' filters are complements of each other, each shard checks it ran every test its filter lists,
+  # and "Build and Test" checks that the shards of each configuration together ran every test of the suite
+  # (.github/scripts/test_shards.py).
   unit-tests:
-    name: Unit tests (${{ matrix.config.name }}, ${{ matrix.shard.name }})
+    name: Unit tests (${{ matrix.config.name }})
     runs-on: ${{ matrix.config.runner || 'ubuntu-26.04' }}
     timeout-minutes: 30
-    defaults:
-      run:
-        # Bash on Windows too: the shard filters and the checks below are written once.
-        shell: bash
     strategy:
       fail-fast: false
       matrix:
@@ -127,27 +127,20 @@ jobs:
             name: net10.0 on Windows
             runner: windows-latest
             framework: net10.0
-        # MSTest filters (VSTest syntax, parentheses escaped). b and c split ShapeMatrixTests' rows; c is the
-        # complement of b, so a row added to the matrix lands in c, and a is the complement of both.
-        shard:
-          - id: a
-            name: all but ShapeMatrix
-            filter: FullyQualifiedName!~ShapeMatrixTests
-          - id: b
-            name: ShapeMatrix rows 0-7
-            filter: >-
-              FullyQualifiedName~ShapeMatrixTests&(Name~\(0\)|Name~\(1\)|Name~\(2\)|Name~\(3\)|Name~\(4\)|Name~\(5\)|Name~\(6\)|Name~\(7\))
-          - id: c
-            name: ShapeMatrix rows 8+
-            filter: >-
-              FullyQualifiedName~ShapeMatrixTests&Name!~\(0\)&Name!~\(1\)&Name!~\(2\)&Name!~\(3\)&Name!~\(4\)&Name!~\(5\)&Name!~\(6\)&Name!~\(7\)
     env:
       PROJECT: tests/Nino.UnitTests/Nino.UnitTests.csproj
+      CONFIG: ${{ matrix.config.id }}
       FRAMEWORK: ${{ matrix.config.framework }}
       PROPERTIES: ${{ matrix.config.properties }}
-      FILTER: ${{ matrix.shard.filter }}
       # Relative to the workspace: Git Bash on Windows and dotnet agree on it.
       RESULTS: TestResults
+      # MSTest filters (VSTest syntax, parentheses escaped). b and c split ShapeMatrixTests' rows; c is the complement
+      # of b, so a row added to the matrix lands in c, and a is the complement of both.
+      FILTER_A: FullyQualifiedName!~ShapeMatrixTests
+      FILTER_B: >-
+        FullyQualifiedName~ShapeMatrixTests&(Name~\(0\)|Name~\(1\)|Name~\(2\)|Name~\(3\)|Name~\(4\)|Name~\(5\)|Name~\(6\)|Name~\(7\))
+      FILTER_C: >-
+        FullyQualifiedName~ShapeMatrixTests&Name!~\(0\)&Name!~\(1\)&Name!~\(2\)&Name!~\(3\)&Name!~\(4\)&Name!~\(5\)&Name!~\(6\)&Name!~\(7\)
 
     steps:
       - name: Checkout code
@@ -172,11 +165,18 @@ jobs:
             nuget-${{ runner.os }}-${{ runner.arch }}-unit-
             nuget-${{ runner.os }}-${{ runner.arch }}-
 
+      # The build, and a copy of its output per shard next to it (tests find the repository by walking up from it).
       - name: Build
         run: |
           read -ra props <<< "$PROPERTIES"
           dotnet build "$PROJECT" -c Debug -f "$FRAMEWORK" "${props[@]}"
+          out=$(dirname "$PROJECT")/bin/Debug
+          for shard in a b c; do cp -R "$out/$FRAMEWORK" "$out/shard-$shard"; done
 
+      # Each shard writes its results to $RESULTS/test-results-unit-<config>-<shard> (the layout test_shards.py reads)
+      # and its output to a file, printed when all three have ended. Then each checks it ran every test its filter
+      # selects (and some); shard a also writes the list of the whole suite, which "Build and Test" compares with what
+      # the three shards ran.
       - name: Test
         env:
           DOTNET_EnableAVX512: ${{ matrix.config.avx512 || '1' }}
@@ -184,26 +184,36 @@ jobs:
           DOTNET_EnableHWIntrinsic: ${{ matrix.config.simd || '1' }}
           COVERAGE: ${{ matrix.config.coverage && '--collect:XPlat Code Coverage' || '' }}
         run: |
-          read -ra props <<< "$PROPERTIES"
-          dotnet test "$PROJECT" --no-build -c Debug -f "$FRAMEWORK" "${props[@]}" --filter "$FILTER" \
-            --logger "trx;LogFileName=unit.trx" --results-directory "$RESULTS" ${COVERAGE:+"$COVERAGE"}
-
-      # The shard ran every test its filter selects (and some); on shard a, the list of the whole suite, which
-      # "Build and Test" compares with what the three shards ran.
-      - name: Check the shard ran its tests
-        run: |
-          set -euo pipefail
-          read -ra props <<< "$PROPERTIES"
-          listed=$(dotnet test "$PROJECT" --no-build -c Debug -f "$FRAMEWORK" "${props[@]}" --list-tests --filter "$FILTER" | grep -c '^    ' || true)
-          ran=$(grep -o '<UnitTestResult ' "$RESULTS/unit.trx" | wc -l)
-          echo "listed $listed, ran $ran"
-          if (( listed == 0 || ran != listed )); then
-            echo "::error::shard ${{ matrix.shard.id }} ran $ran tests, its filter lists $listed"
-            exit 1
-          fi
-          if [[ "${{ matrix.shard.id }}" == a ]]; then
-            dotnet test "$PROJECT" --no-build -c Debug -f "$FRAMEWORK" "${props[@]}" --list-tests > "$RESULTS/suite.txt"
-          fi
+          set -uo pipefail
+          out=$(dirname "$PROJECT")/bin/Debug
+          shard() {
+            local id=$1 filter=$2
+            local dll="$out/shard-$id/Nino.UnitTests.dll" dir="$RESULTS/test-results-unit-$CONFIG-$id"
+            dotnet test "$dll" --filter "$filter" --logger "trx;LogFileName=unit.trx" --results-directory "$dir" \
+              ${COVERAGE:+"$COVERAGE"} || return 1
+            local listed ran
+            listed=$(dotnet test "$dll" --list-tests --filter "$filter" | grep -c '^    ' || true)
+            ran=$(grep -o '<UnitTestResult ' "$dir/unit.trx" | wc -l)
+            echo "shard $id: listed $listed, ran $ran"
+            if (( listed == 0 || ran != listed )); then
+              echo "::error::shard $id ran $ran tests, its filter lists $listed"
+              return 1
+            fi
+            if [[ $id == a ]]; then dotnet test "$dll" --list-tests > "$dir/suite.txt"; fi
+          }
+          mkdir -p "$RESULTS"
+          declare -A pid
+          shard a "$FILTER_A" > "$RESULTS/shard-$CONFIG-a.log" 2>&1 & pid[a]=$!
+          shard b "$FILTER_B" > "$RESULTS/shard-$CONFIG-b.log" 2>&1 & pid[b]=$!
+          shard c "$FILTER_C" > "$RESULTS/shard-$CONFIG-c.log" 2>&1 & pid[c]=$!
+          status=0
+          for id in a b c; do
+            if ! wait "${pid[$id]}"; then status=1; echo "::error::shard $id failed (its output below)"; fi
+          done
+          for id in a b c; do
+            echo "::group::shard $id"; cat "$RESULTS/shard-$CONFIG-$id.log"; echo "::endgroup::"
+          done
+          exit $status
 
       - name: Upload test results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -211,7 +221,7 @@ jobs:
         # A storage timeout is not a test result.
         continue-on-error: true
         with:
-          name: test-results-unit-${{ matrix.config.id }}-${{ matrix.shard.id }}
+          name: test-results-unit-${{ matrix.config.id }}
           path: ${{ env.RESULTS }}
           retention-days: 30
 
@@ -532,6 +542,8 @@ jobs:
         with:
           pattern: test-results-unit-*
           path: unit-results
+          # Each configuration's artifact holds a directory per shard: merged, they sit side by side.
+          merge-multiple: true
 
       - name: Check every test ran
         run: python3 .github/scripts/test_shards.py unit-results
