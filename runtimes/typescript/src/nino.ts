@@ -505,8 +505,7 @@ function decodeShortUtf16(d: Uint8Array, at: number, length: number): string {
 
 /** The text of `length` UTF-16 code units at `at`. */
 function decodeUtf16(data: Uint8Array, at: number, length: number): string {
-  // Node's ucs2Slice costs less from about 16 code units on.
-  if (length <= (nodeText !== null ? 16 : 24)) return decodeShortUtf16(data, at, length);
+  if (length <= 24) return decodeShortUtf16(data, at, length);
   if (nodeText !== null) return nodeText.ucs2Slice.call(data, at, at + 2 * length);
   if (length <= mediumText) {
     codes.length = length;
