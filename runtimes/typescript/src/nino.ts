@@ -113,6 +113,8 @@ const wide = /[^\x00-\xff]/;
 const nonAscii = /[^\x00-\x7f]/;
 /** Milliseconds between 0001-01-01 and 1970-01-01. */
 const unixEpochMilliseconds = 62135596800000;
+/** Milliseconds between 0001-01-01 and 10000-01-01: past `DateTime.MaxValue`. */
+const maxDateMilliseconds = 315537897600000;
 /** The char codes of each byte's high and low hex digit. */
 const hexHigh = Uint8Array.from({ length: 256 }, (_, i) => "0123456789abcdef".charCodeAt(i >> 4));
 const hexLow = Uint8Array.from({ length: 256 }, (_, i) => "0123456789abcdef".charCodeAt(i & 15));
@@ -570,7 +572,10 @@ export class NinoReader {
   dateTimeAt(at: number): Date {
     // ticks / 10000 in exact Number arithmetic (no BigInt): 2^32 = 429496 * 10000 + 7296.
     const lo = this.view.getUint32(at, true), hi = this.view.getUint32(at + 4, true) & 0x3fffffff;
-    return new Date(hi * 429496 + Math.floor((hi * 7296 + lo) / 10000) - unixEpochMilliseconds);
+    const ms = hi * 429496 + Math.floor((hi * 7296 + lo) / 10000);
+    // Ticks past DateTime.MaxValue's (§9.10), as the Go and Rust readers check and the writer requires.
+    if (ms >= maxDateMilliseconds) throw new NinoError("invalid DateTime.");
+    return new Date(ms - unixEpochMilliseconds);
   }
 
   /** `System.Decimal` at `at`, as its exact decimal text. */
@@ -1089,7 +1094,7 @@ export class NinoWriter {
   dateTimeAt(at: number, value: Date): void {
     // (milliseconds since 0001) * 10000 as two 32-bit halves, exact in Number arithmetic (no BigInt).
     const ms = value.getTime() + unixEpochMilliseconds;
-    if (!(ms >= 0 && ms < 315537897600000)) throw new NinoError(`date out of range: ${value.getTime()}.`);
+    if (!(ms >= 0 && ms < maxDateMilliseconds)) throw new NinoError(`date out of range: ${value.getTime()}.`);
     const a = Math.floor(ms / 65536) * 10000, b = (ms % 65536) * 10000;
     const low = (a % 65536) * 65536 + b;
     this.view.setUint32(at, low % 4294967296, true);
