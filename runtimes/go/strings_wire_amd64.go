@@ -2,7 +2,7 @@
 
 package nino
 
-//go:generate go run ./internal/wiregen -out strings_wire_amd64.s
+//go:generate go run ./internal/wiregen
 
 import "unsafe"
 
@@ -46,22 +46,43 @@ func cpuid(eaxArg, ecxArg uint32) (eax, ebx, ecx, edx uint32)
 
 func xgetbv() (eax, edx uint32)
 
-// hasWire tells whether this processor takes the AVX2 path; useWire is it, off in tests that compare the two.
-var hasWire = detectAVX2()
+// The tiers of the vector paths: each needs the instructions of those before it.
+const (
+	tierAVX2   = 2 // AVX2 and POPCNT
+	tierAVX512 = 3 // AVX-512 F, BW, VL and VBMI2 (the reader: VBMI too)
+)
 
-var useWire = hasWire
+// writeTiers and readTiers are the tiers of the string writer's and reader's vector paths this processor has, the
+// best last; writeTier and readTier are the ones taken (0: the Go loops), set otherwise only by tests that compare
+// them.
+var writeTiers, readTiers = detectTiers()
 
-// hasWire512 tells whether this processor takes the AVX-512 path; useWire512 is it, off in tests that compare it
-// with the AVX2 one.
-var hasWire512 = hasWire && detectAVX512()
+var writeTier, readTier = best(writeTiers), best(readTiers)
 
-var useWire512 = hasWire512
+func detectTiers() (write, read []int) {
+	if !detectAVX2() {
+		return nil, nil
+	}
+	write = []int{tierAVX2}
+	if detectAVX512() {
+		write = append(write, tierAVX512)
+		if detectVBMI() {
+			read = append(read, tierAVX512)
+		}
+	}
+	return write, read
+}
 
-// hasRead tells whether the string reader takes its AVX-512 path (which needs VBMI too); useRead is it, off in tests
-// that compare it with the Go loops.
-var hasRead = hasWire512 && detectVBMI()
+// tierName names a tier in tests.
+func tierName(t int) string {
+	return [...]string{"Go", "SSE", "AVX2", "AVX-512"}[t]
+}
 
-var useRead = hasRead
+// hasWire and hasRead tell whether the writer and the reader have a vector path here; useWire and useRead whether
+// one is taken.
+var hasWire, hasRead = len(writeTiers) > 0, len(readTiers) > 0
+
+var useWire, useRead = hasWire, hasRead
 
 func detectAVX2() bool {
 	maxID, _, _, _ := cpuid(0, 0)
@@ -103,17 +124,17 @@ func readUTF16(dst, src unsafe.Pointer, units int) int { return utf16UTF8AVX512(
 
 func readLatin1(dst, src unsafe.Pointer, n int) int { return latin1UTF8AVX512(dst, src, n) }
 
-// wireString is wireStringAVX512 or wireStringAVX2, whichever is taken.
+// wireString is the writer's kernel of the tier taken.
 func wireString(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int {
-	if useWire512 {
+	if writeTier == tierAVX512 {
 		return wireStringAVX512(dst, i, src, n)
 	}
 	return wireStringAVX2(dst, i, src, n)
 }
 
-// wireStrings is wireStringsAVX512 or wireStringsAVX2, whichever is taken.
+// wireStrings is the writer's list kernel of the tier taken.
 func wireStrings(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int) {
-	if useWire512 {
+	if writeTier == tierAVX512 {
 		return wireStringsAVX512(dst, room, strs, count, ptrs)
 	}
 	return wireStringsAVX2(dst, room, strs, count, ptrs)
