@@ -16,10 +16,10 @@ function animal(a: b.Animal | null) {
 }
 
 /** A Map as a protobuf map field (an object). */
-function record<K extends string | number, V, W = V>(m: Map<K | null, V> | null, f = (v: V) => v as unknown as W):
+function record<K extends string | number, V, W = V>(m: Map<K | null, V> | { [key: string]: V } | null, f = (v: V) => v as unknown as W):
   Record<K, W> {
   const o = {} as Record<K, W>;
-  for (const [k, v] of m ?? []) if (k !== null) o[k] = f(v);
+  for (const [k, v] of (m instanceof Map ? m : Object.entries(m ?? {})) as Iterable<[K | null, V]>) if (k !== null) o[k] = f(v);
   return o;
 }
 
