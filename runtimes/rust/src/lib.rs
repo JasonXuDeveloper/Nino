@@ -13,9 +13,10 @@
 //! ```
 //!
 //! Guarantees: no input makes the reader panic, read out of bounds, allocate more than the data could fill, or
-//! recurse without bound; a read either returns the whole value or an [`Error`]. The crate has no `unsafe` code.
+//! recurse without bound; a read either returns the whole value or an [`Error`]. The only `unsafe` code is the string
+//! writer's transcoding (`simd.rs`, checked under Miri); the reader has none.
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 #![deny(
     clippy::indexing_slicing,
     clippy::unwrap_used,
@@ -34,6 +35,7 @@ mod impls;
 mod reader;
 #[cfg(feature = "serde")]
 mod serde_impls;
+mod simd;
 mod strings;
 mod traits;
 mod types;

@@ -5,7 +5,8 @@ Reads and writes [Nino](https://github.com/JasonXuDeveloper/Nino)'s binary wire 
 `nino` is taken on crates.io) and its library is `nino`. It is not published yet (`publish = false`).
 
 - Edition 2021, MSRV 1.88.
-- No `unsafe` code (`#![forbid(unsafe_code)]`).
+- `#![deny(unsafe_code)]`: the only `unsafe` code is the string writer's transcoding (`src/simd.rs`), checked under
+  Miri. The reader has none.
 - No required dependencies. Every integration is an opt-in feature.
 
 ```rust
@@ -254,7 +255,13 @@ cargo test --workspace --all-features
   - `tests/compile_fail.rs` (trybuild) checks every rejection and its message. After a deliberate change to a message,
     `TRYBUILD=overwrite cargo test --features derive --test compile_fail` rewrites the expected messages.
 
-There is no `unsafe` code, so there is nothing for Miri to check.
+- **Unsafe code** (`src/simd.rs`): writing a `String` transcodes its UTF-8 to Latin-1 or UTF-16 straight into the
+  buffer, a block of 16 bytes at a time: SSE2 on x86_64, plus SSSE3 (checked at run time) for two-byte chars in text
+  of 48 bytes or more; NEON on little-endian Arm64; two `u64` words elsewhere. Its tests compare every way the target
+  has with a plain decoder for every char class at every position of text up to 200 chars, runs and random text, and
+  `string_encodings` (`tests/values.rs`) compares `serialize` with .NET's bytes the same way. CI runs the module's
+  tests under Miri on x86_64 (with and without SSSE3), Arm64 and big-endian s390x:
+  `cargo +nightly miri test -p nino-serialization --lib simd` (`--target aarch64-unknown-linux-gnu`, ...).
 
 ## Benchmarks
 

@@ -163,10 +163,13 @@ requirements:
 ## Rust runtime (runtimes/rust)
 
 - Security: the reader takes hostile input. No input may panic it, read out of bounds, recurse without a bound or
-  allocate out of proportion to the data. The crate is `#![forbid(unsafe_code)]` and denies `indexing_slicing`,
+  allocate out of proportion to the data. The crate is `#![deny(unsafe_code)]` and denies `indexing_slicing`,
   `unwrap_used`, `expect_used`, `panic` and `arithmetic_side_effects` (lib.rs): use `get`, `checked_*`/`wrapping_*`
-  with a comment saying why it cannot wrap, and errors. Add `unsafe` only for a measured win, in one module, with a
-  Miri job in `.github/workflows/runtimes.yml`.
+  with a comment saying why it cannot wrap, and errors. The one module allowed `unsafe` is `src/simd.rs`, the
+  string writer's transcoding (the reader stays safe code): every block has a `// SAFETY:` comment, its tests
+  compare every block kind with a plain decoder byte for byte, and the `rust-miri` job in
+  `.github/workflows/runtimes.yml` runs them under Miri (x86_64 with and without SSSE3, Arm64, s390x). Add `unsafe`
+  only for a measured win, and only there.
 - Allocation: a collection reserves `r.capacity::<T>(count)`, never `count` itself: the per-read budget (16 bytes per
   input byte plus 4 KiB) stops nested collections each pre-allocating against the same bytes (the fuzz found that).
   Check a count against the bytes left (`length(min_size)`) before reading elements.

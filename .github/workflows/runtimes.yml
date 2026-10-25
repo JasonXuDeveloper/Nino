@@ -226,8 +226,8 @@ jobs:
       - name: Test without features
         run: cargo test -p nino-serialization --locked --lib --test spec --test values
 
-      # The crate has no unsafe code (#![forbid(unsafe_code)]), so there is nothing for Miri to check. The fuzz is
-      # the mutational one in tests/conformance.rs (cargo-fuzz needs nightly), longer and optimized here.
+      # The mutational fuzz in tests/conformance.rs (cargo-fuzz needs nightly), longer and optimized here. The
+      # crate's one unsafe module is checked by the rust-miri job.
       - name: Fuzz (short)
         env:
           NINO_FUZZ_ITERATIONS: 20000
@@ -241,3 +241,84 @@ jobs:
 
       - name: MSRV
         run: cargo +"$MSRV" check --workspace --all-features --all-targets --locked
+
+  # Arm64 natively: the string writer's NEON steps (runtimes/rust/src/simd.rs) and the rest of the crate, with the
+  # corpus, on the CPU they are written for (the rust-miri job interprets them, this one runs them).
+  rust-arm64:
+    name: Rust (Arm64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: runtimes/rust
+    env:
+      CARGO_TERM_COLOR: always
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            runtimes/rust/target
+          key: rust-arm64-${{ hashFiles('runtimes/rust/Cargo.lock') }}
+          restore-keys: rust-arm64-
+
+      - name: Corpus
+        run: |
+          if [ -d ../../conformance/corpus ]; then echo "NINO_CORPUS_REQUIRED=1" >> "$GITHUB_ENV"; fi
+
+      - name: Test
+        run: cargo test --workspace --all-features --locked
+
+  # The crate's only unsafe code, the string writer's transcoding (runtimes/rust/src/simd.rs), under Miri: its tests
+  # compare every block kind a target has with a plain decoder. Miri interprets each target here: x86_64 without
+  # SSSE3 (SSE2 and words) and with it (the pair steps), little-endian Arm64 (NEON) and big-endian s390x (words).
+  # The tests take fewer cases under Miri (cfg(miri)).
+  rust-miri:
+    name: Rust (Miri)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: runtimes/rust
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Toolchain (nightly, with Miri)
+        run: |
+          rustup toolchain install nightly --profile minimal --component miri,rust-src
+          cargo +nightly miri setup
+          cargo +nightly miri setup --target aarch64-unknown-linux-gnu
+          cargo +nightly miri setup --target s390x-unknown-linux-gnu
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: rust-miri-${{ hashFiles('runtimes/rust/Cargo.lock') }}
+          restore-keys: rust-miri-
+
+      - name: x86_64 (SSE2)
+        run: cargo +nightly miri test -p nino-serialization --locked --lib simd
+
+      - name: x86_64 (SSSE3)
+        env:
+          RUSTFLAGS: -C target-feature=+ssse3
+        run: cargo +nightly miri test -p nino-serialization --locked --lib simd
+
+      - name: Arm64 (NEON)
+        run: cargo +nightly miri test -p nino-serialization --locked --lib simd --target aarch64-unknown-linux-gnu
+
+      - name: Big-endian s390x (words)
+        run: cargo +nightly miri test -p nino-serialization --locked --lib simd --target s390x-unknown-linux-gnu

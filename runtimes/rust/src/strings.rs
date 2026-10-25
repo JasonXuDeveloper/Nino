@@ -57,7 +57,9 @@ fn latin1_wide(bytes: &[u8]) -> String {
 pub(crate) fn utf16_lossy(units: &[[u8; 2]]) -> String {
     let units = units.iter().map(|u| u16::from_le_bytes(*u));
     let mut text = String::with_capacity(units.len().saturating_mul(3));
-    text.extend(char::decode_utf16(units).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)));
+    // Pushed one by one into the room reserved (`String::extend` would reserve again from the iterator's size hint,
+    // and whether the compiler inlines it varies with the rest of the crate).
+    char::decode_utf16(units).for_each(|c| text.push(c.unwrap_or(char::REPLACEMENT_CHARACTER)));
     text
 }
 
@@ -82,67 +84,16 @@ pub(crate) fn write(w: &mut Writer<'_>, text: &str) -> Result<()> {
         w.header_bytes(if count == 0 { 0 } else { !count }, bytes);
         return Ok(());
     }
-    write_wide(w, bytes)
+    write_wide(w, text)
 }
 
-/// Text with a char above U+007F, written as Latin-1 when every char is at most U+00FF, else as UTF-16. Each takes
-/// at most one byte or one code unit per byte of UTF-8, so room for that is reserved, filled in one pass over the
-/// bytes and cut to what was written; the header is written last. In UTF-8 a char of U+0080..U+00FF is the lead byte
-/// 0xC2 or 0xC3 and a continuation byte, and every lead byte from 0xC4 up starts a char above U+00FF: the first such
-/// byte turns the Latin-1 pass into the UTF-16 one.
+/// Text with a char above U+007F, written as Latin-1 when every char is at most U+00FF, else as UTF-16: transcoded
+/// straight into the buffer after a zero header ([`crate::simd::transcode`]), and the header written last.
 #[inline(never)]
-fn write_wide(w: &mut Writer<'_>, bytes: &[u8]) -> Result<()> {
+fn write_wide(w: &mut Writer<'_>, text: &str) -> Result<()> {
     let at = w.position();
     let buf = w.buffer();
-    buf.reserve(bytes.len().saturating_add(4));
     buf.extend_from_slice(&[0; 4]);
-    if latin1_into(buf, bytes) {
-        return w.end_header(at, true);
-    }
-    buf.truncate(at);
-    buf.reserve(bytes.len().saturating_mul(2).saturating_add(4));
-    buf.extend_from_slice(&[0; 4]);
-    utf16_into(buf, bytes);
-    w.end_header(at, false)
-}
-
-/// Appends the Latin-1 bytes of `bytes` (valid UTF-8) to `out`; false at a char above U+00FF.
-#[inline]
-fn latin1_into(out: &mut Vec<u8>, bytes: &[u8]) -> bool {
-    let mut src = bytes.iter();
-    while let Some(&b) = src.next() {
-        if b < 0x80 {
-            out.push(b);
-        } else if b < 0xC4 {
-            // A lead byte's two low bits, then its continuation byte's six.
-            out.push((b << 6) | (src.next().copied().unwrap_or(0) & 0x3F));
-        } else {
-            return false;
-        }
-    }
-    true
-}
-
-/// Appends the UTF-16 code units of `bytes` (valid UTF-8) to `out`, two bytes each.
-#[inline]
-fn utf16_into(out: &mut Vec<u8>, bytes: &[u8]) {
-    let mut src = bytes.iter();
-    while let Some(&b0) = src.next() {
-        let mut next = || u32::from(src.next().copied().unwrap_or(0) & 0x3F);
-        let b = u32::from(b0);
-        let unit = if b < 0x80 {
-            b
-        } else if b < 0xE0 {
-            ((b & 0x1F) << 6) | next()
-        } else if b < 0xF0 {
-            ((b & 0x0F) << 12) | (next() << 6) | next()
-        } else {
-            // Above U+FFFF: a surrogate pair.
-            let c = ((b & 0x07) << 18) | (next() << 12) | (next() << 6) | next();
-            let v = c.wrapping_sub(0x1_0000);
-            out.extend_from_slice(&((0xD800 | ((v >> 10) & 0x3FF)) as u16).to_le_bytes());
-            0xDC00 | (v & 0x3FF)
-        };
-        out.extend_from_slice(&(unit as u16).to_le_bytes());
-    }
+    let latin1 = crate::simd::transcode(buf, text);
+    w.end_header(at, latin1)
 }

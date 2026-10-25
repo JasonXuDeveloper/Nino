@@ -125,16 +125,20 @@ fn dotnet_string(text: &str) -> Vec<u8> {
 
 #[test]
 fn string_encodings() {
-    // Every length up to 40 (the ASCII check reads words of 8 and 4 bytes, and loops past 16), with the char that
-    // decides the encoding at each position.
-    for len in 0..40 {
-        for at in 0..=len {
-            for c in ['a', '\u{7F}', '\u{80}', 'é', 'ÿ', 'Ā', '字', '\u{FFFF}', '😀'] {
-                let text: String =
-                    (0..len).map(|i| if i == at { c } else { (b'a' + (i % 26) as u8) as char }).collect();
-                let bytes = serialize(&text).unwrap();
-                assert_eq!(bytes, dotnet_string(&text), "{text:?}");
-                assert_eq!(deserialize_exact::<String>(&bytes).unwrap(), text);
+    // Every length up to 200 chars (the ASCII check reads words of 8 and 4 bytes, and loops past 16; the writer takes
+    // blocks of 16 bytes, words of 8, and from 48 bytes on transcodes two-byte chars a block at a time), with a char
+    // of each class at each position, among ASCII, Latin-1 and Cyrillic text.
+    let classes = ['a', '\u{7F}', '\u{80}', 'é', 'ÿ', 'Ā', '\u{7FF}', '\u{800}', '字', '\u{FFFF}', '\u{10000}', '😀'];
+    for filler in [None, Some('ü'), Some('Ж')] {
+        for len in 0..=200 {
+            let fill = |i: usize| filler.unwrap_or((b'a' + (i % 26) as u8) as char);
+            for at in 0..=len {
+                for c in classes {
+                    let text: String = (0..len).map(|i| if i == at { c } else { fill(i) }).collect();
+                    let bytes = serialize(&text).unwrap();
+                    assert_eq!(bytes, dotnet_string(&text), "{text:?}");
+                    assert_eq!(deserialize_exact::<String>(&bytes).unwrap(), text);
+                }
             }
         }
     }
@@ -150,7 +154,6 @@ fn string_encodings() {
     // The writer reads eight bytes at a time from an ASCII byte on and decodes runs of other chars in loops of their
     // own, switching from Latin-1 to UTF-16 at the first char above U+00FF: two chars of any classes at any two
     // positions (so every pair of classes meets across every word boundary, in either order).
-    let classes = ['a', '\u{7F}', '\u{80}', 'é', 'ÿ', 'Ā', '\u{7FF}', '\u{800}', '字', '\u{FFFF}', '\u{10000}', '😀'];
     let check = |text: &str| {
         let mut out = vec![0xAA; 3];
         serialize_into(&text.to_owned(), &mut out).unwrap();
