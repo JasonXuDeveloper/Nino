@@ -3,7 +3,9 @@
 import contextlib
 import io
 import os
+import subprocess
 import sys
+import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -96,6 +98,31 @@ class UnityReportTests(unittest.TestCase):
         line = unity_report.environment(run)
         self.assertTrue(line.startswith("Unity 6000.3.27f1, IL2CPP player (not a Development build), Linux x64"))
         self.assertNotIn("Burst 1", line)
+
+
+    def test_release_body_appends_the_section_once(self):
+        # publish-unity appends the section with release_body.py append: after the body, then never again.
+        section = report("unity-bench-6000.3.27f1")[0]
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "release_body.py")
+        with tempfile.TemporaryDirectory() as folder:
+            body, new, again = (os.path.join(folder, name) for name in ("body.md", "new.md", "again.md"))
+            with open(os.path.join(folder, "section.md"), "w", encoding="utf-8") as f:
+                f.write(section)
+            with open(body, "w", encoding="utf-8") as f:
+                f.write("## 📊 Performance Report\n\nrows\n")
+
+            def append(source, out):
+                subprocess.run([sys.executable, script, "append", "--body", source, "--out", out,
+                                os.path.join(folder, "section.md")], check=True, capture_output=True)
+
+            append(body, new)
+            with open(new, encoding="utf-8") as f:
+                text = f.read()
+            self.assertTrue(text.startswith("## 📊 Performance Report"))
+            self.assertEqual(text.count(unity_report.HEADING), 1)
+            self.assertTrue(text.endswith(section))
+            append(new, again)
+            self.assertFalse(os.path.exists(again))
 
 
 if __name__ == "__main__":

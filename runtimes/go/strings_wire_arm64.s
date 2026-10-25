@@ -386,7 +386,6 @@ TEXT ·wireStringNEON(SB), NOSPLIT, $0-40
 	VLD1    (R8), [V20.B16, V21.B16, V22.B16]
 	ADD     $N_TAIL, R21, R8
 	VLD1    (R8), [V19.B16]
-	VLD1    (R21), [V16.B16]        // N_BITS
 	VMOVI   $0x80, V13.B16
 	VMOVI   $0xF8, V15.B16
 	VMOVI   $0x70, V17.B16
@@ -456,26 +455,29 @@ slchars:
 	VAND    V27.B16, V5.B16, V5.B16
 	VADD    V5.B16, V0.B16, V6.B16       // the bytes: 40 more after C3
 	VORR    V0.B16, V0.B16, V14.B16
-	WORD $0x4e641e0b //    BIC V4.B16, V16.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VMOV    V11.H[0], R8
+	WORD $0x0f0c848b //    SHRN $4, V4.H8, V11.B8
+	VMOV    V11.D[0], R8
+	MVN     R8, R8
+	AND     $0x1111111111111111, R8
+	ORR     R8>>3, R8, R8
+	AND     $0x0303030303030303, R8
+	ORR     R8>>6, R8, R8
+	AND     $0x000F000F000F000F, R8
+	ORR     R8>>12, R8, R8
 	AND     $0xff, R8, R9
-	UBFX    $8, R8, $8, R10
+	UBFX    $32, R8, $8, R10
 	// kept: all but the leads
-	// Each half by its own table of 8 bytes (narrowLo, narrowHi), stored as 8 bytes: no lane moved between the
-	// vector and scalar registers.
 	FMOVD   (R23)(R9<<3), F8
-	FMOVD   (R24)(R10<<3), F9
+	MOVD    (R24)(R10<<3), R11
+	VMOV    R11, V8.D[1]
+	VTBL    V8.B16, [V6.B16], V6.B16
 	MOVBU   (R20)(R9), R9
 	MOVBU   (R20)(R10), R10
-	VTBL    V8.B8, [V6.B16], V8.B8
-	VTBL    V9.B8, [V6.B16], V9.B8
-	FMOVD   F8, (R0)
+	VST1    [V6.B16], (R0)
 	SUB     $8, R9, R9
 	ADD     R9, R0
-	FMOVD   F9, (R0)
+	VMOV    V6.D[1], R11
+	MOVD    R11, (R0)
 	SUB     $8, R10, R10
 	ADD     R10, R0
 	ADD     $16, R3
@@ -594,13 +596,16 @@ swchars:
 	VORR    V6.B16, V5.B16, V5.B16
 	VAND    V4.B16, V5.B16, V5.B16       // b0 ends a char of 2 or more bytes, or is a third byte
 	WORD $0x4ee71ca5 //    ORN V7.B16, V5.B16, V5.B16   // kept: those and ASCII
-	VAND    V16.B16, V5.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VMOV    V11.H[0], R8
+	WORD $0x0f0c84ab //    SHRN $4, V5.H8, V11.B8
+	VMOV    V11.D[0], R8
+	AND     $0x1111111111111111, R8
+	ORR     R8>>3, R8, R8
+	AND     $0x0303030303030303, R8
+	ORR     R8>>6, R8, R8
+	AND     $0x000F000F000F000F, R8
+	ORR     R8>>12, R8, R8
 	AND     $0xff, R8, R9
-	UBFX    $8, R8, $8, R10
+	UBFX    $32, R8, $8, R10
 	// The low bytes: b0 for ASCII, else (b0 & 3F) | b1 << 6.
 	VORR    V0.B16, V0.B16, V4.B16
 	VSLI    $6, V2.B16, V4.B16
@@ -733,7 +738,6 @@ TEXT ·wireStringsNEON(SB), NOSPLIT, $0-56
 	VLD1    (R8), [V20.B16, V21.B16, V22.B16]
 	ADD     $N_TAIL, R21, R8
 	VLD1    (R8), [V19.B16]
-	VLD1    (R21), [V16.B16]        // N_BITS
 	VMOVI   $0x80, V13.B16
 	VMOVI   $0xF8, V15.B16
 	VMOVI   $0x70, V17.B16
@@ -848,26 +852,29 @@ mlchars:
 	VAND    V27.B16, V5.B16, V5.B16
 	VADD    V5.B16, V0.B16, V6.B16       // the bytes: 40 more after C3
 	VORR    V0.B16, V0.B16, V14.B16
-	WORD $0x4e641e0b //    BIC V4.B16, V16.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VMOV    V11.H[0], R8
+	WORD $0x0f0c848b //    SHRN $4, V4.H8, V11.B8
+	VMOV    V11.D[0], R8
+	MVN     R8, R8
+	AND     $0x1111111111111111, R8
+	ORR     R8>>3, R8, R8
+	AND     $0x0303030303030303, R8
+	ORR     R8>>6, R8, R8
+	AND     $0x000F000F000F000F, R8
+	ORR     R8>>12, R8, R8
 	AND     $0xff, R8, R9
-	UBFX    $8, R8, $8, R10
+	UBFX    $32, R8, $8, R10
 	// kept: all but the leads
-	// Each half by its own table of 8 bytes (narrowLo, narrowHi), stored as 8 bytes: no lane moved between the
-	// vector and scalar registers.
 	FMOVD   (R23)(R9<<3), F8
-	FMOVD   (R24)(R10<<3), F9
+	MOVD    (R24)(R10<<3), R11
+	VMOV    R11, V8.D[1]
+	VTBL    V8.B16, [V6.B16], V6.B16
 	MOVBU   (R20)(R9), R9
 	MOVBU   (R20)(R10), R10
-	VTBL    V8.B8, [V6.B16], V8.B8
-	VTBL    V9.B8, [V6.B16], V9.B8
-	FMOVD   F8, (R0)
+	VST1    [V6.B16], (R0)
 	SUB     $8, R9, R9
 	ADD     R9, R0
-	FMOVD   F9, (R0)
+	VMOV    V6.D[1], R11
+	MOVD    R11, (R0)
 	SUB     $8, R10, R10
 	ADD     R10, R0
 	ADD     $16, R3
@@ -986,13 +993,16 @@ mwchars:
 	VORR    V6.B16, V5.B16, V5.B16
 	VAND    V4.B16, V5.B16, V5.B16       // b0 ends a char of 2 or more bytes, or is a third byte
 	WORD $0x4ee71ca5 //    ORN V7.B16, V5.B16, V5.B16   // kept: those and ASCII
-	VAND    V16.B16, V5.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VMOV    V11.H[0], R8
+	WORD $0x0f0c84ab //    SHRN $4, V5.H8, V11.B8
+	VMOV    V11.D[0], R8
+	AND     $0x1111111111111111, R8
+	ORR     R8>>3, R8, R8
+	AND     $0x0303030303030303, R8
+	ORR     R8>>6, R8, R8
+	AND     $0x000F000F000F000F, R8
+	ORR     R8>>12, R8, R8
 	AND     $0xff, R8, R9
-	UBFX    $8, R8, $8, R10
+	UBFX    $32, R8, $8, R10
 	// The low bytes: b0 for ASCII, else (b0 & 3F) | b1 << 6.
 	VORR    V0.B16, V0.B16, V4.B16
 	VSLI    $6, V2.B16, V4.B16

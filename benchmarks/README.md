@@ -152,7 +152,7 @@ one message per level of a class hierarchy and writes a `DateTime` as its own `b
 
 ```sh
 cd benchmarks/Nino.Benchmark
-dotnet run -c Release -- --filter '*' --launchCount 3 --warmupCount 5 --iterationCount 15   # the published settings
+dotnet run -c Release -- --filter '*'   # the published settings (NinoJobAttribute: 3 launches, 5 warmups, 15 iterations)
 dotnet run -c Release -- --filter '*FixedSizeTest*' --launchCount 1 --warmupCount 1 --iterationCount 3   # a quick look
 ```
 

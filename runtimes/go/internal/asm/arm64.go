@@ -490,8 +490,8 @@ u16done:
 
 // setupNEON loads what kernelNEON keeps in registers: the tables' addresses (R20 pairLen, R23 narrowLo, R24
 // narrowHi, R25 wideShuf, R21 wireN<>), the byte masks R22 (0x80), R19 (0x3C) and R17 (0x10), the validation
-// tables T1 to T3 in V20 to V22, in V19 the most each of a block's last three bytes may be, in V16 the bit of each
-// byte of 8 (twice, for movemask), and byte constants in V13, V15, V17, V18 and V23 to V31.
+// tables T1 to T3 in V20 to V22, in V19 the most each of a block's last three bytes may be, and byte constants in V13, V15, V17, V18 and V23 to
+// V31.
 const setupNEON = `	MOVD    $·pairLen(SB), R20
 	MOVD    $wireN<>(SB), R21
 	MOVD    $0x8080808080808080, R22
@@ -504,7 +504,6 @@ const setupNEON = `	MOVD    $·pairLen(SB), R20
 	VLD1    (R8), [V20.B16, V21.B16, V22.B16]
 	ADD     $N_TAIL, R21, R8
 	VLD1    (R8), [V19.B16]
-	VLD1    (R21), [V16.B16]        // N_BITS
 	VMOVI   $0x80, V13.B16
 	VMOVI   $0xF8, V15.B16
 	VMOVI   $0x70, V17.B16
@@ -555,21 +554,23 @@ func tailW(p, l, body string) string {
 }
 
 // movemask sets R9 and R10 to the high bits of bytes 0 to 7 and 8 to 15 of V{v} (each 00 or FF), or of their
-// complement with not: the bit of each byte's lane (V16) kept, then summed by pairs three times (VADDP) to the two
-// bytes of the mask. R8 and V11 are lost.
+// complement with not: a nibble a byte (SHRN), gathered to a bit each in the scalar registers. R8 and V11 are lost.
 func movemask(v string, not bool) string {
-	op := "VAND    V16.B16, V{v}.B16, V11.B16"
+	inv := ""
 	if not {
-		op = "WORD    BIC V{v}.B16, V16.B16, V11.B16"
+		inv = "\tMVN     R8, R8\n"
 	}
-	return sub(`	`+op+`
-	VADDP   V11.B16, V11.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VADDP   V11.B16, V11.B16, V11.B16
-	VMOV    V11.H[0], R8
+	return sub(`	WORD    SHRN $4, V{v}.H8, V11.B8
+	VMOV    V11.D[0], R8
+{inv}	AND     $0x1111111111111111, R8
+	ORR     R8>>3, R8, R8
+	AND     $0x0303030303030303, R8
+	ORR     R8>>6, R8, R8
+	AND     $0x000F000F000F000F, R8
+	ORR     R8>>12, R8, R8
 	AND     $0xff, R8, R9
-	UBFX    $8, R8, $8, R10
-`, "v", v)
+	UBFX    $32, R8, $8, R10
+`, "v", v, "inv", inv)
 }
 
 // kernelNEON converts the text at R1 (R2 bytes, R2 > 0) to Latin-1 at R4, or to UTF-16 at R5, 16 bytes at a time
@@ -633,18 +634,17 @@ func kernelNEON(p string) string {
 	VADD    V5.B16, V0.B16, V6.B16       // the bytes: 40 more after C3
 	VORR    V0.B16, V0.B16, V14.B16
 `+movemask("4", true)+`	// kept: all but the leads
-	// Each half by its own table of 8 bytes (narrowLo, narrowHi), stored as 8 bytes: no lane moved between the
-	// vector and scalar registers.
 	FMOVD   (R23)(R9<<3), F8
-	FMOVD   (R24)(R10<<3), F9
+	MOVD    (R24)(R10<<3), R11
+	VMOV    R11, V8.D[1]
+	VTBL    V8.B16, [V6.B16], V6.B16
 	MOVBU   (R20)(R9), R9
 	MOVBU   (R20)(R10), R10
-	VTBL    V8.B8, [V6.B16], V8.B8
-	VTBL    V9.B8, [V6.B16], V9.B8
-	FMOVD   F8, (R0)
+	VST1    [V6.B16], (R0)
 	SUB     $8, R9, R9
 	ADD     R9, R0
-	FMOVD   F9, (R0)
+	VMOV    V6.D[1], R11
+	MOVD    R11, (R0)
 	SUB     $8, R10, R10
 	ADD     R10, R0
 	ADD     $16, R3

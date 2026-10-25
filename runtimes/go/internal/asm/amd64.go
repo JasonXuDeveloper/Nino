@@ -122,9 +122,8 @@ func goVar(name string) Mem { return NewDataAddr(Symbol{Name: "·" + name}, 0) }
 // at is (base)(index*scale).
 func at(base, index Register, scale uint8) Mem { return Mem{Base: base, Index: index, Scale: scale} }
 
-// param and result are the argument and the result called name of the function being built.
-func param(name string) Mem  { return addr(c.Param(name).Resolve()) }
-func result(name string) Mem { return addr(c.Return(name).Resolve()) }
+// param is the argument called name of the function being built.
+func param(name string) Mem { return addr(c.Param(name).Resolve()) }
 
 func addr(b *gotypes.Basic, err error) Mem {
 	if err != nil {
