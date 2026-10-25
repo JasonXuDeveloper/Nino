@@ -73,7 +73,9 @@ packages, the crates `nino-serialization-derive` and `nino-serialization` and th
 release with generated notes. Pre-releases also get the `vX.Y.Z-preview.N` tag OpenUPM reads. If a step fails after
 tagging, fix the cause and re-run the failed job: each publish skips what its registry already has.
 
-Trusted Publishing is configured on a package that exists, so the first version of each crate and of the npm package
-is published by hand (`cargo publish -p nino-serialization-derive`, then `-p nino-serialization`, in `runtimes/rust`;
-`npm run build && npm publish --access public --tag next` in `runtimes/typescript`, with the repository's `LICENSE`
-copied there), then each gets the trusted publisher JasonXuDeveloper/Nino, workflow `release.yml`.
+Trusted Publishing is configured on a package that exists, so a package's first version is published with an API
+token from the repository secrets: `CARGO_REGISTRY_TOKEN` (a crates.io token with the `publish-new` and
+`publish-update` scopes) and `NPM_TOKEN` (an npm granular access token that can publish). The workflow uses them only
+for a crate or package not yet on its registry, and fails with a message naming the secret if it is missing. Then add
+the trusted publisher (repository JasonXuDeveloper/Nino, workflow `release.yml`) to both crates on crates.io and to the
+npm package, and delete the two secrets.
