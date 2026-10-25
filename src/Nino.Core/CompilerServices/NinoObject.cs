@@ -178,6 +178,18 @@ namespace Nino.Core.CompilerServices
         }
 
         /// <summary>
+        /// Generated read of a <c>[NinoType]</c> collection (a class deriving from <c>List&lt;T&gt;</c>...): its elements
+        /// are the object itself, so data whose element count says null (-1) is rejected before its members are read
+        /// into it.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void EnsureElements<T>(T value) where T : class
+        {
+            if (value == null)
+                NinoThrow.NullElements(typeof(T));
+        }
+
+        /// <summary>
         /// <see cref="ReadBody{T,TFormatter}"/>, spelled out for <see cref="ReadExact{TBase,TSub,TFormatter}"/>: where
         /// it is shared code (<see cref="ReadReplacing{TBase,TSub,TFormatter}"/>) an inlined ReadBody (a generic
         /// method) would look up its generic context on every call, though only its deep path needs it, and the

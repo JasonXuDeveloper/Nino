@@ -777,6 +777,37 @@ public class Holder
     }
 
     [TestMethod]
+    public void NinoTypeCollectionWithNullElementsIsRejected()
+    {
+        // The elements of a [NinoType] collection are the object itself: an element count of -1 (null) is bad data,
+        // not a NullReferenceException while its members are read.
+        var bytes = NinoSerializer.Serialize(new NamedList { Version = 7 });
+        Assert.AreEqual(0, BitConverter.ToInt32(bytes, 4), "type id, then the element count");
+        BitConverter.GetBytes(-1).CopyTo(bytes, 4);
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<NamedList>(bytes));
+        var into = new NamedList { 1 };
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bytes, ref into));
+
+        var held = NinoSerializer.Serialize(new NamedListHolder { Value = new NamedList { Version = 7 } });
+        BitConverter.GetBytes(-1).CopyTo(held, FindCount(held));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<NamedListHolder>(held));
+    }
+
+    /// <summary>The offset of NamedList's element count in a holder's bytes: just after its type id.</summary>
+    private static int FindCount(byte[] bytes)
+    {
+        var id = BitConverter.GetBytes(NinoTypeId.Of(typeof(NamedList)));
+        for (int i = 0; i + 8 <= bytes.Length; i++)
+        {
+            if (bytes.AsSpan(i, 4).SequenceEqual(id))
+                return i + 4;
+        }
+
+        Assert.Fail("no NamedList type id");
+        return -1;
+    }
+
+    [TestMethod]
     public void ConstrainedAndNestedGenericCollections()
     {
         var holder = new ConstrainedHolder

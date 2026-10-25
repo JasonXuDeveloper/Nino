@@ -43,6 +43,10 @@ namespace Nino.Core
             throw new NinoDataException("Nino: " + message);
 
         [MethodImpl(Cold)]
+        public static void NullElements(Type type) =>
+            throw new NinoDataException($"Nino: the elements of {type.FullName} are null (it is a collection itself).");
+
+        [MethodImpl(Cold)]
         public static void InvalidBool(int value) =>
             throw new NinoDataException($"Nino: invalid bool byte {value} (only 0 and 1 are bools).");
 

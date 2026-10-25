@@ -228,7 +228,7 @@ elements, as the collection they are, then its members: before the members (posi
 (version-tolerant), or first inside the region (keyed). Each language gives the type a field for the elements, before
 its members: `$elements` in TypeScript (an array, `Map` or `Set`), `Elements` in Go (tagged `nino:"-"`, `$elements` in
 JSON) and `elements` in Rust (`$elements` in serde). The elements are never null (the collection is the object): data
-that marks them null is rejected (.NET throws a `NullReferenceException` reading it).
+that marks them null is rejected, as .NET rejects it (`NinoDataException`).
 
 ### Closed generic types in slots
 

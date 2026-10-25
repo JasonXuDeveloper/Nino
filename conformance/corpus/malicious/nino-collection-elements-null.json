@@ -15,6 +15,6 @@
   },
   "dotnet": {
     "outcome": "error",
-    "exception": "NullReferenceException"
+    "exception": "NinoDataException"
   }
 }
