@@ -7,7 +7,7 @@ name: CodeQL
 on:
   # Not for a push that changes only documentation (Markdown, docs/, the license): no language here analyzes it.
   push:
-    branches: [ "main", "claude/zen-goldberg-5qqqcu" ]
+    branches: [ "main" ]
     paths-ignore: &docs
       - '**/*.md'
       - 'docs/**'
