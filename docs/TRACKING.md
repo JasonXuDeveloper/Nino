@@ -96,8 +96,18 @@ Nino/
 - ✅ 测试：.NET `KernelHookTests`（netstandard2.1/2.0 构建，用标量参考实现注册）；Unity `BurstKernelTests`（与标量参考逐字节比较、两条路径序列化字节相同、阈值附近长度、golden bytes、非法 bool、计时）和 `RuntimePathsTests`（运行时内部布局快路径全部命中），PlayMode 和 EditMode 都跑；unity.yml 加 IL2CPP 播放器（standalone，linux-il2cpp 镜像）。
 - ✅ 已验证：编辑器 Mono，2022.3.62f2 和 6000.3.27f1（CI 40173683786、40174347899）：内核 SSSE3，Burst 和运行时路径测试全过，运行时内部快路径全部命中。CI 计时（GitHub runner，编辑器）：1000 个 (int, long) 读 ~80–100 倍、写 ~46–56 倍，五元组 ~27–41 倍，带填充结构体 ~13–19 倍，1000 字符 ASCII 字符串 ~6–11 倍；32 个值 ~5–9 倍，32 字符 ~1.3–1.5 倍。
 - ✅ IL2CPP 播放器：第一次跑出 Burst AOT 错误 BC1200（播放器按 SSE2 基线预编译，`shuffle_epi8` 必须在同一方法里有 `IsSsse3Supported` 判断；编辑器按本机 CPU 编译所以没报），36aac36 修复（每个指令集各自判断，也让 Armv7/WebGL 能构建）。修复后 2022.3 和 6000.3 的 IL2CPP 播放器都通过：内核报 SSSE3，运行时内部快路径全部命中。unity.yml 改为每个版本一个 job：先跑编辑器测试，再出 IL2CPP 包跑播放器测试。
-- 未验证：Windows/macOS/Android/iOS 真机、Armv7（应构建且走标量）、WebGL（同上）、HybridCLR（热更程序集经 AOT 的 Nino.Core 调 Burst 函数指针，预计可用）。Burst AOT 默认 x64 目标含 SSE4，只支持 SSE2 的 CPU 上不注册内核。
+- 未验证：Windows/macOS/Android/iOS 真机、Armv7（应构建且走标量）、WebGL（同上）、HybridCLR（热更程序集经 AOT 的 Nino.Core 调 Burst 函数指针，预计可用）。Burst AOT 的 x64 目标见下节（测试工程已加 SSE4 和 AVX2）。
 - 可调：32 个值时已快 ~6 倍，MinBlocks 可再降；字符串 32 字符只快 ~1.4 倍，MinChars 维持。
+
+### Unity 发布基准（Burst，IL2CPP 播放器）—— phase5/unitybench
+- ✅ `Test.Runtime.Burst.BurstBenchmark`：用 Unity Performance Testing 包（com.unity.test-framework.performance 3.6.0，`[Test, Performance]` + `Measure.Method`，包自己的预热、探测和 9 次约 100 ms 的测量），每个用例三组样本：Without Burst（`NinoKernels.Register(null)`）、SSSE3 only（仅 AVX2 CPU）、With Burst。用例：(int, long)、(byte, int)、五元组、带填充结构体，各 32/1000/100000 个；ASCII 和 UTF-16 字符串 32/1000/100000 字符；1000 个短字符串的 List。每个用例先比较各路径字节相同并读回。不断言速度。只在 `-ninoBenchmark` 构建的播放器里编译（`NINO_UNITY_BENCH`）。
+- ✅ `Test.Editor.Burst.BenchmarkPlayerBuild`（TestPlayerBuildModifier）：去掉 Development、脚本调试、Profiler；编辑器日志写一行 `NINO_UNITY_BUILD`（IL2CPP C++ 配置、代码生成、裁剪级别、Burst x64 目标），这些包的运行元数据没有。播放器写一行 `NINO_UNITY_ENV`（内核指令集、进程架构）。其余（Unity 版本、后端、Development、CPU、系统、包版本）来自包的 `##performancetestruninfo2`。
+- ✅ unity.yml 可被调用（`workflow_call`，输入 benchmark、ref），基准模式跳过编辑器测试、Nino.Core 用 Release；上传 `unity-bench-<版本>`（播放器的 NUnit 结果 results.xml 和 build.txt）；没有性能结果时该 job 失败（先上传）。并发组 unity-license 不变（不取消运行中的 job）。report.yml 的 `unity` job 在发布时调用它，`publish-unity` 用 `benchmarks/unity_report.py` 读结果 XML 里的 `##performancetestresult2` 写 “## 🎮 Unity benchmark (Burst, IL2CPP)” 一节（每版本一行环境、图例、说明、每版本一张表），失败只漏掉这一节并显示为失败。fixture 和 `test_unity_report.py`（8 项）。
+- ✅ game-ci CLI v0.1.72 的坑：`coverageEnabled: false` 传 `--no-coverageEnabled`，CLI 不认，job 失败；保持默认（覆盖率只插桩编辑器代码）。
+- ✅ AVX2 档：Burst 文档说桌面 x64 默认目标 SSE2+SSE4，但 1.8.29 源码默认是 SSE2|AVX2（没有 SSE4 时只有 SSSE3 没有 AVX2 的 CPU 落到 SSE2 变体，不注册内核）；Burst 按 CPU 在运行时选变体；x86 intrinsics 到 AVX2 为止，没有 AVX-512。测试工程 `ProjectSettings/BurstAotSettings_StandaloneLinux64.json` 设 SSE2+SSE4+AVX2。`NinoBurst.Permute` 加 32 字节路径（每个 lane 放 v 个值，vpshufb 一个掩码，按输出整 32 字节、整 dword（vpermd 拼接）或两个 16 字节存储），只用于两边步长都 ≤16 且至少 256 个值；Narrow/Widen 的 AVX2 版测得不快（±5%，6000.3 上 100000 字符读还慢 18%），已删。CI 40196210124（两版本 IL2CPP release 播放器，EPYC 9V74 和 7763）：32 个值 AVX2 与 SSSE3 相同（0.98–1.02），1000 个 (byte, int) 读快 1.25–1.83 倍、写 1.12–1.21 倍，100000 个读快 1.95–3.49 倍、写 1.31 倍，(int, long) 读快 1.04–1.67 倍；五元组、带填充结构体、字符串不变。测试按每档（AVX2、SSSE3）比较字节，置换的 1/4 试验数量到 1200。
+- ✅ README 加 “SIMD on every platform / 各平台的 SIMD” 表，链接 perf、perf-unity、perf-runtimes 页面，不写数字。
+- 待发布后看：第一次发布跑 report.yml 时 Unity 一节是否出现（docs 站 sync-benchmarks 要解析它）。
+- 待查：五元组和带填充结构体的读取有没有 Burst 都是 memcpy 速度（1000 个约 0.4–0.8 µs），写入时五元组用内核反而慢 0–4%：看 netstandard 读路径是不是对这些布局直接整块拷贝、写路径为何不走内核。(int, long) 在这次运行里读快 58–101 倍，之前那次（40191633699）却和标量一样快，差别来自测试分支上其他人改的 Core，未细查。
 
 ### Core 分支交回的后续项
 - ✅ Q1–Q8 已做（提交见上表 refactor/core 一行）。
