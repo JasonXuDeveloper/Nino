@@ -325,7 +325,7 @@ hand-written sample skips the cases of reference tracking, `[NinoType]` collecti
 and Nullable or KeyValuePair type arguments, which `internal/generated` (nino-gen's code) runs, and the one of a
 generic type holding itself with other arguments, which Go cannot express. The struct-tag path runs the same cases
 (`TestTagged*`), skipping reference tracking and multi-dimensional arrays, which it rejects. `FuzzDecode` and
-`FuzzTaggedDecode` are seeded from the corpus when `NINO_CORPUS` is set.
+`FuzzTaggedDecode` are seeded from the corpus when there is one.
 
 Checks of the generated machine code: `go build -gcflags=-d=ssa/check_bce/debug=1 .` lists the bounds checks left
 (the primitive reads and writes have none past their one length check; `Writer.Extend` keeps one slice check), and
