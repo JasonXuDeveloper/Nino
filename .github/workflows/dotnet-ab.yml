@@ -1,0 +1,89 @@
+name: .NET A/B (test branch)
+
+# Development only, on the test branch: never merge this file into main. A push that changes
+# .github/dotnet-ab-request.txt measures, on the x64 and Arm64 runners, each line's two commits of the .NET library
+# one after the other on the same runner, for the given number of rounds (base, head, base, head, ...: each round a
+# new BenchmarkDotNet process per benchmark, in quick mode):
+#
+#   <base sha> <head sha> <rounds> <BenchmarkDotNet filters...>
+#
+# Each line is a job of its own on each runner (up to three lines). Both commits must be on a branch of this
+# repository (main, or this branch: push them here, merging, never force-pushing). Both are built with head's
+# benchmark project. The reports and the ab.py tables go to the log. Numbers are for development only.
+on:
+  push:
+    branches: [claude/zen-goldberg-5qqqcu]
+    paths: [.github/dotnet-ab-request.txt]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dotnet-ab-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  ab:
+    name: A/B on ${{ matrix.runner }} (line ${{ matrix.line }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-26.04, ubuntu-26.04-arm]
+        line: [1, 2, 3]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+      - name: Measure
+        env:
+          RUNNER: ${{ matrix.runner }}
+          LINE: ${{ matrix.line }}
+        run: |
+          set -euo pipefail
+          set -f  # the filters are patterns for BenchmarkDotNet, not for the shell
+          lscpu | grep -E 'Model name|Flags' | cut -c1-2000 || true
+          # BenchmarkDotNet's high priority (see arm64-bench.yml).
+          sudo prlimit --pid $$ --nice=40:40 || echo "::warning::could not raise the nice limit: normal priority"
+          request=$(grep -v -e '^#' -e '^[[:space:]]*$' .github/dotnet-ab-request.txt | sed -n "${LINE}p")
+          if [[ -z $request ]]; then echo "No line $LINE"; exit 0; fi
+          read -r base head rounds filters <<< "$request"
+          read -ra F <<< "$filters"
+          out="$RUNNER_TEMP/out"
+          mkdir -p "$out"
+          for side in base head; do
+            ref=$base; [[ $side == head ]] && ref=$head
+            git cat-file -e "$ref^{commit}"
+            git worktree add -q --detach "$RUNNER_TEMP/$side" "$ref"
+          done
+          rm -rf "$RUNNER_TEMP/base/benchmarks/Nino.Benchmark"
+          cp -r "$RUNNER_TEMP/head/benchmarks/Nino.Benchmark" "$RUNNER_TEMP/base/benchmarks/Nino.Benchmark"
+          for side in base head; do
+            dotnet build -c Release "$RUNNER_TEMP/$side/benchmarks/Nino.Benchmark" -v q -nologo < /dev/null
+          done
+          report() {
+            local files
+            mapfile -t files < <(find "$1" -name '*-report-github.md' | sort)
+            ((${#files[@]})) || return 1
+            if ((${#files[@]} == 1)); then cp "${files[0]}" "$2"; else python3 benchmarks/merge_reports.py "${files[@]}" > "$2"; fi
+          }
+          echo "## $RUNNER line $LINE: ${base:0:7} -> ${head:0:7}, $rounds rounds: $filters" | tee -a "$GITHUB_STEP_SUMMARY"
+          for round in $(seq "$rounds"); do
+            for side in base head; do
+              (cd "$RUNNER_TEMP/$side/benchmarks/Nino.Benchmark" && NINO_BENCH_QUICK=1 dotnet bin/Release/net10.0/Nino.Benchmark.dll \
+                --filter "${F[@]}" --artifacts "$out/$side-$round" < /dev/null) > "$out/$side-$round.log" 2>&1 ||
+                { tail -50 "$out/$side-$round.log"; exit 1; }
+              report "$out/$side-$round" "$out/$side-$round.md"
+              echo "=== REPORT $side round $round ($(git -C "$RUNNER_TEMP/$side" rev-parse --short HEAD))"
+              cat "$out/$side-$round.md"
+            done
+            echo "=== AB round $round"
+            { echo "### Round $round"; python3 benchmarks/ab.py "$out/base-$round.md" "$out/head-$round.md"; } | tee -a "$GITHUB_STEP_SUMMARY"
+          done
