@@ -6,9 +6,7 @@
         <OutputType>Exe</OutputType>
         <TargetFramework>net8.0</TargetFramework>
         <RollForward>LatestMajor</RollForward>
-        <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <AnalysisLevel>latest-recommended</AnalysisLevel>
         <PackageId>Nino.Codegen.Tool</PackageId>
         <Description>nino-gen: writes TypeScript, Go and Rust types and codecs that read and write the bytes a .NET assembly's [NinoType]s are serialized to, from the layouts the Nino generator published in the built assembly. To run it after each build instead, reference the Nino.Codegen package.</Description>
         <PackageTags>Nino;Serialization;Binary;TypeScript;Go;Rust;CodeGeneration</PackageTags>
