@@ -150,9 +150,24 @@ internal static class RawLayout
             NinoLeaf.Decimal or NinoLeaf.Guid => 16,
             _ => 0,
         };
-        return bytes != 0
+        var size = bytes != 0
             ? RawSize.Constant(bytes)
             : new RawSize(0, $"{TypeNames.CoreCompilerServices}NinoUnsafe.SizeOf<{TypeNames.Global(type)}>()");
+        return size with { Read = ReadOf(type, size) };
+    }
+
+    /// <summary>How a raw member of <paramref name="type"/>, of <paramref name="size"/>, is read (<see cref="RawRead"/>).</summary>
+    private static RawRead ReadOf(ITypeSymbol type, RawSize size)
+    {
+        if (type.SpecialType == SpecialType.System_Boolean)
+            return RawRead.Bool;
+        if (!size.IsConstant || type.SpecialType is SpecialType.System_DateTime or SpecialType.System_Decimal)
+            return RawRead.Checked;
+        return type is INamedTypeSymbol named &&
+               (TypeNames.HasMetadataName(named.OriginalDefinition, "System.DateOnly") ||
+                TypeNames.HasMetadataName(named.OriginalDefinition, "System.TimeOnly"))
+            ? RawRead.Checked
+            : RawRead.Plain;
     }
 
     /// <summary>A struct's field as laid out: its name (its property's for a backing field), type and symbol.</summary>
