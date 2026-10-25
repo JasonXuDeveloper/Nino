@@ -23,7 +23,22 @@ netstandard2.1 without interceptors (what Unity runs), on netstandard2.0 with th
 (everything but `ShapeMatrixTests`, and each half of its rows; "Build and Test" checks the three ran the whole suite,
 `.github/scripts/test_shards.py`). Beside them it builds the whole solution and runs the ASP.NET Core tests and those
 of Nino.Codegen (`Nino.AspNetCore.Tests`, `Nino.Codegen.Integration.Tests`, `Nino.Codegen.Tests`, Node 22.18+),
-publishes `Nino.AotTests` trimmed and Native AOT, and runs `Nino.RuntimeTests` (net472) under Mono against .NET. The
+publishes `Nino.AotTests` trimmed and Native AOT, and runs `Nino.RuntimeTests` ("Runtime internals") on every runtime
+whose collections Nino reads or builds through their fields: .NET on x64, Arm64, Windows x86 and Arm32 (under qemu),
+Mono on x64 and Arm64 (also with `MONO_GC_DEBUG=verify-before-collections`), and .NET Framework 4.8 64-bit and 32-bit
+(`-p:NinoX86=true` builds the 32-bit exe). Each must write .NET x64's bytes, see the same contents through the public
+API and find every path meant for it (`FastPaths` in its `Program.cs`). Locally:
+
+```bash
+dotnet build tests/Nino.RuntimeTests -c Release
+dotnet tests/Nino.RuntimeTests/bin/Release/net10.0/Nino.RuntimeTests.dll > dotnet.txt
+mono tests/Nino.RuntimeTests/bin/Release/net472/Nino.RuntimeTests.exe > mono.txt
+diff <(grep -v '^#' dotnet.txt) <(grep -v '^#' mono.txt)
+```
+
+`runtimes.yml` tests the Go (with and without `-tags purego`), Rust and TypeScript runtimes on x64 and on an Arm64
+runner, and Go also on 386, Arm32 and big-endian s390x (the last two under qemu); the release's `report.yml`
+benchmarks the three on x64 and Arm64. The
 Unity tests (`src/Nino.Unity`, on Unity 2022.3 and the newest Unity 6 LTS, in the editor and in an IL2CPP player) run in `unity.yml`, one job at a time
 and never cancelled while running, so CI holds at most one seat of the Unity license. Locally, the same split keeps a run in memory:
 `--filter "FullyQualifiedName!~ShapeMatrixTests"`, then `--filter "FullyQualifiedName~ShapeMatrixTests"`.

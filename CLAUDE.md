@@ -79,8 +79,16 @@ every method it lists. What has gone wrong before:
     the JIT folds it to the type it allocated (Arm32 did).
   - Run it on .NET 8 and 10, the `net472` build under Mono (also `MONO_GC_DEBUG=verify-before-collections`), Arm32
     under qemu, with a GC stress (forced compacting collections between builds, then every object checked).
-    qemu-aarch64 crashes on allocation-heavy runs with or without Nino's code (in `ToImmutableDictionary`): keep
-    Arm64 runs small there, or use an Arm64 runner.
+    Under qemu-arm (Arm32), set `DOTNET_EnableWriteXorExecute=0`: with W^X the runtime writes dynamic methods
+    (`Expression.Compile`, reflection invoke stubs) through a second mapping qemu-user does not see, and they crash.
+    To run tests under qemu-aarch64, pass `-cpu neoverse-n1` (listings can keep the default): qemu 8.2's default CPU
+    (`max`) has LRCPC2, whose `ldapur`/`stlur` (what the optimizing JIT emits for `Volatile.Read`/`Write` of a field)
+    it emulates wrong. With or without Nino's code, runs crashed (`ToImmutableDictionary`), or a static field written
+    by `Volatile.Write` read as never written elsewhere; `DOTNET_TieredCompilation=0` moves the failures, it does
+    not avoid them. CI's "Runtime internals" job runs `tests/Nino.RuntimeTests` on .NET (x64, Arm64, Arm32 under
+    qemu, Windows x86), Mono (x64, Arm64) and .NET Framework 4.8 (64-bit and 32-bit): give a new path a case there
+    with known contents, and its startup flag a row in its `FastPaths`, so a runtime that falls back to the public
+    API fails.
 - Prefer one path for every platform. A platform-specific fast path (an intrinsic, `UnsafeAccessor` on .NET 8+,
   `allows ref struct` on .NET 9+, a runtime's internal layout) is allowed only behind `#if` or a startup check, with
   the shared path kept as the fallback; say in a comment which platforms take it, and test that both paths write and

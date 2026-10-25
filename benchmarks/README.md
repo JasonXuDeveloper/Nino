@@ -55,7 +55,10 @@ The runtimes outside .NET get a section each after all of those: **🌐 TypeScri
 benchmark** (`runtimes/rust/bench`), each against the serializers of its language, run on one runner from the tag's
 sources and formatted by [`runtimes_report.py`](runtimes_report.py). Their headings and tables have none of the
 words the readers of the .NET sections look for ("Performance Report", "Method", "Mean"), and a language whose
-benchmark fails is left out without touching the rest.
+benchmark fails is left out without touching the rest. The same three run on an Arm64 runner too and follow as
+**🌐 Arm64: TypeScript runtime benchmark**, **🐹 Arm64: Go runtime benchmark** and **🦀 Arm64: Rust runtime
+benchmark** (`runtimes_report.py --arch arm64`: the same tables; no Arm64 heading contains an x64 one, which the docs
+site finds by its first occurrence).
 
 The README numbers and chart (`docs/assets/benchmark.svg` and `.png`) and the runtime tables of
 `docs/v4-benchmarks.md` follow the newest v4 release too: for that release, `report.yml` runs
@@ -212,9 +215,9 @@ cross JIT above shows ARM64.
 Each runtime is benchmarked with its language's standard tool, against Protocol Buffers and MessagePack in every
 case, plus each language's usual serializers. Every case has a value of the same data for each serializer (the
 protobuf messages mirror the types field for field), and every serializer is checked to read back what it wrote
-before it is timed. `report.yml`'s `runtimes` job runs each as below on one runner and `runtimes_report.py` turns its
-output into the release's section: a row per case and operation, a column per serializer (Nino first), and the
-encoded sizes. Local numbers are for comparing changes back to back on one machine; never publish them.
+before it is timed. `report.yml`'s `runtimes` job runs each as below on one x64 runner and on one Arm64 runner, and
+`runtimes_report.py` turns its output into the release's sections: a row per case and operation, a column per
+serializer (Nino first), and the encoded sizes. Local numbers are for comparing changes back to back on one machine; never publish them.
 
 The string cases are the same in all three: 1,000 short ASCII strings (`"string 0"` to `"string 999"`), and 1,000
 strings of ASCII, Latin-1 (`"crème brûlée i"`, one byte a char in Nino) and other text (`"строка 字符串 🎉 i"`,
