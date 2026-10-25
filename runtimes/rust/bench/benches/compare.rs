@@ -224,6 +224,31 @@ fn mixed_strings() -> Vec<String> {
 
 // ---------------------------------------------------------------------------------------------- the harness
 
+/// Nino alone on `$value`: for a case whose bytes differ only in Nino from one `formats!` already measures (the
+/// other serializers write the same bytes for both), so the report shows it as its own row.
+macro_rules! nino_only {
+    ($c:expr, $group:literal, $elements:expr, $value:expr, $t:ty) => {{
+        let value: $t = $value;
+        let mut g = $c.benchmark_group($group);
+        let nino_bytes = nino::serialize(&value).unwrap();
+        g.throughput(Throughput::Elements($elements));
+        let mut out = Vec::with_capacity(nino_bytes.len());
+        g.bench_function(BenchmarkId::new("serialize", "nino"), |b| {
+            b.iter(|| {
+                out.clear();
+                nino::serialize_into(black_box(&value), &mut out).unwrap();
+                black_box(out.len())
+            })
+        });
+        assert_eq!(nino::deserialize::<$t>(&nino_bytes).unwrap(), value);
+        eprintln!("{}: {} bytes nino", $group, nino_bytes.len());
+        g.bench_function(BenchmarkId::new("deserialize", "nino"), |b| {
+            b.iter(|| black_box(nino::deserialize::<$t>(black_box(&nino_bytes)).unwrap()))
+        });
+        g.finish();
+    }};
+}
+
 /// bincode 2's standard configuration (little-endian, variable-length integers).
 const BINCODE: bincode::config::Configuration = bincode::config::standard();
 
@@ -348,6 +373,15 @@ fn benches(c: &mut Criterion) {
         proto::Strings
     );
     formats!(c, "strings-mixed-1000", 1000, mixed_strings(), Vec<String>, strings, proto::Strings);
+    // The same strings as a `[NinoUtf8] string[]`: each as UTF-8 (wire format 4.2), read with the same checks
+    // (strict UTF-8, the char count) as a `[NinoUtf8]` member, as the other serializers check theirs.
+    nino_only!(
+        c,
+        "strings-mixed-utf8-1000",
+        1000,
+        mixed_strings().into_iter().map(nino::Utf8).collect(),
+        Vec<nino::Utf8>
+    );
 }
 
 criterion_group! {

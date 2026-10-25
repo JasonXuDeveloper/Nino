@@ -145,7 +145,7 @@ func stringsCase(name string, v []string) benchCase {
 }
 
 func cases() []benchCase {
-	v, vs := one(), list()
+	v, vs, mixed := one(), list(), MixedStrings()
 	return []benchCase{
 		{"simple-class", v, []codec{
 			ninoCodec(v, WriteSimpleClass, ReadSimpleClass),
@@ -164,7 +164,9 @@ func cases() []benchCase {
 			gobCodec(vs),
 		}},
 		stringsCase("strings-1000", ASCIIStrings()),
-		stringsCase("strings-mixed-1000", MixedStrings()),
+		stringsCase("strings-mixed-1000", mixed),
+		// The same strings as a [NinoUtf8] string[]: Nino only (the others write what they write above).
+		{"strings-mixed-utf8-1000", mixed, []codec{ninoCodec(mixed, WriteUtf8Strings, ReadUtf8Strings)}},
 	}
 }
 
