@@ -1,0 +1,2 @@
+[Licensing::Module] NINO_UNITY_BUILD|il2cpp_config=Release|il2cpp_codegen=OptimizeSpeed|stripping=Minimal|burst_x64_targets=SSE2 SSE4 AVX2
+NINO_UNITY_CI|nino_core=Release|runner=ubuntu26 (20261023.163.3)

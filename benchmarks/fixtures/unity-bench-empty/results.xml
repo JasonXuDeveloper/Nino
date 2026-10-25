@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run result="Failed"><test-suite type="Assembly" name="Burst.Tests.dll"><test-case name="PermuteMatchesTheScalarReference" result="Passed"><output><![CDATA[nothing measured]]></output></test-case></test-suite></test-run>

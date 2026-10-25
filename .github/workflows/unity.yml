@@ -5,6 +5,12 @@ name: Unity
 # it is returned on id.unity.com). So this workflow never cancels a running job (a newer run waits in the queue, and
 # GitHub replaces a waiting run with a newer one before it starts), runs one Unity version at a time, and runs only
 # when what Unity loads changes. CI therefore takes at most one seat at any moment, whatever is pushed.
+#
+# report.yml calls it for each release with `benchmark: true`: the editor's tests are skipped, the IL2CPP player is
+# built as a release build (Test.Editor.Burst.BenchmarkPlayerBuild) and runs the correctness tests and the Burst
+# benchmark (Test.Runtime.Burst.BurstBenchmark, measured with the Unity Performance Testing package), and its results
+# are uploaded per Unity version (artifacts unity-bench-<version>) for benchmarks/unity_report.py. A called run joins the same concurrency group, so
+# it waits for a running Unity job and is never cancelled while it runs.
 
 on:
   push:
@@ -36,8 +42,27 @@ on:
       - 'nuget.config'
       - '.github/workflows/unity.yml'
   workflow_dispatch:
+    inputs:
+      benchmark:
+        description: 'Run the Burst benchmark in a release IL2CPP player (skips the editor tests)'
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      benchmark:
+        description: 'Run the Burst benchmark in a release IL2CPP player (skips the editor tests)'
+        required: false
+        type: boolean
+        default: false
+      ref:
+        description: 'The ref to check out (the release tag); empty for the calling workflow''s commit'
+        required: false
+        type: string
+        default: ''
 
-# One group for every ref: one Unity run at a time in the repository, never cancelled while it runs.
+# One group for every ref and every caller (report.yml's call included): one Unity run at a time in the repository,
+# never cancelled while it runs.
 concurrency:
   group: unity-license
   cancel-in-progress: false
@@ -56,12 +81,15 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  # The benchmark's run: the release player, and Nino.Core's Release build (the one the package ships).
+  BENCHMARK: ${{ inputs.benchmark && 'true' || 'false' }}
 
 jobs:
   unity-tests:
     name: Unity tests (${{ matrix.unity }})
     runs-on: ubuntu-26.04
     # The editor's tests, then an IL2CPP player build (the test player, the Burst AOT library) and its tests.
+    # The benchmark's run skips the editor's tests and adds a few minutes of timing to the player's.
     timeout-minutes: 100
     strategy:
       fail-fast: false
@@ -80,6 +108,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || '' }}
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -97,18 +128,22 @@ jobs:
             nuget-${{ runner.os }}-${{ runner.arch }}-unity-
             nuget-${{ runner.os }}-${{ runner.arch }}-
 
+      # Debug builds for the tests (their assertions), Release for the benchmark (what the package ships).
       - name: Build the DLLs Unity loads
+        env:
+          CONFIG: ${{ env.BENCHMARK == 'true' && 'Release' || 'Debug' }}
         run: |
-          dotnet build src/Nino.Core/Nino.Core.csproj -c Debug -f netstandard2.1
-          dotnet build src/Nino.Generator/Nino.Generator.csproj -c Debug
-          dotnet build src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj -c Debug
-          dotnet build src/Nino.UnityTypes/Nino.UnityTypes.csproj -c Debug
-          cp ./src/Nino.Core/bin/Debug/netstandard2.1/Nino.Core.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
+          dotnet build src/Nino.Core/Nino.Core.csproj -c "$CONFIG" -f netstandard2.1
+          dotnet build src/Nino.Generator/Nino.Generator.csproj -c "$CONFIG"
+          dotnet build src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj -c "$CONFIG"
+          dotnet build src/Nino.UnityTypes/Nino.UnityTypes.csproj -c "$CONFIG"
+          cp "./src/Nino.Core/bin/$CONFIG/netstandard2.1/Nino.Core.dll" ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
-          cp ./src/Nino.Generator/bin/Debug/netstandard2.0/Nino.Generator.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+          cp "./src/Nino.Generator/bin/$CONFIG/netstandard2.0/Nino.Generator.dll" ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
           # Code fixes, for Rider and Visual Studio: Unity lists RoslynAnalyzer DLLs in the projects it generates.
-          cp ./src/Nino.Generator.CodeFixes/bin/Debug/netstandard2.0/Nino.Generator.CodeFixes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.CodeFixes.dll
-          cp ./src/Nino.UnityTypes/bin/Debug/netstandard2.1/Nino.UnityTypes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
+          cp "./src/Nino.Generator.CodeFixes/bin/$CONFIG/netstandard2.0/Nino.Generator.CodeFixes.dll" ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.CodeFixes.dll
+          cp "./src/Nino.UnityTypes/bin/$CONFIG/netstandard2.1/Nino.UnityTypes.dll" ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
+          echo "NINO_CONFIG=$CONFIG" >> "$GITHUB_ENV"
 
       # Keyed by the project's sources, not by the DLLs the step above built into Packages: those differ in every
       # commit, so every run missed the key and saved another 800 MB per version, which pushed the other caches out
@@ -123,6 +158,7 @@ jobs:
 
       # Edit mode and play mode tests in the editor (Mono, Burst's JIT).
       - name: Run the editor's tests
+        if: env.BENCHMARK != 'true'
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: editor-tests
         env:
@@ -145,6 +181,9 @@ jobs:
       # Burst AOT, where the paths through the runtime's own collections and the Burst function pointers run as they do
       # on devices. It runs after a failure of the editor's tests too, so one run shows both; the steps run one after
       # the other, so the job still holds one seat at a time.
+      # With the benchmark, -ninoBenchmark builds the player without the Development flag and with the benchmark in it
+      # (Test.Editor.Burst.BenchmarkPlayerBuild). Code coverage stays on: it instruments only the editor's code, but
+      # game-ci CLI v0.1.72 rejects the --no-coverageEnabled that coverageEnabled: false passes to it.
       - name: Run the IL2CPP player's tests
         if: success() || steps.editor-tests.conclusion == 'failure'
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
@@ -158,9 +197,44 @@ jobs:
           testMode: standalone
           artifactsPath: artifacts/player
           customImage: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
+          customParameters: ${{ env.BENCHMARK == 'true' && '-ninoBenchmark' || '' }}
           unityVersion: ${{ matrix.unity }}
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
+
+      # The benchmark's results, per Unity version: the player's NUnit results (results.xml), whose test output holds
+      # the Performance Testing package's results and run metadata and the player's NINO_UNITY_ENV line, and
+      # build.txt: the editor's NINO_UNITY_BUILD line (how the player was built) and this job's NINO_UNITY_CI line.
+      # Fails (after the results are uploaded below) when the player measured nothing, so a release whose Unity
+      # section is missing shows why.
+      - name: Collect the benchmark results
+        id: bench
+        if: always() && env.BENCHMARK == 'true' && steps.player-tests.conclusion != 'skipped'
+        env:
+          UNITY_VERSION: ${{ matrix.unity }}
+        run: |
+          set -euo pipefail
+          OUT="bench/unity-bench-$UNITY_VERSION"
+          mkdir -p "$OUT"
+          cp artifacts/player/standalone-results.xml "$OUT/results.xml" || true
+          {
+            grep -ho 'NINO_UNITY_BUILD|.*' artifacts/player/standalone.log || true
+            echo "NINO_UNITY_CI|nino_core=$NINO_CONFIG|runner=$ImageOS ($ImageVersion)"
+          } > "$OUT/build.txt"
+          cat "$OUT/build.txt"
+          if grep -q '##performancetestresult2:' "$OUT/results.xml" 2>/dev/null; then
+            echo "has_rows=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_rows=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload the benchmark results
+        if: always() && steps.bench.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unity-bench-${{ matrix.unity }}
+          path: bench/unity-bench-${{ matrix.unity }}
+          retention-days: 30
 
       - name: Upload Unity results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -174,3 +248,8 @@ jobs:
             ${{ steps.editor-tests.outputs.coveragePath }}
           retention-days: 30
 
+      - name: Check the benchmark ran
+        if: always() && steps.bench.outputs.has_rows == 'false'
+        run: |
+          echo "::error::The IL2CPP player's results hold no performance test result (see its log in test-results-unity-${{ matrix.unity }})"
+          exit 1

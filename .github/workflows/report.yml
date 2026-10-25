@@ -31,6 +31,9 @@ env:
   # appended after every other section by the runtimes jobs. Their headings and tables never contain "Performance
   # Report", "Method" or "Mean", so nothing reading the .NET report takes them for its own, and no Arm64 heading
   # contains an x64 one, which the docs site finds by its first occurrence.
+  # The very last section: the Burst kernels in a Unity IL2CPP player (benchmarks/unity_report.py's HEADING), from
+  # unity.yml's benchmark run, appended after the runtime sections by publish-unity. The docs site looks for it.
+  UNITY_HEADING: "## 🎮 Unity benchmark (Burst, IL2CPP)"
 
 # Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
 defaults:
@@ -46,6 +49,7 @@ jobs:
       tag: ${{ steps.determine_target.outputs.target_ref }}
       skip: ${{ steps.check_benchmark.outputs.skip }}
       matrix: ${{ steps.shards.outputs.matrix }}
+      unity_skip: ${{ steps.check_unity.outputs.skip }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -104,6 +108,22 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "✅ A section is missing, will run"
+          fi
+
+      # The Unity benchmark takes the Unity license's seat for most of an hour: it runs only when the release has no
+      # Unity section yet (for a manual run too).
+      - name: Check if the Unity benchmark already exists
+        id: check_unity
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.determine_target.outputs.target_ref }}
+        run: |
+          gh release view "$TAG_NAME" --json body --jq '.body' > "$RUNNER_TEMP/unity-body.md"
+          if grep -qF "$UNITY_HEADING" "$RUNNER_TEMP/unity-body.md"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "⏭️ The Unity benchmark already exists for this release"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
   # The benchmark classes run in parallel, two or more per runner (so each joined report has a Type column), every
@@ -595,6 +615,72 @@ jobs:
           gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > current_notes.md
           python3 benchmarks/release_body.py append --body current_notes.md --out updated_notes.md \
             sections/runtime-section-{typescript,go,rust,typescript-arm64,go-arm64,rust-arm64}/section.md
+          if [[ -f updated_notes.md ]]; then
+            gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes-file updated_notes.md
+          fi
+
+  # The Burst kernels in a Unity IL2CPP player, each Unity version unity.yml tests: its benchmark run (a release
+  # player, the correctness tests and Test.Runtime.Burst.BurstBenchmark), which waits in unity.yml's concurrency group
+  # for any running Unity job (one license seat at a time) and is never cancelled while it runs. A failure here
+  # fails this run, visibly, and leaves only the Unity section out: no other job needs it.
+  unity:
+    name: Unity benchmark
+    needs: target
+    if: needs.target.outputs.unity_skip != 'true'
+    permissions:
+      contents: read
+      checks: write
+    uses: ./.github/workflows/unity.yml
+    with:
+      benchmark: true
+      ref: ${{ needs.target.outputs.tag }}
+    secrets: inherit
+
+  # After the other sections (publish, publish-runtimes), so no two jobs edit the release body at once; also when they
+  # were skipped or failed. Appends the Unity section once (it is skipped when the heading is already there).
+  publish-unity:
+    name: Publish the Unity benchmark
+    needs: [ target, unity, publish, publish-runtimes ]
+    if: ${{ always() && needs.target.result == 'success' && needs.target.outputs.unity_skip != 'true' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG_NAME: ${{ needs.target.outputs.tag }}
+    steps:
+      # This workflow's commit, for the report script.
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: benchmarks
+
+      # One folder per Unity version (unity-bench/unity-bench-<version>: results.xml and build.txt).
+      - name: Download the benchmark results
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: unity-bench-*
+          path: unity-bench
+
+      - name: Append the Unity section to the release body
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          # One folder per Unity version, oldest first.
+          mapfile -t FILES < <(printf '%s\n' unity-bench/unity-bench-*/ | sort -V)
+          if (( ${#FILES[@]} == 0 )); then
+            echo "::warning::No Unity benchmark results (see the Unity benchmark job): the Unity section is left out"
+            exit 0
+          fi
+          python3 benchmarks/test_unity_report.py
+          if ! python3 benchmarks/unity_report.py "$TAG_NAME" "${FILES[@]}" > section.md; then
+            echo "::warning::benchmarks/unity_report.py found no performance test results: the Unity section is left out"
+            exit 0
+          fi
+          cat section.md
+          # Once (by its heading), within GitHub's limit (benchmarks/release_body.py).
+          gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > current_notes.md
+          python3 benchmarks/release_body.py append --body current_notes.md --out updated_notes.md section.md
           if [[ -f updated_notes.md ]]; then
             gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes-file updated_notes.md
           fi

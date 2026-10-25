@@ -13,9 +13,10 @@ DIR/assets.tsv, the files to attach to the release (source path, tab, asset name
 (or has no report). The sections go before the Performance Report: parsers that
 read every table from "Performance Report" to the end of the body then never see their tables.
 
-append: appends each section file (the runtimes outside .NET, from runtimes_report.py) whose heading, its first line,
-the body lacks, in the order given, while the body stays within GitHub's limit; a missing or empty file is left out
-with a warning. Writes the new body to updated.md only when it added one, and exits 0 either way.
+append: appends each section file (the runtimes outside .NET, from runtimes_report.py; the Unity benchmark, from
+unity_report.py) whose heading, its first line, the body lacks, in the order given, while the body stays within
+GitHub's limit; a missing or empty file is left out with a warning. Writes the new body to updated.md only when it
+added one, and exits 0 either way.
 
 complete: prints true when the body has every .NET section (the benchmark then need not run), false otherwise.
 
