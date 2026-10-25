@@ -173,8 +173,17 @@ namespace Nino.Core
 
         // n >= 8 without vectors: four chars at a time, then the rest.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static bool NarrowWords(ref char source, ref byte destination, nuint n)
+        private static unsafe bool NarrowWords(ref char source, ref byte destination, nuint n)
         {
+#if !NET8_0_OR_GREATER
+            // The netstandard builds (Unity, .NET Framework): the registered kernels (NinoKernels), for long text.
+            if (n >= (uint)NinoKernelHook.MinChars && NinoKernelHook.Kernels is { } kernels)
+            {
+                fixed (char* from = &source)
+                fixed (byte* to = &destination)
+                    return kernels.Narrow(from, to, (int)n);
+            }
+#endif
             nuint i = 0;
             for (; i + 4 <= n; i += 4)
             {
@@ -389,8 +398,18 @@ namespace Nino.Core
 
         // n >= 8 without vectors: four chars at a time, then the rest.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WidenWords(ref byte source, ref ushort destination, nuint n)
+        private static unsafe void WidenWords(ref byte source, ref ushort destination, nuint n)
         {
+#if !NET8_0_OR_GREATER
+            // As in NarrowWords.
+            if (n >= (uint)NinoKernelHook.MinChars && NinoKernelHook.Kernels is { } kernels)
+            {
+                fixed (byte* from = &source)
+                fixed (ushort* to = &destination)
+                    kernels.Widen(from, (char*)to, (int)n);
+                return;
+            }
+#endif
             nuint i = 0;
             for (; i + 4 <= n; i += 4)
             {

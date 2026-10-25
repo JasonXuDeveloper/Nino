@@ -73,6 +73,30 @@ namespace Nino.Core
         public static readonly int[] Bools = IsMemory ? Description.Bools : null;
 #endif
 
+#if !NET8_0_OR_GREATER
+        /// <summary>
+        /// Whether values are moved by the registered kernels (<see cref="NinoKernels"/>, netstandard builds only): blocks
+        /// not laid out as in memory, both at most 64 bytes.
+        /// </summary>
+        public static readonly bool Kernel = Map != null && !IsMemory && NinoBlock.Size<T, TFormatter>() <= 64 &&
+                                             Unsafe.SizeOf<T>() <= 64;
+
+        /// <summary>The tables of <see cref="NinoKernels.Permute"/>, built the first time a kernel is called for these values.</summary>
+        internal static class KernelTables
+        {
+            /// <summary>For each block byte, the memory byte it comes from.</summary>
+            public static readonly IntPtr ToWire =
+                NinoKernelHook.Table(Map, NinoBlock.Size<T, TFormatter>(), Unsafe.SizeOf<T>(), toWire: true);
+
+            /// <summary>For each memory byte, the block byte it comes from (0xFF: padding, cleared).</summary>
+            public static readonly IntPtr ToMemory =
+                NinoKernelHook.Table(Map, NinoBlock.Size<T, TFormatter>(), Unsafe.SizeOf<T>(), toWire: false);
+
+            /// <summary>The block offsets of the bools, checked before a read (null: none).</summary>
+            public static readonly int[] Bools = Kernel ? Description.Bools : null;
+        }
+
+#endif
 #if NET8_0_OR_GREATER
         /// <summary>The bytes of a value and of its block matched, which every table below is read from.</summary>
         private static readonly NinoBlockBytes Bytes = Map != null
