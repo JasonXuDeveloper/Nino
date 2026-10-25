@@ -699,6 +699,18 @@ export class NinoWriter {
     return at;
   }
 
+  /**
+   * The int32 `value` at `at` (reserved), as four byte stores: in Chromium cheaper than the view's setter at an
+   * unaligned offset, and the same in Node.
+   */
+  private int32At(at: number, value: number): void {
+    const buffer = this.buffer;
+    buffer[at] = value;
+    buffer[at + 1] = value >> 8;
+    buffer[at + 2] = value >> 16;
+    buffer[at + 3] = value >> 24;
+  }
+
   /** The bytes written so far, copied. */
   toBytes(): Uint8Array<ArrayBuffer> { return this.buffer.slice(this.start, this.pos); }
 
@@ -750,7 +762,7 @@ export class NinoWriter {
   u16(value: number): void { const at = this.reserve(2); this.view.setUint16(at, value, true); }
   i16(value: number): void { const at = this.reserve(2); this.view.setInt16(at, value, true); }
   u32(value: number): void { const at = this.reserve(4); this.view.setUint32(at, value, true); }
-  i32(value: number): void { const at = this.reserve(4); this.view.setInt32(at, value, true); }
+  i32(value: number): void { this.int32At(this.reserve(4), value | 0); }
   // A bigint out of range wraps to 64 bits, as setBig(U)Int64 converts it.
   u64(value: bigint): void { const at = this.reserve(8); this.view.setBigUint64(at, value, true); }
   i64(value: bigint): void { const at = this.reserve(8); this.view.setBigInt64(at, value, true); }
@@ -838,13 +850,13 @@ export class NinoWriter {
         buffer[at + 4 + i] = c;
       }
       if (i === length) {
-        this.view.setInt32(at, length === 0 ? 0 : ~length, true);
+        this.int32At(at, length === 0 ? 0 : ~length);
         return;
       }
       this.pos = at;
     } else if (!wide.test(value)) {
       const at = this.reserve(4 + length);
-      this.view.setInt32(at, ~length, true);
+      this.int32At(at, ~length);
       this.encodeLatin1(value, at + 4);
       return;
     }
