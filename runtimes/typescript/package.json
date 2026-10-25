@@ -36,8 +36,12 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:wasm": "node wasm/build.ts",
     "typecheck": "tsc -p .",
-    "test": "tsc -p . && node --test \"test/**/*.test.ts\"",
+    "test": "tsc -p . && npm run test:node && npm run test:browser && npm run test:no-wasm",
+    "test:node": "node --test \"test/**/*.test.ts\"",
+    "test:browser": "NINO_TEST_RUNTIME=browser node --import ./test/runtime.ts --test \"test/**/*.test.ts\"",
+    "test:no-wasm": "NINO_TEST_RUNTIME=browser NINO_WASM=0 node --import ./test/runtime.ts --test \"test/**/*.test.ts\"",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
