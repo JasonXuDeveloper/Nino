@@ -137,4 +137,9 @@ describe("DateTime", () => {
     assert.throws(() => bytes((w) => w.dateTime(new Date(-62135596800001))), NinoError);
     assert.throws(() => bytes((w) => w.dateTime(new Date(NaN))), NinoError);
   });
+  it("rejects ticks past DateTime.MaxValue's, as the writer does (§9.10)", () => {
+    // MaxValue's ticks + 1, of each kind.
+    for (const hex of ["004037f47528ca2b", "004037f47528ca6b", "004037f47528caab", "004037f47528caeb"])
+      assert.throws(() => reader(hex).dateTime(), NinoError, hex);
+  });
 });
