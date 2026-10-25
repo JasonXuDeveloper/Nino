@@ -77,7 +77,7 @@ func (r *Reader) StringPtr() *string {
 	if !ok {
 		return nil
 	}
-	return &s
+	return r.stringBox(s)
 }
 
 // UTF16 reads a string as its UTF-16 code units, unpaired surrogates included: nil for null, empty (not nil) for
@@ -131,7 +131,7 @@ func (r *Reader) Utf8Ptr() *string {
 	if !ok {
 		return nil
 	}
-	return &s
+	return r.stringBox(s)
 }
 
 // NullableUtf8 reads a [NinoUtf8] string: ok is false for null.
@@ -236,9 +236,13 @@ func isASCIILong(b []byte) bool {
 // keeps (r.text), one after the other, each its own part of the block, never written again once it is a string:
 // one allocation for many strings. A block is at most textBlock bytes, and never more than the text the data left
 // can hold, so what it allocates stays in proportion to the data. A string kept keeps its whole block alive.
+//
+// Pointers to strings (StringPtr, Utf8Ptr; what generated code reads a C# string into) point into a block of up to
+// stringBoxes strings the reader keeps, so a pointer kept keeps that block, and the strings in it, alive.
 const (
-	textShort = 128
-	textBlock = 2048
+	stringBoxes = 32
+	textShort   = 128
+	textBlock   = 2048
 )
 
 // textRoom makes r.text hold at least n bytes (n <= textShort): a new block, as large as the text left can take.
@@ -246,6 +250,25 @@ const (
 //go:noinline
 func (r *Reader) textRoom(n int) {
 	r.text = make([]byte, min(textBlock, n+2*len(r.buf)))
+}
+
+// stringBox returns a pointer to s, in a block of them the reader keeps (r.boxes): one allocation for many.
+func (r *Reader) stringBox(s string) *string {
+	if len(r.boxes) == 0 {
+		r.boxRoom()
+	}
+	p := &r.boxes[0]
+	r.boxes = r.boxes[1:]
+	*p = s
+	return p
+}
+
+// boxRoom gives r.boxes a new block: at most stringBoxes, and no more than the strings the data left can hold (each
+// takes at least its 4-byte header).
+//
+//go:noinline
+func (r *Reader) boxRoom() {
+	r.boxes = make([]string, min(stringBoxes, 1+len(r.buf)/4))
 }
 
 // textCopy returns a copy of b (0 < len(b) <= textShort), in r.text.

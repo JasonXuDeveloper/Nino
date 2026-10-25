@@ -255,7 +255,8 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
   `Reader.UTF16` for the code units themselves.
 - **Reading.** Short strings (up to 128 bytes of UTF-8) are converted into a block the reader keeps (at most 2 KiB,
   and never more than the data left can fill), one after another: one allocation for many strings, as substrings
-  share their string's. A string kept keeps its block alive; copy it (`strings.Clone`) to keep it alone.
+  share their string's. A string kept keeps its block alive; copy it (`strings.Clone`) to keep it alone. Likewise
+  `StringPtr` and `Utf8Ptr` (generated code's `*string`) point into a block of up to 32 strings the reader keeps.
 - **Writing.** A string is written as Latin-1 when every char is at most U+00FF, else as UTF-16 (what .NET writes).
   WTF-8 surrogates are written back as the code units they stand for. A byte that is not UTF-8 is written as U+FFFD.
   The text is converted into the writer's buffer eight bytes at a time, in one pass, through `unsafe` pointers
