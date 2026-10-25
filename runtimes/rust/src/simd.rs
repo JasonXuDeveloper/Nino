@@ -945,10 +945,12 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
             #[cfg(nino_avx512)]
             x86::Tier::Avx512 => unsafe { x86::wide_avx512(out, text) },
             // SAFETY: as above.
-            x86::Tier::Sse41 | x86::Tier::Avx2 => unsafe { x86::wide_sse41(out, text) },
+            x86::Tier::Avx2 => unsafe { x86::wide_avx2(out, text) },
             // SAFETY: as above (a compiler without AVX-512 never finds that tier).
             #[cfg(not(nino_avx512))]
-            x86::Tier::Avx512 => unsafe { x86::wide_sse41(out, text) },
+            x86::Tier::Avx512 => unsafe { x86::wide_avx2(out, text) },
+            // SAFETY: as above.
+            x86::Tier::Sse41 => unsafe { x86::wide_sse41(out, text) },
             x86::Tier::Sse2 | x86::Tier::Ssse3 => return wide_short(out, text),
         }
         return true;
@@ -1336,11 +1338,51 @@ pub(crate) fn latin1_string(bytes: &[u8]) -> String {
         // SAFETY: ASCII is valid UTF-8.
         return unsafe { String::from_utf8_unchecked(bytes.to_vec()) };
     }
-    let mut text = Vec::<u8>::with_capacity(bytes.len().wrapping_add(high));
+    let room = len.wrapping_add(high);
+    let mut text = Vec::<u8>::with_capacity(room);
     let dst = text.spare_capacity_mut().as_mut_ptr().cast::<u8>();
-    // Invariant: `o <= i + (high bytes before i)`, so that the output of the bytes from `i` (at least as many bytes,
-    // one more for each high byte) still fits the room: every store below ends within `len + high`.
-    let mut o = 0usize;
+    // SAFETY: `room` bytes of room at `dst`, exactly what the bytes' UTF-8 takes.
+    let o = unsafe { latin1_utf8(bytes, dst, room) };
+    // SAFETY: the `o` bytes from the start are written (`o <= room`), and they are valid UTF-8 (see above).
+    unsafe {
+        text.set_len(o);
+        String::from_utf8_unchecked(text)
+    }
+}
+
+/// Writes the UTF-8 of the Latin-1 `bytes` at `dst` with the kernel this target has; returns the bytes written.
+///
+/// # Safety
+/// `room` bytes are writable at `dst`, at least the UTF-8's length (one byte per byte, two above 0x7F).
+#[inline(always)]
+unsafe fn latin1_utf8(bytes: &[u8], dst: *mut u8, room: usize) -> usize {
+    // SAFETY: the caller's contract, and the CPU has what each kernel needs (its tier).
+    unsafe {
+        #[cfg(target_arch = "x86_64")]
+        match x86::tier() {
+            #[cfg(nino_avx512)]
+            x86::Tier::Avx512 => x86::latin1_avx512(bytes, dst),
+            x86::Tier::Sse2 => latin1_words(bytes, 0, dst, 0),
+            _ => x86::latin1_ssse3(bytes, dst, room),
+        }
+        #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+        return neon::latin1(bytes, dst, room);
+        #[cfg(not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little"))))]
+        return latin1_words(bytes, 0, dst, 0);
+    }
+}
+
+/// Writes the UTF-8 of the Latin-1 `bytes[k..]` at `dst + o`, eight bytes a word while they are ASCII; returns the
+/// offset after it. The plain decoder, and the vector kernels' last bytes.
+///
+/// # Safety
+/// The room from `dst + o` holds the UTF-8 of `bytes[k..]` (one byte per byte, two above 0x7F); `k <= bytes.len()`.
+#[inline(always)]
+unsafe fn latin1_words(bytes: &[u8], k: usize, dst: *mut u8, mut o: usize) -> usize {
+    // SAFETY: `k <= len`.
+    let bytes = unsafe { bytes.get_unchecked(k..) };
+    // Invariant: the room from `dst + o` holds the UTF-8 of what is left (at least one byte a byte), so each store
+    // below fits.
     let (words, tail) = bytes.as_chunks::<8>();
     for w in words {
         let word = u64::from_le_bytes(*w);
@@ -1359,11 +1401,7 @@ pub(crate) fn latin1_string(bytes: &[u8]) -> String {
         // SAFETY: the invariant.
         o = unsafe { latin1_char(dst, o, b) };
     }
-    // SAFETY: the `o` bytes from the start are written (`o <= capacity`), and they are valid UTF-8 (see above).
-    unsafe {
-        text.set_len(o);
-        String::from_utf8_unchecked(text)
-    }
+    o
 }
 
 /// Writes the UTF-8 of the Latin-1 byte `b` at `dst + o`; returns the offset after it.
@@ -1399,9 +1437,48 @@ pub(crate) fn utf16_string(units: &[[u8; 2]]) -> String {
     });
     let mut text = Vec::<u8>::with_capacity(room);
     let dst = text.spare_capacity_mut().as_mut_ptr().cast::<u8>();
+    // SAFETY: `room` bytes of room at `dst`, what the units count.
+    let o = unsafe { utf16_utf8(units, dst, room) };
+    // SAFETY: the `o` bytes from the start are written (`o <= room`), and they are valid UTF-8 (see above).
+    unsafe {
+        text.set_len(o);
+        String::from_utf8_unchecked(text)
+    }
+}
+
+/// Writes the UTF-8 of the UTF-16 `units` at `dst` with the kernel this target has; returns the bytes written.
+///
+/// # Safety
+/// `room` bytes are writable at `dst`, at least what the units count (see [`utf16_string`]).
+#[inline(always)]
+unsafe fn utf16_utf8(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usize {
+    // SAFETY: the caller's contract, and the CPU has what each kernel needs (its tier).
+    unsafe {
+        #[cfg(target_arch = "x86_64")]
+        match x86::tier() {
+            #[cfg(nino_avx512)]
+            x86::Tier::Avx512 => x86::utf16_avx512(units, dst),
+            x86::Tier::Sse2 | x86::Tier::Ssse3 => utf16_words(units, 0, units.len(), dst, 0).1,
+            _ => x86::utf16_sse41(units, dst, room),
+        }
+        #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+        return neon::utf16(units, dst, room);
+        #[cfg(not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little"))))]
+        return utf16_words(units, 0, units.len(), dst, 0).1;
+    }
+}
+
+/// Writes the UTF-8 of `units[k..]` at `dst + o` until `end` (a surrogate pair at `end - 1` is taken whole), four
+/// units a word while they are ASCII or two-byte; returns the unit and the offset after them. The plain decoder, and
+/// the vector kernels' last units and units with surrogates.
+///
+/// # Safety
+/// The room from `dst + o` holds what `units[k..]` count (see [`utf16_string`]).
+#[inline(always)]
+unsafe fn utf16_words(units: &[[u8; 2]], mut k: usize, end: usize, dst: *mut u8, mut o: usize) -> (usize, usize) {
     // Invariant: the room left is at least what the units from `k` count, so each write below fits.
-    let (mut k, mut o) = (0usize, 0usize);
-    while let Some(&[a, b]) = units.get(k) {
+    while k < end {
+        let Some(&[a, b]) = units.get(k) else { break };
         // Four units of ASCII at a time, while four are left.
         if let Some(four) = units.get(k..k.wrapping_add(4)).and_then(|q| q.as_flattened().first_chunk::<8>()) {
             let w = u64::from_le_bytes(*four);
@@ -1469,11 +1546,65 @@ pub(crate) fn utf16_string(units: &[[u8; 2]]) -> String {
             }
         }
     }
-    // SAFETY: the `o` bytes from the start are written (`o <= room`), and they are valid UTF-8 (see above).
-    unsafe {
-        text.set_len(o);
-        String::from_utf8_unchecked(text)
+    (k, o)
+}
+
+/// For each bit set of eight bytes (bit `k` for byte `k` above 0x7F), given 16-bit lanes of a lead byte (low) and
+/// a continuation byte (high): the shuffle that keeps each lane's lead byte and, for the bytes in the set, its
+/// continuation byte, in order; and the bytes kept. Latin-1 and UTF-16 below U+0800 to UTF-8.
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
+static EXPAND: [[u8; 16]; 256] = expand_shuffles();
+
+// Every index is below the array's length (o < 16, m < 256).
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
+#[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+const fn expand_shuffles() -> [[u8; 16]; 256] {
+    let mut table = [[0x80u8; 16]; 256];
+    let mut m = 0;
+    while m < 256 {
+        let (mut o, mut k) = (0, 0);
+        while k < 8 {
+            table[m][o] = 2 * k as u8;
+            o += 1;
+            if m & (1 << k) != 0 {
+                table[m][o] = 2 * k as u8 + 1;
+                o += 1;
+            }
+            k += 1;
+        }
+        m += 1;
     }
+    table
+}
+
+/// For four 32-bit lanes of a code unit's UTF-8 (one, two or three bytes from the lane's lowest), indexed by two bits
+/// a unit (bit `2k` for unit `k` at least U+0080, bit `2k + 1` at least U+0800): the shuffle that keeps each lane's
+/// bytes, in order, and how many it keeps.
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
+static PACK3: [([u8; 16], u8); 256] = pack3_shuffles();
+
+// Every index is below the array's length (o < 16, m < 256).
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
+#[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+const fn pack3_shuffles() -> [([u8; 16], u8); 256] {
+    let mut table = [([0x80u8; 16], 0u8); 256];
+    let mut m = 0;
+    while m < 256 {
+        let (mut o, mut k) = (0, 0);
+        while k < 4 {
+            let bytes = 1 + ((m >> (2 * k)) & 1) + ((m >> (2 * k + 1)) & 1);
+            let mut b = 0;
+            while b < bytes {
+                table[m].0[o] = (4 * k + b) as u8;
+                o += 1;
+                b += 1;
+            }
+            k += 1;
+        }
+        table[m].1 = o as u8;
+        m += 1;
+    }
+    table
 }
 
 #[cfg(test)]
@@ -1521,6 +1652,10 @@ mod tests {
                 // SAFETY: the CPU has SSE4.1 (its tier), and the text is short.
                 kernels.push(("sse4.1", |out, text| unsafe { x86::wide_sse41(out, text) }));
             }
+            if x86::tier() >= x86::Tier::Avx2 {
+                // SAFETY: the CPU has AVX2 (its tier), and the text is short.
+                kernels.push(("avx2", |out, text| unsafe { x86::wide_avx2(out, text) }));
+            }
             #[cfg(nino_avx512)]
             if x86::tier() >= x86::Tier::Avx512 {
                 // SAFETY: the CPU has AVX-512 (its tier), and the text is short.
@@ -1530,6 +1665,44 @@ mod tests {
         #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
         kernels.push(("neon", neon::wide));
         kernels
+    }
+
+    type Latin1Way = unsafe fn(&[u8], *mut u8, usize) -> usize;
+    type Utf16Way = unsafe fn(&[[u8; 2]], *mut u8, usize) -> usize;
+
+    /// Every reader's decoder this CPU can run: the plain ones and each tier's kernels.
+    fn decoder_ways() -> (Vec<(&'static str, Latin1Way)>, Vec<(&'static str, Utf16Way)>) {
+        #[allow(unused_mut)]
+        let mut latin1: Vec<(&'static str, Latin1Way)> =
+            // SAFETY (each): the test's room is the UTF-8's length.
+            vec![("words", |b, d, _| unsafe { latin1_words(b, 0, d, 0) })];
+        #[allow(unused_mut)]
+        let mut utf16: Vec<(&'static str, Utf16Way)> =
+            vec![("words", |u, d, _| unsafe { utf16_words(u, 0, u.len(), d, 0).1 })];
+        #[cfg(target_arch = "x86_64")]
+        {
+            if x86::tier() >= x86::Tier::Ssse3 {
+                // SAFETY: the CPU has SSSE3 (its tier); the caller's room.
+                latin1.push(("ssse3", |b, d, r| unsafe { x86::latin1_ssse3(b, d, r) }));
+            }
+            if x86::tier() >= x86::Tier::Sse41 {
+                // SAFETY: the CPU has SSE4.1 (its tier); the caller's room.
+                utf16.push(("sse4.1", |u, d, r| unsafe { x86::utf16_sse41(u, d, r) }));
+            }
+            #[cfg(nino_avx512)]
+            if x86::tier() >= x86::Tier::Avx512 {
+                // SAFETY: the CPU has AVX-512 (its tier); the caller's room.
+                latin1.push(("avx-512", |b, d, _| unsafe { x86::latin1_avx512(b, d) }));
+                // SAFETY: as above.
+                utf16.push(("avx-512", |u, d, _| unsafe { x86::utf16_avx512(u, d) }));
+            }
+        }
+        #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+        {
+            latin1.push(("neon", neon::latin1));
+            utf16.push(("neon", neon::utf16));
+        }
+        (latin1, utf16)
     }
 
     fn check(text: &str) {
@@ -1611,12 +1784,35 @@ mod tests {
     /// at each position (fewer under Miri), and random input: unpaired, reversed and split surrogates included.
     #[test]
     fn decoders() {
+        let (latin1_ways, utf16_ways) = decoder_ways();
         let latin1 = |bytes: &[u8]| {
-            assert_eq!(latin1_string(bytes), bytes.iter().map(|&b| char::from(b)).collect::<String>(), "{bytes:?}");
+            let want = bytes.iter().map(|&b| char::from(b)).collect::<String>();
+            assert_eq!(latin1_string(bytes), want, "{bytes:?}");
+            let room = bytes.len() + bytes.iter().filter(|&&b| b >= 0x80).count();
+            for (name, way) in &latin1_ways {
+                let mut text = Vec::<u8>::with_capacity(room);
+                // SAFETY: `room` bytes of room, the UTF-8's length.
+                let o = unsafe { way(bytes, text.as_mut_ptr(), room) };
+                assert!(o <= room, "{name}: {bytes:?}");
+                // SAFETY: `o` bytes written.
+                unsafe { text.set_len(o) };
+                assert_eq!(text, want.as_bytes(), "{name}: {bytes:?}");
+            }
         };
         let utf16 = |units: &[u16]| {
             let le: Vec<[u8; 2]> = units.iter().map(|u| u.to_le_bytes()).collect();
-            assert_eq!(utf16_string(&le), String::from_utf16_lossy(units), "{units:?}");
+            let want = String::from_utf16_lossy(units);
+            assert_eq!(utf16_string(&le), want, "{units:?}");
+            let room: usize = units.iter().map(|&u| 1 + usize::from(u >= 0x80) + usize::from(u >= 0x800)).sum();
+            for (name, way) in &utf16_ways {
+                let mut text = Vec::<u8>::with_capacity(room);
+                // SAFETY: `room` bytes of room, what the units count.
+                let o = unsafe { way(&le, text.as_mut_ptr(), room) };
+                assert!(o <= room, "{name}: {units:?}");
+                // SAFETY: `o` bytes written.
+                unsafe { text.set_len(o) };
+                assert_eq!(text, want.as_bytes(), "{name}: {units:?}");
+            }
         };
         let bytes: [u8; 6] = [b'a', 0x7F, 0x80, 0xBF, 0xE9, 0xFF];
         let units: [u16; 12] = [0x61, 0x7F, 0x80, 0x7FF, 0x800, 0xD7FF, 0xD800, 0xDBFF, 0xDC00, 0xDFFF, 0xE000, 0xFFFF];
