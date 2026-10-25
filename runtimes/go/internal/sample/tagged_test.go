@@ -1,9 +1,6 @@
 package sample
 
 import (
-	"bytes"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"math/big"
 	"path/filepath"
@@ -11,6 +8,7 @@ import (
 	"testing"
 
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
+	"github.com/JasonXuDeveloper/Nino/runtimes/go/v4/internal/corpustest"
 )
 
 // The corpus through the struct-tag path: the same Go types, read and written by nino.Marshal and nino.Unmarshal
@@ -127,131 +125,60 @@ func TestTaggedPlans(t *testing.T) {
 	}
 }
 
+// taggedCorpus runs the corpus through nino.Unmarshal and nino.Marshal, and checks each valid value against the
+// hand-written codec's.
+var taggedCorpus = corpustest.Suite{
+	Codec: func(name string) (corpustest.Codec, bool) {
+		typ, ok := tagRoots[name]
+		return corpustest.Codec{
+			Read: func(data []byte, exact bool) (any, error) {
+				v := reflect.New(typ)
+				unmarshal := nino.Unmarshal
+				if exact {
+					unmarshal = nino.UnmarshalExact
+				}
+				if err := unmarshal(data, v.Interface()); err != nil {
+					return nil, err
+				}
+				return v.Elem().Interface(), nil
+			},
+			Write: func(v any) ([]byte, error) { return marshalAs(typ, reflect.ValueOf(&v).Elem()) },
+		}, ok
+	},
+	Skip: func(name string) string {
+		if tagRoots[name] == nil {
+			return name + " is not supported by struct tags"
+		}
+		return ""
+	},
+	Check: func(t *testing.T, name string, data []byte, v any) {
+		k, ok := codecs[name]
+		if !ok {
+			return
+		}
+		hand, err := nino.DeserializeExact(data, k.read)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(render(hand), render(v)) {
+			t.Fatal("the tag path and the hand-written codec read different values")
+		}
+	},
+}
+
 func TestTaggedConformanceValid(t *testing.T) {
-	dir := corpusDir(t)
-	ix := loadIndex(t, dir)
 	registerTagged(t)
-	for _, name := range ix.Valid {
-		t.Run(name, func(t *testing.T) {
-			var c validCase
-			readJSON(t, filepath.Join(dir, "valid", name+".json"), &c)
-			if reason := unsupported(c.Type); reason != "" {
-				t.Skip(reason)
-			}
-			typ, ok := tagRoots[c.Type]
-			if !ok {
-				t.Fatalf("no tag type for %s", c.Type)
-			}
-			if typ == nil {
-				t.Skipf("%s is not supported by struct tags", c.Type)
-			}
-			data := readFile(t, filepath.Join(dir, "valid", name+".bin"))
-			v := reflect.New(typ)
-			if err := nino.UnmarshalExact(data, v.Interface()); err != nil {
-				t.Fatalf("read: %v", err)
-			}
-			var want any
-			d := json.NewDecoder(bytes.NewReader(c.Value))
-			d.UseNumber()
-			if err := d.Decode(&want); err != nil {
-				t.Fatal(err)
-			}
-			if got := render(v.Elem().Interface()); !reflect.DeepEqual(got, want) {
-				g, _ := json.Marshal(got)
-				w, _ := json.Marshal(want)
-				t.Fatalf("value\n got %.2000s\nwant %.2000s", g, w)
-			}
-			// The same value as the hand-written codec's.
-			if k, ok := codecs[c.Type]; ok {
-				hand, err := nino.DeserializeExact(data, k.read)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if !reflect.DeepEqual(render(hand), render(v.Elem().Interface())) {
-					t.Fatal("the tag path and the hand-written codec read different values")
-				}
-			}
-			out, err := marshalAs(typ, v.Elem())
-			if err != nil {
-				t.Fatalf("write: %v", err)
-			}
-			expect := data
-			if !c.RoundTrip {
-				if expect, err = hex.DecodeString(c.Reencoded); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if !bytes.Equal(out, expect) {
-				at := 0
-				for at < len(out) && at < len(expect) && out[at] == expect[at] {
-					at++
-				}
-				t.Fatalf("written bytes differ at %d (%d bytes, want %d)\n got %.400x\nwant %.400x", at, len(out),
-					len(expect), out[at:], expect[at:])
-			}
-		})
-	}
+	taggedCorpus.Valid(t)
 }
 
 func TestTaggedConformanceMalicious(t *testing.T) {
-	dir := corpusDir(t)
-	ix := loadIndex(t, dir)
 	registerTagged(t)
-	for _, name := range ix.Malicious {
-		t.Run(name, func(t *testing.T) {
-			var c maliciousCase
-			readJSON(t, filepath.Join(dir, "malicious", name+".json"), &c)
-			if reason := unsupported(c.Type); reason != "" {
-				t.Skip(reason)
-			}
-			typ, ok := tagRoots[c.Type]
-			if !ok {
-				t.Fatalf("no tag type for %s", c.Type)
-			}
-			if typ == nil {
-				t.Skipf("%s is not supported by struct tags", c.Type)
-			}
-			data := readFile(t, filepath.Join(dir, "malicious", name+".bin"))
-			v := reflect.New(typ)
-			var err error
-			n := allocated(func() { err = nino.UnmarshalExact(data, v.Interface()) })
-			if n > allocationBound(len(data)) {
-				t.Errorf("allocated %d bytes for %d bytes of data", n, len(data))
-			}
-			if c.Expected == "error" && err == nil {
-				t.Fatal("read without an error")
-			}
-			if err != nil {
-				var e *nino.Error
-				if !errors.As(err, &e) {
-					t.Fatalf("error of type %T: %v", err, err)
-				}
-				t.Log(err)
-			}
-		})
-	}
+	taggedCorpus.Malicious(t)
 }
 
 func TestTaggedConformanceTruncations(t *testing.T) {
-	dir := corpusDir(t)
 	registerTagged(t)
-	var tr truncations
-	readJSON(t, filepath.Join(dir, "malicious", "truncations.json"), &tr)
-	for _, c := range tr.Cases {
-		t.Run(c.Case, func(t *testing.T) {
-			typ := tagRoots[c.Type]
-			if unsupported(c.Type) != "" || typ == nil {
-				t.Skip("not supported by struct tags")
-			}
-			data := readFile(t, filepath.Join(dir, "valid", c.Case+".bin"))
-			for n := 0; n < len(data); n++ {
-				prefix := append([]byte(nil), data[:n]...)
-				if err := nino.Unmarshal(prefix, reflect.New(typ).Interface()); err == nil {
-					t.Fatalf("a prefix of %d bytes (of %d) read without an error", n, len(data))
-				}
-			}
-		})
-	}
+	taggedCorpus.Truncations(t)
 }
 
 // marshalAs writes v as the type typ (an interface root included), through nino.MarshalAs.
@@ -270,15 +197,15 @@ func marshalAs(typ reflect.Type, v reflect.Value) ([]byte, error) {
 // TestSampleLayoutsAreTheCorpus: each type's NinoLayout is the layout the corpus publishes for it, unchanged
 // (deferrable part included), so the plans are checked against what .NET writes now.
 func TestSampleLayoutsAreTheCorpus(t *testing.T) {
-	dir := corpusDir(t)
-	ix := loadIndex(t, dir)
+	dir := corpustest.Require(t)
+	ix := corpustest.LoadIndex(t, dir)
 	published := map[string]string{}
 	for group, names := range map[string][]string{"valid": ix.Valid, "malicious": ix.Malicious} {
 		for _, name := range names {
 			var c struct {
 				Layouts map[string]string `json:"layouts"`
 			}
-			readJSON(t, filepath.Join(dir, group, name+".json"), &c)
+			corpustest.ReadJSON(t, filepath.Join(dir, group, name+".json"), &c)
 			for k, v := range c.Layouts {
 				published[k] = v
 			}

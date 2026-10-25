@@ -1,20 +1,18 @@
 package sample
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"reflect"
 	"sort"
 	"testing"
 
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
+	"github.com/JasonXuDeveloper/Nino/runtimes/go/v4/internal/corpustest"
 )
 
 // FuzzDecode reads arbitrary bytes as one of the corpus's root types (chosen by the first byte). Reading must never
 // panic; whatever it accepts must write back, and read again to the same value.
 //
-// Seeded from the conformance corpus when it is present (NINO_CONFORMANCE_CORPUS), and from values written here.
+// Seeded from the conformance corpus when it is present (corpustest.Dir), and from values written here.
 func FuzzDecode(f *testing.F) {
 	names := make([]string, 0, len(codecs))
 	for name := range codecs {
@@ -29,28 +27,7 @@ func FuzzDecode(f *testing.F) {
 	for _, seed := range seeds() {
 		f.Add(append([]byte{index[seed.typ]}, seed.data...))
 	}
-	if dir := os.Getenv("NINO_CONFORMANCE_CORPUS"); dir != "" {
-		for _, sub := range []string{"valid", "malicious"} {
-			files, _ := filepath.Glob(filepath.Join(dir, sub, "*.json"))
-			for _, file := range files {
-				var c struct {
-					Type string `json:"type"`
-				}
-				meta, err := os.ReadFile(file)
-				if err != nil || json.Unmarshal(meta, &c) != nil {
-					continue
-				}
-				i, ok := index[c.Type]
-				if !ok {
-					continue
-				}
-				data, err := os.ReadFile(file[:len(file)-len(".json")] + ".bin")
-				if err == nil && len(data) < 1<<16 {
-					f.Add(append([]byte{i}, data...))
-				}
-			}
-		}
-	}
+	corpustest.Seed(f, index)
 
 	f.Fuzz(func(t *testing.T, input []byte) {
 		if len(input) == 0 {
@@ -137,28 +114,7 @@ func FuzzTaggedDecode(f *testing.F) {
 			f.Add(append([]byte{i}, seed.data...))
 		}
 	}
-	if dir := os.Getenv("NINO_CONFORMANCE_CORPUS"); dir != "" {
-		for _, sub := range []string{"valid", "malicious"} {
-			files, _ := filepath.Glob(filepath.Join(dir, sub, "*.json"))
-			for _, file := range files {
-				var c struct {
-					Type string `json:"type"`
-				}
-				meta, err := os.ReadFile(file)
-				if err != nil || json.Unmarshal(meta, &c) != nil {
-					continue
-				}
-				i, ok := index[c.Type]
-				if !ok {
-					continue
-				}
-				data, err := os.ReadFile(file[:len(file)-len(".json")] + ".bin")
-				if err == nil && len(data) < 1<<16 {
-					f.Add(append([]byte{i}, data...))
-				}
-			}
-		}
-	}
+	corpustest.Seed(f, index)
 	f.Fuzz(func(t *testing.T, input []byte) {
 		if len(input) == 0 {
 			return
