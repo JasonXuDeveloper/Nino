@@ -69,8 +69,11 @@ does not allow compiling WebAssembly (`'wasm-unsafe-eval'`), keeps the JavaScrip
 may still report the blocked compilation as a CSP violation. `useWasm(false)` turns the module off, `useWasm(true)`
 back on, and `useWasm()` tells whether text goes through it.
 
-`npm run build:wasm` assembles `wasm/text.wat` (`wasm/build.ts`, no dependencies) into `nino.ts`; the tests check
-that the two match.
+`npm run build:wasm` assembles `wasm/text.wat` with [wasm-tools](https://github.com/bytecodealliance/wasm-tools)
+(`wasm-tools parse`, then `strip --all`) and writes the module into `nino.ts`, with the SHA-256 of the `text.wat` it
+came from (`wasm/embed.ts`). Install wasm-tools with `cargo install --locked wasm-tools`, or put the binary of a
+[release](https://github.com/bytecodealliance/wasm-tools/releases) on the `PATH`. Only a change to `text.wat` needs
+it: the tests check the hash, and rebuild and compare the module byte for byte where wasm-tools is installed.
 
 ## Tests
 
