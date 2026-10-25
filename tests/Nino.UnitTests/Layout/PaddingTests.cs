@@ -132,7 +132,7 @@ namespace Nino.UnitTests
             }
         }
 
-#if !NINO_CORE_NETSTANDARD
+#if NET8_0_OR_GREATER && !NINO_CORE_NETSTANDARD
         // The copies AMD CPUs take where the destination is a little past the source modulo 4 KB (4K aliasing): from
         // the end down. Taken on AMD only, so tested here directly, at every length and alignment.
         [TestMethod]
