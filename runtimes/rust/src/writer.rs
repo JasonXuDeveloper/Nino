@@ -223,9 +223,14 @@ impl<'a> Writer<'a> {
         let chars = crate::strings::utf16_len(text.as_bytes());
         let chars = i32::try_from(chars).map_err(|_| Error::too_large())?;
         let size = i32::try_from(text.len()).map_err(|_| Error::too_large())?;
-        self.i32(chars);
-        self.i32(size);
-        self.bytes(text.as_bytes());
+        // One reservation: the two counts, then the bytes.
+        self.buf.reserve(text.len().saturating_add(8));
+        let mut header = [0u8; 8];
+        let (c, s) = header.split_at_mut(4);
+        c.copy_from_slice(&chars.to_le_bytes());
+        s.copy_from_slice(&size.to_le_bytes());
+        self.buf.extend_from_slice(&header);
+        self.buf.extend_from_slice(text.as_bytes());
         Ok(())
     }
 
