@@ -48,7 +48,7 @@ jobs:
     outputs:
       unity_version: ${{ steps.version.outputs.unity_version }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -84,7 +84,7 @@ jobs:
           grep -q "<Version>$VERSION</Version>" Directory.Build.props
           grep -q "\"version\": \"$UNITY_VERSION\"" "$UNITY_PACKAGE/package.json"
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             10.0.x
@@ -140,12 +140,12 @@ jobs:
       # The package ids that are packed, checked and pushed (Nino.Core's is Nino.Serialization).
       PACKAGE_IDS: Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino.Codegen Nino.Codegen.Tool Nino
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: v${{ inputs.version }}
           fetch-depth: 0 # the release notes walk the history since the previous release
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             10.0.x
@@ -166,7 +166,7 @@ jobs:
 
       - name: NuGet login (Trusted Publishing)
         id: nuget
-        uses: NuGet/login@v1
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         with:
           user: JasonXuDeveloper # the nuget.org account that owns the policy
 

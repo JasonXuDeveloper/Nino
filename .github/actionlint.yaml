@@ -1,0 +1,5 @@
+# actionlint (https://github.com/rhysd/actionlint) settings for the workflows in this directory.
+self-hosted-runner:
+  # GitHub-hosted images newer than actionlint's list of labels.
+  labels:
+    - ubuntu-26.04

@@ -59,6 +59,7 @@ jobs:
   plan:
     name: Plan shards
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
     steps:
@@ -97,7 +98,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: head
           fetch-depth: 0
@@ -134,14 +135,14 @@ jobs:
           mkdir -p bisect
           for C in $COMMITS; do
             N=$((N + 1))
-            D=$(printf 'bisect/%03d-%s' $N $C)
+            D=$(printf 'bisect/%03d-%s' "$N" "$C")
             git -C head worktree add --detach "../$D" "$C"
             rm -rf "$D/benchmarks/Nino.Benchmark"
             cp -r head/benchmarks/Nino.Benchmark "$D/benchmarks/Nino.Benchmark"
           done
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             ${{ vars.DOTNET_VERSION || '10.0.x' }}
@@ -194,7 +195,7 @@ jobs:
           for SIDE in $SIDES; do
             [[ -d $SIDE ]] || continue
             [[ -f $SIDE/benchmarks/Nino.Benchmark/bin/Release/net10.0/Nino.Benchmark.dll ]] || continue
-            echo "== $SIDE $(git -C $SIDE rev-parse --short HEAD)"
+            echo "== $SIDE $(git -C "$SIDE" rev-parse --short HEAD)"
             # BenchmarkDotNet builds the project again for its runs: a side built with NinoBenchLegacy (above) gets it
             # through the environment, which MSBuild reads as properties.
             LEGACY=""
@@ -212,13 +213,13 @@ jobs:
           mkdir -p results
           for SIDE in base head $(ls -d bisect/* 2>/dev/null); do
             [[ -d $SIDE ]] || continue
-            echo "$SIDE $(git -C $SIDE describe --tags --exclude '*-preview.*' --always) $(git -C $SIDE rev-parse --short HEAD)"
+            echo "$SIDE $(git -C "$SIDE" describe --tags --exclude '*-preview.*' --always) $(git -C "$SIDE" rev-parse --short HEAD)"
           done > results/sides.txt
           lscpu | grep 'Model name' > results/cpu.txt || true
 
       - name: Upload results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: benchmark-${{ inputs.runner || 'ubuntu-24.04-arm' }}-${{ matrix.shard.id }}
           path: results
@@ -229,16 +230,17 @@ jobs:
     needs: bench
     if: always() && needs.bench.result != 'cancelled'
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       # This ref's scripts (ab.py, merge_reports.py, bdn.py).
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: benchmarks
           persist-credentials: false
 
       - name: Download results
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: benchmark-${{ inputs.runner || 'ubuntu-24.04-arm' }}-*
           path: shards
@@ -267,7 +269,7 @@ jobs:
             HEAD_LINE=$(grep '^head ' <<< "$SIDES" | head -n1)
             echo "## Benchmark on $RUNNER: $GITHUB_REF_NAME ($(cut -d' ' -f3 <<< "$HEAD_LINE"))"
             echo ""
-            echo "Shards: $(ls shards | wc -l) runners ($(cat shards/*/cpu.txt | sed 's/Model name: *//' | sort | uniq -c | xargs))."
+            echo "Shards: $(find shards/ -mindepth 1 -maxdepth 1 | wc -l) runners ($(cat shards/*/cpu.txt | sed 's/Model name: *//' | sort | uniq -c | xargs))."
             echo ""
             if report base base.md; then
               BASE_LINE=$(grep '^base ' <<< "$SIDES" | head -n1)
@@ -279,13 +281,13 @@ jobs:
             fi
             if grep -q '^bisect/' <<< "$SIDES"; then
               FIRST=""
-              for B in $(grep -o '^bisect/[^ ]*' <<< "$SIDES" | sort -u); do
+              while read -r B; do
                 report "$B" "$(basename "$B").md" || continue
                 [[ -n $FIRST ]] || FIRST="$(basename "$B").md"
                 echo ""
                 echo "### $(basename "$B") against the release"
                 python3 benchmarks/ab.py "$FIRST" "$(basename "$B").md"
-              done
+              done < <(grep -o '^bisect/[^ ]*' <<< "$SIDES" | sort -u)
             fi
             echo ""
             echo "<details><summary>Report</summary>"
@@ -297,7 +299,7 @@ jobs:
           rm shards benchmarks
 
       - name: Upload merged reports
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: benchmark-${{ inputs.runner || 'ubuntu-24.04-arm' }}-merged
           path: merged
