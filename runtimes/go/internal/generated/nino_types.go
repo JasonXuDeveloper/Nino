@@ -4004,11 +4004,11 @@ func writeV18(w *nino.Writer, v []int32) {
 }
 
 func writeV19(w *nino.Writer, v []*string) {
-	nino.WriteSlice(w, v, (*nino.Writer).StringPtr)
+	nino.WriteStringPtrs(w, v)
 }
 
 func writeV20(w *nino.Writer, v []*string) {
-	nino.WriteSlice(w, v, (*nino.Writer).StringPtr)
+	nino.WriteStringPtrs(w, v)
 }
 
 func writeV21(w *nino.Writer, v []nino.Entry[int32, int32]) {

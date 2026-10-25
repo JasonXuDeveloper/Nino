@@ -1339,7 +1339,7 @@ func readV10(r *nino.Reader) []*string {
 }
 
 func writeV11(w *nino.Writer, v []*string) {
-	nino.WriteSlice(w, v, (*nino.Writer).StringPtr)
+	nino.WriteStringPtrs(w, v)
 }
 
 func readV12(r *nino.Reader) []nino.Entry[float32, int32] {
