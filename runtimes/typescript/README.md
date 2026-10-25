@@ -82,6 +82,9 @@ it (`NINO_WASM=0`). `test/wasm.test.ts` compares the module's paths with the Jav
 malicious case and every truncated prefix of a valid case rejected with a `NinoError`. After a change to the runtime
 that Nino.Codegen embeds, also run the `Nino.Codegen.Integration.Tests` .NET tests.
 
+The runtime itself (the package's `dist`, ES2022) runs on Node 15 and later, as `engines` says; the tests need
+Node 22.18 or later, which runs their TypeScript as it is (type stripping).
+
 ## Benchmarks
 
 `bench/run.sh [scenario]` compares the generated code with Protocol Buffers (protobuf-es), MessagePack (msgpackr) and
