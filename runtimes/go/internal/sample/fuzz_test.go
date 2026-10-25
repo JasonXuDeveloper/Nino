@@ -14,7 +14,7 @@ import (
 // FuzzDecode reads arbitrary bytes as one of the corpus's root types (chosen by the first byte). Reading must never
 // panic; whatever it accepts must write back, and read again to the same value.
 //
-// Seeded from the conformance corpus when it is present (NINO_CONFORMANCE_CORPUS), and from values written here.
+// Seeded from the conformance corpus when it is present (NINO_CORPUS), and from values written here.
 func FuzzDecode(f *testing.F) {
 	names := make([]string, 0, len(codecs))
 	for name := range codecs {
@@ -29,7 +29,7 @@ func FuzzDecode(f *testing.F) {
 	for _, seed := range seeds() {
 		f.Add(append([]byte{index[seed.typ]}, seed.data...))
 	}
-	if dir := os.Getenv("NINO_CONFORMANCE_CORPUS"); dir != "" {
+	if dir := corpusEnv(); dir != "" {
 		for _, sub := range []string{"valid", "malicious"} {
 			files, _ := filepath.Glob(filepath.Join(dir, sub, "*.json"))
 			for _, file := range files {
@@ -137,7 +137,7 @@ func FuzzTaggedDecode(f *testing.F) {
 			f.Add(append([]byte{i}, seed.data...))
 		}
 	}
-	if dir := os.Getenv("NINO_CONFORMANCE_CORPUS"); dir != "" {
+	if dir := corpusEnv(); dir != "" {
 		for _, sub := range []string{"valid", "malicious"} {
 			files, _ := filepath.Glob(filepath.Join(dir, sub, "*.json"))
 			for _, file := range files {

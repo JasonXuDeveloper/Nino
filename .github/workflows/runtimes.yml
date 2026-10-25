@@ -6,8 +6,9 @@ name: Runtimes
 # committed under runtimes/ and checked by the codegen job to be what nino-gen writes today (docs/codegen.md).
 on:
   push:
-    branches: [ "main", "develop", "claude/zen-goldberg-5qqqcu" ]
-    paths:
+    branches: [ "main", "claude/zen-goldberg-5qqqcu" ]
+    # The runtimes, and what .NET writes the corpus and the generated code with.
+    paths: &paths
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'
       - 'src/Nino.Generator.Roslyn4.12/**'
@@ -15,20 +16,17 @@ on:
       - 'tests/Nino.Codegen.Tests/**'
       - 'runtimes/**'
       - 'conformance/**'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - 'nuget.config'
       - '.github/workflows/runtimes.yml'
+      - '.github/actions/setup-dotnet/**'
   pull_request:
-    branches: [ "main", "develop" ]
-    paths:
-      - 'src/Nino.Core/**'
-      - 'src/Nino.Generator/**'
-      - 'src/Nino.Generator.Roslyn4.12/**'
-      - 'src/Nino.Codegen/**'
-      - 'tests/Nino.Codegen.Tests/**'
-      - 'runtimes/**'
-      - 'conformance/**'
-      - '.github/workflows/runtimes.yml'
+    branches: [ "main" ]
+    paths: *paths
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: read
@@ -37,9 +35,10 @@ env:
   DOTNET_NOLOGO: '1'
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
-  CARGO_TERM_COLOR: always
-  # CI builds from scratch (or from the cache's dependencies): incremental artifacts only cost time and cache space.
-  CARGO_INCREMENTAL: '0'
+  # The conformance corpus every runtime's tests read, and a missing one fails them instead of skipping them.
+  # (dtolnay/rust-toolchain sets CARGO_INCREMENTAL=0 and CARGO_TERM_COLOR=always.)
+  NINO_CORPUS: ${{ github.workspace }}/conformance/corpus
+  NINO_CORPUS_REQUIRED: '1'
 
 concurrency:
   group: runtimes-${{ github.ref }}
@@ -51,6 +50,11 @@ concurrency:
 # after another step failed, so one run shows every failure), the longest jobs come first, and the Rust jobs restore
 # their dependencies, and Miri its sysroot, from a cache that only main writes (the repository's 10 GB of caches are
 # shared with Unity's Library).
+# Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # The crate's only unsafe code (runtimes/rust/src/simd.rs: the string writer's transcoding and the reader's text
   # decoding) under Miri: its tests compare every block kind a target has, and the decoders, with plain ones. Miri
@@ -86,9 +90,10 @@ jobs:
 
       # The default toolchain, so the cache's key names the nightly it was built with.
       - name: Toolchain (nightly, with Miri)
-        run: |
-          rustup toolchain install nightly --profile minimal --component miri,rust-src
-          rustup default nightly
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: nightly
+          components: miri, rust-src
 
       # The dependencies built for Miri, and Miri's sysroot for the target (the triple and RUSTFLAGS are in the key).
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -131,28 +136,33 @@ jobs:
       run:
         working-directory: runtimes/rust
     env:
-      CARGO_TERM_COLOR: always
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Toolchains (stable, and the MSRV from Cargo.toml)
-        id: toolchain
-        run: |
-          rustup toolchain install stable --profile minimal --component rustfmt,clippy
-          rustup default stable
-          msrv=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)
-          rustup toolchain install "$msrv" --profile minimal
-          echo "MSRV=$msrv" >> "$GITHUB_ENV"
-          echo "msrv=$msrv" >> "$GITHUB_OUTPUT"
+      - name: The MSRV (rust-version in Cargo.toml)
+        id: msrv
+        run: echo "version=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Toolchain (the MSRV)
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+
+      # Installed last: the default.
+      - name: Toolchain (stable)
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
 
       # Keyed by OS, CPU, job, compilers (the MSRV here) and Cargo.lock: a new stable never reuses the old one's builds.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: runtimes/rust -> target
-          key: msrv-${{ steps.toolchain.outputs.msrv }}
+          key: msrv-${{ steps.msrv.outputs.version }}
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
 
       - name: Format
@@ -162,18 +172,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: cargo clippy --workspace --all-features --all-targets --locked -- -D warnings
 
-      # A missing corpus fails the conformance tests once the corpus is in the repository.
-      - name: Corpus
-        if: ${{ !cancelled() }}
-        run: |
-          if [ -d ../../conformance/corpus ]; then echo "NINO_CORPUS_REQUIRED=1" >> "$GITHUB_ENV"; fi
-
       - name: Test
         if: ${{ !cancelled() }}
         run: cargo test --workspace --all-features --locked
 
       - name: MSRV
         if: ${{ !cancelled() }}
+        env:
+          MSRV: ${{ steps.msrv.outputs.version }}
         run: cargo +"$MSRV" check --workspace --all-features --all-targets --locked
 
   rust-no-features:
@@ -184,7 +190,6 @@ jobs:
       run:
         working-directory: runtimes/rust
     env:
-      CARGO_TERM_COLOR: always
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -192,18 +197,14 @@ jobs:
           persist-credentials: false
 
       - name: Toolchain
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: stable
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: runtimes/rust -> target
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
-
-      - name: Corpus
-        run: |
-          if [ -d ../../conformance/corpus ]; then echo "NINO_CORPUS_REQUIRED=1" >> "$GITHUB_ENV"; fi
 
       - name: Test without features
         run: cargo test -p nino-serialization --locked --lib --test spec --test values
@@ -218,7 +219,6 @@ jobs:
       run:
         working-directory: runtimes/rust
     env:
-      CARGO_TERM_COLOR: always
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -226,18 +226,14 @@ jobs:
           persist-credentials: false
 
       - name: Toolchain
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: stable
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: runtimes/rust -> target
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
-
-      - name: Corpus
-        run: |
-          if [ -d ../../conformance/corpus ]; then echo "NINO_CORPUS_REQUIRED=1" >> "$GITHUB_ENV"; fi
 
       - name: Test
         run: cargo test --workspace --all-features --locked
@@ -260,19 +256,14 @@ jobs:
           persist-credentials: false
 
       - name: Toolchain
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: stable
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: runtimes/rust -> target
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
-
-      # A missing corpus fails the conformance tests once the corpus is in the repository.
-      - name: Corpus
-        run: |
-          if [ -d ../../conformance/corpus ]; then echo "NINO_CORPUS_REQUIRED=1" >> "$GITHUB_ENV"; fi
 
       - name: Fuzz (short)
         env:
@@ -297,8 +288,6 @@ jobs:
     defaults:
       run:
         working-directory: runtimes/go
-    env:
-      NINO_CONFORMANCE_CORPUS: ${{ github.workspace }}/conformance/corpus
     strategy:
       fail-fast: false
       matrix:
@@ -357,11 +346,9 @@ jobs:
           persist-credentials: false
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        uses: ./.github/actions/setup-dotnet
         with:
-          dotnet-version: |
-            10.0.x
-            8.0.x
+          net8: true
 
       - name: Build the conformance corpus writer
         run: dotnet build conformance/Nino.Conformance -c Release
@@ -398,10 +385,6 @@ jobs:
     defaults:
       run:
         working-directory: runtimes/go
-    env:
-      # The corpus tests fail instead of skipping when the corpus is missing (Go: when CI is set and it is missing).
-      NINO_CONFORMANCE_CORPUS: ${{ github.workspace }}/conformance/corpus
-      NINO_CORPUS_REQUIRED: '1'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -519,9 +502,6 @@ jobs:
     defaults:
       run:
         working-directory: runtimes/go
-    env:
-      NINO_CONFORMANCE_CORPUS: ${{ github.workspace }}/conformance/corpus
-      NINO_CORPUS_REQUIRED: '1'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

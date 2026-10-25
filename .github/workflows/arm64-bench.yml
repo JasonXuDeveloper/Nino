@@ -52,6 +52,11 @@ on:
 permissions:
   contents: read
 
+# Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # The whole suite runs as the shards of report.yml, one runner each, in parallel: on one runner, both refs in full
   # mode took over three and a half hours. Each shard measures both refs one after the other on its runner, so each
@@ -142,10 +147,10 @@ jobs:
           done
 
       - name: Setup .NET
+        # setup-dotnet itself, not ./.github/actions/setup-dotnet: this job checks out another commit.
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
             10.0.x
             8.0.x
 

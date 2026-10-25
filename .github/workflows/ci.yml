@@ -2,58 +2,43 @@ name: CI - Build and Test
 
 on:
   push:
-    branches: [ "main", "develop", "claude/zen-goldberg-5qqqcu" ]
-    paths:
+    branches: [ "main", "claude/zen-goldberg-5qqqcu" ]
+    # Everything a job here builds or runs (the solution, the runtimes the integrations job tests, the scripts).
+    paths: &paths
       - 'src/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'runtimes/**'
+      - 'conformance/**'
+      - 'benchmarks/Nino.Benchmark/**'
+      - 'benchmarks/Nino.GeneratorBenchmark/**'
       - '.editorconfig'
       - 'Directory.Build.props'
       - 'Directory.Build.targets'
       - 'Directory.Packages.props'
       - 'Nino.slnx'
-      - 'benchmarks/Nino.Benchmark/**'
-      - 'benchmarks/Nino.GeneratorBenchmark/**'
       - 'global.json'
       - 'nuget.config'
-      - 'tests/**'
-      - 'runtimes/**'
-      - 'conformance/**'
       - '.github/workflows/ci.yml'
+      - '.github/actions/setup-dotnet/**'
       - '.github/scripts/test_shards.py'
   pull_request:
-    branches: [ "main", "develop" ]
-    paths:
-      - 'src/**'
-      - '.editorconfig'
-      - 'Directory.Build.props'
-      - 'Directory.Build.targets'
-      - 'Directory.Packages.props'
-      - 'Nino.slnx'
-      - 'benchmarks/Nino.Benchmark/**'
-      - 'benchmarks/Nino.GeneratorBenchmark/**'
-      - 'global.json'
-      - 'nuget.config'
-      - 'tests/**'
-      - 'runtimes/**'
-      - 'conformance/**'
-      - '.github/workflows/ci.yml'
-      - '.github/scripts/test_shards.py'
-  workflow_call:
+    branches: [ "main" ]
+    paths: *paths
   workflow_dispatch:
 
-# Security: Minimal required permissions
+# Read only: the jobs upload artifacts with the runner's own token, and post nothing to checks or pull requests.
 permissions:
-  contents: read        # Read repository contents
-  actions: write        # Upload artifacts
-  pull-requests: read   # Read PR context
-  checks: write         # Write test results
+  contents: read
 
 # Prevent concurrent runs of the same workflow only when CI actually runs
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Bash everywhere, Windows included: GitHub runs it with -e and -o pipefail, so a command piped into tee or grep
-# fails its step when it fails.
+# Bash with -e and -o pipefail for every run step, Windows included: a command piped into tee, grep or sed fails its
+# step when it fails (the trimmed and NativeAOT runs of Nino.AotTests were piped into tee, and only their hashes were
+# compared).
 defaults:
   run:
     shell: bash
@@ -149,21 +134,9 @@ jobs:
           persist-credentials: false
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        uses: ./.github/actions/setup-dotnet
         with:
-          dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
-            10.0.x
-            8.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ runner.arch }}-unit-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-${{ runner.arch }}-unit-
-            nuget-${{ runner.os }}-${{ runner.arch }}-
+          net8: true
 
       # The build, and a copy of its output per shard next to it (tests find the repository by walking up from it).
       - name: Build
@@ -185,21 +158,23 @@ jobs:
           COVERAGE: ${{ matrix.config.coverage && '--collect:XPlat Code Coverage' || '' }}
         run: |
           set -uo pipefail
-          out=$(dirname "$PROJECT")/bin/Debug
+          read -ra props <<< "$PROPERTIES"
           shard() {
             local id=$1 filter=$2
-            local dll="$out/shard-$id/Nino.UnitTests.dll" dir="$RESULTS/test-results-unit-$CONFIG-$id"
-            dotnet test "$dll" --filter "$filter" --logger "trx;LogFileName=unit.trx" --results-directory "$dir" \
+            local dir="$RESULTS/test-results-unit-$CONFIG-$id"
+            # OutDir is relative to the project: the shard's copy of the build output.
+            local run=(dotnet test "$PROJECT" --no-build -c Debug -f "$FRAMEWORK" "${props[@]}" -p:OutDir="bin/Debug/shard-$id/")
+            "${run[@]}" --filter "$filter" --logger "trx;LogFileName=unit.trx" --results-directory "$dir" \
               ${COVERAGE:+"$COVERAGE"} || return 1
             local listed ran
-            listed=$(dotnet test "$dll" --list-tests --filter "$filter" | grep -c '^    ' || true)
+            listed=$("${run[@]}" --list-tests --filter "$filter" | grep -c '^    ' || true)
             ran=$(grep -o '<UnitTestResult ' "$dir/unit.trx" | wc -l)
             echo "shard $id: listed $listed, ran $ran"
             if (( listed == 0 || ran != listed )); then
               echo "::error::shard $id ran $ran tests, its filter lists $listed"
               return 1
             fi
-            if [[ $id == a ]]; then dotnet test "$dll" --list-tests > "$dir/suite.txt"; fi
+            if [[ $id == a ]]; then "${run[@]}" --list-tests > "$dir/suite.txt"; fi
           }
           mkdir -p "$RESULTS"
           declare -A pid
@@ -238,21 +213,9 @@ jobs:
           persist-credentials: false
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        uses: ./.github/actions/setup-dotnet
         with:
-          dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
-            10.0.x
-            8.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ runner.arch }}-solution-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-${{ runner.arch }}-solution-
-            nuget-${{ runner.os }}-${{ runner.arch }}-
+          net8: true
 
       # Nino.Codegen in builds: Node runs the generated TypeScript (type stripping, Node 22.18+) and tsc checks it;
       # scratch projects build with build/Nino.Codegen.targets for TypeScript, Go and Rust, and the old
@@ -264,7 +227,7 @@ jobs:
           cache-dependency-path: runtimes/typescript/package-lock.json
 
       # Go and Rust run the generated code against the bytes .NET writes (GoTests, RustTests; without them on the
-      # PATH those tests are inconclusive). Set up as runtimes.yml does: go.mod's version, rustup's stable.
+      # PATH those tests are inconclusive): the oldest Go go.mod allows, and stable Rust.
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -273,14 +236,16 @@ jobs:
 
       - name: Set up Rust
         id: rust
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
-          echo "CARGO_TARGET_DIR=${{ runner.temp }}/nino-codegen-cargo" >> "$GITHUB_ENV"
-          echo "CARGO_INCREMENTAL=0" >> "$GITHUB_ENV"
-          echo "rustc=$(rustc -V | cut -d' ' -f2-3 | tr -c 'A-Za-z0-9.\n-' '_')" >> "$GITHUB_OUTPUT"
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        with:
+          toolchain: stable
 
-      # Keyed by the compiler: a new stable cannot use the old one's builds.
+      # The scratch projects the tests generate build into one target directory, cached here (Swatinem/rust-cache
+      # needs a Cargo workspace in the checkout; these are written by the tests). Keyed by the compiler: a new stable
+      # cannot use the old one's builds.
+      - name: Rust target directory
+        run: echo "CARGO_TARGET_DIR=$RUNNER_TEMP/nino-codegen-cargo" >> "$GITHUB_ENV"
+
       - name: Cache Cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -288,8 +253,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ${{ runner.temp }}/nino-codegen-cargo
-          key: codegen-rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-${{ hashFiles('runtimes/rust/Cargo.lock') }}
-          restore-keys: codegen-rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-
+          key: codegen-rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('runtimes/rust/Cargo.lock') }}
+          restore-keys: codegen-rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-
 
       - name: Build the solution
         run: dotnet build -c Debug
@@ -300,9 +265,15 @@ jobs:
           dotnet test tests/Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj --no-build -c Debug
           --logger trx --results-directory ./TestResults
 
+      # The TypeScript runtime's own dependencies (package-lock.json), and its tsc on the PATH for the tests below.
+      - name: Install the TypeScript runtime's dependencies
+        working-directory: ./runtimes/typescript
+        run: |
+          npm ci
+          echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+
       - name: Test Nino.Codegen in builds
         run: |
-          npm install -g typescript@latest
           dotnet test tests/Nino.Codegen.Integration.Tests/Nino.Codegen.Integration.Tests.csproj --no-build -c Debug --logger trx --results-directory ./TestResults
 
       # nino-gen (src/Nino.Codegen): its model and command line, and the generated files under runtimes/ are what
@@ -318,9 +289,7 @@ jobs:
         working-directory: ./runtimes/typescript
         env:
           NINO_CORPUS_REQUIRED: '1'
-        run: |
-          npm ci
-          npm test
+        run: npm test
 
       - name: Upload test results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -343,22 +312,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ runner.arch }}-aot-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-${{ runner.arch }}-aot-
-            nuget-${{ runner.os }}-${{ runner.arch }}-
+        uses: ./.github/actions/setup-dotnet
 
       - name: Publish trimmed and NativeAOT
         run: |
@@ -401,20 +359,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ runner.arch }}-runtime-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-${{ runner.arch }}-runtime-
-            nuget-${{ runner.os }}-${{ runner.arch }}-
+        uses: ./.github/actions/setup-dotnet
 
       - name: Install Mono
         if: matrix.id == 'mono' || matrix.id == 'arm64'
@@ -570,34 +515,16 @@ jobs:
       fail-fast: false
       matrix:
         classes: [ SimpleTest PooledTest, CommonTypesTest FixedSizeTest GenericPolymorphicTest, PolymorphicTest VersionTolerantTest BclTypesTest, CollectionsTest ReferenceTest PooledGraphTest ]
-    permissions:
-      contents: read
-      pull-requests: write
-
-    defaults:
-      run:
-        working-directory: .
-
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        uses: ./.github/actions/setup-dotnet
         with:
-          dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
-            10.0.x
-            8.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ runner.arch }}-benchmark-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-${{ runner.arch }}-benchmark-
-            nuget-${{ runner.os }}-${{ runner.arch }}-
+          net8: true
 
       - name: Build benchmark project
         run: |
@@ -615,7 +542,7 @@ jobs:
           dotnet run -c Release --no-build -- --filter "${FILTERS[@]}"
 
           # Verify benchmark results exist (check for any github markdown file)
-          MARKDOWN_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | head -n1)
+          MARKDOWN_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | head -n1 || true)
           if [[ -n "$MARKDOWN_FILE" && -f "$MARKDOWN_FILE" ]]; then
             echo "✅ Benchmark completed successfully - found report file:"
             echo "$MARKDOWN_FILE"

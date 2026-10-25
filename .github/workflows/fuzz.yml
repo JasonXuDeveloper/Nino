@@ -6,36 +6,24 @@ name: Fuzz
 on:
   push:
     branches: [ "main", "claude/zen-goldberg-5qqqcu" ]
-    paths:
-      - 'src/**'
+    # What the fuzzer builds: Nino.Core, Nino.Immutable, the generator, and the fuzzer itself.
+    paths: &paths
+      - 'src/Nino.Core/**'
+      - 'src/Nino.Immutable/**'
+      - 'src/Nino.Generator/**'
+      - 'src/Nino.Generator.Roslyn4.12/**'
+      - 'tests/Nino.Fuzz/**'
       - '.editorconfig'
       - 'Directory.Build.props'
       - 'Directory.Build.targets'
       - 'Directory.Packages.props'
-      - 'Nino.slnx'
-      - 'benchmarks/Nino.Benchmark/**'
-      - 'benchmarks/Nino.GeneratorBenchmark/**'
       - 'global.json'
       - 'nuget.config'
-      - 'tests/**'
-      - 'tests/Nino.Fuzz/**'
       - '.github/workflows/fuzz.yml'
+      - '.github/actions/setup-dotnet/**'
   pull_request:
-    branches: [ "main", "develop" ]
-    paths:
-      - 'src/**'
-      - '.editorconfig'
-      - 'Directory.Build.props'
-      - 'Directory.Build.targets'
-      - 'Directory.Packages.props'
-      - 'Nino.slnx'
-      - 'benchmarks/Nino.Benchmark/**'
-      - 'benchmarks/Nino.GeneratorBenchmark/**'
-      - 'global.json'
-      - 'nuget.config'
-      - 'tests/**'
-      - 'tests/Nino.Fuzz/**'
-      - '.github/workflows/fuzz.yml'
+    branches: [ "main" ]
+    paths: *paths
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
@@ -66,6 +54,11 @@ env:
   SECONDS_BUDGET: ${{ github.event_name == 'schedule' && '1800' || inputs.seconds || '60' }}
   LIBFUZZER_SECONDS: ${{ github.event_name == 'schedule' && '240' || inputs.libfuzzer_seconds || '10' }}
 
+# Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # Each fuzzer runs on one core (a supervisor and one worker process at a time), so an x64 runner (four vCPUs, two
   # cores) fuzzes two SIMD levels side by side, each with the whole budget: half the runners, the same inputs per
@@ -94,19 +87,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
-            10.0.x
-
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ runner.arch }}-fuzz-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-${{ runner.arch }}-fuzz-
-            nuget-${{ runner.os }}-${{ runner.arch }}-
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
 
       - name: Build
         run: dotnet build tests/Nino.Fuzz/Nino.Fuzz.csproj -c Release -f net10.0
@@ -173,19 +155,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
-            10.0.x
-
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ runner.arch }}-fuzz-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-${{ runner.arch }}-fuzz-
-            nuget-${{ runner.os }}-${{ runner.arch }}-
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
 
       - name: Install clang with libFuzzer
         run: |

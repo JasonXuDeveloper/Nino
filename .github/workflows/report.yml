@@ -7,20 +7,13 @@ on:
         description: 'Tag to benchmark (optional, defaults to latest)'
         required: false
         type: string
-  workflow_call: # Allow calling from other workflows
-    inputs:
-      tag_name:
-        description: 'Tag to benchmark'
-        required: false
-        type: string
   release:
     types: [published] # Run when a release is published
 
 # Security: Minimal required permissions
 permissions:
-  contents: write       # Update release notes
-  actions: write        # Upload artifacts
-  
+  contents: write       # Update release notes, upload release assets
+
 # Prevent concurrent benchmark runs
 concurrency:
   group: benchmark-${{ github.ref }}
@@ -44,6 +37,11 @@ env:
   # unity.yml's benchmark run, appended after the runtime sections by publish-unity. The docs site looks for it.
   UNITY_HEADING: "## 🎮 Unity benchmark (Burst, IL2CPP)"
 
+# Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   target:
     name: Pick the release
@@ -58,6 +56,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # Only a release tag of this repository whose commit is on main is benchmarked: the tag's code then runs in this
       # workflow's (main's) cache scope, so it must be code that was merged and released, never an arbitrary ref.
@@ -170,10 +169,10 @@ jobs:
           persist-credentials: false
 
       - name: Setup .NET
+        # setup-dotnet itself, not ./.github/actions/setup-dotnet: this job checks out another commit.
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
             10.0.x
             8.0.x
 
@@ -643,11 +642,13 @@ jobs:
         with:
           ref: ${{ needs.target.outputs.tag }}
           path: release
+          persist-credentials: false
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: workflow
+          persist-credentials: false
 
       - name: Setup .NET
         if: matrix.lang == 'typescript'

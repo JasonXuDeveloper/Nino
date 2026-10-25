@@ -49,6 +49,11 @@ env:
   VERSION: ${{ inputs.version }}
   UNITY_PACKAGE: src/Nino.Unity/Packages/com.jasonxudeveloper.nino
 
+# Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   tag:
     runs-on: ubuntu-26.04
@@ -89,15 +94,14 @@ jobs:
           UNITY_VERSION: ${{ steps.version.outputs.unity_version }}
         run: python3 .github/scripts/bump_version.py "$VERSION" "$UNITY_VERSION"
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
         with:
-          dotnet-version: |
-            10.0.x
-            8.0.x
+          net8: true
+          cache: false
 
       - name: Build and test the bumped version
         if: steps.version.outputs.exists != 'true'
-        working-directory: .
         run: |
           dotnet build --configuration Release
           dotnet test tests/Nino.UnitTests/Nino.UnitTests.csproj --no-build --configuration Release
@@ -153,15 +157,15 @@ jobs:
         with:
           ref: v${{ inputs.version }}
           fetch-depth: 0 # the release notes walk the history since the previous release
+          persist-credentials: false
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
         with:
-          dotnet-version: |
-            10.0.x
-            8.0.x
+          net8: true
+          cache: false
 
       - name: Pack
-        working-directory: .
         run: |
           dotnet build --configuration Release
           for proj in Nino.Core Nino.Generator Nino.Immutable Nino.AspNetCore Nino.Codegen Nino.Codegen.Tool Nino; do
@@ -228,6 +232,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: v${{ inputs.version }}
+          persist-credentials: false
 
       # Trusted Publishing is configured on a crate that exists: a crate's first version is published with the
       # repository secret CARGO_REGISTRY_TOKEN (a crates.io API token with the publish-new scope), every later one
@@ -282,6 +287,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: v${{ inputs.version }}
+          persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -304,8 +310,8 @@ jobs:
             fi
             export NODE_AUTH_TOKEN="$FIRST_TOKEN"
           fi
-          # Trusted Publishing needs npm 11.5.1 or later.
-          npm install -g npm@latest
+          # Trusted Publishing needs npm 11.5.1 or later: a fixed release, not whatever is newest on the day.
+          npm install -g npm@11.21.0
           npm ci
           cp ../../LICENSE LICENSE
           TAG=latest
