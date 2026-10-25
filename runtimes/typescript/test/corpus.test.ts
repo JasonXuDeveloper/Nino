@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { deserialize, NinoError, NinoReader, serialize, type NinoCodec } from "../src/nino.ts";
+import { deserialize, deserializeExact, NinoError, serialize, type NinoCodec } from "../src/nino.ts";
 import * as generated from "./generated/Nino.Conformance.ts";
 
 const corpus = process.env.NINO_CORPUS ?? join(import.meta.dirname, "..", "..", "..", "conformance", "corpus");
@@ -34,23 +34,17 @@ function json(path: string): any {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+/**
+ * `deserializeExact` from a reader of its own: a codec that deserializes while `deserialize` runs gets a new
+ * reader instead of the one `deserialize` reuses.
+ */
 function read(codec: NinoCodec<unknown>, data: Uint8Array): unknown {
-  const r = new NinoReader(data);
-  const value = codec.read(r);
-  if (r.pos !== data.length) throw new NinoError(`${data.length - r.pos} bytes left after the value`);
-  return value;
+  return deserialize({ read: () => deserializeExact(codec, data), write: codec.write }, new Uint8Array(0));
 }
 
-/** `read` through `deserialize`, which reads a value of up to 4 KiB from a copy in a reader it reuses. */
+/** `deserializeExact`, which reads a value of up to 4 KiB from a copy in a reader it reuses. */
 function deserialized(codec: NinoCodec<unknown>, data: Uint8Array): unknown {
-  return deserialize({
-    read: (r) => {
-      const value = codec.read(r);
-      if (r.pos !== data.length) throw new NinoError(`${data.length - r.pos} bytes left after the value`);
-      return value;
-    },
-    write: codec.write,
-  }, data);
+  return deserializeExact(codec, data);
 }
 
 /** The cases of a group of the corpus, with their descriptions. */

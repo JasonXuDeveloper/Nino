@@ -17,6 +17,9 @@ const bytes = serialize(PlayerCodec, player); // what NinoSerializer.Serialize<P
 const back = deserialize(PlayerCodec, bytes);
 ```
 
+`deserialize` reads one value and leaves any bytes after it unread; `deserializeExact` also throws a `NinoError`
+when bytes follow the value (Go's `DeserializeExact`, Rust's `deserialize_exact`).
+
 ## Guarantees
 
 The reader takes untrusted input, as the .NET, Go and Rust readers do. Any data that is not a value of the type read

@@ -36,22 +36,40 @@ export function serialize<T>(codec: NinoCodec<T>, value: T): Uint8Array<ArrayBuf
 
 /**
  * Deserializes one value written by `NinoSerializer.Serialize<T>` (or `serialize`). Nothing it returns refers to
- * `data`, which it does not change.
+ * `data`, which it does not change. Bytes after the value are not read (see `deserializeExact`).
  */
 export function deserialize<T>(codec: NinoCodec<T>, data: Uint8Array): T {
+  return readValue(codec, data, false);
+}
+
+/** `deserialize` that also throws a `NinoError` when bytes follow the value. */
+export function deserializeExact<T>(codec: NinoCodec<T>, data: Uint8Array): T {
+  return readValue(codec, data, true);
+}
+
+function readValue<T>(codec: NinoCodec<T>, data: Uint8Array, exact: boolean): T {
   let reader = scratchReader;
   if (reader === null || data.length > scratchSize) {
-    if (reader !== null || scratchMade || data.length > scratchSize) return codec.read(new NinoReader(data));
+    if (reader !== null || scratchMade || data.length > scratchSize) {
+      return readAll(codec, new NinoReader(data), exact ? data.length : -1);
+    }
     reader = makeScratch();
   }
   // A codec that deserializes (a custom one) while this runs gets a reader of its own.
   scratchReader = null;
   try {
     reader["load"](data);
-    return codec.read(reader);
+    return readAll(codec, reader, exact ? data.length : -1);
   } finally {
     scratchReader = reader;
   }
+}
+
+/** One value from `reader`, which must then be at `end` (the length of the data), unless `end` is -1. */
+function readAll<T>(codec: NinoCodec<T>, reader: NinoReader, end: number): T {
+  const value = codec.read(reader);
+  if (end >= 0 && reader.pos !== end) throw new NinoError(`${end - reader.pos} bytes after the value.`);
+  return value;
 }
 
 /**
