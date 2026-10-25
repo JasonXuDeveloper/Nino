@@ -1,0 +1,106 @@
+name: Runtime A/B (test branch)
+
+# Development only, on the test branch: never merge this file into main. A push that changes .github/ab-request.txt
+# measures, on the x64 and Arm64 runners, each line's two commits one after the other on the same runner:
+#
+#   <go|rust|typescript> <base sha> <head sha> [filter]
+#
+# Both commits must be on a branch of this repository (main, or this branch: push them here, merging, never
+# force-pushing).
+# The filter is a `go test -bench` regexp, a criterion filter or a bench.ts case name. Numbers are for development only.
+on:
+  push:
+    branches: [claude/zen-goldberg-5qqqcu]
+    paths: [.github/ab-request.txt]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-ab-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  ab:
+    name: A/B on ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-26.04, ubuntu-26.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      - name: Machine
+        run: |
+          lscpu | grep -E 'Model name|Flags' | sed 's/^Flags:/Flags:/' | cut -c1-2000
+          echo "### ${{ matrix.runner }}: $(lscpu | grep 'Model name' | sed 's/.*: *//')" >> "$GITHUB_STEP_SUMMARY"
+      - name: Measure
+        env:
+          RUNNER: ${{ matrix.runner }}
+        run: |
+          set -euo pipefail
+          go install golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e
+          rustup toolchain install stable --profile minimal >/dev/null
+          out="$RUNNER_TEMP/out"
+          mkdir -p "$out"
+          while read -r lang base head filter; do
+            [[ -z ${lang:-} || $lang == \#* ]] && continue
+            for ref in "$base" "$head"; do
+              git cat-file -e "$ref^{commit}"
+              git worktree add -q --detach "$RUNNER_TEMP/$ref" "$ref"
+            done
+            fargs=()
+            [[ -n ${filter:-} ]] && fargs=("$filter")
+            echo "## $lang ${base:0:7} -> ${head:0:7} ${filter:-}" | tee -a "$GITHUB_STEP_SUMMARY"
+            case $lang in
+              go)
+                : > "$out/base.txt"; : > "$out/head.txt"
+                for _ in 1 2 3 4 5 6; do
+                  for side in base head; do
+                    ref=$base; [[ $side == head ]] && ref=$head
+                    (cd "$RUNNER_TEMP/$ref/runtimes/go/bench" &&
+                      go test -run '^$' -bench "${filter:-.}" -benchmem -count 1) >> "$out/$side.txt"
+                  done
+                done
+                "$(go env GOPATH)/bin/benchstat" base="$out/base.txt" head="$out/head.txt" | tee "$out/go.txt"
+                { echo '```'; cat "$out/go.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+                ;;
+              rust)
+                export CARGO_TARGET_DIR="$RUNNER_TEMP/target"
+                rm -rf "$CARGO_TARGET_DIR/criterion"
+                for round in 1 2; do
+                  (cd "$RUNNER_TEMP/$base/runtimes/rust" &&
+                    cargo bench -q -p nino-bench --bench compare -- --save-baseline base "${fargs[@]}") > /dev/null
+                  (cd "$RUNNER_TEMP/$head/runtimes/rust" &&
+                    cargo bench -q -p nino-bench --bench compare -- --baseline base "${fargs[@]}") | tee "$out/rust-$round.txt"
+                done
+                { echo '```'; grep -E '^[a-z].*|time:|change:|faster|slower|No change' "$out/rust-2.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+                ;;
+              typescript)
+                for ref in "$base" "$head"; do
+                  (cd "$RUNNER_TEMP/$ref/runtimes/typescript" && npm ci --silent)
+                done
+                for round in 1 2 3; do
+                  for side in base head; do
+                    ref=$base; [[ $side == head ]] && ref=$head
+                    echo "--- $side round $round" | tee -a "$out/ts.txt"
+                    (cd "$RUNNER_TEMP/$ref/runtimes/typescript" && node --experimental-strip-types bench/bench.ts "${fargs[@]}") |
+                      tee -a "$out/ts.txt"
+                  done
+                done
+                { echo '```'; cat "$out/ts.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+                ;;
+              *) echo "unknown language $lang"; exit 1 ;;
+            esac
+          done < .github/ab-request.txt
