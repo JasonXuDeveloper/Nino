@@ -79,7 +79,7 @@ def typescript(path, tag):
     cells = {k: cells[k] for k in sorted(cells, key=lambda k: (scenarios.index(k[0]), ops.index(k[1])))}
     who = pivot(cells, ["Nino", "Protobuf", "MessagePack", "JSON"])
     intro = (f"The code nino-gen generates for `runtimes/typescript/bench` (`Program.cs`'s types), against Protocol "
-             f"Buffers (protobuf-es), MessagePack (msgpackr) and `JSON`, in Node {data.get('node', '')}, on data .NET "
+             f"Buffers (protobuf-es), MessagePack (msgpackr) and `JSON` (to and from UTF-8 bytes), in Node {data.get('node', '')}, on data .NET "
              f"wrote, timed by tinybench {data.get('tinybench', '')}: the mean time of a pass over each scenario's "
              "values, ± its relative margin of error, and passes per second.")
     return section("typescript", tag, f"Generated TypeScript of {tag} against Protocol Buffers, MessagePack and JSON, "

@@ -94,17 +94,18 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
     // Read back: the same data (maps come back as objects, which plain JSON makes of Maps too).
     if (JSON.stringify(plain(packr.unpack(x))) !== text[i]) throw new Error(`${name}[${i}]: MessagePack round trip`);
   });
-  const encoder = new TextEncoder();
+  // JSON is timed to and from UTF-8 bytes, as every other format is: what goes over a wire or into a file.
+  const encoder = new TextEncoder(), decoder = new TextDecoder(), utf8 = text.map((s) => encoder.encode(s));
 
   const tasks: [Serializer, Row["op"], () => void, number][] = [
     ["Nino", "serialize", () => { for (const v of list) serialize(codec, v); }, size(bytes)],
     ["Protobuf", "serialize", () => { for (const m of messages) toBinary(schema, m); }, size(proto)],
     ["MessagePack", "serialize", () => { for (const v of list) packr.pack(v); }, size(packed)],
-    ["JSON", "serialize", () => { for (const j of json) JSON.stringify(j); }, size(text.map((s) => encoder.encode(s)))],
+    ["JSON", "serialize", () => { for (const j of json) encoder.encode(JSON.stringify(j)); }, size(utf8)],
     ["Nino", "deserialize", () => { for (const x of bytes) deserialize(codec, x); }, size(bytes)],
     ["Protobuf", "deserialize", () => { for (const x of proto) fromBinary(schema, x); }, size(proto)],
     ["MessagePack", "deserialize", () => { for (const x of packed) packr.unpack(x); }, size(packed)],
-    ["JSON", "deserialize", () => { for (const s of text) JSON.parse(s); }, size(text.map((s) => encoder.encode(s)))],
+    ["JSON", "deserialize", () => { for (const x of utf8) JSON.parse(decoder.decode(x)); }, size(utf8)],
   ];
   const bench = new Bench({ name, time: options.time ?? 1000, warmupTime: options.warmupTime ?? 250 });
   for (const [who, op, fn] of tasks) bench.add(`${op} ${who}`, fn);
