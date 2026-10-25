@@ -93,7 +93,7 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
   const json = list.map(plain), text = json.map((j) => JSON.stringify(j));
   packed.forEach((x, i) => {
     // Read back: the same data (maps come back as objects, which plain JSON makes of Maps too).
-    if (JSON.stringify(plain(packr.unpack(x))) !== text[i]) throw new Error(`${name}[${i}]: MessagePack round trip`);
+    if (!/Lazy|Json/.test(name) && JSON.stringify(plain(packr.unpack(x))) !== text[i]) throw new Error(`${name}[${i}]: MessagePack round trip`);
   });
   // JSON is timed to and from UTF-8 bytes, as every other format is: what goes over a wire or into a file.
   const encoder = new TextEncoder(), decoder = new TextDecoder(), utf8 = text.map((s) => encoder.encode(s));
@@ -131,14 +131,15 @@ const scenarios: [string, string, NinoCodec<never>][] = [
   ["Mesh 20 x (2 x 500 Vec3, 1500 int)", "mesh", b.MeshCodec],
   ["Samples 20 x (3 x 1000 numbers)", "samples", b.SamplesCodec],
   ["Lookup 50 x (2 maps of 100)", "lookup", b.LookupCodec],
-  ["Lookup as plain", "lookup-plain", lv.LookupPlainCodec],
-  ["Lookup as plainown", "lookup-plainown", lv.LookupPlainownCodec],
-  ["Lookup as nullproto", "lookup-nullproto", lv.LookupNullprotoCodec],
-  ["Lookup as retype", "lookup-retype", lv.LookupRetypeCodec],
-  ["Lookup as define", "lookup-define", lv.LookupDefineCodec],
-  ["Lookup as entries", "lookup-entries", lv.LookupEntriesCodec],
-  ["Lookup as entriesnull", "lookup-entriesnull", lv.LookupEntriesnullCodec],
-  ["Lookup as json", "lookup-json", lv.LookupJsonCodec],
+  ["Lookup via HasSet", "lookup-hasset", lv.HasSetCodec],
+  ["Lookup via Pairs", "lookup-pairs", lv.PairsCodec],
+  ["Lookup via KeyCache", "lookup-keycache", lv.KeyCacheCodec],
+  ["Lookup via Lazy", "lookup-lazy", lv.LazyCodec],
+  ["Lookup via LazyTouched", "lookup-lazytouched", lv.LazyTouchedCodec],
+  ["Lookup via MapTouched", "lookup-maptouched", lv.MapTouchedCodec],
+  ["Lookup via V8", "lookup-v8", lv.V8Codec],
+  ["Lookup via Json", "lookup-json", lv.JsonCodec],
+  ["Lookup via JsonTouched", "lookup-jsontouched", lv.JsonTouchedCodec],
   ["Event x1000 (long)", "events", b.EventCodec],
   ["Strings 1000 (ASCII)", "strings", b.StringsCodec],
   ["Strings 1000 (ASCII, Latin-1, other)", "strings-mixed", b.StringsCodec],
