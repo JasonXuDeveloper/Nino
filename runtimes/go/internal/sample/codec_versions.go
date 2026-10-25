@@ -1,6 +1,6 @@
 package sample
 
-import nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+import nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 
 // Version-tolerant bodies: a region; each member is read only while the region has bytes left. Keyed bodies: a
 // region of {key, length, value} entries, in any order, each member at most once.

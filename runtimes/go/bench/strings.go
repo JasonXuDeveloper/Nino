@@ -3,8 +3,8 @@ package bench
 import (
 	"strconv"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
 	"github.com/JasonXuDeveloper/Nino/runtimes/go/bench/benchpb"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
 // The string cases, the same data as the Rust and TypeScript benchmarks' (runtimes/rust/bench, Program.cs):

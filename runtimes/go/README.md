@@ -1,12 +1,13 @@
 # Nino for Go
 
-`github.com/JasonXuDeveloper/Nino/runtimes/go` (package `nino`) reads and writes Nino's binary format (v4): the bytes
+`github.com/JasonXuDeveloper/Nino/runtimes/go/v4` (package `nino`) reads and writes Nino's binary format (v4): the bytes
 the .NET serializer writes, as specified in `docs/spec/wire-format.md`. It is the runtime that generated Go code calls,
 like `nino.ts` for TypeScript. It has no dependencies outside the standard library. Generated code uses no
 reflection; Go structs without generated code can be mapped with struct tags instead ([Struct tags](#struct-tags)),
 through a reflection-built plan.
 
-Go 1.22 or later.
+Go 1.22 or later. Its versions are Nino's: each release tags the module `runtimes/go/vX.Y.Z`
+(`go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4@v4.0.0-rc.8`).
 
 ## How code uses it
 

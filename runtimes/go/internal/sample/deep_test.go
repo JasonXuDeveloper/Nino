@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
 // Depth, deferral, regions and polymorphism, checked against the spec's examples and by round trips, without the

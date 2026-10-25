@@ -1,6 +1,6 @@
 package sample
 
-import nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+import nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 
 // Polymorphic slots read a type id and switch over the ids of the types the declared type allows; any other id
 // fails. Writes switch over the Go types.

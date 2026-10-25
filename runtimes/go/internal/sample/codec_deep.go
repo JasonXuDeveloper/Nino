@@ -1,6 +1,6 @@
 package sample
 
-import nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+import nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 
 // Recursive types: [nino.ReadClass] and [nino.WriteClass] count the open class bodies and defer those past 128 as
 // .NET does; RecordChain, which .NET never defers, nests in place up to 512.

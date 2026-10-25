@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
 // render converts a decoded value to the corpus's lossless JSON (conformance/README.md, Json.cs), as the values

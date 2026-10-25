@@ -1,6 +1,6 @@
 package sample
 
-import nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+import nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 
 // codec reads and writes one root type of the corpus, its value boxed.
 type codec struct {

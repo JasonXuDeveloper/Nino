@@ -3,7 +3,7 @@ package sample
 import (
 	"math/big"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
 // Target is one of the small sealed classes (namespace Conformance.Targets) the corpus forges invalid data against:

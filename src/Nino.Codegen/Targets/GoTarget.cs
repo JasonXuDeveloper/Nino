@@ -35,7 +35,7 @@ namespace Nino.Codegen.Targets
     /// </summary>
     public sealed class GoTarget
     {
-        public const string RuntimeImport = "github.com/JasonXuDeveloper/Nino/runtimes/go";
+        public const string RuntimeImport = "github.com/JasonXuDeveloper/Nino/runtimes/go/v4";
 
         private readonly CodegenModel _model;
         private readonly GoOptions _options;

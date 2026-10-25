@@ -8,8 +8,8 @@ import (
 	"reflect"
 	"testing"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
 	"github.com/JasonXuDeveloper/Nino/runtimes/go/bench/benchpb"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/protobuf/proto"
 )

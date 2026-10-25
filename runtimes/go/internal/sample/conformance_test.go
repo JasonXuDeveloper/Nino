@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
 // The conformance corpus (conformance/corpus at the repository root, or NINO_CONFORMANCE_CORPUS): every valid case

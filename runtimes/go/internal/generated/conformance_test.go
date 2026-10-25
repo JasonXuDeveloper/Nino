@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
 // The conformance corpus over the code nino-gen generated (nino_types.go), as internal/sample runs it over

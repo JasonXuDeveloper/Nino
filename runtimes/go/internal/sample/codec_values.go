@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"math"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
 var le = binary.LittleEndian

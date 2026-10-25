@@ -8,7 +8,7 @@ import (
 	"sort"
 	"testing"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
 // FuzzDecode reads arbitrary bytes as one of the corpus's root types (chosen by the first byte). Reading must never

@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
 // The shapes the corpus does not declare (tests/Nino.Codegen.Tests/Shapes.cs), as nino-gen writes them: compiled,

@@ -8,7 +8,7 @@ import (
 	"math/rand"
 	"strconv"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
 // SimpleClass is the .NET benchmark's SimpleClass (its base's members first), with the codec a generator would

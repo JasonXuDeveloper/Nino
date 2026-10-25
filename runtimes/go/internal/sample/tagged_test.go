@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
 // The corpus through the struct-tag path: the same Go types, read and written by nino.Marshal and nino.Unmarshal

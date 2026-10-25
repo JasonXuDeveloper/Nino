@@ -12,7 +12,7 @@ package sample
 import (
 	"math/big"
 
-	nino "github.com/JasonXuDeveloper/Nino/runtimes/go"
+	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
 // ---------------------------------------------------------------- enums

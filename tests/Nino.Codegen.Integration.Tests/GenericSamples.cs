@@ -188,7 +188,7 @@ import (
 	""os""
 	""strings""
 
-	nino ""github.com/JasonXuDeveloper/Nino/runtimes/go""
+	nino ""github.com/JasonXuDeveloper/Nino/runtimes/go/v4""
 	""ninotest/samples""
 )
 
@@ -237,8 +237,8 @@ func main() {
                 }, log), log.ToString());
                 string runtime = Path.Combine(GenericSamples.Root, "runtimes", "go");
                 File.WriteAllText(Path.Combine(dir, "go.mod"),
-                    "module ninotest\n\ngo 1.22\n\nrequire github.com/JasonXuDeveloper/Nino/runtimes/go v0.0.0\n\n" +
-                    "replace github.com/JasonXuDeveloper/Nino/runtimes/go => " + runtime.Replace('\\', '/') + "\n");
+                    "module ninotest\n\ngo 1.22\n\nrequire github.com/JasonXuDeveloper/Nino/runtimes/go/v4 v4.0.0\n\n" +
+                    "replace github.com/JasonXuDeveloper/Nino/runtimes/go/v4 => " + runtime.Replace('\\', '/') + "\n");
                 File.WriteAllText(Path.Combine(dir, "main.go"), Harness);
                 var cases = GenericSamples.Cases(ordered: true);
                 GenericSamples.WriteCases(Path.Combine(dir, "cases.txt"), cases);
