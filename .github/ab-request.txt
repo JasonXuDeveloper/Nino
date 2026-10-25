@@ -1,3 +1,3 @@
-# <go|go:<dir>|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase5/utf8-bench: Go [NinoUtf8] one-pass scan (head) against origin/main plus the strings-mixed-utf8 case (base)
-go 9c0a9e11a96451e2bddf2c0bbc617200058b26bf 68792140623eb2060b8cee7c3668d8494f48296c /strings-mixed
+# <go|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+typescript 08d8d60b69d195dd4cd3af9b8c1093f80b5f1392 20fdbf1ac61bf46849cf7309ea064934522c34f2
+typescript 9f74236718b68897e6fcb6eb4840d9b82ee0ab81 20fdbf1ac61bf46849cf7309ea064934522c34f2
