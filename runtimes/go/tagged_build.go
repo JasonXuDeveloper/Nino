@@ -142,8 +142,8 @@ func (b *builder) fill(c *codec, variant uint8) error {
 	case reflect.String:
 		c.kind, c.min, c.utf8 = kString, 4, variant == variantUTF8
 		if c.utf8 {
-			c.read = func(r *Reader, v reflect.Value) { v.SetString(r.Utf8()) }
-			c.write = func(w *Writer, v reflect.Value) { w.Utf8(v.String()) }
+			c.read = func(r *Reader, v reflect.Value) { v.SetString(r.UTF8()) }
+			c.write = func(w *Writer, v reflect.Value) { w.UTF8(v.String()) }
 		} else {
 			c.read = func(r *Reader, v reflect.Value) { v.SetString(r.String()) }
 			c.write = func(w *Writer, v reflect.Value) { w.String(v.String()) }
@@ -215,11 +215,11 @@ func (b *builder) leaf(c *codec, kind codecKind, size, align int, quirk bool) er
 		c.read = func(r *Reader, v reflect.Value) { v.SetInt(int64(r.TimeOnly())) }
 		c.write = func(w *Writer, v reflect.Value) { w.TimeOnly(TimeOnly(v.Int())) }
 	case kInt128:
-		c.read = func(r *Reader, v reflect.Value) { v.Set(reflect.ValueOf(r.Int128())) }
-		c.write = func(w *Writer, v reflect.Value) { w.Int128(v.Interface().(Int128)) }
+		c.read = func(r *Reader, v reflect.Value) { v.Set(reflect.ValueOf(r.I128())) }
+		c.write = func(w *Writer, v reflect.Value) { w.I128(v.Interface().(Int128)) }
 	case kUInt128:
-		c.read = func(r *Reader, v reflect.Value) { v.Set(reflect.ValueOf(r.UInt128())) }
-		c.write = func(w *Writer, v reflect.Value) { w.UInt128(v.Interface().(UInt128)) }
+		c.read = func(r *Reader, v reflect.Value) { v.Set(reflect.ValueOf(r.U128())) }
+		c.write = func(w *Writer, v reflect.Value) { w.U128(v.Interface().(UInt128)) }
 	case kHalf:
 		c.read = func(r *Reader, v reflect.Value) { v.SetUint(uint64(r.Half())) }
 		c.write = func(w *Writer, v reflect.Value) { w.Half(Half(v.Uint())) }
@@ -279,7 +279,7 @@ func (b *builder) pointer(c *codec, variant uint8) error {
 			var s string
 			var ok bool
 			if utf8 {
-				s, ok = r.NullableUtf8()
+				s, ok = r.NullableUTF8()
 			} else {
 				s, ok = r.NullableString()
 			}
@@ -298,7 +298,7 @@ func (b *builder) pointer(c *codec, variant uint8) error {
 				s = v.Elem().String()
 			}
 			if utf8 {
-				w.NullableUtf8(s, ok)
+				w.NullableUTF8(s, ok)
 			} else {
 				w.NullableString(s, ok)
 			}

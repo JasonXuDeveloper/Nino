@@ -202,7 +202,7 @@ func writeAllByHand(w *Writer, v *tagAll) {
 	w.DateTime(v.When)
 	w.DateTimeOffset(v.Off)
 	w.String(v.Text)
-	w.Utf8Ptr(v.Utf)
+	w.UTF8Ptr(v.Utf)
 	w.ByteArray(v.Bytes)
 	WritePrimitives(w, v.Ints)
 	WriteBools(w, v.Bools)

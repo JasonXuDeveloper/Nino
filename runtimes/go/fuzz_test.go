@@ -80,9 +80,9 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 			return (u == nil) == (v == nil) && equalUnits(u, v)
 		})
 	case 5:
-		v, ok := r.NullableUtf8()
-		check(func(w *Writer) { w.NullableUtf8(v, ok) }, func(b *Reader) bool {
-			s, o := b.NullableUtf8()
+		v, ok := r.NullableUTF8()
+		check(func(w *Writer) { w.NullableUTF8(v, ok) }, func(b *Reader) bool {
+			s, o := b.NullableUTF8()
 			return s == v && o == ok
 		})
 	case 6:
