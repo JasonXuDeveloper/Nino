@@ -16,7 +16,7 @@
     <!-- Tools only (Nino.Codegen, Nino.Codegen.Tool): the templates of the code generated for other languages. Shipped
          in the tools' own folders, never a dependency of a package's users. -->
     <ItemGroup>
-        <PackageVersion Include="Scriban" Version="7.5.0"/>
+        <PackageVersion Include="Scriban" Version="7.5.3"/>
     </ItemGroup>
 
     <!-- Roslyn. The generator is compiled against the oldest compiler each of its builds supports: 4.3 here (Unity),
