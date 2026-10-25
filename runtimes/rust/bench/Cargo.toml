@@ -19,3 +19,8 @@ prost = "0.14.4"
 [[bench]]
 name = "compare"
 harness = false
+
+# Nino's own string writer and reader on text of each class and length (development only: not in the report).
+[[bench]]
+name = "text"
+harness = false
