@@ -1,0 +1,24 @@
+{
+    "name": "Nino.Burst",
+    "rootNamespace": "Nino.Burst",
+    "references": [
+        "Unity.Burst"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "NINO_BURST"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.burst",
+            "expression": "1.8.0",
+            "define": "NINO_BURST"
+        }
+    ],
+    "noEngineReferences": false
+}
