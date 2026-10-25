@@ -130,8 +130,6 @@ jobs:
           testMode: ${{ matrix.backend == 'il2cpp' && 'standalone' || 'all' }}
           # The Linux IL2CPP module is only in this image; the default one builds Mono players.
           customImage: ${{ matrix.backend == 'il2cpp' && format('unityci/editor:ubuntu-{0}-linux-il2cpp-3', matrix.unity) || '' }}
-          # Coverage is collected in the editor only.
-          coverageEnabled: ${{ matrix.backend != 'il2cpp' }}
           # No githubToken: posting the results as a check run calls the GitHub API, and a timeout there failed a run
           # whose tests had all passed. The results are uploaded below, and a failed test still fails this step.
           unityVersion: ${{ matrix.unity }}
