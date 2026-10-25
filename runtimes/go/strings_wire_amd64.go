@@ -58,7 +58,7 @@ const (
 // them.
 var writeTiers, readTiers = detectTiers()
 
-var writeTier, readTier = tierAVX2, tierSSE // test branch: forced
+var writeTier, readTier = 0, 0 // test branch: forced
 
 func detectTiers() (write, read []int) {
 	if _, _, ecx, _ := cpuid(1, 0); ecx&(1<<9) != 0 {
@@ -86,7 +86,7 @@ func tierName(t int) string {
 // one is taken.
 var hasWire, hasRead = len(writeTiers) > 0, len(readTiers) > 0
 
-var useWire, useRead = hasWire, hasRead
+var useWire, useRead = false, false
 
 func detectAVX2() bool {
 	maxID, _, _, _ := cpuid(0, 0)
