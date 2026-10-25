@@ -54,10 +54,10 @@ namespace Nino.AspNetCore
 
         /// <summary>
         /// Whether <paramref name="exception"/> is what Nino throws for data it cannot read (truncated, corrupt or
-        /// written for another type), as opposed to a bug: the client's fault, so a 400.
+        /// written for another type, <see cref="NinoDataException"/>): the client's fault, so a 400. Anything else (a
+        /// type with no formatter, a factory that returned null, ...) is a mistake on the server's side and stays one.
         /// </summary>
-        public static bool IsInvalidData(Exception exception) =>
-            exception is InvalidOperationException or OverflowException or IndexOutOfRangeException;
+        public static bool IsInvalidData(Exception exception) => exception is NinoDataException;
 
         // A body that is already in the pipe (the common case: small bodies arrive with the headers) is read without
         // an async method, so nothing is allocated whether or not the compiler made its state machines structs (it
@@ -141,7 +141,9 @@ namespace Nino.AspNetCore
         {
             if (body.IsSingleSegment)
                 return read(body.FirstSpan, type);
-            var length = checked((int)body.Length);
+            if (body.Length > int.MaxValue)
+                throw new NinoDataException("Nino: the body is larger than a span can hold.");
+            var length = (int)body.Length;
             var buffer = ArrayPool<byte>.Shared.Rent(length);
             try
             {

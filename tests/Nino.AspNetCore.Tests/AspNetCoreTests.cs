@@ -36,6 +36,9 @@ namespace Nino.AspNetCore.Tests
         [FormatFilter]
         public Order Get(int id) => Sample();
 
+        [HttpPost("broken")]
+        public Broken Broken([FromBody] Broken broken) => broken;
+
         [HttpGet("plain")]
         public Plain Unsupported() => new Plain { X = 1 };
 
@@ -58,6 +61,7 @@ namespace Nino.AspNetCore.Tests
             _app = builder.Build();
             _app.MapControllers();
             _app.MapPost("/minimal/echo", (NinoBody<Order> order) => NinoResults.Ok(order.Value));
+            _app.MapPost("/minimal/broken", (NinoBody<Broken> broken) => NinoResults.Ok(broken.Value));
             _app.MapPost("/minimal/created", (NinoBody<Order> order) => NinoResults.Status(201, order.Value));
             _app.MapPost("/minimal/manual", async (HttpContext context) =>
             {
@@ -205,6 +209,65 @@ namespace Nino.AspNetCore.Tests
             using var response = await _client.SendAsync(Request(HttpMethod.Post, "/minimal/echo",
                 Body(new byte[] { 1, 2 })));
             Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        // Every way data can be invalid is a NinoDataException, and only that is the client's fault: every
+        // truncation of a valid body and every single-byte corruption of it is a 400 or (when it still reads) a 200,
+        // never a server error.
+        [TestMethod]
+        public async Task MalformedBodiesAreBadRequests()
+        {
+            var bytes = NinoSerializer.Serialize(OrdersController.Sample());
+            foreach (var url in new[] { "/mvc/echo", "/minimal/echo" })
+            {
+                for (int length = 1; length < bytes.Length; length++)
+                {
+                    using var response = await _client.SendAsync(Request(HttpMethod.Post, url,
+                        Body(bytes.AsSpan(0, length).ToArray())));
+                    Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode, $"{url}, {length} bytes");
+                }
+
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    foreach (byte value in new byte[] { 0x00, 0x7F, 0x80, 0xFF })
+                    {
+                        var corrupt = (byte[])bytes.Clone();
+                        corrupt[i] = value;
+                        using var response = await _client.SendAsync(Request(HttpMethod.Post, url, Body(corrupt)));
+                        Assert.IsTrue(response.StatusCode is HttpStatusCode.OK or HttpStatusCode.BadRequest,
+                            $"{url}, byte {i} = {value}: {response.StatusCode}");
+                    }
+                }
+            }
+        }
+
+        // A mistake on the server's side (here a factory that returns null) is not the client's fault: never a 400.
+        [TestMethod]
+        public async Task ServerErrorsAreNotBadRequests()
+        {
+            var bytes = NinoSerializer.Serialize(new Broken { Items = new NullFactoryList { 1 } });
+            foreach (var url in new[] { "/mvc/broken", "/minimal/broken" })
+            {
+                // The test server hands an exception the app did not handle to the client.
+                var e = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                {
+                    using var response = await _client.SendAsync(Request(HttpMethod.Post, url, Body(bytes)));
+                    Assert.Fail($"{url}: {response.StatusCode}");
+                });
+                StringAssert.Contains(e.Message, "returned null", url);
+            }
+
+            foreach (bool arrived in new[] { true, false })
+            {
+                var (context, pipe) = BufferedRequest(NinoMediaTypes.Application, bytes.Length);
+                if (arrived)
+                    await pipe.Writer.WriteAsync(bytes);
+                var task = context.Request.ReadFromNinoAsync<Broken>();
+                if (!arrived)
+                    await pipe.Writer.WriteAsync(bytes);
+                var e = await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () => await task);
+                StringAssert.Contains(e.Message, "returned null");
+            }
         }
 
         // A body far larger than a pipe segment, sent in small chunks without a Content-Length: read across segments.
