@@ -23,7 +23,7 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 | `deserialize`, `deserialize_exact` | Read a value. `deserialize_exact` also rejects trailing bytes (`ErrorKind::TrailingData`). |
 | `NinoRead`, `NinoWrite` | A type's whole encoding. Implemented here for the types in the table below, and by generated or derived code for each `[NinoType]`. |
 | `NinoReadBody`, `NinoWriteBody` | A class's body, behind its presence byte or type id. They carry `TYPE_ID` (0 when it has none) and `DEFERRABLE` (whether .NET may defer it, spec §10.5). |
-| `Reader`, `Writer` | What the codecs call: primitives, lengths, the three string encodings, classes (`read_sealed`, `read_class`, `write_sealed`, `write_class`), structs (`enter_struct`/`exit_struct`), version-tolerant and keyed regions (`begin_region`, `end_region`, `end_member`), and deferral (`mark`, `trail`, `Step`, `field!`). |
+| `Reader`, `Writer` | What the codecs call: primitives, lengths, the three string encodings, classes (`read_sealed`, `read_sealed_boxed`, `read_class`, `write_sealed`, `write_class`), structs (`enter_struct`/`exit_struct`), version-tolerant and keyed regions (`begin_region`, `end_region`, `end_member`), and deferral (`mark`, `trail`, `Step`, `field!`). |
 | `type_id(name)` | The type id of a .NET full name: FNV-1a over its UTF-16 code units, as a `const fn`. |
 | `Error`, `ErrorKind` | Every failure. `ErrorKind` is `#[non_exhaustive]`. |
 

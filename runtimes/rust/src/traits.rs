@@ -32,6 +32,19 @@ pub trait NinoRead: Sized + 'static {
         }
     }
 
+    /// [`NinoRead::read`] into a `Box`. Generated code for a class reads the body in place on the heap
+    /// ([`Reader::read_sealed_boxed_value`]) instead of moving the value there.
+    #[inline]
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        Self::read(r).map(Box::new)
+    }
+
+    /// [`NinoRead::read_option`] into a `Box` ([`Reader::read_sealed_boxed`] for a class).
+    #[inline]
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        Ok(Self::read_option(r)?.map(Box::new))
+    }
+
     /// Reads `count` values (the length was checked against [`NinoRead::MIN_SIZE`]). Fixed-size types read them
     /// all with one length check.
     #[inline]

@@ -42,6 +42,14 @@ impl NinoRead for BigValues {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for BigValues {
@@ -104,6 +112,14 @@ impl NinoRead for BlueLink {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -169,6 +185,14 @@ impl NinoRead for Bytes {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Bytes {
@@ -230,6 +254,14 @@ impl NinoRead for Cat {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Cat {
@@ -289,6 +321,14 @@ impl NinoRead for Chain {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -445,6 +485,14 @@ impl NinoRead for Collections {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Collections {
@@ -529,6 +577,14 @@ impl NinoRead for Dates {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -636,6 +692,14 @@ impl NinoRead for Empties {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Empties {
@@ -692,6 +756,14 @@ impl NinoRead for Empty {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -778,6 +850,14 @@ impl NinoRead for Enums {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Enums {
@@ -850,6 +930,14 @@ impl NinoRead for Floats {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Floats {
@@ -913,6 +1001,14 @@ impl NinoRead for Inner {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -998,6 +1094,14 @@ impl NinoRead for Integers {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -1088,6 +1192,14 @@ impl NinoRead for KeyedChain {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for KeyedChain {
@@ -1150,6 +1262,14 @@ impl NinoRead for KeyedHolder {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -1314,6 +1434,14 @@ impl NinoRead for KeyedV1 {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for KeyedV1 {
@@ -1408,6 +1536,14 @@ impl NinoRead for KeyedV2 {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -1522,6 +1658,14 @@ impl NinoRead for Middle {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Middle {
@@ -1616,6 +1760,14 @@ impl NinoRead for Nullables {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Nullables {
@@ -1689,6 +1841,14 @@ impl NinoRead for Outer {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -1785,6 +1945,14 @@ impl NinoRead for Point {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Point {
@@ -1847,6 +2015,14 @@ impl NinoRead for Puppy {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -1913,6 +2089,14 @@ impl NinoRead for RecordChain {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for RecordChain {
@@ -1972,6 +2156,14 @@ impl NinoRead for RedLink {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -2048,6 +2240,14 @@ impl NinoRead for Scalars {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Scalars {
@@ -2112,6 +2312,14 @@ impl NinoRead for Square {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -2182,6 +2390,14 @@ impl NinoRead for StringCollections {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for StringCollections {
@@ -2244,6 +2460,14 @@ impl NinoRead for Strings {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -2341,6 +2565,14 @@ impl NinoRead for Structs {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Structs {
@@ -2410,6 +2642,14 @@ impl NinoRead for TAnimalSlot {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TAnimalSlot {
@@ -2465,6 +2705,14 @@ impl NinoRead for TBigSlot {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -2522,6 +2770,14 @@ impl NinoRead for TBoolArray {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TBoolArray {
@@ -2577,6 +2833,14 @@ impl NinoRead for TBoolValue {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -2634,6 +2898,14 @@ impl NinoRead for TByteArray {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TByteArray {
@@ -2689,6 +2961,14 @@ impl NinoRead for TDogSlot {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -2746,6 +3026,14 @@ impl NinoRead for TGrid {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TGrid {
@@ -2801,6 +3089,14 @@ impl NinoRead for TIntArray {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -2858,6 +3154,14 @@ impl NinoRead for TIntMap {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TIntMap {
@@ -2913,6 +3217,14 @@ impl NinoRead for TIntSet {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -2970,6 +3282,14 @@ impl NinoRead for TLongList {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TLongList {
@@ -3025,6 +3345,14 @@ impl NinoRead for TMaybeInt {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -3082,6 +3410,14 @@ impl NinoRead for TMaybeIntArray {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TMaybeIntArray {
@@ -3137,6 +3473,14 @@ impl NinoRead for TObjectSlot {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -3194,6 +3538,14 @@ impl NinoRead for TPaddedArray {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TPaddedArray {
@@ -3249,6 +3601,14 @@ impl NinoRead for TPointList {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -3306,6 +3666,14 @@ impl NinoRead for TShapeSlot {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TShapeSlot {
@@ -3361,6 +3729,14 @@ impl NinoRead for TSortedMap {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -3418,6 +3794,14 @@ impl NinoRead for TStringList {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TStringList {
@@ -3473,6 +3857,14 @@ impl NinoRead for TStringMap {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -3530,6 +3922,14 @@ impl NinoRead for TStringSet {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TStringSet {
@@ -3585,6 +3985,14 @@ impl NinoRead for TTextValue {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -3642,6 +4050,14 @@ impl NinoRead for TUtf8Value {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TUtf8Value {
@@ -3697,6 +4113,14 @@ impl NinoRead for TVersionSlot {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -3805,6 +4229,14 @@ impl NinoRead for TolerantChain {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TolerantChain {
@@ -3861,6 +4293,14 @@ impl NinoRead for TolerantEmpty {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -3925,6 +4365,14 @@ impl NinoRead for TolerantHolder {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -3995,6 +4443,14 @@ impl NinoRead for TolerantLeaf {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -4069,6 +4525,14 @@ impl NinoRead for TolerantRoot {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TolerantRoot {
@@ -4137,6 +4601,14 @@ impl NinoRead for TolerantV1 {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -4216,6 +4688,14 @@ impl NinoRead for TolerantV2 {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TolerantV2 {
@@ -4278,6 +4758,14 @@ impl NinoRead for TreeHolder {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for TreeHolder {
@@ -4337,6 +4825,14 @@ impl NinoRead for TreeNode {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -4419,6 +4915,14 @@ impl NinoRead for Zoo {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Zoo {
@@ -4486,6 +4990,14 @@ impl NinoRead for BoxOfVec2 {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for BoxOfVec2 {
@@ -4545,6 +5057,14 @@ impl NinoRead for BoxOfListOfPoint {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 
@@ -4606,6 +5126,14 @@ impl NinoRead for BoxOfInt32 {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for BoxOfInt32 {
@@ -4665,6 +5193,14 @@ impl NinoRead for BoxOfString {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
     }
 }
 

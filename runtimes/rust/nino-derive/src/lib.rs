@@ -604,6 +604,16 @@ fn expand_struct(
                 fn read_option(r: &mut #krate::Reader<'_>) -> #krate::Result<::core::option::Option<Self>> {
                     r.read_sealed()
                 }
+                #[inline]
+                fn read_boxed(r: &mut #krate::Reader<'_>) -> #krate::Result<::std::boxed::Box<Self>> {
+                    r.read_sealed_boxed_value()
+                }
+                #[inline]
+                fn read_boxed_option(
+                    r: &mut #krate::Reader<'_>,
+                ) -> #krate::Result<::core::option::Option<::std::boxed::Box<Self>>> {
+                    r.read_sealed_boxed()
+                }
             }
         },
         (Side::Write, Kind::Class) => quote! {

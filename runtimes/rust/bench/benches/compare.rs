@@ -110,6 +110,12 @@ impl NinoRead for Record {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.read_sealed()
     }
+    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl NinoWrite for Record {

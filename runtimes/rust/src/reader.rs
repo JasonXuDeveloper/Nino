@@ -392,14 +392,53 @@ impl<'d> Reader<'d> {
     /// the outermost.
     #[inline]
     fn read_body_at<T: NinoReadBody>(&mut self, depth: u32) -> Result<T> {
-        self.depth = depth.saturating_add(1);
         let mut value = T::default();
+        self.read_body_into(depth, &mut value)?;
+        Ok(value)
+    }
+
+    /// [`Reader::read_body_at`] into a value already in place (a fresh `T::default()`).
+    #[inline]
+    fn read_body_into<T: NinoReadBody>(&mut self, depth: u32, value: &mut T) -> Result<()> {
+        self.depth = depth.saturating_add(1);
         value.read_body(self)?;
         self.depth = depth;
         if depth == 0 && self.regions == 0 && self.defer.is_some() {
-            crate::defer::flush_top(self, &mut value)?;
+            crate::defer::flush_top(self, value)?;
         }
+        Ok(())
+    }
+
+    /// [`Reader::read_class`] into a `Box`: the body is read in place on the heap, not built on the stack and moved.
+    #[inline]
+    fn read_class_boxed<T: NinoReadBody>(&mut self) -> Result<Box<T>> {
+        let depth = self.depth;
+        if depth >= DEPTH_INLINE {
+            return self.read_class_deep().map(Box::new);
+        }
+        let mut value = Box::<T>::default();
+        self.read_body_into(depth, &mut *value)?;
         Ok(value)
+    }
+
+    /// [`Reader::read_sealed`] into a `Box` (generated code's [`NinoRead::read_boxed_option`]).
+    #[inline]
+    pub fn read_sealed_boxed<T: NinoReadBody>(&mut self) -> Result<Option<Box<T>>> {
+        if self.present()? {
+            self.read_class_boxed().map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// [`Reader::read_sealed_value`] into a `Box` (generated code's [`NinoRead::read_boxed`]).
+    #[inline]
+    pub fn read_sealed_boxed_value<T: NinoReadBody>(&mut self) -> Result<Box<T>> {
+        if self.present()? {
+            self.read_class_boxed()
+        } else {
+            Err(Error::null())
+        }
     }
 
     /// Reads a sealed class: its presence byte (0 = null), then its body ([`Reader::read_class`]).

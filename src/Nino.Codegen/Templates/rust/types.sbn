@@ -367,6 +367,14 @@ impl{{ t.impl_generics }} NinoRead for {{ t.name }}{{ t.generics }} {
     fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
         r.read_sealed()
     }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
 }
 
 impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
