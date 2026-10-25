@@ -231,28 +231,28 @@ func writeBigValuesBody(w *nino.Writer, v *BigValues) {
 
 func readStringsBody(r *nino.Reader, v *Strings) {
 	v.Text = r.StringPtr()
-	v.Utf8 = r.Utf8Ptr()
+	v.Utf8 = r.UTF8Ptr()
 }
 
 func writeStringsBody(w *nino.Writer, v *Strings) {
 	w.StringPtr(v.Text)
-	w.Utf8Ptr(v.Utf8)
+	w.UTF8Ptr(v.Utf8)
 }
 
 func readStringCollectionsBody(r *nino.Reader, v *StringCollections) {
 	v.Array = nino.ReadSlice(r, 4, (*nino.Reader).StringPtr)
 	v.List = nino.ReadSlice(r, 4, (*nino.Reader).StringPtr)
-	v.Utf8A = r.Utf8Ptr()
+	v.Utf8A = r.UTF8Ptr()
 	v.Plain = r.StringPtr()
-	v.Utf8B = r.Utf8Ptr()
+	v.Utf8B = r.UTF8Ptr()
 }
 
 func writeStringCollectionsBody(w *nino.Writer, v *StringCollections) {
 	nino.WriteSlice(w, v.Array, (*nino.Writer).StringPtr)
 	nino.WriteSlice(w, v.List, (*nino.Writer).StringPtr)
-	w.Utf8Ptr(v.Utf8A)
+	w.UTF8Ptr(v.Utf8A)
 	w.StringPtr(v.Plain)
-	w.Utf8Ptr(v.Utf8B)
+	w.UTF8Ptr(v.Utf8B)
 }
 
 func readBytesBody(r *nino.Reader, v *Bytes) {

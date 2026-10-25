@@ -30,7 +30,7 @@ type Reader struct {
 	ctx *readContext
 	// The room left in the block short strings are converted into (see [Reader.shortString]), kept across Reset.
 	text []byte
-	// The strings left in the block StringPtr and Utf8Ptr point into (see [Reader.stringBox]), kept across Reset.
+	// The strings left in the block StringPtr and UTF8Ptr point into (see [Reader.stringBox]), kept across Reset.
 	boxes []string
 }
 
