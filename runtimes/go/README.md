@@ -58,9 +58,9 @@ p, err := nino.DeserializeExact(data, ReadPoint)   // ... or rejected
 
 | Area | Reader / Writer |
 | --- | --- |
-| Primitives | `Bool`, `U8`...`I64`, `F32`, `F64`, `Char`, `Half`, `Int128`, `UInt128` |
+| Primitives | `Bool`, `U8`...`I64`, `I128`, `U128`, `F32`, `F64`, `Char`, `Half` |
 | BCL values | `Decimal`, `Guid`, `DateTime`, `TimeSpan`, `DateTimeOffset`, `DateOnly`, `TimeOnly`, `BigInteger` (`*big.Int`), `Version` |
-| Strings | `String`, `NullableString`, `StringPtr` (default encoding); `Utf8`, `NullableUtf8`, `Utf8Ptr` (`[NinoUtf8]`); `UTF16` (code units) |
+| Strings | `String`, `NullableString`, `StringPtr` (default encoding); `UTF8`, `NullableUTF8`, `UTF8Ptr` (`[NinoUtf8]`); `UTF16` (code units) |
 | Raw runs | `Reader.Take(n)`, `Writer.Extend(n)` / `ExtendZero(n)`, `BoolAt` for a bool inside a raw struct |
 | Collections | `Length`, `ByteArray`, `ReadPrimitives` / `WritePrimitives` (one block copy), `WriteStrings` / `WriteStringPtrs`, `ReadBools`, `ReadSlice`, `ReadMap`, `ReadSet`, `ReadUnique`, `ReadEntries`, `ReadUniqueEntries`, `ReadFixed` (raw structs, the fixed stride of `T?[]`), `ReadShape` (multi-dimensional arrays) and their writers |
 | Classes | `Class[T]`, `ReadClass`, `WriteClass`, `ReadSealed`, `WriteSealed` (depth and deferral, below) |
@@ -257,7 +257,7 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
 - **Reading.** Short strings (up to 128 bytes of UTF-8) are converted into a block the reader keeps (at most 2 KiB,
   and never more than the data left can fill), one after another: one allocation for many strings, as substrings
   share their string's. A string kept keeps its block alive; copy it (`strings.Clone`) to keep it alone. Likewise
-  `StringPtr` and `Utf8Ptr` (generated code's `*string`) point into a block of up to 32 strings the reader keeps.
+  `StringPtr` and `UTF8Ptr` (generated code's `*string`) point into a block of up to 32 strings the reader keeps.
 - **Writing.** A string is written as Latin-1 when every char is at most U+00FF, else as UTF-16 (what .NET writes).
   WTF-8 surrogates are written back as the code units they stand for. A byte that is not UTF-8 is written as U+FFFD.
   The text is converted into the writer's buffer eight bytes at a time (Latin-1 beyond ASCII a char at a time), in one
