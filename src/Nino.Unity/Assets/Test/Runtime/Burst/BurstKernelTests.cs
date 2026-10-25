@@ -1,6 +1,5 @@
 #if NINO_BURST
 using System;
-using System.Diagnostics;
 using System.Linq;
 using Nino.Burst;
 using Nino.Core;
@@ -19,8 +18,9 @@ namespace Test.Runtime.Burst
 
     /// <summary>
     /// The Burst kernels (Nino.Burst) against Nino.Core's scalar paths: the same bytes with the kernels registered and
-    /// without, for every kernel kind and lengths around each threshold; then the time each takes. Run in play mode and
-    /// in an IL2CPP player (Burst AOT), and in edit mode through Test.Editor.Burst.BurstKernelsInEditMode.
+    /// without, for every kernel kind and lengths around each threshold. Run in play mode and in an IL2CPP player
+    /// (Burst AOT), and in edit mode through Test.Editor.Burst.BurstKernelsInEditMode. Their speed is measured by
+    /// BurstBenchmark, in the release benchmark's player only.
     /// </summary>
     public unsafe class BurstKernelTests
     {
@@ -194,74 +194,6 @@ namespace Test.Runtime.Burst
             bytes[4 + 33 * 5 + 4] = 2;
             Assert.IsTrue(NinoBurst.Register());
             Assert.Throws<NinoDataException>(() => NinoDeserializer.Deserialize<(int, bool)[]>(bytes));
-        }
-
-        /// <summary>The time per call of each path with the kernels and without, in the log (not asserted).</summary>
-        [Test]
-        public void Timings()
-        {
-            var random = new Random(4);
-            foreach (int n in new[] { 32, 1000 })
-            {
-                var intLong = Enumerable.Range(0, n).Select(i => (i, (long)i << 20)).ToArray();
-                var byteInt = Enumerable.Range(0, n).Select(i => ((byte)i, i)).ToArray();
-                var wide = Enumerable.Range(0, n).Select(i => (1.5 * i, (long)i, 2.5, 3.5f, (byte)i)).ToArray();
-                var padded = Enumerable.Range(0, n).Select(i => new PaddedRaw { A = (short)i, B = i }).ToArray();
-                string text = new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(32, 127)).ToArray());
-                Time($"write (int, long)[{n}]", () => NinoSerializer.Serialize(intLong));
-                Time($"read (int, long)[{n}]", Reader(intLong));
-                Time($"write (byte, int)[{n}]", () => NinoSerializer.Serialize(byteInt));
-                Time($"read (byte, int)[{n}]", Reader(byteInt));
-                Time($"write (double, long, double, float, byte)[{n}]", () => NinoSerializer.Serialize(wide));
-                Time($"read (double, long, double, float, byte)[{n}]", Reader(wide));
-                Time($"write padded struct[{n}]", () => NinoSerializer.Serialize(padded));
-                Time($"write ASCII string ({n} chars)", () => NinoSerializer.Serialize(text));
-                byte[] bytes = NinoSerializer.Serialize(text);
-                Time($"read ASCII string ({n} chars)", () => NinoDeserializer.Deserialize<string>(bytes));
-            }
-
-            Assert.IsTrue(NinoBurst.Register());
-        }
-
-        private static Action Reader<T>(T[] values)
-        {
-            byte[] bytes = NinoSerializer.Serialize(values);
-            var into = new T[values.Length];
-            return () => NinoDeserializer.Deserialize(bytes, ref into);
-        }
-
-        private static void Time(string what, Action action)
-        {
-            NinoBurst.Unregister();
-            double scalar = Measure(action);
-            Assert.IsTrue(NinoBurst.Register());
-            double burst = Measure(action);
-            Debug.Log($"Nino Burst timing: {what}: scalar {scalar:F0} ns, Burst {burst:F0} ns ({scalar / burst:F2}x)");
-        }
-
-        // The best of seven runs of enough calls to take about 20 ms each, in nanoseconds per call.
-        private static double Measure(Action action)
-        {
-            for (int i = 0; i < 100; i++)
-                action();
-            var watch = Stopwatch.StartNew();
-            int calls = 0;
-            while (watch.ElapsedMilliseconds < 20)
-            {
-                action();
-                calls++;
-            }
-
-            double best = double.MaxValue;
-            for (int run = 0; run < 7; run++)
-            {
-                watch.Restart();
-                for (int i = 0; i < calls; i++)
-                    action();
-                best = Math.Min(best, watch.Elapsed.TotalMilliseconds * 1e6 / calls);
-            }
-
-            return best;
         }
     }
 }
