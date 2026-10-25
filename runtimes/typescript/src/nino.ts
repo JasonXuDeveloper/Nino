@@ -128,7 +128,7 @@ const chunk = 4096;
  * for chars past U+00FF); shorter text is narrowed char by char in JavaScript, which costs less up to about 24 chars
  * (the two cross between 20 and 24 chars on Node 22 and 24).
  */
-const shortText = 24;
+const shortText = 32;
 /** Without Node's methods, the longest text read and written in JavaScript: TextDecoder and TextEncoder cost more. */
 const mediumText = 32;
 /**
