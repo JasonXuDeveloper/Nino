@@ -8,8 +8,8 @@ name: Unity
 #
 # report.yml calls it for each release with `benchmark: true`: the editor's tests are skipped, the IL2CPP player is
 # built as a release build (Test.Editor.Burst.BenchmarkPlayerBuild) and runs the correctness tests and the Burst
-# benchmark (Test.Runtime.Burst.BurstBenchmark), and the lines the benchmark logs are uploaded per Unity version
-# (artifacts unity-bench-<version>) for benchmarks/unity_report.py. A called run joins the same concurrency group, so
+# benchmark (Test.Runtime.Burst.BurstBenchmark, measured with the Unity Performance Testing package), and its results
+# are uploaded per Unity version (artifacts unity-bench-<version>) for benchmarks/unity_report.py. A called run joins the same concurrency group, so
 # it waits for a running Unity job and is never cancelled while it runs.
 
 on:
@@ -195,35 +195,38 @@ jobs:
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
 
-      # The benchmark's lines: the editor's NINO_UNITY_BUILD (how the player was built), the player's NINO_UNITY_ENV and
-      # NINO_UNITY_BENCH lines, and this job's NINO_UNITY_CI line. Fails (after the results are uploaded below) when
-      # the player logged no benchmark line, so a release whose Unity section is missing shows why.
-      - name: Collect the benchmark lines
+      # The benchmark's results, per Unity version: the player's NUnit results (results.xml), whose test output holds
+      # the Performance Testing package's results and run metadata and the player's NINO_UNITY_ENV line, and
+      # build.txt: the editor's NINO_UNITY_BUILD line (how the player was built) and this job's NINO_UNITY_CI line.
+      # Fails (after the results are uploaded below) when the player measured nothing, so a release whose Unity
+      # section is missing shows why.
+      - name: Collect the benchmark results
         id: bench
         if: always() && env.BENCHMARK == 'true' && steps.player-tests.conclusion != 'skipped'
         env:
           UNITY_VERSION: ${{ matrix.unity }}
         run: |
           set -euo pipefail
-          mkdir -p bench
-          OUT="bench/unity-bench-$UNITY_VERSION.txt"
+          OUT="bench/unity-bench-$UNITY_VERSION"
+          mkdir -p "$OUT"
+          cp artifacts/player/standalone-results.xml "$OUT/results.xml" || true
           {
-            grep -ho 'NINO_UNITY_[A-Z]*|.*' artifacts/player/standalone.log artifacts/player/standalone-player.log || true
+            grep -ho 'NINO_UNITY_BUILD|.*' artifacts/player/standalone.log || true
             echo "NINO_UNITY_CI|nino_core=$NINO_CONFIG|runner=$ImageOS ($ImageVersion)"
-          } > "$OUT"
-          cat "$OUT"
-          if ! grep -q '^NINO_UNITY_BENCH|' "$OUT"; then
-            echo "has_rows=false" >> "$GITHUB_OUTPUT"
-          else
+          } > "$OUT/build.txt"
+          cat "$OUT/build.txt"
+          if grep -q '##performancetestresult2:' "$OUT/results.xml" 2>/dev/null; then
             echo "has_rows=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_rows=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Upload the benchmark lines
+      - name: Upload the benchmark results
         if: always() && steps.bench.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: unity-bench-${{ matrix.unity }}
-          path: bench/unity-bench-${{ matrix.unity }}.txt
+          path: bench/unity-bench-${{ matrix.unity }}
           retention-days: 30
 
       - name: Upload Unity results
@@ -241,5 +244,5 @@ jobs:
       - name: Check the benchmark ran
         if: always() && steps.bench.outputs.has_rows == 'false'
         run: |
-          echo "::error::The IL2CPP player logged no NINO_UNITY_BENCH line (see its log in test-results-unity-${{ matrix.unity }})"
+          echo "::error::The IL2CPP player's results hold no performance test result (see its log in test-results-unity-${{ matrix.unity }})"
           exit 1

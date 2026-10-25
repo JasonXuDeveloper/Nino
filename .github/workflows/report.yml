@@ -804,26 +804,26 @@ jobs:
           persist-credentials: false
           sparse-checkout: benchmarks
 
-      - name: Download the benchmark lines
+      # One folder per Unity version (unity-bench/unity-bench-<version>: results.xml and build.txt).
+      - name: Download the benchmark results
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: unity-bench-*
-          merge-multiple: true
           path: unity-bench
 
       - name: Append the Unity section to the release body
         run: |
           set -euo pipefail
           shopt -s nullglob
-          # One file per Unity version, oldest first.
-          mapfile -t FILES < <(printf '%s\n' unity-bench/unity-bench-*.txt | sort -V)
+          # One folder per Unity version, oldest first.
+          mapfile -t FILES < <(printf '%s\n' unity-bench/unity-bench-*/ | sort -V)
           if (( ${#FILES[@]} == 0 )); then
-            echo "::warning::No Unity benchmark lines (see the Unity benchmark job): the Unity section is left out"
+            echo "::warning::No Unity benchmark results (see the Unity benchmark job): the Unity section is left out"
             exit 0
           fi
           python3 benchmarks/test_unity_report.py
           if ! python3 benchmarks/unity_report.py "$TAG_NAME" "${FILES[@]}" > section.md; then
-            echo "::warning::benchmarks/unity_report.py found no benchmark rows: the Unity section is left out"
+            echo "::warning::benchmarks/unity_report.py found no performance test results: the Unity section is left out"
             exit 0
           fi
           cat section.md
