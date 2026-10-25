@@ -35,7 +35,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/version.mjs",
     "build:wasm": "node wasm/build.ts",
     "typecheck": "tsc -p .",
     "test": "tsc -p . && npm run test:node && npm run test:browser && npm run test:no-wasm",
