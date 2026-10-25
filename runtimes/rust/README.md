@@ -6,8 +6,8 @@ Reads and writes [Nino](https://github.com/JasonXuDeveloper/Nino)'s binary wire 
 with the NuGet packages (`cargo add nino-serialization@=4.0.0-rc.8`, `features = ["derive"]` for the derive).
 
 - Edition 2021, MSRV 1.88.
-- `#![deny(unsafe_code)]`: the only `unsafe` code is the string writer's transcoding (`src/simd.rs`), checked under
-  Miri. The reader has none.
+- `#![deny(unsafe_code)]`: the only `unsafe` code is `src/simd.rs`, checked under Miri: the string writer's
+  transcoding, and the reader's decoding of text into a `String` it builds. The reader's bounds checks are safe code.
 - No required dependencies. Every integration is an opt-in feature.
 
 ```rust
@@ -257,11 +257,17 @@ cargo test --workspace --all-features
     `TRYBUILD=overwrite cargo test --features derive --test compile_fail` rewrites the expected messages.
 
 - **Unsafe code** (`src/simd.rs`): writing a `String` transcodes its UTF-8 to Latin-1 or UTF-16 straight into the
-  buffer, a block of 16 bytes at a time: SSE2 on x86_64, plus SSSE3 (checked at run time) for two-byte chars in text
-  of 48 bytes or more; NEON on little-endian Arm64; two `u64` words elsewhere. Its tests compare every way the target
-  has with a plain decoder for every char class at every position of text up to 200 chars, runs and random text, and
-  `string_encodings` (`tests/values.rs`) compares `serialize` with .NET's bytes the same way. CI runs the module's
-  tests under Miri on x86_64 (with and without SSSE3), Arm64 and big-endian s390x:
+  buffer. On x86_64 with SSE4.1 (checked at run time), non-ASCII text of any length takes one pass of 16-byte windows
+  that combines each char's bytes in a lane and packs the lanes with a shuffle, as Latin-1 until a char above U+00FF
+  and then as UTF-16. Elsewhere, text up to 64 bytes is decoded char by char and longer text a block of 16 bytes at
+  a time: SSE2, plus SSSE3 for two-byte chars in text of 48 bytes or more; NEON on little-endian Arm64; two `u64`
+  words on other targets. Reading a string decodes its Latin-1 or UTF-16 straight into the `String`'s allocation
+  (sized from the code units first) and builds it unchecked: what the decoder writes is valid UTF-8 by construction,
+  with U+FFFD for each unpaired surrogate as before. Its tests compare every way the target has, and the decoders,
+  with plain ones for every char class at every position of text up to 256 chars, runs and random input (unpaired
+  and reversed surrogates included), and `string_encodings` (`tests/values.rs`) compares `serialize` with .NET's
+  bytes the same way. CI runs the module's tests under Miri on x86_64 (SSE2 only, SSSE3, SSE4.1), Arm64 and
+  big-endian s390x:
   `cargo +nightly miri test -p nino-serialization --lib simd` (`--target aarch64-unknown-linux-gnu`, ...).
 
 ## Benchmarks

@@ -243,13 +243,13 @@ impl<'d> Reader<'d> {
                 return Ok(None);
             }
             let bytes = self.latin1_bytes(header)?;
-            return Ok(Some(crate::strings::latin1(bytes)));
+            return Ok(Some(crate::simd::latin1_string(bytes)));
         }
         if header == 0 {
             return Ok(Some(String::new()));
         }
         let units = self.utf16_units(header)?;
-        Ok(Some(crate::strings::utf16_lossy(units)))
+        Ok(Some(crate::simd::utf16_string(units)))
     }
 
     /// A string in the default encoding as its UTF-16 code units, unpaired surrogates included (lossless).
