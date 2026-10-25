@@ -362,8 +362,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends mono-complete qemu-user libc6-armhf-cross libstdc++6-armhf-cross
+          # The exact version of the runner's own .NET 10 runtime: with one, dotnet-install skips aka.ms, whose download
+          # host can be down (it answered 409 for hours in October 2026) while the feeds still serve the files.
+          version="$(dotnet --list-runtimes | awk '$1 == "Microsoft.NETCore.App" && $2 ~ /^10\./ { v = $2 } END { print v }')"
           curl -sSfL https://dot.net/v1/dotnet-install.sh -o "$RUNNER_TEMP/dotnet-install.sh"
-          bash "$RUNNER_TEMP/dotnet-install.sh" --runtime dotnet --channel 10.0 --architecture arm \
+          bash "$RUNNER_TEMP/dotnet-install.sh" --runtime dotnet --version "$version" --architecture arm \
             --install-dir "$RUNNER_TEMP/dotnet-arm" --no-path
 
       # 32-bit .NET on Windows (x86: 8-byte fields aligned to 4), beside the 64-bit SDK.
@@ -371,8 +374,10 @@ jobs:
         if: matrix.id == 'framework'
         shell: pwsh
         run: |
+          # The runner's own .NET 10 runtime version: an exact version keeps dotnet-install off aka.ms (see the Arm32 step).
+          $version = (dotnet --list-runtimes | Select-String '^Microsoft\.NETCore\.App (10\.\S+)' | Select-Object -Last 1).Matches[0].Groups[1].Value
           Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile "$env:RUNNER_TEMP/dotnet-install.ps1"
-          & "$env:RUNNER_TEMP/dotnet-install.ps1" -Runtime dotnet -Channel 10.0 -Architecture x86 `
+          & "$env:RUNNER_TEMP/dotnet-install.ps1" -Runtime dotnet -Version $version -Architecture x86 `
             -InstallDir "$env:RUNNER_TEMP/dotnet-x86" -NoPath
 
       # 32-bit .NET Framework runs the same exe built for x86 (-p:NinoX86=true, its own output folder).

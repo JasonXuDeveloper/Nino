@@ -3709,17 +3709,17 @@ func WriteStringCollections(w *nino.Writer, v *StringCollections) {
 func readStringCollectionsBody(r *nino.Reader, v *StringCollections) {
 	v.Array = readV21(r)
 	v.List = readV21(r)
-	v.Utf8A = r.Utf8Ptr()
+	v.Utf8A = r.UTF8Ptr()
 	v.Plain = r.StringPtr()
-	v.Utf8B = r.Utf8Ptr()
+	v.Utf8B = r.UTF8Ptr()
 }
 
 func writeStringCollectionsBody(w *nino.Writer, v *StringCollections) {
 	writeV33(w, v.Array)
 	writeV33(w, v.List)
-	w.Utf8Ptr(v.Utf8A)
+	w.UTF8Ptr(v.Utf8A)
 	w.StringPtr(v.Plain)
-	w.Utf8Ptr(v.Utf8B)
+	w.UTF8Ptr(v.Utf8B)
 }
 
 // StringList is `Conformance.Targets.StringList`.
@@ -3849,12 +3849,12 @@ func WriteStrings(w *nino.Writer, v *Strings) {
 
 func readStringsBody(r *nino.Reader, v *Strings) {
 	v.Text = r.StringPtr()
-	v.Utf8 = r.Utf8Ptr()
+	v.Utf8 = r.UTF8Ptr()
 }
 
 func writeStringsBody(w *nino.Writer, v *Strings) {
 	w.StringPtr(v.Text)
-	w.Utf8Ptr(v.Utf8)
+	w.UTF8Ptr(v.Utf8)
 }
 
 // Structs is `Conformance.Structs`.
@@ -4783,11 +4783,11 @@ func WriteUtf8Value(w *nino.Writer, v *Utf8Value) {
 }
 
 func readUtf8ValueBody(r *nino.Reader, v *Utf8Value) {
-	v.Value = r.Utf8Ptr()
+	v.Value = r.UTF8Ptr()
 }
 
 func writeUtf8ValueBody(w *nino.Writer, v *Utf8Value) {
-	w.Utf8Ptr(v.Value)
+	w.UTF8Ptr(v.Value)
 }
 
 func (Vec2) NinoLayout() string {
@@ -5881,7 +5881,7 @@ func keyString(r *nino.Reader) string {
 
 // keyUtf8 reads a [NinoUtf8] string dictionary key.
 func keyUtf8(r *nino.Reader) string {
-	s, ok := r.NullableUtf8()
+	s, ok := r.NullableUTF8()
 	if !ok && !r.Failed() {
 		r.Fail(nino.CodeInvalidData, "null dictionary key")
 	}

@@ -43,9 +43,9 @@ func WriteStrings(w *nino.Writer, v []string) { nino.WriteStrings(w, v) }
 
 // ReadUtf8Strings and WriteUtf8Strings are a [NinoUtf8] string[]: each element as UTF-8 (wire format §4.2), read
 // with the same checks (strict UTF-8, the char count) as a [NinoUtf8] member.
-func ReadUtf8Strings(r *nino.Reader) []string { return nino.ReadSlice(r, 4, (*nino.Reader).Utf8) }
+func ReadUtf8Strings(r *nino.Reader) []string { return nino.ReadSlice(r, 4, (*nino.Reader).UTF8) }
 
-func WriteUtf8Strings(w *nino.Writer, v []string) { nino.WriteSlice(w, v, (*nino.Writer).Utf8) }
+func WriteUtf8Strings(w *nino.Writer, v []string) { nino.WriteSlice(w, v, (*nino.Writer).UTF8) }
 
 // The values as Protocol Buffers messages (benchpb/bench.proto).
 
