@@ -52,10 +52,17 @@ on:
 permissions:
   contents: read
 
+# Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  # The whole suite runs as the shards of report.yml, one runner each, in parallel: on one runner, both refs in full
-  # mode took over three and a half hours. Each shard measures both refs one after the other on its runner, so each
-  # comparison is still made on one machine; the summary job merges the shards. A filter of its own is one shard.
+  # The whole suite runs in shards (benchmarks/shards.json, "ab"), one runner each, in parallel: on one runner, both
+  # refs in full mode took over three and a half hours. Each shard measures both refs one after the other on its
+  # runner, so each comparison is still made on one machine; the summary job merges the shards. A filter of its own is
+  # one shard. The shards hold Nino and MemoryPack only (MessagePack and protobuf-net do not change between the refs;
+  # MemoryPack shows how much the runner moved), and leave the probe classes out: run them with a filter.
   plan:
     name: Plan shards
     runs-on: ubuntu-26.04
@@ -63,23 +70,25 @@ jobs:
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
     steps:
-      - id: plan
+      - name: Checkout the shard list
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: benchmarks/shards.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Plan shards
+        id: plan
         env:
           FILTER: ${{ inputs.filter || '*' }}
         run: |
           set -euo pipefail
           if [[ $FILTER == '*' ]]; then
-            # The classes in five shards, Nino and MemoryPack only (MessagePack and protobuf-net do not change between
-            # the refs; MemoryPack shows how much the runner moved). The probe classes are left out: run them with a filter.
-            SHARDS='[{"id":"a","filters":"*.SimpleTest.Nino* *.SimpleTest.MemoryPack* *.PooledTest.Nino* *.PooledTest.MemoryPack*"},
-              {"id":"b","filters":"*.CommonTypesTest.Nino* *.CommonTypesTest.MemoryPack* *.FixedSizeTest.Nino* *.FixedSizeTest.MemoryPack* *.GenericPolymorphicTest.Nino* *.GenericPolymorphicTest.MemoryPack*"},
-              {"id":"c","filters":"*.PolymorphicTest.Nino* *.PolymorphicTest.MemoryPack* *.BclTypesTest.NinoSerialize* *.BclTypesTest.MemoryPackSerialize*"},
-              {"id":"d","filters":"*.VersionTolerantTest.Nino* *.VersionTolerantTest.MemoryPack* *.ReferenceTest.Nino* *.ReferenceTest.MemoryPack* *.BclTypesTest.NinoDeserialize* *.BclTypesTest.MemoryPackDeserialize*"},
-              {"id":"e","filters":"*.CollectionsTest.Nino* *.CollectionsTest.MemoryPack* *.PooledGraphTest.Nino* *.PooledGraphTest.MemoryPack*"}]'
+            SHARDS=$(jq -c '[.ab[] | {id, filters: (.filters | join(" "))}]' benchmarks/shards.json)
           else
             SHARDS=$(jq -cn --arg f "$FILTER" '[{id: "filter", filters: $f}]')
           fi
-          echo "shards=$(jq -c . <<< "$SHARDS")" >> "$GITHUB_OUTPUT"
+          echo "shards=$SHARDS" >> "$GITHUB_OUTPUT"
 
   bench:
     name: Benchmark on ${{ inputs.runner || 'ubuntu-26.04-arm' }} (${{ matrix.shard.id }})
@@ -91,9 +100,8 @@ jobs:
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     env:
+      # The job's counts, quick or those of the published numbers: head's benchmarks/Nino.Benchmark/NinoJobAttribute.cs.
       NINO_BENCH_QUICK: ${{ inputs.quick && '1' || '0' }}
-      # The settings of report.yml when not in quick mode.
-      BDN_ARGS: ${{ !inputs.quick && '--launchCount 3 --warmupCount 5 --iterationCount 15' || '' }}
       FILTER: ${{ matrix.shard.filters }}
 
     steps:
@@ -142,10 +150,10 @@ jobs:
           done
 
       - name: Setup .NET
+        # setup-dotnet itself, not ./.github/actions/setup-dotnet: the checkout is under head/.
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
             10.0.x
             8.0.x
 
@@ -200,9 +208,8 @@ jobs:
             # through the environment, which MSBuild reads as properties.
             LEGACY=""
             [[ -f $SIDE/.bench-legacy ]] && LEGACY=true
-            # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
-            (cd $SIDE/benchmarks/Nino.Benchmark && NinoBenchLegacy=$LEGACY dotnet bin/Release/net10.0/Nino.Benchmark.dll \
-              --filter "${FILTERS[@]}" $BDN_ARGS --artifacts "$GITHUB_WORKSPACE/results/$SIDE")
+            (cd "$SIDE/benchmarks/Nino.Benchmark" && NinoBenchLegacy=$LEGACY dotnet bin/Release/net10.0/Nino.Benchmark.dll \
+              --filter "${FILTERS[@]}" --artifacts "$GITHUB_WORKSPACE/results/$SIDE")
           done
 
       # What each side measured, for the summary job: the side's directory, then its description.
