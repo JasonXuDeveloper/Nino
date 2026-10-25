@@ -1,2 +1,4 @@
-# <go|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-typescript bdc53c1f3a52 fc6c7a4591ff lookup
+# <go|go:<dir>|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+# phase5/utf8-bench: strings-mixed-1000 (default encoding) against strings-mixed-utf8-1000 ([NinoUtf8]), same commit both sides
+go ef6a681d5db742f0fcd6f7eab359324951458215 ef6a681d5db742f0fcd6f7eab359324951458215 /strings-mixed
+rust ef6a681d5db742f0fcd6f7eab359324951458215 ef6a681d5db742f0fcd6f7eab359324951458215 strings-mixed
