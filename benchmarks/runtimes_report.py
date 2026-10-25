@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The release body's sections for the runtimes outside .NET, from each benchmark's machine-readable output.
 
-usage: runtimes_report.py typescript <node.json> <tag>   (runtimes/typescript/bench/node.ts with NINO_BENCH_JSON:
+usage: runtimes_report.py [--arch arm64] typescript <node.json> <tag>   (runtimes/typescript/bench/node.ts with NINO_BENCH_JSON:
            tinybench's results)
        runtimes_report.py go <benchstat CSV> <tag>   (runtimes/go/bench: go test -bench . -benchmem -count N, then
            benchstat -format csv)
@@ -13,7 +13,9 @@ MessagePack; each time is a mean or median with its spread (tinybench's relative
 confidence interval, half of criterion's 95% confidence interval).
 
 Each prints one section: a "## " heading of its own (HEADINGS: never the words "Performance Report", by which the
-docs site finds the .NET report), then a table. No table has a Method or Mean column, so nothing that reads the
+docs site finds the .NET report), then a table. With --arch arm64 (the same benchmarks on an Arm64 runner), the
+heading is ARM64_HEADINGS' instead, which never contains one of HEADINGS (the docs site finds each x64 section by its
+heading's first occurrence) and comes after them; the table is the same. No table has a Method or Mean column, so nothing that reads the
 .NET tables (nino.docs scripts/sync-benchmarks.ts) takes these rows for its own. The numbers are one GitHub runner's,
 from one run: compare the serializers within a table, not across tables or releases.
 """
@@ -29,6 +31,15 @@ HEADINGS = {
     "rust": "## 🦀 Rust runtime benchmark",
 }
 
+ARM64_HEADINGS = {
+    "typescript": "## 🌐 Arm64: TypeScript runtime benchmark",
+    "go": "## 🐹 Arm64: Go runtime benchmark",
+    "rust": "## 🦀 Arm64: Rust runtime benchmark",
+}
+
+# Set by --arch: the headings and the words that name the machine.
+ARCH = None
+
 
 def time(ns):
     """A time in the unit that keeps it readable: 151.2 ns, 17.04 μs, 3.21 ms."""
@@ -43,8 +54,12 @@ def size(n):
 
 
 def section(lang, tag, summary, intro, table):
+    if ARCH:
+        summary += f", on {ARCH}"
+        intro += f" Measured on a GitHub {ARCH} runner."
     return "\n".join([
-        HEADINGS[lang], "", "<details>", f"<summary>{summary}</summary>", "", intro, "", *table, "", "</details>", ""])
+        (ARM64_HEADINGS if ARCH else HEADINGS)[lang], "", "<details>", f"<summary>{summary}</summary>", "", intro, "",
+        *table, "", "</details>", ""])
 
 
 def spread(pct):
@@ -193,11 +208,17 @@ def rust(directory, tag, log=None):
 
 
 def main():
-    if len(sys.argv) not in (4, 5) or sys.argv[1] not in HEADINGS or (len(sys.argv) == 5 and sys.argv[1] != "rust"):
+    global ARCH
+    args = sys.argv[1:]
+    if args[:1] == ["--arch"]:
+        if args[1:2] != ["arm64"]:
+            sys.exit(__doc__)
+        ARCH, args = "Arm64", args[2:]
+    if len(args) not in (3, 4) or args[0] not in HEADINGS or (len(args) == 4 and args[0] != "rust"):
         sys.exit(__doc__)
-    lang, source, tag = sys.argv[1:4]
+    lang, source, tag = args[:3]
     if lang == "rust":
-        print(rust(source, tag, *sys.argv[4:]), end="")
+        print(rust(source, tag, *args[3:]), end="")
         return
     print({"typescript": typescript, "go": go}[lang](source, tag), end="")
 

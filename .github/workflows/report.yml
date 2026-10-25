@@ -36,9 +36,10 @@ env:
   # The third section: the same benchmarks on an Arm64 runner. The docs site (sync-benchmarks.ts) looks for this
   # heading; it must never contain the words "Performance Report", by which parsers find the x64 report.
   ARM64_HEADING: "## 📊 Arm64 benchmark"
-  # The last sections: the runtimes outside .NET (benchmarks/runtimes_report.py's HEADINGS), appended after every
-  # other section by the runtimes jobs. Their headings and tables never contain "Performance Report", "Method" or
-  # "Mean", so nothing reading the .NET report takes them for its own.
+  # The last sections: the runtimes outside .NET (benchmarks/runtimes_report.py's HEADINGS, then its ARM64_HEADINGS),
+  # appended after every other section by the runtimes jobs. Their headings and tables never contain "Performance
+  # Report", "Method" or "Mean", so nothing reading the .NET report takes them for its own, and no Arm64 heading
+  # contains an x64 one, which the docs site finds by its first occurrence.
 
 jobs:
   target:
@@ -599,17 +600,23 @@ jobs:
   # The runtimes outside .NET (runtimes/typescript, runtimes/go, runtimes/rust), each against the serializers of its
   # language on one runner: one section per language, appended to the release body after the others. Independent of
   # the .NET benchmark: a release that has its .NET sections still gets these, and a failure here never touches them.
+  # Each also runs on an Arm64 runner (the Go string writer's NEON assembly, the Rust crate's NEON steps, V8 on
+  # Arm64), for sections of its own after the x64 ones (runtimes_report.py --arch arm64: headings the docs site does
+  # not take for the x64 sections, which keep their format); an Arm64 failure leaves its section out.
   runtimes:
-    name: Runtime benchmark (${{ matrix.lang }})
+    name: Runtime benchmark (${{ matrix.lang }}, ${{ matrix.arch }})
     needs: target
-    runs-on: ubuntu-26.04
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
     timeout-minutes: 40
     env:
       TAG_NAME: ${{ needs.target.outputs.tag }}
+      # Empty on x64: runtimes_report.py's x64 headings.
+      REPORT_ARCH: ${{ matrix.arch == 'arm64' && 'arm64' || '' }}
     strategy:
       fail-fast: false
       matrix:
         lang: [ typescript, go, rust ]
+        arch: [ x64, arm64 ]
     steps:
       # The tag's runtimes and benchmarks; this workflow's commit for the report script.
       - name: Checkout the release
@@ -656,7 +663,7 @@ jobs:
           # tinybench, protobuf-es and msgpackr (releases before them compared with JSON only, without a lockfile).
           if [[ -f package-lock.json ]]; then npm ci --no-audit --no-fund; fi
           NINO_BENCH_JSON="$RUNNER_TEMP/bench.json" node --no-warnings node.ts out/data
-          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" typescript "$RUNNER_TEMP/bench.json" \
+          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" ${REPORT_ARCH:+--arch "$REPORT_ARCH"} typescript "$RUNNER_TEMP/bench.json" \
             "$TAG_NAME" > "$RUNNER_TEMP/section.md"
 
       - name: Run the Go benchmark
@@ -668,7 +675,7 @@ jobs:
           go install golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e
           go test -run '^$' -bench . -benchmem -count 6 . | tee "$RUNNER_TEMP/bench.txt"
           "$(go env GOPATH)/bin/benchstat" -format csv "$RUNNER_TEMP/bench.txt" > "$RUNNER_TEMP/bench.csv"
-          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" go "$RUNNER_TEMP/bench.csv" \
+          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" ${REPORT_ARCH:+--arch "$REPORT_ARCH"} go "$RUNNER_TEMP/bench.csv" \
             "$TAG_NAME" > "$RUNNER_TEMP/section.md"
 
       - name: Run the Rust benchmark
@@ -681,13 +688,13 @@ jobs:
           rustup toolchain install stable --profile minimal
           # The output too: compare.rs prints each case's encoded sizes.
           cargo bench -p nino-bench --bench compare --locked 2>&1 | tee "$RUNNER_TEMP/bench.log"
-          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" rust "$CARGO_TARGET_DIR/criterion" \
+          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" ${REPORT_ARCH:+--arch "$REPORT_ARCH"} rust "$CARGO_TARGET_DIR/criterion" \
             "$TAG_NAME" "$RUNNER_TEMP/bench.log" > "$RUNNER_TEMP/section.md"
 
       - name: Upload the section
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: runtime-section-${{ matrix.lang }}
+          name: runtime-section-${{ matrix.lang }}${{ matrix.arch == 'arm64' && '-arm64' || '' }}
           path: ${{ runner.temp }}/section.md
           retention-days: 30
 
@@ -715,8 +722,8 @@ jobs:
           gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > current_notes.md
           cp current_notes.md updated_notes.md
           added=0
-          # One section per language, in this order, each only once.
-          for lang in typescript go rust; do
+          # One section per language, in this order, each only once: x64, then Arm64.
+          for lang in typescript go rust typescript-arm64 go-arm64 rust-arm64; do
             file="sections/runtime-section-$lang/section.md"
             if [[ ! -s "$file" ]]; then
               echo "⚠️ No $lang section (see its runtimes job): left out"
