@@ -5,7 +5,7 @@ name: Fuzz
 # Pull requests and pushes get about a minute per configuration; the nightly run a longer budget.
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "claude/zen-goldberg-5qqqcu" ]
     paths:
       - 'src/**'
       - '.editorconfig'

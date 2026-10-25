@@ -6,7 +6,7 @@ name: CodeQL
 # analysis → Disable CodeQL, or "Switch to advanced").
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "claude/zen-goldberg-5qqqcu" ]
   pull_request:
     branches: [ "main", "develop" ]
   schedule:

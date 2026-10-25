@@ -2,7 +2,7 @@ name: CI - Build and Test
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "claude/zen-goldberg-5qqqcu" ]
     paths:
       - 'src/**'
       - '.editorconfig'

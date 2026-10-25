@@ -6,7 +6,7 @@ name: Runtimes
 # committed under runtimes/ and checked by the codegen job to be what nino-gen writes today (docs/codegen.md).
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "claude/zen-goldberg-5qqqcu" ]
     paths:
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'
@@ -96,7 +96,7 @@ jobs:
           workspaces: runtimes/rust -> target
           key: ${{ matrix.target.triple }}
           cache-directories: ~/.cache/miri
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
 
       - name: Build under Miri
         run: |
@@ -153,7 +153,7 @@ jobs:
         with:
           workspaces: runtimes/rust -> target
           key: msrv-${{ steps.toolchain.outputs.msrv }}
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
 
       - name: Format
         run: cargo fmt --all --check
@@ -199,7 +199,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: runtimes/rust -> target
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
 
       - name: Corpus
         run: |
@@ -233,7 +233,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: runtimes/rust -> target
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
 
       - name: Corpus
         run: |
@@ -267,7 +267,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: runtimes/rust -> target
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
 
       # A missing corpus fails the conformance tests once the corpus is in the repository.
       - name: Corpus
