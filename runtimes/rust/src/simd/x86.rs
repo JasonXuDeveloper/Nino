@@ -224,15 +224,16 @@ pub(crate) unsafe fn wide_sse41(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
     // UTF-16 takes at most two bytes per byte of UTF-8, Latin-1 one; a step stores up to 32 bytes from where its
     // output starts. `len <= i32::MAX`: no sum below wraps.
-    out.reserve(len.wrapping_mul(2).wrapping_add(4 + 32));
+    let room = super::header_room(len);
+    out.reserve(len.wrapping_mul(2).wrapping_add(room).wrapping_add(32));
     let at = out.len();
     // Invariants: `i <= len` is a char boundary of the valid UTF-8 at `src`, and `o <= i` bytes (Latin-1) or
     // `o <= 2 * i` (UTF-16) are written after the header, so each store (8 or 16 bytes at `o`, at most 32 from where
-    // the step started) ends within the room reserved: `4 + 2 * len + 32` bytes from `at`.
+    // the step started) ends within the room reserved: `room + 2 * len + 32` bytes from `at`.
     // SAFETY: as just said.
     let base = unsafe { out.as_mut_ptr().add(at) };
     // SAFETY: as just said.
-    let dst = unsafe { base.add(4) };
+    let dst = unsafe { base.add(room) };
     let (mut i, mut o) = (0usize, 0usize);
     let below_c0 = _mm_set1_epi8(-64);
     // The chars that end in the window at `i` (a bit set of lanes): all that start there at the text's end; else
@@ -276,12 +277,8 @@ pub(crate) unsafe fn wide_sse41(out: &mut Vec<u8>, text: &str) {
             o = o.wrapping_add(k1.count_ones() as usize);
             i = i.wrapping_add(q);
         }
-        let header = if o == 0 { 0 } else { !(o as i32) };
-        // SAFETY: the header's four bytes are reserved at `base`, and `o` bytes after it written.
-        unsafe {
-            base.cast::<[u8; 4]>().write_unaligned(header.to_le_bytes());
-            out.set_len(at.wrapping_add(4).wrapping_add(o));
-        }
+        // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written.
+        unsafe { super::finish(out, at, room, o, true) };
         return;
     }
     // A char above U+00FF: UTF-16 from the start, over what was written.
@@ -356,13 +353,9 @@ pub(crate) unsafe fn wide_sse41(out: &mut Vec<u8>, text: &str) {
         o = o.wrapping_add((k1.count_ones() as usize).wrapping_mul(2));
         i = i.wrapping_add(q);
     }
-    // `o / 2` code units, at most `len`.
-    let header = (o / 2) as i32;
-    // SAFETY: the header's four bytes are reserved at `base`, and `o` bytes after it written.
-    unsafe {
-        base.cast::<[u8; 4]>().write_unaligned(header.to_le_bytes());
-        out.set_len(at.wrapping_add(4).wrapping_add(o));
-    }
+    // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written (`o / 2` code units, at most
+    // `len`).
+    unsafe { super::finish(out, at, room, o, false) };
 }
 
 // ------------------------------------------------------------------------------------------------ AVX2 writer
@@ -425,11 +418,12 @@ fn lanes_avx2(v: __m128i, next: __m128i, three: u32, four: u32) -> __m256i {
 pub(crate) unsafe fn wide_avx2(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
     // As in `wide_sse41`: `4 + 2 * len + 64` bytes of room.
-    out.reserve(len.wrapping_mul(2).wrapping_add(4 + 64));
+    let room = super::header_room(len);
+    out.reserve(len.wrapping_mul(2).wrapping_add(room).wrapping_add(64));
     let at = out.len();
     // Invariants: as in `wide_sse41`.
     // SAFETY: as just said.
-    let dst = unsafe { out.as_mut_ptr().add(at).add(4) };
+    let dst = unsafe { out.as_mut_ptr().add(at).add(room) };
     let (mut i, mut o) = (0usize, 0usize);
     let zero = _mm_setzero_si128();
     let starts = |v: __m256i| u64::from(!(_mm256_movemask_epi8(_mm256_cmpgt_epi8(_mm256_set1_epi8(-64), v)) as u32));
@@ -469,8 +463,8 @@ pub(crate) unsafe fn wide_avx2(out: &mut Vec<u8>, text: &str) {
             }
             i = i.wrapping_add(q);
         }
-        // SAFETY: the header's four bytes are reserved at `at`, and `o` bytes after it written.
-        unsafe { super::finish(out, at, o, true) };
+        // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written.
+        unsafe { super::finish(out, at, room, o, true) };
         return;
     }
     (i, o) = (0, 0);
@@ -514,8 +508,8 @@ pub(crate) unsafe fn wide_avx2(out: &mut Vec<u8>, text: &str) {
         }
         i = i.wrapping_add(q);
     }
-    // SAFETY: the header's four bytes are reserved at `at`, and `o` bytes after it written.
-    unsafe { super::finish(out, at, o, false) };
+    // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written.
+    unsafe { super::finish(out, at, room, o, false) };
 }
 
 // ------------------------------------------------------------------------------------------------ AVX-512 writer
@@ -618,12 +612,13 @@ pub(crate) unsafe fn wide_avx512(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
     // A step stores 64 bytes from where its output starts: `4 + 2 * len + 64` bytes of room. `len <= i32::MAX`: no
     // sum below wraps.
-    out.reserve(len.wrapping_mul(2).wrapping_add(4 + 64));
+    let room = super::header_room(len);
+    out.reserve(len.wrapping_mul(2).wrapping_add(room).wrapping_add(64));
     let at = out.len();
     // Invariants: `i <= len` is a char boundary of the valid UTF-8 at `src`, and `o <= i` bytes (Latin-1) or
     // `o <= 2 * i` (UTF-16) are written after the header, so each store (64 bytes at `o`) ends within the room.
     // SAFETY: as just said.
-    let dst = unsafe { out.as_mut_ptr().add(at).add(4) };
+    let dst = unsafe { out.as_mut_ptr().add(at).add(room) };
     let (mut i, mut o) = (0usize, 0usize);
     'latin1: {
         while i < len {
@@ -653,8 +648,8 @@ pub(crate) unsafe fn wide_avx512(out: &mut Vec<u8>, text: &str) {
             o = o.wrapping_add(keep.count_ones() as usize);
             i = i.wrapping_add(q);
         }
-        // SAFETY: the header's four bytes are reserved at `at`, and `o` bytes after it written.
-        unsafe { super::finish(out, at, o, true) };
+        // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written.
+        unsafe { super::finish(out, at, room, o, true) };
         return;
     }
     (i, o) = (0, 0);
@@ -701,8 +696,8 @@ pub(crate) unsafe fn wide_avx512(out: &mut Vec<u8>, text: &str) {
         o = o.wrapping_add((keep.count_ones() as usize).wrapping_mul(2));
         i = i.wrapping_add(q);
     }
-    // SAFETY: the header's four bytes are reserved at `at`, and `o` bytes after it written.
-    unsafe { super::finish(out, at, o, false) };
+    // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written.
+    unsafe { super::finish(out, at, room, o, false) };
 }
 
 // ------------------------------------------------------------------------------------------------ the reader's text

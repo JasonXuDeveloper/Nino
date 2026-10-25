@@ -153,13 +153,14 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
     // UTF-16 takes at most two bytes per byte of UTF-8, Latin-1 one; a step stores up to 64 bytes from where its
     // output starts. `len <= i32::MAX`: no sum below wraps.
-    out.reserve(len.wrapping_mul(2).wrapping_add(4 + 64));
+    let room = super::header_room(len);
+    out.reserve(len.wrapping_mul(2).wrapping_add(room).wrapping_add(64));
     let at = out.len();
     // Invariants: `i <= len` is a char boundary of the valid UTF-8 at `src`, and `o <= i` bytes (Latin-1) or
     // `o <= 2 * i` (UTF-16) are written after the header, so each store (8 or 16 bytes at `o`, at most 64 from where
-    // the step started) ends within the room reserved: `4 + 2 * len + 64` bytes from `at`.
+    // the step started) ends within the room reserved: `room + 2 * len + 64` bytes from `at`.
     // SAFETY: as just said.
-    let dst = unsafe { out.as_mut_ptr().add(at).add(4) };
+    let dst = unsafe { out.as_mut_ptr().add(at).add(room) };
     let (mut i, mut o) = (0usize, 0usize);
     // SAFETY: NEON, and every access is as the comment beside it says.
     unsafe {
@@ -194,8 +195,8 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) {
                 }
                 i = i.wrapping_add(q);
             }
-            // The header's four bytes are reserved at `at`, and `o` bytes after it written.
-            super::finish(out, at, o, true);
+            // The header's room is reserved at `at`, and `o` bytes after it written.
+            super::finish(out, at, room, o, true);
             return;
         }
         (i, o) = (0, 0);
@@ -254,8 +255,8 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) {
             }
             i = i.wrapping_add(q);
         }
-        // The header's four bytes are reserved at `at`, and `o` bytes after it written.
-        super::finish(out, at, o, false);
+        // The header's room is reserved at `at`, and `o` bytes after it written.
+        super::finish(out, at, room, o, false);
     }
 }
 

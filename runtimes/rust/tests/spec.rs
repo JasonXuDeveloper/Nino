@@ -14,7 +14,7 @@ fn hex(s: &str) -> Vec<u8> {
 fn a1_small() {
     let v = Some(Small { a: 1, b: Some("a".into()) });
     let bytes = serialize(&v).unwrap();
-    assert_eq!(bytes, hex("01 01000000 FEFFFFFF61"));
+    assert_eq!(bytes, hex("01 01000000 0361"));
     assert_eq!(deserialize_exact::<Option<Small>>(&bytes).unwrap(), v);
     assert_eq!(serialize(&None::<Small>).unwrap(), hex("00"));
     assert_eq!(deserialize::<Option<Small>>(&hex("00")).unwrap(), None);
@@ -50,16 +50,16 @@ fn a3_keyed() {
     let v = Some(Keyed { id: 1, name: Some("n".into()), score: 2 });
     let bytes = serialize(&v).unwrap();
     let expected =
-        hex("01 29000000 4819C498 04000000 01000000 E2B38530 05000000 FEFFFFFF6E 4DB14A04 08000000 0200000000000000");
+        hex("01 26000000 4819C498 04000000 01000000 E2B38530 02000000 036E 4DB14A04 08000000 0200000000000000");
     assert_eq!(bytes, expected);
     assert_eq!(deserialize_exact::<Option<Keyed>>(&bytes).unwrap(), v);
 
     let null_name = serialize(&Some(Keyed { id: 1, name: None, score: 2 })).unwrap();
-    assert_eq!(&null_name[1..5], &hex("28000000")[..]);
-    assert_eq!(&null_name[17..29], &hex("E2B38530 04000000 FFFFFFFF")[..]);
+    assert_eq!(&null_name[1..5], &hex("25000000")[..]);
+    assert_eq!(&null_name[17..26], &hex("E2B38530 01000000 00")[..]);
 
     // The former name's key is read too; unknown keys are skipped; order does not matter.
-    let former = hex("01 23000000 959DA293 05000000 FEFFFFFF6E 01020304 02000000 AAAA 4819C498 04000000 01000000");
+    let former = hex("01 20000000 959DA293 02000000 036E 01020304 02000000 AAAA 4819C498 04000000 01000000");
     let read = deserialize_exact::<Option<Keyed>>(&former).unwrap().unwrap();
     assert_eq!(read, Keyed { id: 1, name: Some("n".into()), score: 0 });
 
@@ -103,30 +103,30 @@ fn a3_version_tolerant() {
 fn a4_strings() {
     let v = Some(Strings { def: Some("x".into()), u8: Some(Utf8("é😀".into())) });
     let bytes = serialize(&v).unwrap();
-    assert_eq!(bytes, hex("01 FEFFFFFF78 03000000 06000000 C3A9F09F9880"));
+    assert_eq!(bytes, hex("01 0378 04 06 C3A9F09F9880"));
     assert_eq!(deserialize_exact::<Option<Strings>>(&bytes).unwrap(), v);
 
     let def = |s: Option<&str>| serialize(&s.map(String::from)).unwrap();
-    assert_eq!(def(None), hex("FFFFFFFF"));
-    assert_eq!(def(Some("")), hex("00000000"));
-    assert_eq!(def(Some("abc")), hex("FCFFFFFF 616263"));
-    assert_eq!(def(Some("é")), hex("FEFFFFFF E9"));
-    assert_eq!(def(Some("a中")), hex("02000000 6100 2D4E"));
-    assert_eq!(def(Some("😀")), hex("02000000 3DD8 00DE"));
+    assert_eq!(def(None), hex("00"));
+    assert_eq!(def(Some("")), hex("01"));
+    assert_eq!(def(Some("abc")), hex("07 616263"));
+    assert_eq!(def(Some("é")), hex("03 E9"));
+    assert_eq!(def(Some("a中")), hex("04 6100 2D4E"));
+    assert_eq!(def(Some("😀")), hex("04 3DD8 00DE"));
 
     let u8 = |s: Option<&str>| serialize(&s.map(|s| Utf8(s.into()))).unwrap();
-    assert_eq!(u8(None), hex("FFFFFFFF"));
-    assert_eq!(u8(Some("")), hex("00000000"));
-    assert_eq!(u8(Some("abc")), hex("03000000 03000000 616263"));
+    assert_eq!(u8(None), hex("00"));
+    assert_eq!(u8(Some("")), hex("01"));
+    assert_eq!(u8(Some("abc")), hex("04 03 616263"));
 
     // A lone surrogate: a String reads it as U+FFFD, a WideString keeps it and writes it back.
-    let lone = hex("02000000 6100 00D8");
+    let lone = hex("04 6100 00D8");
     assert_eq!(deserialize_exact::<String>(&lone).unwrap(), "a\u{FFFD}");
     let wide = deserialize_exact::<nino::WideString>(&lone).unwrap();
     assert_eq!(wide.0, vec![0x61, 0xD800]);
     assert_eq!(serialize(&wide).unwrap(), lone);
     // .NET writes "a\uD800" as UTF-8 with U+FFFD: that is what a String holds.
-    assert_eq!(u8(Some("a\u{FFFD}")), hex("02000000 04000000 61EFBFBD"));
+    assert_eq!(u8(Some("a\u{FFFD}")), hex("03 04 61EFBFBD"));
 }
 
 #[test]

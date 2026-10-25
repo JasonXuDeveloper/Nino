@@ -910,7 +910,7 @@ impl From<&str> for WideString {
 }
 
 impl NinoRead for WideString {
-    const MIN_SIZE: usize = 4;
+    const MIN_SIZE: usize = 1;
 
     fn read(r: &mut Reader<'_>) -> Result<Self> {
         r.wide_string()?.map(Self).ok_or_else(Error::null)
@@ -936,7 +936,7 @@ impl NinoWrite for WideString {
 pub struct Utf8(pub String);
 
 impl NinoRead for Utf8 {
-    const MIN_SIZE: usize = 4;
+    const MIN_SIZE: usize = 1;
 
     fn read(r: &mut Reader<'_>) -> Result<Self> {
         r.utf8()?.map(Self).ok_or_else(Error::null)
