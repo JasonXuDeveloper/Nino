@@ -117,9 +117,10 @@ jobs:
           restore-keys: |
             Library-Nino-${{ runner.os }}-${{ matrix.unity }}-${{ matrix.backend }}-
 
-      - name: Run Unity tests
+      # Edit mode and play mode tests in the editor (Mono, Burst's JIT).
+      - name: Run the editor's tests
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
-        id: unity-tests
+        id: editor-tests
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -136,6 +137,27 @@ jobs:
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
 
+      # The play mode tests in a Linux player built with IL2CPP (ProjectSettings: Standalone scripting backend 1) and
+      # Burst AOT, where the paths through the runtime's own collections and the Burst function pointers run as they do
+      # on devices. It runs after a failure of the editor's tests too, so one run shows both; the steps run one after
+      # the other, so the job still holds one seat at a time.
+      - name: Run the IL2CPP player's tests
+        if: success() || steps.editor-tests.conclusion == 'failure'
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        id: player-tests
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ./src/Nino.Unity
+          testMode: standalone
+          artifactsPath: artifacts/player
+          customImage: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
+          unityVersion: ${{ matrix.unity }}
+          # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
+          cliVersion: 'v0.1.72'
+
       - name: Upload Unity results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
@@ -145,6 +167,6 @@ jobs:
           name: test-results-unity-${{ matrix.unity }}-${{ matrix.backend }}
           path: |
             ./artifacts
-            ${{ steps.unity-tests.outputs.coveragePath }}
+            ${{ steps.editor-tests.outputs.coveragePath }}
           retention-days: 30
 
