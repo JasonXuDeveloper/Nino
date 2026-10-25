@@ -1,12 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
         <IsTrimmable>true</IsTrimmable>
         <IsAotCompatible>true</IsAotCompatible>
-        <AnalysisLevel>latest-recommended</AnalysisLevel>
         <PackageId>Nino.AspNetCore</PackageId>
         <Description>Nino for ASP.NET Core: MVC input and output formatters, and Minimal API results and request bodies, read and written straight from the request and response pipes.</Description>
         <PackageTags>Nino;Serialization;Binary;AspNetCore;Mvc;MinimalApi</PackageTags>

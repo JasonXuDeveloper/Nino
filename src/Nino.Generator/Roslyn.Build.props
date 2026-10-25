@@ -4,7 +4,6 @@
          releases of the diagnostics they report or fix. -->
     <PropertyGroup>
         <TargetFramework>netstandard2.0</TargetFramework>
-        <AnalysisLevel>latest-recommended</AnalysisLevel>
         <Nullable>enable</Nullable>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <EnableNETAnalyzers>true</EnableNETAnalyzers>

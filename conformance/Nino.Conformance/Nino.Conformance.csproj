@@ -5,10 +5,8 @@
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <TargetFramework>net10.0</TargetFramework>
-        <LangVersion>latest</LangVersion>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
-        <IsPackable>false</IsPackable>
         <InvariantGlobalization>true</InvariantGlobalization>
         <EmitCompilerGeneratedFiles>false</EmitCompilerGeneratedFiles>
         <NoWarn>$(NoWarn);CS0649</NoWarn>
@@ -16,9 +14,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj"/>
-        <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
-                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
-    <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props"/>
+    <Import Project="..\..\build\UseNinoGenerator.props"/>
 </Project>
