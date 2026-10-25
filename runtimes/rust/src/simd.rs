@@ -1,6 +1,7 @@
 //! The string writer's transcoding of UTF-8 into Latin-1 or UTF-16 LE, straight into a `Vec`'s spare capacity: the
 //! crate's only `unsafe` code. The reader does not use it. ASCII text of up to 32 bytes, the most common string, is
-//! copied with its header by [`ascii_short`] without a call to `memcpy`.
+//! copied with its header by [`ascii_short`] without a call to `memcpy`, and other text of up to 64 bytes is decoded
+//! char by char with its header by [`short_wide`]; longer text goes through [`transcode`].
 //!
 //! Text is taken a block of 16 bytes at a time ([`Block`]). A block of ASCII is stored as it is (Latin-1) or with
 //! each byte widened to a code unit (UTF-16). Where the target has a byte shuffle (SSSE3 on x86_64, found at run
@@ -198,6 +199,86 @@ pub(crate) fn ascii_short(out: &mut Vec<u8>, bytes: &[u8]) -> bool {
         out.set_len(at.wrapping_add(4).wrapping_add(len));
     }
     true
+}
+
+/// The longest text [`short_wide`] takes. Up to 64 bytes it is faster than [`transcode`] for every class of text but
+/// the pairs of Latin-1 text (48 bytes or more on x86_64 with SSSE3, a few percent), with fewer branches per char and
+/// none between strings (measured on x86_64).
+pub(crate) const SHORT_WIDE: usize = 64;
+
+/// Appends the header and chars of `text`, at most [`SHORT_WIDE`] bytes with a char above U+007F: as Latin-1 when every
+/// char is at most U+00FF, else as UTF-16 LE code units. One reservation, the chars decoded one by one straight into
+/// it, the header written last. Every target.
+#[inline(never)]
+pub(crate) fn short_wide(out: &mut Vec<u8>, text: &str) {
+    let (src, len) = (text.as_ptr(), text.len());
+    if len > SHORT_WIDE {
+        return;
+    }
+    // UTF-16 takes at most two bytes per byte of UTF-8, Latin-1 one. `len <= 64`: no sum below can wrap.
+    out.reserve(len.wrapping_mul(2).wrapping_add(4));
+    let at = out.len();
+    // SAFETY: the room reserved holds `4 + 2 * len` bytes from `at`. Invariants: `i <= len`, a char boundary of the
+    // valid UTF-8 at `src`, and `o <= i` (Latin-1) or `o <= 2 * i` (UTF-16) bytes written after the header.
+    unsafe {
+        let base = out.as_mut_ptr().add(at);
+        let dst = base.add(4);
+        let (mut i, mut o) = (0usize, 0usize);
+        while i < len {
+            let b = src.add(i).read();
+            if b < 0x80 {
+                dst.add(o).write(b);
+                i = i.wrapping_add(1);
+            } else if b < 0xC4 {
+                // U+0080..U+00FF: its lead byte's two low bits, then its continuation byte's six.
+                dst.add(o).write((b << 6) | (src.add(i.wrapping_add(1)).read() & 0x3F));
+                i = i.wrapping_add(2);
+            } else {
+                break;
+            }
+            o = o.wrapping_add(1);
+        }
+        if i == len {
+            // `o` is at most 64.
+            base.cast::<[u8; 4]>().write_unaligned((!(o as i32)).to_le_bytes());
+            out.set_len(at.wrapping_add(4).wrapping_add(o));
+            return;
+        }
+        // A char above U+00FF: the Latin-1 bytes become code units in place, last first, and the rest follows.
+        let mut k = o;
+        while k != 0 {
+            k = k.wrapping_sub(1);
+            let unit = u16::from(dst.add(k).read());
+            dst.add(k.wrapping_mul(2)).cast::<[u8; 2]>().write_unaligned(unit.to_le_bytes());
+        }
+        let mut o = o.wrapping_mul(2);
+        let unit = |o: usize, u: u32| dst.add(o).cast::<[u8; 2]>().write_unaligned((u as u16).to_le_bytes());
+        while i < len {
+            let byte = |k: usize| u32::from(src.add(i.wrapping_add(k)).read());
+            let b = byte(0);
+            if b < 0x80 {
+                unit(o, b);
+                i = i.wrapping_add(1);
+            } else if b < 0xE0 {
+                unit(o, ((b & 0x1F) << 6) | (byte(1) & 0x3F));
+                i = i.wrapping_add(2);
+            } else if b < 0xF0 {
+                unit(o, ((b & 0x0F) << 12) | ((byte(1) & 0x3F) << 6) | (byte(2) & 0x3F));
+                i = i.wrapping_add(3);
+            } else {
+                let c = ((b & 0x07) << 18) | ((byte(1) & 0x3F) << 12) | ((byte(2) & 0x3F) << 6) | (byte(3) & 0x3F);
+                let v = c.wrapping_sub(0x1_0000);
+                unit(o, 0xD800 | (v >> 10));
+                o = o.wrapping_add(2);
+                unit(o, 0xDC00 | (v & 0x3FF));
+                i = i.wrapping_add(4);
+            }
+            o = o.wrapping_add(2);
+        }
+        // `o / 2` code units, at most 64.
+        base.cast::<[u8; 4]>().write_unaligned(((o / 2) as i32).to_le_bytes());
+        out.set_len(at.wrapping_add(4).wrapping_add(o));
+    }
 }
 
 #[cfg(any(test, not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))))]
@@ -1138,6 +1219,16 @@ mod tests {
 
     fn check(text: &str) {
         let expected = reference(text);
+        if text.len() <= SHORT_WIDE && !text.is_ascii() {
+            // short_wide: the header, then the same bytes.
+            let count = if expected.1 { expected.0.len() } else { expected.0.len() / 2 } as i32;
+            let mut want = vec![0xAA; 3];
+            want.extend_from_slice(&(if expected.1 { !count } else { count }).to_le_bytes());
+            want.extend_from_slice(&expected.0);
+            let mut out = vec![0xAA; 3];
+            short_wide(&mut out, text);
+            assert_eq!(out, want, "short_wide: {text:?}");
+        }
         for (name, way) in ways() {
             // After a few bytes already in the buffer, so the output is unaligned.
             for prefix in if cfg!(miri) { [3usize].as_slice() } else { [0usize, 3].as_slice() } {

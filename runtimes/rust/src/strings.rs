@@ -84,19 +84,25 @@ pub(crate) fn utf16_len(bytes: &[u8]) -> u64 {
     units
 }
 
-/// Writes `text` in the default encoding (not null).
+/// Writes `text` in the default encoding (not null): text of up to 32 bytes through [`crate::simd::ascii_short`] (or
+/// [`crate::simd::short_wide`] when it is not ASCII), longer ASCII as one copy, non-ASCII text of up to 64 bytes through
+/// `short_wide`, and the rest through [`crate::simd::transcode`].
 #[inline]
 pub(crate) fn write(w: &mut Writer<'_>, text: &str) -> Result<()> {
     let bytes = text.as_bytes();
     if bytes.len() <= crate::simd::SHORT {
-        if crate::simd::ascii_short(w.buffer(), bytes) {
-            return Ok(());
+        if !crate::simd::ascii_short(w.buffer(), bytes) {
+            crate::simd::short_wide(w.buffer(), text);
         }
-        return write_wide(w, text);
+        return Ok(());
     }
     if is_ascii_long(bytes) {
         let count = i32::try_from(bytes.len()).map_err(|_| Error::too_large())?;
         w.header_bytes(if count == 0 { 0 } else { !count }, bytes);
+        return Ok(());
+    }
+    if bytes.len() <= crate::simd::SHORT_WIDE {
+        crate::simd::short_wide(w.buffer(), text);
         return Ok(());
     }
     write_wide(w, text)
