@@ -198,6 +198,16 @@ namespace Test.Runtime.Burst
                 BitConverter.GetBytes(values[i].Item2).CopyTo(expected, 4 + i * 5 + 1);
             }
 
+            // 40 (int, long): the length, then each as its int and its long (12 bytes, whatever the memory layout).
+            var wide = Enumerable.Range(0, 40).Select(i => (i * 7919, (long)i << 40 | (uint)i)).ToArray();
+            var expectedWide = new byte[4 + 40 * 12];
+            BitConverter.GetBytes(40).CopyTo(expectedWide, 0);
+            for (int i = 0; i < 40; i++)
+            {
+                BitConverter.GetBytes(wide[i].Item1).CopyTo(expectedWide, 4 + i * 12);
+                BitConverter.GetBytes(wide[i].Item2).CopyTo(expectedWide, 4 + i * 12 + 4);
+            }
+
             // 40 Latin-1 chars: ~length, then a byte each.
             string text = new string(Enumerable.Range(0, 40).Select(i => (char)(0xA0 + i)).ToArray());
             var latin1 = BitConverter.GetBytes(~40).Concat(text.Select(c => (byte)c)).ToArray();
@@ -206,6 +216,8 @@ namespace Test.Runtime.Burst
                 Use(tier);
                 CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values), NinoBurst.IsaName);
                 CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<(byte, int)[]>(expected), NinoBurst.IsaName);
+                CollectionAssert.AreEqual(expectedWide, NinoSerializer.Serialize(wide), NinoBurst.IsaName);
+                CollectionAssert.AreEqual(wide, NinoDeserializer.Deserialize<(int, long)[]>(expectedWide), NinoBurst.IsaName);
                 CollectionAssert.AreEqual(latin1, NinoSerializer.Serialize(text), NinoBurst.IsaName);
                 Assert.AreEqual(text, NinoDeserializer.Deserialize<string>(latin1), NinoBurst.IsaName);
             }

@@ -6,6 +6,7 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Burst;
 using Nino.Core;
@@ -103,6 +104,9 @@ namespace Test.Runtime.Burst
         private static void Values<T>(string name, int n, T[] values)
         {
             byte[] bytes = Bytes(name, values);
+            // The sizes behind the times: a value in memory and on the wire (not in the release section).
+            Emit(string.Join("|", "NINO_UNITY_SIZE", name, Unsafe.SizeOf<T>().ToString(CultureInfo.InvariantCulture),
+                ((bytes.Length - 4) / Math.Max(1, n)).ToString(CultureInfo.InvariantCulture)));
             var into = new T[values.Length];
             Row(name, "Serialize", n, () => NinoSerializer.Serialize(values));
             Row(name, "Deserialize", n, () => NinoDeserializer.Deserialize(bytes, ref into));
