@@ -1140,8 +1140,8 @@ export class NinoWriter {
     if (value === null || value === undefined) { this.i32(-1); return; }
     const length = value.length;
     if (length <= (nodeText === null ? kernelWrite : shortText)) {
-      // `narrow`, written out here: the common path stays one function (a call to it measured 8-12% slower in
-      // Chromium on short text, x64 and Arm64).
+      // `narrow`, written out here: the common path stays one function (calls to `narrow` and `utf16` measured
+      // 8-12% slower in Chromium on short text, x64 and Arm64).
       const at = this.reserve(4 + length), buffer = this.buffer;
       let i = 0;
       for (; i < length; i++) {
@@ -1162,13 +1162,15 @@ export class NinoWriter {
       this.latin1(value, length);
       return;
     }
-    if (nodeText === null) {
-      this.utf16(value, length);
-      return;
-    }
     const at = this.reserve(4 + 2 * length);
     this.int32At(at, length);
-    nodeText.ucs2Write.call(this.buffer, value, at + 4, 2 * length);
+    if (nodeText !== null) {
+      nodeText.ucs2Write.call(this.buffer, value, at + 4, 2 * length);
+      return;
+    }
+    // `utf16`, written out here for the same reason as `narrow` above.
+    const view = this.view;
+    for (let i = 0; i < length; i++) view.setUint16(at + 4 + 2 * i, value.charCodeAt(i), true);
   }
 
   /**
