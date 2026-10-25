@@ -4,7 +4,7 @@
   "category": "length",
   "expected": "error",
   "exercises": "string-list: a count of int.MinValue.",
-  "size": 13,
+  "size": 7,
   "layouts": {
     "Conformance.Targets.StringList": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x30796D4D; deferrable=true; members=Values:System.Collections.Generic.List<string>:seq(string)"
   },

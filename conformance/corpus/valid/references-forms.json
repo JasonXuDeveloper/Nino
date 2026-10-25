@@ -9,7 +9,7 @@
     "version-tolerant"
   ],
   "optional": "track-references",
-  "size": 157,
+  "size": 154,
   "roundTrip": true,
   "layouts": {
     "Conformance.Tracked": "format=Positional; header=TypeId; trackReferences=true; raw=false; typeId=0x8E7C9360; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked)",

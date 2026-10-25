@@ -4,7 +4,7 @@
   "category": "duplicate",
   "expected": "error",
   "exercises": "Dictionary<string, int> with the key \"a\" twice.",
-  "size": 23,
+  "size": 17,
   "layouts": {
     "Conformance.Targets.StringMap": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x4B1A1F3B; deferrable=true; members=Values:System.Collections.Generic.Dictionary<string, int>:map(string,raw(4))"
   },

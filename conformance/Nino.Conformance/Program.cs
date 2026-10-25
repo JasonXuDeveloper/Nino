@@ -21,7 +21,7 @@ namespace Conformance
     public static class Program
     {
         /// <summary>Bumped when the corpus's file layout or JSON schema changes incompatibly.</summary>
-        public const int CorpusVersion = 1;
+        public const int CorpusVersion = 2;
 
         public static int Main(string[] args)
         {

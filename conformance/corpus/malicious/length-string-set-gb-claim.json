@@ -4,7 +4,7 @@
   "category": "length",
   "expected": "error",
   "exercises": "string-set: a 25-byte input claiming 100,000,000 elements; a reader must not allocate for the count before the data is there.",
-  "size": 14,
+  "size": 8,
   "layouts": {
     "Conformance.Targets.StringSet": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73FC2C95; deferrable=true; members=Values:System.Collections.Generic.HashSet<string>:seq(string)"
   },

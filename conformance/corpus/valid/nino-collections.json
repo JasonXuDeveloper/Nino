@@ -10,7 +10,7 @@
     "seq",
     "map"
   ],
-  "size": 174,
+  "size": 147,
   "roundTrip": true,
   "layouts": {
     "Conformance.Bag": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xCC960662; deferrable=true; members=[elements]::seq(raw(4));Tag:string:string",

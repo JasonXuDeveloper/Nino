@@ -12,8 +12,8 @@ namespace Nino.Core
     /// <list type="bullet">
     /// <item>Arrays and collections: an <c>int32</c> element count (<see cref="NullLength"/> for null), then the
     /// elements.</item>
-    /// <item>Strings: an <c>int32</c> header, then one byte per char for Latin-1 text (header <c>~length</c>) or
-    /// UTF-16 for other text (header <c>length</c>); <see cref="NullLength"/> for null (see <c>NinoStrings</c>).</item>
+    /// <item>Strings: a header (one byte up to 63 chars, see NinoStrings), then one byte per char for Latin-1 text (header <c>2 * length + 1</c>) or
+    /// UTF-16 for other text (header <c>2 * length</c>); <c>0</c> for null (see <c>NinoStrings</c>).</item>
     /// <item>Sealed classes, <c>Tuple</c>s and nullable values: a presence byte (<see cref="Null"/> or
     /// <see cref="NotNull"/>), then the value if present.</item>
     /// <item>Non-sealed classes, interfaces and <c>object</c>: an <c>int32</c> type id (<see cref="NullTypeId"/>

@@ -76,8 +76,8 @@ hosts are not supported: `Writer`/`Reader` throw `PlatformNotSupportedException`
 | `bool` | 1 byte (0/1) |
 | `T?` (nullable value type) | 1 byte has-value flag, then the value if present |
 | Collection / array length | `int32`; `-1` means `null` |
-| `string` (default) | `int32` header: `-1` = null, `0` = empty; `~n` (≤ -2) then `n` Latin-1 bytes when every char is at most U+00FF; else `n` then `n` UTF-16 code units (see below) |
-| `string` with `[NinoUtf8]` | `int32` char count (`-1` = null, `0` = empty; nothing follows either), then `int32` byte count and the UTF-8 bytes (see below) |
+| `string` (default) | header (1, 3 or 5 bytes, minimal: the value itself up to 127, else `0x80` and a `u16`, else `0x81` and a `u32`): `0` = null; `2n + 1` (odd, `1` = empty) then `n` Latin-1 bytes when every char is at most U+00FF; else `2n` then `n` UTF-16 code units (see below) |
+| `string` with `[NinoUtf8]` | char count plus one as a header (`0` = null, `1` = empty; nothing follows either), then the byte count as a header and the UTF-8 bytes (see below) |
 | Array / list of unmanaged `T` | length, then one block copy of the elements |
 | `T?[]` / `List<T?>` of raw `T` | length, then each element in the canonical `Nullable<T>` layout (fixed stride: flag, padding, value); an `IList<T?>`/`IEnumerable<T?>` member writes each element as a single `T?` instead (see `docs/pitfalls.md`) |
 | Other collections | length, then each element |
@@ -88,23 +88,33 @@ A default string is written in one byte a char when it can be: English, digits, 
 European text are all Latin-1, and take half the bytes of UTF-16, while any other text keeps UTF-16 (never UTF-8,
 whose decoding is a branchy pass and whose length differs from the char count). Writing narrows the chars with SIMD
 and falls back to UTF-16 at the first char above U+00FF; reading widens the bytes with SIMD straight into the new
-string. A `StringBuilder` is always written with UTF-16 chars (positive header), read by the same reader: it cannot
-take chars without a copy, so widening would be a second pass on every read.
+string. A `StringBuilder` is always written with UTF-16 chars (even header; an empty builder is the empty string),
+read by the same reader: it cannot take chars without a copy, so widening would be a second pass on every read.
+
+The header's first byte gives its size, as MessagePack's string markers do, so that short strings, the common case,
+cost one byte of header: up to 63 chars in either form (three bytes up to 32,767, five above). Both forms of a string of `n` chars have headers of the same size, so the writer places
+the chars right after a header whose size it knows from the length alone and narrows them there; the reader decodes a
+one-byte header with one compare inline, and a longer one with one load at a constant offset after the first byte
+(no loop over continuation bits, as LEB128 would need). The 1,000 mixed strings of the runtime benchmarks (ASCII,
+Latin-1 and Cyrillic, CJK and emoji text in turn, 8 to 17 chars) took 23,848 bytes with a fixed `int32` header and
+take 20,848 with this header (`[NinoUtf8]`: 27,884 and 21,884), against 20,883 for MessagePack (rmp-serde) and
+21,880 for bincode.
 
 A `[NinoUtf8]` string is written as:
 
-* `int32` **char count** `c`: its length in UTF-16 code units (`string.Length`, as in v3). `-1` is null and `0` the
-  empty string; nothing follows either. Any other negative count is invalid.
-* if `c > 0`: `int32` **byte count** `b`, then exactly `b` bytes, the string's UTF-8 encoding (an unpaired surrogate is
-  written as U+FFFD, one code unit, so `c` is also the length of the string read back).
+* **char count plus one** `c + 1`, as a header, `c` its length in UTF-16 code units (`string.Length`). `0` is null and `1`
+  the empty string; nothing follows either.
+* if `c > 0`: the **byte count** `b`, as a header, then exactly `b` bytes, the string's UTF-8 encoding (an unpaired surrogate is
+  written as U+FFFD, one code unit, so `c` is also the length of the string read back). `c` and `b` are at most
+  2^31 - 1.
 
 A UTF-16 code unit takes 1 to 3 bytes (a surrogate pair 4 bytes for 2 units), so every valid string has
 `c <= b <= 3 * c`. For example `"é😀"` (3 code units: U+00E9 and a surrogate pair) is
-`03 00 00 00` `06 00 00 00` `C3 A9 F0 9F 98 80`, and `null` is `FF FF FF FF`.
+`04` `06` `C3 A9 F0 9F 98 80`, and `null` is `00`.
 
-The reader loads both counts at once, checks that `b` bytes remain and that `c <= b` (which bounds the allocation by
-the data) before allocating the string at `c` chars, then decodes exactly those `b` bytes into it in one pass and
-moves past them; it never reads beyond them. The data is rejected (`NinoDataException`) when it ends early,
+The reader reads both counts (one byte each, inline, for up to 126 chars and 127 bytes), checks that `b` bytes
+remain and that `c <= b` (which bounds the allocation by the data) before allocating the string at `c` chars, then
+decodes exactly those `b` bytes into it in one pass and moves past them; it never reads beyond them. The data is rejected (`NinoDataException`) when it ends early,
 when a count is out of range (`b > 3 * c` decodes to more chars than the string holds), or when the `b` bytes are not
 strict UTF-8 (including overlong forms, encoded surrogates and a sequence cut by the end of the range) or do not
 decode to exactly `c` chars. The char count lets the reader allocate before decoding, the byte count lets it decode

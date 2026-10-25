@@ -9,7 +9,7 @@
     "seq",
     "map"
   ],
-  "size": 289,
+  "size": 253,
   "roundTrip": true,
   "layouts": {
     "Conformance.Animal": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xD3594770; deferrable=false; members=Name:string:string",

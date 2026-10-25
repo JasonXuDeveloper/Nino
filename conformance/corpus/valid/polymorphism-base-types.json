@@ -6,7 +6,7 @@
     "type-id",
     "object"
   ],
-  "size": 106,
+  "size": 103,
   "roundTrip": true,
   "layouts": {
     "Conformance.Animal": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xD3594770; deferrable=false; members=Name:string:string",

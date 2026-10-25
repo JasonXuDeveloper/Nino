@@ -1,10 +1,10 @@
 {
-  "case": "utf8-char-count-minus-2",
+  "case": "utf8-char-count-past-max",
   "type": "Conformance.Targets.Utf8Value",
   "category": "utf8",
   "expected": "error",
-  "exercises": "[NinoUtf8]: a char count of -2.",
-  "size": 10,
+  "exercises": "[NinoUtf8]: a char count of 2^31 (a header of 2^31 + 1).",
+  "size": 8,
   "layouts": {
     "Conformance.Targets.Utf8Value": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; deferrable=true; members=Value:string:utf8"
   },

@@ -6,9 +6,9 @@
     "keyed",
     "versioning"
   ],
-  "size": 60,
+  "size": 57,
   "roundTrip": false,
-  "reencoded": "01370000006167a1990400000000000000e2b3853007000000fcffffff6e657753a0a8dc04000000ffffffff4db14a04080000000300000000000000",
+  "reencoded": "01340000006167a1990400000000000000e2b3853004000000076e657753a0a8dc04000000ffffffff4db14a04080000000300000000000000",
   "layouts": {
     "Conformance.KeyedV1": "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;Name:string:string:key=0x3085B3E2;Items:System.Collections.Generic.List<int>:seq(raw(4)):key=0xDCA8A053;Score:long:raw(8):key=0x044AB14D"
   },

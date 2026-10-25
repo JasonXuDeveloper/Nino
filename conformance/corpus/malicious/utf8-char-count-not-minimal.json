@@ -1,0 +1,15 @@
+{
+  "case": "utf8-char-count-not-minimal",
+  "type": "Conformance.Targets.Utf8Value",
+  "category": "utf8",
+  "expected": "error",
+  "exercises": "[NinoUtf8]: the char count header 2 written in three bytes (80 02 00).",
+  "size": 6,
+  "layouts": {
+    "Conformance.Targets.Utf8Value": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; deferrable=true; members=Value:string:utf8"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "NinoDataException"
+  }
+}

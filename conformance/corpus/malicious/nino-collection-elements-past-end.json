@@ -4,7 +4,7 @@
   "category": "nino-collection",
   "expected": "error",
   "exercises": "A [NinoType] collection claiming 1,000,000 elements with one present.",
-  "size": 24,
+  "size": 21,
   "layouts": {
     "Conformance.Bag": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xCC960662; deferrable=true; members=[elements]::seq(raw(4));Tag:string:string",
     "Conformance.BagHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x79A1F522; deferrable=true; members=Bag:Conformance.Bag:type(Conformance.Bag);Tolerant:Conformance.TolerantBag:type(Conformance.TolerantBag);Keyed:Conformance.KeyedBag:type(Conformance.KeyedBag);Set:Conformance.PointSet:type(Conformance.PointSet);Bags:System.Collections.Generic.List<Conformance.Bag>:seq(type(Conformance.Bag))",

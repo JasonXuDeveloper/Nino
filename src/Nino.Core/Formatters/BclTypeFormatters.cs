@@ -118,15 +118,30 @@ namespace Nino.Core
     {
         public void Serialize(StringBuilder value, ref Writer writer)
         {
-            if (writer.TryWriteNullLength(value))
+            if (value == null)
+            {
+                writer.UnsafeWrite(NinoStrings.NullHeader);
                 return;
+            }
 
-            // The string encoding with UTF-16 chars (header: the length), which the reader of strings reads too: a
-            // copy of the builder's chunks. Narrowing Latin-1 text to one byte a char would halve the bytes but
-            // cost a widening pass on every read, where a StringBuilder cannot take chars without copying them.
-            // Its length, then its chars: up to 4 GB of them, which ReserveCounted rejects past 2 GB.
+            // The string encoding with UTF-16 chars (header: twice the length), which the reader of strings reads
+            // too: a copy of the builder's chunks. Narrowing Latin-1 text to one byte a char would halve the bytes
+            // but cost a widening pass on every read, where a StringBuilder cannot take chars without copying them.
+            // The empty builder is the empty string (a UTF-16 header of 0 would be null).
             int length = value.Length;
-            ref byte body = ref writer.ReserveCounted(length, sizeof(char));
+            if (length == 0)
+            {
+                writer.UnsafeWrite(NinoStrings.EmptyHeader);
+                return;
+            }
+
+            // Up to 4 GB of chars.
+            CopyChunks(value, ref writer.ReserveText((uint)length * sizeof(char)));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void CopyChunks(StringBuilder value, ref byte body)
+        {
 #if NET8_0_OR_GREATER
             foreach (var chunk in value.GetChunks())
             {
@@ -142,29 +157,36 @@ namespace Nino.Core
 
         public unsafe void Deserialize(ref StringBuilder value, ref Reader reader)
         {
-            var source = reader.ReadRaw(NinoWire.LengthSize);
-            int header = NinoUnsafe.Read<int>(ref MemoryMarshal.GetReference(source));
-            if (header == NinoWire.NullLength)
+            int available = reader.Remaining;
+            if (available <= 0)
+                NinoThrow.EndOfData();
+            ulong read = NinoStrings.ReadHeaderWide(ref reader.Peek(), available);
+            uint header = (uint)read;
+            reader.UnsafeAdvance((int)(read >> 32));
+            if (header == NinoStrings.NullHeader)
             {
                 NinoRecycler.Discard(ref value);
                 return;
             }
 
-            // ~length for Latin-1 chars, one byte each; the length for UTF-16. Checked against the bytes left before
-            // the builder is sized for it (in 64 bits: a UTF-16 length up to int.MaxValue doubles past an int).
-            int length = header < 0 ? ~header : header;
-            if ((ulong)(uint)length * (header < 0 ? 1u : sizeof(char)) > (uint)reader.Remaining)
-                NinoThrow.InvalidLength(header);
+            // Odd: Latin-1 chars, one byte each; even: UTF-16. Checked against the bytes left before the builder is
+            // sized for it (in 64 bits: a UTF-16 length up to int.MaxValue doubles past an int).
+            int length = (int)(header >> 1);
+            bool latin1 = (header & 1) != 0;
+            if ((ulong)(uint)length * (latin1 ? 1u : sizeof(char)) > (uint)reader.Remaining)
+                NinoThrow.EndOfData();
             var builder = value ??= new StringBuilder(length);
             builder.Clear();
-            if (header < 0)
+            if (length == 0)
+                return;
+            if (latin1)
             {
-                var latin1 = reader.ReadRaw(length);
-                NinoStrings.AppendLatin1(builder, ref MemoryMarshal.GetReference(latin1), length);
+                var latin1Chars = reader.ReadRaw(length);
+                NinoStrings.AppendLatin1(builder, ref MemoryMarshal.GetReference(latin1Chars), length);
                 return;
             }
 
-            var chars = MemoryMarshal.Cast<byte, char>(reader.ReadRaw(checked(length * sizeof(char))));
+            var chars = MemoryMarshal.Cast<byte, char>(reader.ReadRaw(length * sizeof(char)));
             fixed (char* p = chars)
             {
                 builder.Append(p, chars.Length);
@@ -240,8 +262,11 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TimeZoneInfo value, ref Writer writer)
         {
-            if (writer.TryWriteNullLength(value))
+            if (value == null)
+            {
+                writer.Write((string)null);
                 return;
+            }
 
             writer.Write(value.Id);
             writer.Write(IsSystemZone(value) ? null : value.ToSerializedString());

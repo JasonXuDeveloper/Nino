@@ -101,13 +101,11 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// The fewest bytes an element of a hash set takes, which its count is checked with: raw elements their
-        /// size, a string its 4-byte header, others 1. A JIT-time constant.
+        /// size, others (strings included: null is one byte) 1. A JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int MinHashedSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            RawFormatter.Is<T, TFormatter>() ? Unsafe.SizeOf<T>()
-            : typeof(TFormatter) == typeof(StringFormatter) ? NinoWire.LengthSize
-            : 1;
+            RawFormatter.Is<T, TFormatter>() ? Unsafe.SizeOf<T>() : 1;
 
         /// <summary>
         /// <see cref="Heavy(int, int)"/> for a hash set's entries (<see cref="HashSlot"/> bytes beyond the element,

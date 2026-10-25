@@ -3,8 +3,8 @@
   "type": "Conformance.Targets.TextValue",
   "category": "string",
   "expected": "error",
-  "exercises": "A header of 0x80000001 / 2 + 1 code units, whose byte size wraps past 2^31.",
-  "size": 9,
+  "exercises": "A header of 0x80000002: 0x40000001 code units, whose byte size wraps past 2^31.",
+  "size": 10,
   "layouts": {
     "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
   },

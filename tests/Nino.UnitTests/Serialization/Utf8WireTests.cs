@@ -7,18 +7,20 @@ using Nino.Core;
 namespace Nino.UnitTests;
 
 /// <summary>
-/// UTF-8 strings are an <c>int32</c> char (UTF-16 code unit) count (-1 = null, 0 = empty, nothing follows either),
-/// then an <c>int32</c> byte count and exactly that many UTF-8 bytes. Valid counts satisfy
+/// UTF-8 strings are a char (UTF-16 code unit) count plus one (0 = null, 1 = empty, nothing follows either), then a
+/// byte count, both as string headers, and exactly that many UTF-8 bytes. Valid counts satisfy
 /// <c>chars &lt;= bytes &lt;= 3 * chars</c>. Malformed data throws and is never read past its byte count.
 /// </summary>
 [TestClass]
 public class Utf8WireTests
 {
-    private static byte[] Int(int value) => BitConverter.GetBytes(value);
+    private static byte[] V(ulong value) => StringEncodingTests.Header(value);
 
-    /// <summary>A string with explicit counts: char count, byte count, then the bytes.</summary>
-    private static byte[] Wire(int chars, int bytes, params byte[] payload) =>
-        Int(chars).Concat(Int(bytes)).Concat(payload).ToArray();
+    private static readonly byte[] Null = { 0 }, Empty = { 1 };
+
+    /// <summary>A string with explicit counts: char count (plus one), byte count, then the bytes.</summary>
+    private static byte[] Wire(long chars, long bytes, params byte[] payload) =>
+        V((ulong)(chars + 1)).Concat(V((ulong)bytes)).Concat(payload).ToArray();
 
     /// <summary>A string whose byte count is the payload's length.</summary>
     private static byte[] Wire(int chars, byte[] payload) => Wire(chars, payload.Length, payload);
@@ -55,11 +57,20 @@ public class Utf8WireTests
 
         // The documented example.
         CollectionAssert.AreEqual(
-            new byte[] { 3, 0, 0, 0, 6, 0, 0, 0, 0xC3, 0xA9, 0xF0, 0x9F, 0x98, 0x80 }, Write("é😀"));
+            new byte[] { 4, 6, 0xC3, 0xA9, 0xF0, 0x9F, 0x98, 0x80 }, Write("é😀"));
 
         // Null and empty: the char count alone.
-        CollectionAssert.AreEqual(Int(-1), Write(null));
-        CollectionAssert.AreEqual(Int(0), Write(""));
+        CollectionAssert.AreEqual(Null, Write(null));
+        CollectionAssert.AreEqual(Empty, Write(""));
+
+        // Around the counts' byte widths: the byte count a byte longer than the char count's (the bytes moved up)
+        // and as long.
+        foreach (int length in new[] { 42, 43, 63, 64, 126, 127, 128, 10922, 10923, 21845, 21846, 32767, 32768, 65535, 65536 })
+        {
+            foreach (var s in new[] { new string('a', length), new string('ニ', length), new string('é', length),
+                         "😀" + new string('a', length) })
+                CollectionAssert.AreEqual(Wire(s.Length, Encoding.UTF8.GetBytes(s)), Write(s), s);
+        }
 
         // An unpaired surrogate is U+FFFD: one char, three bytes.
         CollectionAssert.AreEqual(Wire(3, 5, 0x61, 0xEF, 0xBF, 0xBD, 0x62), Write("a\ud800b"));
@@ -72,7 +83,8 @@ public class Utf8WireTests
         foreach (var s in new[] { "a", "é", "ニ", "😀", "ニノ😀", "\0", "a\0b", new string('a', 1024), new string('ニ', 1025) })
         {
             var data = Write(s);
-            int bytes = BitConverter.ToInt32(data, 4);
+            StringEncodingTests.Header(data, 0, out int at);
+            int bytes = (int)StringEncodingTests.Header(data, at, out _);
             Assert.IsTrue(s.Length <= bytes && bytes <= 3 * s.Length, s);
             Assert.AreEqual(s, Read(data, out int position));
             Assert.AreEqual(data.Length, position);
@@ -82,17 +94,17 @@ public class Utf8WireTests
     [TestMethod]
     public void NullAndEmptyAtTheEndOfTheData()
     {
-        // Fewer than 8 bytes left: only a char count fits.
-        Assert.IsNull(Read(Int(-1), out int position));
-        Assert.AreEqual(4, position);
-        Assert.AreEqual("", Read(Int(0), out position));
-        Assert.AreEqual(4, position);
+        // The char count alone, whatever follows.
+        Assert.IsNull(Read(Null, out int position));
+        Assert.AreEqual(1, position);
+        Assert.AreEqual("", Read(Empty, out position));
+        Assert.AreEqual(1, position);
         foreach (int extra in new[] { 1, 2, 3, 4 })
         {
-            Assert.IsNull(Read(Int(-1).Concat(new byte[extra]).ToArray(), out position));
-            Assert.AreEqual(4, position);
-            Assert.AreEqual("", Read(Int(0).Concat(Enumerable.Repeat((byte)0xFF, extra)).ToArray(), out position));
-            Assert.AreEqual(4, position);
+            Assert.IsNull(Read(Null.Concat(new byte[extra]).ToArray(), out position));
+            Assert.AreEqual(1, position);
+            Assert.AreEqual("", Read(Empty.Concat(Enumerable.Repeat((byte)0xFF, extra)).ToArray(), out position));
+            Assert.AreEqual(1, position);
         }
     }
 
@@ -111,7 +123,7 @@ public class Utf8WireTests
             var bytes = Encoding.UTF8.GetBytes(s);
             var data = Wire(s.Length, bytes.Length, bytes.Concat(tail).ToArray());
             Assert.AreEqual(s, Read(data, out int position));
-            Assert.AreEqual(8 + bytes.Length, position);
+            Assert.AreEqual(2 + bytes.Length, position);
         }
     }
 
@@ -120,18 +132,29 @@ public class Utf8WireTests
     {
         // Truncated counts.
         Throws(new byte[0]);
-        Throws(new byte[] { 1, 0, 0 });
-        Throws(new byte[] { 1, 0, 0, 0 }); // a char count with no byte count
-        Throws(new byte[] { 1, 0, 0, 0, 1, 0, 0 });
+        Throws(new byte[] { 2 }); // a char count with no byte count
+        Throws(new byte[] { 0x80, 0x82 }); // a char count cut
+        Throws(new byte[] { 2, 0x80, 0x81 }); // a byte count cut
+        Throws(new byte[] { 2, 0x81, 0x00, 0x00, 0x01 }); // a byte count cut
         Throws(Wire(1, 1)); // no bytes
-        Throws(Int(-2)); // invalid char count
-        Throws(Int(int.MinValue).Concat(Int(0)).ToArray());
+
+        // Counts that are not minimal, start with no header's first byte, or are past their range (chars 2^31 - 1,
+        // bytes 2^31 - 1).
+        Throws(new byte[] { 0x80, 0x02, 0x00, 1, 0x61 });
+        Throws(new byte[] { 2, 0x80, 0x01, 0x00, 0x61 });
+        Throws(new byte[] { 2, 0x81, 0x01, 0x00, 0x00, 0x00, 0x61 });
+        Throws(new byte[] { 0x80, 0x00, 0x00 }); // null, not minimal
+        Throws(new byte[] { 0x81, 0x01, 0x00, 0x00, 0x00 }); // empty, not minimal
+        Throws(new byte[] { 0x82, 0x02, 0x00, 0x00, 0x00, 1, 0x61 });
+        Throws(new byte[] { 2, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x61 });
+        Throws(V((1ul << 31) + 1).Concat(V(1)).Concat(new byte[] { 0x61 }).ToArray());
+        Throws(V(0xFFFFFFFF).Concat(V(1)).Concat(new byte[] { 0x61 }).ToArray());
+        Throws(Wire(1, 1L << 31, 0x61));
+        Throws(Wire(1, uint.MaxValue, 0x61));
 
         // Byte count out of the data.
         Throws(Wire(1, 2, 0x61));
         Throws(Wire(3, 4, 0x61, 0x62, 0x63));
-        Throws(Wire(1, -1, 0x61));
-        Throws(Wire(1, int.MinValue, 0x61));
         Throws(Wire(1, int.MaxValue, 0x61));
 
         // Counts no UTF-8 string has: chars > bytes (rejected before allocating), bytes > 3 * chars.

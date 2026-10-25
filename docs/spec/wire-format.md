@@ -1,6 +1,6 @@
 # Nino v4 wire format
 
-**Specification version 4.0 (draft), for Nino 4.0.0-rc.7.**
+**Specification version 4.1 (draft), for Nino 4.0.0-rc.8.**
 
 This document specifies the bytes Nino v4 writes and reads. A reader and a writer built from it, in any language,
 exchange data with the .NET implementation (`Nino.Core` plus the code `Nino.Generator` emits). Every rule here was
@@ -40,7 +40,7 @@ and **OPTIONAL** are to be interpreted as described in RFC 2119.
 - **Runtime type**: the actual type of an object, which differs from the declared type under polymorphism.
 - **Body**: the encoding of a `[NinoType]` value without its header (§7.1).
 - **Region**: a byte range with an `int32` length in front (§7.5, §7.6).
-- **.NET reader / .NET writer**: the reference implementation (`Nino.Core` 4.0.0-rc.7 with generated formatters).
+- **.NET reader / .NET writer**: the reference implementation (`Nino.Core` 4.0.0-rc.8 with generated formatters).
 
 A conforming **writer** MUST produce the exact bytes this document specifies for every value it writes. The only
 exceptions are where the specification lists a choice (for example, the iteration order of hash-based collections,
@@ -77,20 +77,47 @@ bytes that follow** by default (verified: `Deserialize<int>` of `01 00 00 00 FF 
 | `u32` / `i32` | 4 | little-endian |
 | `u64` / `i64` | 8 | little-endian |
 
-There are no variable-length integers anywhere in the format.
+#### 2.3.1 String headers (`header`)
+
+String headers (§4) are the only variable-length integers in the format. A `header` is an unsigned integer below
+2^32 whose first byte gives its size, as MessagePack's string markers do:
+
+| First byte | Size | Value |
+| --- | --- | --- |
+| `0x00`..`0x7F` | 1 | the byte itself (0 to 127) |
+| `0x80` | 3 | the next two bytes, a `u16` (128 to 65,535) |
+| `0x81` | 5 | the next four bytes, a `u32` (65,536 to 2^32 - 1) |
+| `0x82`..`0xFF` | | invalid |
+
+- It is **minimal**: a value takes the shortest form that holds it (`0x80` never carries a value below 128, `0x81`
+  never one below 65,536).
+- A reader knows the size from the first byte alone, and reads the value with one load at a constant offset.
+
+```
+0          00
+127        7F
+128        80 80 00
+300        80 2C 01
+65535      80 FF FF
+65536      81 00 00 01 00
+2^32 - 1   81 FF FF FF FF
+```
+
+Writers MUST write minimal headers. Readers MUST reject a header that is not minimal, that runs past the data, or
+whose first byte is `0x82` or above; see §9.4.
 
 ### 2.4 Lengths, counts and null markers
 
 | Marker | Encoding | Used by |
 | --- | --- | --- |
-| Length / count | `i32`, `>= 0` | strings, collections, regions, keyed entries |
-| Null length | `i32` `-1` (`FF FF FF FF`) | strings, collections, `BigInteger`, `Version`, `BitArray`, ... |
+| Length / count | `i32`, `>= 0` | collections, regions, keyed entries |
+| Null length | `i32` `-1` (`FF FF FF FF`) | collections, `Version`, `BitArray`, ... |
+| String header | `header` (§2.3.1): `0` null | strings (§4) |
 | Presence byte | `u8`: `0` = null / absent, `1` = present | sealed classes, `T?`, `Lazy<T>`, `Tuple<...>` |
 | Null type id | `i32` `0` | non-sealed classes, abstract classes, interfaces, `object` |
 | Reference header | `i32`: `0` null, `-1` new, `n > 0` back reference | `trackReferences` types (§7.9) |
 
-- A length or count of `-1` means null. The default string encoding (§4.1) also uses other negative values. Apart
-  from that, a negative length is invalid and readers MUST reject it.
+- A length or count of `-1` means null. Any other negative length is invalid and readers MUST reject it.
 - Writers MUST write presence bytes and `bool` as exactly `0` or `1`, and readers MUST reject any other byte (§9.3).
 
 ### 2.5 Booleans and enums
@@ -210,7 +237,7 @@ local time outside `DateTime`'s range. The .NET reader does both (`Nino: invalid
 | `BitArray` | `i32` bit count `n` (`-1` = null), then `ceil(n/8)` bytes. Bit `i` is bit `i % 8` (LSB first) of byte `i / 8`. Writers MUST zero the unused high bits of the last byte. |
 | `Uri` | its `OriginalString` as a string (§4). Null is a null string. |
 | `CultureInfo` | its `Name` as a string. The invariant culture is `""`. |
-| `StringBuilder` | a string, always in the UTF-16 form (§4.1, positive header), even when Latin-1 would fit. Readers MUST accept both forms. |
+| `StringBuilder` | a string, always in the UTF-16 form (§4.1, even header), even when Latin-1 would fit. An empty builder is the empty string (`01`), since a UTF-16 header of `0` is null. Readers MUST accept both forms. |
 | `TimeZoneInfo` | the `Id` as a string (null = null zone, and nothing follows), then a second string: null for a zone the system knows (`FindSystemTimeZoneById`), otherwise .NET's `ToSerializedString()` of the custom zone. |
 
 ```
@@ -221,7 +248,7 @@ BigInteger -129   02 00 00 00 7F FF
 Version 1.2       01 00 00 00 02 00 00 00 FF FF FF FF FF FF FF FF
 Version null      FF FF FF FF
 BitArray [1,0,1,0,0,0,0,0,1,1]   0A 00 00 00 05 03
-TimeZoneInfo UTC  FC FF FF FF 55 54 43 | FF FF FF FF
+TimeZoneInfo UTC  07 55 54 43 | 00
 ```
 
 `BigInteger` has no null encoding: a `BigInteger` is a struct. A count of `0` reads as zero. Writers MUST NOT write
@@ -240,40 +267,43 @@ The default is `string`.
 ### 4.1 Default encoding (`string`)
 
 ```
-i32 h
-  h == -1        null; nothing follows
-  h == 0         ""; nothing follows
-  h <= -2        n = ~h (= -h - 1) chars, then n bytes: Latin-1 (each byte is the code unit U+0000..U+00FF)
-  h >= 1         n = h chars, then n UTF-16LE code units (2n bytes)
+header h                    (§2.3.1)
+  h == 0          null; nothing follows
+  h odd           n = h >> 1 chars (h == 1: ""), then n bytes: Latin-1 (each byte is the code unit U+0000..U+00FF)
+  h even, >= 2    n = h >> 1 chars, then n UTF-16LE code units (2n bytes)
 ```
 
-- A writer MUST use the Latin-1 form when every code unit is `<= U+00FF`, and the UTF-16 form otherwise. The
-  one exception is `StringBuilder`, which always uses UTF-16 (§3.5).
+- A writer MUST use the Latin-1 form when every code unit is `<= U+00FF` (the empty string included: `01`), and
+  the UTF-16 form otherwise. The one exception is `StringBuilder`, which always uses UTF-16 (§3.5).
+- Both forms of a string of `n` chars have headers of the same size (`2n` and `2n + 1` take as many bytes): one
+  byte up to 63 chars, three up to 32,767, five above. A writer can therefore place the chars before it knows which
+  form they take.
+- `n` is at most `2^31 - 1`, which any header below 2^32 satisfies.
 - The string is the sequence of UTF-16 code units, not of Unicode scalars. Unpaired surrogates are written as they
   are, in the UTF-16 form. Readers MUST NOT reject or replace them: the .NET reader returns them unchanged.
-- The minimum Latin-1 header is `~1 = -2`, so `-1` stays free for null. A header of `int.MinValue` (`00 00 00 80`)
-  would mean `2^31 - 1` chars. The .NET reader rejects it as running past the end of the data.
 
 ```
-null        FF FF FF FF
-""          00 00 00 00
-"abc"       FC FF FF FF 61 62 63
-"é"         FE FF FF FF E9
-"ÿ"         FE FF FF FF FF
-"a中"       02 00 00 00 61 00 2D 4E
-"\uD800"    01 00 00 00 00 D8
-"😀"        02 00 00 00 3D D8 00 DE
+null        00
+""          01
+"abc"       07 61 62 63
+"é"         03 E9
+"ÿ"         03 FF
+"a中"       04 61 00 2D 4E
+"\uD800"    02 00 D8
+"😀"        04 3D D8 00 DE
+64 × "a"    80 81 00 61 61 ... 61
 ```
 
 ### 4.2 UTF-8 encoding (`utf8`, members marked `[NinoUtf8]`)
 
 ```
-i32 c            char count: the length in UTF-16 code units
-  c == -1        null; nothing follows
-  c == 0         ""; nothing follows
-  c >= 1         i32 b (byte count), then b bytes of UTF-8
+header u                    (§2.3.1)
+  u == 0         null; nothing follows
+  u == 1         ""; nothing follows
+  u >= 2         c = u - 1 chars (the length in UTF-16 code units), then header b (byte count), then b bytes of UTF-8
 ```
 
+- `c` and `b` are each at most `2^31 - 1` (so `u <= 2^31`). Readers MUST reject larger values.
 - Writers MUST encode each unpaired surrogate as U+FFFD (`EF BF BD`). U+FFFD is one code unit, so `c` is also the
   length of the string read back.
 - Every valid payload satisfies `c <= b <= 3c`. Readers MUST check this, MUST check that `b` bytes remain, and MUST
@@ -281,10 +311,10 @@ i32 c            char count: the length in UTF-16 code units
   at the end) or that decode to a number of UTF-16 code units other than `c`. The .NET reader does all of this.
 
 ```
-"é😀"         03 00 00 00 | 06 00 00 00 | C3 A9 F0 9F 98 80
-"a\uD800"     02 00 00 00 | 04 00 00 00 | 61 EF BF BD
-null          FF FF FF FF
-""            00 00 00 00
+"é😀"         04 | 06 | C3 A9 F0 9F 98 80
+"a\uD800"     03 | 04 | 61 EF BF BD
+null          00
+""            01
 ```
 
 ---
@@ -399,7 +429,7 @@ Null and empty values:
 ```
 int[] {1, 2}              02 00 00 00 01 00 00 00 02 00 00 00
 int[] null                FF FF FF FF
-string[] {"a", null, ""}  03 00 00 00 FE FF FF FF 61 FF FF FF FF 00 00 00 00
+string[] {"a", null, ""}  03 00 00 00 03 61 00 01
 bool[] {true, false}      02 00 00 00 01 00
 Stack<int> push 1, 2      02 00 00 00 01 00 00 00 02 00 00 00
 ```
@@ -460,8 +490,8 @@ cultures, ICU versions and invariant-globalization mode. Other keys (integers, e
   checks the order with its own comparer and inserts the entries one at a time when they are not in that order. The bytes then differ from what .NET would write for the same map.
 
 ```
-Dictionary<int,string> {1:"a"}             01 00 00 00 | 01 00 00 00 FE FF FF FF 61
-SortedDictionary<string,int> {b:2, a:1}    02 00 00 00 | FE FF FF FF 61 01 00 00 00 | FE FF FF FF 62 02 00 00 00
+Dictionary<int,string> {1:"a"}             01 00 00 00 | 01 00 00 00 03 61
+SortedDictionary<string,int> {b:2, a:1}    02 00 00 00 | 03 61 01 00 00 00 | 03 62 02 00 00 00
 ```
 
 ### 6.4 Groupings and priority queues
@@ -474,7 +504,7 @@ SortedDictionary<string,int> {b:2, a:1}    02 00 00 00 | FE FF FF FF 61 01 00 00
 
 ```
 ILookup<int,int> {1:[1,3], 2:[2]}   02 00 00 00 | 02 00 00 00 01 00 00 00 01 00 00 00 03 00 00 00 | 01 00 00 00 02 00 00 00 02 00 00 00
-PriorityQueue {("a",2), ("b",1)}    02 00 00 00 | FE FF FF FF 62 01 00 00 00 | FE FF FF FF 61 02 00 00 00
+PriorityQueue {("a",2), ("b",1)}    02 00 00 00 | 03 62 01 00 00 00 | 03 61 02 00 00 00
 ```
 
 ### 6.5 Nullable values, `Lazy<T>` and `Tuple<...>`
@@ -488,7 +518,7 @@ PriorityQueue {("a",2), ("b",1)}    02 00 00 00 | FE FF FF FF 62 01 00 00 00 | F
 int? null         00
 int? 5            01 05 00 00 00
 Color? Green      01 02
-Tuple<int,string> (1,"a")   01 | 01 00 00 00 | FE FF FF FF 61
+Tuple<int,string> (1,"a")   01 | 01 00 00 00 | 03 61
 ```
 
 ### 6.6 `ValueTuple` and `KeyValuePair`
@@ -501,7 +531,7 @@ every item is raw: `(byte, int)` takes 5 bytes, alone and inside a `List`. A `Va
 ```
 (byte, int) (1, 2)                01 02 00 00 00
 List<(byte,int)> {(1,2)}          01 00 00 00 | 01 02 00 00 00
-KeyValuePair<int,string> (1,"a")  01 00 00 00 FE FF FF FF 61
+KeyValuePair<int,string> (1,"a")  01 00 00 00 03 61
 ```
 
 ### 6.7 Multi-dimensional arrays
@@ -608,7 +638,7 @@ struct body is the same: a non-raw struct has no header and no padding.
 
 ```
 sealed class Mixed { int A; byte B; long C; string D; short E; short F; } = {1, 2, 3, "x", 4, 5}
-01 | 01 00 00 00 | 02 | 03 00 00 00 00 00 00 00 | FE FF FF FF 78 | 04 00 | 05 00
+01 | 01 00 00 00 | 02 | 03 00 00 00 00 00 00 00 | 03 78 | 04 00 | 05 00
 ```
 
 ### 7.5 Version-tolerant format (`format=VersionTolerant`)
@@ -671,12 +701,12 @@ the collection's elements first, then its members. The layout shows this with a 
 
 ```
 Bag (non-sealed, so a type id header) {1}, Tag = "t"
-9A 4F 30 73 | 01 00 00 00 01 00 00 00 | FE FF FF FF 74
+9A 4F 30 73 | 01 00 00 00 01 00 00 00 | 03 74
 ```
 
 ```
-TolBag : List<int>, VersionTolerant, {1}, Tag = "t"   D5 08 56 C7 | 01 00 00 00 01 00 00 00 | 05 00 00 00 FE FF FF FF 74
-KeyBag : List<int>, Keyed, {1}, Tag = "t"             A5 B3 61 8A | 15 00 00 00 | 01 00 00 00 01 00 00 00 | 57 4F FF 26 05 00 00 00 FE FF FF FF 74
+TolBag : List<int>, VersionTolerant, {1}, Tag = "t"   D5 08 56 C7 | 01 00 00 00 01 00 00 00 | 02 00 00 00 03 74
+KeyBag : List<int>, Keyed, {1}, Tag = "t"             A5 B3 61 8A | 12 00 00 00 | 01 00 00 00 01 00 00 00 | 57 4F FF 26 02 00 00 00 03 74
 ```
 
 ### 7.8 Polymorphism
@@ -695,7 +725,7 @@ KeyBag : List<int>, Keyed, {1}, Tag = "t"             A5 B3 61 8A | 15 00 00 00 
 ```
 Shape s = new Circle { Id = 1, R = 2f }      AC 2B C0 ED | 01 00 00 00 | 00 00 00 40
 Circle c (declared as the sealed Circle)     01 | 01 00 00 00 | 00 00 00 40
-IAnimal a = new Dog { Name = "d", Age = 3 }  92 46 6C 92 | FE FF FF FF 64 | 03 00 00 00
+IAnimal a = new Dog { Name = "d", Age = 3 }  92 46 6C 92 | 03 64 | 03 00 00 00
 List<Shape> {Circle(1,1f), Square(2,2f), null}
   03 00 00 00 | AC 2B C0 ED 01 00 00 00 00 00 80 3F | 1F 27 E7 8F 02 00 00 00 00 00 00 40 | 00 00 00 00
 ```
@@ -1004,8 +1034,11 @@ Note: the .NET reader copies a `bool` field inside a raw struct (§5) with the s
 
 ### 9.4 Strings
 
-Readers MUST apply the checks of §4.2 to UTF-8 strings, and MUST reject string headers whose length does not fit in
-the remaining bytes. Unpaired surrogates in the default encoding MUST be accepted (§4.1). **.NET:** done.
+Readers MUST reject a string header (§2.3.1) that is not minimal, runs past the data or starts with a byte of
+`0x82` or above, MUST apply the checks of §4.2 to UTF-8 strings (counts in range, `c <= b <= 3c`, strict UTF-8), and MUST
+reject string headers whose length does not fit in the remaining bytes, before allocating. A string's minimum size
+on the wire is one byte (null or empty), the size a reader checks a count of strings with (§9.2). Unpaired
+surrogates in the default encoding MUST be accepted (§4.1). **.NET:** done.
 
 ### 9.5 Regions and keyed entries
 
@@ -1197,7 +1230,7 @@ x64 Linux.
 
 ## Appendix A: worked examples
 
-All of these dumps were produced by running Nino 4.0.0-rc.7 (`net10.0`, x64). Type declarations are C#. Unless shown,
+All of these dumps were produced by running Nino 4.0.0-rc.8 (`net10.0`, x64). Type declarations are C#. Unless shown,
 the namespace is `Spec`, whose names enter the type ids.
 
 ### A.1 A small `[NinoType]`
@@ -1209,7 +1242,7 @@ new Small { A = 1, B = "a" }
 ```
 01                presence byte (sealed class)
 01 00 00 00       A = 1
-FE FF FF FF 61    B = "a" (Latin-1, ~1)
+03 61             B = "a" (Latin-1: 2 × 1 + 1)
 ```
 `null` → `00`. Layout: `format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF8B7D639; members=A:int:raw(4);B:string:string`.
 
@@ -1243,16 +1276,16 @@ new Keyed { Id = 1, Name = "n", Score = 2 }
 ```
 ```
 01                            presence byte
-29 00 00 00                   L = 41
+26 00 00 00                   L = 38
 48 19 C4 98 04 00 00 00       key FNV("Id") = 0x98C41948, len 4
 01 00 00 00                     1
-E2 B3 85 30 05 00 00 00       key FNV("Name") = 0x3085B3E2, len 5
-FE FF FF FF 6E                  "n"
+E2 B3 85 30 02 00 00 00       key FNV("Name") = 0x3085B3E2, len 2
+03 6E                           "n"
 4D B1 4A 04 08 00 00 00       key FNV("Score") = 0x044AB14D, len 8
 02 00 00 00 00 00 00 00         2
 ```
 A reader also accepts key `0x93A29D95` (`FNV("Title")`) for `Name`. With `Name = null`, the `Name` entry is
-`E2 B3 85 30 04 00 00 00 FF FF FF FF` and `L = 40`.
+`E2 B3 85 30 01 00 00 00 00` and `L = 37`.
 
 ```csharp
 [NinoType(format: NinoFormat.VersionTolerant)] public class TolBase { public int A; }
@@ -1273,19 +1306,20 @@ new Strings { Def = "x", U8 = "é😀" }
 ```
 ```
 01                                     presence byte
-FE FF FF FF 78                         Def: Latin-1 "x"
-03 00 00 00 06 00 00 00 C3 A9 F0 9F 98 80    U8: 3 chars, 6 bytes UTF-8
+03 78                                  Def: Latin-1 "x"
+04 06 C3 A9 F0 9F 98 80                U8: 3 chars (+ 1), 6 bytes UTF-8
 ```
 
 | Value | Default (`string`) | `[NinoUtf8]` (`utf8`) |
 | --- | --- | --- |
-| `null` | `FF FF FF FF` | `FF FF FF FF` |
-| `""` | `00 00 00 00` | `00 00 00 00` |
-| `"abc"` | `FC FF FF FF 61 62 63` | `03 00 00 00 03 00 00 00 61 62 63` |
-| `"é"` | `FE FF FF FF E9` | |
-| `"a中"` | `02 00 00 00 61 00 2D 4E` | |
-| `"a\uD800"` | `02 00 00 00 61 00 00 D8` | `02 00 00 00 04 00 00 00 61 EF BF BD` |
-| `"😀"` | `02 00 00 00 3D D8 00 DE` | |
+| `null` | `00` | `00` |
+| `""` | `01` | `01` |
+| `"abc"` | `07 61 62 63` | `04 03 61 62 63` |
+| `"é"` | `03 E9` | `02 02 C3 A9` |
+| `"a中"` | `04 61 00 2D 4E` | `03 04 61 E4 B8 AD` |
+| `"a\uD800"` | `04 61 00 00 D8` | `03 04 61 EF BF BD` |
+| `"😀"` | `04 3D D8 00 DE` | `03 04 F0 9F 98 80` |
+| 100 × `"a"` | `80 C9 00 61 ... 61` | `65 64 61 ... 61` |
 
 ### A.5 Reference tracking
 

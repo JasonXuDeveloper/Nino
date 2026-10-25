@@ -295,7 +295,7 @@ public class BoundedNestingTests
     {
         var top = Top(7);
         var bytes = NinoSerializer.Serialize(top);
-        Assert.AreEqual((760, 1327505457u), (bytes.Length, Checksum(bytes)));
+        Assert.AreEqual((694, 720275216u), (bytes.Length, Checksum(bytes)));
         // Through a caller's writer (no interceptor twin): the formatter itself.
         var buffer = new NinoArrayBufferWriter();
         NinoSerializer.Serialize(top, buffer);
@@ -309,7 +309,7 @@ public class BoundedNestingTests
 
         var list = new List<BoundTop> { Top(1), null, Top(2) };
         var listBytes = NinoSerializer.Serialize(list);
-        Assert.AreEqual((1728, 577273948u), (listBytes.Length, Checksum(listBytes)));
+        Assert.AreEqual((1578, 777872161u), (listBytes.Length, Checksum(listBytes)));
         var read = NinoDeserializer.Deserialize<List<BoundTop>>(listBytes);
         AssertTop(read[0], 1);
         Assert.IsNull(read[1]);
@@ -317,19 +317,19 @@ public class BoundedNestingTests
 
         var s = Struct(3);
         var structBytes = NinoSerializer.Serialize(s);
-        Assert.AreEqual((205, 2320783693u), (structBytes.Length, Checksum(structBytes)));
+        Assert.AreEqual((187, 544345348u), (structBytes.Length, Checksum(structBytes)));
         AssertStruct(NinoDeserializer.Deserialize<BoundStruct>(structBytes), 3);
 
         var keyed = Keyed(5);
         var keyedBytes = NinoSerializer.Serialize(keyed);
-        Assert.AreEqual((231, 1804284873u), (keyedBytes.Length, Checksum(keyedBytes)));
+        Assert.AreEqual((213, 1372761807u), (keyedBytes.Length, Checksum(keyedBytes)));
         var keyedRead = NinoDeserializer.Deserialize<BoundKeyed>(keyedBytes);
         AssertLeaf(keyedRead.Leaf, 5);
         AssertMid(keyedRead.Mids[0], 6);
 
         var holder = new BoundHoldsChain { Mid = Mid(1), Chain = Chain(2) };
         var holderBytes = NinoSerializer.Serialize(holder);
-        Assert.AreEqual((6399, 4215442049u), (holderBytes.Length, Checksum(holderBytes)));
+        Assert.AreEqual((5862, 294524101u), (holderBytes.Length, Checksum(holderBytes)));
         var holderRead = NinoDeserializer.Deserialize<BoundHoldsChain>(holderBytes);
         AssertMid(holderRead.Mid, 1);
         AssertChain(holderRead.Chain, 2);
@@ -349,16 +349,16 @@ public class BoundedNestingTests
             // defines WEAK_VERSION_TOLERANCE: every type here is version tolerant).
             var expected = new Dictionary<int, (int, uint, int, uint, int, uint)>
             {
-                [1] = (3431, 3186245446, 552, 461010307, 999, 194145313),
-                [124] = (387901, 623891176, 70645, 1422018078, 112745, 1711248428),
-                [125] = (391364, 4040820409, 71228, 1069837431, 113776, 4173478115),
-                [126] = (394712, 2683383166, 71855, 2498125198, 114758, 2154208570),
-                [127] = (398423, 4041698979, 72534, 2974020847, 115853, 797799771),
-                [128] = (401295, 1632651334, 73141, 2737573597, 116679, 4155940173),
-                [129] = (404766, 4265108268, 73732, 763638104, 117718, 371260464),
-                [130] = (407590, 458165938, 74315, 1974553703, 118536, 1266023258),
-                [131] = (411053, 2138613200, 74898, 231706, 119567, 203638883),
-                [300] = (942881, 1625488460, 173593, 2743760486, 275965, 1050951284),
+                [1] = (3143, 2296704423, 504, 414289861, 915, 3230055819),
+                [124] = (355537, 1210105534, 64693, 4288779054, 103445, 831889757),
+                [125] = (358712, 2351183875, 65228, 1564123677, 104392, 2852862148),
+                [126] = (361826, 871762284, 65807, 2327920290, 105308, 2823844786),
+                [127] = (365249, 527861980, 66438, 779952477, 106319, 2204311962),
+                [128] = (367887, 2488175073, 66997, 2165049988, 107079, 732395996),
+                [129] = (371070, 685102569, 67540, 1536586051, 108034, 2851225841),
+                [130] = (373660, 2448997262, 68075, 3173287996, 108786, 4214936510),
+                [131] = (376835, 3469285194, 68610, 2986354682, 109733, 399083318),
+                [300] = (864581, 1383885263, 159193, 2763350553, 253465, 214321375),
             };
             foreach (int length in expected.Keys)
             {
@@ -411,7 +411,7 @@ public class BoundedNestingTests
         {
             var list = new List<BoundChain> { Chain(130), null, Chain(3), Chain(129) };
             var bytes = NinoSerializer.Serialize(list);
-            Assert.AreEqual((822019, 3396162549u), (bytes.Length, Checksum(bytes)));
+            Assert.AreEqual((753583, 896369397u), (bytes.Length, Checksum(bytes)));
             var read = NinoDeserializer.Deserialize<List<BoundChain>>(bytes);
             AssertChain(read[0], 130);
             Assert.IsNull(read[1]);

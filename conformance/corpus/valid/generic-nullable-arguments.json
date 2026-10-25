@@ -7,7 +7,7 @@
     "seq",
     "map"
   ],
-  "size": 149,
+  "size": 140,
   "roundTrip": true,
   "layouts": {
     "Conformance.Vec2": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x53124224; deferrable=false; members=raw(8){X:float@0:raw(4),Y:float@4:raw(4)}",

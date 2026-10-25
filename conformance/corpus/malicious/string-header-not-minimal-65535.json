@@ -1,10 +1,10 @@
 {
-  "case": "string-latin1-int-min",
+  "case": "string-header-not-minimal-65535",
   "type": "Conformance.Targets.TextValue",
   "category": "string",
   "expected": "error",
-  "exercises": "A header of int.MinValue: int.MaxValue Latin-1 bytes, 3 present.",
-  "size": 8,
+  "exercises": "The header 65535 written in five bytes (81 FF FF 00 00): three bytes hold it.",
+  "size": 14,
   "layouts": {
     "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
   },

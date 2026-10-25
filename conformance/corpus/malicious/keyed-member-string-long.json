@@ -4,7 +4,7 @@
   "category": "keyed",
   "expected": "error",
   "exercises": "A KeyedV1 body with the string member's length 1 byte past its encoding (bytes left over in the member).",
-  "size": 64,
+  "size": 61,
   "layouts": {
     "Conformance.KeyedV1": "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;Name:string:string:key=0x3085B3E2;Items:System.Collections.Generic.List<int>:seq(raw(4)):key=0xDCA8A053;Score:long:raw(8):key=0x044AB14D"
   },

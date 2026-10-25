@@ -677,7 +677,7 @@ namespace Nino.Core
 
         /// <summary><see cref="Reserve"/> for a size that may not fit in an int (rejected when it does not).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private ref byte ReserveLarge(ulong size)
+        internal ref byte ReserveLarge(ulong size)
         {
             if (size > (uint)Avail)
             {
@@ -687,6 +687,27 @@ namespace Nino.Core
             ref byte block = ref Cur;
             Skip((int)size);
             return ref block;
+        }
+
+        /// <summary>
+        /// Writes the string header <paramref name="header"/> (see <see cref="NinoStrings.ReadHeader"/>), reserves
+        /// the <paramref name="header"/> bytes after it (up to 4 GB, rejected past 2 GB) and returns a reference to
+        /// them. A header of one or three bytes (up to 32,767 chars) is written inline, the three as one store of four
+        /// bytes (its last the body's first, which the caller overwrites); a longer one out of line. The body is found
+        /// from the cursor, so only the header stays live past the reserve.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte ReserveText(uint header)
+        {
+            int start = header < 0x80 ? 1 : header <= ushort.MaxValue ? 3 : NinoStrings.MaxHeaderSize;
+            ref byte block = ref ReserveLarge((ulong)start + header);
+            if (header < 0x80)
+                block = (byte)header;
+            else if (header <= ushort.MaxValue)
+                NinoUnsafe.Write(ref block, (header << 8) | NinoStrings.Header16);
+            else
+                NinoStrings.WriteLongHeader(ref block, header);
+            return ref Unsafe.Subtract(ref Cur, (nuint)header);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -717,17 +738,21 @@ namespace Nino.Core
         private const int Utf8WorstCaseMaxChars = 1024;
 
         /// <summary>
-        /// Writes a string as UTF-8: its UTF-16 length (char count; -1 for null, 0 for empty, with nothing after
-        /// either), then the UTF-8 byte count and the bytes. Unpaired surrogates are written as U+FFFD, one char
-        /// each, so the char count is that of the string read back.
+        /// Writes a string as UTF-8: its UTF-16 length (char count) plus one (0 for null, 1 for empty, with nothing
+        /// after either), then the UTF-8 byte count and the bytes, both counts headers (see <see cref="NinoStrings"/>).
+        /// Unpaired surrogates are written as U+FFFD, one char each, so the char count is that of the string read back.
         /// </summary>
         // Inlined, with the counting and the encoding out of line taking values: an instance call would take the
         // writer's address, which keeps all its fields in memory in the caller.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteUtf8(string value)
         {
-            if (TryWriteNullLength(value))
+            if (value == null)
+            {
+                Ensure(1) = NinoStrings.NullHeader;
+                Skip(1);
                 return;
+            }
 
             // Short strings reserve the worst case (3 bytes per char) and encode in one pass; long ones count their
             // bytes first, so the buffer does not grow to three times the string (or overflow the count).
@@ -735,27 +760,39 @@ namespace Nino.Core
                 ? value.Length * 3
                 : Utf8ByteCount(value);
             // Room for the worst case; only the bytes written (counts included) are kept.
-            ref byte dst = ref Ensure(2 * sizeof(int) + maxBytes);
+            ref byte dst = ref Ensure(2 * NinoStrings.MaxHeaderSize + maxBytes);
             Skip(EncodeUtf8(value, ref dst, maxBytes));
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int Utf8ByteCount(string value) => Encoding.UTF8.GetByteCount(value);
+        private static int Utf8ByteCount(string value)
+        {
+            int count = Encoding.UTF8.GetByteCount(value);
+            // The counts and the bytes must fit in an int (see Grow).
+            return count > int.MaxValue - 2 * NinoStrings.MaxHeaderSize ? -1 : count;
+        }
 
         /// <summary>
         /// Writes the counts and the UTF-8 bytes of <paramref name="value"/> (at most <paramref name="capacity"/>)
-        /// at <paramref name="destination"/>; returns the bytes written, counts included.
+        /// at <paramref name="destination"/> (room for 10 bytes more); returns the bytes written, counts included.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static unsafe int EncodeUtf8(string value, ref byte destination, int capacity)
         {
-            if (value.Length == 0)
+            int length = value.Length;
+            if (length == 0)
             {
-                NinoUnsafe.Write(ref destination, 0);
-                return sizeof(int);
+                destination = NinoStrings.EmptyHeader;
+                return 1;
             }
 
-            ref byte bytes = ref Unsafe.Add(ref destination, 2 * sizeof(int));
+            int countSize = NinoStrings.WriteHeader(ref destination, (uint)length + 1);
+            ref byte sizeAt = ref Unsafe.Add(ref destination, countSize);
+            // The bytes go after a byte count as long as the char count's, the fewest it can take (there are at
+            // least as many bytes as chars): exactly that for ASCII text. When the byte count turns out longer,
+            // they move up by the difference (into the room for 10 bytes of counts).
+            int sizeSize = NinoStrings.HeaderSize((uint)length);
+            ref byte bytes = ref Unsafe.Add(ref sizeAt, sizeSize);
 #if NET8_0_OR_GREATER
             // Without replacement, the transcoder's call is all that is inlined; an unpaired surrogate stops it.
             var status = System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(), MemoryMarshal.CreateSpan(ref bytes, capacity),
@@ -765,9 +802,24 @@ namespace Nino.Core
 #else
             int written = EncodeUtf8Replacing(value, ref bytes, capacity);
 #endif
-            // The char count and the byte count in one store.
-            NinoUnsafe.Write(ref destination, (uint)value.Length | ((ulong)(uint)written << 32));
-            return 2 * sizeof(int) + written;
+            int actual = NinoStrings.HeaderSize((uint)written);
+            if (actual != sizeSize)
+            {
+                Move(ref bytes, ref Unsafe.Add(ref sizeAt, actual), written);
+                sizeSize = actual;
+            }
+
+            NinoStrings.WriteHeader(ref sizeAt, (uint)written);
+            return countSize + sizeSize + written;
+        }
+
+        /// <summary>Moves <paramref name="count"/> bytes up to <paramref name="to"/>, overlapping (rare: out of line).</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe void Move(ref byte from, ref byte to, int count)
+        {
+            fixed (byte* source = &from)
+            fixed (byte* destination = &to)
+                Buffer.MemoryCopy(source, destination, count, count);
         }
 
         /// <summary>The UTF-8 bytes of <paramref name="value"/>, each unpaired surrogate written as U+FFFD.</summary>

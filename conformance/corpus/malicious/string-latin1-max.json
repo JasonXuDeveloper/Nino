@@ -1,0 +1,15 @@
+{
+  "case": "string-latin1-max",
+  "type": "Conformance.Targets.TextValue",
+  "category": "string",
+  "expected": "error",
+  "exercises": "A header of 2^32 - 1: 2^31 - 1 Latin-1 bytes, 3 present.",
+  "size": 9,
+  "layouts": {
+    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "NinoDataException"
+  }
+}

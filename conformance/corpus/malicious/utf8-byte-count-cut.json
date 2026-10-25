@@ -1,0 +1,15 @@
+{
+  "case": "utf8-byte-count-cut",
+  "type": "Conformance.Targets.Utf8Value",
+  "category": "utf8",
+  "expected": "error",
+  "exercises": "[NinoUtf8]: a char count with its byte count cut by the end of the input.",
+  "size": 4,
+  "layouts": {
+    "Conformance.Targets.Utf8Value": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; deferrable=true; members=Value:string:utf8"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "NinoDataException"
+  }
+}

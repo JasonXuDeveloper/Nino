@@ -366,17 +366,21 @@ namespace Nino.UnitTests
                 var data = BitConverter.GetBytes(length).Concat(new byte[16]).ToArray();
                 ExpectFailure<List<int>>(data, "List<int> " + length);
                 ExpectFailure<int[]>(data, "int[] " + length);
-                // -2 is the header of a one-char Latin-1 string.
-                if (length != -2)
-                {
-                    ExpectFailure<string>(data, "string " + length);
-                    ExpectFailure<List<string>>(data, "List<string> " + length);
-                }
+                ExpectFailure<List<string>>(data, "List<string> " + length);
                 ExpectFailure<Dictionary<int, int>>(data, "Dictionary " + length);
                 ExpectFailure<RawPadded[]>(data, "raw array " + length);
                 ExpectFailure<HashSet<long>>(data, "HashSet " + length);
                 // Both lengths: a zero length makes any other length valid (an empty array).
                 ExpectFailure<int[,]>(BitConverter.GetBytes(length).Concat(data).ToArray(), "int[,] " + length);
+            }
+
+            // String headers: the largest of either form, and 2^28 chars.
+            foreach (var header in new[] { uint.MaxValue, uint.MaxValue - 1, 1u << 29, (1u << 29) + 1 })
+            {
+                var data = StringEncodingTests.Header(header).Concat(new byte[16]).ToArray();
+                ExpectFailure<string>(data, "string " + header);
+                ExpectFailure<System.Text.StringBuilder>(data, "StringBuilder " + header);
+                ExpectFailure<List<string>>(new byte[] { 1, 0, 0, 0 }.Concat(data).ToArray(), "List<string> " + header);
             }
         }
 

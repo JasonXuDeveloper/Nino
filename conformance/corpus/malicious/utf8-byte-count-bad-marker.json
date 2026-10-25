@@ -1,10 +1,10 @@
 {
-  "case": "utf8-char-count-int-min",
+  "case": "utf8-byte-count-bad-marker",
   "type": "Conformance.Targets.Utf8Value",
   "category": "utf8",
   "expected": "error",
-  "exercises": "[NinoUtf8]: a char count of int.MinValue.",
-  "size": 10,
+  "exercises": "[NinoUtf8]: a byte count whose first byte is 0xFF (no header starts so).",
+  "size": 8,
   "layouts": {
     "Conformance.Targets.Utf8Value": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; deferrable=true; members=Value:string:utf8"
   },

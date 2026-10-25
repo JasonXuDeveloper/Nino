@@ -5,9 +5,9 @@
   "features": [
     "string"
   ],
-  "size": 15,
+  "size": 9,
   "roundTrip": false,
-  "reencoded": "01fcffffff616263ffffffff",
+  "reencoded": "010761626300",
   "layouts": {
     "Conformance.Strings": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDBD0018; deferrable=true; members=Text:string:string;Utf8:string:utf8"
   },
