@@ -12,7 +12,7 @@ export interface NinoCodec<T> {
 }
 
 let shared: NinoWriter | null = null;
-/** The size of the buffers `serialize` writes its results into. */
+/** The smallest buffer `serialize` writes its results into (see `NinoWriter.next`). */
 const slabSize = 64 * 1024;
 
 /**
@@ -681,6 +681,8 @@ export class NinoWriter {
   private regions = 0;
   private structs = 0;
   private deferrals: NinoDeferrals<NinoWriter> | null = null;
+  // The size of the last value `detach` returned.
+  private last = 0;
 
   /** Moves past `size` bytes, growing the buffer if needed: returns where they start. */
   reserve(size: number): number {
@@ -702,14 +704,18 @@ export class NinoWriter {
 
   /**
    * Starts a value after the last one `detach` returned, 8-byte aligned (so it can be viewed as wider typed arrays),
-   * in a new buffer when little room is left.
+   * in a new buffer when less room is left than the last value took (room for 16 such values, up to 1 MiB).
    */
   next(): void {
     let at = (this.pos + 7) & ~7;
-    if (this.end - at < slabSize >> 4) {
-      this.buffer = new Uint8Array(slabSize);
+    // A new buffer when the room left is less than the last value took: values of one type are about one size, and
+    // growing a buffer copies what the value wrote so far.
+    const last = this.last;
+    if (this.end - at < Math.max(slabSize >> 4, last)) {
+      const size = Math.max(slabSize, Math.min(16 * last, 1 << 20), 2 * last);
+      this.buffer = new Uint8Array(size);
       this.view = new DataView(this.buffer.buffer);
-      this.end = slabSize;
+      this.end = size;
       at = 0;
     }
     this.start = this.pos = at;
@@ -719,7 +725,11 @@ export class NinoWriter {
   }
 
   /** The value started by `next`, as a view of the buffer, which the writer does not write to again. */
-  detach(): Uint8Array<ArrayBuffer> { return new Uint8Array(this.buffer.buffer, this.start, this.pos - this.start); }
+  detach(): Uint8Array<ArrayBuffer> {
+    const size = this.pos - this.start;
+    this.last = size;
+    return new Uint8Array(this.buffer.buffer, this.start, size);
+  }
 
   /** The bytes written so far, without a copy: valid until the writer writes again. */
   written(): Uint8Array { return this.buffer.subarray(this.start, this.pos); }
