@@ -1,5 +1,5 @@
 # [cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...> (see .github/workflows/dotnet-ab.yml); one job per line.
-# phase6/string-varint: varint string headers (main 7d6fe84 -> ab-string-varint 1e61cca), the string-heavy Nino cases.
-7d6fe84 1e61cca 3 *SimpleTest.Nino* *VersionTolerantTest.Nino*
-7d6fe84 1e61cca 3 *CommonTypesTest.Nino*
-7d6fe84 1e61cca 3 *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*TimeZone* *PolymorphicTest.Nino* *ReferenceTest.Nino*
+# phase6/string-varint: varint string headers (main c73ee57 -> ab-string-varint feb33ea; one-byte read path at a constant offset), the string-heavy Nino cases.
+c73ee57 feb33ea 3 *SimpleTest.Nino* *VersionTolerantTest.Nino*
+c73ee57 feb33ea 3 *CommonTypesTest.Nino*
+c73ee57 feb33ea 3 *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*TimeZone* *PolymorphicTest.Nino* *ReferenceTest.Nino*

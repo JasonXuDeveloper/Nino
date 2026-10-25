@@ -2,3 +2,7 @@
 # phase5/ts-strings: short UTF-16 windows, inline code units, short wide writes, shortText 24 (e41c104) and 32 (840ef72), against main c73ee57.
 typescript c73ee57 e41c104
 typescript e41c104 840ef72
+# phase6/string-varint: varint string headers (main c73ee57 -> ab-string-varint feb33ea).
+go c73ee57 feb33ea
+typescript c73ee57 feb33ea
+rust c73ee57 feb33ea
