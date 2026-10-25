@@ -20,7 +20,7 @@ var wireChars = []string{
 	"ࠀ", "字", "퟿", "", "￿", // 3 bytes
 	"\xed\xa0\x80", "\xed\xbf\xbf", "\xed\xb0\x80", // surrogates (WTF-8)
 	"🎉", "\U00010000", "\U0010ffff", // 4 bytes
-	"\x80", "\xbf", "\xc0\x80", "\xc1\xbf", "\xc2", "\xe0\x80\x80", "\xe0\x9f\xbf", "\xe4\xb8", "\xf0\x8f\xbf\xbf",
+	"\x80", "\xbf", "\xc0\x80", "\xc1\xbf", "\xc0", "\xc1", "\xc2", "\xe0\x80\x80", "\xe0\x9f\xbf", "\xe4\xb8", "\xf0\x8f\xbf\xbf",
 	"\xf4\x90\x80\x80", "\xf5\x80\x80\x80", "\xff", "\xf0\x9f\x8e", // not UTF-8
 }
 
@@ -47,6 +47,14 @@ func writeBoth(t *testing.T, s string, pad, size int) {
 	}
 	want := write(0)
 	for _, tier := range wireTiers() {
+		if s != "" && utf8.ValidString(s) {
+			// Valid text is never left to the Go loops.
+			setWire(tier)
+			dst := make([]byte, 2*len(s)+64)
+			if wireString(unsafe.Pointer(unsafe.SliceData(dst)), 0, unsafe.Pointer(unsafe.StringData(s)), len(s)) == wireInvalid {
+				t.Fatalf("%q (%s): the vector path took valid text as invalid", s, tierName(tier))
+			}
+		}
 		if got := write(tier); !bytes.Equal(got, want) {
 			t.Fatalf("%q (%s, after %d bytes, buffer of %d): wrote\n% X\nwant\n% X", s, tierName(tier), pad, size, got, want)
 		}

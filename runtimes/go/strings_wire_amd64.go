@@ -58,16 +58,16 @@ const (
 // them.
 var writeTiers, readTiers = detectTiers()
 
-var writeTier, readTier = best(writeTiers), best(readTiers)
+var writeTier, readTier = 0, 0 // test branch: forced
 
 func detectTiers() (write, read []int) {
 	if _, _, ecx, _ := cpuid(1, 0); ecx&(1<<9) != 0 {
-		read = []int{tierSSE}
+		write, read = []int{tierSSE}, []int{tierSSE}
 	}
 	if !detectAVX2() {
-		return nil, read
+		return write, read
 	}
-	write = []int{tierAVX2}
+	write = append(write, tierAVX2)
 	if detectAVX512() {
 		write = append(write, tierAVX512)
 		if detectVBMI() {
@@ -86,7 +86,7 @@ func tierName(t int) string {
 // one is taken.
 var hasWire, hasRead = len(writeTiers) > 0, len(readTiers) > 0
 
-var useWire, useRead = hasWire, hasRead
+var useWire, useRead = false, false
 
 func detectAVX2() bool {
 	maxID, _, _, _ := cpuid(0, 0)
@@ -147,18 +147,33 @@ func readLatin1(dst, src unsafe.Pointer, n int) int {
 	return latin1UTF8SSE(dst, src, n)
 }
 
+// wireStringSSE and wireStringsSSE are wireStringAVX2 and wireStringsAVX2 with SSSE3, 16 bytes at a time (as the
+// NEON kernels of arm64).
+//
+//go:noescape
+func wireStringSSE(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int
+
+//go:noescape
+func wireStringsSSE(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)
+
 // wireString is the writer's kernel of the tier taken.
 func wireString(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int {
-	if writeTier == tierAVX512 {
+	switch writeTier {
+	case tierAVX512:
 		return wireStringAVX512(dst, i, src, n)
+	case tierAVX2:
+		return wireStringAVX2(dst, i, src, n)
 	}
-	return wireStringAVX2(dst, i, src, n)
+	return wireStringSSE(dst, i, src, n)
 }
 
 // wireStrings is the writer's list kernel of the tier taken.
 func wireStrings(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int) {
-	if writeTier == tierAVX512 {
+	switch writeTier {
+	case tierAVX512:
 		return wireStringsAVX512(dst, room, strs, count, ptrs)
+	case tierAVX2:
+		return wireStringsAVX2(dst, room, strs, count, ptrs)
 	}
-	return wireStringsAVX2(dst, room, strs, count, ptrs)
+	return wireStringsSSE(dst, room, strs, count, ptrs)
 }
