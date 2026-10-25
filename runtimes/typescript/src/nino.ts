@@ -1039,9 +1039,7 @@ export class NinoWriter {
   string(value: string | null): void {
     if (value === null || value === undefined) { this.i32(-1); return; }
     const length = value.length;
-    if (length <= (nodeText === null ? loopText : shortText)) {
-      // Longer than shortText: nodeText is null.
-      if (length > kernelWrite && this.stringKernels(value, length)) return;
+    if (length <= (nodeText === null ? kernelWrite : shortText)) {
       // Narrowed in one pass while every char fits in a byte; from the first wider char on, UTF-16 instead.
       const at = this.reserve(4 + length), buffer = this.buffer;
       let i = 0;
@@ -1055,8 +1053,9 @@ export class NinoWriter {
         return;
       }
       this.pos = at;
-    } else if (nodeText === null && length <= kernelText && (length <= kernelAscii || wide.test(value)) &&
-      this.stringKernels(value, length)) {
+    } else if (nodeText === null) {
+      // Out of line, so the short text above compiles as it did without the kernels.
+      this.longString(value, length);
       return;
     } else if (!wide.test(value)) {
       const at = this.reserve(4 + length);
@@ -1073,6 +1072,41 @@ export class NinoWriter {
     const view = this.view;
     for (let i = 0; i < length; i++) view.setUint16(at + 4 + 2 * i, value.charCodeAt(i), true);
   }
+
+  /** Without Node's methods: the `length` chars of `value` as UTF-16 code units, after their count. */
+  private utf16(value: string, length: number): void {
+    const at = this.reserve(4 + 2 * length);
+    this.view.setInt32(at, length, true);
+    const view = this.view;
+    for (let i = 0; i < length; i++) view.setUint16(at + 4 + 2 * i, value.charCodeAt(i), true);
+  }
+
+  /** `string` without Node's methods, for text longer than `kernelWrite`: the kernels, else JavaScript. */
+  private longString(value: string, length: number): void {
+    if (length <= kernelText && (length <= kernelAscii || wide.test(value)) && this.stringKernels(value, length)) return;
+    if (length <= loopText) {
+      // As `string` narrows short text.
+      const at = this.reserve(4 + length), buffer = this.buffer;
+      let i = 0;
+      for (; i < length; i++) {
+        const c = value.charCodeAt(i);
+        if (c > 0xff) break;
+        buffer[at + 4 + i] = c;
+      }
+      if (i === length) {
+        this.int32At(at, ~length);
+        return;
+      }
+      this.pos = at;
+    } else if (!wide.test(value)) {
+      const at = this.reserve(4 + length);
+      this.int32At(at, ~length);
+      this.encodeLatin1(value, at + 4);
+      return;
+    }
+    this.utf16(value, length);
+  }
+
 
   /**
    * `string` with the kernels (text of at most `kernelText` chars): one byte per char if every char fits, else UTF-16.
