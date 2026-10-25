@@ -133,6 +133,9 @@ const scenarios: [string, string, NinoCodec<never>][] = [
   ["Event x1000 (long)", "events", b.EventCodec],
   ["Strings 1000 (ASCII)", "strings", b.StringsCodec],
   ["Strings 1000 (ASCII, Latin-1, other)", "strings-mixed", b.StringsCodec],
+  ["Strings 1000 (CJK, Cyrillic, 4-16)", "strings-cjk", b.StringsCodec],
+  ["Strings 1000 (ASCII, Latin-1, 25-48)", "strings-mid", b.StringsCodec],
+  ["Strings 1000 (CJK, 24-40)", "strings-cjk-mid", b.StringsCodec],
 ] as [string, string, NinoCodec<never>][];
 
 /** Runs the scenarios whose data file starts with `only` (all when empty). */
