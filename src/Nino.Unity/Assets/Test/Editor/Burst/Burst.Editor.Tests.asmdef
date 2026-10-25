@@ -4,8 +4,7 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "Burst.Tests",
-        "Unity.Burst"
+        "Burst.Tests"
     ],
     "includePlatforms": [
         "Editor"

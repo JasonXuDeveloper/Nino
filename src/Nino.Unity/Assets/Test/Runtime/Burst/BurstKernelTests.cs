@@ -70,7 +70,7 @@ namespace Test.Runtime.Burst
                 // Half the values of up to 16 bytes, the ones the AVX2 path takes two or more a vector.
                 int most = trial % 2 == 0 ? 17 : 65;
                 int from = random.Next(1, most), to = random.Next(1, most);
-                int count = trial % 4 == 0 ? random.Next(0, 300) : random.Next(0, 70);
+                int count = trial % 4 == 0 ? random.Next(0, 1200) : random.Next(0, 70);
                 var table = new byte[to];
                 for (int j = 0; j < to; j++)
                     table[j] = random.Next(5) == 0 ? (byte)0xFF : (byte)random.Next(from);

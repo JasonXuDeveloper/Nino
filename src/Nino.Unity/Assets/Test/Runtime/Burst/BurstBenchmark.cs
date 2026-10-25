@@ -3,205 +3,175 @@
 // player of the ordinary test runs.
 #if NINO_BURST && NINO_UNITY_BENCH
 using System;
-using System.Diagnostics;
-using System.Globalization;
+using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Burst;
 using Nino.Core;
 using NUnit.Framework;
 using Unity.Burst;
+using Unity.PerformanceTesting;
 using UnityEngine;
-using Debug = UnityEngine.Debug;
 using Random = System.Random;
 
 namespace Test.Runtime.Burst
 {
     /// <summary>
-    /// The release benchmark of the Burst kernels: each case is a call a user makes (NinoSerializer.Serialize to a new
-    /// array, NinoDeserializer.Deserialize into an existing array, or to a new string or list), timed without the
-    /// kernels (NinoKernels.Register(null), Nino.Core's scalar paths) and with them. Each path is warmed up, then timed
-    /// in batches of about <see cref="BatchMs"/> ms, the two paths alternately, and each gives the median of
-    /// <see cref="Rounds"/> batches in nanoseconds per call.
-    /// <para>The results go to the player's log, one line each, which unity.yml collects and
-    /// benchmarks/unity_report.py turns into the release's Unity section:</para>
-    /// <code>NINO_UNITY_ENV|key=value|...                         (once: Unity, backend, Development or not, CPU, ...)
-    /// NINO_UNITY_BENCH|case|operation|n|scalar ns|Burst ns    (one per case and operation)</code>
-    /// Nothing here asserts a speed: the test fails only when Burst or the kernels are missing or when the two paths
-    /// write different bytes.
+    /// The release benchmark of the Burst kernels, measured with the Unity Performance Testing package: each case is a
+    /// call a user makes (NinoSerializer.Serialize to a new array, NinoDeserializer.Deserialize into an existing array,
+    /// or to a new string or list), measured by <c>Measure.Method</c> (its own warm-up and probing, then 9 measurements
+    /// of about 100 ms, each the mean time per call) once per sample group:
+    /// <list type="bullet">
+    /// <item>"Without Burst": NinoKernels.Register(null), Nino.Core's own paths (as without com.unity.burst);</item>
+    /// <item>"SSSE3 only" (AVX2 CPUs): the kernels limited to their 16-byte paths, to compare the two tiers;</item>
+    /// <item>"With Burst": the kernels as a player registers them at startup.</item>
+    /// </list>
+    /// The package writes each test's result (##performancetestresult2:) and the run's metadata
+    /// (##performancetestruninfo2: Unity, platform, CPU, packages) into the test output, which the player's results XML
+    /// keeps; benchmarks/unity_report.py turns it into the release's Unity section. The one line of its own here,
+    /// NINO_UNITY_ENV, names what the package cannot know: the kernels' instruction set and the process architecture.
+    /// Nothing here asserts a speed: a test fails only when Burst or the kernels are missing or when the paths write
+    /// different bytes.
     /// </summary>
     public class BurstBenchmark
     {
-        private const int Rounds = 31;
-        private const double BatchMs = 10;
-        private const double WarmupMs = 100;
         private static readonly int[] Lengths = { 32, 1000, 100000 };
 
-        [Test]
-        public void Benchmark()
+        /// <summary>A case: the value, and the calls each test measures.</summary>
+        public sealed class Case
         {
-            Assert.IsTrue(BurstCompiler.IsEnabled, "Burst is off");
-            Assert.IsTrue(NinoBurst.Register(), "the kernels did not register");
-            Emit("NINO_UNITY_ENV" +
-                 Field("unity", Application.unityVersion) +
-                 Field("backend", Backend) +
-                 Field("development", Debug.isDebugBuild ? "true" : "false") +
-                 Field("isa", NinoBurst.IsaName) +
-                 Field("cpu", SystemInfo.processorType) +
-                 Field("cores", SystemInfo.processorCount.ToString(CultureInfo.InvariantCulture)) +
-                 Field("os", SystemInfo.operatingSystem) +
-                 Field("family", SystemInfo.operatingSystemFamily.ToString()) +
-                 Field("arch", RuntimeInformation.ProcessArchitecture.ToString()) +
-                 Field("rounds", Rounds.ToString(CultureInfo.InvariantCulture)) +
-                 Field("batch_ms", BatchMs.ToString(CultureInfo.InvariantCulture)));
+            public string Name;
+            public Func<byte[]> Serialize;
+            public Func<byte[], Action> Deserialize;
+            public Func<byte[], byte[]> ReadBack;
+            public override string ToString() => Name;
+        }
 
+        private static List<Case> _cases;
+
+        public static IEnumerable<TestCaseData> Cases() =>
+            (_cases ??= Build()).Select(c => new TestCaseData(c).SetName(c.Name));
+
+        private static List<Case> Build()
+        {
             var random = new Random(5);
+            var cases = new List<Case>();
             foreach (int n in Lengths)
-                Values($"(int, long)[{n}]", n,
-                    Enumerable.Range(0, n).Select(_ => (random.Next(), (long)random.Next() << 13)).ToArray());
+                cases.Add(Values($"(int, long)[{n}]",
+                    Enumerable.Range(0, n).Select(_ => (random.Next(), (long)random.Next() << 13)).ToArray()));
             foreach (int n in Lengths)
-                Values($"(byte, int)[{n}]", n,
-                    Enumerable.Range(0, n).Select(_ => ((byte)random.Next(), random.Next())).ToArray());
+                cases.Add(Values($"(byte, int)[{n}]",
+                    Enumerable.Range(0, n).Select(_ => ((byte)random.Next(), random.Next())).ToArray()));
             foreach (int n in Lengths)
-                Values($"(double, long, double, float, byte)[{n}]", n,
+                cases.Add(Values($"(double, long, double, float, byte)[{n}]",
                     Enumerable.Range(0, n)
                         .Select(_ => (random.NextDouble(), (long)random.Next(), random.NextDouble(),
                             (float)random.NextDouble(), (byte)random.Next()))
-                        .ToArray());
+                        .ToArray()));
             foreach (int n in Lengths)
-                Values($"PaddedRaw[{n}] (short, long)", n,
-                    Enumerable.Range(0, n).Select(i => new PaddedRaw { A = (short)i, B = random.Next() }).ToArray());
+                cases.Add(Values($"PaddedRaw[{n}] (short, long)",
+                    Enumerable.Range(0, n).Select(i => new PaddedRaw { A = (short)i, B = random.Next() }).ToArray()));
             // Latin-1 text (printable ASCII), which Nino writes a byte a char; and CJK text, which it writes as UTF-16
             // after the narrowing stops at the first char.
             foreach (int n in Lengths)
-                Text($"ASCII string ({n} chars)", n,
-                    new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(32, 127)).ToArray()));
+                cases.Add(Text($"ASCII string ({n} chars)",
+                    new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(32, 127)).ToArray())));
             foreach (int n in Lengths)
-                Text($"UTF-16 string ({n} CJK chars)", n,
-                    new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(0x4E00, 0x9FA6)).ToArray()));
+                cases.Add(Text($"UTF-16 string ({n} CJK chars)",
+                    new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(0x4E00, 0x9FA6)).ToArray())));
             var words = Enumerable.Range(0, 1000)
                 .Select(_ => new string(Enumerable.Range(0, random.Next(8, 41)).Select(c => (char)random.Next(32, 127))
                     .ToArray()))
                 .ToList();
-            Text($"List of {words.Count} ASCII strings (8–40 chars)", words.Count, words);
-
-            Assert.IsTrue(NinoBurst.Register());
+            cases.Add(Text($"List of {words.Count} ASCII strings (8–40 chars)", words));
+            return cases;
         }
-
-        private static string Backend =>
-#if ENABLE_IL2CPP
-            "IL2CPP";
-#else
-            "Mono";
-#endif
-
-        private static string Field(string key, string value) => $"|{key}={(value ?? "").Replace('|', '/')}";
-
-        private static void Emit(string line) => Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0}", line);
 
         /// <summary>An array: serialized to a new array, deserialized into an array of its length.</summary>
-        private static void Values<T>(string name, int n, T[] values)
+        private static Case Values<T>(string name, T[] values) => new Case
         {
-            byte[] bytes = Bytes(name, values);
-            // The sizes behind the times: a value in memory and on the wire (not in the release section).
-            Emit(string.Join("|", "NINO_UNITY_SIZE", name, Unsafe.SizeOf<T>().ToString(CultureInfo.InvariantCulture),
-                ((bytes.Length - 4) / Math.Max(1, n)).ToString(CultureInfo.InvariantCulture)));
-            var into = new T[values.Length];
-            Row(name, "Serialize", n, () => NinoSerializer.Serialize(values));
-            Row(name, "Deserialize", n, () => NinoDeserializer.Deserialize(bytes, ref into));
-        }
+            Name = name,
+            Serialize = () => NinoSerializer.Serialize(values),
+            Deserialize = bytes =>
+            {
+                var into = new T[values.Length];
+                return () => NinoDeserializer.Deserialize(bytes, ref into);
+            },
+            ReadBack = bytes => NinoSerializer.Serialize(NinoDeserializer.Deserialize<T[]>(bytes)),
+        };
 
         /// <summary>A string or a list of them: serialized to a new array, deserialized to a new value.</summary>
-        private static void Text<T>(string name, int n, T value)
+        private static Case Text<T>(string name, T value) => new Case
         {
-            byte[] bytes = Bytes(name, value);
-            Row(name, "Serialize", n, () => NinoSerializer.Serialize(value));
-            Row(name, "Deserialize", n, () => NinoDeserializer.Deserialize<T>(bytes));
+            Name = name,
+            Serialize = () => NinoSerializer.Serialize(value),
+            Deserialize = bytes => () => NinoDeserializer.Deserialize<T>(bytes),
+            ReadBack = bytes => NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(bytes)),
+        };
+
+        [OneTimeSetUp]
+        public void Environment()
+        {
+            Assert.IsTrue(BurstCompiler.IsEnabled, "Burst is off");
+            Assert.IsTrue(NinoBurst.Register(), "the kernels did not register");
+            _groups = NinoBurst.Isa == NinoBurst.Avx2
+                ? new[] { ("Without Burst", -1), ("SSSE3 only", NinoBurst.Ssse3), ("With Burst", NinoBurst.Avx2) }
+                : new[] { ("Without Burst", -1), ("With Burst", NinoBurst.Avx2) };
+            Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0}",
+                $"NINO_UNITY_ENV|isa={NinoBurst.IsaName}|arch={RuntimeInformation.ProcessArchitecture}");
         }
 
-        /// <summary>The bytes of <paramref name="value"/>, the same without the kernels and with them, and read back.</summary>
-        private static byte[] Bytes<T>(string name, T value)
+        [OneTimeTearDown]
+        public void Restore() => NinoBurst.Register();
+
+        [Test, Performance, TestCaseSource(nameof(Cases))]
+        public void Serialize(Case c)
         {
-            Use(Scalar);
-            byte[] scalar = NinoSerializer.Serialize(value);
-            Use(Best);
-            byte[] burst = NinoSerializer.Serialize(value);
-            Assert.IsTrue(scalar.SequenceEqual(burst), $"{name}: different bytes with the kernels");
-            Assert.IsTrue(NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(burst)).SequenceEqual(burst),
-                $"{name}: read back differently with the kernels");
-            return burst;
+            Check(c);
+            Time(() => c.Serialize());
         }
 
-        // The paths timed: without the kernels, with all of them, and on an AVX2 CPU with the 16-byte ones only.
-        private const int Scalar = 0, Best = 1, Sixteen = 2;
+        [Test, Performance, TestCaseSource(nameof(Cases))]
+        public void Deserialize(Case c) => Time(c.Deserialize(Check(c)));
 
-        private static void Row(string name, string operation, int n, Action action)
+        /// <summary>The bytes of the case: the same on every path, and read back to the same bytes.</summary>
+        private static byte[] Check(Case c)
         {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            Use(Best);
-            int modes = NinoBurst.Isa == NinoBurst.Avx2 ? 3 : 2;
-            var calls = new int[modes];
-            var times = new double[modes][];
-            for (int mode = 0; mode < modes; mode++)
+            byte[] expected = null;
+            foreach (var (group, isa) in _groups)
             {
-                calls[mode] = Calibrate(action, mode);
-                times[mode] = new double[Rounds];
+                Use(isa);
+                byte[] bytes = c.Serialize();
+                expected ??= bytes;
+                Assert.IsTrue(bytes.SequenceEqual(expected), $"{c.Name}: different bytes ({group})");
+                Assert.IsTrue(c.ReadBack(bytes).SequenceEqual(expected), $"{c.Name}: read back differently ({group})");
             }
 
-            for (int round = 0; round < Rounds; round++)
-            for (int mode = 0; mode < modes; mode++)
-                times[mode][round] = Batch(action, mode, calls[mode]);
-
-            string Ns(int mode) => Median(times[mode]).ToString("F1", CultureInfo.InvariantCulture);
-            string count = n.ToString(CultureInfo.InvariantCulture);
-            Emit(string.Join("|", "NINO_UNITY_BENCH", name, operation, count, Ns(Scalar), Ns(Best)));
-            // Each instruction set on its own (AVX2 CPUs): not in the release section, for comparing the two.
-            if (modes == 3)
-                Emit(string.Join("|", "NINO_UNITY_TIER", name, operation, count, Ns(Scalar), Ns(Sixteen), Ns(Best)));
+            return expected;
         }
 
-        private static void Use(int mode)
+        // The sample groups and the kernels each measures (-1: none), set by Environment.
+        private static (string, int)[] _groups;
+
+        private static void Use(int isa)
         {
-            if (mode == Scalar)
+            if (isa < 0)
                 NinoBurst.Unregister();
             else
-                Assert.IsTrue(NinoBurst.Register(mode == Sixteen ? NinoBurst.Ssse3 : NinoBurst.Avx2),
-                    "the kernels did not register");
+                Assert.IsTrue(NinoBurst.Register(isa), "the kernels did not register");
         }
 
-        /// <summary>Warms the path up for <see cref="WarmupMs"/> ms (three calls at least); returns the calls a batch makes.</summary>
-        private static int Calibrate(Action action, int mode)
+        private static void Time(Action action)
         {
-            Use(mode);
-            var watch = Stopwatch.StartNew();
-            int calls = 0;
-            while (calls < 3 || watch.Elapsed.TotalMilliseconds < WarmupMs)
+            foreach (var (group, isa) in _groups)
             {
-                action();
-                calls++;
+                Use(isa);
+                Measure.Method(action)
+                    .SampleGroup(new SampleGroup(group, SampleUnit.Nanosecond))
+                    .Run();
             }
 
-            return Math.Max(1, (int)(BatchMs / (watch.Elapsed.TotalMilliseconds / calls)));
-        }
-
-        /// <summary>Nanoseconds per call over <paramref name="calls"/> calls.</summary>
-        private static double Batch(Action action, int mode, int calls)
-        {
-            Use(mode);
-            long start = Stopwatch.GetTimestamp();
-            for (int i = 0; i < calls; i++)
-                action();
-            return (Stopwatch.GetTimestamp() - start) * (1e9 / Stopwatch.Frequency) / calls;
-        }
-
-        private static double Median(double[] values)
-        {
-            var sorted = (double[])values.Clone();
-            Array.Sort(sorted);
-            int middle = sorted.Length / 2;
-            return sorted.Length % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+            NinoBurst.Register();
         }
     }
 }

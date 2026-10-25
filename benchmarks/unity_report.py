@@ -1,31 +1,41 @@
 #!/usr/bin/env python3
-"""The release body's Unity section, from the lines the benchmark's IL2CPP player and its editor log.
+"""The release body's Unity section, from the results of the benchmark's IL2CPP player.
 
-usage: unity_report.py <tag> <lines file>...
+usage: unity_report.py <tag> <folder>...
 
-Each file holds one Unity version's lines (unity.yml, benchmark on: grep of the player's and the editor's logs):
+Each folder holds one Unity version's results (unity.yml, benchmark on; artifact unity-bench-<version>):
 
-    NINO_UNITY_BUILD|key=value|...   the editor that built the player (Test.Editor.Burst.BenchmarkPlayerBuild):
-                                     unity, target, backend, il2cpp_config, il2cpp_codegen, stripping, development, burst,
-                                     burst_x64_targets (the variants Burst AOT compiles, e.g. "SSE2 SSE4 AVX2")
-    NINO_UNITY_ENV|key=value|...     the player (Test.Runtime.Burst.BurstBenchmark): unity, backend, development, isa,
-                                     cpu, cores, os, family, arch, rounds, batch_ms
-    NINO_UNITY_CI|key=value|...      the workflow: nino_core (the build configuration of Nino.Core.dll), runner
-    NINO_UNITY_BENCH|case|operation|n|ns without Burst|ns with Burst
-    NINO_UNITY_TIER|case|operation|n|ns without|ns SSSE3|ns AVX2   (AVX2 CPUs; not in the section)
+    results.xml   the player's NUnit results. The test output holds what the Unity Performance Testing package
+                  (com.unity.test-framework.performance) writes for each test of Test.Runtime.Burst.BurstBenchmark:
+                  "##performancetestresult2:<json>" (the test and its sample groups: "Without Burst", "With Burst",
+                  and "SSSE3 only" on AVX2 CPUs, each with its Median in its Unit) and once
+                  "##performancetestruninfo2:<json>" (Unity version, scripting backend, Development or not, CPU,
+                  operating system, packages); and the player's own line NINO_UNITY_ENV|isa=...|arch=....
+    build.txt     NINO_UNITY_BUILD|il2cpp_config=|il2cpp_codegen=|stripping=|burst_x64_targets= (the editor that
+                  built the player: what the package does not record) and NINO_UNITY_CI|nino_core=|runner= (the job).
 
 It prints one section: the heading (HEADING, never the words "Performance Report", by which the docs site finds the
 .NET report), a line per Unity version naming the player and the machine, then a table per Unity version. No table has
 a Method or Mean column, so nothing that reads the .NET tables (nino.docs scripts/sync-benchmarks.ts) takes these rows
-for its own. A file without NINO_UNITY_BENCH lines is left out with a warning on stderr; with no rows at all the script
-fails, and the workflow leaves the section out.
+for its own. A folder without results is left out with a warning on stderr; with none at all the script fails, and the
+workflow leaves the section out.
 """
+import json
+import os
 import sys
+import xml.etree.ElementTree as ElementTree
 
 from runtimes_report import time
 
 HEADING = "## 🎮 Unity benchmark (Burst, IL2CPP)"
 LEGEND = 'Each time is the median per call; "Speedup" is without Burst divided by with Burst.'
+
+RESULT = "##performancetestresult2:"
+RUN_INFO = "##performancetestruninfo2:"
+WITHOUT, WITH, SSSE3 = "Without Burst", "With Burst", "SSSE3 only"
+OPERATIONS = ("Serialize", "Deserialize")
+# Unity.PerformanceTesting.SampleUnit, as JsonUtility writes it (its index): nanoseconds per unit.
+UNITS = {0: 1.0, 1: 1e3, 2: 1e6, 3: 1e9}
 
 
 def fields(parts):
@@ -37,32 +47,91 @@ def fields(parts):
     return out
 
 
-def parse(path):
-    """{"build", "env", "ci"}: dicts; "rows": [(case, op, n, scalar ns, burst ns)]."""
-    run = {"build": {}, "env": {}, "ci": {}, "rows": []}
-    for line in open(path, encoding="utf-8", errors="replace"):
-        # The lines may carry a prefix (a timestamp, a docker log tag): each starts at its marker.
+def lines(text):
+    """Each line's NINO_UNITY_<kind> fields, from the line's marker on (a log line may carry a prefix)."""
+    out = {}
+    for line in text.splitlines():
         at = line.find("NINO_UNITY_")
-        if at < 0:
-            continue
-        parts = line[at:].rstrip("\r\n").split("|")
-        kind = parts[0]
-        if kind == "NINO_UNITY_BENCH" and len(parts) == 6:
+        if at >= 0:
+            parts = line[at:].rstrip("\r").split("|")
+            out.setdefault(parts[0][len("NINO_UNITY_"):].lower(), {}).update(fields(parts[1:]))
+    return out
+
+
+def median_ns(group):
+    factor = UNITS.get(group.get("Unit"))
+    median = group.get("Median")
+    if factor is None or not isinstance(median, (int, float)):
+        return None
+    return median * factor
+
+
+def row(result):
+    """(case, operation, {sample group: ns}) of a BurstBenchmark result; None for any other test's."""
+    name, cls = result.get("Name", ""), result.get("ClassName", "")
+    if not name.startswith(cls + "."):
+        return None
+    # Test.Runtime.Burst.BurstBenchmark.Serialize.(int, long)[32]: the test method, then the case's name.
+    operation, _, case = name[len(cls) + 1:].partition(".")
+    times = {g.get("Name"): median_ns(g) for g in result.get("SampleGroups", [])}
+    if operation not in OPERATIONS or not case or times.get(WITHOUT) is None or times.get(WITH) is None:
+        return None
+    return case, operation, times
+
+
+def parse(folder):
+    """{"run": the run info, "env", "build", "ci": dicts, "rows": [(case, operation, {group: ns})]}."""
+    run = {"run": {}, "env": {}, "build": {}, "ci": {}, "rows": []}
+    results = os.path.join(folder, "results.xml")
+    outputs = []
+    try:
+        outputs = [o.text or "" for o in ElementTree.parse(results).iter("output")]
+    except (OSError, ElementTree.ParseError) as error:
+        print(f"warning: {results}: {error}", file=sys.stderr)
+    for text in outputs:
+        for line in text.splitlines():
+            line = line.strip()
             try:
-                run["rows"].append((parts[1], parts[2], int(parts[3]), float(parts[4]), float(parts[5])))
+                if line.startswith(RESULT):
+                    found = row(json.loads(line[len(RESULT):]))
+                    if found:
+                        run["rows"].append(found)
+                elif line.startswith(RUN_INFO) and not run["run"]:
+                    run["run"] = json.loads(line[len(RUN_INFO):])
             except ValueError:
-                print(f"warning: {path}: unreadable line {line.strip()!r}", file=sys.stderr)
-        elif kind in ("NINO_UNITY_BUILD", "NINO_UNITY_ENV", "NINO_UNITY_CI"):
-            run[kind[len("NINO_UNITY_"):].lower()].update(fields(parts[1:]))
+                print(f"warning: {results}: unreadable line {line[:120]!r}", file=sys.stderr)
+        run["env"].update(lines(text).get("env", {}))
+    try:
+        with open(os.path.join(folder, "build.txt"), encoding="utf-8", errors="replace") as f:
+            found = lines(f.read())
+        run["build"], run["ci"] = found.get("build", {}), found.get("ci", {})
+    except OSError:
+        pass
+    # Each case once, its operations in order (NUnit runs Deserialize's tests before Serialize's).
+    order = {}
+    for case, _, _ in run["rows"]:
+        order.setdefault(case, len(order))
+    run["rows"].sort(key=lambda r: (order[r[0]], OPERATIONS.index(r[1])))
     return run
 
 
 ARCH = {"x64": "x64", "arm64": "Arm64", "x86": "x86", "arm": "Arm32"}
 
 
+def unity(run):
+    return run["run"].get("Editor", {}).get("Version") or "?"
+
+
+def package(run, name):
+    for dependency in run["run"].get("Dependencies", []):
+        if dependency.startswith(name + "@"):
+            return dependency[len(name) + 1:]
+    return None
+
+
 def player(run):
     """The player's configuration, as each part was reported: only what a log says, never a default."""
-    build, env, ci = run["build"], run["env"], run["ci"]
+    build, ci, info = run["build"], run["ci"], run["run"].get("Player", {})
     parts = []
     if build.get("il2cpp_config"):
         parts.append(f"C++ {build['il2cpp_config']}")
@@ -70,32 +139,31 @@ def player(run):
         parts.append(f"code generation {build['il2cpp_codegen']}")
     if build.get("stripping"):
         parts.append(f"stripping {build['stripping']}")
-    development = env.get("development", build.get("development"))
-    if development is not None:
-        parts.append("Development build" if development == "true" else "not a Development build")
+    if isinstance(info.get("Development"), bool):
+        parts.append("Development build" if info["Development"] else "not a Development build")
     if ci.get("nino_core"):
         parts.append(f"Nino.Core {ci['nino_core']}")
-    backend = env.get("backend") or build.get("backend") or "unknown backend"
+    backend = info.get("ScriptingBackend") or "unknown backend"
     return f"{backend} player" + (f" ({', '.join(parts)})" if parts else "")
 
 
 def environment(run):
-    env, build = run["env"], run["build"]
-    unity = env.get("unity") or build.get("unity") or "?"
-    family = env.get("family") or env.get("os", "").split(" ")[0] or "?"
+    env, build, hardware = run["env"], run["build"], run["run"].get("Hardware", {})
+    family = (hardware.get("OperatingSystem") or "").split(" ")[0] or "?"
     arch = ARCH.get(env.get("arch", "").lower(), env.get("arch", "?"))
-    cpu = env.get("cpu", "unknown CPU")
-    if env.get("cores"):
-        cpu += f" ({env['cores']} cores)"
-    items = [f"Unity {unity}", player(run), f"{family} {arch}", cpu]
-    if build.get("burst"):
+    cpu = hardware.get("ProcessorType") or "unknown CPU"
+    if hardware.get("ProcessorCount"):
+        cpu += f" ({hardware['ProcessorCount']} cores)"
+    items = [f"Unity {unity(run)}", player(run), f"{family} {arch}", cpu]
+    burst = package(run, "com.unity.burst")
+    if burst:
         targets = build.get("burst_x64_targets", "")
         if targets == "default":
-            items.append(f"Burst {build['burst']} (its default x64 targets)")
+            items.append(f"Burst {burst} (its default x64 targets)")
         elif targets:
-            items.append(f"Burst {build['burst']} (x64 targets {', '.join(targets.split())})")
+            items.append(f"Burst {burst} (x64 targets {', '.join(targets.split())})")
         else:
-            items.append(f"Burst {build['burst']}")
+            items.append(f"Burst {burst}")
     items.append(f"kernels {env.get('isa', '?')}")
     return ", ".join(items) + "."
 
@@ -114,40 +182,39 @@ def cell(text):
 
 def table(run):
     rows = ["| Case | Operation | Without Burst | With Burst | Speedup |", "|---|---|--:|--:|--:|"]
-    for case, op, _, scalar, burst in run["rows"]:
-        rows.append(f"| {cell(case)} | {op} | {time(scalar)} | {time(burst)} | {speedup(scalar, burst)} |")
+    for case, operation, times in run["rows"]:
+        scalar, burst = times[WITHOUT], times[WITH]
+        rows.append(f"| {cell(case)} | {operation} | {time(scalar)} | {time(burst)} | {speedup(scalar, burst)} |")
     return rows
 
 
 def method(tag, runs):
-    env = runs[0]["env"]
-    rounds, batch = env.get("rounds"), env.get("batch_ms")
-    timing = (f"the median of {rounds} batches of about {batch} ms each" if rounds and batch
-              else "the median of its timed batches")
+    performance = package(runs[0], "com.unity.test-framework.performance")
+    tool = "the Unity Performance Testing package" + (f" {performance}" if performance else "")
     return (f"{tag}, measured in the IL2CPP test player that `.github/workflows/unity.yml` builds and runs on a "
-            "GitHub-hosted runner (`Test.Runtime.Burst.BurstBenchmark`): `NinoSerializer.Serialize` to a new array, "
-            "`NinoDeserializer.Deserialize` into an array of the same length (arrays) or to a new value (strings, the "
-            "list), each call without the Burst kernels (`NinoKernels.Register(null)`: Nino.Core's own paths, as "
-            f"without `com.unity.burst`) and with them, the two alternately, after a warm-up; each time is {timing}. "
+            "GitHub-hosted runner (`Test.Runtime.Burst.BurstBenchmark`) with "
+            f"{tool} (`Measure.Method`: its warm-up, then 9 measurements of about 100 ms, each the mean time per "
+            "call): `NinoSerializer.Serialize` to a new array, `NinoDeserializer.Deserialize` into an array of the "
+            "same length (arrays) or to a new value (strings, the list), without the Burst kernels "
+            "(`NinoKernels.Register(null)`: Nino.Core's own paths, as without `com.unity.burst`) and with them. "
             "Compare within a table: the runners vary between releases.")
 
 
-def report(tag, paths):
+def report(tag, folders):
     runs = []
-    for path in paths:
-        run = parse(path)
+    for folder in folders:
+        run = parse(folder)
         if run["rows"]:
             runs.append(run)
         else:
-            print(f"warning: {path}: no NINO_UNITY_BENCH lines, left out", file=sys.stderr)
+            print(f"warning: {folder}: no performance test results, left out", file=sys.stderr)
     if not runs:
-        sys.exit("no Unity benchmark rows")
+        sys.exit("no Unity benchmark results")
     out = [HEADING, ""]
     out += [environment(run) for run in runs]
     out += [LEGEND, "", method(tag, runs), ""]
     for run in runs:
-        unity = run["env"].get("unity") or run["build"].get("unity") or "?"
-        out += [f"### Unity {unity}", "", *table(run), ""]
+        out += [f"### Unity {unity(run)}", "", *table(run), ""]
     return "\n".join(out).rstrip("\n") + "\n"
 
 

@@ -7,8 +7,9 @@
 //
 // x64 players: Burst AOT compiles each function pointer once per CPU target of the Burst AOT Settings (Burst 1.8.29's
 // default for x64 desktop players: SSE2 and AVX2; SSE4 can be added) and picks the variant the CPU runs at load time.
-// The AVX2 variant takes the 32-byte paths below, an SSE4 variant the 16-byte (SSSE3) ones; the SSE2 variant has no
-// byte shuffle, so on a CPU without AVX2 and without an SSE4 target the kernels are not registered.
+// The AVX2 variant takes the 32-byte permute below for blocks of 256 values or more, an SSE4 variant the 16-byte (SSSE3)
+// paths; the SSE2 variant has no byte shuffle, so on a CPU without AVX2 and without an SSE4 target the kernels are not
+// registered.
 //
 // Platforms (each kernel checks its instruction set at Burst compile time, IsXxxSupported, and has a scalar branch):
 // - Editor (Mono) and Mono players: Burst JIT in the editor (compiled synchronously), Burst AOT in players.
@@ -105,8 +106,7 @@ namespace Nino.Burst
                         BurstCompiler.CompileFunctionPointer<WidenFunction>(Widen).Invoke);
                     _kernels16 = _best == Avx2
                         ? new Kernels(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute16).Invoke,
-                            BurstCompiler.CompileFunctionPointer<NarrowFunction>(Narrow16).Invoke,
-                            BurstCompiler.CompileFunctionPointer<WidenFunction>(Widen16).Invoke)
+                            _kernels.NarrowPointer, _kernels.WidenPointer)
                         : _kernels;
                 }
                 catch (Exception e)
@@ -144,6 +144,9 @@ namespace Nino.Burst
             private readonly PermuteFunction _permute;
             private readonly NarrowFunction _narrow;
             private readonly WidenFunction _widen;
+
+            public NarrowFunction NarrowPointer => _narrow;
+            public WidenFunction WidenPointer => _widen;
 
             public Kernels(PermuteFunction permute, NarrowFunction narrow, WidenFunction widen)
             {
@@ -193,11 +196,15 @@ namespace Nino.Burst
             byte* table, int count) =>
             PermuteAll(source, sourceStride, destination, destinationStride, table, count, false);
 
+        // The fewest values the 32-byte path takes: below it the 16-byte path was as fast or faster on the CI players'
+        // CPUs (32 values: about 5% slower with AVX2; 1000 and more: up to 3 times faster to read, 1.2 times to write).
+        private const int Avx2MinValues = 256;
+
         private static void PermuteAll(byte* source, int sourceStride, byte* destination, int destinationStride,
             byte* table, int count, bool wide)
         {
             int i = 0;
-            if (wide && sourceStride <= 16 && destinationStride <= 16)
+            if (wide && count >= Avx2MinValues && sourceStride <= 16 && destinationStride <= 16)
                 i = PermuteAvx2(source, sourceStride, destination, destinationStride, table, count);
             if ((Arm.Neon.IsNeonSupported || X86.Ssse3.IsSsse3Supported) && sourceStride <= 64 &&
                 destinationStride <= 64 && i < count)
@@ -357,47 +364,13 @@ namespace Nino.Burst
         }
 
         /// <summary>
-        /// <see cref="NinoKernels.Narrow"/>, 32 chars at a time with AVX2, else 16 (the last 32 or 16 again,
-        /// overlapping): 1 when all are Latin-1, 0 at the first 32 or 16 with a char above U+00FF.
+        /// <see cref="NinoKernels.Narrow"/>, 16 chars at a time (the last 16 again, overlapping): 1 when all are Latin-1,
+        /// 0 at the first 16 with a char above U+00FF. No 32-byte path: on the CI players' CPUs it was no faster
+        /// (strings of 1000 and 100000 chars, within a few percent either way).
         /// </summary>
         [BurstCompile(CompileSynchronously = true)]
         [MonoPInvokeCallback(typeof(NarrowFunction))]
         public static int Narrow(ushort* source, byte* destination, int length)
-        {
-            int narrowed = NarrowAvx2(source, destination, length);
-            return narrowed >= 0 ? narrowed : Narrow16(source, destination, length);
-        }
-
-        // 32 chars a step: -1 where AVX2 is missing or the text is shorter.
-        private static int NarrowAvx2(ushort* source, byte* destination, int length)
-        {
-            if (X86.Avx2.IsAvx2Supported)
-            {
-                if (length < 32)
-                    return -1;
-                v256 high = X86.Avx.mm256_set1_epi16(unchecked((short)0xFF00));
-                int i = 0;
-                while (true)
-                {
-                    v256 a = X86.Avx.mm256_loadu_si256(source + i), b = X86.Avx.mm256_loadu_si256(source + i + 16);
-                    if (X86.Avx.mm256_testz_si256(X86.Avx2.mm256_or_si256(a, b), high) == 0)
-                        return 0;
-                    // packus interleaves the lanes (a's low, b's low, a's high, b's high): put them back in order.
-                    X86.Avx.mm256_storeu_si256(destination + i,
-                        X86.Avx2.mm256_permute4x64_epi64(X86.Avx2.mm256_packus_epi16(a, b), 0xD8));
-                    if (i + 32 == length)
-                        return 1;
-                    i = i + 64 <= length ? i + 32 : length - 32;
-                }
-            }
-
-            return -1;
-        }
-
-        /// <summary><see cref="Narrow"/> without the AVX2 path (registered by <c>Register(Ssse3)</c>).</summary>
-        [BurstCompile(CompileSynchronously = true)]
-        [MonoPInvokeCallback(typeof(NarrowFunction))]
-        public static int Narrow16(ushort* source, byte* destination, int length)
         {
             if ((Arm.Neon.IsNeonSupported || X86.Sse2.IsSse2Supported) && length >= 16)
             {
@@ -424,43 +397,10 @@ namespace Nino.Burst
             return 1;
         }
 
-        /// <summary>
-        /// <see cref="NinoKernels.Widen"/>, 32 bytes at a time with AVX2, else 16 (the last 32 or 16 again, overlapping).
-        /// </summary>
+        /// <summary><see cref="NinoKernels.Widen"/>, 16 bytes at a time (the last 16 again, overlapping).</summary>
         [BurstCompile(CompileSynchronously = true)]
         [MonoPInvokeCallback(typeof(WidenFunction))]
         public static void Widen(byte* source, ushort* destination, int length)
-        {
-            if (!WidenAvx2(source, destination, length))
-                Widen16(source, destination, length);
-        }
-
-        // 32 bytes a step (vpmovzxbw): false where AVX2 is missing or the text is shorter.
-        private static bool WidenAvx2(byte* source, ushort* destination, int length)
-        {
-            if (X86.Avx2.IsAvx2Supported)
-            {
-                if (length < 32)
-                    return false;
-                int i = 0;
-                while (true)
-                {
-                    v128 low = X86.Sse2.loadu_si128(source + i), high = X86.Sse2.loadu_si128(source + i + 16);
-                    X86.Avx.mm256_storeu_si256(destination + i, X86.Avx2.mm256_cvtepu8_epi16(low));
-                    X86.Avx.mm256_storeu_si256(destination + i + 16, X86.Avx2.mm256_cvtepu8_epi16(high));
-                    if (i + 32 == length)
-                        return true;
-                    i = i + 64 <= length ? i + 32 : length - 32;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary><see cref="Widen"/> without the AVX2 path (registered by <c>Register(Ssse3)</c>).</summary>
-        [BurstCompile(CompileSynchronously = true)]
-        [MonoPInvokeCallback(typeof(WidenFunction))]
-        public static void Widen16(byte* source, ushort* destination, int length)
         {
             if ((Arm.Neon.IsNeonSupported || X86.Sse2.IsSse2Supported) && length >= 16)
             {
