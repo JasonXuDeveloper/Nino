@@ -292,7 +292,7 @@ func (r *Reader) latin1Short(b []byte) string {
 	var m int
 	if isASCII(b) {
 		m = copy(t, b)
-	} else if useRead && len(t) >= n+64 {
+	} else if useRead && len(t) >= n+wireSlack {
 		// The vector path (strings_wire_amd64.s), with room for its stores.
 		m = readLatin1(unsafe.Pointer(unsafe.SliceData(t)), unsafe.Pointer(unsafe.SliceData(b)), len(b))
 	} else {
@@ -310,7 +310,7 @@ func (r *Reader) utf16Short(b []byte) string {
 	}
 	t := r.text
 	var m int
-	if useRead && len(t) >= n+64 {
+	if useRead && len(t) >= n+wireSlack {
 		// The vector path (strings_wire_amd64.s), with room for its stores.
 		m = readUTF16(unsafe.Pointer(unsafe.SliceData(t)), unsafe.Pointer(unsafe.SliceData(b)), len(b)/2)
 	} else {

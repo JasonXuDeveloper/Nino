@@ -2,23 +2,25 @@
 
 package nino
 
-//go:generate go run ./internal/wiregen
+//go:generate go run -C internal/asm . -amd64 ../../strings_wire_amd64.s -arm64 ../../strings_wire_arm64.s
 
 import "unsafe"
 
-// The string writer's AVX2 path (strings_wire_amd64.s), taken where the processor and the system support AVX2
-// (and POPCNT); elsewhere, and with the purego build tag, the Go loops of strings_write.go write the same bytes.
+// The string paths' x64 kernels (strings_wire_amd64.s, written by internal/asm with avo), one tier per instruction set:
+// the writer's SSSE3, AVX2 and AVX-512 paths and the reader's SSSE3 and AVX-512 paths, each taken where the
+// processor and the system support it; without SSSE3, and with the purego build tag, the Go loops of
+// strings_write.go and strings.go write and read the same bytes.
 
 // wireStringAVX2 converts src[i:n] (n > i, the bytes before i ASCII) to Latin-1 at dst+i, returning the bytes
 // written, or to UTF-16 at dst+2*i, returning ^units; for text that is not WTF-8 it returns wireInvalid. dst has
-// room for 2*n+64 bytes. It reads the 32 bytes from the last block's start when they lie in one page.
+// room for 2*n+wireSlack bytes. It reads the 32 bytes from the last block's start when they lie in one page.
 //
 //go:noescape
 func wireStringAVX2(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int
 
 // wireStringsAVX2 writes strings from strs (count of them: strings, or pointers to them when ptrs, nil the null
-// string) at dst (room bytes), each with its header, while each has room for 4+2*len+64 bytes and is WTF-8 of fewer
-// than 2^30 bytes; it returns how many it wrote and the bytes they took.
+// string) at dst (room bytes), each with its header, while each has room for 4+2*len+wireSlack bytes and is WTF-8 of fewer
+// than wireMaxText bytes; it returns how many it wrote and the bytes they took.
 //
 //go:noescape
 func wireStringsAVX2(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)
@@ -32,8 +34,8 @@ func wireStringAVX512(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int
 //go:noescape
 func wireStringsAVX512(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)
 
-// utf16UTF8AVX512 writes units UTF-16 code units at src as WTF-8 at dst (room for 3*units+64 bytes) and returns the
-// bytes written; latin1UTF8AVX512 writes n Latin-1 bytes at src as UTF-8 at dst (room for 2*n+64). Both read only
+// utf16UTF8AVX512 writes units UTF-16 code units at src as WTF-8 at dst (room for 3*units+wireSlack bytes) and returns the
+// bytes written; latin1UTF8AVX512 writes n Latin-1 bytes at src as UTF-8 at dst (room for 2*n+wireSlack). Both read only
 // the text.
 //
 //go:noescape
@@ -58,7 +60,7 @@ const (
 // them.
 var writeTiers, readTiers = detectTiers()
 
-var writeTier, readTier = 0, 0 // test branch: forced
+var writeTier, readTier = best(writeTiers), best(readTiers)
 
 func detectTiers() (write, read []int) {
 	if _, _, ecx, _ := cpuid(1, 0); ecx&(1<<9) != 0 {
@@ -86,7 +88,7 @@ func tierName(t int) string {
 // one is taken.
 var hasWire, hasRead = len(writeTiers) > 0, len(readTiers) > 0
 
-var useWire, useRead = false, false
+var useWire, useRead = hasWire, hasRead
 
 func detectAVX2() bool {
 	maxID, _, _, _ := cpuid(0, 0)
@@ -107,9 +109,9 @@ func detectAVX2() bool {
 }
 
 // detectAVX512 tells whether the processor has AVX-512 F, BW, VL and VBMI2 and the system saves the opmask and
-// ZMM state.
+// ZMM state (osAVX512).
 func detectAVX512() bool {
-	if xcr0, _ := xgetbv(); xcr0&0xe6 != 0xe6 {
+	if !osAVX512() {
 		return false
 	}
 	_, ebx, ecx, _ := cpuid(7, 0)
@@ -176,4 +178,28 @@ func wireStrings(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, p
 		return wireStringsAVX2(dst, room, strs, count, ptrs)
 	}
 	return wireStringsSSE(dst, room, strs, count, ptrs)
+}
+
+// darwinRelease tells whether the kernel release (major.minor.patch) is at least the one given, as x/sys's
+// darwinKernelVersionCheck (osAVX512 on macOS).
+func darwinRelease(release string, major, minor, patch int) bool {
+	var mmp [3]int
+	c := 0
+	for i := 0; i < len(release) && release[i] != 0; i++ {
+		switch b := release[i]; {
+		case b >= '0' && b <= '9':
+			mmp[c] = 10*mmp[c] + int(b-'0')
+		case b == '.':
+			c++
+			if c > 2 {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	if c != 2 {
+		return false
+	}
+	return mmp[0] > major || mmp[0] == major && (mmp[1] > minor || mmp[1] == minor && mmp[2] >= patch)
 }

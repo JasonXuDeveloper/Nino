@@ -283,7 +283,8 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
   takes untrusted bytes, stays on checked slices. On amd64 and arm64 a whole string is checked and converted a block
   at a time in assembly instead (16 bytes with NEON and SSSE3, 32 with AVX2 and AVX-512), one kernel per instruction
   set, each designed for it: NEON on arm64, SSSE3, AVX2 and AVX-512 (BW, VL and VBMI2) on amd64, the best the
-  processor has taken (`strings_wire_amd64.s` and `strings_wire_arm64.s`, written by `go run ./internal/wiregen`):
+  processor has taken (`strings_wire_amd64.s` and `strings_wire_arm64.s`, written by `go generate`; see below; on
+  macOS, AVX-512 is detected through sysctl as golang.org/x/sys/cpu does, from macOS 12.2 on):
   WTF-8 validation, Latin-1 or UTF-16 chosen and written in one pass, with the Go loops taking over for text that is
   not WTF-8. `WriteStrings` and `WriteStringPtrs` (what generated code calls for a `string[]` or `List<string>`) write
   a whole list in one call into it. Reading Latin-1 and UTF-16 into UTF-8 has kernels too (NEON; SSSE3 and AVX-512
@@ -311,6 +312,23 @@ go test -run='^$' -fuzz=FuzzReadVector -fuzztime=1m .  # the string reader's ker
 go test -run='^$' -fuzz=FuzzDecode -fuzztime=1m ./internal/sample   # any bytes as any corpus type
 go test -run='^$' -fuzz=FuzzTagged -fuzztime=1m .                   # any bytes into tagged structs
 go test -run='^$' -fuzz=FuzzTaggedDecode -fuzztime=1m ./internal/sample   # any bytes as any corpus type, by tags
+```
+
+The string kernels' assembly is generated: `go generate` (in `runtimes/go`) runs `internal/asm`, a module of its own
+so that this one keeps no dependencies. It writes `strings_wire_amd64.s` with [avo](https://github.com/mmcloughlin/avo),
+the tool the Go standard library's and golang.org/x/crypto's assembly is written with: Go code that emits each
+instruction, checking its operands against the instruction's forms; one kernel is written once and placed in each
+function that takes it (the AVX2 and AVX-512 writers share theirs, the parts the instruction sets do differently
+chosen by the tier); the AVX-512 readers take their registers from avo's allocator. avo writes x86 only, so
+`strings_wire_arm64.s` is text that `internal/asm` assembles from templates, writing the NEON instructions Go's
+assembler lacks as `WORD`s with the instruction in a comment. The kernels read `wireSlack` and `wireMaxText` from
+`go_asm.h`. Never edit the `.s` files; after changing the generator, run `go generate` and commit both:
+
+```sh
+cd runtimes/go
+go generate ./...                       # rewrite strings_wire_amd64.s and strings_wire_arm64.s
+(cd internal/asm && go vet . && go test .)   # the committed files are what the generator writes
+(cd bench && go test -run TestTiersMatchXSys .)   # the detected tiers match golang.org/x/sys/cpu (amd64)
 ```
 
 The conformance test reads `conformance/corpus` at the repository root, or the directory `NINO_CONFORMANCE_CORPUS`
