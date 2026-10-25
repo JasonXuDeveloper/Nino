@@ -178,7 +178,7 @@ func (r *Reader) readDeep(v any, b body, deferrable bool) {
 		structs = r.ctx.structs
 	}
 	if d+structs >= MaxDepth {
-		r.Fail(CodeTooDeep, strconv.Itoa(MaxDepth)+" open bodies")
+		r.failTooDeep()
 		return
 	}
 	r.depth = d + 1
@@ -220,11 +220,16 @@ func (r *Reader) EnterStruct() bool {
 	ctx := r.context()
 	ctx.structs++
 	if ctx.structs+r.depth > MaxDepth {
-		r.Fail(CodeTooDeep, strconv.Itoa(MaxDepth)+" open bodies")
+		r.failTooDeep()
 		return false
 	}
 	return true
 }
+
+// failTooDeep fails the reader with CodeTooDeep: MaxDepth bodies are open and the next cannot be deferred.
+//
+//go:noinline
+func (r *Reader) failTooDeep() { r.Fail(CodeTooDeep, strconv.Itoa(MaxDepth)+" open bodies") }
 
 // ExitStruct closes a body opened by [Reader.EnterStruct].
 func (r *Reader) ExitStruct() {
@@ -407,11 +412,16 @@ func (w *Writer) EnterStruct() bool {
 	ctx := w.context()
 	ctx.structs++
 	if ctx.structs+w.depth > MaxDepth {
-		w.Fail(CodeTooDeep, strconv.Itoa(MaxDepth)+" open bodies")
+		w.failTooDeep()
 		return false
 	}
 	return true
 }
+
+// failTooDeep is [Reader.failTooDeep] for the writer.
+//
+//go:noinline
+func (w *Writer) failTooDeep() { w.Fail(CodeTooDeep, strconv.Itoa(MaxDepth)+" open bodies") }
 
 // ExitStruct closes a body opened by [Writer.EnterStruct].
 func (w *Writer) ExitStruct() {
@@ -434,7 +444,7 @@ func (w *Writer) writeDeep(v any, b body, deferrable bool) {
 		structs = w.ctx.structs
 	}
 	if d+structs >= MaxDepth {
-		w.Fail(CodeTooDeep, strconv.Itoa(MaxDepth)+" open bodies")
+		w.failTooDeep()
 		return
 	}
 	w.depth = d + 1
