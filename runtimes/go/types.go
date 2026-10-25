@@ -466,8 +466,8 @@ type UInt128 struct {
 	Lo, Hi uint64
 }
 
-// Int128 reads an Int128.
-func (r *Reader) Int128() Int128 {
+// I128 reads an Int128.
+func (r *Reader) I128() Int128 {
 	b := r.Take(16)
 	if len(b) < 16 {
 		return Int128{}
@@ -475,17 +475,17 @@ func (r *Reader) Int128() Int128 {
 	return Int128{Lo: binary.LittleEndian.Uint64(b), Hi: binary.LittleEndian.Uint64(b[8:])}
 }
 
-// Int128 writes an Int128.
-func (w *Writer) Int128(v Int128) { w.U64(v.Lo); w.U64(v.Hi) }
+// I128 writes an Int128.
+func (w *Writer) I128(v Int128) { w.U64(v.Lo); w.U64(v.Hi) }
 
-// UInt128 reads a UInt128.
-func (r *Reader) UInt128() UInt128 {
-	v := r.Int128()
+// U128 reads a UInt128.
+func (r *Reader) U128() UInt128 {
+	v := r.I128()
 	return UInt128(v)
 }
 
-// UInt128 writes a UInt128.
-func (w *Writer) UInt128(v UInt128) { w.U64(v.Lo); w.U64(v.Hi) }
+// U128 writes a UInt128.
+func (w *Writer) U128(v UInt128) { w.U64(v.Lo); w.U64(v.Hi) }
 
 // Big returns v as a big.Int.
 func (v Int128) Big() *big.Int {
