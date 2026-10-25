@@ -331,9 +331,9 @@ namespace Nino.Core.CompilerServices
                 else if (Vector512.IsHardwareAccelerated ? size <= MaxVectorCopy : size - 256 <= MaxVector256Copy - 256)
                 {
                     if (Vector512.IsHardwareAccelerated)
-                        CopyVectors<Vector512<byte>>(ref destination, ref source, size, AmdCopy);
+                        CopyVectors<Vector512<byte>>(ref destination, ref source, size, X86Base.IsSupported);
                     else
-                        CopyVectors<Vector256<byte>>(ref destination, ref source, size, AmdCopy);
+                        CopyVectors<Vector256<byte>>(ref destination, ref source, size, X86Base.IsSupported);
                     return;
                 }
             }

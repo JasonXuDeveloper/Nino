@@ -494,7 +494,7 @@ namespace Nino.Core
             if (_mask512 != null && total >= Vector512<byte>.Count)
             {
                 CopyVectors<Vector512<byte>, Vectors512>(ref destination, ref source, total, _mask512, _period512,
-                    NinoUnsafe.AmdCopy);
+                    System.Runtime.Intrinsics.X86.X86Base.IsSupported);
                 return;
             }
 #endif
@@ -502,7 +502,7 @@ namespace Nino.Core
             {
 #if NET8_0_OR_GREATER
                 CopyVectors<Vector<byte>, Vectors>(ref destination, ref source, total, _vectorMask, _vectorPeriod,
-                    NinoUnsafe.AmdCopy);
+                    System.Runtime.Intrinsics.X86.X86Base.IsSupported);
 #else
                 CopyVectors<Vector<byte>, Vectors>(ref destination, ref source, total, _vectorMask, _vectorPeriod, false);
 #endif
