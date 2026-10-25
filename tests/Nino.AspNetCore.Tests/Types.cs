@@ -36,4 +36,18 @@ namespace Nino.AspNetCore.Tests
         public int X;
         public int Y;
     }
+
+    /// <summary>A list whose factory returns null: reading it fails on the server's side, whatever the data.</summary>
+    public class NullFactoryList : List<int>
+    {
+        [NinoFactory]
+        public static NullFactoryList Create() => null;
+    }
+
+    /// <summary>A body that is valid data but that the server cannot build (its list's factory returns null).</summary>
+    [NinoType]
+    public sealed class Broken
+    {
+        public NullFactoryList Items;
+    }
 }
