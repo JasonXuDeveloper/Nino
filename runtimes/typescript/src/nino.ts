@@ -1039,14 +1039,9 @@ export class NinoWriter {
   string(value: string | null): void {
     if (value === null || value === undefined) { this.i32(-1); return; }
     const length = value.length;
-    if (nodeText === null && length > kernelWrite && length <= kernelText) {
-      const k = kernels === undefined ? wasm() : kernels;
-      if (k !== null && (length <= kernelAscii || wide.test(value))) {
-        this.stringKernels(k, value, length);
-        return;
-      }
-    }
     if (length <= (nodeText === null ? loopText : shortText)) {
+      // Longer than shortText: nodeText is null.
+      if (length > kernelWrite && this.stringKernels(value, length)) return;
       // Narrowed in one pass while every char fits in a byte; from the first wider char on, UTF-16 instead.
       const at = this.reserve(4 + length), buffer = this.buffer;
       let i = 0;
@@ -1060,6 +1055,9 @@ export class NinoWriter {
         return;
       }
       this.pos = at;
+    } else if (nodeText === null && length <= kernelText && (length <= kernelAscii || wide.test(value)) &&
+      this.stringKernels(value, length)) {
+      return;
     } else if (!wide.test(value)) {
       const at = this.reserve(4 + length);
       this.int32At(at, ~length);
@@ -1076,18 +1074,24 @@ export class NinoWriter {
     for (let i = 0; i < length; i++) view.setUint16(at + 4 + 2 * i, value.charCodeAt(i), true);
   }
 
-  /** `string` with the kernels: one byte per char if every char fits, else UTF-16. */
-  private stringKernels(k: Kernels, value: string, length: number): void {
+  /**
+   * `string` with the kernels (text of at most `kernelText` chars): one byte per char if every char fits, else UTF-16.
+   * Returns false, writing nothing, without them.
+   */
+  private stringKernels(value: string, length: number): boolean {
+    const k = kernels === undefined ? wasm() : kernels;
+    if (k === null) return false;
     if (k.narrow(value, length, transfer) === length) {
       const at = this.reserve(4 + length);
       this.int32At(at, ~length);
       this.buffer.set(k.bytes.subarray(transfer, transfer + length), at + 4);
-      return;
+      return true;
     }
     k.widen(length, transfer);
     const at = this.reserve(4 + 2 * length);
     this.int32At(at, length);
     this.buffer.set(k.bytes.subarray(transfer, transfer + 2 * length), at + 4);
+    return true;
   }
 
   /** A string as UTF-8 (`[NinoUtf8]`). Unpaired surrogates are written as U+FFFD, as in .NET. */
