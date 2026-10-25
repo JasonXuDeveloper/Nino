@@ -13,7 +13,7 @@ namespace Nino.Core.Internal
     /// rebalance per element. Its nodes do not point back to the set, so the tree is moved into the set being read
     /// (<see cref="CollectionFields"/>; also the set under a <see cref="SortedDictionary{TKey,TValue}"/>).
     /// </summary>
-    internal static class SortedTrees
+    internal static class SortedSetTrees
     {
         /// <summary>
         /// Whether <see cref="Fill{T}"/> applies to <paramref name="set"/>: its layout was checked, and it is not a
