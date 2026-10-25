@@ -1,6 +1,4 @@
 # <go|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# ab/ts-strings-2: main c73ee57 + A/B-only string scenarios (a84786e); inline UTF-16 code units and short wide writes
-# (a93ae31); then shortText 24 (45bd1a5) and 32 (a8340ec).
-typescript a84786e a93ae31
-typescript a93ae31 45bd1a5
-typescript a93ae31 a8340ec
+# ab/ts-strings-2: main c73ee57 + A/B-only string scenarios (a84786e) -> inline UTF-16 code units with Node's threshold
+# kept at 24, and short wide writes in JavaScript (340000a).
+typescript a84786e 340000a
