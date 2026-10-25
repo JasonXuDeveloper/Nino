@@ -57,6 +57,6 @@
         <PackageVersion Include="MessagePackAnalyzer" Version="3.1.12"/>
         <!-- MessagePack's formatters for System.Collections.Immutable (ImmutableCollectionResolver). -->
         <PackageVersion Include="MessagePack.ImmutableCollection" Version="3.1.12"/>
-        <PackageVersion Include="protobuf-net" Version="3.4.30"/>
+        <PackageVersion Include="protobuf-net" Version="3.4.40"/>
     </ItemGroup>
 </Project>
