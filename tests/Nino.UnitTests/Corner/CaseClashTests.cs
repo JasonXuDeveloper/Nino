@@ -3,7 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     /// <summary>
     /// Types whose formatter names differ only by case: their generated files need hint names that differ ignoring

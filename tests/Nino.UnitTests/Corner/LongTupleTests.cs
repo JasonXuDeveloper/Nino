@@ -5,7 +5,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     [NinoType]
     public sealed class LongTuples
@@ -67,9 +67,9 @@ namespace Nino.UnitTests.Corner
                 "Nine:System.ValueTuple<int, int, int, int, int, int, int, System.ValueTuple<int, int>>:" +
                 "tuple(raw(4),raw(4),raw(4),raw(4),raw(4),raw(4),raw(4),raw(4),raw(4))",
                 "Fifteen:System.ValueTuple<byte, string, long, int, int, int, int, System.ValueTuple<string, int, int, " +
-                "int, int, int, int, System.ValueTuple<Nino.UnitTests.Corner.LongTupleItem>>>:" +
+                "int, int, int, int, System.ValueTuple<Nino.UnitTests.LongTupleItem>>>:" +
                 "tuple(raw(1),string,raw(8),raw(4),raw(4),raw(4),raw(4),string,raw(4),raw(4),raw(4),raw(4),raw(4)," +
-                "raw(4),type(Nino.UnitTests.Corner.LongTupleItem))",
+                "raw(4),type(Nino.UnitTests.LongTupleItem))",
                 "Eights:System.Collections.Generic.List<System.ValueTuple<int, int, int, int, int, int, int, " +
                 "System.ValueTuple<string>>>:seq(tuple(raw(4),raw(4),raw(4),raw(4),raw(4),raw(4),raw(4),string))"),
                 layout.Members);

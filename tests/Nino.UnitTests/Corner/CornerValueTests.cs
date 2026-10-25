@@ -8,7 +8,7 @@ using Nino.Core;
 using Nino.UnitTests.Subset.Corner;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     public enum EByte : byte { Min = byte.MinValue, Max = byte.MaxValue }
     public enum ESByte : sbyte { Min = sbyte.MinValue, Max = sbyte.MaxValue }

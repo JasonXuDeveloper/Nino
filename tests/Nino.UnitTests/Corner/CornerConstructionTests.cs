@@ -5,7 +5,7 @@ using Nino.Core;
 using Nino.UnitTests.Subset.Corner;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     [NinoType]
     public partial class CtorRenamedParams

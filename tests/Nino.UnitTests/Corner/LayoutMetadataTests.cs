@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     /// <summary>
     /// The generator publishes each [NinoType]'s wire layout as an [assembly: NinoTypeLayout] (issue #197), so tools

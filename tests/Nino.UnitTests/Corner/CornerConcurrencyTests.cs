@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     // Only used by the cold start test, so their first use (registration, lazy formatters, pools) happens there.
     [NinoType]

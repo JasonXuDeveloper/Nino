@@ -7,6 +7,7 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 using Nino.Core.Internal;
+using static Nino.UnitTests.Rt;
 
 namespace Nino.UnitTests;
 
@@ -52,8 +53,6 @@ public class HashFloodingTests
         var e = Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<T>(data), typeof(T).Name);
         StringAssert.Contains(e.Message, "MaxHashCollisions");
     }
-
-    private static T RoundTrip<T>(T value) => NinoDeserializer.Deserialize<T>(NinoSerializer.Serialize(value));
 
     [TestMethod]
     public void UpToTheLimitInOneBucketIsRead()

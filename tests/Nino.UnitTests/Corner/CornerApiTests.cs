@@ -8,7 +8,7 @@ using Nino.Core;
 using Nino.UnitTests.Subset.Corner;
 
 #nullable disable
-namespace Nino.UnitTests.Corner
+namespace Nino.UnitTests
 {
     /// <summary>A buffer writer that hands out spans no larger than asked for, in separate chunks.</summary>
     internal sealed class StingyBufferWriter : IBufferWriter<byte>

@@ -55,7 +55,7 @@ public class FixedSizeTests
         Assert.AreEqual(-1, NinoSerializer.GetFixedSize<string>());
         Assert.AreEqual(-1, NinoSerializer.GetFixedSize<int[]>());
         // This assembly defines WEAK_VERSION_TOLERANCE: its types carry a length and are never fixed size.
-        Assert.AreEqual(-1, NinoSerializer.GetFixedSize<Corner.VerSealedLeafV1>());
+        Assert.AreEqual(-1, NinoSerializer.GetFixedSize<VerSealedLeafV1>());
     }
 
     [TestMethod]

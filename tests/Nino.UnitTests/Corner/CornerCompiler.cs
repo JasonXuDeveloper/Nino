@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using Nino.Core;
 
 #nullable disable
-namespace Nino.UnitTests.Corner;
+namespace Nino.UnitTests;
 
 /// <summary>
 /// Compiles a source snippet with the Nino generator and analyzer in memory, for corner cases that cannot live in
