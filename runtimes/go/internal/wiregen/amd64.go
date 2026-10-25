@@ -19,6 +19,7 @@ func fileAMD64() string {
 	b.WriteString(many("wireStringsAVX512", setupAVX512, kernelAVX512, "n"))
 	b.WriteString(readers)
 	b.WriteString(readersSSE)
+	b.WriteString(writersSSE())
 	b.WriteString(cpu)
 	return b.String()
 }
@@ -159,6 +160,9 @@ func constants() string {
 			fmt.Fprintf(&b, "DATA wire<>+%#x(SB)/8, $%#016x\n", at+i, v)
 		}
 		fmt.Fprintf(&defs, "#define K_%s wire<>+%#x(SB)\n", c.name, at)
+		if c.name == "TAIL" {
+			fmt.Fprintf(&defs, "#define K_TAIL16 wire<>+%#x(SB) // the same for 16 bytes\n", at+16)
+		}
 		at += len(c.bytes)
 	}
 	fmt.Fprintf(&b, "GLOBL wire<>(SB), RODATA|NOPTR, $%#x\n\n", at)

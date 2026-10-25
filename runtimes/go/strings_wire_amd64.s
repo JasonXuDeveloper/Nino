@@ -183,6 +183,7 @@ GLOBL wire<>(SB), RODATA|NOPTR, $0x400
 #define K_D8 wire<>+0x1e0(SB)
 #define K_DC wire<>+0x200(SB)
 #define K_TAIL wire<>+0x220(SB)
+#define K_TAIL16 wire<>+0x230(SB) // the same for 16 bytes
 #define K_T1 wire<>+0x240(SB)
 #define K_T2 wire<>+0x260(SB)
 #define K_T3 wire<>+0x280(SB)
@@ -2103,6 +2104,866 @@ u16done:
 	SUBQ    DX, DI
 	SUBQ    R11, DI
 	MOVQ    DI, ret+24(FP)
+	RET
+
+// func wireStringSSE(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int
+TEXT ·wireStringSSE(SB), NOSPLIT, $16-40
+	MOVQ src+16(FP), SI
+	MOVQ i+8(FP), DX
+	ADDQ DX, SI              // the text from i on
+	MOVQ n+24(FP), BX
+	SUBQ DX, BX              // its length
+	MOVQ dst+0(FP), DI
+	LEAQ (DI)(DX*2), AX
+	MOVQ AX, wide-16(SP)     // UTF-16 goes to dst+2*i
+	ADDQ DX, DI              // Latin-1 to dst+i
+	MOVQ DI, start-8(SP)
+	PXOR    X13, X13
+	MOVOU   K_NIB, X14
+	MOVOU   K_C0, X15
+	XORQ    DX, DX
+	PXOR    X11, X11
+	PXOR    X12, X12
+
+elatin1:
+	MOVQ    BX, CX
+	SUBQ    DX, CX
+	JLE     elatin1Done
+	LEAQ    (SI)(DX*1), R10
+	CMPQ    CX, $16
+	JB      eltail
+	MOVOU   (R10), X0
+
+elbody:
+	PMOVMSKB X0, AX
+	TESTL   AX, AX
+	JNZ     elchars
+	// ASCII: no char of the block before may be cut.
+	MOVOU   K_TAIL16, X4
+	MOVOA   X11, X5
+	PSUBUSB X4, X5
+	POR     X5, X12
+	MOVOU   X0, (DI)
+	ADDQ    $16, DI
+	MOVOA   X0, X11
+	ADDQ    $16, DX
+	JMP     elatin1
+
+elchars:
+	// A byte above C3 (a char above U+00FF, or not UTF-8): UTF-16, from the start.
+	MOVOA   X0, X4
+	MOVOU   K_C3, X5
+	PSUBUSB X5, X4
+	PCMPEQB X13, X4
+	PMOVMSKB X4, R8
+	CMPL    R8, $0xffff
+	JNE     etoUTF16
+	// Its bytes are ASCII, leads C2 and C3 and continuations: it is valid when the continuations are exactly the
+	// bytes after the leads, and there are no C0 or C1.
+	MOVOA   X0, X2
+	PALIGNR $15, X11, X2               // the byte before each
+	MOVOU   K_FE, X6
+	MOVOU   K_C2, X7
+	MOVOA   X0, X4
+	PAND    X6, X4
+	MOVOA   X4, X5
+	PCMPEQB X7, X4                     // the leads
+	PCMPEQB X15, X5                    // C0 and C1
+	POR     X5, X12
+	MOVOA   X2, X5
+	PAND    X6, X5
+	PCMPEQB X7, X5                     // after a lead
+	MOVOA   X15, X6
+	PCMPGTB X0, X6                     // continuations
+	PXOR    X6, X5
+	POR     X5, X12
+	MOVOU   K_C3, X5
+	PCMPEQB X2, X5
+	MOVOU   K_B40, X6
+	PAND    X6, X5
+	PADDB   X0, X5                     // the bytes: 40 more after C3
+	MOVOA   X0, X11
+	PMOVMSKB X4, R8
+	NOTL    R8                         // kept: all but the leads
+	MOVL    R8, R9
+	ANDL    $0xff, R9
+	SHRL    $8, R8
+	ANDL    $0xff, R8
+	LEAQ    ·narrowLo(SB), AX
+	MOVQ    (AX)(R9*8), X6
+	LEAQ    ·narrowHi(SB), AX
+	MOVQ    (AX)(R8*8), X7
+	PUNPCKLQDQ X7, X6
+	PSHUFB  X6, X5
+	LEAQ    ·pairLen(SB), AX
+	MOVBLZX (AX)(R9*1), R10
+	MOVBLZX (AX)(R8*1), R11
+	MOVQ    X5, (DI)
+	LEAQ    -8(DI)(R10*1), DI
+	PSRLDQ  $8, X5
+	MOVQ    X5, (DI)
+	LEAQ    -8(DI)(R11*1), DI
+	ADDQ    $16, DX
+	JMP     elatin1
+
+eltail:
+	MOVQ    CX, R12
+	SHLQ    $0, R12           // the bytes left
+	MOVL    R10, R13
+	ANDL    $4095, R13
+	CMPL    R13, $4080
+	JA      elcross
+	MOVOU   (R10), X0
+	LEAQ    K_MASK, R13
+	ADDQ    $32, R13
+	SUBQ    R12, R13
+	MOVOU   (R13), X1
+	PAND    X1, X0
+	JMP     elbody
+
+elcross:
+	PXOR    X0, X0
+	MOVOU   X0, (DI)
+	XORQ    R13, R13
+
+elbyte:
+	MOVBLZX (R10)(R13*1), AX
+	MOVB    AX, (DI)(R13*1)
+	INCQ    R13
+	CMPQ    R13, R12
+	JB      elbyte
+	MOVOU   (DI), X0
+	JMP     elbody
+
+elatin1Done:
+	MOVOU   K_TAIL16, X4
+	MOVOA   X11, X5
+	PSUBUSB X4, X5
+	POR     X5, X12
+	PCMPEQB X13, X12
+	PMOVMSKB X12, R8
+	CMPL    R8, $0xffff
+	JNE     einvalid
+	MOVQ    DI, AX
+	SUBQ    start-8(SP), AX
+	MOVQ    DX, CX
+	SUBQ    BX, CX                     // the zeros past the text
+	SUBQ    CX, AX
+	JMP     edone
+
+etoUTF16:
+	// From the start again, as UTF-16: the block in X0 when it is the first.
+	MOVQ    wide-16(SP), DI
+	PXOR    X11, X11
+	PXOR    X12, X12
+	TESTQ   DX, DX
+	JZ      ewchars
+	XORQ    DX, DX
+
+ewide:
+	MOVQ    BX, CX
+	SUBQ    DX, CX
+	JLE     ewideDone
+	LEAQ    (SI)(DX*1), R10
+	CMPQ    CX, $16
+	JB      ewtail
+	MOVOU   (R10), X0
+
+ewbody:
+	PMOVMSKB X0, AX
+	TESTL   AX, AX
+	JNZ     ewchars
+	MOVOU   K_TAIL16, X4
+	MOVOA   X11, X5
+	PSUBUSB X4, X5
+	POR     X5, X12
+	MOVOA   X0, X4
+	PUNPCKLBW X13, X4
+	MOVOA   X0, X5
+	PUNPCKHBW X13, X5
+	MOVOU   X4, (DI)
+	MOVOU   X5, 16(DI)
+	ADDQ    $32, DI
+	MOVOA   X0, X11
+	ADDQ    $16, DX
+	JMP     ewide
+
+ewchars:
+	// Check the block (Keiser and Lemire): X2 the byte one before each, X3 two before, X1 three before.
+	MOVOA   X0, X2
+	PALIGNR $15, X11, X2
+	MOVOA   X0, X3
+	PALIGNR $14, X11, X3
+	MOVOA   X0, X1
+	PALIGNR $13, X11, X1
+	MOVOA   X2, X4
+	PSRLW   $4, X4
+	PAND    X14, X4
+	MOVOU   K_T1, X7
+	PSHUFB  X4, X7
+	MOVOA   X2, X5
+	PAND    X14, X5
+	MOVOU   K_T2, X8
+	PSHUFB  X5, X8
+	MOVOA   X0, X6
+	PSRLW   $4, X6
+	PAND    X14, X6
+	MOVOU   K_T3, X9
+	PSHUFB  X6, X9
+	PAND    X8, X7
+	PAND    X9, X7
+	MOVOA   X3, X5
+	MOVOU   K_S60, X8
+	PSUBUSB X8, X5
+	MOVOA   X1, X6
+	MOVOU   K_S70, X8
+	PSUBUSB X8, X6
+	POR     X6, X5
+	MOVOU   K_B80, X8
+	PAND    X8, X5
+	PXOR    X5, X7
+	POR     X7, X12
+	MOVOA   X0, X11
+	MOVOA   X15, X4
+	PCMPGTB X0, X4                     // b0 a continuation
+	MOVOA   X15, X5
+	PCMPGTB X2, X5                     // b1 a continuation
+	MOVOU   K_E0, X6
+	PAND    X2, X6
+	PCMPEQB X15, X6                    // b1 the lead of 2 bytes
+	PXOR    X7, X7
+	PCMPGTB X0, X7                     // b0 not ASCII
+	POR     X6, X5
+	PAND    X4, X5                     // b0 ends a char of 2 or more bytes, or is a third byte
+	PANDN   X7, X5                     // dropped: the rest of the bytes not ASCII
+	PMOVMSKB X5, R8
+	NOTL    R8                         // kept
+	// The low bytes: b0 for ASCII, else (b0 & 3F) | b1 << 6.
+	MOVOU   K_B3F, X4
+	PAND    X0, X4
+	MOVOA   X2, X5
+	PSLLW   $6, X5
+	PAND    X15, X5
+	POR     X5, X4
+	PAND    X7, X4
+	MOVOA   X7, X5
+	PANDN   X0, X5
+	POR     X5, X4
+	// The high bytes: 0 for ASCII, (b1 >> 2) & 0F after the lead of 2 bytes, and that | b2 << 4 else.
+	MOVOA   X2, X9
+	PSRLW   $2, X9
+	PAND    X14, X9
+	MOVOA   X3, X8
+	PSLLW   $4, X8
+	MOVOU   K_F0, X5
+	PAND    X5, X8
+	POR     X9, X8
+	MOVOA   X6, X5
+	PAND    X9, X5
+	PANDN   X8, X6
+	POR     X5, X6
+	PAND    X7, X6
+	// Surrogates: b2 the lead of 4 bytes (the high one, X10), or b3 (the low one, X7).
+	MOVOU   K_F8, X5
+	MOVOU   K_F0, X8
+	MOVOA   X3, X10
+	PAND    X5, X10
+	PCMPEQB X8, X10
+	MOVOA   X1, X7
+	PAND    X5, X7
+	PCMPEQB X8, X7
+	MOVOA   X10, X5
+	POR     X7, X5
+	PMOVMSKB X5, AX
+	TESTL   AX, AX
+	JZ      ewpack
+	// The high surrogate: D800 + ((b2 & 7) << 8 | (b1 & 3F) << 2 | (b0 >> 4) & 3) - 40.
+	MOVOU   K_B3F, X5
+	PAND    X2, X5
+	PSLLW   $2, X5
+	MOVOA   X0, X8
+	PSRLW   $4, X8
+	MOVOU   K_B03, X1
+	PAND    X1, X8
+	POR     X8, X5
+	MOVOU   K_B40, X8
+	MOVOA   X5, X9
+	PSUBB   X8, X9
+	PAND    X10, X9
+	MOVOA   X10, X8
+	PANDN   X4, X8
+	POR     X9, X8
+	MOVOA   X8, X4
+	PAND    X15, X5
+	PCMPEQB X13, X5                    // the borrow
+	MOVOU   K_B07, X8
+	PAND    X3, X8
+	MOVOU   K_D8, X9
+	PADDB   X9, X8
+	PADDB   X5, X8
+	PAND    X10, X8
+	PANDN   X6, X10
+	POR     X8, X10
+	MOVOA   X10, X6
+	// The low surrogate: DC00 | (b1 & 0F) << 6 | b0 & 3F.
+	MOVOA   X2, X8
+	PSRLW   $2, X8
+	MOVOU   K_B03, X9
+	PAND    X9, X8
+	MOVOU   K_DC, X9
+	POR     X9, X8
+	PAND    X7, X8
+	PANDN   X6, X7
+	POR     X8, X7
+	MOVOA   X7, X6
+
+ewpack:
+	MOVOA   X4, X5
+	PUNPCKLBW X6, X5                   // the units of positions 0 to 7
+	PUNPCKHBW X6, X4                   // 8 to 15
+	MOVL    R8, R9
+	ANDL    $0xff, R9
+	SHRL    $8, R8
+	ANDL    $0xff, R8
+	LEAQ    ·wideShuf(SB), AX
+	MOVQ    R9, R10
+	SHLQ    $4, R10
+	MOVOU   (AX)(R10*1), X7
+	PSHUFB  X7, X5
+	MOVQ    R8, R10
+	SHLQ    $4, R10
+	MOVOU   (AX)(R10*1), X7
+	PSHUFB  X7, X4
+	LEAQ    ·pairLen(SB), AX
+	MOVBLZX (AX)(R9*1), R10
+	MOVBLZX (AX)(R8*1), R11
+	MOVOU   X5, (DI)
+	LEAQ    -16(DI)(R10*2), DI
+	MOVOU   X4, (DI)
+	LEAQ    -16(DI)(R11*2), DI
+	ADDQ    $16, DX
+	JMP     ewide
+
+ewtail:
+	MOVQ    CX, R12
+	SHLQ    $0, R12           // the bytes left
+	MOVL    R10, R13
+	ANDL    $4095, R13
+	CMPL    R13, $4080
+	JA      ewcross
+	MOVOU   (R10), X0
+	LEAQ    K_MASK, R13
+	ADDQ    $32, R13
+	SUBQ    R12, R13
+	MOVOU   (R13), X1
+	PAND    X1, X0
+	JMP     ewbody
+
+ewcross:
+	PXOR    X0, X0
+	MOVOU   X0, (DI)
+	XORQ    R13, R13
+
+ewbyte:
+	MOVBLZX (R10)(R13*1), AX
+	MOVB    AX, (DI)(R13*1)
+	INCQ    R13
+	CMPQ    R13, R12
+	JB      ewbyte
+	MOVOU   (DI), X0
+	JMP     ewbody
+
+ewideDone:
+	MOVOU   K_TAIL16, X4
+	MOVOA   X11, X5
+	PSUBUSB X4, X5
+	POR     X5, X12
+	PCMPEQB X13, X12
+	PMOVMSKB X12, R8
+	CMPL    R8, $0xffff
+	JNE     einvalid
+	MOVQ    DI, AX
+	SUBQ    wide-16(SP), AX
+	SHRQ    $1, AX
+	MOVQ    DX, CX
+	SUBQ    BX, CX                     // the zeros past the text
+	SUBQ    CX, AX
+	NOTQ    AX
+	JMP     edone
+
+einvalid:
+	MOVQ    $0x7fffffffffffffff, AX
+	JMP     edone
+
+edone:
+	MOVQ AX, ret+32(FP)
+	RET
+
+// func wireStringsSSE(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)
+//
+// It writes strings from strs (count of them: strings, or pointers to them when ptrs, nil the null string) at dst
+// (room bytes), each with its header, while each has room for 4+2*len+64 bytes and is WTF-8 of fewer than 2^30
+// bytes; it returns how many it wrote and the bytes they took.
+TEXT ·wireStringsSSE(SB), NOSPLIT, $32-56
+	MOVQ dst+0(FP), AX
+	MOVQ AX, out-24(SP)
+	ADDQ room+8(FP), AX
+	MOVQ AX, end-32(SP)
+	XORQ R14, R14           // the strings done (R14 is free in ABI0)
+	PXOR    X13, X13
+	MOVOU   K_NIB, X14
+	MOVOU   K_C0, X15
+
+fnext:
+	MOVQ R14, CX
+	CMPQ CX, count+24(FP)
+	JAE  ffinish
+	MOVQ strs+16(FP), R8
+	CMPB ptrs+32(FP), $0
+	JEQ  fvalue
+	MOVQ (R8)(CX*8), R8
+	TESTQ R8, R8
+	JNZ  fheader
+	// nil: the null string.
+	MOVQ out-24(SP), DI
+	LEAQ 4(DI), AX
+	CMPQ AX, end-32(SP)
+	JA   ffinish
+	MOVL $0xffffffff, (DI)
+	MOVQ AX, out-24(SP)
+	INCQ R14
+	JMP  fnext
+
+fvalue:
+	SHLQ $4, CX
+	ADDQ CX, R8
+
+fheader:
+	MOVQ (R8), SI
+	MOVQ 8(R8), BX
+	MOVQ out-24(SP), DI
+	TESTQ BX, BX
+	JNZ  ftext
+	LEAQ 4(DI), AX
+	CMPQ AX, end-32(SP)
+	JA   ffinish
+	MOVL $0, (DI)
+	MOVQ AX, out-24(SP)
+	INCQ R14
+	JMP  fnext
+
+ftext:
+	CMPQ BX, $0x40000000
+	JAE  ffinish
+	LEAQ 68(DI)(BX*2), AX
+	CMPQ AX, end-32(SP)
+	JA   ffinish
+	ADDQ $4, DI
+	MOVQ DI, start-8(SP)
+	MOVQ DI, wide-16(SP)
+	XORQ    DX, DX
+	PXOR    X11, X11
+	PXOR    X12, X12
+
+flatin1:
+	MOVQ    BX, CX
+	SUBQ    DX, CX
+	JLE     flatin1Done
+	LEAQ    (SI)(DX*1), R10
+	CMPQ    CX, $16
+	JB      fltail
+	MOVOU   (R10), X0
+
+flbody:
+	PMOVMSKB X0, AX
+	TESTL   AX, AX
+	JNZ     flchars
+	// ASCII: no char of the block before may be cut.
+	MOVOU   K_TAIL16, X4
+	MOVOA   X11, X5
+	PSUBUSB X4, X5
+	POR     X5, X12
+	MOVOU   X0, (DI)
+	ADDQ    $16, DI
+	MOVOA   X0, X11
+	ADDQ    $16, DX
+	JMP     flatin1
+
+flchars:
+	// A byte above C3 (a char above U+00FF, or not UTF-8): UTF-16, from the start.
+	MOVOA   X0, X4
+	MOVOU   K_C3, X5
+	PSUBUSB X5, X4
+	PCMPEQB X13, X4
+	PMOVMSKB X4, R8
+	CMPL    R8, $0xffff
+	JNE     ftoUTF16
+	// Its bytes are ASCII, leads C2 and C3 and continuations: it is valid when the continuations are exactly the
+	// bytes after the leads, and there are no C0 or C1.
+	MOVOA   X0, X2
+	PALIGNR $15, X11, X2               // the byte before each
+	MOVOU   K_FE, X6
+	MOVOU   K_C2, X7
+	MOVOA   X0, X4
+	PAND    X6, X4
+	MOVOA   X4, X5
+	PCMPEQB X7, X4                     // the leads
+	PCMPEQB X15, X5                    // C0 and C1
+	POR     X5, X12
+	MOVOA   X2, X5
+	PAND    X6, X5
+	PCMPEQB X7, X5                     // after a lead
+	MOVOA   X15, X6
+	PCMPGTB X0, X6                     // continuations
+	PXOR    X6, X5
+	POR     X5, X12
+	MOVOU   K_C3, X5
+	PCMPEQB X2, X5
+	MOVOU   K_B40, X6
+	PAND    X6, X5
+	PADDB   X0, X5                     // the bytes: 40 more after C3
+	MOVOA   X0, X11
+	PMOVMSKB X4, R8
+	NOTL    R8                         // kept: all but the leads
+	MOVL    R8, R9
+	ANDL    $0xff, R9
+	SHRL    $8, R8
+	ANDL    $0xff, R8
+	LEAQ    ·narrowLo(SB), AX
+	MOVQ    (AX)(R9*8), X6
+	LEAQ    ·narrowHi(SB), AX
+	MOVQ    (AX)(R8*8), X7
+	PUNPCKLQDQ X7, X6
+	PSHUFB  X6, X5
+	LEAQ    ·pairLen(SB), AX
+	MOVBLZX (AX)(R9*1), R10
+	MOVBLZX (AX)(R8*1), R11
+	MOVQ    X5, (DI)
+	LEAQ    -8(DI)(R10*1), DI
+	PSRLDQ  $8, X5
+	MOVQ    X5, (DI)
+	LEAQ    -8(DI)(R11*1), DI
+	ADDQ    $16, DX
+	JMP     flatin1
+
+fltail:
+	MOVQ    CX, R12
+	SHLQ    $0, R12           // the bytes left
+	MOVL    R10, R13
+	ANDL    $4095, R13
+	CMPL    R13, $4080
+	JA      flcross
+	MOVOU   (R10), X0
+	LEAQ    K_MASK, R13
+	ADDQ    $32, R13
+	SUBQ    R12, R13
+	MOVOU   (R13), X1
+	PAND    X1, X0
+	JMP     flbody
+
+flcross:
+	PXOR    X0, X0
+	MOVOU   X0, (DI)
+	XORQ    R13, R13
+
+flbyte:
+	MOVBLZX (R10)(R13*1), AX
+	MOVB    AX, (DI)(R13*1)
+	INCQ    R13
+	CMPQ    R13, R12
+	JB      flbyte
+	MOVOU   (DI), X0
+	JMP     flbody
+
+flatin1Done:
+	MOVOU   K_TAIL16, X4
+	MOVOA   X11, X5
+	PSUBUSB X4, X5
+	POR     X5, X12
+	PCMPEQB X13, X12
+	PMOVMSKB X12, R8
+	CMPL    R8, $0xffff
+	JNE     finvalid
+	MOVQ    DI, AX
+	SUBQ    start-8(SP), AX
+	MOVQ    DX, CX
+	SUBQ    BX, CX                     // the zeros past the text
+	SUBQ    CX, AX
+	JMP     fdone
+
+ftoUTF16:
+	// From the start again, as UTF-16: the block in X0 when it is the first.
+	MOVQ    wide-16(SP), DI
+	PXOR    X11, X11
+	PXOR    X12, X12
+	TESTQ   DX, DX
+	JZ      fwchars
+	XORQ    DX, DX
+
+fwide:
+	MOVQ    BX, CX
+	SUBQ    DX, CX
+	JLE     fwideDone
+	LEAQ    (SI)(DX*1), R10
+	CMPQ    CX, $16
+	JB      fwtail
+	MOVOU   (R10), X0
+
+fwbody:
+	PMOVMSKB X0, AX
+	TESTL   AX, AX
+	JNZ     fwchars
+	MOVOU   K_TAIL16, X4
+	MOVOA   X11, X5
+	PSUBUSB X4, X5
+	POR     X5, X12
+	MOVOA   X0, X4
+	PUNPCKLBW X13, X4
+	MOVOA   X0, X5
+	PUNPCKHBW X13, X5
+	MOVOU   X4, (DI)
+	MOVOU   X5, 16(DI)
+	ADDQ    $32, DI
+	MOVOA   X0, X11
+	ADDQ    $16, DX
+	JMP     fwide
+
+fwchars:
+	// Check the block (Keiser and Lemire): X2 the byte one before each, X3 two before, X1 three before.
+	MOVOA   X0, X2
+	PALIGNR $15, X11, X2
+	MOVOA   X0, X3
+	PALIGNR $14, X11, X3
+	MOVOA   X0, X1
+	PALIGNR $13, X11, X1
+	MOVOA   X2, X4
+	PSRLW   $4, X4
+	PAND    X14, X4
+	MOVOU   K_T1, X7
+	PSHUFB  X4, X7
+	MOVOA   X2, X5
+	PAND    X14, X5
+	MOVOU   K_T2, X8
+	PSHUFB  X5, X8
+	MOVOA   X0, X6
+	PSRLW   $4, X6
+	PAND    X14, X6
+	MOVOU   K_T3, X9
+	PSHUFB  X6, X9
+	PAND    X8, X7
+	PAND    X9, X7
+	MOVOA   X3, X5
+	MOVOU   K_S60, X8
+	PSUBUSB X8, X5
+	MOVOA   X1, X6
+	MOVOU   K_S70, X8
+	PSUBUSB X8, X6
+	POR     X6, X5
+	MOVOU   K_B80, X8
+	PAND    X8, X5
+	PXOR    X5, X7
+	POR     X7, X12
+	MOVOA   X0, X11
+	MOVOA   X15, X4
+	PCMPGTB X0, X4                     // b0 a continuation
+	MOVOA   X15, X5
+	PCMPGTB X2, X5                     // b1 a continuation
+	MOVOU   K_E0, X6
+	PAND    X2, X6
+	PCMPEQB X15, X6                    // b1 the lead of 2 bytes
+	PXOR    X7, X7
+	PCMPGTB X0, X7                     // b0 not ASCII
+	POR     X6, X5
+	PAND    X4, X5                     // b0 ends a char of 2 or more bytes, or is a third byte
+	PANDN   X7, X5                     // dropped: the rest of the bytes not ASCII
+	PMOVMSKB X5, R8
+	NOTL    R8                         // kept
+	// The low bytes: b0 for ASCII, else (b0 & 3F) | b1 << 6.
+	MOVOU   K_B3F, X4
+	PAND    X0, X4
+	MOVOA   X2, X5
+	PSLLW   $6, X5
+	PAND    X15, X5
+	POR     X5, X4
+	PAND    X7, X4
+	MOVOA   X7, X5
+	PANDN   X0, X5
+	POR     X5, X4
+	// The high bytes: 0 for ASCII, (b1 >> 2) & 0F after the lead of 2 bytes, and that | b2 << 4 else.
+	MOVOA   X2, X9
+	PSRLW   $2, X9
+	PAND    X14, X9
+	MOVOA   X3, X8
+	PSLLW   $4, X8
+	MOVOU   K_F0, X5
+	PAND    X5, X8
+	POR     X9, X8
+	MOVOA   X6, X5
+	PAND    X9, X5
+	PANDN   X8, X6
+	POR     X5, X6
+	PAND    X7, X6
+	// Surrogates: b2 the lead of 4 bytes (the high one, X10), or b3 (the low one, X7).
+	MOVOU   K_F8, X5
+	MOVOU   K_F0, X8
+	MOVOA   X3, X10
+	PAND    X5, X10
+	PCMPEQB X8, X10
+	MOVOA   X1, X7
+	PAND    X5, X7
+	PCMPEQB X8, X7
+	MOVOA   X10, X5
+	POR     X7, X5
+	PMOVMSKB X5, AX
+	TESTL   AX, AX
+	JZ      fwpack
+	// The high surrogate: D800 + ((b2 & 7) << 8 | (b1 & 3F) << 2 | (b0 >> 4) & 3) - 40.
+	MOVOU   K_B3F, X5
+	PAND    X2, X5
+	PSLLW   $2, X5
+	MOVOA   X0, X8
+	PSRLW   $4, X8
+	MOVOU   K_B03, X1
+	PAND    X1, X8
+	POR     X8, X5
+	MOVOU   K_B40, X8
+	MOVOA   X5, X9
+	PSUBB   X8, X9
+	PAND    X10, X9
+	MOVOA   X10, X8
+	PANDN   X4, X8
+	POR     X9, X8
+	MOVOA   X8, X4
+	PAND    X15, X5
+	PCMPEQB X13, X5                    // the borrow
+	MOVOU   K_B07, X8
+	PAND    X3, X8
+	MOVOU   K_D8, X9
+	PADDB   X9, X8
+	PADDB   X5, X8
+	PAND    X10, X8
+	PANDN   X6, X10
+	POR     X8, X10
+	MOVOA   X10, X6
+	// The low surrogate: DC00 | (b1 & 0F) << 6 | b0 & 3F.
+	MOVOA   X2, X8
+	PSRLW   $2, X8
+	MOVOU   K_B03, X9
+	PAND    X9, X8
+	MOVOU   K_DC, X9
+	POR     X9, X8
+	PAND    X7, X8
+	PANDN   X6, X7
+	POR     X8, X7
+	MOVOA   X7, X6
+
+fwpack:
+	MOVOA   X4, X5
+	PUNPCKLBW X6, X5                   // the units of positions 0 to 7
+	PUNPCKHBW X6, X4                   // 8 to 15
+	MOVL    R8, R9
+	ANDL    $0xff, R9
+	SHRL    $8, R8
+	ANDL    $0xff, R8
+	LEAQ    ·wideShuf(SB), AX
+	MOVQ    R9, R10
+	SHLQ    $4, R10
+	MOVOU   (AX)(R10*1), X7
+	PSHUFB  X7, X5
+	MOVQ    R8, R10
+	SHLQ    $4, R10
+	MOVOU   (AX)(R10*1), X7
+	PSHUFB  X7, X4
+	LEAQ    ·pairLen(SB), AX
+	MOVBLZX (AX)(R9*1), R10
+	MOVBLZX (AX)(R8*1), R11
+	MOVOU   X5, (DI)
+	LEAQ    -16(DI)(R10*2), DI
+	MOVOU   X4, (DI)
+	LEAQ    -16(DI)(R11*2), DI
+	ADDQ    $16, DX
+	JMP     fwide
+
+fwtail:
+	MOVQ    CX, R12
+	SHLQ    $0, R12           // the bytes left
+	MOVL    R10, R13
+	ANDL    $4095, R13
+	CMPL    R13, $4080
+	JA      fwcross
+	MOVOU   (R10), X0
+	LEAQ    K_MASK, R13
+	ADDQ    $32, R13
+	SUBQ    R12, R13
+	MOVOU   (R13), X1
+	PAND    X1, X0
+	JMP     fwbody
+
+fwcross:
+	PXOR    X0, X0
+	MOVOU   X0, (DI)
+	XORQ    R13, R13
+
+fwbyte:
+	MOVBLZX (R10)(R13*1), AX
+	MOVB    AX, (DI)(R13*1)
+	INCQ    R13
+	CMPQ    R13, R12
+	JB      fwbyte
+	MOVOU   (DI), X0
+	JMP     fwbody
+
+fwideDone:
+	MOVOU   K_TAIL16, X4
+	MOVOA   X11, X5
+	PSUBUSB X4, X5
+	POR     X5, X12
+	PCMPEQB X13, X12
+	PMOVMSKB X12, R8
+	CMPL    R8, $0xffff
+	JNE     finvalid
+	MOVQ    DI, AX
+	SUBQ    wide-16(SP), AX
+	SHRQ    $1, AX
+	MOVQ    DX, CX
+	SUBQ    BX, CX                     // the zeros past the text
+	SUBQ    CX, AX
+	NOTQ    AX
+	JMP     fdone
+
+finvalid:
+	MOVQ    $0x7fffffffffffffff, AX
+	JMP     fdone
+
+fdone:
+	MOVQ out-24(SP), DI
+	MOVQ $0x7fffffffffffffff, CX
+	CMPQ AX, CX
+	JEQ  ffinish
+	TESTQ AX, AX
+	JS   fstore16
+	MOVL AX, CX
+	NOTL CX
+	MOVL CX, (DI)
+	LEAQ 4(DI)(AX*1), DI
+	MOVQ DI, out-24(SP)
+	INCQ R14
+	JMP  fnext
+
+fstore16:
+	NOTQ AX
+	MOVL AX, (DI)
+	LEAQ 4(DI)(AX*2), DI
+	MOVQ DI, out-24(SP)
+	INCQ R14
+	JMP  fnext
+
+ffinish:
+	MOVQ R14, AX
+	MOVQ AX, done+40(FP)
+	MOVQ out-24(SP), AX
+	SUBQ dst+0(FP), AX
+	MOVQ AX, written+48(FP)
 	RET
 
 // func cpuid(eaxArg, ecxArg uint32) (eax, ebx, ecx, edx uint32)
