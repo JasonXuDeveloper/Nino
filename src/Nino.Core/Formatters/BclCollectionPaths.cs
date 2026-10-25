@@ -24,7 +24,7 @@ namespace Nino.Core
                 case SortedSet<T> sorted:
                     // Copied out of its tree: its enumerator keeps a stack of nodes and checks the version per
                     // element.
-                    NinoCollections.WriteCopied<T, TFormatter>(sorted, SortedTrees.RootOf(sorted), ref writer);
+                    NinoCollections.WriteCopied<T, TFormatter>(sorted, SortedSetTrees.RootOf(sorted), ref writer);
                     return true;
                 case LinkedList<T> linked:
                     WriteLinked(linked, ref writer);
@@ -163,7 +163,7 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Read as an array, then built in one pass where the tree can be moved in (<see cref="SortedTrees.Fill{T}"/>),
+        /// Read as an array, then built in one pass where the tree can be moved in (<see cref="SortedSetTrees.Fill{T}"/>),
         /// otherwise added one by one. Duplicates are dropped, as Add drops them.
         /// </summary>
         private static void ReadSorted(SortedSet<T> set, int length, ref Reader reader)
@@ -171,9 +171,9 @@ namespace Nino.Core
             var items = NinoCollections.ReadRented<T, TFormatter>(length, ref reader);
             try
             {
-                if (SortedTrees.CanFill(set))
+                if (SortedSetTrees.CanFill(set))
                 {
-                    SortedTrees.Fill(set, items, length);
+                    SortedSetTrees.Fill(set, items, length);
                     return;
                 }
 
@@ -205,7 +205,7 @@ namespace Nino.Core
                     // Copied out of its tree, then written as an array of pairs (raw ones as one block): its
                     // enumerator keeps a stack of nodes and checks the version per pair.
                     NinoCollections.WriteCopiedPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(sorted,
-                        SortedTrees.RootOf(sorted), ref writer);
+                        SortedSetTrees.RootOf(sorted), ref writer);
                     return true;
                 case SortedList<TKey, TValue> list when CollectionViews.SortedList:
                     WriteSortedList(list, ref writer);
@@ -430,7 +430,7 @@ namespace Nino.Core
                 if (CollectionViews.SortedDictionary && !HasNullKey(pairs, length))
                 {
                     var set = CollectionFields.Set(dictionary);
-                    if (SortedTrees.Fill(set, pairs, length) == length)
+                    if (SortedSetTrees.Fill(set, pairs, length) == length)
                         return;
                     set.Clear();
                 }
