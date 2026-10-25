@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { build, embedded, runtimePath, sourceHash, watPath } from "../wasm/embed.ts";
-import { int32, toHex } from "./codecs.ts";
+import { toHex, strHeader } from "./codecs.ts";
 
 type Runtime = typeof import("../src/nino.ts");
 
@@ -34,8 +34,8 @@ async function browser(): Promise<Runtime> {
 /** The bytes Nino writes for `text` in the default encoding, built without the runtime. */
 function expected(text: string): string {
   const units = Array.from({ length: text.length }, (_, i) => text.charCodeAt(i));
-  if (text.length !== 0 && units.every((u) => u <= 0xff)) return toHex(Uint8Array.from([...int32(~text.length), ...units]));
-  return toHex(Uint8Array.from([...int32(text.length), ...units.flatMap((u) => [u & 0xff, u >> 8])]));
+  if (units.every((u) => u <= 0xff)) return toHex(Uint8Array.from([...strHeader(2 * text.length + 1), ...units]));
+  return toHex(Uint8Array.from([...strHeader(2 * text.length), ...units.flatMap((u) => [u & 0xff, u >> 8])]));
 }
 
 /** One char of each kind the kernels and the paths around them tell apart. */
@@ -128,7 +128,7 @@ describe("WebAssembly kernels", async () => {
         for (let n = 0; n <= 300; n++) {
           const text = ascii(n), w = new NinoWriter();
           w.utf8(text);
-          assert.equal(toHex(w.toBytes()), n === 0 ? "00000000" : toHex(Uint8Array.from([...int32(n), ...int32(n),
+          assert.equal(toHex(w.toBytes()), n === 0 ? "01" : toHex(Uint8Array.from([...strHeader(n + 1), ...strHeader(n),
             ...Array.from(text, (c) => c.charCodeAt(0))])));
           assert.equal(new NinoReader(w.toBytes()).utf8(), text);
         }
@@ -138,8 +138,8 @@ describe("WebAssembly kernels", async () => {
         useWasm(on);
         for (const n of [40, 100, 4096]) {
           // UTF-16 and Latin-1 headers claiming one more char than the bytes after them.
-          for (const header of [n, ~n]) {
-            const bytes = Uint8Array.from([...int32(header), ...new Array(header < 0 ? n - 1 : 2 * n - 1).fill(0x61)]);
+          for (const header of [2 * n, 2 * n + 1]) {
+            const bytes = Uint8Array.from([...strHeader(header), ...new Array(header & 1 ? n - 1 : 2 * n - 1).fill(0x61)]);
             assert.throws(() => deserialize(string, bytes), NinoError);
             assert.throws(() => new NinoReader(bytes).string(), NinoError);
           }

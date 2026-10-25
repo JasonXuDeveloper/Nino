@@ -1,5 +1,5 @@
 // Nino runtime for TypeScript (5.7 or later, for the typed arrays' buffer types), written by nino-gen (Nino.Codegen) next to the generated types: reads and writes the bytes
-// Nino writes in .NET. Little-endian and unaligned; lengths are int32, -1 = null. Do not edit: it is overwritten on
+// Nino writes in .NET. Little-endian and unaligned; lengths are int32, -1 = null; string headers take 1, 3 or 5 bytes. Do not edit: it is overwritten on
 // every build.
 
 /**
@@ -103,6 +103,14 @@ export class NinoError extends Error {
 // ignoreBOM keeps a leading U+FEFF, which is text in Nino.
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const utf8Encoder = new TextEncoder();
+
+/**
+ * The bytes a string header (below 2^32, wire-format spec §2.3.1) takes: 1 below 0x80 (the value itself), 3 up to
+ * 0xFFFF (0x80 and a uint16), else 5 (0x81 and a uint32).
+ */
+function headerSize(value: number): number {
+  return value < 0x80 ? 1 : value <= 0xffff ? 3 : 5;
+}
 /** Browsers decode "latin1" as windows-1252, which differs from Latin-1 in 0x80-0x9F (see `decodeLatin1`). */
 const latin1Decoder = new TextDecoder("latin1");
 /** Replaces unpaired surrogates with U+FFFD, which .NET keeps (see `decodeUtf16`). */
@@ -660,22 +668,59 @@ export class NinoReader {
     return length;
   }
 
-  /** A string (the default encoding): -1 null, `~n` then n Latin-1 bytes, or n then n UTF-16 code units. */
+  /**
+   * A string header (wire-format spec §2.3.1): its first byte gives its size, as MessagePack's string markers do:
+   * the value itself below 0x80, else 0x80 and a uint16 or 0x81 and a uint32 (little-endian), minimal. One byte
+   * inline (up to 63 chars), longer ones in `longHeader`.
+   */
+  header(): number {
+    const pos = this.pos;
+    if (pos < this.end) {
+      const first = this.data[pos];
+      if (first < 0x80) {
+        this.pos = pos + 1;
+        return first;
+      }
+    }
+    return this.longHeader();
+  }
+
+  /**
+   * A header of three or five bytes, or none: rejects one cut, one with another first byte or one that a shorter
+   * form holds (not minimal).
+   */
+  private longHeader(): number {
+    const data = this.data, at = this.pos, left = this.end - at;
+    if (left <= 0) throw new NinoError("unexpected end of data.");
+    const first = data[at];
+    if (first === 0x80) {
+      if (left < 3) throw new NinoError("unexpected end of data.");
+      const value = data[at + 1] | (data[at + 2] << 8);
+      if (value < 0x80) throw new NinoError("string header not minimal.");
+      this.pos = at + 3;
+      return value;
+    }
+    if (first !== 0x81) throw new NinoError("string header out of range.");
+    if (left < 5) throw new NinoError("unexpected end of data.");
+    // >>> 0 reads it as unsigned (below 2^32).
+    const value = (data[at + 1] | (data[at + 2] << 8) | (data[at + 3] << 16) | (data[at + 4] << 24)) >>> 0;
+    if (value <= 0xffff) throw new NinoError("string header not minimal.");
+    this.pos = at + 5;
+    return value;
+  }
+
+  /** A string (the default encoding): 0 null, 2n + 1 then n Latin-1 bytes, or 2n then n UTF-16 code units. */
   string(): string | null {
-    const header = this.i32();
-    if (header < 0) {
-      if (header === -1) return null;
-      const length = ~header;
-      return this.latin1(this.take(length), length);
-    }
-    if (header === 0) return "";
-    if (header > (this.end - this.pos) >> 1) throw new NinoError(`invalid length ${header}.`);
-    const at = this.take(header * 2);
-    if (nodeText === null && header > kernelUtf16 && header <= kernelText) {
+    const header = this.header(), length = header >>> 1;
+    if ((header & 1) !== 0) return length === 0 ? "" : this.latin1(this.take(length), length);
+    if (header === 0) return null;
+    if (length > (this.end - this.pos) >>> 1) throw new NinoError(`invalid length ${length}.`);
+    const at = this.take(length * 2);
+    if (nodeText === null && length > kernelUtf16 && length <= kernelText) {
       const k = kernels === undefined ? wasm() : kernels;
-      if (k !== null) return k.utf16(this.inKernels(k, at, header * 2), header);
+      if (k !== null) return k.utf16(this.inKernels(k, at, length * 2), length);
     }
-    return decodeUtf16(this.data, at, header);
+    return decodeUtf16(this.data, at, length);
   }
 
   /** Where the `size` bytes at `at` (taken, at most 2 * kernelText) are in the kernels' memory: copied if not there. */
@@ -706,13 +751,14 @@ export class NinoReader {
     return this.text.substring(at - this.textStart, at - this.textStart + length);
   }
 
-  /** A string written as UTF-8 (`[NinoUtf8]`): char count, then (if not empty) byte count and bytes. */
+  /** A string written as UTF-8 (`[NinoUtf8]`): char count plus one (0 null), then (if not empty) byte count and bytes. */
   utf8(): string | null {
-    const chars = this.i32();
-    if (chars === -1) return null;
-    if (chars === 0) return "";
-    if (chars < 0) throw new NinoError(`invalid length ${chars}.`);
-    const bytes = this.i32();
+    const header = this.header();
+    if (header === 0) return null;
+    if (header === 1) return "";
+    const chars = header - 1;
+    if (chars > 0x7fffffff) throw new NinoError(`invalid length ${chars}.`);
+    const bytes = this.header();
     if (bytes < chars || bytes > 3 * chars) throw new NinoError(`invalid length ${bytes}.`);
     const at = this.take(bytes);
     // As many bytes as chars: ASCII, the same as Latin-1 (if it is valid UTF-8).
@@ -1189,22 +1235,51 @@ export class NinoWriter {
     view.setInt32(at, (fraction.length << 16) | (negative ? 0x80000000 : 0), true);
   }
 
+  /**
+   * Writes `value` (below 2^32) at `at` as a string header (wire-format spec §2.3.1): the value itself below 0x80,
+   * else 0x80 and a uint16 up to 0xFFFF, else 0x81 and a uint32. Returns the bytes it took (`headerSize(value)`).
+   */
+  private headerAt(at: number, value: number): number {
+    const buffer = this.buffer;
+    if (value < 0x80) {
+      buffer[at] = value;
+      return 1;
+    }
+    if (value <= 0xffff) {
+      buffer[at] = 0x80;
+      buffer[at + 1] = value;
+      buffer[at + 2] = value >>> 8;
+      return 3;
+    }
+    buffer[at] = 0x81;
+    buffer[at + 1] = value;
+    buffer[at + 2] = value >>> 8;
+    buffer[at + 3] = value >>> 16;
+    buffer[at + 4] = value >>> 24;
+    return 5;
+  }
+
+  /** A header on its own (null, empty, a UTF-8 string's counts). */
+  header(value: number): void {
+    this.headerAt(this.reserve(headerSize(value)), value);
+  }
+
   /** A string (the default encoding): one byte per char when every char is at most U+00FF, else UTF-16. */
   string(value: string | null): void {
-    if (value === null || value === undefined) { this.i32(-1); return; }
+    if (value === null || value === undefined) { this.u8(0); return; }
     const length = value.length;
-    if (length <= (nodeText === null ? kernelWrite : shortText)) {
+    if (length <= (nodeText === null ? kernelWrite : shortText) && length < 64) {
       // `narrow`, written out here: the common path stays one function (calls to `narrow` and `utf16` measured
-      // 8-12% slower in Chromium on short text, x64 and Arm64).
-      const at = this.reserve(4 + length), buffer = this.buffer;
+      // 8-12% slower in Chromium on short text, x64 and Arm64). Up to 63 chars: a one-byte header.
+      const at = this.reserve(1 + length), buffer = this.buffer;
       let i = 0;
       for (; i < length; i++) {
         const c = value.charCodeAt(i);
         if (c > 0xff) break;
-        buffer[at + 4 + i] = c;
+        buffer[at + 1 + i] = c;
       }
       if (i === length) {
-        this.int32At(at, length === 0 ? 0 : ~length);
+        buffer[at] = 2 * length + 1;
         return;
       }
       this.pos = at;
@@ -1216,60 +1291,71 @@ export class NinoWriter {
       this.latin1(value, length);
       return;
     }
-    const at = this.reserve(4 + 2 * length);
-    this.int32At(at, length);
-    if (nodeText !== null) {
-      // Up to 16 chars, the loop costs less than the native call.
-      if (length > 16) {
-        nodeText.ucs2Write.call(this.buffer, value, at + 4, 2 * length);
-        return;
-      }
-      const buffer = this.buffer;
-      for (let i = 0, o = at + 4; i < length; i++, o += 2) {
-        const c = value.charCodeAt(i);
-        buffer[o] = c;
-        buffer[o + 1] = c >> 8;
-      }
-      return;
-    }
-    // `utf16`, written out here for the same reason as `narrow` above.
-    const view = this.view;
-    for (let i = 0; i < length; i++) view.setUint16(at + 4 + 2 * i, value.charCodeAt(i), true);
+    this.wideText(value, length);
   }
 
   /**
-   * The `length` chars of `value` one byte each, after their count, in one pass while every char fits in a byte.
+   * The `length` chars of `value`, some above U+00FF, as UTF-16 code units after their header. Out of `string`, whose
+   * common path V8 then still inlines into its callers (with this in it, it was too large to: 5% on short ASCII).
+   */
+  private wideText(value: string, length: number): void {
+    // Up to 63 chars a one-byte header, written here: through headerSize and headerAt it cost 5-10% on short text.
+    let start = 1, at: number;
+    if (length < 64) {
+      at = this.reserve(1 + 2 * length);
+      this.buffer[at] = 2 * length;
+    } else {
+      start = headerSize(2 * length);
+      at = this.reserve(start + 2 * length);
+      this.headerAt(at, 2 * length);
+    }
+    const o = at + start;
+    if (nodeText !== null && length >= 32) {
+      nodeText.ucs2Write.call(this.buffer, value, o, 2 * length);
+      return;
+    }
+    // Two chars a store. Up to 31 chars this costs less than Node's ucs2Write, whose call outweighs short text and
+    // which writes the chars twice at an odd offset (where a one-byte header leaves them): all but the last into an
+    // aligned buffer, then moved. A third faster on 1,000 strings of 16 to 20 chars.
+    const view = this.view;
+    let i = 0;
+    for (; i + 1 < length; i += 2) view.setUint32(o + 2 * i, value.charCodeAt(i) | (value.charCodeAt(i + 1) << 16), true);
+    if (i < length) view.setUint16(o + 2 * i, value.charCodeAt(i), true);
+  }
+
+  /**
+   * The `length` chars of `value` one byte each, after their header, in one pass while every char fits in a byte.
    * Returns false, writing nothing, at the first wider char.
    */
   private narrow(value: string, length: number): boolean {
-    const at = this.reserve(4 + length), buffer = this.buffer;
+    const start = headerSize(2 * length), at = this.reserve(start + length), buffer = this.buffer;
     let i = 0;
     for (; i < length; i++) {
       const c = value.charCodeAt(i);
       if (c > 0xff) break;
-      buffer[at + 4 + i] = c;
+      buffer[at + start + i] = c;
     }
     if (i === length) {
-      this.int32At(at, length === 0 ? 0 : ~length);
+      this.headerAt(at, 2 * length + 1);
       return true;
     }
     this.pos = at;
     return false;
   }
 
-  /** The `length` chars of `value`, every one at most U+00FF, one byte each after their count. */
+  /** The `length` chars of `value`, every one at most U+00FF, one byte each after their header. */
   private latin1(value: string, length: number): void {
-    const at = this.reserve(4 + length);
-    this.int32At(at, ~length);
-    this.encodeLatin1(value, at + 4);
+    const start = headerSize(2 * length), at = this.reserve(start + length);
+    this.headerAt(at, 2 * length + 1);
+    this.encodeLatin1(value, at + start);
   }
 
-  /** Without Node's methods: the `length` chars of `value` as UTF-16 code units, after their count. */
+  /** Without Node's methods: the `length` chars of `value` as UTF-16 code units, after their header. */
   private utf16(value: string, length: number): void {
-    const at = this.reserve(4 + 2 * length);
-    this.int32At(at, length);
+    const start = headerSize(2 * length), at = this.reserve(start + 2 * length);
+    this.headerAt(at, 2 * length);
     const view = this.view;
-    for (let i = 0; i < length; i++) view.setUint16(at + 4 + 2 * i, value.charCodeAt(i), true);
+    for (let i = 0; i < length; i++) view.setUint16(at + start + 2 * i, value.charCodeAt(i), true);
   }
 
   /** `string` without Node's methods, for text longer than `kernelWrite`: the kernels, else JavaScript. */
@@ -1291,38 +1377,44 @@ export class NinoWriter {
   private stringKernels(value: string, length: number): boolean {
     const k = kernels === undefined ? wasm() : kernels;
     if (k === null) return false;
+    const start = headerSize(2 * length);
     if (k.narrow(value, length, transfer) === length) {
-      const at = this.reserve(4 + length);
-      this.int32At(at, ~length);
-      this.buffer.set(k.bytes.subarray(transfer, transfer + length), at + 4);
+      const at = this.reserve(start + length);
+      this.headerAt(at, 2 * length + 1);
+      this.buffer.set(k.bytes.subarray(transfer, transfer + length), at + start);
       return true;
     }
     k.widen(length, transfer);
-    const at = this.reserve(4 + 2 * length);
-    this.int32At(at, length);
-    this.buffer.set(k.bytes.subarray(transfer, transfer + 2 * length), at + 4);
+    const at = this.reserve(start + 2 * length);
+    this.headerAt(at, 2 * length);
+    this.buffer.set(k.bytes.subarray(transfer, transfer + 2 * length), at + start);
     return true;
   }
 
   /** A string as UTF-8 (`[NinoUtf8]`). Unpaired surrogates are written as U+FFFD, as in .NET. */
   utf8(value: string | null): void {
-    if (value === null || value === undefined) { this.i32(-1); return; }
+    if (value === null || value === undefined) { this.u8(0); return; }
     const length = value.length;
-    if (length === 0) { this.i32(0); return; }
+    if (length === 0) { this.u8(1); return; }
+    // The char count plus one, then the byte count: string headers.
+    const countSize = headerSize(length + 1), sizeSize = headerSize(length);
     if (!nonAscii.test(value)) {
       // ASCII: as many bytes as chars, the same as Latin-1.
-      const at = this.reserve(8 + length);
-      this.int32At(at, length);
-      this.int32At(at + 4, length);
-      this.encodeLatin1(value, at + 8);
+      const at = this.reserve(countSize + sizeSize + length);
+      this.headerAt(at, length + 1);
+      this.headerAt(at + countSize, length);
+      this.encodeLatin1(value, at + countSize + sizeSize);
       return;
     }
-    // At most 3 bytes per UTF-16 code unit; the bytes not written are given back.
-    const at = this.reserve(8 + 3 * length);
-    const { written } = utf8Encoder.encodeInto(value, new Uint8Array(this.buffer.buffer, at + 8, 3 * length));
-    this.int32At(at, length);
-    this.int32At(at + 4, written);
-    this.pos = at + 8 + written;
+    // At most 3 bytes per UTF-16 code unit; the bytes not written are given back. They go after a byte count as
+    // long as the char count's (there are at least as many bytes as chars), and move up when it is longer.
+    const at = this.reserve(countSize + 5 + 3 * length), text = at + countSize + sizeSize;
+    const { written } = utf8Encoder.encodeInto(value, new Uint8Array(this.buffer.buffer, this.buffer.byteOffset + text, 3 * length));
+    this.headerAt(at, length + 1);
+    const actual = headerSize(written);
+    if (actual !== sizeSize) this.buffer.copyWithin(at + countSize + actual, text, text + written);
+    this.headerAt(at + countSize, written);
+    this.pos = at + countSize + actual + written;
   }
 
   /** Text whose every char is at most U+00FF, one byte per char at `at` (reserved). */
