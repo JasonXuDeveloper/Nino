@@ -109,9 +109,9 @@ func detectAVX2() bool {
 }
 
 // detectAVX512 tells whether the processor has AVX-512 F, BW, VL and VBMI2 and the system saves the opmask and
-// ZMM state.
+// ZMM state (osAVX512).
 func detectAVX512() bool {
-	if xcr0, _ := xgetbv(); xcr0&0xe6 != 0xe6 {
+	if !osAVX512() {
 		return false
 	}
 	_, ebx, ecx, _ := cpuid(7, 0)
@@ -178,4 +178,28 @@ func wireStrings(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, p
 		return wireStringsAVX2(dst, room, strs, count, ptrs)
 	}
 	return wireStringsSSE(dst, room, strs, count, ptrs)
+}
+
+// darwinRelease tells whether the kernel release (major.minor.patch) is at least the one given, as x/sys's
+// darwinKernelVersionCheck (osAVX512 on macOS).
+func darwinRelease(release string, major, minor, patch int) bool {
+	var mmp [3]int
+	c := 0
+	for i := 0; i < len(release) && release[i] != 0; i++ {
+		switch b := release[i]; {
+		case b >= '0' && b <= '9':
+			mmp[c] = 10*mmp[c] + int(b-'0')
+		case b == '.':
+			c++
+			if c > 2 {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	if c != 2 {
+		return false
+	}
+	return mmp[0] > major || mmp[0] == major && (mmp[1] > minor || mmp[1] == minor && mmp[2] >= patch)
 }
