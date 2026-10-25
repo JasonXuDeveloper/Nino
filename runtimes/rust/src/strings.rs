@@ -35,6 +35,15 @@ fn is_ascii_long(bytes: &[u8]) -> bool {
 #[inline(never)]
 pub(crate) fn latin1(bytes: &[u8]) -> String {
     if is_ascii(bytes) {
+        if bytes.len() <= 16 {
+            // Pushed byte by byte: for short text this is faster than `str::from_utf8` (a call, and a check of
+            // what is known to be ASCII), which safe code needs to make a `str` of the bytes as they are.
+            let mut text = String::with_capacity(bytes.len());
+            for &b in bytes {
+                text.push(char::from(b & 0x7F));
+            }
+            return text;
+        }
         // ASCII is UTF-8 as it is.
         return match core::str::from_utf8(bytes) {
             Ok(text) => text.to_owned(),
