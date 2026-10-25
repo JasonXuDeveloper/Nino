@@ -46,7 +46,7 @@ public class PayloadColumn : IColumn
         if (declaringType != null)
         {
             // A class whose setup throws (e.g. built against an older library without a formatter it uses, as
-            // arm64-bench.yml does for its base ref) has no rows; it must not take the other classes' summary down.
+            // ab-bench.yml does for its base ref) has no rows; it must not take the other classes' summary down.
             try
             {
                 RuntimeHelpers.RunClassConstructor(declaringType.TypeHandle);

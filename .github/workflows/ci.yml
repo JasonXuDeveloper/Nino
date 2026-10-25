@@ -220,7 +220,8 @@ jobs:
       # Nino.Codegen in builds: Node runs the generated TypeScript (type stripping, Node 22.18+) and tsc checks it;
       # scratch projects build with build/Nino.Codegen.targets for TypeScript, Go and Rust, and the old
       # NinoTypeScript* properties.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: current
           cache: npm

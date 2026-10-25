@@ -37,7 +37,9 @@ CHANGELOG = "https://nino.xgamedev.net/en/docs/v4/changelog"
 CLOSES = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)", re.I)
 
 # Release machinery and merge commits: never listed (their changes are the commits themselves).
-SKIP = re.compile(r"^(Bump (to|version to) v|(Bump|Update) Unity Package DLLs|Update README benchmark numbers"
+# The release workflows' own commits (release.yml, report.yml), in their current and former wording, and merges.
+SKIP = re.compile(r"^(chore\(release\): bump to v|docs\(benchmarks\): update README numbers"
+                  r"|Bump (to|version to) v|(Bump|Update) Unity Package DLLs|Update README benchmark numbers"
                   r"|Merge (pull request|branch|remote-tracking branch)|release v\d)", re.I)
 # (group, pattern on the subject with any "Area:" / "type(scope):" prefix removed, prefix pattern)
 GROUPS = [

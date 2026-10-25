@@ -46,8 +46,8 @@ concurrency:
 
 env:
   DOTNET_NOLOGO: '1'
-  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
   # Known open bugs (the probes marked Known in tests/Nino.Fuzz/Probes.cs) fail the run; setting the repository
   # variable NINO_FUZZ_STRICT_KNOWN to 0 reports them without failing it (none is marked Known now).
   NINO_FUZZ_STRICT_KNOWN: ${{ vars.NINO_FUZZ_STRICT_KNOWN || '1' }}
@@ -83,7 +83,8 @@ jobs:
             runner: ubuntu-26.04-arm
             configs: Arm64:1:1:1
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -151,7 +152,8 @@ jobs:
     env:
       LIBFUZZER_SHARDS: ${{ strategy.job-total }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 

@@ -7,6 +7,7 @@ NuGet (Directory.Build.props), the Unity package (package.json, its OpenUPM vers
 (nino-serialization and nino-serialization-derive, which the first pins exactly) and the npm package
 nino-serialization all take the release's version; the Go module takes it as the tag runtimes/go/v<version>,
 which the module path's major version (runtimes/go/v4) must match. Each file must change as expected, or this fails.
+Prints the path of each file it wrote, one per line (the release commit adds them).
 """
 import json
 import re
@@ -14,6 +15,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+WRITTEN = {}  # the paths written, in order
 
 
 def sub(path, pattern, repl, count=1, flags=0):
@@ -24,6 +26,7 @@ def sub(path, pattern, repl, count=1, flags=0):
     if n == 0:
         sys.exit(f"{path}: {pattern!r} not found")
     file.write_text(new, encoding="utf-8")
+    WRITTEN[path] = None
 
 
 def bump_json(path, version, lock=False):
@@ -34,6 +37,7 @@ def bump_json(path, version, lock=False):
     if lock:
         data["packages"][""]["version"] = version
     file.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    WRITTEN[path] = None
 
 
 def main():
@@ -57,6 +61,7 @@ def main():
     module = re.search(r"(?m)^module (\S+)", (ROOT / "runtimes/go/go.mod").read_text(encoding="utf-8")).group(1)
     if int(major) >= 2 and not module.endswith(f"/v{major}"):
         sys.exit(f"runtimes/go/go.mod: module {module} cannot take the tag runtimes/go/v{version} (needs /v{major})")
+    print("\n".join(WRITTEN))
 
 
 if __name__ == "__main__":
