@@ -1140,7 +1140,20 @@ export class NinoWriter {
     if (value === null || value === undefined) { this.i32(-1); return; }
     const length = value.length;
     if (length <= (nodeText === null ? kernelWrite : shortText)) {
-      if (this.narrow(value, length)) return;
+      // `narrow`, written out here: the common path stays one function (a call to it measured 8-12% slower in
+      // Chromium on short text, x64 and Arm64).
+      const at = this.reserve(4 + length), buffer = this.buffer;
+      let i = 0;
+      for (; i < length; i++) {
+        const c = value.charCodeAt(i);
+        if (c > 0xff) break;
+        buffer[at + 4 + i] = c;
+      }
+      if (i === length) {
+        this.int32At(at, length === 0 ? 0 : ~length);
+        return;
+      }
+      this.pos = at;
     } else if (nodeText === null) {
       // Out of line, so the short text above compiles as it did without the kernels.
       this.longString(value, length);
