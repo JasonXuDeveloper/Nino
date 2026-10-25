@@ -9,7 +9,7 @@ name: .NET A/B (test branch)
 #
 # Each line is a job of its own on each runner (up to three lines). A line may start with cpu=<regex> (an
 # extended regular expression on lscpu's model name, for example cpu='Intel|Neoverse'): the x64 runner pool mixes
-# Intel and AMD processors, so such a line runs on up to six x64 runners at once (slots), each going on only when its
+# Intel and AMD processors, so such a line runs on up to eight x64 runners at once (slots), each going on only when its
 # processor matches (the others fail, so `gh run rerun --failed` draws new runners for them); a line without it runs on one runner of each kind as before. Both commits must be on a branch of this
 # repository (main, or this branch: push them here, merging, never force-pushing). Both are built with head's
 # benchmark project. The reports and the ab.py tables go to the log. Numbers are for development only.
@@ -40,16 +40,22 @@ jobs:
           - { runner: ubuntu-26.04, line: 1, slot: 4 }
           - { runner: ubuntu-26.04, line: 1, slot: 5 }
           - { runner: ubuntu-26.04, line: 1, slot: 6 }
+          - { runner: ubuntu-26.04, line: 1, slot: 7 }
+          - { runner: ubuntu-26.04, line: 1, slot: 8 }
           - { runner: ubuntu-26.04, line: 2, slot: 2 }
           - { runner: ubuntu-26.04, line: 2, slot: 3 }
           - { runner: ubuntu-26.04, line: 2, slot: 4 }
           - { runner: ubuntu-26.04, line: 2, slot: 5 }
           - { runner: ubuntu-26.04, line: 2, slot: 6 }
+          - { runner: ubuntu-26.04, line: 2, slot: 7 }
+          - { runner: ubuntu-26.04, line: 2, slot: 8 }
           - { runner: ubuntu-26.04, line: 3, slot: 2 }
           - { runner: ubuntu-26.04, line: 3, slot: 3 }
           - { runner: ubuntu-26.04, line: 3, slot: 4 }
           - { runner: ubuntu-26.04, line: 3, slot: 5 }
           - { runner: ubuntu-26.04, line: 3, slot: 6 }
+          - { runner: ubuntu-26.04, line: 3, slot: 7 }
+          - { runner: ubuntu-26.04, line: 3, slot: 8 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 300
     steps:
