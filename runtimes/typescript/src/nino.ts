@@ -1104,43 +1104,55 @@ export class NinoWriter {
     if (value === null || value === undefined) { this.i32(-1); return; }
     const length = value.length;
     if (length <= (nodeText === null ? kernelWrite : shortText)) {
-      // Narrowed in one pass while every char fits in a byte; from the first wider char on, UTF-16 instead.
-      const at = this.reserve(4 + length), buffer = this.buffer;
-      let i = 0;
-      for (; i < length; i++) {
-        const c = value.charCodeAt(i);
-        if (c > 0xff) break;
-        buffer[at + 4 + i] = c;
-      }
-      if (i === length) {
-        this.int32At(at, length === 0 ? 0 : ~length);
-        return;
-      }
-      this.pos = at;
+      if (this.narrow(value, length)) return;
     } else if (nodeText === null) {
       // Out of line, so the short text above compiles as it did without the kernels.
       this.longString(value, length);
       return;
     } else if (!wide.test(value)) {
-      const at = this.reserve(4 + length);
-      this.int32At(at, ~length);
-      this.encodeLatin1(value, at + 4);
+      this.latin1(value, length);
+      return;
+    }
+    if (nodeText === null) {
+      this.utf16(value, length);
       return;
     }
     const at = this.reserve(4 + 2 * length);
-    this.view.setInt32(at, length, true);
-    if (nodeText !== null) {
-      nodeText.ucs2Write.call(this.buffer, value, at + 4, 2 * length);
-      return;
+    this.int32At(at, length);
+    nodeText.ucs2Write.call(this.buffer, value, at + 4, 2 * length);
+  }
+
+  /**
+   * The `length` chars of `value` one byte each, after their count, in one pass while every char fits in a byte.
+   * Returns false, writing nothing, at the first wider char.
+   */
+  private narrow(value: string, length: number): boolean {
+    const at = this.reserve(4 + length), buffer = this.buffer;
+    let i = 0;
+    for (; i < length; i++) {
+      const c = value.charCodeAt(i);
+      if (c > 0xff) break;
+      buffer[at + 4 + i] = c;
     }
-    const view = this.view;
-    for (let i = 0; i < length; i++) view.setUint16(at + 4 + 2 * i, value.charCodeAt(i), true);
+    if (i === length) {
+      this.int32At(at, length === 0 ? 0 : ~length);
+      return true;
+    }
+    this.pos = at;
+    return false;
+  }
+
+  /** The `length` chars of `value`, every one at most U+00FF, one byte each after their count. */
+  private latin1(value: string, length: number): void {
+    const at = this.reserve(4 + length);
+    this.int32At(at, ~length);
+    this.encodeLatin1(value, at + 4);
   }
 
   /** Without Node's methods: the `length` chars of `value` as UTF-16 code units, after their count. */
   private utf16(value: string, length: number): void {
     const at = this.reserve(4 + 2 * length);
-    this.view.setInt32(at, length, true);
+    this.int32At(at, length);
     const view = this.view;
     for (let i = 0; i < length; i++) view.setUint16(at + 4 + 2 * i, value.charCodeAt(i), true);
   }
@@ -1149,23 +1161,9 @@ export class NinoWriter {
   private longString(value: string, length: number): void {
     if (length <= kernelText && (length <= kernelAscii || wide.test(value)) && this.stringKernels(value, length)) return;
     if (length <= loopText) {
-      // As `string` narrows short text.
-      const at = this.reserve(4 + length), buffer = this.buffer;
-      let i = 0;
-      for (; i < length; i++) {
-        const c = value.charCodeAt(i);
-        if (c > 0xff) break;
-        buffer[at + 4 + i] = c;
-      }
-      if (i === length) {
-        this.int32At(at, ~length);
-        return;
-      }
-      this.pos = at;
+      if (this.narrow(value, length)) return;
     } else if (!wide.test(value)) {
-      const at = this.reserve(4 + length);
-      this.int32At(at, ~length);
-      this.encodeLatin1(value, at + 4);
+      this.latin1(value, length);
       return;
     }
     this.utf16(value, length);
@@ -1199,16 +1197,16 @@ export class NinoWriter {
     if (!nonAscii.test(value)) {
       // ASCII: as many bytes as chars, the same as Latin-1.
       const at = this.reserve(8 + length);
-      this.view.setInt32(at, length, true);
-      this.view.setInt32(at + 4, length, true);
+      this.int32At(at, length);
+      this.int32At(at + 4, length);
       this.encodeLatin1(value, at + 8);
       return;
     }
     // At most 3 bytes per UTF-16 code unit; the bytes not written are given back.
     const at = this.reserve(8 + 3 * length);
     const { written } = utf8Encoder.encodeInto(value, new Uint8Array(this.buffer.buffer, at + 8, 3 * length));
-    this.view.setInt32(at, length, true);
-    this.view.setInt32(at + 4, written, true);
+    this.int32At(at, length);
+    this.int32At(at + 4, written);
     this.pos = at + 8 + written;
   }
 
