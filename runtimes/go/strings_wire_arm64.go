@@ -4,7 +4,7 @@ package nino
 
 import "unsafe"
 
-// The string paths' NEON kernels (strings_wire_arm64.s, written by internal/wiregen), taken on every arm64
+// The string paths' NEON kernels (strings_wire_arm64.s, written by internal/asm), taken on every arm64
 // processor (NEON is part of the architecture); with the purego build tag the Go loops write and read the same
 // bytes.
 
@@ -41,14 +41,14 @@ func readLatin1(dst, src unsafe.Pointer, n int) int { return latin1UTF8NEON(dst,
 
 // wireStringNEON converts src[i:n] (n > i, the bytes before i ASCII) to Latin-1 at dst+i, returning the bytes
 // written, or to UTF-16 at dst+2*i, returning ^units; for text that is not WTF-8 it returns wireInvalid. dst has
-// room for 2*n+64 bytes.
+// room for 2*n+wireSlack bytes.
 //
 //go:noescape
 func wireStringNEON(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int
 
 // wireStringsNEON writes strings from strs (count of them: strings, or pointers to them when ptrs, nil the null
-// string) at dst (room bytes), each with its header, while each has room for 4+2*len+64 bytes and is WTF-8 of fewer
-// than 2^30 bytes; it returns how many it wrote and the bytes they took.
+// string) at dst (room bytes), each with its header, while each has room for 4+2*len+wireSlack bytes and is WTF-8 of fewer
+// than wireMaxText bytes; it returns how many it wrote and the bytes they took.
 //
 //go:noescape
 func wireStringsNEON(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)

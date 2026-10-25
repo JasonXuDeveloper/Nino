@@ -50,7 +50,7 @@ func writeBoth(t *testing.T, s string, pad, size int) {
 		if s != "" && utf8.ValidString(s) {
 			// Valid text is never left to the Go loops.
 			setWire(tier)
-			dst := make([]byte, 2*len(s)+64)
+			dst := make([]byte, 2*len(s)+wireSlack)
 			if wireString(unsafe.Pointer(unsafe.SliceData(dst)), 0, unsafe.Pointer(unsafe.StringData(s)), len(s)) == wireInvalid {
 				t.Fatalf("%q (%s): the vector path took valid text as invalid", s, tierName(tier))
 			}
@@ -80,7 +80,7 @@ func TestWireStringBlocks(t *testing.T) {
 				}
 				s := sb.String()
 				writeBoth(t, s, rnd.Intn(5), 0)
-				writeBoth(t, s, 0, 4+2*len(s)+64)
+				writeBoth(t, s, 0, 4+2*len(s)+wireSlack)
 			}
 		}
 	}

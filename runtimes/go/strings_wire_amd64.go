@@ -2,25 +2,25 @@
 
 package nino
 
-//go:generate go run ./internal/wiregen
+//go:generate go run -C internal/asm . -amd64 ../../strings_wire_amd64.s -arm64 ../../strings_wire_arm64.s
 
 import "unsafe"
 
-// The string paths' x64 kernels (strings_wire_amd64.s, written by internal/wiregen), one tier per instruction set:
+// The string paths' x64 kernels (strings_wire_amd64.s, written by internal/asm with avo), one tier per instruction set:
 // the writer's SSSE3, AVX2 and AVX-512 paths and the reader's SSSE3 and AVX-512 paths, each taken where the
 // processor and the system support it; without SSSE3, and with the purego build tag, the Go loops of
 // strings_write.go and strings.go write and read the same bytes.
 
 // wireStringAVX2 converts src[i:n] (n > i, the bytes before i ASCII) to Latin-1 at dst+i, returning the bytes
 // written, or to UTF-16 at dst+2*i, returning ^units; for text that is not WTF-8 it returns wireInvalid. dst has
-// room for 2*n+64 bytes. It reads the 32 bytes from the last block's start when they lie in one page.
+// room for 2*n+wireSlack bytes. It reads the 32 bytes from the last block's start when they lie in one page.
 //
 //go:noescape
 func wireStringAVX2(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int
 
 // wireStringsAVX2 writes strings from strs (count of them: strings, or pointers to them when ptrs, nil the null
-// string) at dst (room bytes), each with its header, while each has room for 4+2*len+64 bytes and is WTF-8 of fewer
-// than 2^30 bytes; it returns how many it wrote and the bytes they took.
+// string) at dst (room bytes), each with its header, while each has room for 4+2*len+wireSlack bytes and is WTF-8 of fewer
+// than wireMaxText bytes; it returns how many it wrote and the bytes they took.
 //
 //go:noescape
 func wireStringsAVX2(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)
@@ -34,8 +34,8 @@ func wireStringAVX512(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int
 //go:noescape
 func wireStringsAVX512(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)
 
-// utf16UTF8AVX512 writes units UTF-16 code units at src as WTF-8 at dst (room for 3*units+64 bytes) and returns the
-// bytes written; latin1UTF8AVX512 writes n Latin-1 bytes at src as UTF-8 at dst (room for 2*n+64). Both read only
+// utf16UTF8AVX512 writes units UTF-16 code units at src as WTF-8 at dst (room for 3*units+wireSlack bytes) and returns the
+// bytes written; latin1UTF8AVX512 writes n Latin-1 bytes at src as UTF-8 at dst (room for 2*n+wireSlack). Both read only
 // the text.
 //
 //go:noescape

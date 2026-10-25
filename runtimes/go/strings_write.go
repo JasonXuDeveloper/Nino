@@ -192,7 +192,7 @@ func (w *Writer) emptyString(n int) {
 func (w *Writer) wideString(s string, at, i int, short uint64) {
 	n := len(s)
 	src := unsafe.Pointer(unsafe.StringData(s))
-	if useWire && cap(w.buf)-at-4 >= 2*n+64 {
+	if useWire && cap(w.buf)-at-4 >= 2*n+wireSlack {
 		// The vector path, where the platform has one (strings_wire_amd64.s), for UTF-8 (WTF-8) text in a buffer
 		// with room for its stores.
 		dst := unsafe.Pointer(&w.buf[at+4])
@@ -445,4 +445,53 @@ func utf16Tail(dst unsafe.Pointer, j int, s string, i int) int {
 		j += 2
 	}
 	return j >> 1
+}
+
+// WriteStrings writes a sequence of strings (a string[] or List<string>): nil is null. It writes the bytes
+// [WriteSlice] with [Writer.String] writes, many strings in one call where the platform has a vector path.
+func WriteStrings(w *Writer, v []string) {
+	if v == nil {
+		w.Null()
+		return
+	}
+	w.Length(len(v))
+	if !useWire {
+		for _, s := range v {
+			w.String(s)
+		}
+		return
+	}
+	for len(v) > 0 {
+		if done := w.wireStrings(unsafe.Pointer(unsafe.SliceData(v)), v, nil); done > 0 {
+			v = v[done:]
+			continue
+		}
+		// A string the vector path leaves (not UTF-8, very long).
+		w.String(v[0])
+		v = v[1:]
+	}
+}
+
+// WriteStringPtrs writes a sequence of nullable strings (what generated code writes a C# string[] or List<string>
+// as): nil is null, and so is each nil element.
+func WriteStringPtrs(w *Writer, v []*string) {
+	if v == nil {
+		w.Null()
+		return
+	}
+	w.Length(len(v))
+	if !useWire {
+		for _, s := range v {
+			w.StringPtr(s)
+		}
+		return
+	}
+	for len(v) > 0 {
+		if done := w.wireStrings(unsafe.Pointer(unsafe.SliceData(v)), nil, v); done > 0 {
+			v = v[done:]
+			continue
+		}
+		w.StringPtr(v[0])
+		v = v[1:]
+	}
 }
