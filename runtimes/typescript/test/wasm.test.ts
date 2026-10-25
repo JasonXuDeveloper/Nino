@@ -1,13 +1,24 @@
-// The WebAssembly kernels (wasm/text.wat): nino.ts embeds what wasm/build.ts builds from the source, and text read and
+// The WebAssembly kernels (wasm/text.wat): nino.ts embeds what wasm-tools builds from the source, and text read and
 // written through them is the same as through the JavaScript paths they replace, for every length up to 256 and
 // past the kernels' limit, with every kind of char at every position (unpaired surrogates included). The tests run
 // on an instance of the runtime evaluated without `Buffer`, as a browser has it, with the kernels on and off.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { embedded, literal } from "../wasm/build.ts";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { build, embedded, runtimePath, sourceHash, watPath } from "../wasm/embed.ts";
 import { int32, toHex } from "./codecs.ts";
 
 type Runtime = typeof import("../src/nino.ts");
+
+function hasWasmTools(): boolean {
+  try {
+    execFileSync("wasm-tools", ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function browser(): Promise<Runtime> {
   const global = globalThis as { Buffer?: unknown };
@@ -60,8 +71,20 @@ describe("WebAssembly kernels", async () => {
   const all = texts();
   const string = { read: (r: InstanceType<typeof NinoReader>) => r.string(), write: (w: InstanceType<typeof NinoWriter>, v: string | null) => w.string(v) };
 
-  it("are what wasm/build.ts builds from wasm/text.wat (npm run build:wasm)", () => {
-    assert.equal(embedded(), literal());
+  it("are built from wasm/text.wat as it is (npm run build:wasm)", () => {
+    assert.equal(embedded().source, sourceHash(), "text.wat changed since npm run build:wasm");
+  });
+
+  it("are what wasm-tools builds from wasm/text.wat", (t) => {
+    if (!hasWasmTools()) return t.skip("wasm-tools is not installed (see the README)");
+    assert.equal(embedded().module, build());
+  });
+
+  it("take as many chars as nino.ts passes them (kernelText)", () => {
+    const array = /\(array\.new_default \$codes \(i32\.const (\d+)\)\)/.exec(readFileSync(watPath, "utf8"))?.[1];
+    const limit = /^const kernelText = (\d+);$/m.exec(readFileSync(runtimePath, "utf8"))?.[1];
+    assert.ok(array !== undefined && limit !== undefined);
+    assert.equal(array, limit);
   });
 
   it("run in every Node the tests support (WebAssembly SIMD, GC and the JS String Builtins)", () => {
