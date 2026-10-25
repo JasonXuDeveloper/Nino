@@ -46,7 +46,7 @@ namespace Test.Runtime.Burst
                  Field("unity", Application.unityVersion) +
                  Field("backend", Backend) +
                  Field("development", Debug.isDebugBuild ? "true" : "false") +
-                 Field("isa", NinoBurst.Isa == 1 ? "SSSE3" : NinoBurst.Isa == 2 ? "Arm64 Neon" : "none") +
+                 Field("isa", NinoBurst.IsaName) +
                  Field("cpu", SystemInfo.processorType) +
                  Field("cores", SystemInfo.processorCount.ToString(CultureInfo.InvariantCulture)) +
                  Field("os", SystemInfo.operatingSystem) +
@@ -119,9 +119,9 @@ namespace Test.Runtime.Burst
         /// <summary>The bytes of <paramref name="value"/>, the same without the kernels and with them, and read back.</summary>
         private static byte[] Bytes<T>(string name, T value)
         {
-            Use(false);
+            Use(Scalar);
             byte[] scalar = NinoSerializer.Serialize(value);
-            Use(true);
+            Use(Best);
             byte[] burst = NinoSerializer.Serialize(value);
             Assert.IsTrue(scalar.SequenceEqual(burst), $"{name}: different bytes with the kernels");
             Assert.IsTrue(NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(burst)).SequenceEqual(burst),
@@ -129,36 +129,48 @@ namespace Test.Runtime.Burst
             return burst;
         }
 
+        // The paths timed: without the kernels, with all of them, and on an AVX2 CPU with the 16-byte ones only.
+        private const int Scalar = 0, Best = 1, Sixteen = 2;
+
         private static void Row(string name, string operation, int n, Action action)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
-            int scalarCalls = Calibrate(action, false), burstCalls = Calibrate(action, true);
-            var scalar = new double[Rounds];
-            var burst = new double[Rounds];
-            for (int round = 0; round < Rounds; round++)
+            Use(Best);
+            int modes = NinoBurst.Isa == NinoBurst.Avx2 ? 3 : 2;
+            var calls = new int[modes];
+            var times = new double[modes][];
+            for (int mode = 0; mode < modes; mode++)
             {
-                scalar[round] = Batch(action, false, scalarCalls);
-                burst[round] = Batch(action, true, burstCalls);
+                calls[mode] = Calibrate(action, mode);
+                times[mode] = new double[Rounds];
             }
 
-            Emit(string.Join("|", "NINO_UNITY_BENCH", name, operation, n.ToString(CultureInfo.InvariantCulture),
-                Median(scalar).ToString("F1", CultureInfo.InvariantCulture),
-                Median(burst).ToString("F1", CultureInfo.InvariantCulture)));
+            for (int round = 0; round < Rounds; round++)
+            for (int mode = 0; mode < modes; mode++)
+                times[mode][round] = Batch(action, mode, calls[mode]);
+
+            string Ns(int mode) => Median(times[mode]).ToString("F1", CultureInfo.InvariantCulture);
+            string count = n.ToString(CultureInfo.InvariantCulture);
+            Emit(string.Join("|", "NINO_UNITY_BENCH", name, operation, count, Ns(Scalar), Ns(Best)));
+            // Each instruction set on its own (AVX2 CPUs): not in the release section, for comparing the two.
+            if (modes == 3)
+                Emit(string.Join("|", "NINO_UNITY_TIER", name, operation, count, Ns(Scalar), Ns(Sixteen), Ns(Best)));
         }
 
-        private static void Use(bool kernels)
+        private static void Use(int mode)
         {
-            if (kernels)
-                Assert.IsTrue(NinoBurst.Register(), "the kernels did not register");
-            else
+            if (mode == Scalar)
                 NinoBurst.Unregister();
+            else
+                Assert.IsTrue(NinoBurst.Register(mode == Sixteen ? NinoBurst.Ssse3 : NinoBurst.Avx2),
+                    "the kernels did not register");
         }
 
         /// <summary>Warms the path up for <see cref="WarmupMs"/> ms (three calls at least); returns the calls a batch makes.</summary>
-        private static int Calibrate(Action action, bool kernels)
+        private static int Calibrate(Action action, int mode)
         {
-            Use(kernels);
+            Use(mode);
             var watch = Stopwatch.StartNew();
             int calls = 0;
             while (calls < 3 || watch.Elapsed.TotalMilliseconds < WarmupMs)
@@ -171,9 +183,9 @@ namespace Test.Runtime.Burst
         }
 
         /// <summary>Nanoseconds per call over <paramref name="calls"/> calls.</summary>
-        private static double Batch(Action action, bool kernels, int calls)
+        private static double Batch(Action action, int mode, int calls)
         {
-            Use(kernels);
+            Use(mode);
             long start = Stopwatch.GetTimestamp();
             for (int i = 0; i < calls; i++)
                 action();

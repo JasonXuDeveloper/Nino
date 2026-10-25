@@ -46,7 +46,9 @@ class UnityReportTests(unittest.TestCase):
         self.assertIn(
             "Unity 6000.3.27f1, IL2CPP player (C++ Release, code generation OptimizeSpeed, stripping Minimal, "
             "not a Development build, Nino.Core Release), Linux x64, AMD EPYC 7763 64-Core Processor (4 cores), "
-            "Burst 1.8.29, kernels SSSE3.", text.splitlines())
+            "Burst 1.8.29 (x64 targets SSE2, SSE4, AVX2), kernels AVX2.", text.splitlines())
+        # The 2022.3 fixture's build line names no targets.
+        self.assertIn("Burst 1.8.29, kernels SSSE3.", report("unity-bench-2022.3.62f2.txt")[0])
 
     def test_rows(self):
         text, _ = report("unity-bench-6000.3.27f1.txt", "unity-bench-2022.3.62f2.txt")
@@ -54,6 +56,7 @@ class UnityReportTests(unittest.TestCase):
         self.assertIn("| Case | Operation | Without Burst | With Burst | Speedup |", lines)
         self.assertIn("|---|---|--:|--:|--:|", lines)
         self.assertIn("| (int, long)[32] | Serialize | 3.28 μs | 835.4 ns | 3.92× |", lines)
+        self.assertNotIn("900.1", text)  # NINO_UNITY_TIER lines stay out of the section
         self.assertIn("| (int, long)[1000] | Deserialize | 64.86 μs | 1.16 μs | 55.9× |", lines)
         self.assertIn("| (int, long)[100000] | Serialize | 8.16 ms | 612.00 μs | 13.3× |", lines)
         self.assertIn("| List of 1000 ASCII strings (8–40 chars) | Deserialize | 0.9 ns | 0.8 ns | 1.12× |", lines)

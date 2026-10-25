@@ -2,7 +2,9 @@
 // test player). Without that argument the test player is built as the test runner builds it.
 #if NINO_BURST
 using System;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.TestTools;
@@ -42,9 +44,29 @@ namespace Test.Editor.Burst
                 "il2cpp_codegen=" + PlayerSettings.GetIl2CppCodeGeneration(target),
                 "stripping=" + PlayerSettings.GetManagedStrippingLevel(target),
                 "development=" + ((options.options & BuildOptions.Development) != 0 ? "true" : "false"),
-                "burst=" + (burst != null ? burst.version : "unknown"));
+                "burst=" + (burst != null ? burst.version : "unknown"),
+                "burst_x64_targets=" + BurstX64Targets(options.target));
             Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0}", line);
             return options;
+        }
+
+        /// <summary>
+        /// The x64 CPU targets Burst AOT compiles for (each a variant, picked by the CPU at run time), as the Burst AOT
+        /// Settings of the target list them (ProjectSettings/BurstAotSettings_&lt;target&gt;.json, CpuTargetsX64: bit
+        /// 3 SSE2, 4 SSE4, 5 AVX, 6 AVX2); "default" without the file (Burst 1.8.29: SSE2 and AVX2).
+        /// </summary>
+        private static string BurstX64Targets(BuildTarget target)
+        {
+            string path = $"ProjectSettings/BurstAotSettings_{target}.json";
+            if (!File.Exists(path))
+                return "default";
+            var match = Regex.Match(File.ReadAllText(path), "\"CpuTargetsX64\"\\s*:\\s*(\\d+)");
+            if (!match.Success)
+                return "default";
+            int bits = int.Parse(match.Groups[1].Value);
+            var names = new[] { (3, "SSE2"), (4, "SSE4"), (5, "AVX"), (6, "AVX2") }
+                .Where(t => (bits & (1 << t.Item1)) != 0).Select(t => t.Item2);
+            return string.Join(" ", names);
         }
     }
 }
