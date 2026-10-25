@@ -50,12 +50,15 @@ on:
 permissions:
   contents: read
 
+# A newer push or pull request commit supersedes a run; the nightly and manual runs are never cancelled, and never
+# cancel the others (each event its own group).
 concurrency:
-  group: fuzz-${{ github.ref }}
-  cancel-in-progress: true
+  group: fuzz-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
 
 env:
   DOTNET_NOLOGO: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   # Known open bugs (the probes marked Known in tests/Nino.Fuzz/Probes.cs) fail the run; setting the repository
   # variable NINO_FUZZ_STRICT_KNOWN to 0 reports them without failing it (none is marked Known now).
@@ -87,20 +90,21 @@ jobs:
       DOTNET_EnableAVX512: ${{ matrix.avx512 || '1' }}
       DOTNET_EnableAVX2: ${{ matrix.avx2 || '1' }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             ${{ vars.DOTNET_VERSION || '10.0.x' }}
             10.0.x
 
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-${{ runner.arch }}-fuzz-nuget-${{ hashFiles('**/*.csproj') }}
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-fuzz-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-fuzz-nuget-
+            nuget-${{ runner.os }}-${{ runner.arch }}-fuzz-
+            nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build
         run: dotnet build tests/Nino.Fuzz/Nino.Fuzz.csproj -c Release -f net10.0
@@ -118,7 +122,7 @@ jobs:
 
       - name: Upload findings
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fuzz-findings-${{ matrix.name }}
           path: ${{ runner.temp }}/findings
@@ -126,25 +130,32 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+  # The targets split over three runners (target i on shard i mod 3): libFuzzer runs one target at a time, so one
+  # runner took the sum of every target's time (an hour at night).
   libfuzzer:
-    name: libFuzzer (SharpFuzz)
+    name: libFuzzer (SharpFuzz, ${{ matrix.shard }}/3)
     runs-on: ubuntu-26.04
     timeout-minutes: ${{ github.event_name == 'pull_request' && 30 || 120 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ 1, 2, 3 ]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             ${{ vars.DOTNET_VERSION || '10.0.x' }}
             10.0.x
 
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-${{ runner.arch }}-fuzz-nuget-${{ hashFiles('**/*.csproj') }}
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-fuzz-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-fuzz-nuget-
+            nuget-${{ runner.os }}-${{ runner.arch }}-fuzz-
+            nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install clang with libFuzzer
         run: |
@@ -153,16 +164,28 @@ jobs:
           version=$(clang --version | sed -n 's/.*clang version \([0-9]*\).*/\1/p')
           sudo apt-get install -y -q "libclang-rt-$version-dev" || true
 
-      - name: Fuzz every target
+      # Every target (the list run.sh fuzzes without arguments), and this shard's share of them.
+      - name: Fuzz this shard's targets
         env:
           NINO_LIBFUZZER_WORK: ${{ runner.temp }}/libfuzzer
-        run: tests/Nino.Fuzz/libfuzzer/run.sh "$LIBFUZZER_SECONDS"
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          dotnet build tests/Nino.Fuzz/Nino.Fuzz.csproj -c Release -f net10.0 -nologo -v quiet
+          mapfile -t all < <(dotnet tests/Nino.Fuzz/bin/Release/net10.0/Nino.Fuzz.dll targets)
+          mine=()
+          for i in "${!all[@]}"; do
+            if (( i % 3 == SHARD - 1 )); then mine+=("${all[i]}"); fi
+          done
+          echo "targets: ${#all[@]}, this shard: ${mine[*]}"
+          (( ${#all[@]} > 0 ))
+          if (( ${#mine[@]} > 0 )); then tests/Nino.Fuzz/libfuzzer/run.sh "$LIBFUZZER_SECONDS" "${mine[@]}"; fi
 
       - name: Upload findings
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: libfuzzer-findings
+          name: libfuzzer-findings-${{ matrix.shard }}
           path: ${{ runner.temp }}/libfuzzer/findings
           if-no-files-found: ignore
           retention-days: 30
