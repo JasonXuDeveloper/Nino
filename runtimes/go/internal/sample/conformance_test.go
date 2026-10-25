@@ -98,7 +98,14 @@ func readFile(t testing.TB, path string) []byte {
 // unsupported is the reason a type cannot be read here, or "".
 func unsupported(typeName string) string {
 	if strings.HasPrefix(typeName, "Conformance.Tracked") {
-		return "reference tracking is not implemented"
+		return "reference tracking is not implemented here (internal/generated runs its cases)"
+	}
+	switch typeName {
+	case "Conformance.BagHolder", "Conformance.GenericSlots", "Conformance.WrappedArgs":
+		// [NinoType] collections, generic types behind a type id, Nullable and KeyValuePair type arguments.
+		return "left to the code nino-gen writes (internal/generated runs its cases)"
+	case "Conformance.NestHolder":
+		return "Nest<T> holds Nest<List<T>>, a type Go cannot instantiate (polymorphic recursion)"
 	}
 	return ""
 }

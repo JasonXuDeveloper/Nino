@@ -75,6 +75,13 @@ namespace Nino.Codegen.Integration.Tests
             Tolerant = new Tolerant { A = 1, B = "tolerant" },
         };
 
+        private static Node Cycle()
+        {
+            var first = new Node();
+            first.Next = new Node { Next = first };
+            return first;
+        }
+
         private static Extras FullExtras() => new()
         {
             Padded = new Padded { A = 7, B = -8 },
@@ -119,9 +126,11 @@ namespace Nino.Codegen.Integration.Tests
         [TestMethod]
         public void LeavesOutWhatItCannotWrite()
         {
-            StringAssert.Contains(_output, "warning NINOGEN002: Samples.Node is not written to TypeScript: reference tracking");
+            StringAssert.Contains(_output, "warning NINOGEN002: Samples.Halves is not written to TypeScript: System.Half");
             string types = File.ReadAllText(Path.Combine(_directory, "Nino.Codegen.Integration.Tests.ts"));
-            Assert.IsFalse(types.Contains("class Node"));
+            Assert.IsFalse(types.Contains("class Halves"));
+            // Reference tracking is written (RoundTripsTheBytesDotNetWrites reads and writes a cycle).
+            StringAssert.Contains(types, "export class Node {");
             StringAssert.Contains(types, "export class Player {");
             StringAssert.Contains(File.ReadAllText(Path.Combine(_directory, "nino.ts")), "export const ninoVersion = \"4.");
         }
@@ -158,6 +167,11 @@ namespace Nino.Codegen.Integration.Tests
                 ("IShapeCodec", NinoSerializer.Serialize<IShape>(new Square { Area = 1, Side = 1 })),
                 ("SavedCodec", NinoSerializer.Serialize(new Saved { Health = 5 })),
                 ("TolerantCodec", NinoSerializer.Serialize(new Tolerant { A = 3 })),
+                // Reference tracking: two nodes holding each other (written once each, then a back reference; the
+                // value has no JSON), a chain and null.
+                ("NodeCodec", NinoSerializer.Serialize(Cycle())),
+                ("NodeCodec", NinoSerializer.Serialize(new Node { Next = new Node() })),
+                ("NodeCodec", NinoSerializer.Serialize<Node>(null)),
                 // Strings: Latin-1, UTF-16 with a surrogate pair and an unpaired surrogate, long enough for chunks.
                 ("TagCodec", NinoSerializer.Serialize(new Tag { Name = new string('é', 5000) })),
                 ("TagCodec", NinoSerializer.Serialize(new Tag { Name = "a😀b\ud800c" + new string('中', 5000) })),

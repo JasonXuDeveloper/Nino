@@ -93,3 +93,43 @@ func TestGenericShapesRoundTrip(t *testing.T) {
 		t.Fatalf("read back\n %+v\nwant %+v", back, uses)
 	}
 }
+
+// Slots of generic types written behind type ids: a closed one (Open<int>), and an open one in a generic codec
+// (OpenHolder<T>'s Open<T>), given the slot of Open<long> with the closed types the assembly never names.
+func TestGenericSlotsRoundTrip(t *testing.T) {
+	use := &OpenUse{Open: &MoreOpen[int32]{Value: 1, Extra: 2}}
+	data, err := nino.Serialize(use, WriteOpenUse)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back, err := nino.DeserializeExact(data, ReadOpenUse); err != nil || !reflect.DeepEqual(back, use) {
+		t.Fatalf("open use: %v, %+v", err, back)
+	}
+	holder := &OpenHolderUse{Holder: &OpenHolder[int64]{
+		Inner: &MoreOpen[int64]{Value: 3, Extra: 4},
+		All:   []OpenType[int64]{&Open[int64]{Value: 5}, nil, &MoreOpen[int64]{Value: 6}},
+	}}
+	data, err = nino.Serialize(holder, WriteOpenHolderUse)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := nino.DeserializeExact(data, ReadOpenHolderUse)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(back, holder) {
+		t.Fatalf("read back\n %+v\nwant %+v", back, holder)
+	}
+	// The ids are those of the closed .NET names.
+	if id := (&MoreOpen[int64]{}).NinoTypeID(); id != nino.TypeID("Shapes.Generic.MoreOpen<System.Int64>") {
+		t.Fatalf("id %d", id)
+	}
+	// The id of a closed type of another argument is not one the slot of Open<long> allows.
+	wrong := append([]byte{1, 1}, data[2:]...)
+	copy(wrong[2:], le32(nino.TypeID("Shapes.Generic.MoreOpen<System.Int32>")))
+	if _, err := nino.DeserializeExact(wrong, ReadOpenHolderUse); err == nil {
+		t.Fatal("read a MoreOpen<int> in a slot of Open<long>")
+	}
+}
+
+func le32(v int32) []byte { return []byte{byte(v), byte(v >> 8), byte(v >> 16), byte(v >> 24)} }

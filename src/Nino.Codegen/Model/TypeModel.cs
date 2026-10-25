@@ -117,11 +117,44 @@ namespace Nino.Codegen.Model
         /// <summary>The elements of a <c>[NinoType]</c> collection, written before its members.</summary>
         public ValueModel? Elements { get; internal set; }
 
-        /// <summary>The nearest base class with a layout.</summary>
+        /// <summary>The nearest base class with a layout (a generic one by its definition).</summary>
         public TypeModel? BaseType { get; internal set; }
 
-        /// <summary>The interfaces with a layout that it implements.</summary>
+        /// <summary>
+        /// <see cref="BaseType"/> with the arguments this type gives it (<c>Shelf&lt;int&gt;</c>, <c>Shelf&lt;T&gt;</c>), as a
+        /// <see cref="ValueKind.Generic"/> value; null when the base type is not generic.
+        /// </summary>
+        public ValueModel? BaseValue { get; internal set; }
+
+        /// <summary>The interfaces with a layout that it implements (a generic one by its definition).</summary>
         public List<TypeModel> Interfaces { get; } = new();
+
+        /// <summary>
+        /// The generic interfaces of <see cref="Interfaces"/> with the arguments this type gives them, in the same
+        /// order; null where the interface is not generic.
+        /// </summary>
+        public List<ValueModel?> InterfaceValues { get; } = new();
+
+        /// <summary>
+        /// A generic definition's slots of generic types written behind type ids that hold its own type parameters
+        /// (<c>Crate&lt;T&gt;</c> in <c>Pair&lt;T&gt;</c>), its own or those of the generic types it holds: their type ids
+        /// depend on the type arguments' .NET names, which only a closed use of the definition knows. Its codecs are
+        /// given these slots (<see cref="ValueModel.SlotArguments"/>) with the codecs of its arguments.
+        /// </summary>
+        public List<ValueModel> SlotParameters { get; } = new();
+
+        /// <summary>
+        /// The generic types written behind type ids (non-sealed generic classes, abstract generic classes, generic
+        /// interfaces) that a value of this type can sit in, with the arguments this type gives them, by definition:
+        /// itself (a generic definition written behind its own id), its base classes and its interfaces
+        /// (<c>Shelf&lt;int&gt;</c> for <c>IntShelf : Shelf&lt;int&gt;</c>, <c>Shelf&lt;T&gt;</c> for
+        /// <c>ListShelf&lt;T&gt; : Shelf&lt;T&gt;</c>). Languages without inheritance mark a type with them, so a slot of a
+        /// closed one (<see cref="SlotModel"/>) accepts it.
+        /// </summary>
+        public List<ValueModel> SlotBases { get; } = new();
+
+        /// <summary>Why <see cref="SlotParameters"/> has no end (its slots grow with every level), or null.</summary>
+        public string? SlotProblem { get; internal set; }
 
         /// <summary>
         /// The types a value written behind this type's id can be: every concrete type with a type id assignable to it

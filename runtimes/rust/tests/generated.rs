@@ -118,9 +118,19 @@ fn unhex(s: &str) -> Vec<u8> {
     (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect()
 }
 
+/// Optional features the generated code supports.
+const SUPPORTED: &[&str] = &["track-references"];
+
 fn optional(case: &Value) -> bool {
-    case.get("optional").is_some_and(|o| !o.is_null())
+    case.get("optional").and_then(Value::as_str).is_some_and(|o| !SUPPORTED.contains(&o))
+        || case.get("type").and_then(Value::as_str).is_some_and(|t| NOT_GENERATED.contains(&t))
 }
+
+/// The types nino-gen leaves out of Rust (NINOGEN002), with the reason, and their cases skipped.
+const NOT_GENERATED: &[&str] = &[
+    // Nest<T> holds Nest<List<T>>: a type that needs ever more instantiations, which Rust rejects (E0320).
+    "Conformance.NestHolder",
+];
 
 fn run() {
     let Some(dir) = corpus() else {
@@ -406,4 +416,45 @@ fn generic_shapes_round_trip() {
 #[test]
 fn generated_fuzz() {
     on_large_stack(fuzz);
+}
+
+/// A closed type of a generic class behind a type id: its slot takes the closed types assignable to it, by the ids of
+/// their closed .NET names, and no other.
+#[test]
+fn generic_slots_round_trip() {
+    use shapes::{MoreOpen, Open, OpenInt32Ref, OpenUse};
+    for open in [
+        Some(OpenInt32Ref::MoreOpenInt32(Box::new(MoreOpen { value: 1, extra: 2 }))),
+        Some(OpenInt32Ref::OpenInt32(Box::new(Open { value: 3 }))),
+        None,
+    ] {
+        let value = OpenUse { open };
+        let bytes = nino::serialize(&Some(Box::new(value.clone()))).unwrap();
+        let back: Option<Box<OpenUse>> = nino::deserialize_exact(&bytes).unwrap();
+        assert_eq!(back.as_deref(), Some(&value));
+    }
+    let value = OpenUse { open: Some(OpenInt32Ref::MoreOpenInt32(Box::new(MoreOpen { value: 1, extra: 2 }))) };
+    let bytes = nino::serialize(&Some(Box::new(value))).unwrap();
+    // [null flag 1][MoreOpen<int>'s id]...
+    assert_eq!(bytes.get(1..5), Some(&nino::type_id("Shapes.Generic.MoreOpen<System.Int32>").to_le_bytes()[..]));
+    let mut wrong = bytes.clone();
+    wrong.splice(1..5, nino::type_id("Shapes.Generic.MoreOpen<System.Int64>").to_le_bytes());
+    assert!(nino::deserialize_exact::<Option<Box<OpenUse>>>(&wrong).is_err());
+
+    // In a generic definition the slot is a type parameter (OpenHolder<T, S0>), bound to the closed slot's enum.
+    use shapes::{OpenHolder, OpenHolderUse, OpenInt64Ref};
+    let holder = OpenHolderUse {
+        holder: Some(Box::new(OpenHolder::<i64, OpenInt64Ref> {
+            inner: Some(OpenInt64Ref::MoreOpenInt64(Box::new(MoreOpen { value: 3, extra: 4 }))),
+            all: Some(vec![
+                Some(OpenInt64Ref::OpenInt64(Box::new(Open { value: 5 }))),
+                None,
+                Some(OpenInt64Ref::MoreOpenInt64(Box::new(MoreOpen { value: 6, extra: 0 }))),
+            ]),
+            ..Default::default()
+        })),
+    };
+    let bytes = nino::serialize(&Some(Box::new(holder.clone()))).unwrap();
+    let back: Option<Box<OpenHolderUse>> = nino::deserialize_exact(&bytes).unwrap();
+    assert_eq!(back.as_deref(), Some(&holder));
 }

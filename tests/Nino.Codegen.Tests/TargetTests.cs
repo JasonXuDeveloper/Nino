@@ -27,10 +27,12 @@ namespace Nino.Codegen.Tests
             var (go, _) = Run("go", "nino_types.go");
             StringAssert.Contains(go, "func BoxCodec[T any](");
             Assert.IsFalse(go.Contains("newBoxCodec", StringComparison.Ordinal));
-            Assert.IsFalse(go.Contains("typeV0", StringComparison.Ordinal));
+            // The closed types slots do hold (MoreOpen<int> in OpenUse's slot of Open<int>) have codecs; Box<int> none.
+            StringAssert.Contains(go, "typeV0 = newMoreOpenCodec(");
+            Assert.IsFalse(System.Text.RegularExpressions.Regex.IsMatch(go, @"typeV\d+ +\*boxCodec"));
             var (ts, _) = Run("ts", "Nino.Codegen.Tests.ts");
-            Assert.IsFalse(ts.Contains("type: new () =>", StringComparison.Ordinal));
-            Assert.IsFalse(ts.Contains("closed$0", StringComparison.Ordinal));
+            StringAssert.Contains(ts, "interface Box$Codecs<T> {\n  p0: NinoCodec<T>;\n  self: NinoCodec<Box<T> | null>;\n}");
+            Assert.IsFalse(ts.Contains("= Box$codecs<", StringComparison.Ordinal));
             var (rust, _) = Run("rust", "nino_types.rs");
             Assert.IsFalse(rust.Contains("BoxInt32", StringComparison.Ordinal));
         }
@@ -110,10 +112,15 @@ namespace Nino.Codegen.Tests
             var (ts, tsOutput) = Run("ts", "Nino.Codegen.Tests.ts");
             StringAssert.Contains(ts, "export class Box<T> {");
             StringAssert.Contains(ts, "export function PairCodec<TKey, TValue>(");
-            // Open<T> is written behind a type id (the hash of a closed .NET name): left out, with a warning.
+            // Open<T> is written behind a type id (the hash of a closed .NET name): a slot per closed type, which
+            // allows the closed types of its generic subtypes too, those the assembly never names included.
             foreach (string output in new[] { rustOutput, goOutput, tsOutput })
-                StringAssert.Contains(output, "Shapes.Generic.Open`1 is not written to");
-            Assert.IsFalse(ts.Contains("class Open", StringComparison.Ordinal));
+                Assert.IsFalse(output.Contains("Shapes.Generic.Open`1 is not written to", StringComparison.Ordinal), output);
+            StringAssert.Contains(ts, "export class Open<T> {");
+            StringAssert.Contains(ts, "Shapes.Generic.MoreOpen<System.Int64>");
+            StringAssert.Contains(go, "type OpenType[T any] interface {");
+            StringAssert.Contains(go, "func (*MoreOpen[T]) isOpenType(T) {");
+            StringAssert.Contains(go, "Shapes.Generic.MoreOpen<System.Int64>");
             // A set element or map key in Rust needs Eq and Hash, which a class (Box<long>) does not have.
             StringAssert.Contains(rustOutput, "Shapes.Generic.UnhashedKeys is not written to Rust");
             StringAssert.Contains(rust, "pub struct Keys<T: Eq + core::hash::Hash> {");

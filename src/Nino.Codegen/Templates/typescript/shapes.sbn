@@ -100,14 +100,14 @@ func ts(s)
   when "map"
     ret map_ts(s) + " | null"
   when "type"
-    if s.header == "typeid"
+    if s.header == "typeid" || s.header == "ref"
       ret name(s.type) + " | null"
     end
     ret name(s.type)
   when "param"
     ret s.parameter
   when "generic"
-    if s.header == "null"
+    if s.header == "null" || s.header == "typeid"
       ret generic_ts(s) + " | null"
     end
     ret generic_ts(s)
@@ -132,7 +132,8 @@ func codec(s)
   ret "{ read: (r) => " + read(s) + ", write: (w, v) => { " + stmt(write(s, "v")) + " } }"
 end
 
-# The expression building the codec of a generic type from the codecs of its arguments: `BoxCodec<number>(...)`.
+# The expression building the codec of a generic type from the codecs of its arguments, then the slots it needs:
+# `BoxCodec<number>(...)`.
 func generic_codec(s)
   $types = []
   $args = []
@@ -140,7 +141,34 @@ func generic_codec(s)
     $types = array.add $types (ts($item))
     $args = array.add $args (codec($item))
   end
+  for $slot in s.slots
+    $args = array.add $args $slot.field
+  end
   ret name(s.type) + "Codec<" + (array.join $types ", ") + ">(" + (array.join $args ", ") + ")"
+end
+
+# The elements of a [NinoType] collection: never null.
+func elements_ts(s)
+  case s.kind
+  when "seq"
+    ret seq_ts(s)
+  when "map"
+    ret map_ts(s)
+  end
+  ret "Uint8Array"
+end
+
+func elements_def(s)
+  case s.kind
+  when "seq"
+    if s.set
+      ret "new " + seq_ts(s) + "()"
+    end
+    ret "[]"
+  when "map"
+    ret "new " + map_ts(s) + "()"
+  end
+  ret "new Uint8Array(0)"
 end
 
 func def(s)
@@ -207,6 +235,9 @@ func read(s)
   when "type"
     if s.header == "typeid"
       ret name(s.type) + "Codec.read(r)"
+    else if s.header == "ref"
+      # A tracked sealed class: its reference header, then its body when new.
+      ret "r.tracked(" + name(s.type) + ", read" + name(s.type) + ")"
     end
     ret "read" + name(s.type) + "(r)"
   when "param", "generic"
@@ -244,6 +275,8 @@ func write(s, v)
   when "type"
     if s.header == "typeid"
       ret name(s.type) + "Codec.write(w, " + v + ")"
+    else if s.header == "ref"
+      ret "if (w.ref(" + v + ")) write" + name(s.type) + "(w, " + v + ")"
     end
     ret "write" + name(s.type) + "(w, " + v + ")"
   when "param", "generic"

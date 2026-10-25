@@ -234,6 +234,26 @@ namespace Nino.Codegen.Model
         /// <summary>A raw struct, tuple or nullable whose items fill it with no gap (no padding to zero).</summary>
         public bool Packed { get; internal set; } = true;
 
+        /// <summary>
+        /// A closed <see cref="ValueKind.Generic"/> whose definition is written behind a type id (<c>Shelf&lt;int&gt;</c>,
+        /// <c>IHolder&lt;long&gt;</c>): the slot of that closed type, which allows the types assignable to it.
+        /// </summary>
+        public SlotModel? Slot { get; internal set; }
+
+        /// <summary>
+        /// The slots the codecs of a <see cref="ValueKind.Generic"/> value need, beside the codecs of its arguments:
+        /// its definition's <see cref="TypeModel.SlotParameters"/> with its arguments, in order. Closed ones have a
+        /// <see cref="Slot"/>; in a generic definition, open ones are among that definition's own slot parameters.
+        /// Not among <see cref="Children"/>.
+        /// </summary>
+        public List<ValueModel> SlotArguments { get; } = new();
+
+        /// <summary>
+        /// Identifies the .NET type, type parameters by position (<c>Crate`1[!0]</c>): the same in every value of it
+        /// within one generic definition.
+        /// </summary>
+        public string TypeKey => CodegenModel.TypeKey(Clr);
+
         /// <summary>The values directly inside this one (elements, items, keys, values, fields).</summary>
         public IEnumerable<ValueModel> Children()
         {
@@ -256,6 +276,39 @@ namespace Nino.Codegen.Model
         public IEnumerable<ValueModel> Walk() => new[] { this }.Concat(Children().SelectMany(c => c.Walk()));
 
         public override string ToString() => $"{Kind} {ClrName} ({Encoding})";
+    }
+
+    /// <summary>
+    /// A closed generic type written behind a type id (<c>Shelf&lt;int&gt;</c>): each closed type of a generic class
+    /// that is not sealed, abstract class or interface is a slot of its own, whose type ids are those of the concrete
+    /// types assignable to it, generic (<c>ListShelf&lt;int&gt;</c>) or not (<c>IntShelf : Shelf&lt;int&gt;</c>).
+    /// </summary>
+    public sealed class SlotModel
+    {
+        internal SlotModel(Type clr, ValueModel value)
+        {
+            Clr = clr;
+            Value = value;
+            RuntimeName = TypeNames.Runtime(clr);
+        }
+
+        internal Type Clr { get; }
+
+        /// <summary>The definition with its arguments (<see cref="ValueKind.Generic"/>).</summary>
+        public ValueModel Value { get; }
+
+        public TypeModel Definition => Value.Type!;
+
+        /// <summary>The runtime-form name (<c>Conformance.Shelf&lt;System.Int32&gt;</c>).</summary>
+        public string RuntimeName { get; }
+
+        /// <summary>The concrete types with a layout of their own (not generic) assignable to it, by name.</summary>
+        public List<TypeModel> Assignable { get; } = new();
+
+        /// <summary>The closed generic types assignable to it (itself, when it can be created), by name.</summary>
+        public List<ClosedTypeModel> ClosedAssignable { get; } = new();
+
+        public override string ToString() => RuntimeName;
     }
 
     /// <summary>A struct copied as raw memory: its size and its fields at their offsets.</summary>

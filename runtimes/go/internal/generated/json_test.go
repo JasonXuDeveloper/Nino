@@ -18,7 +18,22 @@ import (
 // render converts a decoded value to the corpus's lossless JSON (conformance/README.md, Json.cs), as the values
 // encoding/json decodes with UseNumber: nil, bool, string, json.Number, []any, map[string]any. Test code: it uses
 // reflection, which the runtime and the codecs do not.
-func render(v any) any { return renderValue(reflect.ValueOf(v)) }
+//
+// An object of a tracked type is {"$id": n, ...} where it is first met (depth first, members in order: the order the
+// corpus numbers them) and {"$ref": n} after.
+func render(v any) any {
+	renderIDs = map[any]int{}
+	return renderValue(reflect.ValueOf(v))
+}
+
+// renderIDs numbers the tracked objects render has met.
+var renderIDs map[any]int
+
+// tracked reports whether the struct a pointer points to is of a type that tracks references.
+func tracked(v reflect.Value) bool {
+	named, ok := v.Interface().(interface{ NinoLayout() string })
+	return ok && v.Elem().Kind() == reflect.Struct && strings.Contains(named.NinoLayout(), "trackReferences=true")
+}
 
 var (
 	tBytes    = reflect.TypeOf([]byte(nil))
@@ -118,6 +133,17 @@ func renderValue(v reflect.Value) any {
 		if v.IsNil() {
 			return nil
 		}
+		if t.Kind() == reflect.Pointer && tracked(v) {
+			key := v.Interface()
+			if n, ok := renderIDs[key]; ok {
+				return map[string]any{"$ref": num(int64(n))}
+			}
+			n := len(renderIDs) + 1
+			renderIDs[key] = n
+			out := renderValue(v.Elem()).(map[string]any)
+			out["$id"] = num(int64(n))
+			return out
+		}
 		return renderValue(v.Elem())
 	case reflect.Slice:
 		if v.IsNil() {
@@ -156,7 +182,12 @@ func renderValue(v reflect.Value) any {
 				out[t.Field(i).Name] = items
 				continue
 			}
-			out[t.Field(i).Name] = renderValue(f)
+			name := t.Field(i).Name
+			if t.Field(i).Tag.Get("nino") == "-" {
+				// A [NinoType] collection's elements.
+				name = "$elements"
+			}
+			out[name] = renderValue(f)
 		}
 		return out
 	}

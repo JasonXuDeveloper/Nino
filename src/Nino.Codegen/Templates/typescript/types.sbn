@@ -17,6 +17,9 @@ func closed_codecs(s)
   for $item in s.items
     $args = array.add $args (codec($item))
   end
+  for $slot in s.slots
+    $args = array.add $args $slot.field
+  end
   ret array.join $args ", "
 end
 
@@ -29,7 +32,7 @@ func body(c)
   $ca = c.codecs_argument
   $o = ""
   # An empty body leaves its parameters unused: they are named with a `_`, as noUnusedParameters wants.
-  $empty = c.members.size == 0
+  $empty = c.members.size == 0 && !c.elements
   $r = $empty && c.format == "positional" && !c.counted ? "_r" : "r"
   $w = $empty && c.format == "positional" && !c.counted ? "_w" : "w"
   $v = $empty ? "_v" : "v"
@@ -42,13 +45,15 @@ func body(c)
     $readBody = "(r, v) => readBody$" + $n + "(r, v, c)"
     $writeBody = "(w, v) => writeBody$" + $n + "(w, v, c)"
   end
+  # A tracked class records the object as soon as it exists: its members may refer back to it.
+  $track = c.tracked ? "  r.track(v);\n" : ""
   if c.is_class_body
     $o = $o + "function read" + $n + $tp + "(r: NinoReader" + c.codecs + "): " + $t + " {\n"
     if c.nests
-      $o = $o + "  const v = new " + $new + "(), depth = r.depth;\n  if (depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
+      $o = $o + "  const v = new " + $new + "(), depth = r.depth;\n" + $track + "  if (depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
       $o = $o + "  r.depth = depth + 1;\n  readBody$" + $n + "(r, v" + $ca + ");\n  r.exit(depth);\n"
     else
-      $o = $o + "  const v = new " + $new + "();\n  if (r.depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
+      $o = $o + "  const v = new " + $new + "();\n" + $track + "  if (r.depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
       $o = $o + "  readBody$" + $n + "(r, v" + $ca + ");\n"
     end
     $o = $o + "  return v;\n}\n\n"
@@ -69,10 +74,12 @@ func body(c)
     $o = $o + "  const v = new " + $new + "();\n"
   end
 
+  # A [NinoType] collection: its elements first (inside a keyed body's region, outside a version tolerant one's).
+  $elements = c.elements ? "  v.$elements = r.elements(" + read(c.elements) + ");\n" : ""
   if c.format == "keyed"
     # Members by key, in any order; a known member's value fills its entry exactly, a key this version does not know
     # is skipped.
-    $o = $o + "  const end = r.region();\n  while (r.pos < end) {\n    const key = r.i32(), member = r.region();\n    switch (key) {\n"
+    $o = $o + "  const end = r.region();\n" + $elements + "  while (r.pos < end) {\n    const key = r.i32(), member = r.region();\n    switch (key) {\n"
     for $m in c.members
       for $key in $m.model.all_keys
         $o = $o + "      case " + $key + ":\n"
@@ -82,13 +89,14 @@ func body(c)
     $o = $o + "    }\n    r.endRegion(member);\n  }\n  r.endRegion(end);\n"
   else if c.format == "tolerant"
     # Members written by an older version end early; those of a newer one are skipped.
-    $o = $o + "  const end = r.region();\n"
+    $o = $o + $elements + "  const end = r.region();\n"
     for $m in c.members
       $o = $o + "  if (r.pos < end) v." + $m.name + " = " + read($m.shape) + ";\n"
     end
     $o = $o + "  r.endRegion(end);\n"
   else
     # Each run of fixed-size members takes its bytes at once and reads them at their offsets.
+    $o = $o + $elements
     $decl = c.at_declaration
     for $run in c.runs
       if $run.items.size == 1
@@ -115,10 +123,15 @@ func body(c)
   if c.counted
     $o = $o + "  w.enterStruct();\n"
   end
+  $elements = c.elements ? "  " + stmt(write(c.elements, "v.$elements")) + "\n" : ""
+  if c.format != "keyed"
+    $o = $o + $elements
+  end
   if c.format != "positional"
     $o = $o + "  const start = w.region();\n"
   end
   if c.format == "keyed"
+    $o = $o + $elements
     for $m in c.members
       $o = $o + "  w.i32(" + $m.model.key + ");\n  const " + $m.name + "$ = w.region();\n  " + stmt(write($m.shape, "v." + $m.name)) + "\n  w.endRegion(" + $m.name + "$);\n"
     end
@@ -146,19 +159,60 @@ func body(c)
   ret $o + "}\n\n"
 end
 
-# The body of a type written behind a type id, without its header.
-func read_body(c)
+# The body of a type written behind a type id, without its header. `form3`: behind a type id its declared type does not
+# track, where a tracked type's reference header follows the id.
+func read_body(c, form3)
   if c.raw_shape
     ret read(c.raw_shape)
+  end
+  if form3 && c.tracked
+    ret "r.trackedOf(" + c.name + ", read" + c.name + ")"
   end
   ret "read" + c.name + "(r)"
 end
 
-func write_body(c, v)
+func write_body(c, v, form3)
   if c.raw_shape
     ret write(c.raw_shape, v)
   end
+  if form3 && c.tracked
+    ret "if (w.ref(" + v + ")) write" + c.name + "(w, " + v + ")"
+  end
   ret "write" + c.name + "(w, " + v + ")"
+end
+
+# The codec of a slot (after `NinoCodec<T | null> = `): the type id, then the body of one of the types it allows, by
+# its class when written. `backref`: for a declared type that tracks references, the expression of the object a back
+# reference names; its reference header comes first then, and the bodies follow the id without one.
+func typeid_codec(assignable, closed, backref)
+  $tracked = backref != null
+  $o = "{\n  read: (r) => {\n"
+  if $tracked
+    $o = $o + "    const h = r.ref();\n    if (h === 0) return null;\n    if (h > 0) return " + backref + ";\n"
+    $o = $o + "    const id = r.i32();\n    switch (id) {\n"
+  else
+    $o = $o + "    const id = r.i32();\n    switch (id) {\n      case 0:\n        return null;\n"
+  end
+  for $t in assignable
+    $o = $o + "      case " + $t.model.type_id + ":\n        return " + read_body($t, !$tracked) + ";\n"
+  end
+  for $k in closed
+    $o = $o + "      case " + $k.id + ":\n        return read" + name($k.shape.type) + "(r, " + $k.codecs + ");\n"
+  end
+  $o = $o + "    }\n    throw types.unreadable(id);\n  },\n  write: (w, v) => {\n"
+  if $tracked
+    $o = $o + "    if (!w.ref(v)) return;\n"
+  else
+    $o = $o + "    if (v === null || v === undefined) {\n      w.i32(0);\n      return;\n    }\n"
+  end
+  $o = $o + "    switch (v.constructor) {\n"
+  for $t in assignable
+    $o = $o + "      case " + $t.name + ":\n        w.i32(" + $t.model.type_id + ");\n        " + stmt(write_body($t, "v as " + $t.name, !$tracked)) + "\n        return;\n"
+  end
+  for $k in closed
+    $o = $o + "      case " + $k.name + ":\n        w.i32(" + $k.id + ");\n        write" + name($k.shape.type) + "(w, v as " + $k.name + ", " + $k.codecs + ");\n        return;\n"
+  end
+  ret $o + "    }\n    throw types.unwritable(v);\n  },\n};\n"
 end
 
 # A function shared by every value of one shape.
@@ -276,7 +330,16 @@ for s in raw_structs
 end
 
 for i in interfaces
-  "/** `" + i.model.full_name + "`. */\nexport interface " + i.name + " {\n"
+  $self = i.self
+  if i.members.size == 0 && i.parameters.size != 0
+    # No member uses the parameters: "_" keeps noUnusedLocals quiet, and the type has no member a class must declare.
+    $names = []
+    for $p in i.parameters
+      $names = array.add $names ("_" + $p)
+    end
+    $self = i.name + "<" + (array.join $names ", ") + ">"
+  end
+  "/** `" + (i.parameters.size == 0 ? i.model.full_name : i.model.runtime_name) + "`. */\nexport interface " + $self + " {\n"
   for $m in i.members
     "  " + $m.name + ": " + ts($m.shape) + ";\n"
   end
@@ -285,24 +348,38 @@ end
 
 for c in classes
   "/** `" + (c.parameters.size == 0 ? c.model.full_name : c.model.runtime_name) + "`. */\nexport " + (c.model.is_abstract ? "abstract " : "") + "class " + c.self
-  if c.base_name
+  if c.base_shape
+    " extends " + generic_ts(c.base_shape)
+  else if c.base_name
     " extends " + c.base_name
   end
-  if c.interface_names.size != 0
-    " implements " + (array.join c.interface_names ", ")
+  $interfaces = []
+  for $i in c.interfaces
+    $interfaces = array.add $interfaces ($i.shape ? generic_ts($i.shape) : $i.name)
+  end
+  if $interfaces.size != 0
+    " implements " + (array.join $interfaces ", ")
   end
   " {\n"
+  # A [NinoType] collection: its elements, written before its members.
+  if c.declares_elements
+    "  $elements: " + elements_ts(c.elements) + " = " + elements_def(c.elements) + ";\n"
+  end
   # In a class hierarchy, V8 creates objects about twice as fast from constructors as from field initializers (one
   # initializer per class), so the members are declared and set in the constructor there.
   if !c.hierarchy
     for $m in c.own
       "  " + $m.name + ": " + ts($m.shape) + " = " + def($m.shape) + ";\n"
     end
-  else if c.own.size != 0
+  else if c.own.size != 0 || c.rebound.size != 0
     for $m in c.own
       "  declare " + $m.name + ": " + ts($m.shape) + ";\n"
     end
     "\n  constructor() {\n" + (c.base_name ? "    super();\n" : "")
+    # Members of a generic base whose type this class gives: their defaults are this class's.
+    for $m in c.rebound
+      "    this." + $m.name + " = " + def($m.shape) + ";\n"
+    end
     for $m in c.own
       "    this." + $m.name + " = " + def($m.shape) + ";\n"
     end
@@ -314,10 +391,13 @@ for c in classes
   end
 end
 
-# Every type that can be written behind a type id, once its class is declared.
+# Every type that can be written behind a type id, once its class is declared; a tracked one with its reference header
+# after the id (`object` does not track).
 for c in registered
   if c.raw_shape
     "types.add(" + c.model.type_id + ", " + c.name + ", (r) => " + read(c.raw_shape) + ", (w, v) => " + write(c.raw_shape, "v") + ");\n"
+  else if c.tracked
+    "types.add(" + c.model.type_id + ", " + c.name + ", (r) => " + read_body(c, true) + ", (w, v) => {\n  " + stmt(write_body(c, "v", true)) + "\n});\n"
   else
     "types.add(" + c.model.type_id + ", " + c.name + ", read" + c.name + ", write" + c.name + ");\n"
   end
@@ -340,23 +420,11 @@ for c in codecs
     " | null> = {\n  read: (r) => " + read(c.header_shape) + ",\n  write: (w, v) => {\n    " + stmt(write(c.header_shape, "v")) + "\n  },\n};\n"
   else
     # Any type assignable to it, by the type id in front of its body: by its class when written.
-    " | null> = {\n  read: (r) => {\n    const id = r.i32();\n    switch (id) {\n      case 0:\n        return null;\n"
-    $assignable = c.assignable
-    for $t in $assignable
-      "      case " + $t.model.type_id + ":\n        return " + read_body($t) + ";\n"
+    $backref = null
+    if c.tracked
+      $backref = c.model.is_interface ? "r.backRefOf<" + c.name + ">(h, [" + (array.join (c.assignable | array.map "name") ", ") + "])" : "r.backRef(h, " + c.name + ")"
     end
-    $closed = c.assignable_closed
-    for $k in $closed
-      "      case " + $k.id + ":\n        return read" + name($k.shape.type) + "(r, " + $k.codecs + ");\n"
-    end
-    "    }\n    throw types.unreadable(id);\n  },\n  write: (w, v) => {\n    if (v === null || v === undefined) {\n      w.i32(0);\n      return;\n    }\n    switch (v.constructor) {\n"
-    for $t in $assignable
-      "      case " + $t.name + ":\n        w.i32(" + $t.model.type_id + ");\n        " + stmt(write_body($t, "v as " + $t.name)) + "\n        return;\n"
-    end
-    for $k in $closed
-      "      case " + $k.name + ":\n        w.i32(" + $k.id + ");\n        write" + name($k.shape.type) + "(w, v as " + $k.name + ", " + $k.codecs + ");\n        return;\n"
-    end
-    "    }\n    throw types.unwritable(v);\n  },\n};\n"
+    " | null> = " + typeid_codec(c.assignable, c.assignable_closed, $backref)
   end
 end
 
@@ -370,10 +438,19 @@ for c in generics
   for $p in c.parameters
     $params = array.add $params ("p" + for.index + ": NinoCodec<" + $p + ">")
   end
-  $typed = c.closed.size != 0
+  # The slots its codec is given: closed generic types behind type ids, whose ids its arguments' .NET names decide.
+  $slots = c.slot_parameters
+  for $sl in $slots
+    $params = array.add $params ("s" + for.index + ": NinoCodec<" + ts($sl) + ">")
+  end
+  # A class written behind a type id is read through its slots: its codecs read its body, without a header.
+  $typed = c.closed.size != 0 || c.header == "typeid"
   "interface " + c.name + "$Codecs" + c.type_params + " {\n"
   for $p in c.parameters
     "  p" + for.index + ": NinoCodec<" + $p + ">;\n"
+  end
+  for $sl in $slots
+    "  s" + for.index + ": NinoCodec<" + ts($sl) + ">;\n"
   end
   if $typed
     "  type: new () => " + c.self + ";\n"
@@ -383,18 +460,26 @@ for c in generics
     "  " + $d.name + ": NinoCodec<" + ts($d.shape) + ">;\n"
   end
   "}\n\n"
-  "/** The codec of `" + c.model.runtime_name + "` with the codecs of its type arguments. */\n"
   $names = []
   for $p in c.parameters
     $names = array.add $names ("p" + for.index)
   end
+  for $sl in $slots
+    $names = array.add $names ("s" + for.index)
+  end
   if $typed
     # `type`: the class it reads, a subclass for a closed type a slot holds (BoxInt32).
-    "export function " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + ", type: new () => " + c.self + " = " + c.name + "): NinoCodec<" + $self + "> {\n"
-    "  return " + c.name + "$codecs(" + (array.join $names ", ") + ", type).self;\n}\n\n"
+    if c.header != "typeid"
+      "/** The codec of `" + c.model.runtime_name + "` with the codecs of its type arguments. */\n"
+      "export function " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + ", type: new () => " + c.self + " = " + c.name + "): NinoCodec<" + $self + "> {\n"
+      "  return " + c.name + "$codecs(" + (array.join $names ", ") + ", type).self;\n}\n\n"
+    else
+      "/** The codecs of the body of `" + c.model.runtime_name + "` with the codecs of its type arguments: a slot reads its closed types. */\n"
+    end
     "function " + c.name + "$codecs" + c.type_params + "(" + (array.join $params ", ") + ", type: new () => " + c.self + "): " + c.name + "$Codecs" + c.type_params + " {\n"
     $names = array.add $names "type"
   else
+    "/** The codec of `" + c.model.runtime_name + "` with the codecs of its type arguments. */\n"
     "export function " + c.name + "Codec" + c.type_params + "(" + (array.join $params ", ") + "): NinoCodec<" + $self + "> {\n"
   end
   "  const c = { " + (array.join $names ", ") + " } as " + c.name + "$Codecs" + c.type_params + ";\n"
@@ -404,9 +489,21 @@ for c in generics
     "  c.self = { read: (r) => read" + c.name + "(r, c), write: (w, v) => write" + c.name + "(w, v, c) };\n"
   end
   for $d in c.derived
-    "  c." + $d.name + " = " + generic_codec($d.shape) + ";\n"
+    if c.lazy
+      # It holds itself with other arguments: each codec is built when the data first needs it, as there is no end
+      # to them.
+      "  let " + $d.name + ": NinoCodec<" + ts($d.shape) + "> | undefined;\n"
+      "  Object.defineProperty(c, \"" + $d.name + "\", { get: () => (" + $d.name + " ??= " + generic_codec($d.shape) + ") });\n"
+    else
+      "  c." + $d.name + " = " + generic_codec($d.shape) + ";\n"
+    end
   end
   "  return " + ($typed ? "c" : "c.self") + ";\n}\n\n"
+end
+
+# The slots of closed generic types written behind type ids: a type id, then the body of a type assignable to it.
+for $sl in slots
+  "/** The slot of `" + $sl.runtime_name + "`. */\nconst " + $sl.name + ": NinoCodec<" + ts($sl.shape) + "> = " + typeid_codec($sl.assignable, $sl.closed, null) + "\n"
 end
 
 # The codecs of the generic types the types above hold with their arguments, arguments first.

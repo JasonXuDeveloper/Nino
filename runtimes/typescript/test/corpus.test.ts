@@ -20,8 +20,10 @@ const notGenerated = new Set([
   "Conformance.Floats", "Conformance.Scalars", "Conformance.Dates", "Conformance.BigValues",
   "Conformance.Collections", "Conformance.TreeHolder", "Conformance.EmptyStruct", "Conformance.Empties",
   "Conformance.Targets.Grid", "Conformance.Targets.BigSlot", "Conformance.Targets.VersionSlot",
-  "Conformance.Tracked", "Conformance.TrackedLeaf", "Conformance.TrackedHolder",
 ]);
+
+/** The optional features of the corpus the generated code supports. */
+const supported = new Set(["track-references"]);
 
 const codecs = generated as unknown as Record<string, NinoCodec<unknown> | undefined>;
 
@@ -62,7 +64,7 @@ function cases(group: "valid" | "malicious"): { name: string; c: any }[] {
 }
 
 function skipReason(c: any): string | null {
-  if (c.optional) return `optional: ${c.optional}`;
+  if (c.optional && !supported.has(c.optional)) return `optional: ${c.optional}`;
   if (notGenerated.has(c.type)) {
     assert.equal(codecOf(c.type), undefined, `${c.type} is generated now: take it out of notGenerated`);
     return `${c.type} is not generated for TypeScript`;

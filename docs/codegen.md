@@ -161,17 +161,74 @@ Closed uses (`Box<int>`, `Pair<int, string>`, `Box<Box<int>>`, `List<Box<int>>`,
 type with its arguments; inside a generic type, its parameters may appear anywhere a member type can (`T`, `List<T>`,
 `Dictionary<string, T>`, `T[]`, `T?` where `T : struct`, tuples, `Box<T>`, `Pair<int, T>`, the type itself as
 `Node<T>`). A type argument may be a primitive, an enum, a string, a `[NinoType]` (generic ones included), an array,
-`List<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`, a `ValueTuple`, and, outside collections, a `Nullable<T>` or
-`KeyValuePair<TKey, TValue>`.
+`List<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`, a `ValueTuple`, a `Nullable<T>` or a
+`KeyValuePair<TKey, TValue>`, also inside collections (`Wrap<int?[]>`, `Wrap<List<int?>>`,
+`Wrap<Dictionary<int, double?>>`, `Wrap<KeyValuePair<string, int?>[]>`): the IR gives each argument the encoding .NET's
+formatter for it writes (a `T?[]` or `List<T?>` of an unmanaged `T` as raw `T`s with a flag each, a `HashSet<T?>` or a
+dictionary's values item by item, a `KeyValuePair` as its key then its value).
 
-Not generated, with a warning (NINOGEN002):
+A generic type that holds itself with other arguments (`Nest<T>` holding `Nest<List<T>>`), directly or through another
+generic type, needs a new instantiation for every level of the data:
 
-- A generic type written behind a type id wherever it is declared (a non-sealed class, an abstract class or an
-  interface): a member declared as `Base<int>` would be a slot of its own per closed type, which no target builds.
-- A generic type that holds itself with other arguments (`Node<T>` holding `Node<List<T>>`), directly or through
-  another generic type: its codecs would be built without end.
-- A member whose type argument is a `Nullable<T>` or `KeyValuePair` inside a collection (`Box<int?[]>`), or any type
-  not in the list above.
+- **TypeScript** generates it: a codec builds the codec of the next level when it first reads or writes one, so the
+  codecs built are bounded by the levels the data has (each takes bytes, and depth is counted as everywhere).
+- **Go and Rust** cannot express it, and leave it out with a warning (NINOGEN002, "it holds itself with other type
+  arguments"), with the types that hold it. Go rejects a generic type whose instantiation cycle grows its arguments
+  (`instantiation cycle`), and Rust a type that needs ever more instantiations to compile (E0320, "overflow while adding
+  drop-check rules"): both instantiate generics at compile time, and the
+  number of levels is only known from the data.
+
+### Generic types behind a type id
+
+A generic class that is not sealed, an abstract generic class or a generic interface is written behind the type id of
+its closed .NET name (`Conformance.Shelf<System.Int32>`). Each closed type is a slot of its own, whose cases are the
+concrete types assignable to it: closed generic types (`ListShelf<int>`, reached through the closed types the assembly
+names, and the closed types a slot of a closed type needs: `OpenHolder<long>` holding `Open<T>` needs `Open<long>` and
+its subtypes, though no code names them) and non-generic subtypes (`IntShelf : Shelf<int>`). The IR (`CodegenModel`)
+builds the slots (`Slots`), which closed types each allows (`SlotModel.ClosedAssignable`) and, for a generic definition
+holding a slot of its own type parameters (`OpenHolder<T>` with an `Open<T>` member), its slot parameters
+(`TypeModel.SlotParameters`): each closed use of the definition (`ValueModel.SlotArguments`) passes it the slots of
+its arguments, as .NET's formatter looks the id up by the closed name.
+
+| | A member `Shelf<int>` | `Open<T>` in a generic `OpenHolder<T>` |
+| --- | --- | --- |
+| TypeScript | `Shelf<number> \| null`; a value is a closed class (`new ListShelfInt32()`), which the slot switches on | the codec of `OpenHolder<T>` takes the slot's codec with those of its type arguments |
+| Go | `Shelf[int32]`, an interface (`isShelf(T)` marker methods) that `*ListShelf[int32]` and `*IntShelf` implement; a non-abstract definition's interface is `<Name>Type[T]` | the codec of `OpenHolder[T]` takes the slot's read and write functions (`OpenHolderCodec(p0, s0 NinoArg[OpenType[T]])`) |
+| Rust | `Option<ShelfInt32Ref>`, an enum with a boxed variant per allowed type | a type parameter after its own (`OpenHolder<T, S0>`), used as `OpenHolder<i64, OpenInt64Ref>`; a parameter only the slots hold is kept in a `_params: PhantomData` field |
+
+A value whose type id the slot does not allow (another closed type, an unknown id) is rejected. In Go, closed types of
+one definition whose arguments are the same Go type (`Wrap<int?[]>`, `Wrap<List<int?>>` and `Wrap<HashSet<int?>>` are
+all `Wrap[[]*int32]`) cannot be told apart by their value: the first by name is the slot's case, and the others are
+left out with a warning (NINOGEN002, "it is the same Go type as ..."), so their ids are not read in Go.
+
+## Reference tracking
+
+A type declared with `[NinoType(trackReferences: true)]` is written behind a reference header (the specification's
+7.9): 0 for null, -1 for an object not written before (its body follows), or the number of an object written before
+(from 1, in the order of their headers). An object is recorded when it is created, before its body, so a body can hold
+the object it is in (a cycle), deferred bodies included. Three forms, in the generated code of every language: a
+tracked class with no subtypes (the header, then the body), a tracked class or interface behind a type id (the header,
+then for -1 the type id and the body; a back reference must name an object of a type the slot allows), and a tracked
+type in a slot that does not track (`object`, an untracked base: the type id, then the header, which may not be 0).
+
+| | A tracked class `Node` |
+| --- | --- |
+| TypeScript | `Node \| null`: the reader returns the same object for every reference to it, the writer numbers objects by identity |
+| Go | `*Node`: the same pointer for every reference, numbered by pointer (`nino.ReadTracked`, `WriteTracked`, `Reader.Ref`, `Back`) |
+| Rust | `Option<nino::Shared<Node>>`: one object any number of places hold (a clone is the same object), equal by identity; `Shared::empty` and `fill` build a cycle |
+
+Hostile data: a header other than -1, 0 or the number of an object read so far is rejected, as is a back reference to
+an object of a type the slot does not allow; each new object takes at least its 4 header bytes, so the table of objects
+grows with the data and no faster.
+
+## `[NinoType]` collections
+
+A `[NinoType]` class deriving from a collection (`class Bag : List<int>` with members of its own) is written as its
+elements, as the collection they are, then its members: before the members (positional), before the region
+(version-tolerant), or first inside the region (keyed). Each language gives the type a field for the elements, before
+its members: `$elements` in TypeScript (an array, `Map` or `Set`), `Elements` in Go (tagged `nino:"-"`, `$elements` in
+JSON) and `elements` in Rust (`$elements` in serde). The elements are never null (the collection is the object): data
+that marks them null is rejected (.NET throws a `NullReferenceException` reading it).
 
 ### Closed generic types in slots
 
@@ -261,10 +318,11 @@ mod protocol;
 
 nino-gen warns and leaves a type out when its language cannot express it, and the types that use it with it:
 
-- **Some generic types**: those written behind a type id, those that hold themselves with other arguments
-  ([Generic types](#generic-types)), and, in slots, closed generic types the assembly does not name.
-- **Reference tracking** (`[NinoType(trackReferences: true)]`) and **`[NinoType]` collections** (a class deriving from
-  `List<T>`; the collection itself is generated as an element type when its elements can be).
+- **Go and Rust**: generic types that hold themselves with other arguments ([Generic types](#generic-types)).
+- **Go**: closed generic types of one definition whose arguments are the same Go type, in slots, after the first
+  ([Generic types behind a type id](#generic-types-behind-a-type-id)).
+- In slots, closed generic types neither the assembly nor a slot names: their ids are unknown.
+- A generic type with `trackReferences`.
 - **TypeScript**: the types the TypeScript guide lists.
 - **Rust**: maps and sets whose key or element is not hashable in Rust (`f32`, `f64`, and types containing them),
   raw tuples with padding, and nullable raw values outside sequences.

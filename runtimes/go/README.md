@@ -105,7 +105,8 @@ p, err := nino.DeserializeExact(data, ReadPoint)   // ... or rejected
   out-of-range date, a length past `int32`), so it never writes bytes that .NET would misread.
 
 The polymorphic dispatch, the depth counting and the region handling are the same code paths as in .NET (spec §7.8
-to §7.10). Reference tracking (`trackReferences`, §7.9) is not implemented, as in the TypeScript runtime.
+to §7.10). Reference tracking (`trackReferences`, §7.9) is in `refs.go`, for generated code ("Reference tracking in
+generated code" below).
 
 ## Struct tags
 
@@ -167,7 +168,7 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
 - `members=...`: the published members. With them the plan is checked against the layout: the number of members
   (all for positional, a prefix for version-tolerant, any subset for keyed), each field's encoding against the
   member's, and the keys and former keys (the published ones are used, as the spec requires).
-- `trackReferences=true` is an error (reference tracking is not implemented).
+- `trackReferences=true` is an error (reference tracking is for generated code only).
 - `deferrable=false` (spec §7.10.1): a type .NET never defers (a record, a type built through its constructor), so it
   nests in place past 128 bodies and fails past 512. Without the part (layouts from an older .NET generator) a type
   is deferrable.
@@ -239,10 +240,27 @@ either's data. `nino-gen --lang go` (docs/codegen.md; `--tags`, `--tag-names`; i
   included). A closed generic type (layout `typeId=0`) written by hand gets `NinoTypeID()` returning `TypeID` of
   its .NET name. nino-gen generates a generic `[NinoType]` as a generic struct (`Box[T any]`) whose codec is built
   from the codecs of its type arguments (`BoxCodec[T any](p0 NinoArg[T]) NinoArg[*Box[T]]`), and a member
-  `Box<int>` as `*Box[int32]`; a generic type written behind a type id is left out (docs/codegen.md, "Generic
-  types").
+  `Box<int>` as `*Box[int32]`. A generic type written behind a type id is an interface per definition
+  (`Shelf[T]`, with marker methods its implementations have) and a member `Shelf<int>` a field `Shelf[int32]`
+  (docs/codegen.md, "Generic types behind a type id").
+- **an `Elements` field first** on a `[NinoType]` collection (`class Bag : List<int>`), tagged `nino:"-"`
+  (`$elements` in the extra tags): the elements are read and written by the generated functions, before the members.
 - **`NinoTypeID()`** on the pointer type of every class that can sit behind a type id.
 - **`NinoTypeName()`** returning the .NET full name.
+
+Reference tracking (`trackReferences`) and `[NinoType]` collections are read and written by generated code only: their
+layouts are an error for struct tags (`*TagError`), so the tagged path reads none of their data.
+
+### Reference tracking in generated code
+
+A tracked class is a pointer, the same pointer for every reference to it in the data, which may hold itself. The
+generated functions build it from `refs.go`: `ReadTracked`/`WriteTracked` (a tracked class without subtypes),
+`Reader.Ref`, `Back[T]` and `ReadTrackedNew` (a tracked slot: the header, then the type id), and
+`ReadTrackedClass`/`WriteTypedTracked`/`TrackedClassType` (a tracked class in a slot that does not track: the type id,
+then the header). A reader records each object as it creates it, before its body (deferred bodies too); a writer
+numbers objects by pointer. A header other than -1, 0 or the number of an object read so far, and a back reference to
+an object the slot does not allow, fail with `CodeInvalidData`; each object takes at least its 4 header bytes, so the
+table grows with the data.
 
 `internal/sample` follows these conventions (camel policy, `json` and `yaml`); its `layouts.go` is what the
 generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen's output for the corpus's types (and
@@ -302,8 +320,10 @@ names. It runs every case:
 - each malicious case must fail, without a panic and within a bounded allocation;
 - each strict prefix of a valid case must fail.
 
-Without the corpus the test skips, except when `CI` is set, where it fails. Cases that need reference tracking are
-skipped. The struct-tag path runs the same cases (`TestTagged*`), skipping reference tracking and multi-dimensional
+Without the corpus the test skips, except when `CI` is set, where it fails. The hand-written sample skips the cases of
+reference tracking, `[NinoType]` collections, generic types behind a type id and Nullable or KeyValuePair type
+arguments, which `internal/generated` (nino-gen's code) runs, and the one of a generic type holding itself with other
+arguments, which Go cannot express. The struct-tag path runs the same cases (`TestTagged*`), skipping reference tracking and multi-dimensional
 arrays, which it rejects. `FuzzDecode` and `FuzzTaggedDecode` are seeded from the corpus when
 `NINO_CONFORMANCE_CORPUS` is set.
 

@@ -111,6 +111,8 @@ var (
 	holderClass          nino.Class[Holder]
 	keywordsClass        nino.Class[Keywords]
 	ninoGridTypeClass    nino.Class[NinoGridType]
+	openHolderUseClass   nino.Class[OpenHolderUse]
+	openUseClass         nino.Class[OpenUse]
 	outerInnerClass      nino.Class[OuterInner]
 	renamedClass         nino.Class[Renamed]
 	shapesLeftItemClass  nino.Class[ShapesLeftItem]
@@ -139,6 +141,11 @@ var (
 	codecV18             NinoArg[*Box[[]*string]]
 	codecV19             NinoArg[*Keys[int32]]
 	codecV20             NinoArg[*Keys[*string]]
+	codecV21             NinoArg[*OpenHolder[int64]]
+	typeV0               *moreOpenCodec[int32]
+	typeV1               *moreOpenCodec[int64]
+	typeV2               *openCodec[int32]
+	typeV3               *openCodec[int64]
 )
 
 func init() {
@@ -147,6 +154,8 @@ func init() {
 	holderClass = nino.Class[Holder]{Read: readHolderBody, Write: writeHolderBody, Deferrable: true}
 	keywordsClass = nino.Class[Keywords]{Read: readKeywordsBody, Write: writeKeywordsBody, Deferrable: true}
 	ninoGridTypeClass = nino.Class[NinoGridType]{Read: readNinoGridTypeBody, Write: writeNinoGridTypeBody, Deferrable: true}
+	openHolderUseClass = nino.Class[OpenHolderUse]{Read: readOpenHolderUseBody, Write: writeOpenHolderUseBody, Deferrable: true}
+	openUseClass = nino.Class[OpenUse]{Read: readOpenUseBody, Write: writeOpenUseBody, Deferrable: true}
 	outerInnerClass = nino.Class[OuterInner]{Read: readOuterInnerBody, Write: writeOuterInnerBody, Deferrable: true}
 	renamedClass = nino.Class[Renamed]{Read: readRenamedBody, Write: writeRenamedBody, Deferrable: true}
 	shapesLeftItemClass = nino.Class[ShapesLeftItem]{Read: readShapesLeftItemBody, Write: writeShapesLeftItemBody, Deferrable: true}
@@ -175,6 +184,11 @@ func init() {
 	codecV18 = BoxCodec(NinoArg[[]*string]{Read: readV10, Write: writeV11, MinSize: 4})
 	codecV19 = KeysCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
 	codecV20 = KeysCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+	codecV21 = OpenHolderCodec(NinoArg[int64]{Read: (*nino.Reader).I64, Write: (*nino.Writer).I64, MinSize: 8}, NinoArg[OpenType[int64]]{Read: readSlot1, Write: writeSlot1, MinSize: 4})
+	typeV0 = newMoreOpenCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
+	typeV1 = newMoreOpenCodec(NinoArg[int64]{Read: (*nino.Reader).I64, Write: (*nino.Writer).I64, MinSize: 8})
+	typeV2 = newOpenCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
+	typeV3 = newOpenCodec(NinoArg[int64]{Read: (*nino.Reader).I64, Write: (*nino.Writer).I64, MinSize: 8})
 }
 
 // Bag is `Shapes.Generic.Bag<T>`.
@@ -681,6 +695,73 @@ func writeKeywordsBody(w *nino.Writer, v *Keywords) {
 	}
 }
 
+// MoreOpen is `Shapes.Generic.MoreOpen<T>`.
+type MoreOpen[T any] struct {
+	Value T `nino:"0" json:"value" yaml:"value"`
+	Extra T `nino:"1" json:"extra" yaml:"extra"`
+}
+
+// MoreOpenType is a value of a slot declared as `Shapes.Generic.MoreOpen<T>` with type arguments.
+type MoreOpenType[T any] interface {
+	nino.Typed
+	isMoreOpenType(T)
+}
+
+func (MoreOpen[T]) NinoLayout() string {
+	return "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T);Extra:T:type(T)"
+}
+
+func (v MoreOpen[T]) NinoTypeName() string {
+	switch any(v).(type) {
+	case MoreOpen[int32]:
+		return "Shapes.Generic.MoreOpen<System.Int32>"
+	case MoreOpen[int64]:
+		return "Shapes.Generic.MoreOpen<System.Int64>"
+	}
+	return "Shapes.Generic.MoreOpen<T>"
+}
+
+// moreOpenCodec reads and writes MoreOpen[T] with the codecs of its type arguments.
+type moreOpenCodec[T any] struct {
+	class nino.Class[MoreOpen[T]]
+	p0    NinoArg[T]
+}
+
+// MoreOpenCodec returns the codec of MoreOpen[T] (as a member of its type is written) from the codec of each
+// type argument, in order.
+func newMoreOpenCodec[T any](p0 NinoArg[T]) *moreOpenCodec[T] {
+	c := &moreOpenCodec[T]{p0: p0}
+	c.class = nino.Class[MoreOpen[T]]{Read: c.readBody, Write: c.writeBody, Deferrable: true}
+	return c
+}
+
+// NinoTypeID returns the id of the closed type: one the assembly names, else 0 (no slot allows it).
+func (v *MoreOpen[T]) NinoTypeID() int32 {
+	switch any(v).(type) {
+	case *MoreOpen[int32]:
+		return -1765026582
+	case *MoreOpen[int64]:
+		return -355893823
+	}
+	return 0
+}
+
+func (*MoreOpen[T]) isMoreOpenType(T) {
+}
+
+func (*MoreOpen[T]) isOpenType(T) {
+}
+
+func (c *moreOpenCodec[T]) readBody(r *nino.Reader, v *MoreOpen[T]) {
+	v.Value = c.p0.Read(r)
+	v.Extra = c.p0.Read(r)
+}
+
+func (c *moreOpenCodec[T]) writeBody(w *nino.Writer, v *MoreOpen[T]) {
+	c.p0.Write(w, v.Value)
+	c.p0.Write(w, v.Extra)
+}
+
 // NinoGridType is `Shapes.NinoGrid`.
 type NinoGridType struct {
 	Value int32 `nino:"0" json:"value" yaml:"value"`
@@ -785,6 +866,192 @@ func (c *nodeCodec[T]) writeBody(w *nino.Writer, v *Node[T]) {
 	c.self.Write(w, v.Next)
 	w.EndEntry(e)
 	w.EndRegion(g)
+}
+
+// Open is `Shapes.Generic.Open<T>`.
+type Open[T any] struct {
+	Value T `nino:"0" json:"value" yaml:"value"`
+}
+
+// OpenType is a value of a slot declared as `Shapes.Generic.Open<T>` with type arguments.
+type OpenType[T any] interface {
+	nino.Typed
+	isOpenType(T)
+}
+
+func (Open[T]) NinoLayout() string {
+	return "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T)"
+}
+
+func (v Open[T]) NinoTypeName() string {
+	switch any(v).(type) {
+	case Open[int32]:
+		return "Shapes.Generic.Open<System.Int32>"
+	case Open[int64]:
+		return "Shapes.Generic.Open<System.Int64>"
+	}
+	return "Shapes.Generic.Open<T>"
+}
+
+// openCodec reads and writes Open[T] with the codecs of its type arguments.
+type openCodec[T any] struct {
+	class nino.Class[Open[T]]
+	p0    NinoArg[T]
+}
+
+// OpenCodec returns the codec of Open[T] (as a member of its type is written) from the codec of each
+// type argument, in order.
+func newOpenCodec[T any](p0 NinoArg[T]) *openCodec[T] {
+	c := &openCodec[T]{p0: p0}
+	c.class = nino.Class[Open[T]]{Read: c.readBody, Write: c.writeBody, Deferrable: true}
+	return c
+}
+
+// NinoTypeID returns the id of the closed type: one the assembly names, else 0 (no slot allows it).
+func (v *Open[T]) NinoTypeID() int32 {
+	switch any(v).(type) {
+	case *Open[int32]:
+		return -1170110497
+	case *Open[int64]:
+		return 2087250468
+	}
+	return 0
+}
+
+func (*Open[T]) isOpenType(T) {
+}
+
+func (c *openCodec[T]) readBody(r *nino.Reader, v *Open[T]) {
+	v.Value = c.p0.Read(r)
+}
+
+func (c *openCodec[T]) writeBody(w *nino.Writer, v *Open[T]) {
+	c.p0.Write(w, v.Value)
+}
+
+// OpenHolder is `Shapes.Generic.OpenHolder<T>`.
+type OpenHolder[T any] struct {
+	Inner OpenType[T]   `nino:"0" json:"inner" yaml:"inner"`
+	All   []OpenType[T] `nino:"1" json:"all" yaml:"all"`
+}
+
+func (OpenHolder[T]) NinoLayout() string {
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Inner:Shapes.Generic.Open<T>:type(Shapes.Generic.Open<T>);All:System.Collections.Generic.List<Shapes.Generic.Open<T>>:seq(type(Shapes.Generic.Open<T>))"
+}
+
+func (OpenHolder[T]) NinoTypeName() string {
+	return "Shapes.Generic.OpenHolder<T>"
+}
+
+// openHolderCodec reads and writes OpenHolder[T] with the codecs of its type arguments.
+type openHolderCodec[T any] struct {
+	class nino.Class[OpenHolder[T]]
+	self  NinoArg[*OpenHolder[T]]
+	p0    NinoArg[T]
+	s0    NinoArg[OpenType[T]]
+	d0    NinoArg[[]OpenType[T]]
+}
+
+// OpenHolderCodec returns the codec of OpenHolder[T] (as a member of its type is written) from the codec of each
+// type argument, in order.
+func OpenHolderCodec[T any](p0 NinoArg[T], s0 NinoArg[OpenType[T]]) NinoArg[*OpenHolder[T]] {
+	c := &openHolderCodec[T]{p0: p0, s0: s0}
+	c.class = nino.Class[OpenHolder[T]]{Read: c.readBody, Write: c.writeBody, Deferrable: true}
+	c.self = NinoArg[*OpenHolder[T]]{Read: c.read, Write: c.write, MinSize: 1}
+	c.d0 = NinoArg[[]OpenType[T]]{Read: c.readD0, Write: c.writeD0, MinSize: 4}
+	return c.self
+}
+
+func (c *openHolderCodec[T]) read(r *nino.Reader) *OpenHolder[T] {
+	return nino.ReadSealed(r, &c.class)
+}
+
+func (c *openHolderCodec[T]) write(w *nino.Writer, v *OpenHolder[T]) {
+	nino.WriteSealed(w, v, &c.class)
+}
+
+func (c *openHolderCodec[T]) readBody(r *nino.Reader, v *OpenHolder[T]) {
+	v.Inner = c.s0.Read(r)
+	v.All = c.d0.Read(r)
+}
+
+func (c *openHolderCodec[T]) writeBody(w *nino.Writer, v *OpenHolder[T]) {
+	c.s0.Write(w, v.Inner)
+	c.d0.Write(w, v.All)
+}
+
+func (c *openHolderCodec[T]) readD0(r *nino.Reader) []OpenType[T] {
+	return nino.ReadSlice(r, 4, c.s0.Read)
+}
+
+func (c *openHolderCodec[T]) writeD0(w *nino.Writer, v []OpenType[T]) {
+	nino.WriteSlice(w, v, c.s0.Write)
+}
+
+// OpenHolderUse is `Shapes.Generic.OpenHolderUse`.
+type OpenHolderUse struct {
+	Holder *OpenHolder[int64] `nino:"0" json:"holder" yaml:"holder"`
+}
+
+func (OpenHolderUse) NinoLayout() string {
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9E569D67; deferrable=true; members=Holder:Shapes.Generic.OpenHolder<long>:type(Shapes.Generic.OpenHolder<long>)"
+}
+
+func (OpenHolderUse) NinoTypeName() string {
+	return "Shapes.Generic.OpenHolderUse"
+}
+
+func (*OpenHolderUse) NinoTypeID() int32 {
+	return -1638490777
+}
+
+func ReadOpenHolderUse(r *nino.Reader) *OpenHolderUse {
+	return nino.ReadSealed(r, &openHolderUseClass)
+}
+
+func WriteOpenHolderUse(w *nino.Writer, v *OpenHolderUse) {
+	nino.WriteSealed(w, v, &openHolderUseClass)
+}
+
+func readOpenHolderUseBody(r *nino.Reader, v *OpenHolderUse) {
+	v.Holder = codecV21.Read(r)
+}
+
+func writeOpenHolderUseBody(w *nino.Writer, v *OpenHolderUse) {
+	codecV21.Write(w, v.Holder)
+}
+
+// OpenUse is `Shapes.Generic.OpenUse`.
+type OpenUse struct {
+	Open OpenType[int32] `nino:"0" json:"open" yaml:"open"`
+}
+
+func (OpenUse) NinoLayout() string {
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFA892147; deferrable=true; members=Open:Shapes.Generic.Open<int>:type(Shapes.Generic.Open<int>)"
+}
+
+func (OpenUse) NinoTypeName() string {
+	return "Shapes.Generic.OpenUse"
+}
+
+func (*OpenUse) NinoTypeID() int32 {
+	return -91676345
+}
+
+func ReadOpenUse(r *nino.Reader) *OpenUse {
+	return nino.ReadSealed(r, &openUseClass)
+}
+
+func WriteOpenUse(w *nino.Writer, v *OpenUse) {
+	nino.WriteSealed(w, v, &openUseClass)
+}
+
+func readOpenUseBody(r *nino.Reader, v *OpenUse) {
+	v.Open = readSlot0(r)
+}
+
+func writeOpenUseBody(w *nino.Writer, v *OpenUse) {
+	writeSlot0(w, v.Open)
 }
 
 // OuterInner is `Shapes.Outer+Inner`.
@@ -1261,6 +1528,64 @@ func writeUsesBody(w *nino.Writer, v *Uses) {
 	codecV20.Write(w, v.StringKeys)
 }
 
+// readSlot0 reads a value of a slot declared as Shapes.Generic.Open<System.Int32>: a type id, then the body
+// of a type it allows.
+func readSlot0(r *nino.Reader) OpenType[int32] {
+	switch id := r.TypeID(); id {
+	case nino.NullTypeID:
+		return nil
+	case -1765026582:
+		return nino.ReadClass(r, &typeV0.class)
+	case -1170110497:
+		return nino.ReadClass(r, &typeV2.class)
+	default:
+		r.UnknownType(id)
+		return nil
+	}
+}
+
+func writeSlot0(w *nino.Writer, v OpenType[int32]) {
+	switch v := v.(type) {
+	case nil:
+		w.TypeID(nino.NullTypeID)
+	case *MoreOpen[int32]:
+		nino.WriteTyped(w, -1765026582, v, &typeV0.class)
+	case *Open[int32]:
+		nino.WriteTyped(w, -1170110497, v, &typeV2.class)
+	default:
+		w.Fail(nino.CodeUnknownType, "not a type the slot allows")
+	}
+}
+
+// readSlot1 reads a value of a slot declared as Shapes.Generic.Open<System.Int64>: a type id, then the body
+// of a type it allows.
+func readSlot1(r *nino.Reader) OpenType[int64] {
+	switch id := r.TypeID(); id {
+	case nino.NullTypeID:
+		return nil
+	case -355893823:
+		return nino.ReadClass(r, &typeV1.class)
+	case 2087250468:
+		return nino.ReadClass(r, &typeV3.class)
+	default:
+		r.UnknownType(id)
+		return nil
+	}
+}
+
+func writeSlot1(w *nino.Writer, v OpenType[int64]) {
+	switch v := v.(type) {
+	case nil:
+		w.TypeID(nino.NullTypeID)
+	case *MoreOpen[int64]:
+		nino.WriteTyped(w, -355893823, v, &typeV1.class)
+	case *Open[int64]:
+		nino.WriteTyped(w, 2087250468, v, &typeV3.class)
+	default:
+		w.Fail(nino.CodeUnknownType, "not a type the slot allows")
+	}
+}
+
 func readV0(r *nino.Reader) []Forest {
 	return nino.ReadSlice(r, 4, readForest)
 }
@@ -1531,6 +1856,10 @@ func NinoCodecOf(name string) (NinoCodec, bool) {
 		return codecOf(ReadKeywords, WriteKeywords), true
 	case "Shapes.NinoGrid":
 		return codecOf(ReadNinoGridType, WriteNinoGridType), true
+	case "Shapes.Generic.OpenHolderUse":
+		return codecOf(ReadOpenHolderUse, WriteOpenHolderUse), true
+	case "Shapes.Generic.OpenUse":
+		return codecOf(ReadOpenUse, WriteOpenUse), true
 	case "Shapes.Outer+Inner":
 		return codecOf(ReadOuterInner, WriteOuterInner), true
 	case "Shapes.Recursive":

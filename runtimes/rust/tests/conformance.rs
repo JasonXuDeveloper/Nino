@@ -166,6 +166,10 @@ fn run() {
             skipped.push(format!("{name} (optional: {})", case["optional"]));
             continue;
         }
+        if types::NOT_EMULATED.contains(&ty) {
+            skipped.push(format!("{name} (in tests/generated.rs)"));
+            continue;
+        }
         let Some(result) = types::with_type(ty, Valid(&bytes)) else {
             failures.push(format!("{name}: no codec for {ty}"));
             continue;
@@ -207,6 +211,10 @@ fn run() {
             skipped.push(format!("{name} (optional: {})", case["optional"]));
             continue;
         }
+        if types::NOT_EMULATED.contains(&ty) {
+            skipped.push(format!("{name} (in tests/generated.rs)"));
+            continue;
+        }
         let (result, peak) = measured(|| types::with_type(ty, Decode(&bytes)));
         let Some(result) = result else {
             failures.push(format!("{name}: no codec for {ty}"));
@@ -232,6 +240,10 @@ fn run() {
         let ty = entry["type"].as_str().unwrap();
         if entry.get("optional").is_some_and(|o| !o.is_null()) {
             skipped.push(format!("{name} prefixes (optional)"));
+            continue;
+        }
+        if types::NOT_EMULATED.contains(&ty) {
+            skipped.push(format!("{name} prefixes (in tests/generated.rs)"));
             continue;
         }
         let bytes = std::fs::read(dir.join(format!("valid/{name}.bin"))).unwrap();

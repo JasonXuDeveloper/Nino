@@ -47,7 +47,11 @@ namespace Nino.Codegen.Targets
         internal Dictionary<RawStructModel, RustShape> RawShapes { get; } = new();
         private readonly List<RustNamed> _namedCollections = new();
         private readonly Dictionary<TypeModel, HashSet<int>> _hashedParameters = new();
+        private readonly Dictionary<SlotModel, string> _slotNames = new();
         private bool _usesObject;
+
+        /// <summary>The generic definition whose members are being shaped: its slot parameters name its open slots.</summary>
+        private TypeModel? _context;
 
         public List<string> Warnings { get; } = new();
 
@@ -76,14 +80,30 @@ namespace Nino.Codegen.Targets
 
             var all = types.Select(t => new RustType(this, t)).ToList();
             foreach (var t in all)
+            {
                 _ = t.Members;
+                _ = t.ElementsMember;
+            }
+
+            // The slots of closed generic types: shaping their closed types may name more (until none is added).
+            for (int count = -1; count != _slotNames.Count;)
+            {
+                count = _slotNames.Count;
+                foreach (var slot in _slotNames.Keys.ToList())
+                    foreach (var closed in slot.ClosedAssignable.Where(_closed.ContainsKey))
+                        ClosedShape(closed);
+            }
+
             var rawStructs = _rawStructs.Select(s => new RustRawStruct(this, s)).ToList();
 
-            var refs = types.Where(t => t.Header == HeaderKind.TypeId && !t.Raw)
-                .Select(t => new RustRef(Name(t) + "Ref", t.FullName, Variants(Allowed(t), t.ClosedAssignable)))
+            var refs = types.Where(t => t.Header == HeaderKind.TypeId && !t.Raw && !t.IsGenericDefinition)
+                .Select(t => new RustRef(Name(t) + "Ref", t.FullName, Variants(Allowed(t), t.ClosedAssignable, t.TrackReferences))
+                    { Tracked = t.TrackReferences })
                 .ToList();
+            refs.AddRange(_slotNames.Select(p => new RustRef(p.Value, p.Key.RuntimeName,
+                Variants(p.Key.Assignable.Where(_supported.Contains), p.Key.ClosedAssignable, false))));
             if (_usesObject)
-                refs.Add(new RustRef("AnyObject", "object", Variants(ObjectTypes(), _closed.Keys)));
+                refs.Add(new RustRef("AnyObject", "object", Variants(ObjectTypes(), _closed.Keys, false)));
 
             var renderer = new TemplateRenderer("rust");
             renderer.Set("source", source);
@@ -113,10 +133,10 @@ namespace Nino.Codegen.Targets
         {
             foreach (var type in _model.Types)
             {
-                string? reason = CodegenModel.GenericProblem(type) is { } generic ? generic
-                    : type.TrackReferences ? "reference tracking (trackReferences) is not supported"
-                    : type.Elements != null ? "[NinoType] collections are not supported"
-                    : null;
+                string? reason = CodegenModel.GenericProblem(type) ?? type.SlotProblem
+                    ?? (type.TrackReferences && type.IsGenericDefinition
+                        ? "a generic type with trackReferences is not supported"
+                        : null);
                 if (reason == null)
                     _supported.Add(type);
                 else
@@ -150,7 +170,7 @@ namespace Nino.Codegen.Targets
             {
                 try
                 {
-                    _closed[closed] = Shape(closed.Value, false);
+                    _closed[closed] = ClosedShape(closed);
                 }
                 catch (UnsupportedException e)
                 {
@@ -159,10 +179,19 @@ namespace Nino.Codegen.Targets
             }
         }
 
-        /// <summary>The variants of a slot: its types with layouts, then its closed generic types, by name.</summary>
-        private List<RustVariant> Variants(IEnumerable<TypeModel> types, IEnumerable<ClosedTypeModel> closed)
+        /// <summary>A closed generic type's body: the generic class or struct with its arguments.</summary>
+        private RustShape ClosedShape(ClosedTypeModel closed) => GenericShape(closed.Value);
+
+        /// <summary>
+        /// The variants of a slot: its types with layouts, then its closed generic types, by name. A tracked class is
+        /// a <c>nino::Shared</c>; <paramref name="tracked"/>: the slot's declared type tracks (the reference header
+        /// comes before the type id), else a tracked class has its header after its id.
+        /// </summary>
+        private List<RustVariant> Variants(IEnumerable<TypeModel> types, IEnumerable<ClosedTypeModel> closed, bool tracked)
         {
-            var variants = types.Select(t => new RustVariant(Name(t), t, null, Name(t) + "::TYPE_ID", t.IsValueType))
+            var variants = types.OrderBy(Name, StringComparer.Ordinal)
+                .Select(t => new RustVariant(Name(t), t, null, Name(t) + "::TYPE_ID", t.IsValueType)
+                    { Shared = t.TrackReferences && !t.IsValueType })
                 .ToList();
             var taken = new HashSet<string>(variants.Select(v => v.Name), StringComparer.Ordinal);
             foreach (var c in closed.Where(_closed.ContainsKey).OrderBy(c => c.RuntimeName, StringComparer.Ordinal))
@@ -183,6 +212,7 @@ namespace Nino.Codegen.Targets
             _rawStructs.Clear();
             RawShapes.Clear();
             _namedCollections.Clear();
+            _slotNames.Clear();
             _usesObject = false;
         }
 
@@ -193,8 +223,13 @@ namespace Nino.Codegen.Targets
                 if (type.Raw)
                     Raw(type.RawValue!);
                 else
+                {
+                    if (type.Elements != null)
+                        ShapeIn(type, type.Elements);
                     foreach (var member in type.Members)
-                        Shape(member.Value, false);
+                        ShapeIn(type, member.Value);
+                }
+
                 return null;
             }
             catch (UnsupportedException e)
@@ -300,13 +335,9 @@ namespace Nino.Codegen.Targets
                     var definition = value.Type!;
                     if (!_supported.Contains(definition))
                         throw new UnsupportedException($"{definition.FullName} is not written to Rust");
-                    var arguments = value.Arguments.Select(a => Shape(a, false)).ToList();
-                    foreach (int i in HashedParameters(definition))
-                        if (!arguments[i].Hashable)
-                            throw new UnsupportedException(
-                                $"{TypeNames.Runtime(value.Clr)}: {definition.TypeParameters[i]} is a key or set element, which Rust cannot hash");
-                    return new RustShape(definition.IsValueType ? "generic" : "genericclass")
-                        { Type = definition, Items = arguments, MayDefer = true };
+                    if (definition.Header == HeaderKind.TypeId)
+                        return SlotShape(value);
+                    return GenericShape(value);
                 }
                 case ValueKind.Named:
                 {
@@ -378,6 +409,83 @@ namespace Nino.Codegen.Targets
             }
         }
 
+        /// <summary>The shape of a value of <paramref name="type"/>'s, whose open slots are its slot parameters.</summary>
+        internal RustShape ShapeIn(TypeModel type, ValueModel value)
+        {
+            var outer = _context;
+            _context = type;
+            try
+            {
+                return Shape(value, false);
+            }
+            finally
+            {
+                _context = outer;
+            }
+        }
+
+        /// <summary>
+        /// The names of a generic definition's slot parameters (<see cref="TypeModel.SlotParameters"/>): type parameters
+        /// after its own, bound to the enum of each slot where it is closed (<c>S0</c>, <c>S1</c>, ...).
+        /// </summary>
+        internal static List<string> SlotParameterNames(TypeModel type)
+        {
+            var taken = new HashSet<string>(type.TypeParameters, StringComparer.Ordinal);
+            var names = new List<string>();
+            for (int i = 0; i < type.SlotParameters.Count; i++)
+            {
+                string name = "S" + i.ToString(CultureInfo.InvariantCulture);
+                while (!taken.Add(name))
+                    name += "_";
+                names.Add(name);
+            }
+
+            return names;
+        }
+
+        /// <summary>
+        /// A generic struct or class with its arguments, then the enums of the slots it holds (its slot arguments).
+        /// </summary>
+        private RustShape GenericShape(ValueModel value)
+        {
+            var definition = value.Type!;
+            var arguments = value.Arguments.Select(a => Shape(a, false)).ToList();
+            foreach (int i in HashedParameters(definition))
+                if (!arguments[i].Hashable)
+                    throw new UnsupportedException(
+                        $"{TypeNames.Runtime(value.Clr)}: {definition.TypeParameters[i]} is a key or set element, which Rust cannot hash");
+            return new RustShape(definition.IsValueType ? "generic" : "genericclass")
+            {
+                Type = definition, Items = arguments, MayDefer = true,
+                Slots = value.SlotArguments.Select(SlotShape).ToList(),
+            };
+        }
+
+        /// <summary>
+        /// A generic type written behind a type id with its arguments (<c>Shelf&lt;int&gt;</c>): the enum of the types
+        /// that slot allows (<c>ShelfInt32Ref</c>), its closed types among them.
+        /// </summary>
+        private RustShape SlotShape(ValueModel value)
+        {
+            if (value.Slot is not { } slot)
+            {
+                // Open (Shelf<T> in a generic definition): a type parameter of the definition holding it, which each
+                // closed use binds to the enum of its closed slot.
+                int index = _context?.SlotParameters.FindIndex(p => p.TypeKey == value.TypeKey) ?? -1;
+                if (index < 0)
+                    throw new UnsupportedException($"{TypeNames.Runtime(value.Clr)} is a slot no type parameter names");
+                return new RustShape("genslot") { RefName = SlotParameterNames(_context!)[index], MayDefer = true };
+            }
+
+            if (!_slotNames.TryGetValue(slot, out var name))
+            {
+                name = GoTarget.ClosedName(slot.Clr) + "Ref";
+                _slotNames[slot] = name;
+            }
+
+            return new RustShape("genslot") { RefName = name, MayDefer = true };
+        }
+
         /// <summary>A <c>[NinoType]</c> member, with the header of its kind.</summary>
         private RustShape TypeShape(TypeModel type)
         {
@@ -388,6 +496,7 @@ namespace Nino.Codegen.Targets
             return type.Header switch
             {
                 HeaderKind.None => new RustShape("struct") { Type = type },
+                HeaderKind.NullFlag when type.TrackReferences => new RustShape("shared") { Type = type, MayDefer = true },
                 HeaderKind.NullFlag => new RustShape("class") { Type = type, MayDefer = true },
                 _ => new RustShape("slot") { Type = type, MayDefer = true },
             };
@@ -655,6 +764,15 @@ namespace Nino.Codegen.Targets
 
         public List<RustShape> Items { get; internal set; } = new();
 
+        /// <summary>
+        /// The enum of a slot of a closed generic type (<c>genslot</c>), or the type parameter standing for it in a
+        /// generic definition.
+        /// </summary>
+        public string? RefName { get; internal set; }
+
+        /// <summary>A generic type's slot arguments (<c>genslot</c> shapes), after its type arguments.</summary>
+        public List<RustShape> Slots { get; internal set; } = new();
+
         /// <summary>A sequence's Rust type: <c>vec</c>, <c>set</c> (<c>IndexSet</c>) or <c>rawnullables</c>.</summary>
         public string? Mode { get; internal set; }
 
@@ -820,10 +938,34 @@ namespace Nino.Codegen.Targets
 
         private List<RustMember> BuildMembers()
         {
-            var names = RustTarget.FieldNames(Model.Members.Select(m => m.Name));
-            return Model.Members.Select((m, i) => new RustMember(m, names[i].Field, _target.Shape(m.Value, false),
-                _target.SerdeRename(names[i].Plain, m.Name))).ToList();
+            var names = FieldNames();
+            int skip = Model.Elements != null ? 1 : 0;
+            return Model.Members.Select((m, i) => new RustMember(m, names[i + skip].Field, _target.ShapeIn(Model, m.Value),
+                _target.SerdeRename(names[i + skip].Plain, m.Name))).ToList();
         }
+
+        /// <summary>The Rust field names: <c>elements</c> first for a <c>[NinoType]</c> collection, then the members'.</summary>
+        private List<(string Field, string Plain)> FieldNames()
+        {
+            var names = Model.Members.Select(m => m.Name);
+            return RustTarget.FieldNames(Model.Elements != null ? names.Prepend("Elements") : names);
+        }
+
+        /// <summary>
+        /// The elements of a <c>[NinoType]</c> collection: a field before the members holding the collection itself
+        /// (never null: the collection is the object), or null.
+        /// </summary>
+        public RustMember? ElementsMember => Model.Elements == null ? null
+            : _elements ??= new RustMember(new MemberModel("$elements", "", Model.Elements), FieldNames()[0].Field,
+                _target.ShapeIn(Model, Model.Elements), _target.SerdeRename(FieldNames()[0].Plain, "$elements"));
+
+        private RustMember? _elements;
+
+        /// <summary>Whether reading its elements or a member may defer a class body.</summary>
+        public bool ReadsMayDefer => MayDefer || ElementsMember?.Shape.MayDefer == true;
+
+        /// <summary>A class written behind reference headers (trackReferences): held as a <c>nino::Shared</c>.</summary>
+        public bool Tracked => Model.TrackReferences;
 
         /// <summary>
         /// A struct whose nesting is counted: one that can hold itself through no class body, or a generic struct
@@ -832,25 +974,65 @@ namespace Nino.Codegen.Targets
         public bool Counted => Model.IsValueType && !Model.Raw && (Model.IsGenericDefinition || _target.HoldsItself(Model));
 
         /// <summary>Whether reading a member may defer a class body.</summary>
-        public bool MayDefer => Members.Any(m => m.Shape.MayDefer);
+        public bool MayDefer => Members.Any(m => m.Shape.MayDefer) || ElementsMember?.Shape.MayDefer == true;
 
         /// <summary>The type parameters of a generic definition (empty otherwise).</summary>
         public IReadOnlyList<string> Parameters => Model.TypeParameters;
 
+        /// <summary>
+        /// The type parameters standing for the enums of its open slots (<see cref="TypeModel.SlotParameters"/>), after
+        /// its own: <c>OpenHolder&lt;T, S0&gt;</c>, used as <c>OpenHolder&lt;i64, OpenInt64Ref&gt;</c>.
+        /// </summary>
+        public IReadOnlyList<string> SlotParameters => RustTarget.SlotParameterNames(Model);
+
+        private IEnumerable<string> AllParameters => Parameters.Concat(SlotParameters);
+
+        /// <summary>
+        /// The marker field for type parameters no field holds (<c>T</c> of <c>OpenHolder&lt;T, S0&gt;</c>, held only
+        /// through its slots' enums), which Rust requires to be used: <c>PhantomData&lt;fn() -&gt; (T,)&gt;</c>, or null.
+        /// </summary>
+        public string? Phantom
+        {
+            get
+            {
+                var shapes = Members.Select(m => m.Shape).Concat(ElementsMember != null ? new[] { ElementsMember.Shape } : Array.Empty<RustShape>());
+                var used = new HashSet<string>(shapes.SelectMany(Walk).Where(s => s.Kind == "param").Select(s => s.Parameter!),
+                    StringComparer.Ordinal);
+                var unused = Parameters.Where(p => !used.Contains(p)).ToList();
+                return unused.Count == 0 ? null
+                    : "core::marker::PhantomData<fn() -> (" + string.Join(", ", unused) + ",)>";
+            }
+        }
+
+        private static IEnumerable<RustShape> Walk(RustShape s) => new[] { s }
+            .Concat(new[] { s.Inner, s.Element, s.Key, s.Value }.Where(c => c != null).SelectMany(c => Walk(c!)))
+            .Concat(s.Items.SelectMany(Walk));
+
         /// <summary><c>&lt;T, U&gt;</c> after the name of a generic type, else empty.</summary>
-        public string Generics => Parameters.Count == 0 ? "" : "<" + string.Join(", ", Parameters) + ">";
+        public string Generics => Parameters.Count == 0 ? "" : "<" + string.Join(", ", AllParameters) + ">";
 
         /// <summary>The bounds the struct declares: <c>Eq + Hash</c> on the parameters it hashes (its derives need them).</summary>
         public string DeclaredGenerics => Parameters.Count == 0 ? "" :
             "<" + string.Join(", ", Parameters.Select((p, i) => _target.HashedParameters(Model).Contains(i)
                 ? p + ": Eq + core::hash::Hash"
-                : p)) + ">";
+                : p).Concat(SlotParameters)) + ">";
 
-        /// <summary>The parameters of an impl of a generic type, with every bound its codecs need.</summary>
+        /// <summary>
+        /// The parameters of an impl of a generic type, with every bound its codecs need (a slot's enum has no
+        /// <c>Default</c>: its field is an <c>Option</c>).
+        /// </summary>
         public string ImplGenerics => Parameters.Count == 0 ? "" :
             "<" + string.Join(", ", Parameters.Select((p, i) => p + ": NinoRead + NinoWrite + Default" +
                 (_target.HashedParameters(Model).Contains(i) ? " + Eq + core::hash::Hash + Clone" : "") +
-                " + 'static")) + ">";
+                " + 'static").Concat(SlotParameters.Select(p => p + ": NinoRead + NinoWrite + 'static"))) + ">";
+
+        /// <summary>
+        /// The bounds of its <c>Default</c> impl, written out for a type with slot parameters (a derive would ask the
+        /// slots' enums for one), else null.
+        /// </summary>
+        public string? DefaultGenerics => SlotParameters.Count == 0 ? null :
+            "<" + string.Join(", ", Parameters.Select((p, i) => p + ": Default" +
+                (_target.HashedParameters(Model).Contains(i) ? " + Eq + core::hash::Hash" : "")).Concat(SlotParameters)) + ">";
 
 
         public string Layout => Model.LayoutText;
@@ -861,6 +1043,7 @@ namespace Nino.Codegen.Targets
         public string Top => Model.Raw ? Name
             : Model.Header == HeaderKind.None ? Name
             : Model.Header == HeaderKind.TypeId ? "Option<" + Name + "Ref>"
+            : Model.TrackReferences ? "Option<nino::Shared<" + Name + ">>"
             : "Option<Box<" + Name + ">>";
     }
 
@@ -880,6 +1063,9 @@ namespace Nino.Codegen.Targets
         public string Declared { get; }
 
         public List<RustVariant> Allowed { get; }
+
+        /// <summary>Its declared type tracks references: the reference header comes first, then the type id.</summary>
+        public bool Tracked { get; internal set; }
     }
 
     /// <summary>
@@ -911,5 +1097,8 @@ namespace Nino.Codegen.Targets
 
         /// <summary>The closed type's .NET name, for a closed generic type.</summary>
         public string? RuntimeName { get; internal set; }
+
+        /// <summary>A tracked class: held as a <c>nino::Shared</c>.</summary>
+        public bool Shared { get; internal set; }
     }
 }

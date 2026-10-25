@@ -54,6 +54,11 @@ WIDE_STRINGS = {("Conformance.Strings", "Text"), ("Conformance.StringCollections
 # Reference tracking is optional (corpus README); this runtime leaves it out.
 SKIPPED = {"Conformance.Tracked", "Conformance.TrackedLeaf", "Conformance.TrackedHolder"}
 
+# Shapes this hand-written emulation leaves to the code nino-gen writes (tests/generated.rs runs their cases):
+# [NinoType] collections, generic types behind a type id, generics nesting themselves, Nullable and KeyValuePair
+# type arguments. Their cases are skipped here, by type.
+NOT_EMULATED = {"Conformance.BagHolder", "Conformance.GenericSlots", "Conformance.NestHolder", "Conformance.WrappedArgs"}
+
 # Generic closed types used, and their arguments' layouts.
 GENERIC_ARGS = {
     "System.Int32": ("int", "raw(4)"),
@@ -748,11 +753,17 @@ class Gen:
 
     def emit_dispatch(self, top_types):
         o = self.out
+        o.append("/// The types whose cases tests/generated.rs runs (the code nino-gen writes) and this emulation skips.")
+        o.append("pub const NOT_EMULATED: &[&str] = &[")
+        for t in sorted(NOT_EMULATED):
+            o.append(f"    {json.dumps(t)},")
+        o.append("];")
+        o.append("")
         o.append("/// Runs `f` with the type a case is read as, or returns `None` for a type this runtime leaves out.")
         o.append("pub fn with_type<R>(name: &str, f: impl Visit<R>) -> Option<R> {")
         o.append("    Some(match name {")
         for t in sorted(top_types):
-            if t in SKIPPED:
+            if t in SKIPPED or t in NOT_EMULATED:
                 continue
             o.append(f"        {json.dumps(t)} => f.visit::<{self.top(t)}>(),")
         o.append("        _ => return None,")
@@ -787,6 +798,8 @@ def main():
         if f.endswith("truncations.json"):
             continue
         d = json.load(open(f))
+        if d["type"] in NOT_EMULATED or d.get("optional"):
+            continue
         for k, v in d.get("layouts", {}).items():
             if layouts.get(k, v) != v:
                 raise SystemExit(f"two layouts for {k}")

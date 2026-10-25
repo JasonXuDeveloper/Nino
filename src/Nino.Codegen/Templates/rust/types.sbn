@@ -32,11 +32,14 @@ func variant_type(a)
   ret name(a.type)
 end
 
-# A generic type with its arguments.
+# A generic type with its arguments, then the enums of the slots it holds.
 func generic(s)
   $parts = []
   for $i in s.items
     $parts = array.add $parts (rtype($i))
+  end
+  for $i in s.slots
+    $parts = array.add $parts $i.ref_name
   end
   ret name(s.type) + "<" + (array.join $parts ", ") + ">"
 end
@@ -75,8 +78,12 @@ func rtype(s)
     ret "Option<Box<" + generic(s) + ">>"
   when "class"
     ret "Option<Box<" + name(s.type) + ">>"
+  when "shared"
+    ret "Option<nino::Shared<" + name(s.type) + ">>"
   when "slot"
     ret "Option<" + name(s.type) + "Ref>"
+  when "genslot"
+    ret "Option<" + s.ref_name + ">"
   when "named"
     ret "Option<" + s.named.name + ">"
   when "nullable"
@@ -100,6 +107,29 @@ func read(m)
     ret "r.read_in(nino::field!(Self, " + m.name + "))?"
   end
   ret "r.read()?"
+end
+
+# A variant of a slot's enum: a tracked class is shared, any other type boxed.
+func variant_box(a)
+  if a.shared
+    ret "nino::Shared<" + variant_type(a) + ">"
+  end
+  ret "Box<" + variant_type(a) + ">"
+end
+
+# The statement reading a [NinoType] collection's elements: never null (the collection is the object itself).
+func read_elements(t)
+  if t.elements_member
+    ret "        self." + t.elements_member.name + " = " + read(t.elements_member) + ";\n"
+  end
+  ret ""
+end
+
+func write_elements(t)
+  if t.elements_member
+    ret "        w.write(&self." + t.elements_member.name + ")?;\n"
+  end
+  ret ""
 end
 
 # MAY_DEFER of a struct: a member holding a type parameter asks its argument.
@@ -243,13 +273,41 @@ impl NinoWrite for {{ s.name }} {
 {{~ for t in types ~}}
 
 /// `{{ t.runtime_name }}`: {{ t.model.format }}, header {{ t.model.header }}.
-{{ derive("Debug, Default, Clone, PartialEq") }}{{~ if t.members.size == 0 ~}}
+{{ derive(t.default_generics ? "Debug, Clone, PartialEq" : "Debug, Default, Clone, PartialEq") }}{{~ if t.members.size == 0 && !t.elements_member && !t.phantom ~}}
 pub struct {{ t.name }}{{ t.declared_generics }} {}
 {{~ else ~}}
 pub struct {{ t.name }}{{ t.declared_generics }} {
+{{~ if t.elements_member ~}}
+{{ field(t.elements_member, bare(t.elements_member.shape)) }}
+{{~ end ~}}
 {{~ for m in t.members ~}}
 {{ field(m, rtype(m.shape)) }}
 {{~ end ~}}
+{{~ if t.phantom ~}}
+    /// Its type parameters no field holds (Rust requires each to be used).
+{{~ if serde ~}}
+    #[cfg_attr(feature = "serde", serde(skip))]
+{{~ end ~}}
+    pub _params: {{ t.phantom }},
+{{~ end ~}}
+}
+{{~ end ~}}
+{{~ if t.default_generics ~}}
+
+impl{{ t.default_generics }} Default for {{ t.name }}{{ t.generics }} {
+    fn default() -> Self {
+        Self {
+{{~ if t.elements_member ~}}
+            {{ t.elements_member.name }}: Default::default(),
+{{~ end ~}}
+{{~ for m in t.members ~}}
+            {{ m.name }}: Default::default(),
+{{~ end ~}}
+{{~ if t.phantom ~}}
+            _params: core::marker::PhantomData,
+{{~ end ~}}
+        }
+    }
 }
 {{~ end ~}}
 
@@ -260,14 +318,14 @@ impl{{ t.impl_generics }} NinoReadBody for {{ t.name }}{{ t.generics }} {
 {{~ end ~}}
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
 {{~ if t.format == "positional" ~}}
-{{~ for m in t.members ~}}
+{{ read_elements(t) }}{{~ for m in t.members ~}}
         self.{{ m.name }} = {{ read(m) }};
 {{~ end ~}}
-{{~ if t.members.size == 0 ~}}
+{{~ if t.members.size == 0 && !t.elements_member ~}}
         let _ = r;
 {{~ end ~}}
 {{~ else if t.format == "tolerant" ~}}
-        let body = r.begin_region()?;
+{{ read_elements(t) }}        let body = r.begin_region()?;
 {{~ for m in t.members ~}}
         if r.has_more() {
             self.{{ m.name }} = {{ read(m) }};
@@ -276,7 +334,7 @@ impl{{ t.impl_generics }} NinoReadBody for {{ t.name }}{{ t.generics }} {
         r.end_region(body, self)?;
 {{~ else ~}}
         let body = r.begin_region()?;
-        while r.has_more() {
+{{ read_elements(t) }}        while r.has_more() {
             let key = r.i32()?;
             let member = r.begin_region()?;
             match key as u32 {
@@ -303,21 +361,21 @@ impl{{ t.impl_generics }} NinoWriteBody for {{ t.name }}{{ t.generics }} {
 {{~ end ~}}
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
 {{~ if t.format == "positional" ~}}
-{{~ for m in t.members ~}}
+{{ write_elements(t) }}{{~ for m in t.members ~}}
         w.write(&self.{{ m.name }})?;
 {{~ end ~}}
-{{~ if t.members.size == 0 ~}}
+{{~ if t.members.size == 0 && !t.elements_member ~}}
         let _ = w;
 {{~ end ~}}
 {{~ else if t.format == "tolerant" ~}}
-        let body = w.begin_region();
+{{ write_elements(t) }}        let body = w.begin_region();
 {{~ for m in t.members ~}}
         w.write(&self.{{ m.name }})?;
 {{~ end ~}}
         w.end_region(body)?;
 {{~ else ~}}
         let body = w.begin_region();
-{{~ for m in t.members ~}}
+{{ write_elements(t) }}{{~ for m in t.members ~}}
         w.i32({{ hex(m.model.key) }}u32 as i32);
         let member = w.begin_region();
         w.write(&self.{{ m.name }})?;
@@ -355,7 +413,7 @@ impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
         self.write_body(w)
     }
 }
-{{~ else if t.kind == "class" ~}}
+{{~ else if t.kind == "class" && !t.tracked ~}}
 
 impl{{ t.impl_generics }} NinoRead for {{ t.name }}{{ t.generics }} {
     const MAY_DEFER: bool = true;
@@ -398,7 +456,7 @@ impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
 {{~ if a.shape ~}}
     /// `{{ a.runtime_name }}`.
 {{~ end ~}}
-    {{ a.name }}(Box<{{ variant_type(a) }}>),
+    {{ a.name }}({{ variant_box(a) }}),
 {{~ end ~}}
 }
 
@@ -409,7 +467,11 @@ impl {{ x.name }} {
 {{~ else ~}}
         match self {
 {{~ for a in x.allowed ~}}
+{{~ if a.shared ~}}
+            Self::{{ a.name }}(v) => v,
+{{~ else ~}}
             Self::{{ a.name }}(v) => &mut **v,
+{{~ end ~}}
 {{~ end ~}}
         }
 {{~ end ~}}
@@ -425,15 +487,39 @@ impl NinoRead for {{ x.name }} {
     }
 
     fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+{{~ if x.tracked ~}}
+        // Its reference header first: an object read before, by number, of a type the slot allows.
+        let header = r.ref_header()?;
+        if header == 0 {
+            return Ok(None);
+        }
+        if header > 0 {
+            let any = r.back_ref(header)?;
+{{~ for a in x.allowed ~}}
+{{~ if a.shared ~}}
+            if let Some(v) = nino::Shared::<{{ variant_type(a) }}>::downcast(&any) {
+                return Ok(Some(Self::{{ a.name }}(v)));
+            }
+{{~ end ~}}
+{{~ end ~}}
+            return Err(nino::Error::new(nino::ErrorKind::InvalidReference, header));
+        }
+        let id = r.i32()?;
+{{~ else ~}}
         let id = r.i32()?;
         if id == 0 {
             return Ok(None);
         }
+{{~ end ~}}
         let mark = r.mark();
         let value = match id {
 {{~ for a in x.allowed ~}}
 {{~ if a.is_value_type ~}}
             {{ a.id }} => Self::{{ a.name }}(Box::new(r.read()?)),
+{{~ else if a.shared && x.tracked ~}}
+            {{ a.id }} => Self::{{ a.name }}(r.read_shared_new()?),
+{{~ else if a.shared ~}}
+            {{ a.id }} => Self::{{ a.name }}(r.read_shared_after_id()?),
 {{~ else ~}}
             {{ a.id }} => Self::{{ a.name }}(Box::new(r.read_class()?)),
 {{~ end ~}}
@@ -454,11 +540,25 @@ impl NinoWrite for {{ x.name }} {
         match self {
 {{~ for a in x.allowed ~}}
             Self::{{ a.name }}(v) => {
+{{~ if a.shared && x.tracked ~}}
+                if !w.shared_header(v) {
+                    return Ok(());
+                }
+                w.i32({{ a.id }});
+                w.write_shared_body(v)
+{{~ else if a.shared ~}}
+                w.i32({{ a.id }});
+                if !w.shared_header(v) {
+                    return Ok(());
+                }
+                w.write_shared_body(v)
+{{~ else ~}}
                 w.i32({{ a.id }});
 {{~ if a.is_value_type ~}}
                 w.write(&**v)
 {{~ else ~}}
                 w.write_class(&**v)
+{{~ end ~}}
 {{~ end ~}}
             }
 {{~ end ~}}
