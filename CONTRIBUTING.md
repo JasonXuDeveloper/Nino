@@ -23,8 +23,9 @@ netstandard2.1 without interceptors (what Unity runs), on netstandard2.0 with th
 (everything but `ShapeMatrixTests`, and each half of its rows; "Build and Test" checks the three ran the whole suite,
 `.github/scripts/test_shards.py`). Beside them it builds the whole solution and runs the ASP.NET Core tests and those
 of Nino.Codegen (`Nino.AspNetCore.Tests`, `Nino.Codegen.Integration.Tests`, `Nino.Codegen.Tests`, Node 22.18+),
-publishes `Nino.AotTests` trimmed and Native AOT, runs `Nino.RuntimeTests` (net472) under Mono against .NET, and runs
-the Unity tests (`src/Nino.Unity`, Unity 2022.3). Locally, the same split keeps a run in memory:
+publishes `Nino.AotTests` trimmed and Native AOT, and runs `Nino.RuntimeTests` (net472) under Mono against .NET. The
+Unity tests (`src/Nino.Unity`, on Unity 2022.3 and the newest Unity 6 LTS) run in `unity.yml`, one version at a time
+and never cancelled while running, so CI holds at most one seat of the Unity license. Locally, the same split keeps a run in memory:
 `--filter "FullyQualifiedName!~ShapeMatrixTests"`, then `--filter "FullyQualifiedName~ShapeMatrixTests"`.
 
 The workflows pin every action to a commit SHA with its version in a comment (`uses: actions/checkout@<sha> # v7.0.1`);
