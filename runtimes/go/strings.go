@@ -172,27 +172,114 @@ func utf8Units(b []byte, units int) bool {
 		// As many bytes as chars: only ASCII can be.
 		return isASCII(b)
 	}
-	n := 0
-	for i := 0; i < len(b); {
-		c := b[i]
-		if c < utf8.RuneSelf {
-			i++
-			n++
+	n, ok := utf8Scan(b)
+	return ok && n == units
+}
+
+// utf8Scan reports whether b is strict UTF-8 (what utf8.Valid accepts: no overlong forms, encoded surrogates or
+// values past U+10FFFF, no sequence cut short) and returns its length in UTF-16 code units, in one pass: a
+// shift-based DFA, one table load, shift and mask a byte, with no branch on the data. Each row of utf8DFA holds,
+// for every state (a multiple of 6, the shift that picks it), the next state in the 6 bits at that shift, and in
+// its top two bits the code units the byte starts (0 for a continuation byte, 2 for a 4-byte lead, else 1).
+func utf8Scan(b []byte) (units int, ok bool) {
+	units = len(b)
+	var state uint64
+	// Eight bytes at a time: a word of ASCII between chars is skipped; any other runs through the DFA unrolled,
+	// with its code units counted as in [utf16Count]. Only the low 6 bits of state are ever used (the mask is free:
+	// shifts take their count mod 64).
+	for len(b) >= 8 {
+		x := binary.LittleEndian.Uint64(b)
+		b = b[8:]
+		if x&highBits == 0 && state&63 == dfaAccept {
 			continue
 		}
-		r, size := utf8.DecodeRune(b[i:])
-		if r == utf8.RuneError && size == 1 {
-			return false
-		}
-		i += size
-		if r >= 0x10000 {
-			n += 2
-		} else {
-			n++
-		}
+		units += bits.OnesCount64(x&(x<<1)&(x<<2)&(x<<3)&highBits) - bits.OnesCount64(x&^(x<<1)&highBits)
+		state = utf8DFA[byte(x)] >> (state & 63)
+		state = utf8DFA[byte(x>>8)] >> (state & 63)
+		state = utf8DFA[byte(x>>16)] >> (state & 63)
+		state = utf8DFA[byte(x>>24)] >> (state & 63)
+		state = utf8DFA[byte(x>>32)] >> (state & 63)
+		state = utf8DFA[byte(x>>40)] >> (state & 63)
+		state = utf8DFA[byte(x>>48)] >> (state & 63)
+		state = utf8DFA[byte(x>>56)] >> (state & 63)
 	}
-	return n == units
+	for _, c := range b {
+		row := utf8DFA[c]
+		units += int(row>>dfaUnitsAt) - 1
+		state = row >> (state & 63)
+	}
+	return units, state&63 == dfaAccept
 }
+
+// The states of utf8DFA, as shifts: accept (between chars), error (stays), and the bytes still to come.
+const (
+	dfaAccept = 6 * iota
+	dfaError
+	dfaCont1   // one more 80..BF
+	dfaCont2   // two more 80..BF
+	dfaE0      // after E0: A0..BF (no overlong form), then one
+	dfaED      // after ED: 80..9F (no surrogate), then one
+	dfaF0      // after F0: 90..BF (no overlong form), then two
+	dfaF1      // after F1..F3: 80..BF, then two
+	dfaF4      // after F4: 80..8F (nothing past U+10FFFF), then two
+	dfaStates  = iota
+	dfaUnitsAt = 62
+)
+
+var utf8DFA = func() (t [256]uint64) {
+	for c := range 256 {
+		var row uint64
+		set := func(from, to uint64) { row = row&^(63<<from) | to<<from }
+		for st := uint64(0); st < dfaStates; st++ {
+			set(6*st, dfaError)
+		}
+		in := func(lo, hi int) bool { return c >= lo && c <= hi }
+		switch {
+		case in(0x00, 0x7F):
+			set(dfaAccept, dfaAccept)
+		case in(0xC2, 0xDF):
+			set(dfaAccept, dfaCont1)
+		case c == 0xE0:
+			set(dfaAccept, dfaE0)
+		case c == 0xED:
+			set(dfaAccept, dfaED)
+		case in(0xE1, 0xEF):
+			set(dfaAccept, dfaCont2)
+		case c == 0xF0:
+			set(dfaAccept, dfaF0)
+		case in(0xF1, 0xF3):
+			set(dfaAccept, dfaF1)
+		case c == 0xF4:
+			set(dfaAccept, dfaF4)
+		}
+		if in(0x80, 0xBF) {
+			set(dfaCont1, dfaAccept)
+			set(dfaCont2, dfaCont1)
+			set(dfaF1, dfaCont2)
+		}
+		if in(0xA0, 0xBF) {
+			set(dfaE0, dfaCont1)
+		}
+		if in(0x80, 0x9F) {
+			set(dfaED, dfaCont1)
+		}
+		if in(0x90, 0xBF) {
+			set(dfaF0, dfaCont2)
+		}
+		if in(0x80, 0x8F) {
+			set(dfaF4, dfaCont2)
+		}
+		switch {
+		case in(0x80, 0xBF):
+		case c >= 0xF0:
+			row |= 2 << dfaUnitsAt
+		default:
+			row |= 1 << dfaUnitsAt
+		}
+		t[c] = row
+	}
+	return t
+}()
 
 const highBits = 0x8080808080808080
 
@@ -648,21 +735,27 @@ func (w *Writer) Utf8(s string) {
 		return
 	}
 	bytes := stringBytes(s)
-	if isASCII(bytes) {
-		if n > maxInt32 {
-			w.Fail(CodeTooLarge, "string")
+	units := n
+	if !isASCII(bytes) {
+		// Valid UTF-8 (the common case) is written as it is: its byte count is len(s). Anything else (an unpaired
+		// surrogate in WTF-8, a byte that is not UTF-8) goes through the char by char path.
+		var ok bool
+		if units, ok = utf8Scan(bytes); !ok {
+			w.wideUtf8(s)
 			return
 		}
-		b := w.Extend(8 + n)
-		if len(b) < 8 {
-			return
-		}
-		binary.LittleEndian.PutUint32(b, uint32(n))
-		binary.LittleEndian.PutUint32(b[4:], uint32(n))
-		copy(b[8:], s)
+	}
+	if n > maxInt32 {
+		w.Fail(CodeTooLarge, "string")
 		return
 	}
-	w.wideUtf8(s)
+	b := w.Extend(8 + n)
+	if len(b) < 8 {
+		return
+	}
+	binary.LittleEndian.PutUint32(b, uint32(units))
+	binary.LittleEndian.PutUint32(b[4:], uint32(n))
+	copy(b[8:], s)
 }
 
 // NullableUtf8 writes a [NinoUtf8] string, or null when ok is false.
@@ -683,6 +776,9 @@ func (w *Writer) Utf8Ptr(s *string) {
 	w.Utf8(*s)
 }
 
+// wideUtf8 writes text that is not valid UTF-8, char by char.
+//
+//go:noinline
 func (w *Writer) wideUtf8(s string) {
 	// Each char that is not a scalar value (an unpaired surrogate in WTF-8, or a byte that is not UTF-8) is written
 	// as U+FFFD: one code unit, 3 bytes.
