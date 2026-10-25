@@ -90,12 +90,12 @@ Nino/
 - ✅ 多语言代码生成统一：Nino.Codegen（MSBuild 包，`<NinoCodegen Include="typescript|go|rust" Out="..."/>`）+ Nino.Codegen.Tool（`nino-gen`），取代 Nino.TypeScript；网站四页合为 advanced/codegen
 - ✅ benchmarks/v3 并入 Nino.Benchmark（一个 csproj，`NINO_BENCH_V3=true` 切到 NuGet 3.3.13）
 
-### Unity 上的 SIMD（Burst 内核）—— 已做，IL2CPP 待 CI 复跑
+### Unity 上的 SIMD（Burst 内核）—— 已做，编辑器和 IL2CPP 播放器都已验证
 - ✅ Nino.Core（仅 netstandard 构建，`#if !NET8_0_OR_GREATER`）：公开 `NinoKernels`（`Permute` 按值字节表置换、`Narrow`/`Widen` Latin-1），`NinoKernelHook` 只在已经 NoInlining 的路径里一次静态读取加比较；阈值 MinBlocks 16 个值、MinChars 32 个字符；块读取先查 bool。.NET 8/10 机器码不变：`asm.py compare origin/main` 2331 个方法无变差。
 - ✅ Unity 包 `Burst/`（Nino.Burst.asmdef，versionDefines `com.unity.burst` ≥ 1.8.0 → `NINO_BURST`，没装 Burst 不编译）：`[BurstCompile]` 函数指针，x86/x64 用 SSSE3（pshufb），AArch64 用 Neon（tbl）；Armv7、WebGL 不注册，走标量。启动时注册（`RuntimeInitializeOnLoadMethod`，编辑器里 `InitializeOnLoadMethod`）。
 - ✅ 测试：.NET `KernelHookTests`（netstandard2.1/2.0 构建，用标量参考实现注册）；Unity `BurstKernelTests`（与标量参考逐字节比较、两条路径序列化字节相同、阈值附近长度、golden bytes、非法 bool、计时）和 `RuntimePathsTests`（运行时内部布局快路径全部命中），PlayMode 和 EditMode 都跑；unity.yml 加 IL2CPP 播放器（standalone，linux-il2cpp 镜像）。
 - ✅ 已验证：编辑器 Mono，2022.3.62f2 和 6000.3.27f1（CI 40173683786、40174347899）：内核 SSSE3，Burst 和运行时路径测试全过，运行时内部快路径全部命中。CI 计时（GitHub runner，编辑器）：1000 个 (int, long) 读 ~80–100 倍、写 ~46–56 倍，五元组 ~27–41 倍，带填充结构体 ~13–19 倍，1000 字符 ASCII 字符串 ~6–11 倍；32 个值 ~5–9 倍，32 字符 ~1.3–1.5 倍。
-- ⚠️ IL2CPP 播放器：第一次跑出 Burst AOT 错误 BC1200（播放器按 SSE2 基线预编译，`shuffle_epi8` 必须在同一方法里有 `IsSsse3Supported` 判断；编辑器按本机 CPU 编译所以没报），36aac36 修复（每个指令集各自判断，也让 Armv7/WebGL 能构建）。修复后的 IL2CPP 跑还没做：本会话 workflow_dispatch 返回 403，需要有权限的人在 claude/zen-goldberg-5qqqcu 上手动触发 unity.yml。
+- ✅ IL2CPP 播放器：第一次跑出 Burst AOT 错误 BC1200（播放器按 SSE2 基线预编译，`shuffle_epi8` 必须在同一方法里有 `IsSsse3Supported` 判断；编辑器按本机 CPU 编译所以没报），36aac36 修复（每个指令集各自判断，也让 Armv7/WebGL 能构建）。修复后 2022.3 和 6000.3 的 IL2CPP 播放器都通过：内核报 SSSE3，运行时内部快路径全部命中。unity.yml 改为每个版本一个 job：先跑编辑器测试，再出 IL2CPP 包跑播放器测试。
 - 未验证：Windows/macOS/Android/iOS 真机、Armv7（应构建且走标量）、WebGL（同上）、HybridCLR（热更程序集经 AOT 的 Nino.Core 调 Burst 函数指针，预计可用）。Burst AOT 默认 x64 目标含 SSE4，只支持 SSE2 的 CPU 上不注册内核。
 - 可调：32 个值时已快 ~6 倍，MinBlocks 可再降；字符串 32 字符只快 ~1.4 倍，MinChars 维持。
 

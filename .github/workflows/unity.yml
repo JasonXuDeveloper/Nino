@@ -54,10 +54,10 @@ env:
 
 jobs:
   unity-tests:
-    name: Unity tests (${{ matrix.unity }}${{ matrix.backend == 'il2cpp' && ', IL2CPP player' || '' }})
+    name: Unity tests (${{ matrix.unity }})
     runs-on: ubuntu-26.04
-    # An IL2CPP player build (the test player, the Burst AOT library) takes longer than the editor's tests.
-    timeout-minutes: ${{ matrix.backend == 'il2cpp' && 75 || 30 }}
+    # The editor's tests, then an IL2CPP player build (the test player, the Burst AOT library) and its tests.
+    timeout-minutes: 100
     strategy:
       fail-fast: false
       # One version after the other: each run activates the license, holds a seat until its tests end and returns it.
@@ -66,10 +66,6 @@ jobs:
         # The oldest Unity the package supports (package.json: 2022.3) at its newest patch outside Extended LTS (later
         # 2022.3 builds need an Industry or Enterprise license), the project's own version, and the newest Unity 6 LTS.
         unity: [ '2022.3.62f2', '6000.3.27f1' ]
-        # editor: edit mode and play mode tests in the editor (Mono, Burst's JIT). il2cpp: the play mode tests in a
-        # Linux player built with IL2CPP (ProjectSettings: Standalone scripting backend 1) and Burst AOT, where the paths
-        # through the runtime's own collections and the Burst function pointers run as they do on devices.
-        backend: [ 'editor', 'il2cpp' ]
     # Pull requests from forks and from Dependabot get no repository secrets, so they cannot activate the license.
     if: >-
       github.event_name != 'pull_request' ||
@@ -113,25 +109,47 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: src/Nino.Unity/Library
-          key: Library-Nino-${{ runner.os }}-${{ matrix.unity }}-${{ matrix.backend }}-${{ hashFiles('src/Nino.Unity/Assets/**', 'src/Nino.Unity/Packages/**', 'src/Nino.Unity/ProjectSettings/**') }}
+          key: Library-Nino-${{ runner.os }}-${{ matrix.unity }}-${{ hashFiles('src/Nino.Unity/Assets/**', 'src/Nino.Unity/Packages/**', 'src/Nino.Unity/ProjectSettings/**') }}
           restore-keys: |
-            Library-Nino-${{ runner.os }}-${{ matrix.unity }}-${{ matrix.backend }}-
+            Library-Nino-${{ runner.os }}-${{ matrix.unity }}-
 
-      - name: Run Unity tests
+      # Edit mode and play mode tests in the editor (Mono, Burst's JIT).
+      - name: Run the editor's tests
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
-        id: unity-tests
+        id: editor-tests
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
         with:
           projectPath: ./src/Nino.Unity
-          # all: edit mode and play mode, results combined. standalone: the play mode tests in a player.
-          testMode: ${{ matrix.backend == 'il2cpp' && 'standalone' || 'all' }}
-          # The Linux IL2CPP module is only in this image; the default one builds Mono players.
-          customImage: ${{ matrix.backend == 'il2cpp' && format('unityci/editor:ubuntu-{0}-linux-il2cpp-3', matrix.unity) || '' }}
+          testMode: all
+          artifactsPath: artifacts/editor
+          # The image with the Linux IL2CPP module, which the player step below needs: one image for both steps.
+          customImage: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
           # No githubToken: posting the results as a check run calls the GitHub API, and a timeout there failed a run
           # whose tests had all passed. The results are uploaded below, and a failed test still fails this step.
+          unityVersion: ${{ matrix.unity }}
+          # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
+          cliVersion: 'v0.1.72'
+
+      # The play mode tests in a Linux player built with IL2CPP (ProjectSettings: Standalone scripting backend 1) and
+      # Burst AOT, where the paths through the runtime's own collections and the Burst function pointers run as they do
+      # on devices. It runs after a failure of the editor's tests too, so one run shows both; the steps run one after
+      # the other, so the job still holds one seat at a time.
+      - name: Run the IL2CPP player's tests
+        if: success() || steps.editor-tests.conclusion == 'failure'
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        id: player-tests
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ./src/Nino.Unity
+          testMode: standalone
+          artifactsPath: artifacts/player
+          customImage: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
           unityVersion: ${{ matrix.unity }}
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
@@ -142,9 +160,9 @@ jobs:
         # A storage timeout is not a test result.
         continue-on-error: true
         with:
-          name: test-results-unity-${{ matrix.unity }}-${{ matrix.backend }}
+          name: test-results-unity-${{ matrix.unity }}
           path: |
             ./artifacts
-            ${{ steps.unity-tests.outputs.coveragePath }}
+            ${{ steps.editor-tests.outputs.coveragePath }}
           retention-days: 30
 
