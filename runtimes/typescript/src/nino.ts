@@ -362,96 +362,151 @@ function decodeLatin1(data: Uint8Array, at: number, length: number): string {
   return wide.test(text) ? fromCodes(bytes) : text;
 }
 
-/** The UTF-16 code unit at `at`. */
-function u(d: Uint8Array, at: number): number {
-  return d[at] | (d[at + 1] << 8);
-}
-
 /**
  * The text of up to 24 UTF-16 code units at `at`, in one call: flat, unpaired surrogates kept, and in Chromium and
- * Node cheaper than a native decoder or an array of codes.
+ * Node cheaper than a native decoder or an array of codes. The code units are read inline: a helper per unit was
+ * past V8's inlining budget in a function this large, and stayed a call.
  */
 function decodeShortUtf16(d: Uint8Array, at: number, length: number): string {
   const c = String.fromCharCode;
   switch (length) {
     case 0: return "";
-    case 1: return c(u(d, at));
-    case 2: return c(u(d, at), u(d, at + 2));
-    case 3: return c(u(d, at), u(d, at + 2), u(d, at + 4));
-    case 4: return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6));
-    case 5: return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8));
-    case 6: return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10));
-    case 7: return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12));
+    case 1: return c(d[at] | (d[at + 1] << 8));
+    case 2: return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8));
+    case 3: return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8));
+    case 4:
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8));
+    case 5:
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8));
+    case 6:
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8));
+    case 7:
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8));
     case 8:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8));
     case 9:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8));
     case 10:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8));
     case 11:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8));
     case 12:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8));
     case 13:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8));
     case 14:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8));
     case 15:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
-        u(d, at + 28));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8));
     case 16:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
-        u(d, at + 28), u(d, at + 30));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8));
     case 17:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
-        u(d, at + 28), u(d, at + 30), u(d, at + 32));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8));
     case 18:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
-        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8));
     case 19:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
-        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8),
+        d[at + 36] | (d[at + 37] << 8));
     case 20:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
-        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8),
+        d[at + 36] | (d[at + 37] << 8), d[at + 38] | (d[at + 39] << 8));
     case 21:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
-        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38), u(d, at + 40));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8),
+        d[at + 36] | (d[at + 37] << 8), d[at + 38] | (d[at + 39] << 8), d[at + 40] | (d[at + 41] << 8));
     case 22:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
-        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38), u(d, at + 40),
-        u(d, at + 42));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8),
+        d[at + 36] | (d[at + 37] << 8), d[at + 38] | (d[at + 39] << 8), d[at + 40] | (d[at + 41] << 8),
+        d[at + 42] | (d[at + 43] << 8));
     case 23:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
-        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38), u(d, at + 40),
-        u(d, at + 42), u(d, at + 44));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8),
+        d[at + 36] | (d[at + 37] << 8), d[at + 38] | (d[at + 39] << 8), d[at + 40] | (d[at + 41] << 8),
+        d[at + 42] | (d[at + 43] << 8), d[at + 44] | (d[at + 45] << 8));
     default:
-      return c(u(d, at), u(d, at + 2), u(d, at + 4), u(d, at + 6), u(d, at + 8), u(d, at + 10), u(d, at + 12),
-        u(d, at + 14), u(d, at + 16), u(d, at + 18), u(d, at + 20), u(d, at + 22), u(d, at + 24), u(d, at + 26),
-        u(d, at + 28), u(d, at + 30), u(d, at + 32), u(d, at + 34), u(d, at + 36), u(d, at + 38), u(d, at + 40),
-        u(d, at + 42), u(d, at + 44), u(d, at + 46));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8),
+        d[at + 36] | (d[at + 37] << 8), d[at + 38] | (d[at + 39] << 8), d[at + 40] | (d[at + 41] << 8),
+        d[at + 42] | (d[at + 43] << 8), d[at + 44] | (d[at + 45] << 8), d[at + 46] | (d[at + 47] << 8));
   }
 }
 
 /** The text of `length` UTF-16 code units at `at`. */
 function decodeUtf16(data: Uint8Array, at: number, length: number): string {
-  if (length <= 24) return decodeShortUtf16(data, at, length);
+  // Node's ucs2Slice costs less from about 16 code units on.
+  if (length <= (nodeText !== null ? 16 : 24)) return decodeShortUtf16(data, at, length);
   if (nodeText !== null) return nodeText.ucs2Slice.call(data, at, at + 2 * length);
   if (length <= mediumText) {
     codes.length = length;
@@ -1165,7 +1220,17 @@ export class NinoWriter {
     const at = this.reserve(4 + 2 * length);
     this.int32At(at, length);
     if (nodeText !== null) {
-      nodeText.ucs2Write.call(this.buffer, value, at + 4, 2 * length);
+      // Up to 16 chars, the loop costs less than the native call.
+      if (length > 16) {
+        nodeText.ucs2Write.call(this.buffer, value, at + 4, 2 * length);
+        return;
+      }
+      const buffer = this.buffer;
+      for (let i = 0, o = at + 4; i < length; i++, o += 2) {
+        const c = value.charCodeAt(i);
+        buffer[o] = c;
+        buffer[o + 1] = c >> 8;
+      }
       return;
     }
     // `utf16`, written out here for the same reason as `narrow` above.
