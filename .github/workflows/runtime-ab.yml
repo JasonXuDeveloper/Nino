@@ -57,7 +57,7 @@ jobs:
           rustup toolchain install stable --profile minimal >/dev/null
           out="$RUNNER_TEMP/out"
           mkdir -p "$out"
-          while read -r lang base head filter; do
+          while read -r -u 3 lang base head filter; do
             [[ -z ${lang:-} || $lang == \#* ]] && continue
             for ref in "$base" "$head"; do
               git cat-file -e "$ref^{commit}"
@@ -131,4 +131,4 @@ jobs:
                 ;;
               *) echo "unknown language $lang"; exit 1 ;;
             esac
-          done < .github/ab-request.txt
+          done 3< .github/ab-request.txt
