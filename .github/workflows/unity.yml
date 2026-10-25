@@ -65,8 +65,11 @@ jobs:
         # The oldest Unity the package supports (package.json: 2022.3) at its newest patch outside Extended LTS (later
         # 2022.3 builds need an Industry or Enterprise license), the project's own version, and the newest Unity 6 LTS.
         unity: [ '2022.3.62f2', '6000.3.27f1' ]
-    # Skip Unity tests for external PRs (secrets not available in forks)
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Pull requests from forks and from Dependabot get no repository secrets, so they cannot activate the license.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.user.login != 'dependabot[bot]')
 
     steps:
       - name: Checkout code
