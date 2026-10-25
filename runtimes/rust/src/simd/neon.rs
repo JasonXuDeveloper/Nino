@@ -215,6 +215,15 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) {
                 o = o.wrapping_add(n.wrapping_mul(2));
                 continue;
             }
+            if (0xE0..0xF0).contains(&max) && rest >= 48 {
+                // Runs of three-byte chars (CJK): sixteen chars at once, each byte of a char in its own vector.
+                let n = run3(src, i, rest, dst, o);
+                if n != 0 {
+                    i = i.wrapping_add(n.wrapping_mul(3));
+                    o = o.wrapping_add(n.wrapping_mul(2));
+                    continue;
+                }
+            }
             let s = starts(lo, hi);
             // `rest = len - i`.
             let q = span(src, i, rest, s);
@@ -247,6 +256,41 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) {
         }
         // The header's four bytes are reserved at `at`, and `o` bytes after it written.
         super::finish(out, at, o, false);
+    }
+}
+
+/// Writes the UTF-16 of the run of three-byte chars at `src + i`, sixteen chars (48 bytes) a step while every lead
+/// byte of the step is one of three bytes; returns the chars written (a multiple of 16, 0 when the first step has
+/// another). `vld3q_u8` puts each char's lead byte in one vector and its continuation bytes in two others, so each
+/// code unit's two bytes are a shift and a mask of them, stored interleaved by `vst2q_u8`.
+///
+/// # Safety
+/// `rest = len - i >= 48` bytes of valid UTF-8 are readable at `src + i`, `i` a char boundary; the room at `dst + o`
+/// holds two bytes per byte of the text from `i`.
+#[inline(always)]
+unsafe fn run3(src: *const u8, i: usize, rest: usize, dst: *mut u8, o: usize) -> usize {
+    // SAFETY: NEON is part of every Arm64 target; the loads and stores as said at each.
+    unsafe {
+        let (mut n, mut left) = (0usize, rest);
+        let (top, e0, low6, low4) = (vdupq_n_u8(0xF0), vdupq_n_u8(0xE0), vdupq_n_u8(0x3F), vdupq_n_u8(0x0F));
+        while left >= 48 {
+            // 48 bytes are left from `i + 3n` (`left = rest - 3n`).
+            let b = vld3q_u8(src.add(i).add(n.wrapping_mul(3)));
+            // Valid UTF-8: when each lead is of three bytes (0xE0..0xEF), the two bytes after each are its
+            // continuation.
+            if vminvq_u8(vceqq_u8(vandq_u8(b.0, top), e0)) == 0 {
+                break;
+            }
+            // The code unit: four bits of the lead, six of each continuation byte; its high byte and its low byte.
+            let high = vorrq_u8(vshlq_n_u8::<4>(b.0), vandq_u8(vshrq_n_u8::<2>(b.1), low4));
+            let low = vorrq_u8(vshlq_n_u8::<6>(b.1), vandq_u8(b.2, low6));
+            // 32 bytes for 48 of text, within the room (two bytes per byte); `o + 2n` is where they go.
+            vst2q_u8(dst.add(o).add(n.wrapping_mul(2)), uint8x16x2_t(low, high));
+            // `n <= rest / 3`, `left >= 48`: neither wraps.
+            n = n.wrapping_add(16);
+            left = left.wrapping_sub(48);
+        }
+        n
     }
 }
 
@@ -360,10 +404,13 @@ pub(crate) unsafe fn utf16(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usiz
                 (k, o) = super::utf16_words(units, k, k.wrapping_add(8), dst, o);
                 continue;
             }
-            // Two bits a unit, as `PACK3` takes them: at least U+0080, at least U+0800.
-            let ge80 = bits(vcombine_u8(vmovn_u16(vmvnq_u16(ascii)), vdup_n_u8(0)));
-            let ge800 = bits(vcombine_u8(vmovn_u16(vcgeq_u16(w, vdupq_n_u16(0x800))), vdup_n_u8(0)));
-            for (half, u) in [(0usize, vmovl_u16(vget_low_u16(w))), (4, vmovl_high_u16(w))] {
+            // Two bits a unit, as `PACK3` takes them (at least U+0080, at least U+0800), a byte each.
+            let codes = vorr_u8(
+                vand_u8(vmovn_u16(vmvnq_u16(ascii)), vdup_n_u8(1)),
+                vand_u8(vmovn_u16(vcgeq_u16(w, vdupq_n_u16(0x800))), vdup_n_u8(2)),
+            );
+            let codes = vget_lane_u64::<0>(vreinterpret_u64_u8(codes));
+            for (half, u) in [(0u32, vmovl_u16(vget_low_u16(w))), (32, vmovl_high_u16(w))] {
                 let s32 = vdupq_n_u32;
                 let two = vorrq_u32(
                     vorrq_u32(s32(0xC0), vshrq_n_u32::<6>(u)),
@@ -378,13 +425,9 @@ pub(crate) unsafe fn utf16(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usiz
                 );
                 let lanes = vbslq_u32(vcgtq_u32(u, s32(0x7F)), two, u);
                 let lanes = vbslq_u32(vcgtq_u32(u, s32(0x7FF)), three, lanes);
-                let mut index = 0usize;
-                for q in 0..4 {
-                    // `half + q < 8`.
-                    let unit = half.wrapping_add(q);
-                    index |= (((ge80 >> unit) & 1) as usize) << q.wrapping_mul(2);
-                    index |= (((ge800 >> unit) & 1) as usize) << q.wrapping_mul(2).wrapping_add(1);
-                }
+                // The four codes of the half, two bits each: byte `q`'s two bits moved down to bits `2q`, `2q + 1`.
+                let x = (codes >> half) as u32;
+                let index = ((x | (x >> 6) | (x >> 12) | (x >> 18)) & 0xFF) as usize;
                 let (shuffle, count) = super::PACK3.get(index).copied().unwrap_or(([0x80; 16], 0));
                 // 32 bytes of room from where the step started; the first half stores 16 bytes from there, the second
                 // from at most 12 after it.
