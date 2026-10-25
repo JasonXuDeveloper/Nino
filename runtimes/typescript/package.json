@@ -1,15 +1,44 @@
 {
   "name": "nino-serialization",
-  "private": true,
-  "description": "The TypeScript runtime of Nino (src/nino.ts), which nino-gen (Nino.Codegen) writes next to the generated code, and its tests.",
+  "version": "4.0.0-rc.7",
+  "description": "The TypeScript runtime of Nino: reads and writes the bytes Nino v4 writes in .NET, for the classes and codecs nino-gen (Nino.Codegen) generates.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JasonXuDeveloper/Nino.git",
+    "directory": "runtimes/typescript"
+  },
+  "homepage": "https://nino.xgamedev.net/en/docs/v4/advanced/codegen",
+  "keywords": [
+    "nino",
+    "serialization",
+    "binary",
+    "serializer",
+    "dotnet",
+    "codegen"
+  ],
   "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/nino.d.ts",
+      "default": "./dist/nino.js"
+    }
+  },
+  "types": "./dist/nino.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
-    "node": ">=22.18"
+    "node": ">=18"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p .",
-    "test": "tsc -p . && node --test \"test/**/*.test.ts\""
+    "test": "tsc -p . && node --test \"test/**/*.test.ts\"",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

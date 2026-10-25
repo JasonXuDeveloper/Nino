@@ -1,8 +1,9 @@
 name: Release
 
 # Run manually: Actions -> Release -> Run workflow (on main), enter the version (e.g. 4.0.0 or 4.1.0-beta.1).
-#   tag:     bump the version (Directory.Build.props, the Unity package.json), build, test,
-#            copy the Unity DLLs, commit "Bump to vX.Y.Z", tag vX.Y.Z (and the OpenUPM tag of a pre-release), push.
+#   tag:     bump the version of every package (.github/scripts/bump_version.py: Directory.Build.props, the Unity
+#            package.json, the Rust crates, the npm package), build, test, copy the Unity DLLs, commit "Bump to vX.Y.Z",
+#            tag vX.Y.Z (and the OpenUPM tag of a pre-release, and runtimes/go/vX.Y.Z for the Go module), push.
 #   publish: from the tag, pack and push to NuGet (Trusted Publishing: a short-lived key from this workflow's OIDC
 #            token, no stored secret), create the GitHub release with the notes of .github/scripts/release_notes.py
 #            (every commit since the previous release, grouped, and every contributor; a stable release starts at
@@ -12,6 +13,13 @@ name: Release
 #            already has, the release is created once. To change an input (notes_since), run the
 #            workflow again with the same version: for an existing tag it skips straight to publishing.
 # Trusted Publishing policy on nuget.org: owner JasonXuDeveloper, repository Nino, workflow release.yml.
+#   crates:  from the tag, publish nino-serialization-derive and nino-serialization to crates.io (Trusted Publishing,
+#            rust-lang/crates-io-auth-action; each crate's trusted publisher: JasonXuDeveloper/Nino, release.yml).
+#   npm:     from the tag, build and publish nino-serialization to npm (Trusted Publishing; a pre-release under the
+#            dist-tag "next", so "latest" stays the newest stable). Both skip what the registry already has.
+# Trusted Publishing is set up on a package that exists: the first version of each crate and of the npm package is
+# published by hand (cargo publish, npm publish), then the trusted publisher is added in the registry's settings.
+# The Go module needs no registry: proxy.golang.org serves it from the runtimes/go/vX.Y.Z tag.
 #
 # Unity reads the package from the tag, so the tag must point at the commit that carries the DLLs: both are made
 # by the same job. OpenUPM does not order semantic pre-releases, so a pre-release also gets a vX.Y.Z-preview.N tag
@@ -78,11 +86,7 @@ jobs:
         if: steps.version.outputs.exists != 'true'
         env:
           UNITY_VERSION: ${{ steps.version.outputs.unity_version }}
-        run: |
-          sed -i "s|<Version>[^<]*</Version>|<Version>$VERSION</Version>|" Directory.Build.props
-          sed -i "s|\"version\": \"[^\"]*\"|\"version\": \"$UNITY_VERSION\"|" "$UNITY_PACKAGE/package.json"
-          grep -q "<Version>$VERSION</Version>" Directory.Build.props
-          grep -q "\"version\": \"$UNITY_VERSION\"" "$UNITY_PACKAGE/package.json"
+        run: python3 .github/scripts/bump_version.py "$VERSION" "$UNITY_VERSION"
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -116,12 +120,16 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Directory.Build.props "$UNITY_PACKAGE/package.json" "$UNITY_PACKAGE/Runtime/"*.dll
+          git add Directory.Build.props "$UNITY_PACKAGE/package.json" "$UNITY_PACKAGE/Runtime/"*.dll \
+            runtimes/rust/Cargo.toml runtimes/rust/nino-derive/Cargo.toml runtimes/rust/Cargo.lock \
+            runtimes/typescript/package.json runtimes/typescript/package-lock.json
           if ! git diff --cached --quiet; then
             git commit -m "Bump to v$VERSION"
           fi
           git tag -a "v$VERSION" -m "v$VERSION"
-          TAGS=("v$VERSION")
+          # The Go module's version: a module in a subdirectory is tagged <directory>/vX.Y.Z.
+          git tag -a "runtimes/go/v$VERSION" -m "v$VERSION (Go module)"
+          TAGS=("v$VERSION" "runtimes/go/v$VERSION")
           if [[ "$UNITY_VERSION" != "$VERSION" ]]; then
             git tag -a "v$UNITY_VERSION" -m "v$VERSION (Unity/OpenUPM)"
             TAGS+=("v$UNITY_VERSION")
@@ -189,8 +197,12 @@ jobs:
           if gh release view "v$VERSION" >/dev/null 2>&1; then echo "release v$VERSION exists"; exit 0; fi
           PRERELEASE=()
           if [[ "$VERSION" == *-* ]]; then PRERELEASE=(--prerelease); fi
-          echo "Install: \`dotnet add package Nino --version $VERSION\` (Unity package: \`$UNITY_VERSION\`)" \
-            > "$RUNNER_TEMP/header.md"
+          {
+            echo "Install: \`dotnet add package Nino --version $VERSION\` (Unity package: \`$UNITY_VERSION\`)"
+            echo
+            echo "Other languages: \`go get github.com/JasonXuDeveloper/Nino/runtimes/go/v${VERSION%%.*}@v$VERSION\`," \
+              "\`cargo add nino-serialization@=$VERSION\`, \`npm install nino-serialization@$VERSION\`."
+          } > "$RUNNER_TEMP/header.md"
           # The notes script of main, not of the tag: fixes to it apply to a release published again.
           git fetch -q origin main && git show origin/main:.github/scripts/release_notes.py > "$RUNNER_TEMP/release_notes.py"
           python3 "$RUNNER_TEMP/release_notes.py" --tag "v$VERSION" ${NOTES_SINCE:+--since "$NOTES_SINCE"} \
@@ -203,3 +215,65 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run report.yml --ref main -f tag_name="v$VERSION"
+
+  crates:
+    runs-on: ubuntu-26.04
+    needs: tag
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # the OIDC token crates.io exchanges for a temporary API token
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: v${{ inputs.version }}
+
+      - name: crates.io login (Trusted Publishing)
+        id: auth
+        uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+
+      - name: Publish to crates.io
+        working-directory: runtimes/rust
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          rustup toolchain install stable --profile minimal
+          # The derive crate first: nino-serialization pins its exact version. A crate already published is skipped,
+          # so a failed run can be re-run.
+          for crate in nino-serialization-derive nino-serialization; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -A 'Nino release workflow (github.com/JasonXuDeveloper/Nino)' \
+              "https://crates.io/api/v1/crates/$crate/$VERSION")
+            if [[ "$code" == 200 ]]; then echo "$crate $VERSION is on crates.io"; continue; fi
+            cargo +stable publish --locked -p "$crate"
+          done
+
+  npm:
+    runs-on: ubuntu-26.04
+    needs: tag
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # npm's Trusted Publishing (and its provenance statement)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: v${{ inputs.version }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          registry-url: https://registry.npmjs.org
+
+      - name: Publish to npm
+        working-directory: runtimes/typescript
+        run: |
+          if npm view "nino-serialization@$VERSION" version >/dev/null 2>&1; then
+            echo "nino-serialization $VERSION is on npm"; exit 0
+          fi
+          # Trusted Publishing needs npm 11.5.1 or later.
+          npm install -g npm@latest
+          npm ci
+          cp ../../LICENSE LICENSE
+          TAG=latest
+          if [[ "$VERSION" == *-* ]]; then TAG=next; fi
+          npm publish --access public --tag "$TAG"

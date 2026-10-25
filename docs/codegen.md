@@ -32,9 +32,10 @@ nino-gen --assembly bin/Release/net8.0/MyGame.Shared.dll --lang go --out ../serv
 Each language needs its runtime next to the generated code:
 
 - **TypeScript**: `nino.ts`, which nino-gen writes next to the generated file (unless `--runtime` names a module to
-  import it from).
-- **Go**: the module `github.com/JasonXuDeveloper/Nino/runtimes/go` (package `nino`), a dependency of your module.
-- **Rust**: the crate `nino-serialization` (`runtimes/rust`) with its `indexmap` feature, and `indexmap` itself (maps
+  import it from, such as the npm package `nino-serialization`).
+- **Go**: the module `github.com/JasonXuDeveloper/Nino/runtimes/go/v4` (package `nino`), a dependency of your module
+  (`go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4@v<Nino's version>`).
+- **Rust**: the crate `nino-serialization` (`runtimes/rust`, on crates.io with Nino's version) with its `indexmap` feature, and `indexmap` itself (maps
   and sets are `IndexMap` and `IndexSet`, which keep the wire order); with `--maps std`, the crate alone (maps and sets
   are `std::collections::HashMap` and `HashSet`); with `--serde`, a `serde` feature of your crate that turns on `serde`
   and `nino-serialization/serde`.

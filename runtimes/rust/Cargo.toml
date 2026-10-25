@@ -1,14 +1,18 @@
 [package]
 name = "nino-serialization"
-version = "0.1.0"
+version = "4.0.0-rc.7"
 edition = "2021"
 # slice::as_chunks (1.88) keeps fixed-size element loops free of bounds checks and panics.
 rust-version = "1.88"
-publish = false
 license = "MIT"
 description = "Reads and writes Nino's binary wire format (the bytes Nino v4 writes in .NET)."
 repository = "https://github.com/JasonXuDeveloper/Nino"
 readme = "README.md"
+homepage = "https://nino.xgamedev.net/en/docs/v4/advanced/codegen#rust"
+keywords = ["nino", "serialization", "binary", "dotnet", "serializer"]
+categories = ["encoding"]
+# The tests read the conformance corpus at the repository root; the published crate is the library alone.
+exclude = ["tests/"]
 
 [lib]
 name = "nino"
@@ -20,7 +24,7 @@ rust_decimal = { version = "1.43", optional = true, default-features = false }
 chrono = { version = "0.4.45", optional = true, default-features = false }
 num-bigint = { version = "0.5.1", optional = true, default-features = false, features = ["std"] }
 indexmap = { version = "2.14.2", optional = true, default-features = false, features = ["std"] }
-nino-derive = { package = "nino-serialization-derive", version = "0.1.0", path = "nino-derive", optional = true }
+nino-derive = { package = "nino-serialization-derive", version = "=4.0.0-rc.7", path = "nino-derive", optional = true }
 serde = { version = "1.0.229", optional = true, default-features = false, features = ["std", "derive"] }
 
 [features]

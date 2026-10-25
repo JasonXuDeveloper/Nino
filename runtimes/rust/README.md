@@ -2,7 +2,8 @@
 
 Reads and writes [Nino](https://github.com/JasonXuDeveloper/Nino)'s binary wire format, the bytes Nino v4 writes in
 .NET, as specified in `docs/spec/wire-format.md`. The crate is `nino-serialization` (the same name as the npm package;
-`nino` is taken on crates.io) and its library is `nino`. It is not published yet (`publish = false`).
+`nino` is taken on crates.io) and its library is `nino`. Its version is Nino's: each release publishes it to crates.io
+with the NuGet packages (`cargo add nino-serialization@=4.0.0-rc.8`, `features = ["derive"]` for the derive).
 
 - Edition 2021, MSRV 1.88.
 - `#![deny(unsafe_code)]`: the only `unsafe` code is the string writer's transcoding (`src/simd.rs`), checked under

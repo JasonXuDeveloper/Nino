@@ -1,0 +1,12 @@
+{
+  // Builds the published package: src/nino.ts as JavaScript and declarations in dist (npm run build).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"]
+}
