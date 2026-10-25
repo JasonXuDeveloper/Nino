@@ -206,6 +206,11 @@ types without members (`readBody$Empty`, `writeBody$Empty` and the version-toler
 `_w` and `_v`, so the code compiles under `noUnusedParameters`. See the
 [TypeScript guide](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) for the generated API.
 
+`nino.ts` embeds a small WebAssembly module (SIMD, GC and the JS String Builtins) that reads and writes longer text
+in browsers and Deno; where WebAssembly is unavailable or blocked (a Content Security Policy without
+`'wasm-unsafe-eval'`), the runtime keeps its JavaScript paths, which write the same bytes (runtimes/typescript/README.md,
+"Text in browsers: WebAssembly").
+
 A `Date` has no kind: the reader takes the ticks of every `DateTime` as UTC, so one written with
 `DateTimeKind.Unspecified` (or `Local`) reads as the UTC time with the same clock reading, and is written back with
 `DateTimeKind.Utc`.

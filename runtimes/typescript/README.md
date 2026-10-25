@@ -45,13 +45,35 @@ A `DateTime` is read as a `Date`, which has no kind: the ticks are taken as UTC 
 with `DateTimeKind.Unspecified` (or `Local`) reads as the UTC time with the same clock reading, and is written back
 with `DateTimeKind.Utc`.
 
+## Text in browsers: WebAssembly
+
+Strings are most of the work of reading and writing many values. In Node (and Bun, and Deno with Node's `Buffer`) the
+runtime moves them with `Buffer`'s native Latin-1 and UTF-16 methods. Elsewhere (browsers, Deno) it uses a small
+WebAssembly module embedded in `nino.ts` (built from `wasm/text.wat`, about 1.3 KB) for the text JavaScript is slow
+at, up to 4096 chars: UTF-16 text of more than 24 chars and Latin-1 text of 33 to 128 chars read, and text of more
+than 64 chars written (ASCII of more than 1024 is left to `TextEncoder`). It reads and writes JavaScript strings through the JS String Builtins (`wasm:js-string`) and moves their
+chars 8 or 16 at a time in SIMD registers, in one page of memory that never grows; the bytes are the same as the
+JavaScript paths', which every other case takes.
+
+The module is compiled synchronously the first time it is needed. An engine without WebAssembly SIMD, GC or the JS
+String Builtins (Chromium before 130, Firefox before 134, Node 20 and older), or a page whose Content Security Policy
+does not allow compiling WebAssembly (`'wasm-unsafe-eval'`), keeps the JavaScript paths without an error; a browser
+may still report the blocked compilation as a CSP violation. `useWasm(false)` turns the module off, `useWasm(true)`
+back on, and `useWasm()` tells whether text goes through it.
+
+`npm run build:wasm` assembles `wasm/text.wat` (`wasm/build.ts`, no dependencies) into `nino.ts`; the tests check
+that the two match.
+
 ## Tests
 
 ```sh
 npm ci && npm test
 ```
 
-type-checks and runs the `node:test` suite in `test/`. `test/corpus.test.ts` runs the conformance corpus
+type-checks and runs the `node:test` suite in `test/` three times: in Node, then as a browser runs it (the runtime
+evaluated without `Buffer`, `NINO_TEST_RUNTIME=browser`, `test/runtime.ts`), with the WebAssembly module and without
+it (`NINO_WASM=0`). `test/wasm.test.ts` compares the module's paths with the JavaScript ones for every length up to
+256 and longer, with every kind of char at each position. `test/corpus.test.ts` runs the conformance corpus
 (`conformance/corpus`, or the directory in `NINO_CORPUS`) over the code nino-gen generates for its types
 (`test/generated`, checked by Nino.Codegen.Tests): every valid case read and written back byte for byte, every
 malicious case and every truncated prefix of a valid case rejected with a `NinoError`. After a change to the runtime
