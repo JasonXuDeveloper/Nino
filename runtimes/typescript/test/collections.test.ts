@@ -145,6 +145,21 @@ describe("serialize", () => {
     }
   });
 
+  it("deserializes in a codec that deserializes, and after a value that fails to read", () => {
+    // A value whose string holds another serialized value, read with deserialize while the outer call reads.
+    const inner = serialize(text, "inner");
+    const nested: NinoCodec<string> = {
+      read: (r) => {
+        const bytes = r.bytes()!;
+        return deserialize(text, bytes)! + "/" + r.string();
+      },
+      write: (w, v) => { w.bytes(inner); w.string(v); },
+    };
+    assert.equal(deserialize(nested, serialize(nested, "outer")), "inner/outer");
+    assert.throws(() => deserialize(text, Uint8Array.of(0xf0, 0xff, 0xff, 0xff, 0x61)), NinoError);
+    assert.equal(deserialize(text, serialize(text, "after")), "after");
+  });
+
   it("keeps working after a value that fails to write", () => {
     assert.throws(() => serialize(i32, 1n as unknown as number), TypeError);
     assert.equal(toHex(serialize(i32, 7)), "07000000");

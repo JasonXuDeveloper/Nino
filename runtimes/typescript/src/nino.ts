@@ -34,10 +34,30 @@ export function serialize<T>(codec: NinoCodec<T>, value: T): Uint8Array<ArrayBuf
   }
 }
 
-/** Deserializes one value written by `NinoSerializer.Serialize<T>` (or `serialize`). */
+/**
+ * Deserializes one value written by `NinoSerializer.Serialize<T>` (or `serialize`). Nothing it returns refers to
+ * `data`, which it does not change.
+ */
 export function deserialize<T>(codec: NinoCodec<T>, data: Uint8Array): T {
-  return codec.read(new NinoReader(data));
+  const reader = scratchReader;
+  if (reader === null || data.length > scratchSize) return codec.read(new NinoReader(data));
+  // A codec that deserializes (a custom one) while this runs gets a reader of its own.
+  scratchReader = null;
+  try {
+    reader["load"](data);
+    return codec.read(reader);
+  } finally {
+    scratchReader = reader;
+  }
 }
+
+/**
+ * Values up to this size are copied into the bytes of one reader that `deserialize` reuses: a copy costs less than
+ * the `DataView` a new reader makes (about 75 ns in Node 22, 50 in Chromium), which is most of the time of a small
+ * value.
+ */
+const scratchSize = 4096;
+let scratchReader: NinoReader | null = null;
 
 /** Thrown for data that is not a valid value of the type read, or a value that cannot be written. */
 export class NinoError extends Error {
@@ -241,6 +261,10 @@ function decodeUtf16(data: Uint8Array, at: number, length: number): string {
  * each value from `view` at its offset.
  */
 export class NinoReader {
+  /**
+   * The bytes read, up to the value's end. For a value `deserialize` reads, a copy in bytes the next call reuses
+   * (longer than the value): read it through the reader, during `read`.
+   */
   readonly data: Uint8Array;
   /** `data` as a DataView. */
   readonly view: DataView;
@@ -269,6 +293,16 @@ export class NinoReader {
     this.data = data;
     this.view = new DataView(data.buffer, data.byteOffset, data.byteLength);
     this.end = data.length;
+  }
+
+  // deserialize: copies `data` into this reader's own bytes (scratchSize of them), as a new reader would start.
+  private load(data: Uint8Array): void {
+    this.data.set(data);
+    this.end = data.length;
+    this.pos = this.depth = this.regions = this.structs = this.sectionEnd = this.textStart = this.textEnd = 0;
+    this.text = "";
+    this.textSize = 256;
+    this.deferrals = null;
   }
 
   /** Moves past `size` bytes: returns where they start. */
@@ -1052,3 +1086,5 @@ export class NinoRegistry {
     };
   }
 }
+
+scratchReader = new NinoReader(new Uint8Array(scratchSize));

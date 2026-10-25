@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { NinoError, NinoReader, serialize, type NinoCodec } from "../src/nino.ts";
+import { deserialize, NinoError, NinoReader, serialize, type NinoCodec } from "../src/nino.ts";
 import * as generated from "./generated/Nino.Conformance.ts";
 
 const corpus = process.env.NINO_CORPUS ?? join(import.meta.dirname, "..", "..", "..", "conformance", "corpus");
@@ -41,6 +41,17 @@ function read(codec: NinoCodec<unknown>, data: Uint8Array): unknown {
   return value;
 }
 
+/** `read` through `deserialize`, which reads a value of up to 4 KiB from a copy in a reader it reuses. */
+function deserialized(codec: NinoCodec<unknown>, data: Uint8Array): unknown {
+  return deserialize({
+    read: (r) => {
+      const value = codec.read(r);
+      if (r.pos !== data.length) throw new NinoError(`${data.length - r.pos} bytes left after the value`);
+      return value;
+    },
+    write: codec.write,
+  }, data);
+}
 
 /** The cases of a group of the corpus, with their descriptions. */
 function cases(group: "valid" | "malicious"): { name: string; c: any }[] {
@@ -68,8 +79,9 @@ describe("conformance corpus over generated code", { skip: present ? false : "no
         const codec = codecOf(c.type);
         assert.ok(codec, `no generated codec for ${c.type}`);
         const data = new Uint8Array(readFileSync(join(corpus, "valid", name + ".bin")));
-        const written = serialize(codec, read(codec, data));
-        assert.deepEqual(Buffer.from(written).toString("hex"), c.roundTrip ? Buffer.from(data).toString("hex") : c.reencoded);
+        const expected = c.roundTrip ? Buffer.from(data).toString("hex") : c.reencoded;
+        assert.deepEqual(Buffer.from(serialize(codec, read(codec, data))).toString("hex"), expected);
+        assert.deepEqual(Buffer.from(serialize(codec, deserialized(codec, data))).toString("hex"), expected);
       });
     }
   });
@@ -83,14 +95,17 @@ describe("conformance corpus over generated code", { skip: present ? false : "no
         assert.ok(codec, `no generated codec for ${c.type}`);
         const data = new Uint8Array(readFileSync(join(corpus, "malicious", name + ".bin")));
         if (c.expected === "error-or-value") {
-          try {
-            read(codec, data);
-          } catch (e) {
-            assert.ok(e instanceof NinoError, String(e));
+          for (const f of [read, deserialized]) {
+            try {
+              f(codec, data);
+            } catch (e) {
+              assert.ok(e instanceof NinoError, String(e));
+            }
           }
           return;
         }
         assert.throws(() => read(codec, data), NinoError);
+        assert.throws(() => deserialized(codec, data), NinoError);
       });
     }
   });
@@ -103,8 +118,12 @@ describe("conformance corpus over generated code", { skip: present ? false : "no
         if (skip) return t.skip(skip);
         const codec = codecOf(c.type)!;
         const data = new Uint8Array(readFileSync(join(corpus, "valid", c.case + ".bin")));
-        for (let n = 0; n < data.length; n++)
+        for (let n = 0; n < data.length; n++) {
           assert.throws(() => read(codec, data.slice(0, n)), NinoError, `a prefix of ${n} bytes was read`);
+          // The reader deserialize reuses still holds the whole value past the prefix: it must not read it.
+          deserialized(codec, data);
+          assert.throws(() => deserialized(codec, data.subarray(0, n)), NinoError, `a prefix of ${n} bytes was deserialized`);
+        }
       });
     }
   });
