@@ -4,3 +4,4 @@
 cpu=intel cceab9b 7b68bba 6 *CommonTypesTest.*SerializeInventory* *CollectionsTest.*SerializeKeyValuePairs* *CollectionsTest.*SerializeTupleList* *SimpleTest.*SerializeVectors*
 cpu=intel cceab9b 7b68bba 6 *CommonTypesTest.*SerializeInventory* *CollectionsTest.*SerializeKeyValuePairs* *CollectionsTest.*SerializeTupleList* *SimpleTest.*SerializeVectors*
 cpu=intel cceab9b cceab9b 1 *CommonTypesTest.*SerializeInventory* *CopyGapProbe*
+# draw 1 17:02
