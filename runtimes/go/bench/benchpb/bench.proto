@@ -1,8 +1,8 @@
 // The Go benchmark's values as Protocol Buffers messages, field for field (simple.go, strings.go): SimpleClass, a list of them
 // and a list of strings. A DateTime is its 8 bytes as .NET writes them (ticks and kind), a Guid its 16 bytes.
 //
-// Regenerate bench.pb.go (in runtimes/go/bench, with protoc-gen-go v1.36.11 on PATH):
-//   go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+// Regenerate bench.pb.go (in runtimes/go/bench, with protoc-gen-go v1.36.12 on PATH):
+//   go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
 //   protoc --go_out=. --go_opt=paths=source_relative benchpb/bench.proto
 // or, without protoc, `npx @bufbuild/buf generate` with buf.gen.yaml.
 syntax = "proto3";
