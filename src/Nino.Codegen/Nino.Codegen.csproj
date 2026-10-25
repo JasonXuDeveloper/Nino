@@ -15,9 +15,7 @@
         <RootNamespace>Nino.Codegen</RootNamespace>
         <!-- Run as `dotnet nino-gen.dll` by the targets, and referenced by Nino.Codegen.Tool: no native launcher. -->
         <UseAppHost>false</UseAppHost>
-        <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <AnalysisLevel>latest-recommended</AnalysisLevel>
         <!-- Enum members named after the values they stand for (String, Object, Decimal...), types named XEnum. -->
         <NoWarn>$(NoWarn);CA1720;CA1711</NoWarn>
         <PackageId>Nino.Codegen</PackageId>
