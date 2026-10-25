@@ -39,7 +39,7 @@ diff <(grep -v '^#' dotnet.txt) <(grep -v '^#' mono.txt)
 `runtimes.yml` tests the Go (with and without `-tags purego`), Rust and TypeScript runtimes on x64 and on an Arm64
 runner, and Go also on 386, Arm32 and big-endian s390x (the last two under qemu); the release's `report.yml`
 benchmarks the three on x64 and Arm64. The
-Unity tests (`src/Nino.Unity`, on Unity 2022.3 and the newest Unity 6 LTS) run in `unity.yml`, one version at a time
+Unity tests (`src/Nino.Unity`, on Unity 2022.3 and the newest Unity 6 LTS: the editor's tests, then the play mode tests in an IL2CPP player, in one job per version) run in `unity.yml`, one version at a time
 and never cancelled while running, so CI holds at most one seat of the Unity license. Locally, the same split keeps a run in memory:
 `--filter "FullyQualifiedName!~ShapeMatrixTests"`, then `--filter "FullyQualifiedName~ShapeMatrixTests"`.
 

@@ -90,16 +90,14 @@ Nino/
 - ✅ 多语言代码生成统一：Nino.Codegen（MSBuild 包，`<NinoCodegen Include="typescript|go|rust" Out="..."/>`）+ Nino.Codegen.Tool（`nino-gen`），取代 Nino.TypeScript；网站四页合为 advanced/codegen
 - ✅ benchmarks/v3 并入 Nino.Benchmark（一个 csproj，`NINO_BENCH_V3=true` 切到 NuGet 3.3.13）
 
-### Unity 上的 SIMD（像 Burst 一样，用户要求记下，后面做）
-- 现状：Unity 包里的 Nino.Core.dll 是 netstandard2.1 版本，没有 System.Runtime.Intrinsics，所以 Unity（Mono、IL2CPP、HybridCLR）走的全是标量路径。块置换、字节序转换、ASCII 字符串这些 SIMD 快路径都用不到。
-- 思路：把这些内核写成只碰原始字节的静态函数（`byte*` 进、`byte*` 出、个数、置换表），做成 Unity 专用程序集里的 `[BurstCompile]` 函数指针（`BurstCompiler.CompileFunctionPointer`），内部用 `Unity.Burst.Intrinsics`（X86.Ssse3/Avx2、Arm.Neon，`IsXxxSupported` 分支）。Nino.Core 只看到一个可选的「块内核」钩子（启动时注册；没有就走现有标量路径），所以 Core 不依赖 Burst。
-- 要先验证：
-  - IL2CPP：Burst 函数指针在 IL2CPP 下由 Burst AOT 预编译，应该可用。要实机验证 Windows/Android/iOS，以及 WebGL（不支持，回退标量）。
-  - HybridCLR：解释执行的热更程序集调用 AOT 程序集里的 Nino.Core，Nino.Core 再调 Burst 函数指针，应该可用。热更代码自己不能被 Burst 编译，但内核在 AOT 包里，所以没关系。要验证补充元数据和泛型实例化不影响。
-  - 包依赖：com.unity.burst 设为可选（versionDefines + asmdef 的 defineConstraints），没装 Burst 时程序集不编译，自动回退。
-  - 收益：先在 Unity 里测标量 vs Burst（数组的 struct/元组、字符串），值得再做；还要比较调用函数指针的开销（小数组可能更慢，需要阈值）。
-  - Unity 6 之后若迁到 CoreCLR，netstandard 之外可能直接有 Intrinsics。届时评估直接发 net8+ 的 DLL。
-- 一致性：Burst 路径和标量路径必须写出、读出相同字节。测试要覆盖两条路径（同一套 golden bytes）。
+### Unity 上的 SIMD（Burst 内核）—— 已做，IL2CPP 待 CI 复跑
+- ✅ Nino.Core（仅 netstandard 构建，`#if !NET8_0_OR_GREATER`）：公开 `NinoKernels`（`Permute` 按值字节表置换、`Narrow`/`Widen` Latin-1），`NinoKernelHook` 只在已经 NoInlining 的路径里一次静态读取加比较；阈值 MinBlocks 16 个值、MinChars 32 个字符；块读取先查 bool。.NET 8/10 机器码不变：`asm.py compare origin/main` 2331 个方法无变差。
+- ✅ Unity 包 `Burst/`（Nino.Burst.asmdef，versionDefines `com.unity.burst` ≥ 1.8.0 → `NINO_BURST`，没装 Burst 不编译）：`[BurstCompile]` 函数指针，x86/x64 用 SSSE3（pshufb），AArch64 用 Neon（tbl）；Armv7、WebGL 不注册，走标量。启动时注册（`RuntimeInitializeOnLoadMethod`，编辑器里 `InitializeOnLoadMethod`）。
+- ✅ 测试：.NET `KernelHookTests`（netstandard2.1/2.0 构建，用标量参考实现注册）；Unity `BurstKernelTests`（与标量参考逐字节比较、两条路径序列化字节相同、阈值附近长度、golden bytes、非法 bool、计时）和 `RuntimePathsTests`（运行时内部布局快路径全部命中），PlayMode 和 EditMode 都跑；unity.yml 加 IL2CPP 播放器（standalone，linux-il2cpp 镜像）。
+- ✅ 已验证：编辑器 Mono，2022.3.62f2 和 6000.3.27f1（CI 40173683786、40174347899）：内核 SSSE3，Burst 和运行时路径测试全过，运行时内部快路径全部命中。CI 计时（GitHub runner，编辑器）：1000 个 (int, long) 读 ~80–100 倍、写 ~46–56 倍，五元组 ~27–41 倍，带填充结构体 ~13–19 倍，1000 字符 ASCII 字符串 ~6–11 倍；32 个值 ~5–9 倍，32 字符 ~1.3–1.5 倍。
+- ⚠️ IL2CPP 播放器：第一次跑出 Burst AOT 错误 BC1200（播放器按 SSE2 基线预编译，`shuffle_epi8` 必须在同一方法里有 `IsSsse3Supported` 判断；编辑器按本机 CPU 编译所以没报），36aac36 修复（每个指令集各自判断，也让 Armv7/WebGL 能构建）。修复后的 IL2CPP 跑还没做：本会话 workflow_dispatch 返回 403，需要有权限的人在 claude/zen-goldberg-5qqqcu 上手动触发 unity.yml。
+- 未验证：Windows/macOS/Android/iOS 真机、Armv7（应构建且走标量）、WebGL（同上）、HybridCLR（热更程序集经 AOT 的 Nino.Core 调 Burst 函数指针，预计可用）。Burst AOT 默认 x64 目标含 SSE4，只支持 SSE2 的 CPU 上不注册内核。
+- 可调：32 个值时已快 ~6 倍，MinBlocks 可再降；字符串 32 字符只快 ~1.4 倍，MinChars 维持。
 
 ### Core 分支交回的后续项
 - ✅ Q1–Q8 已做（提交见上表 refactor/core 一行）。
