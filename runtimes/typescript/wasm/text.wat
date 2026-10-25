@@ -1,7 +1,7 @@
 ;; The WebAssembly kernels of the TypeScript runtime (src/nino.ts): text between JavaScript strings and the bytes of
 ;; Nino's string encodings, for engines with WebAssembly SIMD, GC and the JS String Builtins ("wasm:js-string", which
 ;; read and make JavaScript strings without copying them through JavaScript). nino.ts embeds the module built from
-;; this file (npm run build:wasm, wasm/build.ts); test/wasm.test.ts checks the two match.
+;; this file (npm run build:wasm: wasm-tools, through wasm/embed.ts); test/wasm.test.ts checks the two match.
 ;;
 ;; A string goes through $codes, an array of UTF-16 code units: intoCharCodeArray and fromCharCodeArray copy a
 ;; string's chars to and from it natively, and these loops move them between it and linear memory, 16 or 8 at a
@@ -17,7 +17,7 @@
   (import "wasm:js-string" "fromCharCodeArray"
     (func $from (param (ref null $codes) i32 i32) (result (ref extern))))
   (memory (export "memory") 1 1)
-  ;; The longest text a kernel takes (`kernelText` in nino.ts: 4096 chars).
+  ;; The longest text a kernel takes (`kernelText` in nino.ts, 4096 chars: test/wasm.test.ts checks the two agree).
   (global $codes (ref $codes) (array.new_default $codes (i32.const 4096)))
 
   ;; The text of the $n (at most 4096) Latin-1 bytes at $p.
