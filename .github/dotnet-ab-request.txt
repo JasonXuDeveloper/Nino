@@ -1,6 +1,5 @@
 # [cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...> (see .github/workflows/dotnet-ab.yml); one job per line.
-# phase5/inventory: main against the downward copy on every x64 CPU where the gap aliases (7b68bba, Intel included),
-# on Intel x64 (and Arm64 as a control), on AMD x64, and CopyGapProbe on Intel.
-cpu=Intel|Neoverse cceab9b8 7b68bba 6 *CommonTypesTest.*SerializeInventory* *CollectionsTest.*SerializeKeyValuePairs* *CollectionsTest.*SerializeTupleList* *SimpleTest.*SerializeVectors*
-cpu=AMD cceab9b8 7b68bba 6 *CommonTypesTest.*SerializeInventory* *CollectionsTest.*SerializeKeyValuePairs* *CollectionsTest.*SerializeTupleList* *SimpleTest.*SerializeVectors*
-cpu=Intel cceab9b8 cceab9b8 1 *CopyGapProbe*
+# phase5/inventory: Intel only (rerun the failed slots until one lands on Intel): main against the downward copy on
+# every x64 CPU where the gap aliases (7b68bba), and CopyGapProbe.
+cpu=Intel cceab9b 7b68bba 6 *CommonTypesTest.*SerializeInventory* *CollectionsTest.*SerializeKeyValuePairs* *CollectionsTest.*SerializeTupleList* *SimpleTest.*SerializeVectors*
+cpu=Intel cceab9b cceab9b 1 *CopyGapProbe*
