@@ -58,7 +58,7 @@ const (
 // them.
 var writeTiers, readTiers = detectTiers()
 
-var writeTier, readTier = best(writeTiers), best(readTiers)
+var writeTier, readTier = tierSSE, tierSSE // test branch: forced
 
 func detectTiers() (write, read []int) {
 	if _, _, ecx, _ := cpuid(1, 0); ecx&(1<<9) != 0 {
