@@ -192,6 +192,24 @@ func (w *Writer) emptyString(n int) {
 func (w *Writer) wideString(s string, at, i int, short uint64) {
 	n := len(s)
 	src := unsafe.Pointer(unsafe.StringData(s))
+	if useWire && cap(w.buf)-at-4 >= 2*n+64 {
+		// The vector path, where the platform has one (strings_wire_amd64.s), for UTF-8 (WTF-8) text in a buffer
+		// with room for its stores.
+		dst := unsafe.Pointer(&w.buf[at+4])
+		if r := wireString(dst, i, src, n); r != wireInvalid {
+			if r >= 0 {
+				j := i + r
+				w.buf = w.buf[:at+4+j]
+				binary.LittleEndian.PutUint32(w.buf[at:], uint32(^int32(j)))
+				return
+			}
+			units := i + ^r
+			widenInPlace(dst, i)
+			w.buf = w.buf[:at+4+2*units]
+			binary.LittleEndian.PutUint32(w.buf[at:], uint32(units))
+			return
+		}
+	}
 	j := i
 	if load8(src, i)&0xFE == 0xC2 {
 		// A char of U+0080 to U+00FF (or a lead of one, the rest not checked yet) first: try Latin-1.

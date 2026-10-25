@@ -62,7 +62,7 @@ p, err := nino.DeserializeExact(data, ReadPoint)   // ... or rejected
 | BCL values | `Decimal`, `Guid`, `DateTime`, `TimeSpan`, `DateTimeOffset`, `DateOnly`, `TimeOnly`, `BigInteger` (`*big.Int`), `Version` |
 | Strings | `String`, `NullableString`, `StringPtr` (default encoding); `Utf8`, `NullableUtf8`, `Utf8Ptr` (`[NinoUtf8]`); `UTF16` (code units) |
 | Raw runs | `Reader.Take(n)`, `Writer.Extend(n)` / `ExtendZero(n)`, `BoolAt` for a bool inside a raw struct |
-| Collections | `Length`, `ByteArray`, `ReadPrimitives` / `WritePrimitives` (one block copy), `ReadBools`, `ReadSlice`, `ReadMap`, `ReadSet`, `ReadUnique`, `ReadEntries`, `ReadUniqueEntries`, `ReadFixed` (raw structs, the fixed stride of `T?[]`), `ReadShape` (multi-dimensional arrays) and their writers |
+| Collections | `Length`, `ByteArray`, `ReadPrimitives` / `WritePrimitives` (one block copy), `WriteStrings` / `WriteStringPtrs`, `ReadBools`, `ReadSlice`, `ReadMap`, `ReadSet`, `ReadUnique`, `ReadEntries`, `ReadUniqueEntries`, `ReadFixed` (raw structs, the fixed stride of `T?[]`), `ReadShape` (multi-dimensional arrays) and their writers |
 | Classes | `Class[T]`, `ReadClass`, `WriteClass`, `ReadSealed`, `WriteSealed` (depth and deferral, below) |
 | Regions | `BeginRegion` / `EndRegion` (version-tolerant and keyed bodies), `More`, `BeginEntry` / `EndEntry` / `SkipEntry`, `KeyedSeen` |
 | Polymorphism | `TypeID(name)`, `WriteTyped`, `UnknownType`; or `TypeSet`, `ClassType`, `StructType`, `ReadAny`, `WriteAny` |
@@ -263,7 +263,12 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
   The text is converted into the writer's buffer eight bytes at a time (Latin-1 beyond ASCII a char at a time), in
   one pass, through `unsafe` pointers within the text and the room reserved for it (`strings_write.go`); the reader,
   which takes untrusted bytes, stays on checked slices. On amd64 and arm64, long runs of ASCII are copied or widened 16 bytes at a time in assembly
-  (SSE2, NEON); the `purego` build tag, and every other platform, use the Go loops (the same bytes).
+  (SSE2, NEON). On amd64 with AVX2 (or AVX-512 BW, VL and VBMI2) a whole string is checked and converted 32 bytes
+  at a time instead (`strings_wire_amd64.s`, written by `go run ./internal/wiregen`): WTF-8 validation, Latin-1 or
+  UTF-16 chosen and written in one pass, with the Go loops taking over for text that is not WTF-8. `WriteStrings`
+  and `WriteStringPtrs` (what generated code calls for a `string[]` or `List<string>`) write a whole list in one
+  call into it. The `purego` build tag, and every other platform, use the Go loops (the same bytes, which the tests
+  compare).
 - **Null.** A `string` has no null: `String` (and a `string` field of a tagged struct) reads a null string as `""`,
   and `""` is written back, not null. Read into a `*string` (`StringPtr`, `NullableString`; generated structs use
   `*string` for C# strings) to tell null from empty.
@@ -279,6 +284,7 @@ go vet ./...
 go test -race ./...                                    # unit tests, sample codecs, conformance corpus
 go test -tags purego ./...                             # the same without the string writer's assembly
 go test -run='^$' -fuzz=FuzzReader -fuzztime=1m .      # any sequence of reads over any bytes
+go test -run='^$' -fuzz=FuzzWireString -fuzztime=1m .  # the string writer's assembly against the Go loops
 go test -run='^$' -fuzz=FuzzDecode -fuzztime=1m ./internal/sample   # any bytes as any corpus type
 go test -run='^$' -fuzz=FuzzTagged -fuzztime=1m .                   # any bytes into tagged structs
 go test -run='^$' -fuzz=FuzzTaggedDecode -fuzztime=1m ./internal/sample   # any bytes as any corpus type, by tags
