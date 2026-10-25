@@ -474,8 +474,11 @@ jobs:
               ;;
             arm32)
               # W^X off: the runtime writes code through a second mapping of its pages, which qemu-user does not see
-              # as a change to the code it translated (dynamic methods then crash).
-              DOTNET_EnableWriteXorExecute=0 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
+              # as a change to the code it translated (dynamic methods then crash). Suspension by signal off: qemu
+              # (8.2 and 10.2) delivers the runtime's GC suspension signal at an odd Thumb address now and then and
+              # aborts (thumb_tr_translate_insn assertion, in about one run in four); the runtime then suspends
+              # threads at its safe points only.
+              DOTNET_EnableWriteXorExecute=0 DOTNET_INTERNAL_ThreadSuspendInjection=0 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
                 run arm32 qemu-arm -L /usr/arm-linux-gnueabihf "$RUNNER_TEMP/dotnet-arm/dotnet" \
                 "$BIN/Release/net10.0/Nino.RuntimeTests.dll"
               grep -q '^# 64-bit: False' arm32.txt || { echo "::error::not a 32-bit process"; status=1; }
