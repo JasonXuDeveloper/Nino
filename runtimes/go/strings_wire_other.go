@@ -1,22 +1,21 @@
-//go:build !amd64 || purego
+//go:build !(amd64 || arm64) || purego
 
 package nino
 
 import "unsafe"
 
-// No vector path for writing strings here (see strings_wire_amd64.go): the Go loops write them.
+// No vector paths for strings here (see strings_wire_amd64.go, strings_wire_arm64.go): the Go loops write and read
+// them.
 
-const hasWire = false
+var writeTiers, readTiers []int
 
-var useWire = false
+var writeTier, readTier int
 
-const hasWire512 = false
+func tierName(t int) string { return "Go" }
 
-var useWire512 = false
+const hasWire, hasRead = false, false
 
-const hasRead = false
-
-var useRead = false
+var useWire, useRead = false, false
 
 func wireString(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int { return wireInvalid }
 

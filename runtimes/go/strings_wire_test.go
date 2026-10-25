@@ -23,27 +23,12 @@ var wireChars = []string{
 	"\xf4\x90\x80\x80", "\xf5\x80\x80\x80", "\xff", "\xf0\x9f\x8e", // not UTF-8
 }
 
-// wireTiers are the vector paths this processor has: 1 the first (AVX2), 2 the second (AVX-512).
-func wireTiers() []int {
-	switch {
-	case hasWire512:
-		return []int{1, 2}
-	case hasWire:
-		return []int{1}
-	}
-	return nil
-}
+// setWire takes the Go loops (tier 0) or a vector path of the writer; resetWire takes the one the processor takes.
+func setWire(tier int) { setWriteTier(tier) }
 
-// setWire takes the Go loops (tier 0) or a vector path; resetWire takes the one the processor takes.
-func setWire(tier int) {
-	useWire = tier > 0
-	useWire512 = tier > 1
-}
+func resetWire() { setWriteTier(best(writeTiers)) }
 
-func resetWire() {
-	useWire = hasWire
-	useWire512 = hasWire512
-}
+func wireTiers() []int { return writeTiers }
 
 // writeBoth writes s after a prefix of pad bytes with each vector path and without, into buffers of cap bytes or
 // more, and fails when the bytes differ.
@@ -62,7 +47,7 @@ func writeBoth(t *testing.T, s string, pad, size int) {
 	want := write(0)
 	for _, tier := range wireTiers() {
 		if got := write(tier); !bytes.Equal(got, want) {
-			t.Fatalf("%q (path %d, after %d bytes, buffer of %d): wrote\n% X\nwant\n% X", s, tier, pad, size, got, want)
+			t.Fatalf("%q (%s, after %d bytes, buffer of %d): wrote\n% X\nwant\n% X", s, tierName(tier), pad, size, got, want)
 		}
 	}
 }
@@ -157,7 +142,7 @@ func TestWriteStrings(t *testing.T) {
 				w.U8(0xAB)
 				write(w)
 				if !bytes.Equal(w.Bytes(), ref.Bytes()) {
-					t.Fatalf("%s (path %d, %d strings, buffer %d): wrote\n% X\nwant\n% X", name, tier, count, size, w.Bytes(), ref.Bytes())
+					t.Fatalf("%s (%s, %d strings, buffer %d): wrote\n% X\nwant\n% X", name, tierName(tier), count, size, w.Bytes(), ref.Bytes())
 				}
 			}
 		}
@@ -177,7 +162,34 @@ func TestWriteStrings(t *testing.T) {
 var wireUnits = []uint16{0, 'a', 0x7F, 0x80, 0xE9, 0xFF, 0x100, 0x416, 0x7FF, 0x800, 0x5B57, 0xD7FF, 0xD800, 0xDBFF,
 	0xDC00, 0xDFFF, 0xE000, 0xFFFD, 0xFFFF}
 
-// TestReadVector converts UTF-16 and Latin-1 text of every length up to 256 with the vector path and the Go loops.
+// readBoth converts src as UTF-16 (its even length) and as Latin-1 with each of the reader's vector paths and with
+// the Go loops, and fails when the bytes differ.
+func readBoth(t *testing.T, src []byte) {
+	t.Helper()
+	defer setReadTier(best(readTiers))
+	units := len(src) / 2
+	want16 := make([]byte, 3*units)
+	want16 = want16[:utf16UTF8(want16, src[:2*units])]
+	want1 := make([]byte, 2*len(src))
+	want1 = want1[:latin1UTF8(want1, src)]
+	for _, tier := range readTiers {
+		setReadTier(tier)
+		// The room the reader gives them: 64 bytes past the most the text can take, garbage in it.
+		got := bytes.Repeat([]byte{0xA5}, 3*units+64)
+		got = got[:readUTF16(unsafe.Pointer(unsafe.SliceData(got)), unsafe.Pointer(unsafe.SliceData(src)), units)]
+		if !bytes.Equal(got, want16) {
+			t.Fatalf("UTF-16 (%s) % X: wrote\n% X\nwant\n% X", tierName(tier), src[:2*units], got, want16)
+		}
+		got = bytes.Repeat([]byte{0xA5}, 2*len(src)+64)
+		got = got[:readLatin1(unsafe.Pointer(unsafe.SliceData(got)), unsafe.Pointer(unsafe.SliceData(src)), len(src))]
+		if !bytes.Equal(got, want1) {
+			t.Fatalf("Latin-1 (%s) % X: wrote\n% X\nwant\n% X", tierName(tier), src, got, want1)
+		}
+	}
+}
+
+// TestReadVector converts UTF-16 and Latin-1 text of every length up to 256 with each vector path and the Go
+// loops: units of every kind at random, and one unit of each kind at each position among ASCII.
 func TestReadVector(t *testing.T) {
 	if !hasRead {
 		t.Skip("no vector path here")
@@ -197,13 +209,7 @@ func TestReadVector(t *testing.T) {
 				}
 				src[2*k], src[2*k+1] = byte(u), byte(u>>8)
 			}
-			want := make([]byte, 3*n)
-			want = want[:utf16UTF8(want, src)]
-			got := make([]byte, 3*n+64)
-			got = got[:readUTF16(unsafe.Pointer(unsafe.SliceData(got)), unsafe.Pointer(unsafe.SliceData(src)), n)]
-			if !bytes.Equal(got, want) {
-				t.Fatalf("UTF-16 % X: wrote\n% X\nwant\n% X", src, got, want)
-			}
+			readBoth(t, src)
 			l1 := make([]byte, n)
 			for k := range l1 {
 				l1[k] = byte(rnd.Intn(256))
@@ -211,38 +217,35 @@ func TestReadVector(t *testing.T) {
 					l1[k] &= 0x7F
 				}
 			}
-			want = make([]byte, 2*n)
-			want = want[:latin1UTF8(want, l1)]
-			got = make([]byte, 2*n+64)
-			got = got[:readLatin1(unsafe.Pointer(unsafe.SliceData(got)), unsafe.Pointer(unsafe.SliceData(l1)), n)]
-			if !bytes.Equal(got, want) {
-				t.Fatalf("Latin-1 % X: wrote\n% X\nwant\n% X", l1, got, want)
+			readBoth(t, l1)
+		}
+	}
+	for _, u := range wireUnits {
+		for _, next := range []uint16{'a', 0xDC00, 0xD800} {
+			for at := 0; at < 40; at++ {
+				src := make([]byte, 80)
+				for k := 0; k < 40; k++ {
+					src[2*k] = 'a' + byte(k%26)
+				}
+				src[2*at], src[2*at+1] = byte(u), byte(u>>8)
+				if at+1 < 40 {
+					src[2*at+2], src[2*at+3] = byte(next), byte(next>>8)
+				}
+				for n := 2 * at; n <= 80; n += 2 {
+					readBoth(t, src[:n])
+				}
 			}
 		}
 	}
 }
 
-// FuzzReadVector converts any bytes as UTF-16 and as Latin-1 with the vector path and the Go loops.
+// FuzzReadVector converts any bytes as UTF-16 and as Latin-1 with each vector path and the Go loops.
 func FuzzReadVector(f *testing.F) {
 	f.Add([]byte("a\x00\x00\xd8\x00\xdc\xe9\x00"))
 	f.Fuzz(func(t *testing.T, src []byte) {
 		if !hasRead {
 			t.Skip("no vector path here")
 		}
-		n := len(src) / 2
-		want := make([]byte, 3*n)
-		want = want[:utf16UTF8(want, src[:2*n])]
-		got := make([]byte, 3*n+64)
-		got = got[:readUTF16(unsafe.Pointer(unsafe.SliceData(got)), unsafe.Pointer(unsafe.SliceData(src)), n)]
-		if !bytes.Equal(got, want) {
-			t.Fatalf("UTF-16 % X: wrote\n% X\nwant\n% X", src, got, want)
-		}
-		want = make([]byte, 2*len(src))
-		want = want[:latin1UTF8(want, src)]
-		got = make([]byte, 2*len(src)+64)
-		got = got[:readLatin1(unsafe.Pointer(unsafe.SliceData(got)), unsafe.Pointer(unsafe.SliceData(src)), len(src))]
-		if !bytes.Equal(got, want) {
-			t.Fatalf("Latin-1 % X: wrote\n% X\nwant\n% X", src, got, want)
-		}
+		readBoth(t, src)
 	})
 }
