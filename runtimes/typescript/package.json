@@ -32,7 +32,7 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=15"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node scripts/version.mjs",
