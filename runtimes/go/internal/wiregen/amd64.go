@@ -18,6 +18,7 @@ func fileAMD64() string {
 	b.WriteString(single("wireStringAVX512", setupAVX512, kernelAVX512, "t"))
 	b.WriteString(many("wireStringsAVX512", setupAVX512, kernelAVX512, "n"))
 	b.WriteString(readers)
+	b.WriteString(readersSSE)
 	b.WriteString(cpu)
 	return b.String()
 }
@@ -37,6 +38,15 @@ type constant struct {
 }
 
 func fill(b byte) []byte { return []byte(strings.Repeat(string([]byte{b}), 32)) }
+
+// words is 16 lanes of 16 bits of v.
+func words(v uint16) []byte {
+	b := make([]byte, 32)
+	for i := 0; i < 32; i += 2 {
+		b[i], b[i+1] = byte(v), byte(v>>8)
+	}
+	return b
+}
 
 // lanes is a 16-byte table in both lanes.
 func lanes(t [16]byte) []byte { return append(t[:], t[:]...) }
@@ -127,6 +137,15 @@ func constants() string {
 		{"T2", "by its low nibble", lanes(t2)},
 		{"T3", "by the high nibble of the byte", lanes(t3)},
 		{"MASK", "32 bytes of FF then 32 of 0: read from 32 minus the bytes left on, a mask of the bytes of the text", mask},
+		{"WFF80", "16-bit lanes of FF80", words(0xFF80)},
+		{"WF800", "F800", words(0xF800)},
+		{"WFC00", "FC00", words(0xFC00)},
+		{"WD800", "D800", words(0xD800)},
+		{"W3F", "3F", words(0x3F)},
+		{"W80", "80", words(0x80)},
+		{"WC0", "C0", words(0xC0)},
+		{"WE0", "E0", words(0xE0)},
+		{"W40", "40", words(0x40)},
 	}
 	var b, defs strings.Builder
 	at := 0
