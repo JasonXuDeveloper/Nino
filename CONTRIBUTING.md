@@ -43,6 +43,11 @@ Unity tests (`src/Nino.Unity`, on Unity 2022.3 and the newest Unity 6 LTS: the e
 and never cancelled while running, so CI holds at most one seat of the Unity license. Locally, the same split keeps a run in memory:
 `--filter "FullyQualifiedName!~ShapeMatrixTests"`, then `--filter "FullyQualifiedName~ShapeMatrixTests"`.
 
+The TypeScript runtime's WebAssembly kernels (`runtimes/typescript/wasm/text.wat`) are assembled into `nino.ts` by
+`npm run build:wasm` with [wasm-tools](https://github.com/bytecodealliance/wasm-tools) (`cargo install --locked
+wasm-tools`, or the binary of a release on the `PATH`); only a change to `text.wat` needs it (see
+[runtimes/typescript/README.md](runtimes/typescript/README.md)).
+
 The workflows pin every action to a commit SHA with its version in a comment (`uses: actions/checkout@<sha> # v7.0.1`);
 Dependabot updates both, all actions in one pull request. `actionlint` (with `.github/actionlint.yaml`) checks them.
 
