@@ -964,6 +964,16 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
     wide_short(out, text)
 }
 
+/// [`wide`] for text of up to [`SHORT`] bytes: [`short_wide`] directly on every target but x86_64 (where [`wide`]
+/// takes such text to it), so the writer's inlined path is that call alone.
+#[inline(always)]
+pub(crate) fn wide_short_text(out: &mut Vec<u8>, text: &str) {
+    #[cfg(not(target_arch = "x86_64"))]
+    short_wide(out, text);
+    #[cfg(target_arch = "x86_64")]
+    wide(out, text);
+}
+
 /// [`wide`] without a one-pass kernel: [`short_wide`] for text of up to [`SHORT_WIDE`] bytes.
 #[inline(always)]
 fn wide_short(out: &mut Vec<u8>, text: &str) -> bool {

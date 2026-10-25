@@ -400,8 +400,9 @@ pub(crate) unsafe fn utf16(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usiz
             }
             let surrogate = vceqq_u16(vandq_u16(w, vdupq_n_u16(0xF800)), vdupq_n_u16(0xD800));
             if vmaxvq_u16(surrogate) != 0 {
-                // The invariant; the plain decoder takes these eight units (and the low half of a pair after them).
-                (k, o) = super::utf16_words(units, k, k.wrapping_add(8), dst, o);
+                // The invariant; the plain decoder takes the next 32 units (and the low half of a pair after them):
+                // text with surrogates has more of them, where the vector steps only cost (measured on Neoverse-N2).
+                (k, o) = super::utf16_words(units, k, k.wrapping_add(32).min(n), dst, o);
                 continue;
             }
             // Two bits a unit, as `PACK3` takes them (at least U+0080, at least U+0800), a byte each.
