@@ -142,7 +142,7 @@ internal static class RegistryEmitter
         {
             string cache = $"{Core}NinoFormatterCache<{r.TypeName}>";
             code.Add(r.Top
-                ? $"{cache}.TryRegisterTop<{r.Formatter}, {r.Formatter}.__Top>();"
+                ? $"{cache}.TryRegisterTop<{r.Formatter}, {r.Formatter}{Top}>();"
                 : $"{cache}.{(r.Fixed ? "TryRegisterFixed" : "TryRegister")}<{r.Formatter}>();");
             if (r.Concrete)
             {

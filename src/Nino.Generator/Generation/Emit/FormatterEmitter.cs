@@ -114,8 +114,8 @@ internal static class FormatterEmitter
             case FormatterKind.SealedClass when m.BoundedEntry:
                 // The twin's bodies when the depth leaves room for the whole nesting bound (see TypeFacts.DepthBound).
                 EmitEntryPoints(w, m, names,
-                    $"{CoreCompilerServices}NinoObject.SerializeSealed<{t}, {self}, {self}.__Shallow>(value, ref writer, {m.Depth.Bound})",
-                    $"{CoreCompilerServices}NinoObject.DeserializeSealed<{t}, {self}, {self}.__Shallow>(ref value, ref reader, {m.Depth.Bound})");
+                    $"{CoreCompilerServices}NinoObject.SerializeSealed<{t}, {self}, {self}{Shallow}>(value, ref writer, {m.Depth.Bound})",
+                    $"{CoreCompilerServices}NinoObject.DeserializeSealed<{t}, {self}, {self}{Shallow}>(ref value, ref reader, {m.Depth.Bound})");
                 break;
             case FormatterKind.SealedClass:
                 EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoObject.SerializeSealed{Raw(m)}<{t}, {self}>(value, ref writer)",
@@ -188,7 +188,7 @@ internal static class FormatterEmitter
     private static void EmitTop(CodeWriter w, TypeModel m, FormatterNames names, BodyEmitter body)
     {
         string t = m.TypeName;
-        string top = m.Self + ".__Top";
+        string top = m.Self + Top;
         // An out-of-line body on a local writer (TypeModel.LocalWriter, not inlined at the top): the presence
         // byte is written there too, on the local, rather than by the caller on a writer whose address the call
         // takes (each write a load and store of its cursor in memory). The top-level calls that create their writer
@@ -228,7 +228,7 @@ internal static class FormatterEmitter
             w.Line();
         }
 
-        OpenTwin(w, m, "__Top", $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>");
+        OpenTwin(w, m, TopTwinName, $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>");
         w.Line(names.Inline);
         w.Line(serializeTop
             ? $"{Signature.Serialize(t)} => __SerializeTop(value, ref writer);"
@@ -305,8 +305,8 @@ internal static class FormatterEmitter
     {
         string t = m.TypeName;
         string self = m.Self;
-        string twin = self + ".__Shallow";
-        OpenTwin(w, m, "__Shallow", $"{CoreCompilerServices}INinoBodyFormatter<{t}>");
+        string twin = self + Shallow;
+        OpenTwin(w, m, ShallowTwinName, $"{CoreCompilerServices}INinoBodyFormatter<{t}>");
         w.Line(names.Inline);
         w.Line(m.Kind == FormatterKind.Struct
             ? $"{Signature.Serialize(t)} => WriteBody(value, ref writer);"
