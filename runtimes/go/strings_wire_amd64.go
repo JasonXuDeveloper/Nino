@@ -2,12 +2,14 @@
 
 package nino
 
-//go:generate go run ./internal/wiregen -out strings_wire_amd64.s
+//go:generate go run ./internal/wiregen
 
 import "unsafe"
 
-// The string writer's AVX2 path (strings_wire_amd64.s), taken where the processor and the system support AVX2
-// (and POPCNT); elsewhere, and with the purego build tag, the Go loops of strings_write.go write the same bytes.
+// The string paths' x64 kernels (strings_wire_amd64.s, written by internal/wiregen), one tier per instruction set:
+// the writer's SSSE3, AVX2 and AVX-512 paths and the reader's SSSE3 and AVX-512 paths, each taken where the
+// processor and the system support it; without SSSE3, and with the purego build tag, the Go loops of
+// strings_write.go and strings.go write and read the same bytes.
 
 // wireStringAVX2 converts src[i:n] (n > i, the bytes before i ASCII) to Latin-1 at dst+i, returning the bytes
 // written, or to UTF-16 at dst+2*i, returning ^units; for text that is not WTF-8 it returns wireInvalid. dst has
@@ -46,22 +48,47 @@ func cpuid(eaxArg, ecxArg uint32) (eax, ebx, ecx, edx uint32)
 
 func xgetbv() (eax, edx uint32)
 
-// hasWire tells whether this processor takes the AVX2 path; useWire is it, off in tests that compare the two.
-var hasWire = detectAVX2()
+// The tiers of the vector paths: each needs the instructions of those before it.
+const (
+	tierSSE    = 1 // SSSE3
+	tierAVX2   = 2 // AVX2 and POPCNT
+	tierAVX512 = 3 // AVX-512 F, BW, VL and VBMI2 (the reader: VBMI too)
+)
 
-var useWire = hasWire
+// writeTiers and readTiers are the tiers of the string writer's and reader's vector paths this processor has, the
+// best last; writeTier and readTier are the ones taken (0: the Go loops), set otherwise only by tests that compare
+// them.
+var writeTiers, readTiers = detectTiers()
 
-// hasWire512 tells whether this processor takes the AVX-512 path; useWire512 is it, off in tests that compare it
-// with the AVX2 one.
-var hasWire512 = hasWire && detectAVX512()
+var writeTier, readTier = best(writeTiers), best(readTiers)
 
-var useWire512 = hasWire512
+func detectTiers() (write, read []int) {
+	if _, _, ecx, _ := cpuid(1, 0); ecx&(1<<9) != 0 {
+		write, read = []int{tierSSE}, []int{tierSSE}
+	}
+	if !detectAVX2() {
+		return write, read
+	}
+	write = append(write, tierAVX2)
+	if detectAVX512() {
+		write = append(write, tierAVX512)
+		if detectVBMI() {
+			read = append(read, tierAVX512)
+		}
+	}
+	return write, read
+}
 
-// hasRead tells whether the string reader takes its AVX-512 path (which needs VBMI too); useRead is it, off in tests
-// that compare it with the Go loops.
-var hasRead = hasWire512 && detectVBMI()
+// tierName names a tier in tests.
+func tierName(t int) string {
+	return [...]string{"Go", "SSE", "AVX2", "AVX-512"}[t]
+}
 
-var useRead = hasRead
+// hasWire and hasRead tell whether the writer and the reader have a vector path here; useWire and useRead whether
+// one is taken.
+var hasWire, hasRead = len(writeTiers) > 0, len(readTiers) > 0
+
+var useWire, useRead = hasWire, hasRead
 
 func detectAVX2() bool {
 	maxID, _, _, _ := cpuid(0, 0)
@@ -98,23 +125,57 @@ func detectVBMI() bool {
 	return ecx&(1<<1) != 0
 }
 
-// readUTF16 and readLatin1 are utf16UTF8AVX512 and latin1UTF8AVX512 where they are taken.
-func readUTF16(dst, src unsafe.Pointer, units int) int { return utf16UTF8AVX512(dst, src, units) }
+// latin1UTF8SSE and utf16UTF8SSE are the reader's SSSE3 paths, as latin1UTF8NEON and utf16UTF8NEON on arm64 (16
+// bytes at a time; room for 16 bytes past the text's UTF-8).
+//
+//go:noescape
+func latin1UTF8SSE(dst, src unsafe.Pointer, n int) int
 
-func readLatin1(dst, src unsafe.Pointer, n int) int { return latin1UTF8AVX512(dst, src, n) }
+//go:noescape
+func utf16UTF8SSE(dst, src unsafe.Pointer, units int) int
 
-// wireString is wireStringAVX512 or wireStringAVX2, whichever is taken.
-func wireString(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int {
-	if useWire512 {
-		return wireStringAVX512(dst, i, src, n)
+// readUTF16 and readLatin1 are the reader's kernels of the tier taken.
+func readUTF16(dst, src unsafe.Pointer, units int) int {
+	if readTier == tierAVX512 {
+		return utf16UTF8AVX512(dst, src, units)
 	}
-	return wireStringAVX2(dst, i, src, n)
+	return utf16UTF8SSE(dst, src, units)
 }
 
-// wireStrings is wireStringsAVX512 or wireStringsAVX2, whichever is taken.
-func wireStrings(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int) {
-	if useWire512 {
-		return wireStringsAVX512(dst, room, strs, count, ptrs)
+func readLatin1(dst, src unsafe.Pointer, n int) int {
+	if readTier == tierAVX512 {
+		return latin1UTF8AVX512(dst, src, n)
 	}
-	return wireStringsAVX2(dst, room, strs, count, ptrs)
+	return latin1UTF8SSE(dst, src, n)
+}
+
+// wireStringSSE and wireStringsSSE are wireStringAVX2 and wireStringsAVX2 with SSSE3, 16 bytes at a time (as the
+// NEON kernels of arm64).
+//
+//go:noescape
+func wireStringSSE(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int
+
+//go:noescape
+func wireStringsSSE(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)
+
+// wireString is the writer's kernel of the tier taken.
+func wireString(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int {
+	switch writeTier {
+	case tierAVX512:
+		return wireStringAVX512(dst, i, src, n)
+	case tierAVX2:
+		return wireStringAVX2(dst, i, src, n)
+	}
+	return wireStringSSE(dst, i, src, n)
+}
+
+// wireStrings is the writer's list kernel of the tier taken.
+func wireStrings(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int) {
+	switch writeTier {
+	case tierAVX512:
+		return wireStringsAVX512(dst, room, strs, count, ptrs)
+	case tierAVX2:
+		return wireStringsAVX2(dst, room, strs, count, ptrs)
+	}
+	return wireStringsSSE(dst, room, strs, count, ptrs)
 }
