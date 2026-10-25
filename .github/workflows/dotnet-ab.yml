@@ -10,7 +10,7 @@ name: .NET A/B (test branch)
 # Each line is a job of its own on each runner (up to three lines). A line may start with cpu=<regex> (an
 # case-insensitive extended regular expression on lscpu's model name, for example cpu='Intel|Neoverse'): the x64 runner pool mixes
 # Intel and AMD processors, so such a line runs on up to eight x64 runners at once (slots), each going on only when its
-# processor matches (the others fail, so `gh run rerun --failed` draws new runners for them); a line without it runs on one runner of each kind as before. Both commits must be on a branch of this
+# processor matches (the others end at once, successfully, with a notice); a line without it runs on one runner of each kind as before. Both commits must be on a branch of this
 # repository (main, or this branch: push them here, merging, never force-pushing). Both are built with head's
 # benchmark project. The reports and the ab.py tables go to the log. Numbers are for development only.
 on:
@@ -85,7 +85,7 @@ jobs:
           if [[ $request == cpu=* ]]; then read -r cpu request <<< "$request"; cpu=${cpu#cpu=}; cpu=${cpu//\'/}; fi
           model=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -1)
           if [[ -z $cpu && $SLOT != 1 ]]; then echo "Line $LINE has no cpu=: slot 1 only"; exit 0; fi
-          if [[ -n $cpu ]] && ! grep -Eqi -- "$cpu" <<< "$model"; then echo "::warning::$model does not match $cpu: failed on purpose, so that rerunning the failed jobs draws other runners"; exit 1; fi
+          if [[ -n $cpu ]] && ! grep -Eqi -- "$cpu" <<< "$model"; then echo "::notice::$model does not match cpu=$cpu: nothing measured on this runner"; exit 0; fi
           read -r base head rounds filters <<< "$request"
           read -ra F <<< "$filters"
           out="$RUNNER_TEMP/out"
