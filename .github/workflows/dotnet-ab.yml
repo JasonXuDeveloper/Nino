@@ -63,12 +63,43 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: |
-            10.0.x
-            8.0.x
+      # Whether this slot measures (its line exists, and its CPU matches the line's cpu=), before anything is installed.
+      - name: Check the line and the CPU
+        id: check
+        env:
+          LINE: ${{ matrix.line }}
+          SLOT: ${{ matrix.slot }}
+        run: |
+          set -euo pipefail
+          lscpu | grep -E 'Model name|Flags' | cut -c1-2000 || true
+          go=true
+          request=$(grep -v -e '^#' -e '^[[:space:]]*$' .github/dotnet-ab-request.txt | sed -n "${LINE}p")
+          model=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -1)
+          cpu=''
+          if [[ $request == cpu=* ]]; then read -r cpu request <<< "$request"; cpu=${cpu#cpu=}; cpu=${cpu//\'/}; fi
+          if [[ -z $request ]]; then echo "No line $LINE"; go=false
+          elif [[ -z $cpu && $SLOT != 1 ]]; then echo "Line $LINE has no cpu=: slot 1 only"; go=false
+          elif [[ -n $cpu ]] && ! grep -Eqi -- "$cpu" <<< "$model"; then
+            echo "::notice::$model does not match cpu=$cpu: nothing measured on this runner"; go=false
+          fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+      # dotnet-install.sh with each channel's latest version from builds.dotnet.microsoft.com: the aka.ms links it (and
+      # setup-dotnet) resolve a channel to point at dotnetorigin.blob.core.windows.net, which answers 409.
+      - name: Install .NET 10 and 8
+        if: steps.check.outputs.go == 'true'
+        run: |
+          set -euo pipefail
+          script="$RUNNER_TEMP/dotnet-install.sh"
+          curl -sSfL --retry 3 https://dot.net/v1/dotnet-install.sh -o "$script"
+          for channel in 10.0 8.0; do
+            version=$(bash "$script" --channel "$channel" --dry-run | sed -n 's/.*--version "\([^"]*\)".*/\1/p' | head -1)
+            [[ -n $version ]] || { echo "::error::no version for channel $channel"; exit 1; }
+            bash "$script" --version "$version" --install-dir "$HOME/.dotnet" --azure-feed https://builds.dotnet.microsoft.com/dotnet
+          done
+          echo "$HOME/.dotnet" >> "$GITHUB_PATH"
+          echo "DOTNET_ROOT=$HOME/.dotnet" >> "$GITHUB_ENV"
       - name: Measure
+        if: steps.check.outputs.go == 'true'
         env:
           RUNNER: ${{ matrix.runner }}
           LINE: ${{ matrix.line }}
@@ -76,16 +107,11 @@ jobs:
         run: |
           set -euo pipefail
           set -f  # the filters are patterns for BenchmarkDotNet, not for the shell
-          lscpu | grep -E 'Model name|Flags' | cut -c1-2000 || true
           # BenchmarkDotNet's high priority (see arm64-bench.yml).
           sudo prlimit --pid $$ --nice=40:40 || echo "::warning::could not raise the nice limit: normal priority"
           request=$(grep -v -e '^#' -e '^[[:space:]]*$' .github/dotnet-ab-request.txt | sed -n "${LINE}p")
-          if [[ -z $request ]]; then echo "No line $LINE"; exit 0; fi
-          cpu=''
-          if [[ $request == cpu=* ]]; then read -r cpu request <<< "$request"; cpu=${cpu#cpu=}; cpu=${cpu//\'/}; fi
+          if [[ $request == cpu=* ]]; then read -r _ request <<< "$request"; fi
           model=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -1)
-          if [[ -z $cpu && $SLOT != 1 ]]; then echo "Line $LINE has no cpu=: slot 1 only"; exit 0; fi
-          if [[ -n $cpu ]] && ! grep -Eqi -- "$cpu" <<< "$model"; then echo "::notice::$model does not match cpu=$cpu: nothing measured on this runner"; exit 0; fi
           read -r base head rounds filters <<< "$request"
           read -ra F <<< "$filters"
           out="$RUNNER_TEMP/out"

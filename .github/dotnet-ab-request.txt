@@ -1,6 +1,6 @@
 # [cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...> (see .github/workflows/dotnet-ab.yml); one job per line.
 # phase5/inventory: the Inventory copy by alignment (InventoryAlignProbe), and SerializeInventory with the addresses
-# its process landed on (InventoryRealProbe), on Intel x64 and on an EPYC 9V74 (one run; slots that land elsewhere end with a notice).
+# its process landed on (InventoryRealProbe), on Intel x64 and on an EPYC 9V74 (one run, again: the last could not download .NET; slots elsewhere end with a notice).
 cpu=intel 11f707b 11f707b 3 *InventoryRealProbe* *InventoryAlignProbe* *CommonTypesTest.NinoSerializeInventory *CommonTypesTest.MemoryPackSerializeInventory
 cpu=intel 11f707b 11f707b 3 *InventoryRealProbe* *InventoryAlignProbe* *CommonTypesTest.NinoSerializeInventory *CommonTypesTest.MemoryPackSerializeInventory
 cpu=9V74 11f707b 11f707b 3 *InventoryRealProbe* *InventoryAlignProbe* *CommonTypesTest.NinoSerializeInventory *CommonTypesTest.MemoryPackSerializeInventory
