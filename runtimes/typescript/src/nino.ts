@@ -39,8 +39,11 @@ export function serialize<T>(codec: NinoCodec<T>, value: T): Uint8Array<ArrayBuf
  * `data`, which it does not change.
  */
 export function deserialize<T>(codec: NinoCodec<T>, data: Uint8Array): T {
-  const reader = scratchReader;
-  if (reader === null || data.length > scratchSize) return codec.read(new NinoReader(data));
+  let reader = scratchReader;
+  if (reader === null || data.length > scratchSize) {
+    if (reader !== null || scratchMade || data.length > scratchSize) return codec.read(new NinoReader(data));
+    reader = makeScratch();
+  }
   // A codec that deserializes (a custom one) while this runs gets a reader of its own.
   scratchReader = null;
   try {
@@ -57,7 +60,16 @@ export function deserialize<T>(codec: NinoCodec<T>, data: Uint8Array): T {
  * value.
  */
 const scratchSize = 4096;
+/** The reader `deserialize` reuses: null while it is in use, or before the first call made it. */
 let scratchReader: NinoReader | null = null;
+let scratchMade = false;
+
+/** The reader `deserialize` reuses: its bytes are in the kernels' memory when they are used, so text needs no copy. */
+function makeScratch(): NinoReader {
+  scratchMade = true;
+  const k = nodeText === null ? wasm() : null;
+  return new NinoReader(k !== null ? new Uint8Array(k.memory.buffer, 0, scratchSize) : new Uint8Array(scratchSize));
+}
 
 /** Thrown for data that is not a valid value of the type read, or a value that cannot be written. */
 export class NinoError extends Error {
@@ -173,6 +185,90 @@ const nodeText = ((): NodeText | null => {
     return null;
   }
 })();
+
+/**
+ * The WebAssembly kernels (wasm/text.wat, built by `npm run build:wasm`): text between JavaScript strings and the
+ * bytes of Nino's string encodings, where no native method does it (browsers and Deno; Node, Bun and Deno with Node's
+ * `Buffer` keep `nodeText`). They take the strings through the JS String Builtins and move their chars in SIMD
+ * registers. An engine without WebAssembly, its SIMD, GC or the builtins, or a page whose CSP forbids compiling it,
+ * keeps the JavaScript paths, which write and read the same bytes.
+ */
+interface Kernels {
+  /** The module's one page of memory: the buffer of `deserialize`'s reader, then `transfer`. */
+  memory: { readonly buffer: ArrayBuffer };
+  latin1(at: number, length: number): string;
+  utf16(at: number, length: number): string;
+  narrow(text: string, length: number, out: number): number;
+  widen(length: number, out: number): void;
+  /** `memory` as bytes (it never grows, so this view stays valid). */
+  bytes: Uint8Array<ArrayBuffer>;
+}
+
+/** The module (wasm/text.wat), base64. Generated: `npm run build:wasm` writes it. */
+const kernelModule =
+  // wasm:begin
+  "AGFzbQEAAAABJwZedwFgA29jAH8Bf2ADYwB/fwFkb2ACf38Bb2ADb39/AX9gAn9/AAJHAg53YXNtOmpzLXN0cmluZxFpbnRvQ2hhckNvZGVBcnJheQABDndhc206anMtc3RyaW5nEWZyb21DaGFyQ29kZUFycmF5AAIDBQQDAwQFBQQBAQEBBgsBZAAAQYAg+wcACwcsBQZtZW1vcnkCAAZsYXRpbjEAAgV1dGYxNgADBm5hcnJvdwAEBXdpZGVuAAUKuwgE0gIDAWQAAn8BeyMAIQIgAUFwcSEEAkADQCADIARPDQEgACADav0ABAAhBSACIANBAGogBf0WAPsOACACIANBAWogBf0WAfsOACACIANBAmogBf0WAvsOACACIANBA2ogBf0WA/sOACACIANBBGogBf0WBPsOACACIANBBWogBf0WBfsOACACIANBBmogBf0WBvsOACACIANBB2ogBf0WB/sOACACIANBCGogBf0WCPsOACACIANBCWogBf0WCfsOACACIANBCmogBf0WCvsOACACIANBC2ogBf0WC/sOACACIANBDGogBf0WDPsOACACIANBDWogBf0WDfsOACACIANBDmogBf0WDvsOACACIANBD2ogBf0WD/sOACADQRBqIQMMAAsLAkADQCADIAFPDQEgAiADIAAgA2otAAD7DgAgA0EBaiEDDAALCyACQQAgARABC+ABAwFkAAJ/AXsjACECIAFBeHEhBAJAA0AgAyAETw0BIAAgA0EBdGr9AAQAIQUgAiADQQBqIAX9GQD7DgAgAiADQQFqIAX9GQH7DgAgAiADQQJqIAX9GQL7DgAgAiADQQNqIAX9GQP7DgAgAiADQQRqIAX9GQT7DgAgAiADQQVqIAX9GQX7DgAgAiADQQZqIAX9GQb7DgAgAiADQQdqIAX9GQf7DgAgA0EIaiEDDAALCwJAA0AgAyABTw0BIAIgAyAAIANBAXRqLwEA+w4AIANBAWohAwwACwsgAkEAIAEQAQuYAgMBZAADfwF7IwAhAyAAIANBABAAGiABQXhxIQUCQANAIAQgBU8NASAHIAMgBEEAavsNAP0aACEHIAcgAyAEQQFq+w0A/RoBIQcgByADIARBAmr7DQD9GgIhByAHIAMgBEEDavsNAP0aAyEHIAcgAyAEQQRq+w0A/RoEIQcgByADIARBBWr7DQD9GgUhByAHIAMgBEEGavsNAP0aBiEHIAcgAyAEQQdq+w0A/RoHIQcgB/0MAP8A/wD/AP8A/wD/AP8A//1O/VMNASACIARqIAcgB/1m/VsDAAAgBEEIaiEEDAALCwJAA0AgBCABTw0BIAMgBPsNACEGIAZB/wFLDQEgAiAEaiAGOgAAIARBAWohBAwACwsgBAvoAQMBZAACfwF7IwAhAiAAQXhxIQQCQANAIAMgBE8NASAFIAIgA0EAavsNAP0aACEFIAUgAiADQQFq+w0A/RoBIQUgBSACIANBAmr7DQD9GgIhBSAFIAIgA0EDavsNAP0aAyEFIAUgAiADQQRq+w0A/RoEIQUgBSACIANBBWr7DQD9GgUhBSAFIAIgA0EGavsNAP0aBiEFIAUgAiADQQdq+w0A/RoHIQUgASADQQF0aiAF/QsEACADQQhqIQMMAAsLAkADQCADIABPDQEgASADQQF0aiACIAP7DQA7AQAgA0EBaiEDDAALCws=";
+  // wasm:end
+/** The most chars a kernel takes (the size of its array of code units). */
+const kernelText = 4096;
+/** Where in the kernels' memory text is copied in and written out (`kernelText` UTF-16 code units). */
+const transfer = 4096;
+/**
+ * In Chromium the kernels read Latin-1 text longer than `mediumText` up to `kernelLatin1` chars (TextDecoder costs
+ * the same for longer text), UTF-16 text longer than `kernelUtf16` (shorter: `decodeShortUtf16`), and write text
+ * longer than `kernelWrite` (shorter costs less in JavaScript than a call), except ASCII longer than `kernelAscii`,
+ * which `TextEncoder.encodeInto` writes faster.
+ */
+const kernelLatin1 = 128, kernelUtf16 = 24, kernelWrite = 64, kernelAscii = 1024;
+
+/** The kernels, if this engine runs them; undefined until first needed. */
+let loaded: Kernels | null | undefined;
+/** The kernels in use: `loaded`, unless `useWasm(false)` turned them off. */
+let kernels: Kernels | null | undefined;
+
+/** What the kernels need of the WebAssembly API, declared here so the runtime compiles without the DOM's types. */
+interface WebAssemblyApi {
+  validate(bytes: Uint8Array, options: object): boolean;
+  Module: new (bytes: Uint8Array, options: object) => object;
+  Instance: new (module: object, imports: object) => { exports: unknown };
+}
+
+function loadKernels(): Kernels | null {
+  try {
+    const api = (globalThis as { WebAssembly?: WebAssemblyApi }).WebAssembly;
+    if (api === undefined) return null;
+    const bytes = Uint8Array.from(atob(kernelModule), (c) => c.charCodeAt(0)), options = { builtins: ["js-string"] };
+    if (!api.validate(bytes, options)) return null;
+    // No imports given: an engine without the builtins fails to link here.
+    const exports = new api.Instance(new api.Module(bytes, options), {}).exports as Kernels;
+    const k: Kernels = { ...exports, bytes: new Uint8Array(exports.memory.buffer) };
+    // A check of each kernel on known text.
+    const probe = "a\u00e9\u4e2d\ud800";
+    if (k.narrow(probe, 4, transfer) !== 2 || k.latin1(transfer, 2) !== "a\u00e9") return null;
+    k.widen(4, transfer);
+    return k.utf16(transfer, 4) === probe ? k : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The kernels in use, loaded on first use. */
+function wasm(): Kernels | null {
+  if (kernels === undefined) kernels = loaded = loaded === undefined ? loadKernels() : loaded;
+  return kernels;
+}
+
+/**
+ * Whether text is read and written with the WebAssembly kernels where they are faster than JavaScript (browsers and
+ * Deno; see `Kernels`): `useWasm(false)` turns them off, `useWasm(true)` back on where the engine runs them, and
+ * `useWasm()` only tells. The bytes are the same either way. Returns whether they are in use.
+ */
+export function useWasm(enabled?: boolean): boolean {
+  if (enabled === false) kernels = null;
+  else if (enabled === true) kernels = undefined;
+  // With Node's methods, text never needs them.
+  return nodeText === null && wasm() !== null;
+}
 
 /** The text of UTF-16 code units, unpaired surrogates included (as .NET keeps them). */
 function fromCodes(codes: ArrayLike<number>): string {
@@ -481,12 +577,32 @@ export class NinoReader {
     }
     if (header === 0) return "";
     if (header > (this.end - this.pos) >> 1) throw new NinoError(`invalid length ${header}.`);
-    return decodeUtf16(this.data, this.take(header * 2), header);
+    const at = this.take(header * 2);
+    if (nodeText === null && header > kernelUtf16 && header <= kernelText) {
+      const k = kernels === undefined ? wasm() : kernels;
+      if (k !== null) return k.utf16(this.inKernels(k, at, header * 2), header);
+    }
+    return decodeUtf16(this.data, at, header);
+  }
+
+  /** Where the `size` bytes at `at` (taken, at most 2 * kernelText) are in the kernels' memory: copied if not there. */
+  private inKernels(k: Kernels, at: number, size: number): number {
+    const data = this.data;
+    if (data.buffer === k.memory.buffer) return data.byteOffset + at;
+    k.bytes.set(data.subarray(at, at + size), transfer);
+    return transfer;
   }
 
   /** The text of `length` Latin-1 bytes at `at`. */
   private latin1(at: number, length: number): string {
-    if (nodeText === null || length > textSlice) return decodeLatin1(this.data, at, length);
+    if (nodeText === null) {
+      if (length > mediumText && length <= kernelLatin1) {
+        const k = kernels === undefined ? wasm() : kernels;
+        if (k !== null) return k.latin1(this.inKernels(k, at, length), length);
+      }
+      return decodeLatin1(this.data, at, length);
+    }
+    if (length > textSlice) return decodeLatin1(this.data, at, length);
     if (at < this.textStart || at + length > this.textEnd) {
       const end = Math.min(this.end, at + this.textSize);
       if (this.textSize < textWindow) this.textSize *= 2;
@@ -924,6 +1040,8 @@ export class NinoWriter {
     if (value === null || value === undefined) { this.i32(-1); return; }
     const length = value.length;
     if (length <= (nodeText === null ? loopText : shortText)) {
+      // Longer than shortText: nodeText is null.
+      if (length > kernelWrite && this.stringKernels(value, length)) return;
       // Narrowed in one pass while every char fits in a byte; from the first wider char on, UTF-16 instead.
       const at = this.reserve(4 + length), buffer = this.buffer;
       let i = 0;
@@ -937,6 +1055,9 @@ export class NinoWriter {
         return;
       }
       this.pos = at;
+    } else if (nodeText === null && length <= kernelText && (length <= kernelAscii || wide.test(value)) &&
+      this.stringKernels(value, length)) {
+      return;
     } else if (!wide.test(value)) {
       const at = this.reserve(4 + length);
       this.int32At(at, ~length);
@@ -951,6 +1072,26 @@ export class NinoWriter {
     }
     const view = this.view;
     for (let i = 0; i < length; i++) view.setUint16(at + 4 + 2 * i, value.charCodeAt(i), true);
+  }
+
+  /**
+   * `string` with the kernels (text of at most `kernelText` chars): one byte per char if every char fits, else UTF-16.
+   * Returns false, writing nothing, without them.
+   */
+  private stringKernels(value: string, length: number): boolean {
+    const k = kernels === undefined ? wasm() : kernels;
+    if (k === null) return false;
+    if (k.narrow(value, length, transfer) === length) {
+      const at = this.reserve(4 + length);
+      this.int32At(at, ~length);
+      this.buffer.set(k.bytes.subarray(transfer, transfer + length), at + 4);
+      return true;
+    }
+    k.widen(length, transfer);
+    const at = this.reserve(4 + 2 * length);
+    this.int32At(at, length);
+    this.buffer.set(k.bytes.subarray(transfer, transfer + 2 * length), at + 4);
+    return true;
   }
 
   /** A string as UTF-8 (`[NinoUtf8]`). Unpaired surrogates are written as U+FFFD, as in .NET. */
@@ -981,10 +1122,17 @@ export class NinoWriter {
       nodeText.latin1Write.call(buffer, value, at, length);
       return;
     }
-    if (length > loopText) {
-      // ASCII is the same in UTF-8, written in one native call; other text char by char below.
+    // Here nodeText is null, or the text is short.
+    const k = length > kernelWrite && length <= kernelText ? (kernels === undefined ? wasm() : kernels) : null;
+    if (length > (k !== null ? kernelAscii : loopText)) {
+      // ASCII is the same in UTF-8, written in one native call; other text by the kernels or char by char below.
       const { read, written } = utf8Encoder.encodeInto(value, new Uint8Array(buffer.buffer, at, length));
       if (read === length && written === length) return;
+    }
+    if (k !== null) {
+      k.narrow(value, length, transfer);
+      buffer.set(k.bytes.subarray(transfer, transfer + length), at);
+      return;
     }
     for (let i = 0; i < length; i++) buffer[at + i] = value.charCodeAt(i);
   }
@@ -1192,4 +1340,3 @@ export class NinoRegistry {
   }
 }
 
-scratchReader = new NinoReader(new Uint8Array(scratchSize));
