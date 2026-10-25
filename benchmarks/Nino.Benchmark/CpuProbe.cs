@@ -162,7 +162,8 @@ public unsafe class CopyGapProbe
     {
         nuint width = (nuint)Unsafe.SizeOf<TVector>();
         Unsafe.WriteUnaligned(d + size - width, Unsafe.ReadUnaligned<TVector>(s + size - width));
-        nuint i = size - width - ((nuint)(d + size - width) & (width - 1));
+        // The aligned stores end at i (exclusive), the last one at the aligned offset at or before the last vector.
+        nuint i = size - ((nuint)(d + size - width) & (width - 1));
         for (; i >= 4 * width; i -= 4 * width)
         {
             var a = Unsafe.ReadUnaligned<TVector>(s + i - width);
