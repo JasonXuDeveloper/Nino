@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { deserialize, NinoError, NinoReader, NinoRegistry, serialize, type NinoCodec } from "../src/nino.ts";
 import { chain, ChainCodec, hex, int32 } from "./codecs.ts";
+import { Dog, StringMap, StringMapCodec, Zoo, ZooCodec } from "./generated/Nino.Conformance.ts";
 
 class Item {
   id = 0;
@@ -174,6 +175,37 @@ describe("malicious data", () => {
     const bytes = serialize(ChainCodec, chain(3)), padded = new Uint8Array(bytes.length + 10).fill(0xff);
     padded.set(bytes);
     assert.equal(deserialize(ChainCodec, padded)!.value, 1);
+  });
+
+  it("reads dictionary keys like __proto__ through generated code as Map entries, touching no prototype", () => {
+    // Keys that would reach a prototype, or read as present, on an object made by `{}`; values that are objects too.
+    const keys = ["__proto__", "constructor", "prototype", "toString", "hasOwnProperty", "valueOf", "0", "length"];
+    const counts = Object.assign(new StringMap(), { Values: new Map<string | null, number>(keys.map((k, i) => [k, i])) });
+    const read = deserialize(StringMapCodec, serialize(StringMapCodec, counts))!;
+    assert.ok(read.Values instanceof Map);
+    assert.deepEqual([...read.Values], [...counts.Values!]);
+    const dog = Object.assign(new Dog(), { Name: "rex", polluted: true });
+    const zoo = Object.assign(new Zoo(), { ByName: new Map<string | null, Dog>(keys.map((k) => [k, dog])) });
+    const back = deserialize(ZooCodec, serialize(ZooCodec, zoo))!;
+    assert.deepEqual([...back.ByName!.keys()], keys);
+    for (const value of back.ByName!.values()) assert.ok(value instanceof Dog);
+    for (const map of [read.Values, back.ByName!]) {
+      assert.equal(Object.getPrototypeOf(map), Map.prototype);
+      assert.deepEqual(Object.keys(map), []);
+    }
+    const plain = {} as Record<string, unknown>;
+    assert.equal(plain.polluted, undefined);
+    assert.equal(plain.Name, undefined);
+    assert.equal(Object.getPrototypeOf(plain), Object.prototype);
+    assert.equal(typeof plain.toString, "function");
+  });
+
+  it("rejects __proto__ read twice as a dictionary key through generated code", () => {
+    // Written as two entries (count 2): an object made by `{}` would drop both through the __proto__ setter.
+    const key = [...int32(~9), ..."__proto__"].map((c) => (typeof c === "string" ? c.charCodeAt(0) : c));
+    const bytes = Uint8Array.from([1, ...int32(2), ...key, ...int32(1), ...key, ...int32(2)]);
+    assert.throws(() => deserialize(StringMapCodec, bytes), /repeated in a map or set/);
+    assert.throws(() => deserialize(StringMapCodec, bytes), NinoError);
   });
 
   it("reads random bytes without anything but a NinoError", () => {
