@@ -23,7 +23,7 @@ func tierName(t int) string { return [...]string{"Go", "NEON"}[t] }
 // one is taken.
 var hasWire, hasRead = len(writeTiers) > 0, len(readTiers) > 0
 
-var useWire, useRead = hasWire, hasRead
+var useWire, useRead = false, false // test branch: forced
 
 // latin1UTF8NEON writes n Latin-1 bytes at src as UTF-8 at dst (room for 2*n+16 bytes) and returns the bytes
 // written; utf16UTF8NEON writes units UTF-16 code units at src as WTF-8 at dst (room for 3*units+16). Both read
