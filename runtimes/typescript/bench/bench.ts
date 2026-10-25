@@ -7,6 +7,7 @@ import { Bench } from "tinybench";
 import { deserialize, serialize, type NinoCodec } from "./gen/nino.ts";
 import * as b from "./gen/Bench.ts";
 import { protobuf } from "./protobuf.ts";
+import { LookupIntCodec, LookupObjCodec } from "./lookup-variants.ts";
 
 /** The serializers, in the order of the tables. */
 export const serializers = ["Nino", "Protobuf", "MessagePack", "JSON"] as const;
@@ -130,6 +131,8 @@ const scenarios: [string, string, NinoCodec<never>][] = [
   ["Mesh 20 x (2 x 500 Vec3, 1500 int)", "mesh", b.MeshCodec],
   ["Samples 20 x (3 x 1000 numbers)", "samples", b.SamplesCodec],
   ["Lookup 50 x (2 maps of 100)", "lookup", b.LookupCodec],
+  ["Lookup, null-prototype objects", "lookup-obj", LookupObjCodec],
+  ["Lookup, int keys in a null-prototype object", "lookup-intobj", LookupIntCodec],
   ["Event x1000 (long)", "events", b.EventCodec],
   ["Strings 1000 (ASCII)", "strings", b.StringsCodec],
   ["Strings 1000 (ASCII, Latin-1, other)", "strings-mixed", b.StringsCodec],
@@ -140,7 +143,7 @@ export async function run(read: (name: string) => Promise<Uint8Array>, only = ""
   Promise<Row[]> {
   const rows: Row[] = [];
   for (const [name, file, codec] of scenarios)
-    if (file.startsWith(only)) rows.push(...await scenario(name, file, await read(file), codec, options));
+    if (file.startsWith(only)) rows.push(...await scenario(name, file.replace(/-(obj|intobj)$/, ""), await read(file.replace(/-(obj|intobj)$/, "")), codec, options));
   return rows;
 }
 
