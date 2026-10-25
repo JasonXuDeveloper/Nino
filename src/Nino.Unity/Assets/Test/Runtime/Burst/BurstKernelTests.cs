@@ -31,31 +31,45 @@ namespace Test.Runtime.Burst
         {
             Assert.IsTrue(BurstCompiler.IsEnabled, "Burst is off");
             Assert.IsTrue(NinoBurst.Register(), "the kernels did not register");
-            // 1: SSSE3, 2: AArch64 Neon; 0 would be the scalar branch (or managed code, not Burst's).
+            // SSSE3, AVX2 or AArch64 Neon; 0 would be the scalar branch (or managed code, not Burst's).
             Assert.AreNotEqual(0, NinoBurst.Isa);
-            Debug.Log($"Nino Burst kernels: instruction set {(NinoBurst.Isa == 1 ? "SSSE3" : "AArch64 Neon")}");
+            Debug.Log($"Nino Burst kernels: instruction set {NinoBurst.IsaName}");
         }
 
         [OneTimeTearDown]
         public void Restore() => NinoBurst.Register();
 
-        private static NinoKernels Kernels
+        /// <summary>Every instruction set the kernels take on this machine: SSSE3 and AVX2 on an AVX2 CPU.</summary>
+        private static int[] Tiers
         {
             get
             {
                 Assert.IsTrue(NinoBurst.Register());
-                return NinoKernels.Current;
+                return NinoBurst.Isa == NinoBurst.Avx2 ? new[] { NinoBurst.Ssse3, NinoBurst.Avx2 } : new[] { NinoBurst.Isa };
             }
+        }
+
+        private static NinoKernels Use(int tier)
+        {
+            Assert.IsTrue(NinoBurst.Register(tier));
+            return NinoKernels.Current;
         }
 
         [Test]
         public void PermuteMatchesTheScalarReference()
         {
-            var kernels = Kernels;
+            foreach (int tier in Tiers)
+                Permute(Use(tier), NinoBurst.IsaName);
+        }
+
+        private static void Permute(NinoKernels kernels, string tier)
+        {
             var random = new Random(1);
             for (int trial = 0; trial < 4000; trial++)
             {
-                int from = random.Next(1, 65), to = random.Next(1, 65);
+                // Half the values of up to 16 bytes, the ones the AVX2 path takes two or more a vector.
+                int most = trial % 2 == 0 ? 17 : 65;
+                int from = random.Next(1, most), to = random.Next(1, most);
                 int count = trial % 4 == 0 ? random.Next(0, 300) : random.Next(0, 70);
                 var table = new byte[to];
                 for (int j = 0; j < to; j++)
@@ -73,14 +87,19 @@ namespace Test.Runtime.Burst
                 }
 
                 if (!burst.SequenceEqual(scalar))
-                    Assert.Fail($"permute of {count} values, {from} to {to} bytes");
+                    Assert.Fail($"{tier}: permute of {count} values, {from} to {to} bytes");
             }
         }
 
         [Test]
         public void NarrowAndWidenMatchTheScalarReference()
         {
-            var kernels = Kernels;
+            foreach (int tier in Tiers)
+                NarrowAndWiden(Use(tier), NinoBurst.IsaName);
+        }
+
+        private static void NarrowAndWiden(NinoKernels kernels, string tier)
+        {
             var random = new Random(2);
             for (int n = 16; n < 600; n++)
             for (int bad = -1; bad < n; bad += Math.Max(1, n / 4))
@@ -100,9 +119,9 @@ namespace Test.Runtime.Burst
                     expected = NinoKernels.NarrowScalar(c, s, n);
                 }
 
-                Assert.AreEqual(expected, narrowed, $"narrow {n}, bad at {bad}");
+                Assert.AreEqual(expected, narrowed, $"{tier}: narrow {n}, bad at {bad}");
                 if (expected)
-                    CollectionAssert.AreEqual(scalar, burst, $"narrow {n}");
+                    CollectionAssert.AreEqual(scalar, burst, $"{tier}: narrow {n}");
             }
 
             for (int n = 16; n < 600; n++)
@@ -118,7 +137,7 @@ namespace Test.Runtime.Burst
                     NinoKernels.WidenScalar(p, s, n);
                 }
 
-                CollectionAssert.AreEqual(scalar, burst, $"widen {n}");
+                CollectionAssert.AreEqual(scalar, burst, $"{tier}: widen {n}");
             }
         }
 
@@ -127,13 +146,17 @@ namespace Test.Runtime.Burst
         {
             NinoBurst.Unregister();
             byte[] scalar = NinoSerializer.Serialize(value);
-            Assert.IsTrue(NinoBurst.Register());
-            byte[] burst = NinoSerializer.Serialize(value);
-            CollectionAssert.AreEqual(scalar, burst, what);
-            byte[] again = NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(burst));
+            foreach (int tier in Tiers)
+            {
+                Use(tier);
+                byte[] burst = NinoSerializer.Serialize(value);
+                CollectionAssert.AreEqual(scalar, burst, $"{NinoBurst.IsaName}: {what}");
+                byte[] again = NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(burst));
+                CollectionAssert.AreEqual(scalar, again, $"{NinoBurst.IsaName}: {what}");
+            }
+
             NinoBurst.Unregister();
-            CollectionAssert.AreEqual(scalar, again, what);
-            CollectionAssert.AreEqual(scalar, NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(burst)), what);
+            CollectionAssert.AreEqual(scalar, NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(scalar)), what);
             Assert.IsTrue(NinoBurst.Register());
         }
 
@@ -175,15 +198,17 @@ namespace Test.Runtime.Burst
                 BitConverter.GetBytes(values[i].Item2).CopyTo(expected, 4 + i * 5 + 1);
             }
 
-            Assert.IsTrue(NinoBurst.Register());
-            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values));
-            CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<(byte, int)[]>(expected));
-
             // 40 Latin-1 chars: ~length, then a byte each.
             string text = new string(Enumerable.Range(0, 40).Select(i => (char)(0xA0 + i)).ToArray());
             var latin1 = BitConverter.GetBytes(~40).Concat(text.Select(c => (byte)c)).ToArray();
-            CollectionAssert.AreEqual(latin1, NinoSerializer.Serialize(text));
-            Assert.AreEqual(text, NinoDeserializer.Deserialize<string>(latin1));
+            foreach (int tier in Tiers)
+            {
+                Use(tier);
+                CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values), NinoBurst.IsaName);
+                CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<(byte, int)[]>(expected), NinoBurst.IsaName);
+                CollectionAssert.AreEqual(latin1, NinoSerializer.Serialize(text), NinoBurst.IsaName);
+                Assert.AreEqual(text, NinoDeserializer.Deserialize<string>(latin1), NinoBurst.IsaName);
+            }
         }
 
         [Test]
@@ -192,8 +217,11 @@ namespace Test.Runtime.Burst
             var values = Enumerable.Range(0, 64).Select(i => (i, i % 2 == 0)).ToArray();
             byte[] bytes = NinoSerializer.Serialize(values);
             bytes[4 + 33 * 5 + 4] = 2;
-            Assert.IsTrue(NinoBurst.Register());
-            Assert.Throws<NinoDataException>(() => NinoDeserializer.Deserialize<(int, bool)[]>(bytes));
+            foreach (int tier in Tiers)
+            {
+                Use(tier);
+                Assert.Throws<NinoDataException>(() => NinoDeserializer.Deserialize<(int, bool)[]>(bytes), NinoBurst.IsaName);
+            }
         }
     }
 }

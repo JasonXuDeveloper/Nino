@@ -6,11 +6,13 @@ usage: unity_report.py <tag> <lines file>...
 Each file holds one Unity version's lines (unity.yml, benchmark on: grep of the player's and the editor's logs):
 
     NINO_UNITY_BUILD|key=value|...   the editor that built the player (Test.Editor.Burst.BenchmarkPlayerBuild):
-                                     unity, target, backend, il2cpp_config, il2cpp_codegen, stripping, development, burst
+                                     unity, target, backend, il2cpp_config, il2cpp_codegen, stripping, development, burst,
+                                     burst_x64_targets (the variants Burst AOT compiles, e.g. "SSE2 SSE4 AVX2")
     NINO_UNITY_ENV|key=value|...     the player (Test.Runtime.Burst.BurstBenchmark): unity, backend, development, isa,
                                      cpu, cores, os, family, arch, rounds, batch_ms
     NINO_UNITY_CI|key=value|...      the workflow: nino_core (the build configuration of Nino.Core.dll), runner
     NINO_UNITY_BENCH|case|operation|n|ns without Burst|ns with Burst
+    NINO_UNITY_TIER|case|operation|n|ns without|ns SSSE3|ns AVX2   (AVX2 CPUs; not in the section)
 
 It prints one section: the heading (HEADING, never the words "Performance Report", by which the docs site finds the
 .NET report), a line per Unity version naming the player and the machine, then a table per Unity version. No table has
@@ -87,7 +89,13 @@ def environment(run):
         cpu += f" ({env['cores']} cores)"
     items = [f"Unity {unity}", player(run), f"{family} {arch}", cpu]
     if build.get("burst"):
-        items.append(f"Burst {build['burst']}")
+        targets = build.get("burst_x64_targets", "")
+        if targets == "default":
+            items.append(f"Burst {build['burst']} (its default x64 targets)")
+        elif targets:
+            items.append(f"Burst {build['burst']} (x64 targets {', '.join(targets.split())})")
+        else:
+            items.append(f"Burst {build['burst']}")
     items.append(f"kernels {env.get('isa', '?')}")
     return ", ".join(items) + "."
 
