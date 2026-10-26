@@ -1,8 +1,7 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase6/string-varint: the Go list kernels (AVX-512, NEON) with their loop heads aligned to 32 bytes on both sides
-# (A/B only: edd1bed main, 958b8e1 head), by buffer offset and on the string cases; then TypeScript and Rust, main
-# 36cfdbf against the varint headers with the TypeScript long-header fix (9933558).
-go:.#6 edd1bed 958b8e1 XOffsets
-go#6 edd1bed 958b8e1 /strings-(1000|mixed-1000)/Nino
-typescript 36cfdbf 9933558
-rust 36cfdbf 9933558
+# phase6/string-varint: main 36cfdbf against the varint headers with the list kernels' loop heads aligned and the NEON
+# header store one instruction shorter (c34f11c), Go string cases 10 rounds; TypeScript main against itself (noise floor),
+# then against c34f11c.
+go#10 36cfdbf c34f11c /strings-(1000|mixed-1000)/Nino
+typescript 36cfdbf 36cfdbf
+typescript 36cfdbf c34f11c
