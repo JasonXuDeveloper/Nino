@@ -1,7 +1,8 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase6/string-varint: main 36cfdbf against the varint headers with the list kernels' loop heads aligned and the NEON
-# header store one instruction shorter (c34f11c), Go string cases 10 rounds; TypeScript main against itself (noise floor),
-# then against c34f11c.
-go#10 36cfdbf c34f11c /strings-(1000|mixed-1000)/Nino
-typescript 36cfdbf 36cfdbf
-typescript 36cfdbf c34f11c
+# phase6/string-varint: main 36cfdbf against the branch tip (e067060, Go as c34f11c) and three placements of the Arm64
+# list kernel's loop heads: aligned to 16 bytes (e5d0772), the short-string branch targets aligned too (5becf28),
+# none aligned (6fed3f2); Go string cases, 10 rounds each.
+go#10 36cfdbf e067060 /strings-(1000|mixed-1000)/Nino
+go#10 36cfdbf e5d0772 /strings-(1000|mixed-1000)/Nino
+go#10 36cfdbf 5becf28 /strings-(1000|mixed-1000)/Nino
+go#10 36cfdbf 6fed3f2 /strings-(1000|mixed-1000)/Nino
