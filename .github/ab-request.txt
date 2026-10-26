@@ -1,7 +1,9 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase6/string-varint: main 36cfdbf against the branch tip (9670933, Go as c34f11c) once more, and two changes to the
-# Arm64 list kernel: the string count kept in R26 instead of loaded each string (8fc1cfe), mnext and mdone aligned to
-# 64 bytes (83e6184); Go string cases, 10 rounds each.
-go#10 36cfdbf 9670933 /strings-(1000|mixed-1000)/Nino
-go#10 36cfdbf 8fc1cfe /strings-(1000|mixed-1000)/Nino
-go#10 36cfdbf 83e6184 /strings-(1000|mixed-1000)/Nino
+# phase7/string-header: string headers of 1, 3 or 5 bytes, the first byte giving the size (ab-string-header fe5fbaa),
+# against main 36cfdbf, and main against itself (the floor): Go string cases 12 rounds, TypeScript, Rust.
+go#12 36cfdbf fe5fbaa /strings-(1000|mixed-1000)/Nino
+go#12 36cfdbf 36cfdbf /strings-(1000|mixed-1000)/Nino
+typescript 36cfdbf fe5fbaa
+typescript 36cfdbf 36cfdbf
+rust 36cfdbf fe5fbaa
+rust 36cfdbf 36cfdbf

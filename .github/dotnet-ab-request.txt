@@ -1,6 +1,8 @@
 # [cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...> (see .github/workflows/dotnet-ab.yml); one job per line.
-# phase6/string-varint: Uri only, 12 rounds: main 36cfdbf against 9670933, main against itself, and 9670933 again, on
-# EPYC 7763 and Arm64, to tell its bimodal times from the floor.
-cpu='7763|Neoverse' 36cfdbf 9670933 12 *BclTypesTest.Nino*Uri*
-cpu='7763|Neoverse' 36cfdbf 36cfdbf 12 *BclTypesTest.Nino*Uri*
-cpu='7763|Neoverse' 36cfdbf 9670933 12 *BclTypesTest.Nino*Uri*
+# phase7/string-header: string headers of 1, 3 or 5 bytes, the first byte giving the size (MessagePack style), on
+# 36cfdbf (ab-string-header fe5fbaa): the string cases, main against the branch twice and main against itself twice,
+# 6 rounds each, on EPYC 7763 and Arm64.
+cpu='7763|Neoverse' 36cfdbf fe5fbaa 6 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
+cpu='7763|Neoverse' 36cfdbf 36cfdbf 6 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
+cpu='7763|Neoverse' 36cfdbf fe5fbaa 6 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
+cpu='7763|Neoverse' 36cfdbf 36cfdbf 6 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
