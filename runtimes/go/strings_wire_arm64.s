@@ -794,6 +794,35 @@ mtext:
 	ADD     $(1+const_wireSlack), R10
 	CMP     R16, R10
 	BHI     mfinish
+	// ASCII text of fewer than 16 bytes: the 16 bytes from the one before it, masked (where they lie in one page),
+	// the header, 2n+1, in the first, stored where the string goes: the header and the text in one store (see the
+	// amd64 list kernels).
+	CMP     $16, R2
+	BHS     mlong
+	SUB     $1, R1, R6
+	AND     $4095, R6, R8
+	CMP     $4080, R8
+	BHI     mlong
+	VLD1    (R6), [V0.B16]
+	ADD     $(N_MASK+15), R21, R8
+	SUB     R2, R8, R8
+	VLD1    (R8), [V1.B16]
+	VAND    V1.B16, V0.B16, V0.B16
+	LSL     $1, R2, R11
+	ADD     $1, R11
+	VMOV    R11, V0.B[0]
+	VMOV    V0.D[0], R8
+	VMOV    V0.D[1], R9
+	ORR     R8, R9, R10
+	TST     R22, R10
+	BNE     mlong
+	VST1    [V0.B16], (R15)
+	ADD     R2, R15, R15
+	ADD     $1, R15
+	ADD     $1, R14
+	B       mnext
+
+mlong:
 	ADD     $1, R15, R4
 	MOVD    R4, R5
 	MOVD    $0, R3

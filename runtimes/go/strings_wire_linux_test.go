@@ -46,6 +46,38 @@ func TestWireStringPageEnd(t *testing.T) {
 	}
 }
 
+// TestWireStringsPageStart writes lists of strings that start at the first byte after a page that cannot be read:
+// the list kernels' path for short ASCII text reads from the byte before the text, and must not there.
+func TestWireStringsPageStart(t *testing.T) {
+	page := syscall.Getpagesize()
+	mem, err := syscall.Mmap(-1, 0, 2*page, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE)
+	if err != nil {
+		t.Skip("mmap:", err)
+	}
+	defer syscall.Munmap(mem)
+	defer resetWire()
+	copy(mem[page:], strings.Repeat("abcdefgh", 8)+"é")
+	if err := syscall.Mprotect(mem[:page], syscall.PROT_NONE); err != nil {
+		t.Skip("mprotect:", err)
+	}
+	for n := 1; n <= 66; n++ {
+		s := unsafe.String(unsafe.SliceData(mem[page:]), n)
+		strs := []string{s, s, s[:n/2]}
+		setWire(0)
+		ref := NewWriter(0)
+		WriteStrings(ref, strs)
+		for _, tier := range wireTiers() {
+			setWire(tier)
+			w := NewWriter(0)
+			WriteStrings(w, strs)
+			if string(w.Bytes()) != string(ref.Bytes()) {
+				t.Fatalf("%q (%s): WriteStrings wrote\n% X\nwant\n% X", s, tierName(tier), w.Bytes(), ref.Bytes())
+			}
+		}
+		resetWire()
+	}
+}
+
 // TestReadVectorPageEnds converts text that starts at the first byte after a page that cannot be read, and text
 // that ends at the last byte before one: the reader's vector path must read no byte outside the text.
 func TestReadVectorPageEnds(t *testing.T) {
