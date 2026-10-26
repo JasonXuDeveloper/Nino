@@ -168,36 +168,23 @@ pub(crate) fn write(w: &mut Writer<'_>, text: &str) -> Result<()> {
 }
 
 /// Writes each of `values` in the default encoding (a list's elements): runs of short ASCII strings through
-/// [`crate::simd::ascii_strings`], with one reservation a run and the output's end in a register; after a string that
-/// ends a run, the next ones one at a time through [`write`] (which takes short ASCII first): [`MIXED`], twice as many
-/// after each run that ends early, back to [`MIXED`] after a full run. A list of mixed text pays for a run's setup
-/// ever more rarely, and a list of short ASCII after some other text finds its runs again.
+/// [`crate::simd::ascii_strings`], with one reservation a run and the output's end in a register, while they last;
+/// from the first string that is not, each through [`write`], as other lists are written.
 #[inline]
 pub(crate) fn write_strings(w: &mut Writer<'_>, values: &[String]) -> Result<()> {
     let mut rest = values;
-    let mut mixed = MIXED;
     loop {
         let (done, run) = crate::simd::ascii_strings(w.buffer(), rest);
         rest = rest.get(done..).unwrap_or_default();
-        if done == run {
-            if rest.is_empty() {
-                return Ok(());
-            }
-            mixed = MIXED;
-            continue;
+        if done < run || rest.is_empty() {
+            break;
         }
-        let (some, tail) = rest.split_at(rest.len().min(mixed));
-        for v in some {
-            write(w, v)?;
-        }
-        rest = tail;
-        // At most `MIXED << 10`: no wrap.
-        mixed = mixed.wrapping_mul(2).min(MIXED << 10);
     }
+    for v in rest {
+        write(w, v)?;
+    }
+    Ok(())
 }
-
-/// How many strings [`write_strings`] first writes one at a time after a run of short ASCII ends.
-const MIXED: usize = 8;
 
 /// Text with a char above U+007F, written as Latin-1 when every char is at most U+00FF, else as UTF-16: transcoded
 /// straight into the buffer after room for the longest header its length allows ([`crate::simd::transcode`]), and
