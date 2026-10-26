@@ -1,4 +1,5 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase6/string-varint: Go string cases, 10 rounds: main 36cfdbf against itself (noise floor), then against the varint headers (ab-string-varint 5a1c091).
-go#10 36cfdbf 36cfdbf /strings-(1000|mixed-1000)/Nino
-go#10 36cfdbf 5a1c091 /strings-(1000|mixed-1000)/Nino
+# phase6/string-varint: Go with the one-byte header read in place and the short end inline (53aaa33), against main 36cfdbf;
+# then the string lists at four buffer offsets (an A/B-only benchmark on both sides: 74581c7 main, 4a3bef7 head).
+go#10 36cfdbf 53aaa33 /strings-(1000|mixed-1000)/Nino
+go:.#6 74581c7 4a3bef7 XOffsets
