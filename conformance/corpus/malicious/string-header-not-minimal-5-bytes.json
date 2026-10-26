@@ -1,10 +1,10 @@
 {
-  "case": "string-utf16-int-max",
+  "case": "string-header-not-minimal-5-bytes",
   "type": "Conformance.Targets.TextValue",
   "category": "string",
   "expected": "error",
-  "exercises": "A header of int.MaxValue UTF-16 code units (2^32 - 2 bytes) with 4 bytes present.",
-  "size": 9,
+  "exercises": "The header 129 written in five bytes (81 81 00 00 00).",
+  "size": 70,
   "layouts": {
     "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
   },

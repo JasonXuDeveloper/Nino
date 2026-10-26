@@ -9,23 +9,37 @@ using System.Runtime.Intrinsics;
 namespace Nino.Core.Internal
 {
     /// <summary>
-    /// The string encoding (<see cref="Writer.Write(string)"/>): an <c>int32</c> header, then the chars.
+    /// The string encoding (<see cref="Writer.Write(string)"/>): a header <c>h</c>, then the chars.
     /// <list type="bullet">
-    /// <item>A string whose chars are all at most U+00FF (Latin-1, which covers ASCII): <c>~length</c> (-2 for one
-    /// char, -3 for two, ...), then one byte per char.</item>
-    /// <item>Any other string: its length, then its UTF-16 code units. The empty string is <c>0</c>.</item>
-    /// <item>Null: <c>-1</c>.</item>
+    /// <item>A string whose chars are all at most U+00FF (Latin-1, which covers ASCII): <c>2 * length + 1</c> (odd;
+    /// <c>1</c> for the empty string), then one byte per char.</item>
+    /// <item>Any other string: <c>2 * length</c> (even), then its UTF-16 code units.</item>
+    /// <item>Null: <c>0</c>.</item>
     /// </list>
-    /// ASCII text (names, ids, URLs, JSON) takes half the bytes of UTF-16, and text that is not Latin-1 (CJK, emoji)
-    /// keeps UTF-16, which is smaller than UTF-8 for CJK. Both directions are a straight copy that narrows or widens
-    /// each char, vectorized on .NET 8 and later.
+    /// The header's first byte gives its size, as MessagePack's string markers do: <c>h</c> itself up to 0x7F (up to
+    /// 63 chars), else 0x80 and <c>h</c> as a <c>ushort</c> (up to 32,767 chars) or 0x81 and <c>h</c> as a
+    /// <c>uint</c>, minimal (the shortest form that holds it). One load and a compare read the common header, and a
+    /// longer one is a fixed-size load after a marker, never a loop. ASCII text (names, ids, URLs,
+    /// JSON) takes half the bytes of UTF-16, and text that is not Latin-1 (CJK, emoji) keeps UTF-16, which is smaller
+    /// than UTF-8 for CJK. Both directions are a straight copy that narrows or widens each char, vectorized on .NET 8
+    /// and later.
     /// </summary>
     internal static class NinoStrings
     {
+        /// <summary>The most bytes a string header (a marker and a <c>uint</c>) takes.</summary>
+        public const int MaxHeaderSize = 5;
+
+        /// <summary>Header of a null string.</summary>
+        public const byte NullHeader = 0;
+
+        /// <summary>Header of the empty string (Latin-1, no chars).</summary>
+        public const byte EmptyHeader = 1;
+
         /// <summary>The most bytes <see cref="Write"/> writes for <paramref name="value"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int MaxSize(string value) =>
-            value == null ? NinoWire.LengthSize : NinoWire.LengthSize + value.Length * sizeof(char);
+            // A string has fewer than 2^30 chars, so this does not overflow.
+            value == null ? 1 : MaxHeaderSize + value.Length * sizeof(char);
 
         /// <summary>
         /// Writes <paramref name="value"/> at <paramref name="destination"/>, which has room for
@@ -36,8 +50,8 @@ namespace Nino.Core.Internal
         {
             if (value == null)
             {
-                NinoUnsafe.Write(ref destination, NinoWire.NullLength);
-                return NinoWire.LengthSize;
+                destination = NullHeader;
+                return 1;
             }
 
             return WriteChars(ref destination, ref MemoryMarshal.GetReference(value.AsSpan()), value.Length);
@@ -45,19 +59,70 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Writes the <paramref name="length"/> chars at <paramref name="chars"/> like a string of them, at
-        /// <paramref name="destination"/> (room for <c>4 + 2 * length</c> bytes). Returns the bytes written.
+        /// <paramref name="destination"/> (room for <c>5 + 2 * length</c> bytes). Returns the bytes written.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int WriteChars(ref byte destination, ref char chars, int length)
         {
-            ref byte body = ref Unsafe.Add(ref destination, NinoWire.LengthSize);
-            if (Narrow(ref chars, ref body, length))
+            // Up to 16 chars (7 without vectors: most names, ids and keys) inline, with a one-byte header; longer
+            // text (a one-byte header up to 63 chars) out of line. The tests are the ones the narrowing took before
+            // the header had one size, in the same order, so the header adds no branch.
+            nuint n = (uint)length;
+            ref byte body = ref Unsafe.Add(ref destination, 1);
+#if NET8_0_OR_GREATER
+            if (Vector128.IsHardwareAccelerated && n >= 8)
             {
-                NinoUnsafe.Write(ref destination, length == 0 ? 0 : ~length);
-                return NinoWire.LengthSize + length;
+                if (n > 16)
+                    return WriteLong(ref destination, ref chars, length);
+                if (!Narrow8To16(ref Unsafe.As<char, ushort>(ref chars), ref body, n))
+                    return WriteUtf16(ref destination, ref chars, length);
+            }
+            else
+#endif
+            {
+                if (n >= 8)
+                    return WriteLong(ref destination, ref chars, length);
+                if (!NarrowSmall(ref chars, ref body, n))
+                    return WriteUtf16(ref destination, ref chars, length);
             }
 
-            return WriteUtf16(ref destination, ref chars, length);
+            destination = (byte)(length * 2 + 1);
+            return 1 + length;
+        }
+
+        // More than 16 chars (7 without vectors), up to 63: a header of one byte, written after the chars are narrowed
+        // straight to where they go, as before the header had several sizes. Longer text in a method of its own, so the
+        // header's size is not a value kept across the narrowing here.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int WriteLong(ref byte destination, ref char chars, int length)
+        {
+            if (length > 63)
+                return WriteLonger(ref destination, ref chars, length);
+#if NET8_0_OR_GREATER
+            // 17 to 63 chars: at most four 128-bit steps, faster than Ascii.FromUtf16's setup (a URL of 53 chars took
+            // 10% longer through it, as the header was moved to its odd offset).
+            bool narrowed = Vector128.IsHardwareAccelerated
+                ? Narrow16s(ref Unsafe.As<char, ushort>(ref chars), ref Unsafe.Add(ref destination, 1), (uint)length)
+                : Narrow(ref chars, ref Unsafe.Add(ref destination, 1), (uint)length);
+            if (!narrowed)
+#else
+            if (!Narrow(ref chars, ref Unsafe.Add(ref destination, 1), (uint)length))
+#endif
+                return WriteUtf16(ref destination, ref chars, length);
+            destination = (byte)(length * 2 + 1);
+            return 1 + length;
+        }
+
+        // 64 chars or more: the header's size depends on the length only (2n and 2n + 1 take as many bytes).
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int WriteLonger(ref byte destination, ref char chars, int length)
+        {
+            uint header = (uint)length * 2;
+            int start = HeaderSize(header);
+            if (!Narrow(ref chars, ref Unsafe.Add(ref destination, start), (uint)length))
+                return WriteUtf16(ref destination, ref chars, length);
+            WriteHeader(ref destination, header + 1);
+            return start + length;
         }
 
         // Not Latin-1: the narrowed prefix is overwritten. Out of line: Copy of a size not known in advance takes all
@@ -65,10 +130,112 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static int WriteUtf16(ref byte destination, ref char chars, int length)
         {
-            NinoUnsafe.Write(ref destination, length);
-            NinoUnsafe.Copy(ref Unsafe.Add(ref destination, NinoWire.LengthSize), ref Unsafe.As<char, byte>(ref chars),
+            int start = WriteHeader(ref destination, (uint)length * 2);
+            NinoUnsafe.Copy(ref Unsafe.Add(ref destination, start), ref Unsafe.As<char, byte>(ref chars),
                 (uint)length * sizeof(char));
-            return NinoWire.LengthSize + length * sizeof(char);
+            return start + length * sizeof(char);
+        }
+
+        /// <summary>Marker of a header of three bytes: a <c>ushort</c> from 0x80 to 0xFFFF follows.</summary>
+        public const byte Header16 = 0x80;
+
+        /// <summary>Marker of a header of five bytes: a <c>uint</c> from 0x10000 up follows.</summary>
+        public const byte Header32 = 0x81;
+
+        /// <summary>The bytes the header <paramref name="value"/> takes: 1, 3 or 5.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int HeaderSize(uint value) => value < 0x80 ? 1 : value <= ushort.MaxValue ? 3 : 5;
+
+        /// <summary>
+        /// Writes <paramref name="value"/> as a header at <paramref name="destination"/> (room for 5 bytes) and
+        /// returns the bytes it took: the value itself below 0x80, else a marker and the value as a <c>ushort</c> or
+        /// a <c>uint</c>, the shortest that holds it.
+        /// </summary>
+        public static int WriteHeader(ref byte destination, uint value)
+        {
+            if (value < 0x80)
+            {
+                destination = (byte)value;
+                return 1;
+            }
+
+            if (value <= ushort.MaxValue)
+            {
+                destination = Header16;
+                NinoUnsafe.Write(ref Unsafe.Add(ref destination, 1), (ushort)value);
+                return 3;
+            }
+
+            destination = Header32;
+            NinoUnsafe.Write(ref Unsafe.Add(ref destination, 1), value);
+            return 5;
+        }
+
+        /// <summary>
+        /// Reads the string header at <paramref name="source"/> (<paramref name="available"/> bytes, at least one):
+        /// returns the header in the low 32 bits and the bytes it takes in the high ones. Inline for a header of one
+        /// byte (strings of up to 63 chars); the others out of line.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ulong ReadHeader(ref byte source, int available)
+        {
+            uint first = source;
+            return first < 0x80 ? first | (1ul << 32) : ReadLongHeader(ref source, available);
+        }
+
+        /// <summary>
+        /// <see cref="ReadHeader"/> with a header of three bytes (strings of up to 32,767 chars) inline too, for a
+        /// reader of long text that is not itself inlined into a larger read (<c>StringBuilder</c>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ulong ReadHeaderWide(ref byte source, int available)
+        {
+            uint first = source;
+            if (first < 0x80)
+                return first | (1ul << 32);
+            if (first == Header16 && available >= 3)
+            {
+                uint value = NinoUnsafe.Read<ushort>(ref Unsafe.Add(ref source, 1));
+                if (value >= 0x80)
+                    return value | (3ul << 32);
+            }
+
+            return ReadLongHeader(ref source, available);
+        }
+
+        /// <summary>
+        /// <see cref="WriteHeader"/> out of line, for a header of five bytes (strings of 32,768 chars or more, whose
+        /// copy takes far longer than the call).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void WriteLongHeader(ref byte destination, uint value) => WriteHeader(ref destination, value);
+
+        /// <summary>
+        /// A header of three or five bytes (a first byte of 0x80 or above): as <see cref="ReadHeader"/>. Rejects
+        /// another first byte, a header cut by the end of the data and one that a shorter form holds (not minimal).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ulong ReadLongHeader(ref byte source, int available)
+        {
+            uint first = source;
+            if (first == Header16)
+            {
+                if (available < 3)
+                    NinoThrow.EndOfData();
+                uint value = NinoUnsafe.Read<ushort>(ref Unsafe.Add(ref source, 1));
+                if (value < 0x80)
+                    NinoThrow.InvalidData("string header not minimal.");
+                return value | (3ul << 32);
+            }
+
+            if (first != Header32)
+                NinoThrow.InvalidData("string header out of range.");
+            if (available < 5)
+                NinoThrow.EndOfData();
+            uint wide = NinoUnsafe.Read<uint>(ref Unsafe.Add(ref source, 1));
+            if (wide <= ushort.MaxValue)
+                NinoThrow.InvalidData("string header not minimal.");
+            return wide | (5ul << 32);
         }
 
         /// <summary>
@@ -79,55 +246,140 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string Read(ref byte source, int available, string current, out int size)
         {
-            if ((uint)available < NinoWire.LengthSize)
+            if (available <= 0)
                 NinoThrow.EndOfData();
-            int header = NinoUnsafe.Read<int>(ref source);
-            ref byte chars = ref Unsafe.Add(ref source, NinoWire.LengthSize);
-            available -= NinoWire.LengthSize;
-            if (header < NinoWire.NullLength)
+            uint header = source;
+            ref byte chars = ref Unsafe.Add(ref source, 1);
+            // A one-byte header (up to 63 chars) inline, with the chars at a constant offset; longer out of line.
+            // Latin-1 (an odd header of 3 to 127) is one test, as it was with the int32 header: (header - 3) rotated
+            // right by one is below 63 exactly then (an even difference below 125; an odd one sets the top bit).
+            uint latin1 = Half(header - 3);
+            if (latin1 < 63)
             {
-                int length = ~header;
+                uint length = latin1 + 1;
                 // One bounds check: the string is only allocated after it.
-                if ((uint)length > (uint)available)
+                if (length >= (uint)available)
                     NinoThrow.EndOfData();
-                size = NinoWire.LengthSize + length;
-                return current != null && current.Length == length && SameLatin1(ref chars, current)
+                size = 1 + (int)length;
+                return current != null && current.Length == (int)length && SameLatin1(ref chars, current)
                     ? current
-                    : NewLatin1(ref chars, length);
+                    : NewLatin1(ref chars, (int)length);
             }
 
-            if (header > 0)
+            // UTF-16: an even header of 2 to 126, the same test.
+            uint units = Half(header - 2);
+            if (units < 63)
             {
-                ulong bytes = (ulong)(uint)header * sizeof(char);
-                if (bytes > (uint)available)
+                uint length = units + 1;
+                uint bytes = length * sizeof(char);
+                if (bytes >= (uint)available)
                     NinoThrow.EndOfData();
-                size = NinoWire.LengthSize + (int)bytes;
-                return current != null && current.Length == header && SameChars(ref chars, current)
+                size = 1 + (int)bytes;
+                return current != null && current.Length == (int)length && SameChars(ref chars, current)
                     ? current
-                    : New(ref chars, header);
+                    : New(ref chars, (int)length);
             }
 
-            size = NinoWire.LengthSize;
-            return header == 0 ? string.Empty : null;
+            return ReadRest(ref source, available, current, out size);
+        }
+
+        /// <summary><paramref name="value"/> rotated right by one bit: its half, its low bit moved to the top.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static uint Half(uint value) => (value >> 1) | (value << 31);
+
+        /// <summary><see cref="Read"/> of null, the empty string and a header of three or five bytes.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static string ReadRest(ref byte source, int available, string current, out int size)
+        {
+            uint header = source;
+            if (header < 2)
+            {
+                size = 1;
+                return header == NullHeader ? null : string.Empty;
+            }
+
+            // Returned in registers (no out: its address would keep a local in memory in the caller).
+            SizedString read = ReadLong(ref source, available, current);
+            size = read.Size;
+            return read.Value;
+        }
+
+        /// <summary><see cref="Read"/> for a header of three or five bytes.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static SizedString ReadLong(ref byte source, int available, string current)
+        {
+            // Three bytes (64 to 32,767 chars: descriptions, paths, short documents) here, without a second call.
+            if (source == Header16 && available >= 3)
+            {
+                uint wide = NinoUnsafe.Read<ushort>(ref Unsafe.Add(ref source, 1));
+                if (wide < 0x80)
+                    NinoThrow.InvalidData("string header not minimal.");
+                string three = Body(ref Unsafe.Add(ref source, 3), available - 3, wide, 3, current,
+                    out int threeSize);
+                return new SizedString(three, threeSize);
+            }
+
+            ulong read = ReadLongHeader(ref source, available);
+            int start = (int)(read >> 32);
+            string value = Body(ref Unsafe.Add(ref source, start), available - start, (uint)read, start, current,
+                out int size);
+            return new SizedString(value, size);
         }
 
         /// <summary>
-        /// Narrows the <paramref name="length"/> chars at <paramref name="source"/> to bytes at
-        /// <paramref name="destination"/>; false (with part of them written) when one is above U+00FF. Inline up to
-        /// 16 chars; longer text out of line (see <see cref="Widen"/>).
+        /// The string whose <paramref name="header"/> takes <paramref name="start"/> bytes, its chars at
+        /// <paramref name="chars"/> (<paramref name="available"/> bytes).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool Narrow(ref char source, ref byte destination, int length)
+        private static string Body(ref byte chars, int available, uint header, int start, string current,
+            out int size)
         {
-            nuint n = (uint)length;
-#if NET8_0_OR_GREATER
-            if (Vector128.IsHardwareAccelerated && n >= 8)
+            if (header >= 2)
             {
-                return n > 16
-                    ? NarrowVector(ref Unsafe.As<char, ushort>(ref source), ref destination, n)
-                    : Narrow8To16(ref Unsafe.As<char, ushort>(ref source), ref destination, n);
+                uint length = header >> 1;
+                if ((header & 1) != 0)
+                {
+                    // One bounds check: the string is only allocated after it.
+                    if (length > (uint)available)
+                        NinoThrow.EndOfData();
+                    size = start + (int)length;
+                    return current != null && current.Length == (int)length && SameLatin1(ref chars, current)
+                        ? current
+                        : NewLatin1(ref chars, (int)length);
+                }
+
+                ulong bytes = (ulong)length * sizeof(char);
+                if (bytes > (uint)available)
+                    NinoThrow.EndOfData();
+                size = start + (int)bytes;
+                return current != null && current.Length == (int)length && SameChars(ref chars, current)
+                    ? current
+                    : New(ref chars, (int)length);
             }
+
+            size = start;
+            return header == NullHeader ? null : string.Empty;
+        }
+
+        /// <summary>
+        /// Narrows the <paramref name="n"/> chars at <paramref name="source"/> (more than 16; 8 or more without
+        /// vectors) to bytes at <paramref name="destination"/>; false (with part of them written) when one is above
+        /// U+00FF.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool Narrow(ref char source, ref byte destination, nuint n)
+        {
+#if NET8_0_OR_GREATER
+            if (Vector128.IsHardwareAccelerated)
+                return NarrowVector(ref Unsafe.As<char, ushort>(ref source), ref destination, n);
 #endif
+            return NarrowWords(ref source, ref destination, n); // without vectors
+        }
+
+        /// <summary>As <see cref="Narrow"/>, for fewer than 8 chars: inline.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool NarrowSmall(ref char source, ref byte destination, nuint n)
+        {
             if (n - 4 < 4)
             {
                 // 4 to 7 chars: the first four and the last four.
@@ -139,9 +391,6 @@ namespace Nino.Core.Internal
                 NinoUnsafe.Write(ref Unsafe.Add(ref destination, (nint)(n - 4)), Pack4(tail));
                 return true;
             }
-
-            if (n >= 8)
-                return NarrowWords(ref source, ref destination, n); // without vectors
 
             for (nuint i = 0; i < n; i++)
             {
@@ -171,8 +420,8 @@ namespace Nino.Core.Internal
         }
 #endif
 
-        // n >= 8 without vectors: four chars at a time, then the rest.
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        // n >= 8 without vectors: four chars at a time, then the rest. Inlined into its one caller, WriteLong.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe bool NarrowWords(ref char source, ref byte destination, nuint n)
         {
 #if !NET8_0_OR_GREATER
@@ -205,8 +454,9 @@ namespace Nino.Core.Internal
         }
 
 #if NET8_0_OR_GREATER
-        // n > 16. Whole vectors, then the last one again overlapping the previous (the chars are the same).
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        // n > 16. Whole vectors, then the last one again overlapping the previous (the chars are the same). Inlined
+        // into its one caller, WriteLong, which is out of line itself.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe bool NarrowVector(ref ushort source, ref byte destination, nuint n)
         {
             // ASCII through the runtime's own narrowing (512-bit and unrolled where it can be): 1,000 chars in 22 ns
@@ -236,14 +486,21 @@ namespace Nino.Core.Internal
                 }
             }
 
-            // 17 to 31 chars (or no 256-bit vectors).
-            var high128 = Vector128.Create((ushort)0xFF00);
+            // No 256-bit vectors.
+            return Narrow16s(ref source, ref destination, n);
+        }
+
+        // n >= 16, sixteen chars at a time, then the last sixteen again overlapping the previous.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool Narrow16s(ref ushort source, ref byte destination, nuint n)
+        {
+            var high = Vector128.Create((ushort)0xFF00);
             nuint j = 0;
             while (true)
             {
                 var a = Vector128.LoadUnsafe(ref source, j);
                 var b = Vector128.LoadUnsafe(ref source, j + 8);
-                if (((a | b) & high128) != Vector128<ushort>.Zero)
+                if (((a | b) & high) != Vector128<ushort>.Zero)
                     return false;
                 Vector128.Narrow(a, b).StoreUnsafe(ref destination, j);
                 if (j + 16 == n)
@@ -555,5 +812,20 @@ namespace Nino.Core.Internal
             }
         }
 #endif
+    }
+
+    /// <summary>A string read out of line and the bytes it took: returned in registers, where an out parameter would
+    /// keep the caller's local in memory.</summary>
+    internal readonly struct SizedString
+    {
+        public readonly string Value;
+        public readonly int Size;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public SizedString(string value, int size)
+        {
+            Value = value;
+            Size = size;
+        }
     }
 }

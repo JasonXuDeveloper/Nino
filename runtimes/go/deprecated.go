@@ -39,7 +39,7 @@ func (w *Writer) Utf8(s string) { w.UTF8(s) }
 // Deprecated: use [Writer.UTF8Ptr].
 func (w *Writer) Utf8Ptr(s *string) {
 	if s == nil {
-		w.Null()
+		w.U8(0)
 		return
 	}
 	w.UTF8(*s)

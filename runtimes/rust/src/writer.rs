@@ -70,22 +70,38 @@ impl<'a> Writer<'a> {
         self.buf.get_mut(start..).unwrap_or_default()
     }
 
-    /// A length or header, then `bytes`: one capacity check for both (a string).
+    /// A string header, then `bytes`: one capacity check for both.
     #[inline]
-    pub(crate) fn header_bytes(&mut self, header: i32, bytes: &[u8]) {
-        self.buf.reserve(bytes.len().saturating_add(4));
-        self.buf.extend_from_slice(&header.to_le_bytes());
+    pub(crate) fn header_bytes(&mut self, header: u32, bytes: &[u8]) {
+        let (h, n) = crate::strings::header(header);
+        self.buf.reserve(bytes.len().saturating_add(n));
+        self.buf.extend_from_slice(h.get(..n).unwrap_or_default());
         self.buf.extend_from_slice(bytes);
     }
 
-    /// Ends a string started at `at` with a zero header and followed by its chars: writes the header (the chars
-    /// written: bytes for Latin-1, code units for UTF-16).
+    /// A string header alone.
     #[inline]
-    pub(crate) fn end_header(&mut self, at: usize, latin1: bool) -> Result<()> {
-        let size = self.buf.len().saturating_sub(at).saturating_sub(4);
-        let count = if latin1 { size } else { size / 2 };
-        let header = i32::try_from(count).map_err(|_| Error::too_large())?;
-        self.patch_i32(at, if latin1 { !header } else { header });
+    pub(crate) fn header(&mut self, header: u32) {
+        let (h, n) = crate::strings::header(header);
+        self.buf.extend_from_slice(h.get(..n).unwrap_or_default());
+    }
+
+    /// Ends a string started at `at` with `room` zero bytes for its header and followed by its chars: writes the
+    /// header (of the chars written: bytes for Latin-1, code units for UTF-16), moving the chars down when it takes
+    /// fewer bytes than `room`.
+    #[inline]
+    pub(crate) fn end_header(&mut self, at: usize, room: usize, latin1: bool) -> Result<()> {
+        let start = at.saturating_add(room);
+        let size = self.buf.len().saturating_sub(start);
+        let header = crate::strings::string_header(if latin1 { size } else { size / 2 }, latin1)?;
+        let (h, n) = crate::strings::header(header);
+        if n < room {
+            self.buf.copy_within(start.., at.saturating_add(n));
+            self.buf.truncate(at.saturating_add(n).saturating_add(size));
+        }
+        if let (Some(dst), Some(src)) = (self.buf.get_mut(at..at.saturating_add(n)), h.get(..n)) {
+            dst.copy_from_slice(src);
+        }
         Ok(())
     }
 
@@ -182,7 +198,7 @@ impl<'a> Writer<'a> {
     pub fn string(&mut self, value: Option<&str>) -> Result<()> {
         match value {
             None => {
-                self.null_length();
+                self.buf.push(crate::strings::NULL_HEADER);
                 Ok(())
             }
             Some(text) => crate::strings::write(self, text),
@@ -192,15 +208,14 @@ impl<'a> Writer<'a> {
     /// A string in the default encoding from its UTF-16 code units (unpaired surrogates included).
     pub fn wide_string(&mut self, value: Option<&[u16]>) -> Result<()> {
         let Some(units) = value else {
-            self.null_length();
+            self.buf.push(crate::strings::NULL_HEADER);
             return Ok(());
         };
-        let count = i32::try_from(units.len()).map_err(|_| Error::too_large())?;
-        if units.iter().all(|&u| u <= 0xFF) {
-            self.i32(if count == 0 { 0 } else { !count });
+        let latin1 = units.iter().all(|&u| u <= 0xFF);
+        self.header(crate::strings::string_header(units.len(), latin1)?);
+        if latin1 {
             self.buf.extend(units.iter().map(|&u| u as u8));
         } else {
-            self.i32(count);
             let out = self.reserve(units.len().saturating_mul(2));
             for (dst, u) in out.as_chunks_mut::<2>().0.iter_mut().zip(units) {
                 *dst = u.to_le_bytes();
@@ -209,27 +224,26 @@ impl<'a> Writer<'a> {
         Ok(())
     }
 
-    /// A string as UTF-8 (`[NinoUtf8]`): its length in UTF-16 code units (-1 null, 0 empty), then its byte count
-    /// and bytes.
+    /// A string as UTF-8 (`[NinoUtf8]`): its length in UTF-16 code units plus one (0 null, 1 empty), then its byte
+    /// count and bytes, the counts string headers.
     pub fn utf8(&mut self, value: Option<&str>) -> Result<()> {
         let Some(text) = value else {
-            self.null_length();
+            self.buf.push(crate::strings::NULL_HEADER);
             return Ok(());
         };
         if text.is_empty() {
-            self.i32(0);
+            self.buf.push(crate::strings::EMPTY_HEADER);
             return Ok(());
         }
         let chars = crate::strings::utf16_len(text.as_bytes());
-        let chars = i32::try_from(chars).map_err(|_| Error::too_large())?;
-        let size = i32::try_from(text.len()).map_err(|_| Error::too_large())?;
-        // One reservation: the two counts, then the bytes.
-        self.buf.reserve(text.len().saturating_add(8));
-        let mut header = [0u8; 8];
-        let (c, s) = header.split_at_mut(4);
-        c.copy_from_slice(&chars.to_le_bytes());
-        s.copy_from_slice(&size.to_le_bytes());
-        self.buf.extend_from_slice(&header);
+        let chars = u32::try_from(chars).ok().filter(|&c| c <= i32::MAX as u32).ok_or_else(Error::too_large)?;
+        let size = u32::try_from(text.len()).ok().filter(|&c| c <= i32::MAX as u32).ok_or_else(Error::too_large)?;
+        // One reservation: the two counts, then the bytes. `chars <= i32::MAX`: `chars + 1` cannot wrap.
+        let (c, cn) = crate::strings::header(chars.wrapping_add(1));
+        let (b, bn) = crate::strings::header(size);
+        self.buf.reserve(text.len().saturating_add(10));
+        self.buf.extend_from_slice(c.get(..cn).unwrap_or_default());
+        self.buf.extend_from_slice(b.get(..bn).unwrap_or_default());
         self.buf.extend_from_slice(text.as_bytes());
         Ok(())
     }

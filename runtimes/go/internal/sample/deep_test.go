@@ -255,7 +255,7 @@ func TestPolymorphism(t *testing.T) {
 	for _, id := range []int32{idCat, idAnimal, 12345} {
 		data := []byte{1}
 		data = binary.LittleEndian.AppendUint32(data, uint32(idDog))
-		data = append(data, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0)
+		data = append(data, 0, 0, 0, 0, 0)                        // Name null, then the next member
 		data = binary.LittleEndian.AppendUint32(data, uint32(id)) // the Dog slot
 		if _, err := nino.Deserialize(data, ReadZoo); !errors.Is(err, nino.ErrUnknownType) {
 			t.Fatalf("id %x in a Dog slot: %v", id, err)

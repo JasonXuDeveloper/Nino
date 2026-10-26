@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import fc from "fast-check";
 import { deserialize, deserializeExact, NinoError, NinoReader, NinoRegistry, serialize, type NinoCodec } from "../src/nino.ts";
-import { chain, ChainCodec, hex, int32 } from "./codecs.ts";
+import { chain, ChainCodec, hex, int32, strHeader } from "./codecs.ts";
 import { Dog, StringMap, StringMapCodec, Zoo, ZooCodec } from "./generated/Nino.Conformance.ts";
 
 class Item {
@@ -83,7 +83,8 @@ describe("malicious data", () => {
       assert.throws(() => reader().set((r) => r.u8()), NinoError);
       assert.throws(() => reader().map((r) => r.u8(), (r) => r.u8()), NinoError);
       assert.throws(() => reader().bytes(), NinoError);
-      assert.throws(() => reader().string(), NinoError);
+      assert.throws(() => new NinoReader(Uint8Array.from(strHeader(2 * count))).string(), NinoError);
+      assert.throws(() => new NinoReader(Uint8Array.from(strHeader(2 * count + 1))).string(), NinoError);
       assert.throws(() => reader().region(), NinoError);
       assert.throws(() => reader().take(count), NinoError);
     }
@@ -162,13 +163,13 @@ describe("malicious data", () => {
       return [...int32(members.length), ...members];
     };
     const entry = (key: number, value: number[]) => [...int32(key), ...int32(value.length), ...value];
-    const b = [...int32(~2), 0x68, 0x69];
+    const b = [...strHeader(5), 0x68, 0x69];
     assert.deepEqual(read(body(entry(2, b), entry(9, [1, 2, 3]), entry(1, int32(7)))), { a: 7, b: "hi" });
     assert.throws(() => read(body(entry(1, [...int32(7), 0]))), /bytes left over at the end of a keyed member/);
     assert.throws(() => read(body(entry(2, [...b, 0x21]))), /bytes left over at the end of a keyed member/);
     // A value read past its entry: the string's length claims a byte of the next entry.
     const long = body(entry(2, b), entry(1, int32(7)));
-    long[4 + 8] = ~3 & 0xff;
+    long[4 + 8] = 7;
     assert.throws(() => read(long), /runs past the end/);
   });
 
@@ -203,7 +204,7 @@ describe("malicious data", () => {
 
   it("rejects __proto__ read twice as a dictionary key through generated code", () => {
     // Written as two entries (count 2): an object made by `{}` would drop both through the __proto__ setter.
-    const key = [...int32(~9), ..."__proto__"].map((c) => (typeof c === "string" ? c.charCodeAt(0) : c));
+    const key = [...strHeader(19), ..."__proto__"].map((c) => (typeof c === "string" ? c.charCodeAt(0) : c));
     const bytes = Uint8Array.from([1, ...int32(2), ...key, ...int32(1), ...key, ...int32(2)]);
     assert.throws(() => deserialize(StringMapCodec, bytes), /repeated in a map or set/);
     assert.throws(() => deserialize(StringMapCodec, bytes), NinoError);

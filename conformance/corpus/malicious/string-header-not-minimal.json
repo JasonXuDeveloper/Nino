@@ -1,0 +1,15 @@
+{
+  "case": "string-header-not-minimal",
+  "type": "Conformance.Targets.TextValue",
+  "category": "string",
+  "expected": "error",
+  "exercises": "The header 7 (\"abc\") written in three bytes (80 07 00): a header must be minimal.",
+  "size": 7,
+  "layouts": {
+    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "NinoDataException"
+  }
+}

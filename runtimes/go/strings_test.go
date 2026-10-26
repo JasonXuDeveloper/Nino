@@ -34,24 +34,33 @@ func refUnits(s string) []uint16 {
 	return units
 }
 
-// refBytes returns the bytes .NET writes for a string of units: ~n then n bytes when every unit is at most 0xFF,
-// else n then the units; 0 for the empty string.
-func refBytes(units []uint16) []byte {
-	if len(units) == 0 {
-		return []byte{0, 0, 0, 0}
+// refHeader appends v as a string header: v itself below 0x80, else 0x80 and a uint16 up to 0xFFFF, else 0x81 and
+// a uint32 (little-endian).
+func refHeader(out []byte, v uint64) []byte {
+	switch {
+	case v < 0x80:
+		return append(out, byte(v))
+	case v <= 0xFFFF:
+		return append(out, 0x80, byte(v), byte(v>>8))
 	}
+	return append(out, 0x81, byte(v), byte(v>>8), byte(v>>16), byte(v>>24))
+}
+
+// refBytes returns the bytes .NET writes for a string of units: 2n+1 then n bytes when every unit is at most 0xFF
+// (1 for the empty string), else 2n then the units.
+func refBytes(units []uint16) []byte {
 	narrow := true
 	for _, u := range units {
 		narrow = narrow && u <= 0xFF
 	}
 	if narrow {
-		out := binary.LittleEndian.AppendUint32(nil, uint32(^int32(len(units))))
+		out := refHeader(nil, 2*uint64(len(units))+1)
 		for _, u := range units {
 			out = append(out, byte(u))
 		}
 		return out
 	}
-	out := binary.LittleEndian.AppendUint32(nil, uint32(len(units)))
+	out := refHeader(nil, 2*uint64(len(units)))
 	for _, u := range units {
 		out = binary.LittleEndian.AppendUint16(out, u)
 	}
@@ -167,7 +176,8 @@ func TestStringEncodings(t *testing.T) {
 // s is written again.
 func checkAppended(t *testing.T, s string, want []byte) {
 	t.Helper()
-	for _, size := range []int{1 + 4 + len(s), 1 + 4 + 2*len(s)} {
+	room := stringRoom(len(s))
+	for _, size := range []int{1 + room + len(s), 1 + room + 2*len(s)} {
 		w := NewWriter(size)
 		w.U8(0xAB)
 		first := &w.buf[:1][0]
@@ -176,7 +186,7 @@ func checkAppended(t *testing.T, s string, want []byte) {
 		if w.Err() != nil || len(got) != 1+len(want) || got[0] != 0xAB || !bytes.Equal(got[1:], want) {
 			t.Fatalf("%q: wrote % X after a byte, want % X (%v)", s, got, want, w.Err())
 		}
-		if latin1 := want[3] == 0xFF; (latin1 || size > 1+4+len(s)) && &got[0] != first {
+		if latin1 := want[0]&1 == 1; (latin1 || size > 1+room+len(s)) && &got[0] != first {
 			t.Fatalf("%q: grew the buffer with room for the string", s)
 		}
 		w.String(s)

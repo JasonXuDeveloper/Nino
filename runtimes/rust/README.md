@@ -100,9 +100,15 @@ objects grows with the input.
 
 The wire has three string forms:
 
-- **Latin-1:** the header is `~n` (written when every character is ≤ U+00FF), followed by n bytes.
-- **UTF-16:** the header is `n`, followed by n code units.
-- **`[NinoUtf8]`:** the char count, then the byte count, then the bytes.
+A header's first byte gives its size, as MessagePack's string markers do: the value itself up to 0x7F (strings of up
+to 63 chars), else 0x80 and a little-endian `u16`, else 0x81 and a `u32` (1, 3 or 5 bytes), minimal; the reader
+rejects one cut short, not minimal or with another first byte, as .NET does.
+
+- **Null:** the header is 0.
+- **Latin-1:** the header is `2n + 1` (written when every character is ≤ U+00FF; 1 is the empty string), followed by
+  n bytes.
+- **UTF-16:** the header is `2n`, followed by n code units.
+- **`[NinoUtf8]`:** the char count plus one (0 null, 1 empty), then the byte count, then the bytes.
 
 How each Rust type handles them:
 

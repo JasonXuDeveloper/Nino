@@ -9,8 +9,11 @@ import (
 
 // Strings.
 //
-// The default encoding: an int32 header, -1 for null and 0 for empty; ~n (-2 for one char, -3 for two...) then n
-// bytes when every char is at most U+00FF (Latin-1, which covers ASCII); else n then n UTF-16 code units. .NET
+// The default encoding: a header h below 2^32 whose first byte gives its size, as MessagePack's string markers do: h
+// itself up to 0x7F, else 0x80 and h as a little-endian uint16 up to 0xFFFF, else 0x81 and h as a uint32; minimal
+// (the shortest form that holds h), and no other first byte. 0 for null;
+// h = 2n+1 (1 for empty) then n bytes when every char is at most U+00FF (Latin-1, which covers ASCII); else h = 2n
+// then n UTF-16 code units. .NET
 // strings are UTF-16 and may hold unpaired surrogates, which the specification requires readers to keep. Go strings
 // are bytes, usually UTF-8, which has no form for an unpaired surrogate. So strings are read as WTF-8: UTF-8, with
 // each unpaired surrogate as the 3 bytes UTF-8 would give it (ED A0 80 to ED BF BF), which no valid UTF-8 holds:
@@ -23,8 +26,8 @@ import (
 //   - [Writer.String] writes the chars of a Go string read as WTF-8: unpaired surrogates as themselves, and every
 //     other byte that is not UTF-8 as U+FFFD. [Writer.UTF16] writes code units as they are.
 //
-// [NinoUtf8] strings: an int32 char count c (UTF-16 code units; -1 null, 0 empty, nothing after either), then an
-// int32 byte count b and b bytes of UTF-8, with c <= b. The reader accepts only strict UTF-8 (no overlong forms,
+// [NinoUtf8] strings: c+1 as a header, c the char count (UTF-16 code units; 0 null, 1 empty, nothing after either),
+// then the byte count b as a header and b bytes of UTF-8, with c <= b < 2^31. The reader accepts only strict UTF-8 (no overlong forms,
 // no encoded surrogates, nothing past U+10FFFF) that decodes to exactly c code units.
 
 // String reads a string; null reads as "" (see [Reader.NullableString] to tell them apart).
@@ -33,19 +36,96 @@ func (r *Reader) String() string {
 	return s
 }
 
+// header reads a string header (see the top of this file). The string readers decode a
+// one-byte header in place instead (a call to header, above the inlining budget, cost 7-9% on short strings).
+func (r *Reader) header() uint32 {
+	b := r.buf
+	if len(b) != 0 && b[0] < 0x80 {
+		r.buf = b[1:]
+		return uint32(b[0])
+	}
+	return r.longHeader()
+}
+
+// longHeader reads a header of three or five bytes (a first byte of 0x80 or above), or fails (and returns 0) for one
+// cut by the end of the data, one with another first byte or one that a shorter form holds (not minimal).
+//
+//go:noinline
+func (r *Reader) longHeader() uint32 {
+	b := r.buf
+	if len(b) == 0 {
+		r.eof()
+		return 0
+	}
+	switch b[0] {
+	case header16:
+		if len(b) < 3 {
+			r.eof()
+			return 0
+		}
+		v := uint32(binary.LittleEndian.Uint16(b[1:3]))
+		if v < 0x80 {
+			r.Fail(CodeInvalidData, "string header not minimal")
+			return 0
+		}
+		r.buf = b[3:]
+		return v
+	case header32:
+		if len(b) < 5 {
+			r.eof()
+			return 0
+		}
+		v := binary.LittleEndian.Uint32(b[1:5])
+		if v <= 0xFFFF {
+			r.Fail(CodeInvalidData, "string header not minimal")
+			return 0
+		}
+		r.buf = b[5:]
+		return v
+	}
+	r.Fail(CodeInvalidData, "string header out of range")
+	return 0
+}
+
 // NullableString reads a string: ok is false for null.
 func (r *Reader) NullableString() (s string, ok bool) {
 	b := r.buf
-	if len(b) < 4 {
-		r.eof()
-		return "", false
+	var h uint32
+	if len(b) != 0 && b[0] < 0x80 {
+		h, b = uint32(b[0]), b[1:]
+		if h&1 != 0 && h-3 < 2*shortWords && len(b) >= 16 && len(r.text) >= 16 {
+			// Latin-1 of 1 to shortWords chars, with 16 bytes of data and of r.text left: when it is ASCII, read
+			// and stored as two words, the bytes past the text with them (r.text past the string is written again
+			// by the next), with no call to memmove. Written here, as a call (above the inlining budget) cost more
+			// than it saves.
+			n := int(h >> 1)
+			p := unsafe.Pointer(unsafe.SliceData(b))
+			w0, w1 := load64(p, 0), load64(p, 8)
+			// The bytes of the text in each word.
+			k := uint(8 * n)
+			m0, m1 := ^uint64(0), uint64(0)
+			if k < 64 {
+				m0 = 1<<k - 1
+			} else {
+				m1 = 1<<(k-64) - 1
+			}
+			if (w0&m0|w1&m1)&highBits == 0 {
+				t := unsafe.Pointer(unsafe.SliceData(r.text))
+				store64(t, 0, w0)
+				store64(t, 8, w1)
+				r.text = r.text[n:]
+				r.buf = b[n:]
+				return unsafe.String((*byte)(t), n), true
+			}
+		}
+	} else {
+		h = r.longHeader()
+		b = r.buf
 	}
-	h := int32(binary.LittleEndian.Uint32(b))
-	b = b[4:]
-	if h < NullLength {
-		// One byte a char. ^h is at least 1 and at most 2^31-1.
-		n := int(^h)
-		if n > len(b) {
+	n := uint64(h >> 1)
+	if h&1 != 0 {
+		// One byte a char; n is at most 2^31-1.
+		if n > uint64(len(b)) {
 			r.eof()
 			return "", false
 		}
@@ -55,20 +135,21 @@ func (r *Reader) NullableString() (s string, ok bool) {
 		}
 		return latin1String(b[:n]), true
 	}
-	if h > 0 {
-		size := uint64(h) * 2
+	if h != 0 {
+		size := n * 2
 		if size > uint64(len(b)) {
 			r.eof()
 			return "", false
 		}
 		r.buf = b[size:]
-		if h <= textShort/3 {
+		if n <= textShort/3 {
 			return r.utf16Short(b[:size]), true
 		}
 		return utf16String(b[:size]), true
 	}
+	// Null, or a failed header.
 	r.buf = b
-	return "", h == 0
+	return "", false
 }
 
 // StringPtr reads a string: nil for null.
@@ -83,16 +164,11 @@ func (r *Reader) StringPtr() *string {
 // UTF16 reads a string as its UTF-16 code units, unpaired surrogates included: nil for null, empty (not nil) for
 // the empty string.
 func (r *Reader) UTF16() []uint16 {
+	h := r.header()
 	b := r.buf
-	if len(b) < 4 {
-		r.eof()
-		return nil
-	}
-	h := int32(binary.LittleEndian.Uint32(b))
-	b = b[4:]
-	if h < NullLength {
-		n := int(^h)
-		if n > len(b) {
+	n := uint64(h >> 1)
+	if h&1 != 0 {
+		if n > uint64(len(b)) {
 			r.eof()
 			return nil
 		}
@@ -103,18 +179,14 @@ func (r *Reader) UTF16() []uint16 {
 		}
 		return units
 	}
-	if h > 0 {
-		size := uint64(h) * 2
+	if h != 0 {
+		size := n * 2
 		if size > uint64(len(b)) {
 			r.eof()
 			return nil
 		}
 		r.buf = b[size:]
 		return decodeUnits(b[:size])
-	}
-	r.buf = b
-	if h == 0 {
-		return []uint16{}
 	}
 	return nil
 }
@@ -136,21 +208,20 @@ func (r *Reader) UTF8Ptr() *string {
 
 // NullableUTF8 reads a [NinoUtf8] string: ok is false for null.
 func (r *Reader) NullableUTF8() (s string, ok bool) {
-	c := r.I32()
-	if c <= 0 {
-		if c == 0 {
-			return "", r.err == nil
-		}
-		if c != NullLength {
-			r.badLength(int64(c))
-		}
+	h := r.header()
+	if h <= 1 {
+		return "", h == 1 && r.err == nil
+	}
+	// As .NET: counts past 2^31-1 are invalid, a byte count past the data is data that ends early; fewer bytes
+	// than chars, or bytes that are not strict UTF-8 or decode to another number of chars, are invalid.
+	c := h - 1
+	size := r.header()
+	if c > 1<<31-1 || size > 1<<31-1 {
+		r.Fail(CodeInvalidData, "invalid UTF-8 string")
 		return "", false
 	}
-	// As .NET: a byte count past the data (or negative) is data that ends early; fewer bytes than chars, or bytes
-	// that are not strict UTF-8 or decode to another number of chars, are invalid.
-	size := r.I32()
 	b := r.buf
-	if uint32(size) > uint32(len(b)) {
+	if uint64(size) > uint64(len(b)) {
 		r.eof()
 		return "", false
 	}
@@ -351,12 +422,15 @@ func (r *Reader) stringBox(s string) *string {
 }
 
 // boxRoom gives r.boxes a new block: at most stringBoxes, and no more than the strings the data left can hold (each
-// takes at least its 4-byte header).
+// takes at least its one-byte header).
 //
 //go:noinline
 func (r *Reader) boxRoom() {
-	r.boxes = make([]string, min(stringBoxes, 1+len(r.buf)/4))
+	r.boxes = make([]string, min(stringBoxes, 1+len(r.buf)))
 }
+
+// shortWords is the most bytes of text [Reader.NullableString] reads as two words.
+const shortWords = 16
 
 // textCopy returns a copy of b (0 < len(b) <= textShort), in r.text.
 func (r *Reader) textCopy(b []byte) string {
@@ -645,7 +719,7 @@ func decodeUnits(b []byte) []uint16 {
 // NullableString writes s, or null when ok is false.
 func (w *Writer) NullableString(s string, ok bool) {
 	if !ok {
-		w.Null()
+		w.U8(0)
 		return
 	}
 	w.String(s)
@@ -654,10 +728,58 @@ func (w *Writer) NullableString(s string, ok bool) {
 // StringPtr writes *s, or null for nil.
 func (w *Writer) StringPtr(s *string) {
 	if s == nil {
-		w.Null()
+		w.U8(0)
 		return
 	}
 	w.String(*s)
+}
+
+// The first bytes of the string headers longer than a byte: a uint16 or a uint32 follows.
+const (
+	header16 = 0x80
+	header32 = 0x81
+)
+
+// headerSize returns the bytes the string header v takes: 1, 3 or 5.
+func headerSize(v uint32) int {
+	if v < 0x80 {
+		return 1
+	}
+	if v <= 0xFFFF {
+		return 3
+	}
+	return 5
+}
+
+// putHeader writes the string header v at the start of b (room for headerSize(v) bytes) and returns its size.
+func putHeader(b []byte, v uint32) int {
+	if v < 0x80 {
+		b[0] = byte(v)
+		return 1
+	}
+	if v <= 0xFFFF {
+		_ = b[2]
+		b[0] = header16
+		binary.LittleEndian.PutUint16(b[1:3], uint16(v))
+		return 3
+	}
+	_ = b[4]
+	b[0] = header32
+	binary.LittleEndian.PutUint32(b[1:5], v)
+	return 5
+}
+
+// appendHeader appends the string header v.
+func (w *Writer) appendHeader(v uint32) {
+	if v < 0x80 {
+		w.buf = append(w.buf, byte(v))
+		return
+	}
+	if v <= 0xFFFF {
+		w.buf = append(w.buf, header16, byte(v), byte(v>>8))
+		return
+	}
+	w.buf = append(w.buf, header32, byte(v), byte(v>>8), byte(v>>16), byte(v>>24))
 }
 
 // pairs2 and pairs2Want: the bits of four 2-byte UTF-8 chars (as 16-bit lanes, little-endian: the lead byte low)
@@ -687,12 +809,12 @@ func widen(v uint32) uint64 {
 // UTF16 writes a string of UTF-16 code units as they are (unpaired surrogates included): nil is null.
 func (w *Writer) UTF16(units []uint16) {
 	if units == nil {
-		w.Null()
+		w.U8(0)
 		return
 	}
 	n := len(units)
 	if n == 0 {
-		w.U32(0)
+		w.U8(1)
 		return
 	}
 	if n > maxInt32 {
@@ -706,24 +828,25 @@ func (w *Writer) UTF16(units []uint16) {
 			break
 		}
 	}
+	hs := headerSize(uint32(2 * n))
 	if narrow {
-		b := w.Extend(4 + n)
-		if len(b) < 4+n {
+		b := w.Extend(hs + n)
+		if len(b) < hs+n {
 			return
 		}
-		binary.LittleEndian.PutUint32(b, uint32(^int32(n)))
+		putHeader(b, uint32(2*n+1))
 		for i, u := range units {
-			b[4+i] = byte(u)
+			b[hs+i] = byte(u)
 		}
 		return
 	}
-	b := w.Extend(4 + 2*n)
-	if len(b) < 4+2*n {
+	b := w.Extend(hs + 2*n)
+	if len(b) < hs+2*n {
 		return
 	}
-	binary.LittleEndian.PutUint32(b, uint32(n))
+	putHeader(b, uint32(2*n))
 	for i, u := range units {
-		binary.LittleEndian.PutUint16(b[4+2*i:], u)
+		binary.LittleEndian.PutUint16(b[hs+2*i:], u)
 	}
 }
 
@@ -731,7 +854,7 @@ func (w *Writer) UTF16(units []uint16) {
 func (w *Writer) UTF8(s string) {
 	n := len(s)
 	if n == 0 {
-		w.U32(0)
+		w.U8(1)
 		return
 	}
 	bytes := stringBytes(s)
@@ -749,19 +872,25 @@ func (w *Writer) UTF8(s string) {
 		w.Fail(CodeTooLarge, "string")
 		return
 	}
-	b := w.Extend(8 + n)
-	if len(b) < 8 {
+	// The char count plus one and the byte count, headers: a byte each up to 126 bytes (units <= n).
+	if n < 0x7F {
+		b := w.Extend(2 + n)
+		if len(b) < 2 {
+			return
+		}
+		b[0], b[1] = byte(units+1), byte(n)
+		copy(b[2:], s)
 		return
 	}
-	binary.LittleEndian.PutUint32(b, uint32(units))
-	binary.LittleEndian.PutUint32(b[4:], uint32(n))
-	copy(b[8:], s)
+	w.appendHeader(uint32(units + 1))
+	w.appendHeader(uint32(n))
+	w.buf = append(w.buf, s...)
 }
 
 // NullableUTF8 writes a [NinoUtf8] string, or null when ok is false.
 func (w *Writer) NullableUTF8(s string, ok bool) {
 	if !ok {
-		w.Null()
+		w.U8(0)
 		return
 	}
 	w.UTF8(s)
@@ -770,7 +899,7 @@ func (w *Writer) NullableUTF8(s string, ok bool) {
 // UTF8Ptr writes a [NinoUtf8] string: nil is null.
 func (w *Writer) UTF8Ptr(s *string) {
 	if s == nil {
-		w.Null()
+		w.U8(0)
 		return
 	}
 	w.UTF8(*s)
@@ -801,13 +930,13 @@ func (w *Writer) wideUtf8(s string) {
 		w.Fail(CodeTooLarge, "string")
 		return
 	}
-	b := w.Extend(8 + size)
-	if len(b) < 8+size {
+	w.appendHeader(uint32(units + 1))
+	w.appendHeader(uint32(size))
+	b := w.Extend(size)
+	if len(b) < size {
 		return
 	}
-	binary.LittleEndian.PutUint32(b, uint32(units))
-	binary.LittleEndian.PutUint32(b[4:], uint32(size))
-	j := 8
+	j := 0
 	for i := 0; i < len(s); {
 		c, n := nextUnit(s, i)
 		i += n

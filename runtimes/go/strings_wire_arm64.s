@@ -719,8 +719,8 @@ sdone:
 // func wireStringsNEON(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)
 //
 // It writes strings from strs (count of them: strings, or pointers to them when ptrs, nil the null string) at dst
-// (room bytes), each with its header, while each has room for 4+2*len+wireSlack bytes and is WTF-8 of fewer than
-// wireMaxText bytes; it returns how many it wrote and the bytes they took.
+// (room bytes), each with its one-byte header, while each has room for 1+2*len+wireSlack bytes and is WTF-8 of fewer
+// than wireMaxText (64) bytes, so of at most 63 chars; it returns how many it wrote and the bytes they took.
 TEXT ·wireStringsNEON(SB), NOSPLIT, $0-56
 	MOVD    dst+0(FP), R15           // where the next string goes
 	MOVD    room+8(FP), R16
@@ -762,11 +762,10 @@ mnext:
 	MOVD    (R9)(R14<<3), R9
 	CBNZ    R9, mheader
 	// nil: the null string.
-	ADD     $4, R15, R10
+	ADD     $1, R15, R10
 	CMP     R16, R10
 	BHI     mfinish
-	MOVW    $-1, R11
-	MOVW    R11, (R15)
+	MOVB    ZR, (R15)
 	MOVD    R10, R15
 	ADD     $1, R14
 	B       mnext
@@ -778,10 +777,11 @@ mheader:
 	MOVD    (R9), R1
 	MOVD    8(R9), R2
 	CBNZ    R2, mtext
-	ADD     $4, R15, R10
+	ADD     $1, R15, R10
 	CMP     R16, R10
 	BHI     mfinish
-	MOVW    ZR, (R15)
+	MOVD    $1, R11
+	MOVB    R11, (R15)
 	MOVD    R10, R15
 	ADD     $1, R14
 	B       mnext
@@ -791,10 +791,39 @@ mtext:
 	CMP     R10, R2
 	BHS     mfinish
 	ADD     R2<<1, R15, R10
-	ADD     $(4+const_wireSlack), R10
+	ADD     $(1+const_wireSlack), R10
 	CMP     R16, R10
 	BHI     mfinish
-	ADD     $4, R15, R4
+	// ASCII text of fewer than 16 bytes: the 16 bytes from the one before it, masked (where they lie in one page),
+	// the header, 2n+1, in the first, stored where the string goes: the header and the text in one store (see the
+	// amd64 list kernels).
+	CMP     $16, R2
+	BHS     mlong
+	SUB     $1, R1, R6
+	AND     $4095, R6, R8
+	CMP     $4080, R8
+	BHI     mlong
+	VLD1    (R6), [V0.B16]
+	ADD     $(N_MASK+15), R21, R8
+	SUB     R2, R8, R8
+	VLD1    (R8), [V1.B16]
+	VAND    V1.B16, V0.B16, V0.B16
+	LSL     $1, R2, R11
+	ADD     $1, R11
+	VMOV    R11, V0.B[0]
+	VMOV    V0.D[0], R8
+	VMOV    V0.D[1], R9
+	ORR     R8, R9, R10
+	TST     R22, R10
+	BNE     mlong
+	VST1    [V0.B16], (R15)
+	ADD     R2, R15, R15
+	ADD     $1, R15
+	ADD     $1, R14
+	B       mnext
+
+mlong:
+	ADD     $1, R15, R4
 	MOVD    R4, R5
 	MOVD    $0, R3
 	MOVD    R4, R0
@@ -1114,18 +1143,21 @@ mdone:
 	CMP     R8, R7
 	BEQ     mfinish
 	TBNZ    $63, R7, mstore16
-	MVN     R7, R8
-	MOVW    R8, (R15)
-	ADD     $4, R7, R7
-	ADD     R7, R15, R15
+	// Latin-1: the header 2n+1, as (n+1)+n, n+1 also the bytes the string took.
+	ADD     $1, R7, R8
+	ADD     R7, R8, R11
+	MOVB    R11, (R15)
+	ADD     R8, R15, R15
 	ADD     $1, R14
 	B       mnext
 
 mstore16:
+	// UTF-16: the header 2n.
 	MVN     R7, R7
-	MOVW    R7, (R15)
+	LSL     $1, R7, R8
+	MOVB    R8, (R15)
 	ADD     R7<<1, R15, R15
-	ADD     $4, R15
+	ADD     $1, R15
 	ADD     $1, R14
 	B       mnext
 

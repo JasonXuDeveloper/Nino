@@ -11,8 +11,9 @@ const wireInvalid = int(^uint(0) >> 1)
 // wireSlack is the most a kernel stores past the bytes it writes: a buffer has room for that many more.
 const wireSlack = 64
 
-// wireMaxText is the length from which the list kernels leave a string to the Go code.
-const wireMaxText = 1 << 30
+// wireMaxText is the length from which the list kernels leave a string to the Go code: they write strings of fewer
+// bytes, so of at most 63 chars, whose header is one byte.
+const wireMaxText = 64
 
 func best(tiers []int) int {
 	if len(tiers) == 0 {
@@ -45,7 +46,7 @@ func (w *Writer) wireStrings(p unsafe.Pointer, strs []string, ptrs []*string) in
 		if n >= wireMaxText {
 			break
 		}
-		need += 4 + 2*n + wireSlack
+		need += 1 + 2*n + wireSlack
 	}
 	if cap(w.buf)-len(w.buf) < need {
 		w.grow(need)

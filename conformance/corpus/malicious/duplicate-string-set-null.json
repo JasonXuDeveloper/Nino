@@ -4,7 +4,7 @@
   "category": "duplicate",
   "expected": "error",
   "exercises": "HashSet<string> with null twice.",
-  "size": 13,
+  "size": 7,
   "layouts": {
     "Conformance.Targets.StringSet": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73FC2C95; deferrable=true; members=Values:System.Collections.Generic.HashSet<string>:seq(string)"
   },

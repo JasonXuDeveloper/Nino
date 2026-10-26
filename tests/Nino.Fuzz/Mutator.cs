@@ -5,7 +5,8 @@ namespace Nino.Fuzz
 {
     /// <summary>
     /// Byte-level mutations aimed at Nino's format: lengths, counts and type ids are little-endian int32s, so most
-    /// mutations write an interesting 32-bit value (or one relative to the bytes left) at a random offset.
+    /// mutations write an interesting 32-bit value (or one relative to the bytes left) at a random offset, some of
+    /// them as a string's header instead.
     /// </summary>
     public sealed class Mutator
     {
@@ -45,7 +46,22 @@ namespace Nino.Fuzz
                 {
                     // An int32 at pos: an interesting value, or the number of bytes left give or take a few.
                     int v = _rng.Next(3) == 0 ? d.Count - pos - 4 + _rng.Next(-8, 9) : Interesting[_rng.Next(Interesting.Length)];
-                    if (_rng.Next(4) == 0) v = ~v; // Nino writes some lengths complemented (strings: ~length).
+                    if (_rng.Next(4) == 0)
+                    {
+                        // A string header (twice the length, plus one for Latin-1): one byte below 0x80, else 0x80
+                        // and a ushort or 0x81 and a uint, sometimes in a longer form than it needs (not minimal).
+                        uint h = _rng.Next(2) == 0 ? (uint)v : (uint)Math.Max(0, d.Count - pos) * 2 + (uint)_rng.Next(2);
+                        int form = h < 0x80 ? 0 : h <= 0xFFFF ? 1 : 2;
+                        if (_rng.Next(8) == 0) form = _rng.Next(3);
+                        if (form == 0) d[pos] = (byte)h;
+                        else
+                        {
+                            d[pos] = form == 1 ? (byte)0x80 : (byte)0x81;
+                            for (int b = 0; b < (form == 1 ? 2 : 4) && pos + 1 + b < d.Count; b++)
+                                d[pos + 1 + b] = (byte)(h >> (8 * b));
+                        }
+                        break;
+                    }
                     for (int b = 0; b < 4 && pos + b < d.Count; b++) d[pos + b] = (byte)(v >> (8 * b));
                     break;
                 }

@@ -853,15 +853,6 @@ namespace Nino.Core
             default(UnmanagedArrayFormatter<T>).Deserialize(ref value, ref this);
         }
 
-        private static string EmptyOrNull(int length)
-        {
-            if (length == 0)
-                return string.Empty;
-            if (length != NinoWire.NullLength)
-                NinoThrow.InvalidLength(length);
-            return null;
-        }
-
         /// <summary>Reads a string written by <see cref="Writer.Write(string)"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read(out string value) => value = ReadString();
@@ -971,37 +962,67 @@ namespace Nino.Core
         }
 
         /// <summary>Reads a UTF-8 string written by <see cref="Writer.WriteUtf8(string)"/>.</summary>
-        // Inlined, with the transcoding out of line taking values: an instance call would take the reader's address,
-        // which keeps all its fields in memory in the caller.
+        // Inlined for a string of 1 to 126 chars and up to 127 bytes (both counts one byte), with the transcoding
+        // out of line taking values: an instance call would take the reader's address, which keeps all its fields in
+        // memory in the caller. Anything else (null, empty, longer counts) is read out of line too.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string ReadUtf8()
         {
             int remaining = Avail;
             ref byte start = ref Cur;
-            int length;
-            if ((uint)remaining >= 2 * sizeof(int))
+            if (remaining >= 2)
             {
-                // The char count and the byte count in one load.
-                ulong counts = NinoUnsafe.Read<ulong>(ref start);
-                length = (int)counts;
-                if (length > 0)
+                // The header is the char count plus one; 2 to 127: one byte, at least one char.
+                uint header = start;
+                uint size = Unsafe.Add(ref start, 1);
+                if (header - 2 < 0x7E && size < 0x80)
                 {
-                    int size = (int)(counts >> 32);
-                    if ((uint)size > (uint)(remaining - 2 * sizeof(int)))
+                    if (size > (uint)(remaining - 2))
                         NinoThrow.EndOfData();
                     // Moved past the string before decoding it, so nothing is kept across the call (a throw ends
                     // the read).
-                    Skip(2 * sizeof(int) + size);
-                    return DecodeUtf8(ref Unsafe.Add(ref start, 2 * sizeof(int)), size, length);
+                    Skip(2 + (int)size);
+                    return DecodeUtf8(ref Unsafe.Add(ref start, 2), (int)size, (int)header - 1);
                 }
             }
-            else
+
+            SizedString read = ReadUtf8At(ref start, remaining);
+            Skip(read.Size);
+            return read.Value;
+        }
+
+        /// <summary>
+        /// A UTF-8 string at <paramref name="source"/> (<paramref name="available"/> bytes) of any size, null or
+        /// empty: its char count plus one (0 null, 1 empty), then for a string of chars its byte count and the bytes,
+        /// both counts headers (see <see cref="NinoStrings.ReadHeader"/>), each at most 2^31 - 1, and the bytes it
+        /// takes.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static SizedString ReadUtf8At(ref byte source, int available)
+        {
+            if (available <= 0)
+                NinoThrow.EndOfData();
+            ulong read = NinoStrings.ReadHeader(ref source, available);
+            uint header = (uint)read;
+            int at = (int)(read >> 32);
+            if (header < 2)
             {
-                length = Utf8ShortCount(ref start, remaining);
+                return new SizedString(header == 0 ? null : string.Empty, at);
             }
 
-            Skip(sizeof(int));
-            return EmptyOrNull(length);
+            if (header > (uint)int.MaxValue + 1)
+                NinoThrow.InvalidData("invalid UTF-8 string.");
+            if (at >= available)
+                NinoThrow.EndOfData();
+            read = NinoStrings.ReadHeader(ref Unsafe.Add(ref source, at), available - at);
+            uint bytes = (uint)read;
+            at += (int)(read >> 32);
+            if (bytes > int.MaxValue)
+                NinoThrow.InvalidData("invalid UTF-8 string.");
+            if (bytes > (uint)(available - at))
+                NinoThrow.EndOfData();
+            return new SizedString(DecodeUtf8(ref Unsafe.Add(ref source, at), (int)bytes, (int)(header - 1)),
+                at + (int)bytes);
         }
 
         /// <summary>
@@ -1028,36 +1049,20 @@ namespace Nino.Core
 
         private string ReadUtf8Over(string current)
         {
-            if (current.Length != 0 && Avail >= 2 * sizeof(int))
+            int length = current.Length;
+            // ASCII text of up to 126 chars: as many bytes as chars (both counts one byte), compared without decoding.
+            if ((uint)(length - 1) < 0x7E && Avail >= 2 + length)
             {
                 ref byte start = ref Cur;
-                ulong counts = NinoUnsafe.Read<ulong>(ref start);
-                // ASCII text: as many bytes as chars, compared without decoding.
-                if ((int)counts == current.Length && (int)(counts >> 32) == current.Length &&
-                    current.Length <= Avail - 2 * sizeof(int) &&
-                    NinoStrings.SameAscii(ref Unsafe.Add(ref start, 2 * sizeof(int)), current))
+                if (start == length + 1 && Unsafe.Add(ref start, 1) == length &&
+                    NinoStrings.SameAscii(ref Unsafe.Add(ref start, 2), current))
                 {
-                    Skip(2 * sizeof(int) + current.Length);
+                    Skip(2 + length);
                     return current;
                 }
             }
 
             return ReadUtf8();
-        }
-
-        /// <summary>
-        /// The char count of a UTF-8 string in the last 0 to 7 bytes, where only a null or empty one (a count alone)
-        /// fits; anything else is data that ends early.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int Utf8ShortCount(ref byte src, int remaining)
-        {
-            if (remaining < sizeof(int))
-                NinoThrow.EndOfData();
-            int length = NinoUnsafe.Read<int>(ref src);
-            if (length > 0)
-                NinoThrow.EndOfData();
-            return length;
         }
 
         /// <summary>

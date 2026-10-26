@@ -310,7 +310,7 @@ func readZooBody(r *nino.Reader, v *Zoo) {
 	v.Shapes = nino.ReadSlice(r, 4, ReadShape)
 	v.Plain = ReadPlain(r)
 	v.Anything = ReadObject(r)
-	v.ByName = nino.ReadUniqueEntries(r, 8, keyString, ReadAnimal)
+	v.ByName = nino.ReadUniqueEntries(r, 5, keyString, ReadAnimal)
 }
 
 func writeZooBody(w *nino.Writer, v *Zoo) {

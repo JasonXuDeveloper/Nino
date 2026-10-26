@@ -4,7 +4,7 @@
   "category": "tolerant",
   "expected": "error",
   "exercises": "A TolerantV1 body with a region length of -2.",
-  "size": 15,
+  "size": 12,
   "layouts": {
     "Conformance.TolerantV1": "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x1DBD9212; deferrable=true; members=A:int:raw(4);B:string:string"
   },

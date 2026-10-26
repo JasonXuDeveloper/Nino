@@ -227,6 +227,16 @@ namespace Conformance
                 "a\ud800b\udfffc\udc00\ud800", "string", "utf8");
             StringCase("string-one-char-past-latin1", "Latin-1 text with one char past U+00FF at the end: UTF-16.",
                 new string('é', 100) + "Ā", "string", "utf8");
+            StringCase("string-63-chars", "63 ASCII chars: the longest string with a one-byte header.",
+                new string('a', 63), "string", "utf8");
+            StringCase("string-64-chars", "64 ASCII chars: a three-byte header.", new string('a', 64), "string", "utf8");
+            StringCase("string-64-wide-chars", "64 chars past U+00FF: a three-byte UTF-16 header, 192 bytes of UTF-8.",
+                new string('中', 64), "string", "utf8");
+            StringCase("string-43-wide-chars",
+                "43 chars past U+00FF: a one-byte header (and [NinoUtf8] char count), a three-byte UTF-8 byte count.",
+                new string('中', 43), "string", "utf8");
+            StringCase("string-32768-chars", "32,768 Latin-1 chars: a five-byte header (and a five-byte UTF-8 byte count).",
+                new string('é', 32768), "string", "utf8");
             StringCase("string-long-ascii", "10,000 ASCII chars.",
                 string.Concat(Enumerable.Range(0, 10_000).Select(i => (char)('a' + i % 26))), "string", "utf8");
             StringCase("string-long-latin1", "5,000 Latin-1 chars.", new string('ÿ', 5_000), "string", "utf8");
@@ -235,7 +245,7 @@ namespace Conformance
             Forged<Strings>("string-utf16-header-for-latin1",
                 "Latin-1 text written with a UTF-16 header (as a StringBuilder writes it): read, but written back " +
                 "with a Latin-1 header.",
-                Concat(new byte[] { 1 }, I32(3), Utf16("abc"), I32(-1)), "string");
+                Concat(new byte[] { 1 }, V(6), Utf16("abc"), V(0)), "string");
             Add("string-collections", "Strings in arrays and lists, mixed encodings and nulls.", new StringCollections
             {
                 Array = new[] { "a", null, "", "é", "中", "😀", "\udc00" },
@@ -679,6 +689,17 @@ namespace Conformance
         }
 
         internal static byte[] I32(int value) => BitConverter.GetBytes(value);
+
+        /// <summary>A string header: <paramref name="value"/> as a minimal unsigned LEB128 varint.</summary>
+        /// <summary>A string header: the value itself below 0x80, else 0x80 and a ushort, else 0x81 and a uint.</summary>
+        internal static byte[] V(ulong value)
+        {
+            if (value < 0x80)
+                return new[] { (byte)value };
+            if (value <= ushort.MaxValue)
+                return new byte[] { 0x80, (byte)value, (byte)(value >> 8) };
+            return new byte[] { 0x81, (byte)value, (byte)(value >> 8), (byte)(value >> 16), (byte)(value >> 24) };
+        }
         internal static byte[] Utf16(string s) => System.Text.Encoding.Unicode.GetBytes(s);
         internal static byte[] Concat(params byte[][] parts) => parts.SelectMany(p => p).ToArray();
     }

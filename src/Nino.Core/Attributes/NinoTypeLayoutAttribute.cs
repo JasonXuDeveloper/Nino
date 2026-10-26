@@ -69,7 +69,7 @@ namespace Nino.Core
         /// explicit offsets of the struct and of every struct inside it are all reflected. <c>raw</c> alone: a size
         /// known only at run time.</item>
         /// <item><c>string</c>: a string as <c>NinoWire</c> describes it; <c>utf8</c>: a <c>[NinoUtf8]</c> string
-        /// (int32 char count, -1 = null; for a non-empty string an int32 byte count, then UTF-8).</item>
+        /// (char count + 1 as a string header, 0 = null; for a non-empty string the byte count as one, then UTF-8).</item>
         /// <item><c>object</c>: a <c>[NinoType]</c> value by its 4-byte type id (0 = null), then its body.</item>
         /// <item><c>type(T)</c>: a <c>[NinoType]</c> (or a type parameter), as its own layout describes it.</item>
         /// <item><c>nullable(E)</c>: a byte, 0 for null, 1 followed by <c>E</c>.</item>

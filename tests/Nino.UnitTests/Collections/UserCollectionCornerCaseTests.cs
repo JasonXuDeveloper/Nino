@@ -1123,8 +1123,8 @@ public class Holder
 
         // Count, key 1, the header of a one-char Latin-1 string, "a", then the second key: made 1 too.
         var repeated = (byte[])bytes.Clone();
-        Assert.AreEqual(2, BitConverter.ToInt32(repeated, 13));
-        BitConverter.GetBytes(1).CopyTo(repeated, 13);
+        Assert.AreEqual(2, BitConverter.ToInt32(repeated, 10));
+        BitConverter.GetBytes(1).CopyTo(repeated, 10);
         var e = Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Dictionary<int, string>>(repeated));
         StringAssert.Contains(e.Message, "twice");
 

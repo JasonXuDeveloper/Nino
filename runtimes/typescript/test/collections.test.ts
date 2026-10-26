@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { deserialize, NinoError, NinoReader, NinoRegistry, NinoWriter, serialize, type NinoCodec } from "../src/nino.ts";
-import { hex, int32, toHex } from "./codecs.ts";
+import { hex, int32, toHex, strHeader } from "./codecs.ts";
 
 const i32: NinoCodec<number> = { read: (r) => r.i32(), write: (w, v) => w.i32(v) };
 const text: NinoCodec<string | null> = { read: (r) => r.string(), write: (w, v) => w.string(v) };
@@ -51,8 +51,8 @@ describe("collections", () => {
   });
 
   it("rejects a key or element read twice, as .NET's dictionaries and sets do", () => {
-    const latin1 = (t: string) => [...int32(~t.length), ...[...t].map((c) => c.charCodeAt(0))];
-    const utf16 = (t: string) => [...int32(t.length), ...[...t].flatMap((c) => [c.charCodeAt(0), 0])];
+    const latin1 = (t: string) => [...strHeader(2 * t.length + 1), ...[...t].map((c) => c.charCodeAt(0))];
+    const utf16 = (t: string) => [...strHeader(2 * t.length), ...[...t].flatMap((c) => [c.charCodeAt(0), 0])];
     const f64 = (x: number) => [...new Uint8Array(Float64Array.of(x).buffer)];
     const cases: [string, number[], (r: NinoReader) => unknown][] = [
       ["int keys", [...int32(2), ...int32(1), ...int32(5), ...int32(1), ...int32(6)], (r) => r.map(i32.read, i32.read)],
@@ -60,10 +60,10 @@ describe("collections", () => {
         (r) => r.map(text.read, i32.read)],
       ["one key in Latin-1 and in UTF-16", [...int32(2), ...latin1("a"), ...int32(5), ...utf16("a"), ...int32(6)],
         (r) => r.map(text.read, i32.read)],
-      ["null keys", [...int32(2), ...int32(-1), ...int32(5), ...int32(-1), ...int32(6)], (r) => r.map(text.read, i32.read)],
+      ["null keys", [...int32(2), 0, ...int32(5), 0, ...int32(6)], (r) => r.map(text.read, i32.read)],
       ["int elements", [...int32(3), ...int32(7), ...int32(8), ...int32(7)], (r) => r.set(i32.read)],
-      ["empty strings", [...int32(2), ...int32(0), ...int32(0)], (r) => r.set(text.read)],
-      ["null strings", [...int32(2), ...int32(-1), ...int32(-1)], (r) => r.set(text.read)],
+      ["empty strings", [...int32(2), 1, 1], (r) => r.set(text.read)],
+      ["null strings", [...int32(2), 0, 0], (r) => r.set(text.read)],
       ["NaN", [...int32(2), ...f64(NaN), ...f64(NaN)], (r) => r.set((r) => r.f64())],
     ];
     for (const [name, bytes, read] of cases)
@@ -133,7 +133,7 @@ describe("serialize", () => {
     const big = Array.from({ length: 100000 }, (_, i) => i);
     const codec: NinoCodec<number[]> = { read: (r) => r.array(i32.read)!, write: (w, v) => w.array(v, i32.write) };
     assert.deepEqual(deserialize(codec, serialize(codec, big)), big);
-    assert.equal(serialize(text, "after").length, 9);
+    assert.equal(serialize(text, "after").length, 6);
   });
 
   it("keeps every result intact across values of changing sizes", () => {

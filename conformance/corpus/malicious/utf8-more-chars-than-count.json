@@ -4,7 +4,7 @@
   "category": "utf8",
   "expected": "error",
   "exercises": "[NinoUtf8]: a char count of 1 for bytes that decode to 2 chars (\"ab\").",
-  "size": 11,
+  "size": 5,
   "layouts": {
     "Conformance.Targets.Utf8Value": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; deferrable=true; members=Value:string:utf8"
   },

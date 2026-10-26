@@ -140,7 +140,7 @@ func (b *builder) fill(c *codec, variant uint8) error {
 	case reflect.Int, reflect.Uint, reflect.Uintptr:
 		return typeErr(t, "%s has no fixed size: use int32 or int64 (uint32 or uint64)", t.Kind())
 	case reflect.String:
-		c.kind, c.min, c.utf8 = kString, 4, variant == variantUTF8
+		c.kind, c.min, c.utf8 = kString, 1, variant == variantUTF8
 		if c.utf8 {
 			c.read = func(r *Reader, v reflect.Value) { v.SetString(r.UTF8()) }
 			c.write = func(w *Writer, v reflect.Value) { w.UTF8(v.String()) }
@@ -273,7 +273,7 @@ func (b *builder) pointer(c *codec, variant uint8) error {
 	et := t.Elem()
 	switch {
 	case et.Kind() == reflect.String:
-		c.kind, c.min, c.utf8 = kStringPtr, 4, variant == variantUTF8
+		c.kind, c.min, c.utf8 = kStringPtr, 1, variant == variantUTF8
 		utf8 := c.utf8
 		c.read = func(r *Reader, v reflect.Value) {
 			var s string
@@ -583,6 +583,42 @@ func (b *builder) slice(c *codec, variant uint8) error {
 	}
 	c.kind = kSlice
 	elemSize := int(et.Size())
+	if b.fast && e.kind == kString && !e.utf8 {
+		// A slice of strings (of any type whose kind is string: the same layout) in the default encoding, on the
+		// unsafe path: read and written as generated code does (ReadSlice and WriteStrings), with no reflect.Value
+		// an element. Strings cannot nest, so it counts no depth.
+		c.read = func(r *Reader, v reflect.Value) {
+			n := r.Length(1)
+			if n < 0 {
+				v.SetZero()
+				return
+			}
+			capacity := r.SliceCap(n, elemSize)
+			s := reflect.MakeSlice(t, capacity, capacity)
+			p := unsafe.Slice((*string)(s.UnsafePointer()), capacity)
+			for i := 0; i < n; i++ {
+				if i == len(p) {
+					grown := reflect.MakeSlice(t, min(n, 2*len(p)), min(n, 2*len(p)))
+					reflect.Copy(grown, s)
+					s = grown
+					p = unsafe.Slice((*string)(s.UnsafePointer()), s.Len())
+				}
+				p[i] = r.String()
+				if r.err != nil {
+					return
+				}
+			}
+			v.Set(s)
+		}
+		c.write = func(w *Writer, v reflect.Value) {
+			if v.IsNil() {
+				w.Null()
+				return
+			}
+			WriteStrings(w, unsafe.Slice((*string)(v.UnsafePointer()), v.Len()))
+		}
+		return nil
+	}
 	c.read = func(r *Reader, v reflect.Value) {
 		n := r.Length(max(e.min, 1)) // at least 1 byte an element (spec §9.2)
 		if n < 0 {

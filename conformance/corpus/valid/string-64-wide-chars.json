@@ -1,0 +1,19 @@
+{
+  "case": "string-64-wide-chars",
+  "description": "64 chars past U+00FF: a three-byte UTF-16 header, 192 bytes of UTF-8.",
+  "type": "Conformance.Strings",
+  "features": [
+    "string",
+    "utf8"
+  ],
+  "size": 328,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Strings": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDBD0018; deferrable=true; members=Text:string:string;Utf8:string:utf8"
+  },
+  "value": {
+    "$type": "Conformance.Strings",
+    "Text": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中",
+    "Utf8": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中"
+  }
+}

@@ -35,9 +35,9 @@ public class VersionToleranceTests
         byte[] oldData =
         {
             1, // not null
-            16, 0, 0, 0, // body length
+            10, 0, 0, 0, // body length
             1, 0, 0, 0, // Id
-            4, 0, 0, 0, 4, 0, 0, 0, 84, 101, 115, 116 // Name (UTF-8: char count, byte count, bytes)
+            5, 4, 84, 101, 115, 116 // Name (UTF-8: char count plus one, byte count, bytes)
         };
         //require symbol WEAK_VERSION_TOLERANCE to be defined
 #if WEAK_VERSION_TOLERANCE

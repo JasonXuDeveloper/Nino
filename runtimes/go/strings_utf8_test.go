@@ -2,7 +2,6 @@ package nino
 
 import (
 	"bytes"
-	"encoding/binary"
 	"math/rand"
 	"testing"
 	"unicode/utf8"
@@ -29,7 +28,7 @@ func oldUtf8Units(b []byte, units int) bool {
 
 func oldUtf8(s string) []byte {
 	if s == "" {
-		return []byte{0, 0, 0, 0}
+		return []byte{1}
 	}
 	var body []byte
 	units := 0
@@ -45,8 +44,8 @@ func oldUtf8(s string) []byte {
 		}
 		body = utf8.AppendRune(body, c)
 	}
-	out := binary.LittleEndian.AppendUint32(nil, uint32(units))
-	out = binary.LittleEndian.AppendUint32(out, uint32(len(body)))
+	out := refHeader(nil, uint64(units)+1)
+	out = refHeader(out, uint64(len(body)))
 	return append(out, body...)
 }
 

@@ -328,9 +328,36 @@ func contByte(shift, at uint8) {
 }
 
 func writerSSE() {
-	w := writer{setup: setupSSE, kernel: kernelSSE}
+	w := writer{setup: setupSSE, kernel: kernelSSE, short: shortSSE}
 	single("wireStringSSE", w)
 	many("wireStringsSSE", w)
+}
+
+// shortSSE is the AVX2 kernels' short path (tier.short) 16 bytes at a time: text of fewer than 16 bytes.
+func shortSSE() {
+	c.CMPQ(RBX, U8(16))
+	c.JAE(l("long"))
+	c.LEAQ(Mem{Base: RSI, Disp: -1}, R8)
+	c.MOVL(R8L, R9L)
+	c.ANDL(U32(4095), R9L)
+	c.CMPL(R9L, U32(4080))
+	c.JA(l("long"))
+	c.LEAQ(k("MASK"), R10)
+	c.ADDQ(U8(31), R10)
+	c.SUBQ(RBX, R10) // FF for the byte before and the n bytes of text
+	c.MOVOU(Mem{Base: R8}, X0)
+	c.MOVOU(Mem{Base: R10}, X1)
+	c.PAND(X1, X0)
+	c.MOVOU(k("NOT0"), X1)
+	c.PAND(X1, X0)
+	c.PMOVMSKB(X0, R8L)
+	c.TESTL(R8L, R8L)
+	c.JNZ(l("long"))
+	c.Comment("The header, 2n+1, in the first byte.")
+	c.LEAL(Mem{Base: RBX, Index: RBX, Scale: 1, Disp: 1}, ECX)
+	c.MOVD(ECX, X1)
+	c.POR(X1, X0)
+	c.MOVOU(X0, Mem{Base: RDI})
 }
 
 // setupSSE loads what kernelSSE keeps in registers: X13 zeros, X14 the low nibble, X15 C0.

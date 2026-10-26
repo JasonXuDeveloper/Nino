@@ -32,8 +32,8 @@ namespace Nino.UnitTests
                 writer.WriteUtf8(value);
                 writer.Flush();
                 var expected = System.Text.Encoding.UTF8.GetBytes(value);
-                CollectionAssert.AreEqual(BitConverter.GetBytes(value.Length).Concat(BitConverter.GetBytes(expected.Length))
-                        .Concat(expected).ToArray(),
+                CollectionAssert.AreEqual(StringEncodingTests.Header((ulong)value.Length + 1)
+                        .Concat(StringEncodingTests.Header((ulong)expected.Length)).Concat(expected).ToArray(),
                     buffer.WrittenSpan.ToArray());
                 var reader = new Reader(buffer.WrittenSpan);
                 Assert.AreEqual(System.Text.Encoding.UTF8.GetString(expected), reader.ReadUtf8());

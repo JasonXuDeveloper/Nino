@@ -240,8 +240,8 @@ func writeStringsBody(w *nino.Writer, v *Strings) {
 }
 
 func readStringCollectionsBody(r *nino.Reader, v *StringCollections) {
-	v.Array = nino.ReadSlice(r, 4, (*nino.Reader).StringPtr)
-	v.List = nino.ReadSlice(r, 4, (*nino.Reader).StringPtr)
+	v.Array = nino.ReadSlice(r, 1, (*nino.Reader).StringPtr)
+	v.List = nino.ReadSlice(r, 1, (*nino.Reader).StringPtr)
 	v.Utf8A = r.UTF8Ptr()
 	v.Plain = r.StringPtr()
 	v.Utf8B = r.UTF8Ptr()
@@ -405,7 +405,7 @@ func readStructsBody(r *nino.Reader, v *Structs) {
 	v.VecArray = nino.ReadFixed(r, 8, decodeVec2)
 	v.PaddedList = nino.ReadFixed(r, 16, decodePadded)
 	v.MixedArray = nino.ReadFixed(r, 12, decodeMixed)
-	v.Labels = nino.ReadSlice(r, 8, readLabel)
+	v.Labels = nino.ReadSlice(r, 5, readLabel)
 	v.RawTuple.Item1 = r.U8()
 	v.RawTuple.Item2 = r.I64()
 	v.Tuple.Item1 = r.I32()
@@ -483,7 +483,7 @@ func keyString(r *nino.Reader) string {
 
 // readStringSet reads a HashSet<string> in the order of the data: a string (or null) read twice fails.
 func readStringSet(r *nino.Reader) []*string {
-	v := nino.ReadSlice(r, 4, (*nino.Reader).StringPtr)
+	v := nino.ReadSlice(r, 1, (*nino.Reader).StringPtr)
 	if v == nil {
 		return nil
 	}
@@ -504,7 +504,7 @@ func readStringSet(r *nino.Reader) []*string {
 	return v
 }
 
-func readStringList(r *nino.Reader) []*string { return nino.ReadSlice(r, 4, (*nino.Reader).StringPtr) }
+func readStringList(r *nino.Reader) []*string { return nino.ReadSlice(r, 1, (*nino.Reader).StringPtr) }
 
 func writeStringList(w *nino.Writer, v []*string) { nino.WriteSlice(w, v, (*nino.Writer).StringPtr) }
 
@@ -552,15 +552,15 @@ func readCollectionsBody(r *nino.Reader, v *Collections) {
 	v.Points = nino.ReadSlice(r, 1, ReadPoint)
 	v.PointList = nino.ReadSlice(r, 1, ReadPoint)
 	v.IntMap = nino.ReadUniqueEntries(r, 8, (*nino.Reader).I32, (*nino.Reader).I32)
-	v.StringMap = nino.ReadUniqueEntries(r, 8, keyString, (*nino.Reader).StringPtr)
-	v.PointMap = nino.ReadUniqueEntries(r, 5, keyString, ReadPoint)
+	v.StringMap = nino.ReadUniqueEntries(r, 2, keyString, (*nino.Reader).StringPtr)
+	v.PointMap = nino.ReadUniqueEntries(r, 2, keyString, ReadPoint)
 	v.ListMap = nino.ReadUniqueEntries(r, 8, (*nino.Reader).I32, readStringList)
-	v.SortedInts = nino.ReadUniqueEntries(r, 8, (*nino.Reader).I32, (*nino.Reader).StringPtr)
-	v.SortedStrings = nino.ReadUniqueEntries(r, 8, keyString, (*nino.Reader).I32)
+	v.SortedInts = nino.ReadUniqueEntries(r, 5, (*nino.Reader).I32, (*nino.Reader).StringPtr)
+	v.SortedStrings = nino.ReadUniqueEntries(r, 5, keyString, (*nino.Reader).I32)
 	v.Nested = nino.ReadSlice(r, 4, nino.ReadPrimitives[int32])
 	v.Jagged = nino.ReadSlice(r, 4, nino.ReadPrimitives[int32])
 	v.Grid = readGrid(r, 4, (*nino.Reader).I32)
-	v.StringGrid = readGrid(r, 4, (*nino.Reader).StringPtr)
+	v.StringGrid = readGrid(r, 1, (*nino.Reader).StringPtr)
 }
 
 func writeCollectionsBody(w *nino.Writer, v *Collections) {

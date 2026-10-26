@@ -6,9 +6,9 @@
     "version-tolerant",
     "versioning"
   ],
-  "size": 16,
+  "size": 13,
   "roundTrip": false,
-  "reencoded": "011700000007000000fcffffff6f6c640000000000000000ffffffff",
+  "reencoded": "011400000007000000076f6c640000000000000000ffffffff",
   "layouts": {
     "Conformance.TolerantV2": "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0xF7BB17A9; deferrable=true; members=A:int:raw(4);B:string:string;C:long:raw(8);D:System.Collections.Generic.List<int>:seq(raw(4))"
   },

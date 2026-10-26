@@ -78,31 +78,54 @@ fn lengths() {
 
 #[test]
 fn strings() {
-    round(String::new(), "00000000");
-    round(Some(String::from("abc")), "FCFFFFFF 616263");
-    round(None::<String>, "FFFFFFFF");
-    round(String::from("ÿ"), "FEFFFFFF FF");
-    round(String::from("Ā"), "01000000 0001");
-    // Latin-1 bytes for a header that says UTF-16 is still read (.NET writes Latin-1, but reads both).
-    assert_eq!(deserialize_exact::<String>(&hex("01000000 6100")).unwrap(), "a");
-    assert_eq!(kind::<String>("FDFFFFFF 61"), ErrorKind::InvalidLength);
-    assert!(matches!(kind::<String>("02000000 6100"), ErrorKind::InvalidLength | ErrorKind::UnexpectedEnd));
-    assert_eq!(kind::<String>("00000080"), ErrorKind::InvalidLength);
+    round(String::new(), "01");
+    round(Some(String::from("abc")), "07 616263");
+    round(None::<String>, "00");
+    round(String::from("ÿ"), "03 FF");
+    round(String::from("Ā"), "02 0001");
+    // UTF-16 for text that would fit Latin-1 is still read (.NET writes Latin-1, but reads both).
+    assert_eq!(deserialize_exact::<String>(&hex("02 6100")).unwrap(), "a");
+    assert_eq!(kind::<String>("05 61"), ErrorKind::InvalidLength);
+    assert!(matches!(kind::<String>("04 6100"), ErrorKind::InvalidLength | ErrorKind::UnexpectedEnd));
+    assert_eq!(kind::<String>("FFFFFFFF0F"), ErrorKind::InvalidLength);
+    // Headers that are cut, not minimal, or with a first byte no header starts with.
+    assert_eq!(kind::<String>("80"), ErrorKind::UnexpectedEnd);
+    assert_eq!(kind::<String>("8081"), ErrorKind::UnexpectedEnd);
+    assert_eq!(kind::<String>("81000001"), ErrorKind::UnexpectedEnd);
+    assert_eq!(kind::<String>("800300 61"), ErrorKind::InvalidLength);
+    assert_eq!(kind::<String>("807F00"), ErrorKind::InvalidLength);
+    assert_eq!(kind::<String>("8100000000"), ErrorKind::InvalidLength);
+    assert_eq!(kind::<String>("81FFFF0000"), ErrorKind::InvalidLength);
+    assert_eq!(kind::<String>("8207000000 616263"), ErrorKind::InvalidLength);
+    assert_eq!(kind::<String>("FFFFFFFF1F"), ErrorKind::InvalidLength);
+    // The longest one-byte header (63 chars), the shortest three-byte one (64), the longest (32,767) and the shortest
+    // five-byte one (32,768).
+    round("a".repeat(63), &format!("7F {}", "61".repeat(63)));
+    round("a".repeat(64), &format!("808100 {}", "61".repeat(64)));
+    round("a".repeat(32767), &format!("80FFFF {}", "61".repeat(32767)));
+    round("a".repeat(32768), &format!("8101000100 {}", "61".repeat(32768)));
+    round("字".repeat(32768), &format!("8100000100 {}", "575B".repeat(32768)));
 
-    round(Utf8(String::from("é")), "01000000 02000000 C3A9");
-    round(Some(Utf8(String::new())), "00000000");
+    round(Utf8(String::from("é")), "02 02 C3A9");
+    round(Some(Utf8(String::new())), "01");
+    round(None::<Utf8>, "00");
     // Byte count outside [chars, 3 * chars], bad UTF-8, or a char count that does not match.
-    assert_eq!(kind::<Utf8>("01000000 04000000 C3A9C3A9"), ErrorKind::InvalidLength);
-    assert_eq!(kind::<Utf8>("02000000 01000000 61"), ErrorKind::InvalidLength);
-    assert_eq!(kind::<Utf8>("01000000 02000000 C328"), ErrorKind::InvalidUtf8);
-    assert_eq!(kind::<Utf8>("02000000 02000000 C3A9"), ErrorKind::InvalidUtf8);
-    assert_eq!(kind::<Utf8>("01000000 03000000 EDA080"), ErrorKind::InvalidUtf8);
+    assert_eq!(kind::<Utf8>("02 04 C3A9C3A9"), ErrorKind::InvalidLength);
+    assert_eq!(kind::<Utf8>("03 01 61"), ErrorKind::InvalidLength);
+    assert_eq!(kind::<Utf8>("02 02 C328"), ErrorKind::InvalidUtf8);
+    assert_eq!(kind::<Utf8>("03 02 C3A9"), ErrorKind::InvalidUtf8);
+    assert_eq!(kind::<Utf8>("02 03 EDA080"), ErrorKind::InvalidUtf8);
     // An astral char is 2 UTF-16 units.
-    round(Utf8(String::from("😀")), "02000000 04000000 F09F9880");
+    round(Utf8(String::from("😀")), "03 04 F09F9880");
+    // A char count past i32::MAX, a byte count not minimal.
+    assert_eq!(kind::<Utf8>("8101000080 01 61"), ErrorKind::InvalidLength);
+    assert_eq!(kind::<Utf8>("02 800100 61"), ErrorKind::InvalidLength);
+    assert_eq!(kind::<Utf8>("02 8101000000 61"), ErrorKind::InvalidLength);
+    assert_eq!(kind::<Utf8>("02 FF 61"), ErrorKind::InvalidLength);
 
-    round(WideString(vec![0xDC00, 0x61]), "02000000 00DC 6100");
-    round(WideString(vec![0x61]), "FEFFFFFF 61");
-    round(None::<WideString>, "FFFFFFFF");
+    round(WideString(vec![0xDC00, 0x61]), "04 00DC 6100");
+    round(WideString(vec![0x61]), "03 61");
+    round(None::<WideString>, "00");
     // A C# char is a UTF-16 code unit (u16): lone surrogates included.
     round(0xD800u16, "00D8");
 }
@@ -111,13 +134,24 @@ fn strings() {
 /// writer's one-pass transcoding is checked against).
 fn dotnet_string(text: &str) -> Vec<u8> {
     let mut out = Vec::new();
+    // The header: the value itself below 0x80, else 0x80 and a u16, else 0x81 and a u32 (little-endian).
+    let header = |out: &mut Vec<u8>, v: u32| {
+        if v < 0x80 {
+            out.push(v as u8);
+        } else if v <= 0xFFFF {
+            out.push(0x80);
+            out.extend_from_slice(&(v as u16).to_le_bytes());
+        } else {
+            out.push(0x81);
+            out.extend_from_slice(&v.to_le_bytes());
+        }
+    };
     if text.chars().all(|c| u32::from(c) <= 0xFF) {
-        let n = text.chars().count() as i32;
-        out.extend_from_slice(&(if n == 0 { 0 } else { !n }).to_le_bytes());
+        header(&mut out, 2 * text.chars().count() as u32 + 1);
         out.extend(text.chars().map(|c| u32::from(c) as u8));
     } else {
         let units: Vec<u16> = text.encode_utf16().collect();
-        out.extend_from_slice(&(units.len() as i32).to_le_bytes());
+        header(&mut out, 2 * units.len() as u32);
         units.iter().for_each(|u| out.extend_from_slice(&u.to_le_bytes()));
     }
     out
@@ -211,8 +245,8 @@ fn string_encodings() {
         check(&text);
     }
     // Lone surrogates read as U+FFFD; a pair reads as its char.
-    assert_eq!(deserialize_exact::<String>(&hex("03000000 3DD8 00DE 00DC")).unwrap(), "😀\u{FFFD}");
-    assert_eq!(deserialize_exact::<String>(&hex("02000000 3DD8 6100")).unwrap(), "\u{FFFD}a");
+    assert_eq!(deserialize_exact::<String>(&hex("06 3DD8 00DE 00DC")).unwrap(), "😀\u{FFFD}");
+    assert_eq!(deserialize_exact::<String>(&hex("04 3DD8 6100")).unwrap(), "\u{FFFD}a");
 }
 
 #[test]
@@ -295,7 +329,7 @@ fn bit_array() {
 #[test]
 fn tuples() {
     round((1u8, 2i32), "01 02000000");
-    round((1u8, String::from("a"), Some(3i16)), "01 FEFFFFFF61 01 0300");
+    round((1u8, String::from("a"), Some(3i16)), "01 0361 01 0300");
 }
 
 #[test]
@@ -303,13 +337,13 @@ fn maps_and_sets() {
     let mut m = BTreeMap::new();
     m.insert(1i32, String::from("a"));
     m.insert(2, String::from("b"));
-    round(m, "02000000 01000000 FEFFFFFF61 02000000 FEFFFFFF62");
+    round(m, "02000000 01000000 0361 02000000 0362");
     assert_eq!(kind::<BTreeMap<i32, i32>>("02000000 01000000 02000000 01000000 03000000"), ErrorKind::DuplicateKey);
     assert_eq!(kind::<HashMap<i32, i32>>("02000000 01000000 02000000 01000000 03000000"), ErrorKind::DuplicateKey);
     assert_eq!(kind::<HashSet<u8>>("02000000 01 01"), ErrorKind::DuplicateKey);
     assert_eq!(kind::<BTreeSet<u8>>("02000000 01 01"), ErrorKind::DuplicateKey);
     round(BTreeSet::from([1u8, 2]), "02000000 01 02");
-    let h: HashMap<String, u8> = deserialize_exact(&hex("01000000 FEFFFFFF61 05")).unwrap();
+    let h: HashMap<String, u8> = deserialize_exact(&hex("01000000 0361 05")).unwrap();
     assert_eq!(h["a"], 5);
     round(None::<HashMap<u8, u8>>, "FFFFFFFF");
 }
@@ -465,7 +499,7 @@ fn chrono_feature() {
 #[test]
 fn indexmap_feature() {
     use indexmap::{IndexMap, IndexSet};
-    let bytes = hex("02000000 02000000 FEFFFFFF62 01000000 FEFFFFFF61");
+    let bytes = hex("02000000 02000000 0362 01000000 0361");
     let m: IndexMap<i32, String> = deserialize_exact(&bytes).unwrap();
     assert_eq!(m.keys().copied().collect::<Vec<_>>(), vec![2, 1]);
     assert_eq!(serialize(&m).unwrap(), bytes);

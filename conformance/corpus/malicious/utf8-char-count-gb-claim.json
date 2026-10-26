@@ -4,7 +4,7 @@
   "category": "utf8",
   "expected": "error",
   "exercises": "[NinoUtf8]: 400,000,000 chars, 1,200,000,000 bytes, 3 present.",
-  "size": 12,
+  "size": 14,
   "layouts": {
     "Conformance.Targets.Utf8Value": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; deferrable=true; members=Value:string:utf8"
   },

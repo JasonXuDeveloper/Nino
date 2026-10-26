@@ -231,89 +231,128 @@ impl<'d> Reader<'d> {
 
     // ------------------------------------------------------------------ strings
 
-    /// A string in the default encoding: null (-1), empty (0), `~n` then `n` Latin-1 bytes, or `n` then `n` UTF-16
-    /// code units. Unpaired surrogates become U+FFFD; [`Reader::wide_string`] keeps them. Always inlined (the text
-    /// is decoded out of line): returned through memory, `Result<Option<String>>` is read back in pieces that span
-    /// the stores that wrote it, which stalls.
+    /// A string header (wire format 2.3.1): its first byte gives its size (the value itself below 0x80, else a
+    /// marker and a `u16` or a `u32`), minimal. One byte inline, longer ones in [`Reader::long_header`].
+    #[inline(always)]
+    fn header(&mut self) -> Result<u32> {
+        match self.rest.split_first() {
+            Some((&first, rest)) if first < 0x80 => {
+                self.rest = rest;
+                Ok(u32::from(first))
+            }
+            _ => self.long_header(),
+        }
+    }
+
+    /// A header of three or five bytes (a first byte of 0x80 or above), or none left: rejects one cut by the end of
+    /// the data, one with another first byte and one that a shorter form holds (not minimal).
+    #[inline(never)]
+    fn long_header(&mut self) -> Result<u32> {
+        let Some((&first, rest)) = self.rest.split_first() else { return Err(Error::of(ErrorKind::UnexpectedEnd)) };
+        let value = match first {
+            crate::strings::HEADER16 => {
+                let Some((bytes, rest)) = rest.split_first_chunk::<2>() else {
+                    return Err(Error::of(ErrorKind::UnexpectedEnd));
+                };
+                let value = u32::from(u16::from_le_bytes(*bytes));
+                if value < 0x80 {
+                    return Err(Error::length(-1));
+                }
+                self.rest = rest;
+                value
+            }
+            crate::strings::HEADER32 => {
+                let Some((bytes, rest)) = rest.split_first_chunk::<4>() else {
+                    return Err(Error::of(ErrorKind::UnexpectedEnd));
+                };
+                let value = u32::from_le_bytes(*bytes);
+                if value <= 0xFFFF {
+                    return Err(Error::length(-1));
+                }
+                self.rest = rest;
+                value
+            }
+            _ => return Err(Error::length(-1)),
+        };
+        Ok(value)
+    }
+
+    /// A string in the default encoding: a header of 0 (null), `2n + 1` then `n` Latin-1 bytes (1 is empty), or `2n`
+    /// then `n` UTF-16 code units. Unpaired surrogates become U+FFFD; [`Reader::wide_string`] keeps them. Always
+    /// inlined (the text is decoded out of line): returned through memory, `Result<Option<String>>` is read back in
+    /// pieces that span the stores that wrote it, which stalls.
     #[inline(always)]
     pub fn string(&mut self) -> Result<Option<String>> {
-        let header = self.i32()?;
-        if header < 0 {
-            if header == -1 {
-                return Ok(None);
+        let header = self.header()?;
+        let count = (header >> 1) as usize;
+        if header & 1 != 0 {
+            if count == 0 {
+                return Ok(Some(String::new()));
             }
-            let bytes = self.latin1_bytes(header)?;
+            let bytes = self.take_or(count, header)?;
             return Ok(Some(crate::simd::latin1_string(bytes)));
         }
         if header == 0 {
-            return Ok(Some(String::new()));
+            return Ok(None);
         }
-        let units = self.utf16_units(header)?;
+        let units = self.utf16_units(count, header)?;
         Ok(Some(crate::simd::utf16_string(units)))
     }
 
     /// A string in the default encoding as its UTF-16 code units, unpaired surrogates included (lossless).
     pub fn wide_string(&mut self) -> Result<Option<Vec<u16>>> {
-        let header = self.i32()?;
-        if header < 0 {
-            if header == -1 {
-                return Ok(None);
-            }
-            let bytes = self.latin1_bytes(header)?;
+        let header = self.header()?;
+        let count = (header >> 1) as usize;
+        if header & 1 != 0 {
+            let bytes = self.take_or(count, header)?;
             return Ok(Some(bytes.iter().map(|&b| u16::from(b)).collect()));
         }
         if header == 0 {
-            return Ok(Some(Vec::new()));
+            return Ok(None);
         }
-        let units = self.utf16_units(header)?;
+        let units = self.utf16_units(count, header)?;
         Ok(Some(units.iter().map(|u| u16::from_le_bytes(*u)).collect()))
     }
 
-    /// The bytes of a Latin-1 string of header `header` (<= -2).
+    /// The bytes of `count` UTF-16 code units (a string of header `header`).
     #[inline]
-    fn latin1_bytes(&mut self, header: i32) -> Result<&'d [u8]> {
-        let size = !header as u32 as usize;
-        self.take_or(size, header)
+    fn utf16_units(&mut self, count: usize, header: u32) -> Result<&'d [[u8; 2]]> {
+        // `count < 2^31`: twice it fits a `usize` of 32 bits or more.
+        Ok(self.take_or(count.wrapping_mul(2), header)?.as_chunks::<2>().0)
     }
 
-    /// The bytes of `count` (> 0) UTF-16 code units.
+    /// Moves past `n` bytes and returns them, or fails with [`ErrorKind::InvalidLength`] for the string of header
+    /// `header` when fewer are left.
     #[inline]
-    fn utf16_units(&mut self, count: i32) -> Result<&'d [[u8; 2]]> {
-        let size = (count as u32 as usize).checked_mul(2).ok_or_else(|| Error::length(count))?;
-        Ok(self.take_or(size, count)?.as_chunks::<2>().0)
-    }
-
-    /// Moves past `n` bytes and returns them, or fails with [`ErrorKind::InvalidLength`] for `length` (the length
-    /// the count came from) when fewer are left.
-    #[inline]
-    fn take_or(&mut self, n: usize, length: i32) -> Result<&'d [u8]> {
+    fn take_or(&mut self, n: usize, header: u32) -> Result<&'d [u8]> {
         match self.rest.split_at_checked(n) {
             Some((head, tail)) => {
                 self.rest = tail;
                 Ok(head)
             }
-            None => Err(Error::length(length)),
+            None => Err(Error::length((header >> 1) as i32)),
         }
     }
 
-    /// A string written as UTF-8 (`[NinoUtf8]`): the char count (-1 null, 0 empty), then the byte count and the bytes.
-    /// The bytes must be strict UTF-8, with `count <= bytes <= 3 * count`, and decode to exactly `count` UTF-16 code
-    /// units.
+    /// A string written as UTF-8 (`[NinoUtf8]`): the char count plus one (0 null, 1 empty), then the byte count and
+    /// the bytes, the counts string headers of at most `i32::MAX`. The bytes must be strict UTF-8, with
+    /// `count <= bytes <= 3 * count`, and decode to exactly `count` UTF-16 code units.
     pub fn utf8(&mut self) -> Result<Option<String>> {
-        let chars = self.i32()?;
-        if chars <= 0 {
-            return match chars {
-                0 => Ok(Some(String::new())),
-                -1 => Ok(None),
-                _ => Err(Error::length(chars)),
-            };
+        let header = self.header()?;
+        if header <= 1 {
+            return Ok((header == 1).then(String::new));
         }
-        let size = self.i32()?;
-        let chars_u = chars as u32 as u64;
-        if size < chars || size as u32 as u64 > chars_u.saturating_mul(3) || size as u32 as usize > self.rest.len() {
-            return Err(Error::length(size));
+        // `header >= 2`: no wrap.
+        let chars = header.wrapping_sub(1);
+        if chars > i32::MAX as u32 {
+            return Err(Error::length(-1));
         }
-        let bytes = self.take(size as u32 as usize)?;
+        let size = self.header()?;
+        let chars_u = u64::from(chars);
+        if size < chars || u64::from(size) > chars_u.saturating_mul(3) || size as usize > self.rest.len() {
+            return Err(Error::length(size as i32));
+        }
+        let bytes = self.take(size as usize)?;
         let text = core::str::from_utf8(bytes).map_err(|_| Error::of(ErrorKind::InvalidUtf8))?;
         if crate::strings::utf16_len(bytes) != chars_u {
             return Err(Error::of(ErrorKind::InvalidUtf8));

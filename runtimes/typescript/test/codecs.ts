@@ -225,6 +225,17 @@ export function toHex(bytes: Uint8Array): string {
 }
 
 /** Little-endian int32 bytes. */
+/**
+ * A string header (wire-format spec §2.3.1): `value` (below 2^32) itself below 0x80, else 0x80 and a uint16 up to
+ * 0xFFFF, else 0x81 and a uint32 (little-endian).
+ */
+export function strHeader(value: number): number[] {
+  if (value < 0x80) return [value];
+  if (value <= 0xffff) return [0x80, value & 0xff, value >>> 8];
+  return [0x81, value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, value >>> 24];
+}
+
+/** Little-endian int32 bytes. */
 export function int32(value: number): number[] {
   return [value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff, (value >>> 24) & 0xff];
 }

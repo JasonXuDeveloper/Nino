@@ -1,7 +1,7 @@
 {
   "rule": "For each case, every strict prefix of valid/<case>.bin (lengths 0 to size - 1) read as <type> must be an error.",
   "expected": "error",
-  "prefixCount": 10441,
+  "prefixCount": 9990,
   "cases": [
     {
       "case": "integers-mixed",
@@ -94,66 +94,66 @@
     {
       "case": "string-ascii",
       "type": "Conformance.Strings",
-      "prefixes": 37,
+      "prefixes": 28,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 37
+          "NinoDataException": 28
         }
       }
     },
     {
       "case": "string-latin1",
       "type": "Conformance.Strings",
-      "prefixes": 43,
+      "prefixes": 34,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 43
+          "NinoDataException": 34
         }
       }
     },
     {
       "case": "string-bmp",
       "type": "Conformance.Strings",
-      "prefixes": 69,
+      "prefixes": 60,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 69
+          "NinoDataException": 60
         }
       }
     },
     {
       "case": "string-astral",
       "type": "Conformance.Strings",
-      "prefixes": 43,
+      "prefixes": 34,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 43
+          "NinoDataException": 34
         }
       }
     },
     {
       "case": "string-lone-surrogates",
       "type": "Conformance.Strings",
-      "prefixes": 42,
+      "prefixes": 33,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 42
+          "NinoDataException": 33
         }
       }
     },
     {
       "case": "string-collections",
       "type": "Conformance.StringCollections",
-      "prefixes": 387,
+      "prefixes": 347,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 387
+          "NinoDataException": 347
         }
       }
     },
@@ -171,22 +171,22 @@
     {
       "case": "structs-values",
       "type": "Conformance.Structs",
-      "prefixes": 241,
+      "prefixes": 226,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 241
+          "NinoDataException": 226
         }
       }
     },
     {
       "case": "nested-objects",
       "type": "Conformance.Outer",
-      "prefixes": 57,
+      "prefixes": 51,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 57
+          "NinoDataException": 51
         }
       }
     },
@@ -226,11 +226,11 @@
     {
       "case": "struct-root",
       "type": "Conformance.Label",
-      "prefixes": 12,
+      "prefixes": 9,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 12
+          "NinoDataException": 9
         }
       }
     },
@@ -248,88 +248,88 @@
     {
       "case": "collections-values",
       "type": "Conformance.Collections",
-      "prefixes": 470,
+      "prefixes": 395,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 470
+          "NinoDataException": 395
         }
       }
     },
     {
       "case": "nullables-values",
       "type": "Conformance.Nullables",
-      "prefixes": 216,
+      "prefixes": 213,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 216
+          "NinoDataException": 213
         }
       }
     },
     {
       "case": "tolerant",
       "type": "Conformance.TolerantHolder",
-      "prefixes": 40,
+      "prefixes": 37,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 40
+          "NinoDataException": 37
         }
       }
     },
     {
       "case": "tolerant-new-to-old",
       "type": "Conformance.TolerantV1",
-      "prefixes": 40,
+      "prefixes": 37,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 40
+          "NinoDataException": 37
         }
       }
     },
     {
       "case": "keyed",
       "type": "Conformance.KeyedHolder",
-      "prefixes": 164,
+      "prefixes": 158,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 164
+          "NinoDataException": 158
         }
       }
     },
     {
       "case": "keyed-v1-to-v2",
       "type": "Conformance.KeyedV2",
-      "prefixes": 64,
+      "prefixes": 61,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 64
+          "NinoDataException": 61
         }
       }
     },
     {
       "case": "polymorphism",
       "type": "Conformance.Zoo",
-      "prefixes": 289,
+      "prefixes": 253,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 289
+          "NinoDataException": 253
         }
       }
     },
     {
       "case": "polymorphism-generic-root",
       "type": "Conformance.Animal",
-      "prefixes": 19,
+      "prefixes": 16,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 19
+          "NinoDataException": 16
         }
       }
     },
@@ -369,45 +369,45 @@
     {
       "case": "deep-links-129",
       "type": "Conformance.Link",
-      "prefixes": 1309,
+      "prefixes": 1114,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 1309
+          "NinoDataException": 1114
         }
       }
     },
     {
       "case": "deep-in-region",
       "type": "Conformance.TolerantRoot",
-      "prefixes": 1030,
+      "prefixes": 1027,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 1030
+          "NinoDataException": 1027
         }
       }
     },
     {
       "case": "references-shared",
       "type": "Conformance.TrackedHolder",
-      "prefixes": 97,
+      "prefixes": 94,
       "optional": "track-references",
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 97
+          "NinoDataException": 94
         }
       }
     },
     {
       "case": "tree-collections",
       "type": "Conformance.TreeHolder",
-      "prefixes": 51,
+      "prefixes": 42,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 51
+          "NinoDataException": 42
         }
       }
     }

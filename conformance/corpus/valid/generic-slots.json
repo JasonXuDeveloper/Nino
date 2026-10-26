@@ -6,7 +6,7 @@
     "type-id",
     "generic-type-id"
   ],
-  "size": 105,
+  "size": 93,
   "roundTrip": true,
   "layouts": {
     "Conformance.Crate<T>": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Content:T:type(T)",

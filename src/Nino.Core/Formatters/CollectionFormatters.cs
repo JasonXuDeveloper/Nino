@@ -149,8 +149,6 @@ namespace Nino.Core
         public void Deserialize(ref TSet value, ref Reader reader)
         {
             bool raw = RawFormatter.Is<T, TFormatter>();
-            // A string takes its 4-byte header at least: a set of strings (20 bytes an element) is then sized for its
-            // count within NinoElements.Amplification bytes per byte.
             if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinHashedSize<T, TFormatter>(), out int length))
                 return;
 
@@ -164,11 +162,10 @@ namespace Nino.Core
                 set.Clear();
 
 #if NETSTANDARD2_1 || NET8_0_OR_GREATER
-            // Sized for the elements, unless its entries would take far more memory than the data (large elements):
-            // then it grows as they are added.
+            // Sized for the elements, unless its entries would take far more memory than the data (large elements,
+            // strings among them: a null or empty one takes one byte): then it grows as they are added.
             if (length != 0)
-                set.EnsureCapacity(typeof(TFormatter) != typeof(StringFormatter) &&
-                                   Unsafe.SizeOf<T>() + NinoElements.HashSlot > NinoElements.Amplification &&
+                set.EnsureCapacity(Unsafe.SizeOf<T>() + NinoElements.HashSlot > NinoElements.Amplification &&
                                    NinoElements.HeavyHashed<T, TFormatter>.Value
                     ? NinoElements.Capacity(length, Unsafe.SizeOf<T>() + NinoElements.HashSlot, reader.Remaining)
                     : length);

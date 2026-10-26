@@ -6,7 +6,7 @@
     "null-flag",
     "object"
   ],
-  "size": 10,
+  "size": 7,
   "roundTrip": true,
   "layouts": {
     "Conformance.Inner": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8EDDB9E8; deferrable=true; members=Value:long:raw(8);Text:string:string;Point:Conformance.Point:type(Conformance.Point)",

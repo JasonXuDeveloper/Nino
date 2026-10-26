@@ -1,7 +1,56 @@
-//! Text helpers: the default string encoding's writer (its decoding is in [`crate::simd`]).
+//! Text helpers: string headers, and the default string encoding's writer (its decoding is in [`crate::simd`]).
 
 use crate::error::{Error, Result};
 use crate::writer::Writer;
+
+/// The header of the null string (both encodings).
+pub(crate) const NULL_HEADER: u8 = 0;
+
+/// The header of the empty string (both encodings: Latin-1 of no chars, or a char count of 0, plus one).
+pub(crate) const EMPTY_HEADER: u8 = 1;
+
+/// The first byte of a three-byte string header: a little-endian `u16` follows.
+pub(crate) const HEADER16: u8 = 0x80;
+
+/// The first byte of a five-byte string header: a little-endian `u32` follows.
+pub(crate) const HEADER32: u8 = 0x81;
+
+/// The number of bytes of `value` as a string header (wire format 2.3.1): its first byte gives its size, as
+/// MessagePack's string markers do. `value` itself up to 0x7F, else [`HEADER16`] and a `u16`, else [`HEADER32`] and
+/// a `u32`: 1, 3 or 5 bytes. `2 * n` and `2 * n + 1` take the same number, so the size of a default string's header
+/// follows from its length.
+#[inline(always)]
+pub(crate) const fn header_size(value: u32) -> usize {
+    if value < 0x80 {
+        1
+    } else if value <= 0xFFFF {
+        3
+    } else {
+        5
+    }
+}
+
+/// `value` as a string header: its bytes (the first [`header_size`] of them used) and how many.
+#[inline(always)]
+pub(crate) fn header(value: u32) -> ([u8; 5], usize) {
+    let v = value.to_le_bytes();
+    if value < 0x80 {
+        ([v[0], 0, 0, 0, 0], 1)
+    } else if value <= 0xFFFF {
+        ([HEADER16, v[0], v[1], 0, 0], 3)
+    } else {
+        ([HEADER32, v[0], v[1], v[2], v[3]], 5)
+    }
+}
+
+/// The header of a default string of `count` chars: `2 * count + 1` for Latin-1, `2 * count` for UTF-16. Fails past
+/// `i32::MAX` chars.
+#[inline]
+pub(crate) fn string_header(count: usize, latin1: bool) -> Result<u32> {
+    let count = u32::try_from(count).ok().filter(|&c| c <= i32::MAX as u32).ok_or_else(Error::too_large)?;
+    // `count <= 2^31 - 1`: `2 * count + 1 <= 2^32 - 1`.
+    Ok(count.wrapping_mul(2).wrapping_add(u32::from(latin1)))
+}
 
 /// Whether every byte is below 0x80: eight at a time, a loop the compiler vectorizes, and the last eight as one word.
 #[inline(never)]
@@ -75,8 +124,7 @@ pub(crate) fn write(w: &mut Writer<'_>, text: &str) -> Result<()> {
         return Ok(());
     }
     if is_ascii_long(bytes) {
-        let count = i32::try_from(bytes.len()).map_err(|_| Error::too_large())?;
-        w.header_bytes(if count == 0 { 0 } else { !count }, bytes);
+        w.header_bytes(string_header(bytes.len(), true)?, bytes);
         return Ok(());
     }
     if crate::simd::wide(w.buffer(), text) {
@@ -86,14 +134,16 @@ pub(crate) fn write(w: &mut Writer<'_>, text: &str) -> Result<()> {
 }
 
 /// Text with a char above U+007F, written as Latin-1 when every char is at most U+00FF, else as UTF-16: transcoded
-/// straight into the buffer after a zero header ([`crate::simd::transcode`]), and the header written last.
+/// straight into the buffer after room for the longest header its length allows ([`crate::simd::transcode`]), and
+/// the header written last (the chars moved down when it is shorter).
 #[inline(never)]
 fn write_wide(w: &mut Writer<'_>, text: &str) -> Result<()> {
     let at = w.position();
+    let room = crate::simd::header_room(text.len());
     let buf = w.buffer();
-    buf.extend_from_slice(&[0; 4]);
+    buf.resize(at.saturating_add(room), 0);
     let latin1 = crate::simd::transcode(buf, text);
-    w.end_header(at, latin1)
+    w.end_header(at, room, latin1)
 }
 
 #[cfg(test)]

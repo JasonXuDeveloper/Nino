@@ -152,7 +152,7 @@ fn run() {
         return;
     };
     let index = read_json(&dir.join("index.json"));
-    assert_eq!(index["corpusVersion"], 1, "corpus version");
+    assert_eq!(index["corpusVersion"], 2, "corpus version");
     let mut failures = Vec::new();
     let (mut passed, mut skipped) = (0, Vec::new());
 

@@ -22,11 +22,13 @@ concurrency:
 
 jobs:
   ab:
-    name: A/B on ${{ matrix.runner }}
+    name: A/B on ${{ matrix.runner }} (${{ matrix.copy }})
     strategy:
       fail-fast: false
       matrix:
         runner: [ubuntu-26.04, ubuntu-26.04-arm]
+        # Several jobs a runner: the x64 runners draw different processors (EPYC 7763, 9V74, 9V45).
+        copy: [1, 2, 3]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     steps:

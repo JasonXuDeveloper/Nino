@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import * as node from "../src/nino.ts";
-import { hex, int32, toHex } from "./codecs.ts";
+import { hex, toHex, strHeader } from "./codecs.ts";
 
 type Runtime = typeof node;
 
@@ -27,16 +27,17 @@ const wide = (n: number) => Array.from({ length: n }, (_, i) => String.fromCharC
 /** Texts of every length the runtime treats differently (short, medium, the reader's window, chunks). */
 const texts = [
   "", "a", "é", "\u0080\u0081\u009f", "ÿ", "﻿", "😀", "\ud800", "\udc00x", "a\ud800b", "x\udbff",
-  ...[1, 7, 8, 9, 12, 13, 15, 16, 17, 23, 24, 25, 31, 32, 33, 255, 256, 257, 4095, 4096, 4097, 5000].flatMap((n) =>
+  ...[1, 7, 8, 9, 12, 13, 15, 16, 17, 23, 24, 25, 31, 32, 33, 42, 43, 63, 64, 65, 127, 128, 255, 256, 257, 4095, 4096,
+    4097, 5000, 8191, 8192, 32767, 32768].flatMap((n) =>
     [ascii(n), latin1(n), wide(n), ascii(n) + "中", "中" + latin1(n), ascii(n) + "\ud800"]),
 ];
 
 /** The bytes Nino writes for `text` in the default encoding. */
 function expected(text: string): string {
-  if ([...text].every((c) => c.length === 1 && c.charCodeAt(0) <= 0xff) && text.length !== 0)
-    return toHex(Uint8Array.from([...int32(~text.length), ...Array.from(text, (c) => c.charCodeAt(0))]));
+  if ([...text].every((c) => c.length === 1 && c.charCodeAt(0) <= 0xff))
+    return toHex(Uint8Array.from([...strHeader(2 * text.length + 1), ...Array.from(text, (c) => c.charCodeAt(0))]));
   const units = Array.from({ length: text.length }, (_, i) => text.charCodeAt(i));
-  return toHex(Uint8Array.from([...int32(text.length), ...units.flatMap((u) => [u & 0xff, u >> 8])]));
+  return toHex(Uint8Array.from([...strHeader(2 * text.length), ...units.flatMap((u) => [u & 0xff, u >> 8])]));
 }
 
 for (const [name, load] of [["Node", async () => node], ["browser", browser]] as const) {
@@ -67,35 +68,41 @@ for (const [name, load] of [["Node", async () => node], ["browser", browser]] as
       assert.deepEqual(read(bytes, (r) => texts.map(() => r.string())), texts);
     });
 
-    it("writes null as -1, and reads -1 as null", () => {
-      assert.equal(toHex(write((w) => w.string(null))), "ffffffff");
-      assert.equal(read(hex("ffffffff"), (r) => r.string()), null);
+    it("writes null as 0, and reads 0 as null", () => {
+      assert.equal(toHex(write((w) => w.string(null))), "00");
+      assert.equal(read(hex("00"), (r) => r.string()), null);
+      assert.equal(read(hex("01"), (r) => r.string()), "");
+      // Latin-1 text in the UTF-16 form (a StringBuilder's) reads too.
+      assert.equal(read(hex("02 6100"), (r) => r.string()), "a");
     });
 
-    it("writes and reads [NinoUtf8] text: char count, byte count, bytes", () => {
+    it("writes and reads [NinoUtf8] text: char count plus one, byte count, bytes", () => {
       for (const text of texts.filter((t) => !/[\ud800-\udfff]/.test(t) || /😀/.test(t))) {
         const bytes = write((w) => w.utf8(text));
         const utf8 = new TextEncoder().encode(text);
-        assert.equal(toHex(bytes), text.length === 0 ? "00000000"
-          : toHex(Uint8Array.from([...int32(text.length), ...int32(utf8.length), ...utf8])));
+        assert.equal(toHex(bytes), text.length === 0 ? "01"
+          : toHex(Uint8Array.from([...strHeader(text.length + 1), ...strHeader(utf8.length), ...utf8])));
         assert.equal(read(bytes, (r) => r.utf8()), text);
       }
-      assert.equal(toHex(write((w) => w.utf8(null))), "ffffffff");
+      assert.equal(toHex(write((w) => w.utf8(null))), "00");
+      assert.equal(read(hex("00"), (r) => r.utf8()), null);
     });
 
     it("writes an unpaired surrogate as U+FFFD in UTF-8, as .NET does", () => {
-      assert.equal(toHex(write((w) => w.utf8("a\ud800"))), "02000000" + "04000000" + "61efbfbd");
+      assert.equal(toHex(write((w) => w.utf8("a\ud800"))), "03" + "04" + "61efbfbd");
     });
 
     it("rejects UTF-8 that is not, or does not fill the char count", () => {
-      for (const bad of ["01000000 01000000 ff", "02000000 02000000 c328", "01000000 02000000 6161",
-        "02000000 01000000 61", "03000000 02000000 c3a9", "01000000 04000000 f09f9880", "feffffff",
-        "01000000 ffffffff", "05000000 05000000 6161"])
+      for (const bad of ["02 01 ff", "03 02 c328", "02 02 6161", "03 01 61", "04 02 c3a9", "02 04 f09f9880", "02",
+        "02 81ffffff0f", "06 05 6161", "800000", "8001", "800200 01 61", "02 800100 61", "02 8101000000 61",
+        "8101000080 01 61", "81ffffffff 01 61", "02 8100000080 61", "02 ffffffff1f 61", "02 82 61", "ff 01 61"])
         assert.throws(() => read(hex(bad), (r) => r.utf8()), NinoError, bad);
     });
 
     it("rejects lengths the data does not hold", () => {
-      for (const bad of ["fbffffff 6161", "03000000 610062", "ffffff7f", "00000080", "feffff7f", "02"])
+      for (const bad of ["07 6161", "04 610062", "81ffffffff", "81feffffff", "800000", "8081", "800300 616263", "80",
+        "", "807f00", "8100000000", "81ffff0000", "8207000000 616263", "ffffffff0f", "ff", "02", "808100 61",
+        "81000001"])
         assert.throws(() => read(hex(bad), (r) => r.string()), NinoError, bad);
     });
   });

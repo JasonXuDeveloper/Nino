@@ -546,14 +546,14 @@ func init() {
 	typeV0 = newBoxCodec(NinoArg[Vec2]{Read: readVec2, Write: writeVec2, MinSize: 8})
 	typeV1 = newBoxCodec(NinoArg[[]*Point]{Read: readV16, Write: writeV17, MinSize: 4})
 	typeV2 = newBoxCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
-	typeV3 = newBoxCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+	typeV3 = newBoxCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 1})
 	typeV4 = newCrateCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
-	typeV5 = newCrateCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+	typeV5 = newCrateCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 1})
 	typeV6 = newHolderCodec(NinoArg[int64]{Read: (*nino.Reader).I64, Write: (*nino.Writer).I64, MinSize: 8})
 	typeV7 = newLabeledCrateCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
-	typeV8 = newLabeledCrateCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+	typeV8 = newLabeledCrateCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 1})
 	typeV9 = newListShelfCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
-	typeV10 = newListShelfCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 4})
+	typeV10 = newListShelfCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 1})
 	typeV11 = newWrapCodec(NinoArg[[]nino.Entry[int32, *float64]]{Read: readV10, Write: writeV11, MinSize: 4})
 	typeV12 = newWrapCodec(NinoArg[[]*int32]{Read: readV6, Write: writeV7, MinSize: 4})
 	typeV13 = newWrapCodec(NinoArg[[]nino.Entry[*string, *int32]]{Read: readV14, Write: writeV15, MinSize: 4})
@@ -5192,7 +5192,7 @@ func ninoNonNil[T any](v []T) []T {
 }
 
 func readV0(r *nino.Reader) []nino.Entry[string, DictTree] {
-	return nino.ReadUniqueEntries(r, 8, keyString, readDictTree)
+	return nino.ReadUniqueEntries(r, 5, keyString, readDictTree)
 }
 
 func writeV1(w *nino.Writer, v []nino.Entry[string, DictTree]) {
@@ -5240,7 +5240,7 @@ func writeV11(w *nino.Writer, v []nino.Entry[int32, *float64]) {
 }
 
 func readV12(r *nino.Reader) []nino.Entry[int32, *string] {
-	return nino.ReadSlice(r, 8, readV108)
+	return nino.ReadSlice(r, 5, readV108)
 }
 
 func writeV13(w *nino.Writer, v []nino.Entry[int32, *string]) {
@@ -5248,7 +5248,7 @@ func writeV13(w *nino.Writer, v []nino.Entry[int32, *string]) {
 }
 
 func readV14(r *nino.Reader) []nino.Entry[*string, *int32] {
-	return nino.ReadSlice(r, 5, readV110)
+	return nino.ReadSlice(r, 2, readV110)
 }
 
 func writeV15(w *nino.Writer, v []nino.Entry[*string, *int32]) {
@@ -5276,11 +5276,11 @@ func readV20(r *nino.Reader) []int32 {
 }
 
 func readV21(r *nino.Reader) []*string {
-	return nino.ReadSlice(r, 4, (*nino.Reader).StringPtr)
+	return nino.ReadSlice(r, 1, (*nino.Reader).StringPtr)
 }
 
 func readV22(r *nino.Reader) []*string {
-	v := nino.ReadSlice(r, 4, (*nino.Reader).StringPtr)
+	v := nino.ReadSlice(r, 1, (*nino.Reader).StringPtr)
 	if v == nil {
 		return nil
 	}
@@ -5306,11 +5306,11 @@ func readV23(r *nino.Reader) []nino.Entry[int32, int32] {
 }
 
 func readV24(r *nino.Reader) []nino.Entry[string, *string] {
-	return nino.ReadUniqueEntries(r, 8, keyString, (*nino.Reader).StringPtr)
+	return nino.ReadUniqueEntries(r, 2, keyString, (*nino.Reader).StringPtr)
 }
 
 func readV25(r *nino.Reader) []nino.Entry[string, *Point] {
-	return nino.ReadUniqueEntries(r, 5, keyString, ReadPoint)
+	return nino.ReadUniqueEntries(r, 2, keyString, ReadPoint)
 }
 
 func readV26(r *nino.Reader) []nino.Entry[int32, []*string] {
@@ -5318,11 +5318,11 @@ func readV26(r *nino.Reader) []nino.Entry[int32, []*string] {
 }
 
 func readV27(r *nino.Reader) []nino.Entry[int32, *string] {
-	return nino.ReadUniqueEntries(r, 8, (*nino.Reader).I32, (*nino.Reader).StringPtr)
+	return nino.ReadUniqueEntries(r, 5, (*nino.Reader).I32, (*nino.Reader).StringPtr)
 }
 
 func readV28(r *nino.Reader) []nino.Entry[string, int32] {
-	return nino.ReadUniqueEntries(r, 8, keyString, (*nino.Reader).I32)
+	return nino.ReadUniqueEntries(r, 5, keyString, (*nino.Reader).I32)
 }
 
 func readV29(r *nino.Reader) [][]int32 {
@@ -5334,7 +5334,7 @@ func readV30(r *nino.Reader) *NinoGrid[int32] {
 }
 
 func readV31(r *nino.Reader) *NinoGrid[*string] {
-	return readGrid(r, 2, 4, (*nino.Reader).StringPtr)
+	return readGrid(r, 2, 1, (*nino.Reader).StringPtr)
 }
 
 func writeV32(w *nino.Writer, v []int32) {
@@ -5593,7 +5593,7 @@ func readV79(r *nino.Reader) []Mixed {
 }
 
 func readV80(r *nino.Reader) []Label {
-	return nino.ReadSlice(r, 8, ReadLabel)
+	return nino.ReadSlice(r, 5, ReadLabel)
 }
 
 func readV81(r *nino.Reader) NinoTuple2[uint8, int64] {
@@ -5685,7 +5685,7 @@ func readV99(r *nino.Reader) []IShape {
 }
 
 func readV100(r *nino.Reader) []nino.Entry[string, Animal] {
-	return nino.ReadUniqueEntries(r, 8, keyString, ReadAnimal)
+	return nino.ReadUniqueEntries(r, 5, keyString, ReadAnimal)
 }
 
 func writeV101(w *nino.Writer, v []Animal) {

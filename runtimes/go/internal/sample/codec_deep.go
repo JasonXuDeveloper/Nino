@@ -228,7 +228,7 @@ func readDictTree(r *nino.Reader) DictTree {
 	if !r.EnterStruct() {
 		return nil
 	}
-	v := nino.ReadUniqueEntries(r, 8, keyString, readDictTree)
+	v := nino.ReadUniqueEntries(r, 5, keyString, readDictTree)
 	r.ExitStruct()
 	return v
 }

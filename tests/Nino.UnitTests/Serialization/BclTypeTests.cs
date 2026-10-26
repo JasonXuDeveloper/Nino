@@ -92,9 +92,23 @@ public class BclTypeTests
             text.Append(i); // several chunks
         var bytes = NinoSerializer.Serialize(text);
         // The string encoding with UTF-16 chars: read as a string too.
-        Assert.AreEqual(text.Length, BitConverter.ToInt32(bytes, 0));
+        Assert.AreEqual(2ul * (ulong)text.Length, StringEncodingTests.Header(bytes, 0, out _));
         Assert.AreEqual(text.ToString(), NinoDeserializer.Deserialize<string>(bytes));
         Assert.AreEqual(text.ToString(), NinoDeserializer.Deserialize<StringBuilder>(bytes).ToString());
+
+        // Headers of one, two and three bytes (written and read inline up to 8,191 chars), with their sizes.
+        foreach (int length in new[] { 1, 63, 64, 32767, 32768, 100_000 })
+        {
+            var builder = new StringBuilder();
+            for (int i = 0; i < length; i++)
+                builder.Append((char)('a' + i % 26));
+            bytes = NinoSerializer.Serialize(builder);
+            Assert.AreEqual(2ul * (ulong)length, StringEncodingTests.Header(bytes, 0, out int headerSize));
+            Assert.AreEqual(length < 64 ? 1 : length < 32768 ? 3 : 5, headerSize);
+            Assert.AreEqual(headerSize + 2 * length, bytes.Length);
+            Assert.AreEqual(builder.ToString(), NinoDeserializer.Deserialize<string>(bytes));
+            Assert.AreEqual(builder.ToString(), NinoDeserializer.Deserialize<StringBuilder>(bytes).ToString());
+        }
 
         // An existing builder is refilled.
         var existing = new StringBuilder("old text that is longer");

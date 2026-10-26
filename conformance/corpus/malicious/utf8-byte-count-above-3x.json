@@ -4,7 +4,7 @@
   "category": "utf8",
   "expected": "error",
   "exercises": "[NinoUtf8]: 1 char in 4 bytes (a char takes at most 3).",
-  "size": 13,
+  "size": 7,
   "layouts": {
     "Conformance.Targets.Utf8Value": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; deferrable=true; members=Value:string:utf8"
   },

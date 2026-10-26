@@ -3,8 +3,8 @@
   "type": "Conformance.Targets.TextValue",
   "category": "string",
   "expected": "error",
-  "exercises": "A header of 5 UTF-16 code units with 2 present.",
-  "size": 9,
+  "exercises": "A header of 10 (5 UTF-16 code units) with 2 present.",
+  "size": 6,
   "layouts": {
     "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
   },

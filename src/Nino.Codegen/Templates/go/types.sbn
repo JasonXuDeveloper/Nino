@@ -182,7 +182,7 @@ func helper_body(h)
       ret $o + "\treturn nino.ReadUnique(r, " + compact($s.element.min) + ", " + rfn($s.element) + ")\n}\n"
     when "stringset"
       # A set of strings in the order of the data: a string (or null) read twice fails.
-      $o = $o + "\tv := nino.ReadSlice(r, 4, " + rfn($s.element) + ")\n\tif v == nil {\n\t\treturn nil\n\t}\n"
+      $o = $o + "\tv := nino.ReadSlice(r, " + compact($s.element.min) + ", " + rfn($s.element) + ")\n\tif v == nil {\n\t\treturn nil\n\t}\n"
       $o = $o + "\tseen := make(map[string]struct{}, len(v))\n\tnull := false\n\tfor _, s := range v {\n\t\tdup := false\n"
       $o = $o + "\t\tif s == nil {\n\t\t\tdup, null = null, true\n\t\t} else if _, dup = seen[*s]; !dup {\n\t\t\tseen[*s] = struct{}{}\n\t\t}\n"
       ret $o + "\t\tif dup {\n\t\t\tr.Fail(nino.CodeDuplicateKey, \"\")\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn v\n}\n"

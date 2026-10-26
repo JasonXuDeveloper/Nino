@@ -344,18 +344,18 @@ namespace Nino.UnitTests
                 Assert.AreEqual(s, Rt.RoundTrip(s));
             }
 
-            // UTF-8 member: char (UTF-16 code unit) count, byte count, then the bytes.
+            // UTF-8 member: char (UTF-16 code unit) count plus one, byte count (string headers), then the bytes.
             var only = new StringHolder { Utf8 = "é😀" };
             var bytes = NinoSerializer.Serialize(only);
             var utf8 = Encoding.UTF8.GetBytes("é😀");
             var at = IndexOf(bytes, utf8);
-            Assert.IsTrue(at >= 8);
-            Assert.AreEqual("é😀".Length, BitConverter.ToInt32(bytes, at - 8));
-            Assert.AreEqual(utf8.Length, BitConverter.ToInt32(bytes, at - 4));
+            Assert.IsTrue(at >= 2);
+            Assert.AreEqual("é😀".Length + 1, bytes[at - 2]);
+            Assert.AreEqual(utf8.Length, bytes[at - 1]);
 
-            // UTF-16 null is -1, empty is 0.
-            CollectionAssert.AreEqual(BitConverter.GetBytes(-1), NinoSerializer.Serialize<string>(null));
-            CollectionAssert.AreEqual(BitConverter.GetBytes(0), NinoSerializer.Serialize(""));
+            // The default encoding's null is 0, empty is 1.
+            CollectionAssert.AreEqual(new byte[] { 0 }, NinoSerializer.Serialize<string>(null));
+            CollectionAssert.AreEqual(new byte[] { 1 }, NinoSerializer.Serialize(""));
         }
 
         [TestMethod]

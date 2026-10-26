@@ -53,7 +53,7 @@ function deserialized(codec: NinoCodec<unknown>, data: Uint8Array): unknown {
 function cases(group: "valid" | "malicious"): { name: string; c: any }[] {
   if (!present) return [];
   const index = json(join(corpus, "index.json"));
-  assert.equal(index.corpusVersion, 1);
+  assert.equal(index.corpusVersion, 2);
   return (index[group] as string[]).map((name) => ({ name, c: json(join(corpus, group, name + ".json")) }));
 }
 

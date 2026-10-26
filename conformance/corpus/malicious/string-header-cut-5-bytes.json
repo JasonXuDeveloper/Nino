@@ -1,0 +1,15 @@
+{
+  "case": "string-header-cut-5-bytes",
+  "type": "Conformance.Targets.TextValue",
+  "category": "string",
+  "expected": "error",
+  "exercises": "A five-byte header cut by the end of the input (81 00 00 01).",
+  "size": 5,
+  "layouts": {
+    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "NinoDataException"
+  }
+}

@@ -105,12 +105,12 @@ func TestTagSpecExamples(t *testing.T) {
 				t.Fatalf("%s: read back %#v, want %#v", name, back.Elem().Interface(), v)
 			}
 		}
-		check("A.1", &tagSmall{A: 1, B: str("a")}, "01 01000000 FEFFFFFF61")
+		check("A.1", &tagSmall{A: 1, B: str("a")}, "01 01000000 0361")
 		check("A.1 null", (*tagSmall)(nil), "00")
-		keyed := "01 29000000 4819C498 04000000 01000000 E2B38530 05000000 FEFFFFFF6E 4DB14A04 08000000 0200000000000000"
+		keyed := "01 26000000 4819C498 04000000 01000000 E2B38530 02000000 036E 4DB14A04 08000000 0200000000000000"
 		check("A.3 keyed", &tagKeyed{ID: 1, Name: str("n"), Score: 2}, keyed)
 		check("A.3 keyed null name", &tagKeyed{ID: 1, Score: 2},
-			"01 28000000 4819C498 04000000 01000000 E2B38530 04000000 FFFFFFFF 4DB14A04 08000000 0200000000000000")
+			"01 25000000 4819C498 04000000 01000000 E2B38530 01000000 00 4DB14A04 08000000 0200000000000000")
 		check("A.3 tolerant", &tagTolLeaf{A: 1, B: 7}, "01 08000000 01000000 07000000")
 		check("open class", &tagTolBase{A: 1}, "D2F3639A 04000000 01000000")
 
@@ -429,7 +429,7 @@ func TestTagPolymorphism(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := "01 11111111 FCFFFFFF726578 03000000 03000000 22222222 09000000 00000000 11111111 FEFFFFFF61 01000000 33333333 0000803F 00000040"
+		want := "01 11111111 07726578 03000000 03000000 22222222 09000000 00000000 11111111 0361 01000000 33333333 0000803F 00000040"
 		if !bytes.Equal(got, mustHex(t, want)) {
 			t.Fatalf("\n got %X\nwant %s", got, want)
 		}
@@ -669,7 +669,7 @@ func TestTagEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := mustHex(t, "01 01000000 FEFFFFFF78 02000000"); !bytes.Equal(got, want) {
+	if want := mustHex(t, "01 01000000 0378 02000000"); !bytes.Equal(got, want) {
 		t.Fatalf("%X", got)
 	}
 }
@@ -719,4 +719,62 @@ func TestParseHex32(t *testing.T) {
 			t.Errorf("parseHex32(%q) succeeded", s)
 		}
 	}
+}
+
+// Slices of strings, of a named string type too, read and written without a reflect.Value an element: the bytes of
+// WriteSlice, nil kept apart from empty, and a slice longer than its first capacity.
+type tagWord string
+
+type tagStrings struct {
+	Plain []string  `nino:"0"`
+	Named []tagWord `nino:"1"`
+	Nil   []string  `nino:"2"`
+	Empty []string  `nino:"3"`
+	Mixed []string  `nino:"4"`
+}
+
+func TestTagStrings(t *testing.T) {
+	bothModes(t, func(t *testing.T) {
+		v := &tagStrings{Named: []tagWord{"a", "", "crème", "строка 🎉"}, Empty: []string{}}
+		for i := range 300 {
+			v.Plain = append(v.Plain, strings.Repeat("s", i%70))
+			v.Mixed = append(v.Mixed, []string{"string", "crème brûlée", "字符串 🎉", "\xff"}[i%4])
+		}
+		got, err := Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := Serialize(v, func(w *Writer, v *tagStrings) {
+			w.Present(true)
+			WriteSlice(w, v.Plain, (*Writer).String)
+			WriteSlice(w, v.Named, func(w *Writer, s tagWord) { w.String(string(s)) })
+			WriteSlice(w, v.Nil, (*Writer).String)
+			WriteSlice(w, v.Empty, (*Writer).String)
+			WriteSlice(w, v.Mixed, (*Writer).String)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Fatalf("\n got %X\nwant %X", got, want)
+		}
+		var back *tagStrings
+		if err := UnmarshalExact(got, &back); err != nil {
+			t.Fatal(err)
+		}
+		for i := 3; i < len(v.Mixed); i += 4 {
+			v.Mixed[i] = "\uFFFD" // not UTF-8: written as U+FFFD
+		}
+		if !reflect.DeepEqual(back, v) {
+			t.Fatalf("read back\n%+v\nwant\n%+v", back, v)
+		}
+		if back.Nil != nil || back.Empty == nil {
+			t.Fatal("nil and empty slices not kept apart")
+		}
+		for n := 0; n < len(got); n++ {
+			if err := Unmarshal(got[:n], &back); err == nil {
+				t.Fatalf("truncated to %d: no error", n)
+			}
+		}
+	})
 }

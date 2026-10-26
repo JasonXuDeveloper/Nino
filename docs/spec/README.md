@@ -48,3 +48,4 @@ disagree, the difference is a bug in one of them: report it.
 | Spec | Nino | Change |
 | --- | --- | --- |
 | 4.0 (draft) | 4.0.0-rc.7 | First version. |
+| 4.1 (draft) | 4.0.0-rc.8 | String headers take 1, 3 or 5 bytes, the first byte giving the size (§2.3.1, §4): the value itself up to 127, else `0x80` and a `u16`, else `0x81` and a `u32`; `0` null, `2n + 1` Latin-1, `2n` UTF-16; `[NinoUtf8]` writes its char count plus one and its byte count as headers. Readers reject non-minimal headers and other first bytes (§9.4). |

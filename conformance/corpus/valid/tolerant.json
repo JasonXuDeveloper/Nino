@@ -6,7 +6,7 @@
     "version-tolerant",
     "type-id"
   ],
-  "size": 40,
+  "size": 37,
   "roundTrip": true,
   "layouts": {
     "Conformance.TolerantBase": "format=VersionTolerant; header=TypeId; trackReferences=false; raw=false; typeId=0x9536FE88; deferrable=true; members=A:int:raw(4)",

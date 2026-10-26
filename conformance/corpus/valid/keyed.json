@@ -5,7 +5,7 @@
   "features": [
     "keyed"
   ],
-  "size": 164,
+  "size": 158,
   "roundTrip": true,
   "layouts": {
     "Conformance.KeyedHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x7FBDA208; deferrable=true; members=Keyed:Conformance.KeyedV1:type(Conformance.KeyedV1);Struct:Conformance.KeyedStruct:type(Conformance.KeyedStruct);Array:Conformance.KeyedV1[]:seq(type(Conformance.KeyedV1))",

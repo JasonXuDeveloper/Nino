@@ -217,7 +217,7 @@ impl NinoWrite for bool {
 // ---------------------------------------------------------------------- strings
 
 impl NinoRead for String {
-    const MIN_SIZE: usize = 4;
+    const MIN_SIZE: usize = 1;
 
     #[inline]
     fn read(r: &mut Reader<'_>) -> Result<Self> {
