@@ -126,28 +126,32 @@ pub(crate) fn ascii_short(out: &mut Vec<u8>, bytes: &[u8]) -> bool {
     if bytes.len() > SHORT {
         return false;
     }
-    // `len <= 32`: the sum cannot wrap.
-    out.reserve(bytes.len().wrapping_add(1));
-    let at = out.len();
-    // SAFETY: the room reserved holds `1 + len` bytes from `at`, and `len <= SHORT`.
-    unsafe {
-        if !ascii_into(out.as_mut_ptr().add(at), bytes) {
-            return false;
-        }
-        out.set_len(at.wrapping_add(1).wrapping_add(bytes.len()));
+    // `len <= 32`: the sums cannot wrap. The room is reserved once the text is found ASCII (other text pays nothing
+    // for it here).
+    let (at, size) = (out.len(), bytes.len().wrapping_add(1));
+    let room = || {
+        out.reserve(size);
+        // SAFETY: `at` is the length, within the allocation.
+        unsafe { out.as_mut_ptr().add(at) }
+    };
+    // SAFETY: `room` reserves `1 + len` bytes from `at`, and `len <= SHORT`.
+    if !unsafe { ascii_into(room, bytes) } {
+        return false;
     }
+    // SAFETY: the `1 + len` bytes from `at` are written.
+    unsafe { out.set_len(at.wrapping_add(size)) };
     true
 }
 
-/// Writes a Latin-1 string's header and bytes for `bytes` at `dst` and returns true when they are all ASCII; else
-/// writes nothing and returns false. The bytes are read as the first and last 16 (or 8, or 4) bytes, which may
+/// Writes a Latin-1 string's header and bytes for `bytes` at the pointer `room` returns, called once the bytes are
+/// found ASCII, and returns true; else writes nothing, does not call `room`, and returns false. The bytes are read as the first and last 16 (or 8, or 4) bytes, which may
 /// overlap, or as three bytes, tested, and stored as they were read, the header shifted in below the first block
 /// (but at 32 bytes and below 4): no loop, no call to `memcpy`.
 ///
 /// # Safety
-/// `bytes.len() <= SHORT`, and `1 + bytes.len()` bytes are writable at `dst`.
+/// `bytes.len() <= SHORT`, and `1 + bytes.len()` bytes are writable at the pointer `room` returns.
 #[inline(always)]
-unsafe fn ascii_into(dst: *mut u8, bytes: &[u8]) -> bool {
+unsafe fn ascii_into(room: impl FnOnce() -> *mut u8, bytes: &[u8]) -> bool {
     let (src, len) = (bytes.as_ptr(), bytes.len());
     // `len <= 32`: none of the sums or differences below can wrap, and the header, `2 * len + 1`, is one byte.
     let header = (len as u8).wrapping_mul(2).wrapping_add(1);
@@ -159,6 +163,7 @@ unsafe fn ascii_into(dst: *mut u8, bytes: &[u8]) -> bool {
         if (u128::from_ne_bytes(a) | u128::from_ne_bytes(b)) & 0x8080_8080_8080_8080_8080_8080_8080_8080 != 0 {
             return false;
         }
+        let dst = room();
         // SAFETY: the caller's room, `1 + len` bytes; the stores cover `dst .. dst + 1 + len` exactly (the second
         // block ends at `1 + last + 16 = 1 + len`): below 32 bytes, the header and the first 15 bytes as one block
         // (the second starts at `1 + last <= 16`, so it covers the 16th).
@@ -182,6 +187,7 @@ unsafe fn ascii_into(dst: *mut u8, bytes: &[u8]) -> bool {
         if (u64::from_ne_bytes(a) | u64::from_ne_bytes(b)) & HIGH != 0 {
             return false;
         }
+        let dst = room();
         // SAFETY: the caller's room; the stores cover `dst .. dst + 1 + len` exactly (the second word ends at
         // `1 + last + 8 = 1 + len`): the header and the first seven bytes as one word (`len < 16`: the second starts
         // at `1 + last <= 8`, so it covers the eighth). One store fewer than a byte for the header.
@@ -200,6 +206,7 @@ unsafe fn ascii_into(dst: *mut u8, bytes: &[u8]) -> bool {
         if (u32::from_ne_bytes(a) | u32::from_ne_bytes(b)) & (HIGH as u32) != 0 {
             return false;
         }
+        let dst = room();
         // SAFETY: as above, with four-byte halves (`len < 8`).
         unsafe {
             let first = (u32::from_le_bytes(a) << 8) | u32::from(header);
@@ -219,6 +226,7 @@ unsafe fn ascii_into(dst: *mut u8, bytes: &[u8]) -> bool {
     if (c0 | c1 | c2) & 0x80 != 0 {
         return false;
     }
+    let dst = room();
     // SAFETY: the caller's room; for `len` 1 to 3 the stores at `1`, `1 + middle` and `1 + last` cover
     // `1 .. 1 + len`, and none is past it.
     unsafe {
@@ -251,7 +259,7 @@ pub(crate) fn ascii_strings(out: &mut Vec<u8>, values: &[String]) -> (usize, usi
     for v in values.iter().take(run) {
         // SAFETY: `v.len() <= SHORT`, and the room reserved holds `1 + SHORT` bytes from `o` for each string of the
         // run, of which `o` has passed at most that many for each string written.
-        if v.len() > SHORT || !unsafe { ascii_into(base.add(o), v.as_bytes()) } {
+        if v.len() > SHORT || !unsafe { ascii_into(|| base.add(o), v.as_bytes()) } {
             break;
         }
         o = o.wrapping_add(1).wrapping_add(v.len());
@@ -1032,17 +1040,31 @@ const WIDE_MAX: usize = i32::MAX as usize;
 pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
     #[cfg(target_arch = "x86_64")]
     if text.len() <= WIDE_MAX {
+        // Text under 64 bytes has a one-byte header (at most 63 chars or code units): each kernel has a copy for it
+        // with that room, and no branch on the header's size.
+        let one = text.len() < 64;
         match x86::tier() {
-            // SAFETY: the CPU has what each kernel needs (its tier), and the text is at most `WIDE_MAX` bytes.
+            // SAFETY: the CPU has what each kernel needs (its tier), and the text is at most `WIDE_MAX` bytes (under
+            // 64 for the copies with `ONE`).
             #[cfg(nino_avx512)]
-            x86::Tier::Avx512 => unsafe { x86::wide_avx512(out, text) },
+            x86::Tier::Avx512 if one => unsafe { x86::wide_avx512::<true>(out, text) },
             // SAFETY: as above.
-            x86::Tier::Avx2 => unsafe { x86::wide_avx2(out, text) },
+            #[cfg(nino_avx512)]
+            x86::Tier::Avx512 => unsafe { x86::wide_avx512::<false>(out, text) },
+            // SAFETY: as above.
+            x86::Tier::Avx2 if one => unsafe { x86::wide_avx2::<true>(out, text) },
+            // SAFETY: as above.
+            x86::Tier::Avx2 => unsafe { x86::wide_avx2::<false>(out, text) },
             // SAFETY: as above (a compiler without AVX-512 never finds that tier).
             #[cfg(not(nino_avx512))]
-            x86::Tier::Avx512 => unsafe { x86::wide_avx2(out, text) },
+            x86::Tier::Avx512 if one => unsafe { x86::wide_avx2::<true>(out, text) },
             // SAFETY: as above.
-            x86::Tier::Sse41 => unsafe { x86::wide_sse41(out, text) },
+            #[cfg(not(nino_avx512))]
+            x86::Tier::Avx512 => unsafe { x86::wide_avx2::<false>(out, text) },
+            // SAFETY: as above.
+            x86::Tier::Sse41 if one => unsafe { x86::wide_sse41::<true>(out, text) },
+            // SAFETY: as above.
+            x86::Tier::Sse41 => unsafe { x86::wide_sse41::<false>(out, text) },
             x86::Tier::Sse2 | x86::Tier::Ssse3 => return wide_short(out, text),
         }
         return true;
@@ -1076,6 +1098,26 @@ fn wide_short(out: &mut Vec<u8>, text: &str) -> bool {
     false
 }
 
+/// The room a one-pass writer reserves for the header of `text` (with a char above U+007F): exact below 256 bytes,
+/// where the header takes one byte or three by the text's UTF-16 code units (which `units` counts, for text of 64
+/// bytes or more: fewer than 64 units in under 256 bytes is possible), so the chars are never moved there (a moved
+/// block reloads bytes just stored, which stalls); else [`header_room`].
+#[inline(always)]
+pub(crate) fn text_room(text: &str, units: impl FnOnce(&[u8]) -> u64) -> usize {
+    let len = text.len();
+    if len < 64 {
+        1
+    } else if len < 256 {
+        if units(text.as_bytes()) < 64 {
+            1
+        } else {
+            3
+        }
+    } else {
+        header_room(len)
+    }
+}
+
 /// The room a one-pass writer reserves for the header of a string of `len` bytes of UTF-8: the size of the longest
 /// header that length allows (at most `len` chars or code units, and `2 * n` and `2 * n + 1` take as many bytes).
 /// [`finish`] moves the chars down when the header takes less.
@@ -1085,27 +1127,75 @@ pub(crate) fn header_room(len: usize) -> usize {
     crate::strings::header_size(u32::try_from(len.saturating_mul(2)).unwrap_or(u32::MAX))
 }
 
-/// Ends a one-pass writer's output at `at`: its header (of the count of chars or of code units) in the `room` bytes
-/// reserved for it, the `o` bytes written after them moved down when the header takes fewer, and the length.
-///
-/// # Safety
-/// The `room` bytes from `at` (from [`header_room`] of the text's length) and the `o` after them are initialized
-/// room of `out`, `o` at most twice `i32::MAX`.
+/// The room a one-pass kernel reserves for the header of text of `len` bytes (with a char above U+007F), guessed from
+/// the length alone: one byte below 128 bytes, which takes the header of text under 64 bytes and of most text up to
+/// 127 (fewer than 64 chars or code units: two bytes or more a char, or a Latin-1 char in every 64 bytes or more);
+/// else [`header_room`]. [`finish`] moves the chars when the header takes another size. Counting the chars first
+/// costs as much as the move (its loads wait for the stores just made) on every string, where the move costs only
+/// the strings that take it.
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
 #[inline(always)]
-unsafe fn finish(out: &mut Vec<u8>, at: usize, room: usize, o: usize, latin1: bool) {
+pub(crate) fn kernel_room(len: usize) -> usize {
+    if len < 128 {
+        1
+    } else {
+        header_room(len)
+    }
+}
+
+/// Ends a one-pass writer's output at `at`: its header (of the count of chars or of code units) in the `room` bytes
+/// reserved for it, the `o` bytes written after them moved when the header takes another size, and the length.
+///
+/// # Safety
+/// The `room` bytes from `at` (from [`kernel_room`] of the text's length `len`) and the `o` after them are
+/// initialized room of `out`, `o` at most twice `i32::MAX`, and `out` has room for `room + 2 * len + 32` bytes from
+/// `at`; with `ONE`, `room` is 1 and the text under 64 bytes (so `o` is at most 126 and the header one byte).
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
+#[inline(always)]
+unsafe fn finish<const ONE: bool>(out: &mut Vec<u8>, at: usize, room: usize, o: usize, latin1: bool) {
     // Latin-1: `2 * count + 1`; UTF-16: `2 * units`, which is `o`. Either fits a `u32` (the text is at most
     // `WIDE_MAX` bytes, so `o / 2` and `o` (Latin-1) are at most `i32::MAX`).
     let value = if latin1 { (o as u32).wrapping_mul(2).wrapping_add(1) } else { o as u32 };
-    let (header, n) = crate::strings::header(value);
-    // SAFETY: the caller's contract; `n <= room` (the header of at most `len` chars), so the copy stays within the
-    // room, and `ptr::copy` allows the overlap.
+    type Block = core::mem::MaybeUninit<[u8; 64]>;
+    // SAFETY: the caller's contract. The header is stored as one byte when it takes one, else as its 3 or 5 bytes:
+    // stores of a constant size, never a call to `memcpy`. The chars move within the room reserved, as two blocks
+    // of 64 (both read before either is written; the bytes past `o` are spare capacity, copied as `MaybeUninit`)
+    // where `o <= 128`, else with `ptr::copy` (which allows the overlap):
+    // - down, to a one-byte header (`o <= 126`) from a room of 3 or 5 (text of 128 bytes or more): the blocks end
+    //   at `room + 1 + 128 <= room + 2 * len + 32`;
+    // - up, to a three-byte header from a room of 1 (text of 64 to 127 bytes: a header of 0x80 or more is `o >= 64`
+    //   Latin-1 chars or `o >= 128` bytes of code units, from as many bytes of text or more): the blocks end at
+    //   `3 + 128 <= 1 + 2 * len + 32`, and `3 + o <= 1 + 2 * len + 32`;
+    // - down, to a header shorter than a room of 5 (text of 32768 bytes or more).
     unsafe {
         let base = out.as_mut_ptr().add(at);
-        if n < room {
-            core::ptr::copy(base.add(room), base.add(n), o);
+        let shift = |from: usize, to: usize| {
+            let (src, dst) = (base.add(from), base.add(to));
+            if o <= 128 {
+                let (a, b) = (src.cast::<Block>().read_unaligned(), src.add(64).cast::<Block>().read_unaligned());
+                dst.cast::<Block>().write_unaligned(a);
+                dst.add(64).cast::<Block>().write_unaligned(b);
+            } else {
+                core::ptr::copy(src, dst, o);
+            }
+        };
+        if ONE || value < 0x80 {
+            if !ONE && room > 1 {
+                shift(room, 1);
+            }
+            base.write(value as u8);
+            out.set_len(at.wrapping_add(1).wrapping_add(o));
+            return;
         }
-        core::ptr::copy_nonoverlapping(header.as_ptr(), base, n);
+        let (header, n) = crate::strings::header(value);
+        if n != room {
+            shift(room, n);
+        }
+        if n == 3 {
+            base.cast::<[u8; 3]>().write_unaligned([header[0], header[1], header[2]]);
+        } else {
+            base.cast::<[u8; 5]>().write_unaligned(header);
+        }
         out.set_len(at.wrapping_add(n).wrapping_add(o));
     }
 }
@@ -1791,16 +1881,40 @@ mod tests {
         {
             if x86::tier() >= x86::Tier::Sse41 {
                 // SAFETY: the CPU has SSE4.1 (its tier), and the text is short.
-                kernels.push(("sse4.1", |out, text| unsafe { x86::wide_sse41(out, text) }));
+                kernels.push(("sse4.1", |out, text| unsafe {
+                    if text.len() < 64 {
+                        x86::wide_sse41::<true>(out, text)
+                    } else {
+                        x86::wide_sse41::<false>(out, text)
+                    }
+                }));
+                // SAFETY: as above; the copy for any length, on short text too.
+                kernels.push(("sse4.1 (any length)", |out, text| unsafe { x86::wide_sse41::<false>(out, text) }));
             }
             if x86::tier() >= x86::Tier::Avx2 {
                 // SAFETY: the CPU has AVX2 (its tier), and the text is short.
-                kernels.push(("avx2", |out, text| unsafe { x86::wide_avx2(out, text) }));
+                kernels.push(("avx2", |out, text| unsafe {
+                    if text.len() < 64 {
+                        x86::wide_avx2::<true>(out, text)
+                    } else {
+                        x86::wide_avx2::<false>(out, text)
+                    }
+                }));
+                // SAFETY: as above; the copy for any length, on short text too.
+                kernels.push(("avx2 (any length)", |out, text| unsafe { x86::wide_avx2::<false>(out, text) }));
             }
             #[cfg(nino_avx512)]
             if x86::tier() >= x86::Tier::Avx512 {
                 // SAFETY: the CPU has AVX-512 (its tier), and the text is short.
-                kernels.push(("avx-512", |out, text| unsafe { x86::wide_avx512(out, text) }));
+                kernels.push(("avx-512", |out, text| unsafe {
+                    if text.len() < 64 {
+                        x86::wide_avx512::<true>(out, text)
+                    } else {
+                        x86::wide_avx512::<false>(out, text)
+                    }
+                }));
+                // SAFETY: as above; the copy for any length, on short text too.
+                kernels.push(("avx-512 (any length)", |out, text| unsafe { x86::wide_avx512::<false>(out, text) }));
             }
         }
         #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
@@ -1927,6 +2041,34 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    /// Every way `finish` places a one-pass writer's chars: below 64 bytes, from 64 to 127 with a one-byte header and
+    /// moved up for a three-byte one (two blocks, or a copy past 128 bytes of output), and from 128 bytes left in
+    /// place or moved down for a one-byte header (under 64 code units in 128 to 255 bytes). Lengths at each edge.
+    #[test]
+    fn header_moves() {
+        let mixed = |ascii: usize, c: char, n: usize| -> String {
+            core::iter::repeat_n('a', ascii).chain(core::iter::repeat_n(c, n)).collect()
+        };
+        for text in [
+            mixed(62, 'é', 1),   // 63 chars in 64 bytes: one-byte header
+            mixed(62, 'é', 2),   // 64 chars in 66 bytes: Latin-1, moved up
+            mixed(125, 'é', 1),  // 126 chars in 127 bytes: moved up
+            mixed(30, 'é', 34),  // 64 chars in 98 bytes
+            mixed(63, '字', 1),  // 64 code units in 66 bytes: UTF-16, moved up (128 bytes)
+            mixed(64, '字', 1),  // 65 code units: moved up as a copy (130 bytes)
+            mixed(120, '字', 2), // 122 code units in 126 bytes
+            mixed(0, '字', 42),  // 42 code units in 126 bytes: in place
+            mixed(0, '字', 43),  // 43 code units in 129 bytes: moved down
+            mixed(1, '字', 63),  // 64 code units in 190 bytes: in place
+            mixed(0, '😀', 31),  // 62 code units in 124 bytes: in place
+            mixed(0, '😀', 32),  // 64 code units in 128 bytes: in place
+            mixed(0, '字', 85),  // 255 bytes
+            mixed(0, 'é', 64),   // 128 bytes
+        ] {
+            check(&text);
         }
     }
 

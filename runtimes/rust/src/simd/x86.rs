@@ -220,11 +220,11 @@ unsafe fn window32(src: *const u8, len: usize, i: usize) -> (__m128i, __m128i) {
 /// # Safety
 /// The CPU has SSSE3, SSE4.1 and POPCNT, and `text.len() <= WIDE_MAX`.
 #[target_feature(enable = "ssse3,sse4.1,popcnt")]
-pub(crate) unsafe fn wide_sse41(out: &mut Vec<u8>, text: &str) {
+pub(crate) unsafe fn wide_sse41<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
     // UTF-16 takes at most two bytes per byte of UTF-8, Latin-1 one; a step stores up to 32 bytes from where its
     // output starts. `len <= i32::MAX`: no sum below wraps.
-    let room = super::header_room(len);
+    let room = if ONE { 1 } else { super::kernel_room(len) };
     out.reserve(len.wrapping_mul(2).wrapping_add(room).wrapping_add(32));
     let at = out.len();
     // Invariants: `i <= len` is a char boundary of the valid UTF-8 at `src`, and `o <= i` bytes (Latin-1) or
@@ -278,7 +278,7 @@ pub(crate) unsafe fn wide_sse41(out: &mut Vec<u8>, text: &str) {
             i = i.wrapping_add(q);
         }
         // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written.
-        unsafe { super::finish(out, at, room, o, true) };
+        unsafe { super::finish::<ONE>(out, at, room, o, true) };
         return;
     }
     // A char above U+00FF: UTF-16 from the start, over what was written.
@@ -355,7 +355,7 @@ pub(crate) unsafe fn wide_sse41(out: &mut Vec<u8>, text: &str) {
     }
     // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written (`o / 2` code units, at most
     // `len`).
-    unsafe { super::finish(out, at, room, o, false) };
+    unsafe { super::finish::<ONE>(out, at, room, o, false) };
 }
 
 // ------------------------------------------------------------------------------------------------ AVX2 writer
@@ -415,10 +415,10 @@ fn lanes_avx2(v: __m128i, next: __m128i, three: u32, four: u32) -> __m256i {
 /// # Safety
 /// The CPU has AVX2, SSSE3, SSE4.1 and POPCNT, and `text.len() <= WIDE_MAX`.
 #[target_feature(enable = "avx2,ssse3,sse4.1,popcnt")]
-pub(crate) unsafe fn wide_avx2(out: &mut Vec<u8>, text: &str) {
+pub(crate) unsafe fn wide_avx2<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
     // As in `wide_sse41`: `4 + 2 * len + 64` bytes of room.
-    let room = super::header_room(len);
+    let room = if ONE { 1 } else { super::kernel_room(len) };
     out.reserve(len.wrapping_mul(2).wrapping_add(room).wrapping_add(64));
     let at = out.len();
     // Invariants: as in `wide_sse41`.
@@ -464,7 +464,7 @@ pub(crate) unsafe fn wide_avx2(out: &mut Vec<u8>, text: &str) {
             i = i.wrapping_add(q);
         }
         // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written.
-        unsafe { super::finish(out, at, room, o, true) };
+        unsafe { super::finish::<ONE>(out, at, room, o, true) };
         return;
     }
     (i, o) = (0, 0);
@@ -509,7 +509,7 @@ pub(crate) unsafe fn wide_avx2(out: &mut Vec<u8>, text: &str) {
         i = i.wrapping_add(q);
     }
     // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written.
-    unsafe { super::finish(out, at, room, o, false) };
+    unsafe { super::finish::<ONE>(out, at, room, o, false) };
 }
 
 // ------------------------------------------------------------------------------------------------ AVX-512 writer
@@ -608,11 +608,11 @@ fn compress8(keep: u64, v: __m512i) -> __m512i {
 // AVX-512 is stable since Rust 1.89, after the MSRV: build.rs sets `nino_avx512` only for a compiler that has it.
 #[allow(clippy::incompatible_msrv)]
 #[target_feature(enable = "avx512f,avx512bw,avx512vl,avx512vbmi2,avx2,bmi1,bmi2,lzcnt,popcnt")]
-pub(crate) unsafe fn wide_avx512(out: &mut Vec<u8>, text: &str) {
+pub(crate) unsafe fn wide_avx512<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
     // A step stores 64 bytes from where its output starts: `4 + 2 * len + 64` bytes of room. `len <= i32::MAX`: no
     // sum below wraps.
-    let room = super::header_room(len);
+    let room = if ONE { 1 } else { super::kernel_room(len) };
     out.reserve(len.wrapping_mul(2).wrapping_add(room).wrapping_add(64));
     let at = out.len();
     // Invariants: `i <= len` is a char boundary of the valid UTF-8 at `src`, and `o <= i` bytes (Latin-1) or
@@ -649,7 +649,7 @@ pub(crate) unsafe fn wide_avx512(out: &mut Vec<u8>, text: &str) {
             i = i.wrapping_add(q);
         }
         // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written.
-        unsafe { super::finish(out, at, room, o, true) };
+        unsafe { super::finish::<ONE>(out, at, room, o, true) };
         return;
     }
     (i, o) = (0, 0);
@@ -697,7 +697,7 @@ pub(crate) unsafe fn wide_avx512(out: &mut Vec<u8>, text: &str) {
         i = i.wrapping_add(q);
     }
     // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written.
-    unsafe { super::finish(out, at, room, o, false) };
+    unsafe { super::finish::<ONE>(out, at, room, o, false) };
 }
 
 // ------------------------------------------------------------------------------------------------ the reader's text
