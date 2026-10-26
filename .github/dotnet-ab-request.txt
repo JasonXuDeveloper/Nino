@@ -1,7 +1,6 @@
 # [cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...> (see .github/workflows/dotnet-ab.yml); one job per line.
-# phase6/string-varint: the slow string cases, main 36cfdbf against the varint headers with string reads returning
-# their size in registers and StringBuilder headers of up to two bytes inline (e067060), twice, and main against
-# itself, 6 rounds each, on EPYC 7763 and Arm64.
-cpu='7763|Neoverse' 36cfdbf e067060 6 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
-cpu='7763|Neoverse' 36cfdbf e067060 6 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
+# phase6/string-varint: the slow string cases, main 36cfdbf against the varint headers with 17 to 63 chars written
+# after a header of constant size (9670933), twice, and main against itself, 6 rounds each, on EPYC 7763 and Arm64.
+cpu='7763|Neoverse' 36cfdbf 9670933 6 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
+cpu='7763|Neoverse' 36cfdbf 9670933 6 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
 cpu='7763|Neoverse' 36cfdbf 36cfdbf 6 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
