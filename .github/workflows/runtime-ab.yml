@@ -28,7 +28,7 @@ jobs:
       matrix:
         runner: [ubuntu-26.04, ubuntu-26.04-arm]
         # Several jobs a runner: the x64 runners draw different processors (EPYC 7763, 9V74, 9V45).
-        copy: [1, 2, 3]
+        copy: [1, 2, 3, 4, 5]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     steps:
