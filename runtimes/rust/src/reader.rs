@@ -299,43 +299,38 @@ impl<'d> Reader<'d> {
         Ok(Some(crate::simd::utf16_string(units)))
     }
 
-    /// `count` strings in the default encoding, none null (a list of them): short ASCII text (up to 16 bytes, with
-    /// 16 bytes of data after its header) read as one block ([`crate::simd::ascii_block`]) with the position kept in
-    /// a register from one string to the next, every other string through [`Reader::string`]. After a string the
-    /// block does not take, the next [`PLAIN`] go straight through [`Reader::string`]: in a list of mixed text the
-    /// test would mostly fail.
+    /// `count` strings in the default encoding, none null (a list of them): while they are short ASCII text (up to
+    /// 16 bytes, with 16 bytes of data after its header), each read as one block ([`crate::simd::ascii_block`]); from
+    /// the first that is not, each through [`Reader::string`], as other lists are read (in a list of mixed text the
+    /// block's test would mostly fail).
     pub(crate) fn strings(&mut self, count: usize) -> Result<Vec<String>> {
-        /// How many strings go through [`Reader::string`] after one the block does not take.
-        const PLAIN: usize = 8;
         let mut values = Vec::with_capacity(self.capacity::<String>(count));
-        let mut rest = self.rest;
-        let mut plain = 0usize;
-        for _ in 0..count {
-            if plain == 0 {
-                if let Some((&header, tail)) = rest.split_first() {
-                    // Latin-1 of 1 to 16 chars: 3, 5, ... 33.
-                    if header & 1 != 0 && header.wrapping_sub(3) < 31 {
-                        if let Some(block) = tail.first_chunk::<16>() {
-                            let n = usize::from(header >> 1);
-                            if let Some(text) = crate::simd::ascii_block(block, n) {
-                                values.push(text);
-                                rest = tail.get(n..).unwrap_or_default();
-                                continue;
-                            }
-                        }
-                    }
-                }
-                plain = PLAIN;
-            } else {
-                // `plain > 0`.
-                plain = plain.wrapping_sub(1);
-            }
-            self.rest = rest;
-            values.push(self.string()?.ok_or_else(Error::null)?);
-            rest = self.rest;
+        let mut left = count;
+        while left != 0 {
+            let Some(text) = self.ascii_block_string() else { break };
+            values.push(text);
+            // `left != 0`.
+            left = left.wrapping_sub(1);
         }
-        self.rest = rest;
+        for _ in 0..left {
+            values.push(self.string()?.ok_or_else(Error::null)?);
+        }
         Ok(values)
+    }
+
+    /// The next string when it is Latin-1 of 1 to 16 chars, all ASCII, with 16 bytes after its header
+    /// ([`crate::simd::ascii_block`]); else `None`, having read nothing.
+    #[inline(always)]
+    fn ascii_block_string(&mut self) -> Option<String> {
+        let (&header, tail) = self.rest.split_first()?;
+        // Latin-1 of 1 to 16 chars: 3, 5, ... 33.
+        if header & 1 == 0 || header.wrapping_sub(3) >= 31 {
+            return None;
+        }
+        let n = usize::from(header >> 1);
+        let text = crate::simd::ascii_block(tail.first_chunk::<16>()?, n)?;
+        self.rest = tail.get(n..).unwrap_or_default();
+        Some(text)
     }
 
     /// A string in the default encoding as its UTF-16 code units, unpaired surrogates included (lossless).
@@ -377,16 +372,26 @@ impl<'d> Reader<'d> {
     /// the bytes, the counts string headers of at most `i32::MAX`. The bytes must be strict UTF-8, with
     /// `count <= bytes <= 3 * count`, and decode to exactly `count` UTF-16 code units.
     pub fn utf8(&mut self) -> Result<Option<String>> {
-        let header = self.header()?;
-        if header <= 1 {
-            return Ok((header == 1).then(String::new));
-        }
-        // `header >= 2`: no wrap.
-        let chars = header.wrapping_sub(1);
-        if chars > i32::MAX as u32 {
-            return Err(Error::length(-1));
-        }
-        let size = self.header()?;
+        // Both counts one byte (text of up to 126 code units and 127 bytes): read as one pair.
+        let (chars, size) = match self.rest.split_first_chunk::<2>() {
+            Some((&[c, s], rest)) if c >= 2 && (c | s) < 0x80 => {
+                self.rest = rest;
+                // `c >= 2`: no wrap.
+                (u32::from(c).wrapping_sub(1), u32::from(s))
+            }
+            _ => {
+                let header = self.header()?;
+                if header <= 1 {
+                    return Ok((header == 1).then(String::new));
+                }
+                // `header >= 2`: no wrap.
+                let chars = header.wrapping_sub(1);
+                if chars > i32::MAX as u32 {
+                    return Err(Error::length(-1));
+                }
+                (chars, self.header()?)
+            }
+        };
         let chars_u = u64::from(chars);
         if size < chars || u64::from(size) > chars_u.saturating_mul(3) || size as usize > self.rest.len() {
             return Err(Error::length(size as i32));

@@ -240,7 +240,14 @@ impl<'a> Writer<'a> {
         let chars = crate::strings::utf16_len(text.as_bytes());
         let chars = u32::try_from(chars).ok().filter(|&c| c <= i32::MAX as u32).ok_or_else(Error::too_large)?;
         let size = u32::try_from(text.len()).ok().filter(|&c| c <= i32::MAX as u32).ok_or_else(Error::too_large)?;
-        // One reservation: the two counts, then the bytes. `chars <= i32::MAX`: `chars + 1` cannot wrap.
+        // `chars <= i32::MAX`: `chars + 1` cannot wrap. Two one-byte counts and up to 32 bytes: as one block.
+        if chars < 0x7F && size < 0x80 {
+            let head = [chars.wrapping_add(1) as u8, size as u8];
+            if crate::simd::two_and_short(&mut self.buf, head, text.as_bytes()) {
+                return Ok(());
+            }
+        }
+        // One reservation: the two counts, then the bytes.
         self.buf.reserve(text.len().saturating_add(10));
         crate::strings::push_header(&mut self.buf, chars.wrapping_add(1));
         crate::strings::push_header(&mut self.buf, size);

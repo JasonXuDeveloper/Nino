@@ -116,6 +116,48 @@ fn spread(w: u64) -> u64 {
     (w | (w << 8)) & 0x00FF_00FF_00FF_00FF
 }
 
+/// Appends `head` (two one-byte headers: a `[NinoUtf8]` string's counts) and then `bytes`, at most [`SHORT`] of them,
+/// and returns true; returns false, having appended nothing, for more bytes. One reservation, and stores of a constant
+/// size (the first and last 16, 8 or 4 bytes, which may overlap, or three bytes): no call to `memcpy`.
+#[inline(always)]
+pub(crate) fn two_and_short(out: &mut Vec<u8>, head: [u8; 2], bytes: &[u8]) -> bool {
+    let (src, len) = (bytes.as_ptr(), bytes.len());
+    if len > SHORT {
+        return false;
+    }
+    // `len <= 32`: none of the sums or differences below can wrap.
+    out.reserve(len.wrapping_add(2));
+    let at = out.len();
+    // SAFETY: `2 + len` bytes of room at `dst`, and `len` readable at `src`; the stores cover `dst .. dst + 2 + len`
+    // exactly: the head, then the first and last `k` bytes (16, 8 or 4, `k <= len < 2k`) at `2` and `2 + len - k`,
+    // or for `len` 0 to 3 the first, middle and last byte (some of them the same).
+    unsafe {
+        let dst = out.as_mut_ptr().add(at);
+        dst.cast::<[u8; 2]>().write_unaligned(head);
+        let body = dst.add(2);
+        if len >= 16 {
+            let last = len.wrapping_sub(16);
+            body.cast::<[u8; 16]>().write_unaligned(src.cast::<[u8; 16]>().read_unaligned());
+            body.add(last).cast::<[u8; 16]>().write_unaligned(src.add(last).cast::<[u8; 16]>().read_unaligned());
+        } else if len >= 8 {
+            let last = len.wrapping_sub(8);
+            body.cast::<[u8; 8]>().write_unaligned(src.cast::<[u8; 8]>().read_unaligned());
+            body.add(last).cast::<[u8; 8]>().write_unaligned(src.add(last).cast::<[u8; 8]>().read_unaligned());
+        } else if len >= 4 {
+            let last = len.wrapping_sub(4);
+            body.cast::<[u8; 4]>().write_unaligned(src.cast::<[u8; 4]>().read_unaligned());
+            body.add(last).cast::<[u8; 4]>().write_unaligned(src.add(last).cast::<[u8; 4]>().read_unaligned());
+        } else if len != 0 {
+            let (middle, last) = (len / 2, len.wrapping_sub(1));
+            body.write(src.read());
+            body.add(middle).write(src.add(middle).read());
+            body.add(last).write(src.add(last).read());
+        }
+        out.set_len(at.wrapping_add(2).wrapping_add(len));
+    }
+    true
+}
+
 /// The longest text [`ascii_short`] takes.
 pub(crate) const SHORT: usize = 32;
 
@@ -1036,7 +1078,7 @@ const WIDE_MAX: usize = i32::MAX as usize;
 /// U+00FF, else as UTF-16 LE code units. Returns false, having written nothing, when it does not take the text: on
 /// x86_64 without SSE4.1, or on targets without a one-pass kernel, text longer than [`SHORT_WIDE`], which
 /// [`transcode`] takes.
-#[inline]
+#[inline(always)]
 pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
     #[cfg(target_arch = "x86_64")]
     if text.len() <= WIDE_MAX {
@@ -2155,6 +2197,25 @@ mod tests {
                 })
                 .collect();
             utf16(&wide);
+        }
+    }
+
+    #[test]
+    fn two_and_short_bytes() {
+        // Every length up to SHORT and past it, after a prefix: the head, then the bytes, or nothing.
+        for len in 0..=SHORT + 2 {
+            let bytes: Vec<u8> = (0..len).map(|i| 0x80 | i as u8).collect();
+            let mut out = vec![0xAA; 3];
+            let done = two_and_short(&mut out, [7, 9], &bytes);
+            if len <= SHORT {
+                let mut expected = vec![0xAA, 0xAA, 0xAA, 7, 9];
+                expected.extend_from_slice(&bytes);
+                assert!(done, "{len}");
+                assert_eq!(out, expected, "{len}");
+            } else {
+                assert!(!done, "{len}");
+                assert_eq!(out, [0xAA; 3], "{len}");
+            }
         }
     }
 
