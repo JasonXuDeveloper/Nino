@@ -1,9 +1,18 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase7/string-header: string headers of 1, 3 or 5 bytes, the first byte giving the size (ab-string-header fe5fbaa),
-# against main 36cfdbf, and main against itself (the floor): Go string cases 12 rounds, TypeScript, Rust.
-go#12 36cfdbf fe5fbaa /strings-(1000|mixed-1000)/Nino
+# phase7/string-header, tuned (ab-string-header-2 83adf7e) against main 36cfdbf: Go string cases 12 rounds with the
+# list kernels' loop heads aligned as on the branch (83adf7e: amd64 next, arm64 mnext/mdone) and three other ways
+# (aec8b49: amd64 none, arm64 all four; 7c73421: amd64 next/done; f034a3b: none), and the floor; TypeScript string
+# cases four times (12 rounds) against the floor four times.
+go#12 36cfdbf 83adf7e /strings-(1000|mixed-1000)/Nino
+go#12 36cfdbf aec8b49 /strings-(1000|mixed-1000)/Nino
+go#12 36cfdbf 7c73421 /strings-(1000|mixed-1000)/Nino
+go#12 36cfdbf f034a3b /strings-(1000|mixed-1000)/Nino
 go#12 36cfdbf 36cfdbf /strings-(1000|mixed-1000)/Nino
-typescript 36cfdbf fe5fbaa
-typescript 36cfdbf 36cfdbf
-rust 36cfdbf fe5fbaa
-rust 36cfdbf 36cfdbf
+typescript 36cfdbf 83adf7e strings
+typescript 36cfdbf 36cfdbf strings
+typescript 36cfdbf 83adf7e strings
+typescript 36cfdbf 36cfdbf strings
+typescript 36cfdbf 83adf7e strings
+typescript 36cfdbf 36cfdbf strings
+typescript 36cfdbf 83adf7e strings
+typescript 36cfdbf 36cfdbf strings
