@@ -1,5 +1,8 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase6/string-varint: Go with the one-byte header read in place and the short end inline (53aaa33), against main 36cfdbf;
-# then the string lists at four buffer offsets (an A/B-only benchmark on both sides: 74581c7 main, 4a3bef7 head).
-go#10 36cfdbf 53aaa33 /strings-(1000|mixed-1000)/Nino
-go:.#6 74581c7 4a3bef7 XOffsets
+# phase6/string-varint: the Go list kernels (AVX-512, NEON) with their loop heads aligned to 32 bytes on both sides
+# (A/B only: edd1bed main, 958b8e1 head), by buffer offset and on the string cases; then TypeScript and Rust, main
+# 36cfdbf against the varint headers with the TypeScript long-header fix (9933558).
+go:.#6 edd1bed 958b8e1 XOffsets
+go#6 edd1bed 958b8e1 /strings-(1000|mixed-1000)/Nino
+typescript 36cfdbf 9933558
+rust 36cfdbf 9933558

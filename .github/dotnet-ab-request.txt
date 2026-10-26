@@ -1,6 +1,4 @@
 # [cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...> (see .github/workflows/dotnet-ab.yml); one job per line.
-# phase6/string-varint, the write side on main 36cfdbf: the varint headers (53aaa33), with the header byte stored before
-# the text (a688f40), and as a 4-byte store before the text (0cf0f89). EPYC 7763 (where it measured slower) and Arm64.
-cpu='7763|Neoverse' 36cfdbf 53aaa33 3 *CommonTypesTest.NinoSerializeStringDictionary* *SimpleTest.NinoSerializeSimpleClass* *VersionTolerantTest.NinoSerializeTolerantClass* *BclTypesTest.NinoSerializeUri* *BclTypesTest.NinoSerializeTimeZone* *BclTypesTest.Nino*StringBuilder*
-cpu='7763|Neoverse' 36cfdbf a688f40 3 *CommonTypesTest.NinoSerializeStringDictionary* *SimpleTest.NinoSerializeSimpleClass* *VersionTolerantTest.NinoSerializeTolerantClass* *BclTypesTest.NinoSerializeUri* *BclTypesTest.NinoSerializeTimeZone* *BclTypesTest.Nino*StringBuilder*
-cpu='7763|Neoverse' 36cfdbf 0cf0f89 3 *CommonTypesTest.NinoSerializeStringDictionary* *SimpleTest.NinoSerializeSimpleClass* *VersionTolerantTest.NinoSerializeTolerantClass* *BclTypesTest.NinoSerializeUri* *BclTypesTest.NinoSerializeTimeZone* *BclTypesTest.Nino*StringBuilder*
+# phase6/string-varint: StringDictionary serialize at buffer offsets 0-3 (A/B-only benchmarks on both sides: 365bf1f
+# main 36cfdbf, f5450fe the varint headers), on EPYC 7763 and Arm64.
+cpu='7763|Neoverse' 365bf1f f5450fe 3 *CommonTypesTest.NinoSerializeStringDictionary*
