@@ -234,8 +234,8 @@ unsafe fn ascii_into(room: impl FnOnce() -> *mut u8, bytes: &[u8]) -> bool {
         // `1 + last + 8 = 1 + len`): the header and the first seven bytes as one word (`len < 16`: the second starts
         // at `1 + last <= 8`, so it covers the eighth). One store fewer than a byte for the header.
         unsafe {
-            let first = (u64::from_le_bytes(a) << 8) | u64::from(header);
-            dst.cast::<[u8; 8]>().write_unaligned(first.to_le_bytes());
+            dst.write(header);
+            dst.add(1).cast::<[u8; 8]>().write_unaligned(a);
             dst.add(1).add(last).cast::<[u8; 8]>().write_unaligned(b);
         }
         return true;
