@@ -1,4 +1,6 @@
 # [cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...> (see .github/workflows/dotnet-ab.yml); one job per line.
-# phase6/string-varint: StringDictionary serialize at buffer offsets 0-3 (A/B-only benchmarks on both sides: 365bf1f
-# main 36cfdbf, f5450fe the varint headers), on EPYC 7763 and Arm64.
-cpu='7763|Neoverse' 365bf1f f5450fe 3 *CommonTypesTest.NinoSerializeStringDictionary*
+# phase6/string-varint: the slow string cases, main 36cfdbf against the varint headers with the inline write taking the
+# narrowing's own size tests (eab1592), on every runner; then main against itself on EPYC 7763 and Arm64 (noise floor).
+36cfdbf eab1592 3 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
+cpu='7763|Neoverse' 36cfdbf eab1592 3 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
+cpu='7763|Neoverse' 36cfdbf 36cfdbf 3 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
