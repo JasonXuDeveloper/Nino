@@ -43,6 +43,20 @@ pub(crate) fn header(value: u32) -> ([u8; 5], usize) {
     }
 }
 
+/// Appends `value` as a string header ([`header`]): one push when it is one byte, else an append of a constant
+/// size, never a copy of a length known only at run time (a call to `memcpy`).
+#[inline(always)]
+pub(crate) fn push_header(buf: &mut Vec<u8>, value: u32) {
+    let v = value.to_le_bytes();
+    if value < 0x80 {
+        buf.push(v[0]);
+    } else if value <= 0xFFFF {
+        buf.extend_from_slice(&[HEADER16, v[0], v[1]]);
+    } else {
+        buf.extend_from_slice(&[HEADER32, v[0], v[1], v[2], v[3]]);
+    }
+}
+
 /// The header of a default string of `count` chars: `2 * count + 1` for Latin-1, `2 * count` for UTF-16. Fails past
 /// `i32::MAX` chars.
 #[inline]
@@ -94,6 +108,26 @@ pub(crate) fn utf16_len(bytes: &[u8]) -> u64 {
         _ => tail.iter().map(|&b| u64::from(b as i8 >= -0x40).wrapping_add(u64::from(b >= 0xF0))).sum(),
     };
     units.wrapping_add(head).wrapping_add(tail_units)
+}
+
+/// [`utf16_len`] a word at a time (no loop of byte lanes), for text of a few words: each word's code units, then
+/// the last bytes as the high bytes of the text's last word.
+#[inline(always)]
+pub(crate) fn utf16_len_words(bytes: &[u8]) -> u64 {
+    let (words, tail) = bytes.as_chunks::<8>();
+    let mut units = 0u64;
+    for w in words {
+        units = units.wrapping_add(word_units(u64::from_le_bytes(*w), 8));
+    }
+    let tail_units = match bytes.last_chunk::<8>() {
+        // `1 <= tail.len() < 8`: a shift of 8 to 56 bits.
+        Some(last) if !tail.is_empty() => word_units(
+            u64::from_le_bytes(*last) >> (8usize.wrapping_sub(tail.len()).wrapping_mul(8)),
+            tail.len() as u64,
+        ),
+        _ => tail.iter().map(|&b| u64::from(b as i8 >= -0x40).wrapping_add(u64::from(b >= 0xF0))).sum(),
+    };
+    units.wrapping_add(tail_units)
 }
 
 /// The UTF-16 code units of the `n` bytes of `w` (little-endian, zero above them; the bytes valid UTF-8 between char
@@ -158,7 +192,7 @@ pub(crate) fn write_strings(w: &mut Writer<'_>, values: &[String]) -> Result<()>
 #[inline(never)]
 fn write_wide(w: &mut Writer<'_>, text: &str) -> Result<()> {
     let at = w.position();
-    let room = crate::simd::header_room(text.len());
+    let room = crate::simd::text_room(text, utf16_len_words);
     let buf = w.buffer();
     buf.resize(at.saturating_add(room), 0);
     let latin1 = crate::simd::transcode(buf, text);
