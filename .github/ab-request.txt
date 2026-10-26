@@ -1,13 +1,13 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase8/beat-main (fe9ec0a: + AVX2 short hand-off, tagged map keys read once, Rust string lists in runs) against
-# main before the string headers (36cfdbf), each with its floor. Five jobs a runner, to draw Zen 4 and Zen 5.
-go#12 36cfdbf fe9ec0a /(simple-class|simple-class-100|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(Nino|NinoTags)$
+# phase8/beat-main (b19994a: + short [NinoUtf8] headers in one store) against main before the string headers (36cfdbf),
+# each with its floor, Rust now with a target directory a side. Five jobs a runner, to draw Zen 4 and Zen 5.
+go#12 36cfdbf b19994a /(simple-class|simple-class-100|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(Nino|NinoTags)$
 go#12 36cfdbf 36cfdbf /(simple-class|simple-class-100|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(Nino|NinoTags)$
-rust 36cfdbf fe9ec0a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf b19994a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 rust 36cfdbf 36cfdbf ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 36cfdbf fe9ec0a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf b19994a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 rust 36cfdbf 36cfdbf ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 36cfdbf fe9ec0a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf b19994a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 rust 36cfdbf 36cfdbf ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 36cfdbf fe9ec0a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf b19994a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 rust 36cfdbf 36cfdbf ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
