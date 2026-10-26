@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"reflect"
 	"slices"
-	"strings"
 	"unsafe"
 )
 
@@ -829,32 +828,39 @@ func keyOrder(keys reflect.Value) []int {
 	for i := range order {
 		order[i] = i
 	}
-	var less func(a, b int) int
+	// Each key read once (not through reflect at each comparison), then the indexes sorted by them.
 	switch keys.Type().Elem().Kind() {
 	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		less = func(a, b int) int { return cmp.Compare(keys.Index(a).Int(), keys.Index(b).Int()) }
+		sortBy(order, keys, reflect.Value.Int)
 	case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		less = func(a, b int) int { return cmp.Compare(keys.Index(a).Uint(), keys.Index(b).Uint()) }
+		sortBy(order, keys, reflect.Value.Uint)
 	case reflect.Float32, reflect.Float64:
-		less = func(a, b int) int { return cmp.Compare(keys.Index(a).Float(), keys.Index(b).Float()) }
+		sortBy(order, keys, reflect.Value.Float)
 	case reflect.String:
-		less = func(a, b int) int { return strings.Compare(keys.Index(a).String(), keys.Index(b).String()) }
+		sortBy(order, keys, reflect.Value.String)
 	case reflect.Bool:
-		less = func(a, b int) int {
-			x, y := keys.Index(a).Bool(), keys.Index(b).Bool()
-			switch {
-			case x == y:
-				return 0
-			case !x:
-				return -1
+		sortBy(order, keys, func(v reflect.Value) int {
+			if v.Bool() {
+				return 1
 			}
-			return 1
-		}
-	default:
-		return order
+			return 0
+		})
 	}
-	slices.SortFunc(order, less)
 	return order
+}
+
+// sortBy sorts order (the indexes of keys) by the key each gives: each key read once, into the stack for maps of
+// up to 32 keys.
+func sortBy[K cmp.Ordered](order []int, keys reflect.Value, key func(reflect.Value) K) {
+	var room [32]K
+	k := room[:0]
+	if len(order) > len(room) {
+		k = make([]K, 0, len(order))
+	}
+	for i := range order {
+		k = append(k, key(keys.Index(i)))
+	}
+	slices.SortFunc(order, func(a, b int) int { return cmp.Compare(k[a], k[b]) })
 }
 
 // iface: a polymorphic slot (object, an abstract class, an interface): a type id, then a registered type.
