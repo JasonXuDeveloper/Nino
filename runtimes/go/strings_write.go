@@ -110,10 +110,20 @@ func (w *Writer) String(s string) {
 	b := w.buf[at:end]
 	src := unsafe.Pointer(unsafe.StringData(s))
 	dst := unsafe.Pointer(&b[1])
-	// Each word is stored before it is checked: at a byte of 0x80 or above, the ASCII bytes before it are written.
+	// The header, 2n+1 (one byte: n < 64), goes in the low byte of the first store, the text's first bytes above it:
+	// one store fewer than the header as a byte of its own. Each word is stored before it is checked: at a byte of
+	// 0x80 or above, the ASCII bytes before it are written ([Writer.wideString] writes its own header).
+	h := uint64(2*n + 1)
 	if n >= 8 {
-		// The words before the last, then the last eight bytes (over the bytes before them).
-		for i := 0; i < n-8; i += 8 {
+		// The header and the first seven bytes, the words from the eighth byte on before the last, then the last
+		// eight bytes (over the bytes before them: n >= 8, so they cover the eighth).
+		word := load64(src, 0)
+		store64(unsafe.Pointer(&b[0]), 0, word<<8|h)
+		if high := word & highBits; high != 0 {
+			w.wideString(s, at, bits.TrailingZeros64(high)>>3, 0)
+			return
+		}
+		for i := 7; i < n-8; i += 8 {
 			word := load64(src, i)
 			store64(dst, i, word)
 			if high := word & highBits; high != 0 {
@@ -121,25 +131,23 @@ func (w *Writer) String(s string) {
 				return
 			}
 		}
-		word := load64(src, n-8)
+		word = load64(src, n-8)
 		store64(dst, n-8, word)
 		if high := word & highBits; high != 0 {
 			w.wideString(s, at, n-8+bits.TrailingZeros64(high)>>3, 0)
-			return
 		}
-	} else {
-		word := loadShort(src, n)
-		if cap(w.buf)-end >= 8-n {
-			store64(dst, 0, word)
-		} else {
-			copy(b[1:], s)
-		}
-		if high := word & highBits; high != 0 {
-			w.wideString(s, at, bits.TrailingZeros64(high)>>3, word)
-			return
-		}
+		return
 	}
-	b[0] = byte(2*n + 1)
+	word := loadShort(src, n)
+	if cap(w.buf)-end >= 7-n {
+		store64(unsafe.Pointer(&b[0]), 0, word<<8|h)
+	} else {
+		b[0] = byte(h)
+		copy(b[1:], s)
+	}
+	if high := word & highBits; high != 0 {
+		w.wideString(s, at, bits.TrailingZeros64(high)>>3, word)
+	}
 }
 
 // stringRoom is the bytes reserved for the header of a string of n bytes: that of 2n, n chars of Latin-1 or UTF-16
