@@ -1,8 +1,9 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
 # phase7/string-header, Go list kernels unaligned (ab-string-header-3 885c7d2), against main 36cfdbf; two experiments
 # whose bytes are wrong, to tell whether where the text starts after its header is what costs on x64: the text 4 bytes
-# after the header's start (17602b6, as on main), and 2 bytes (c5721e2); and the floor. 12 rounds each.
-go#12 36cfdbf 885c7d2 /strings-(1000|mixed-1000)/Nino
-go#12 36cfdbf 17602b6 /strings-(1000|mixed-1000)/Nino
-go#12 36cfdbf c5721e2 /strings-(1000|mixed-1000)/Nino
-go#12 36cfdbf 36cfdbf /strings-(1000|mixed-1000)/Nino
+# after the header's start (17602b6, as on main), and 2 bytes (c5721e2); and the floor. 12 rounds each,
+# serialize only: the experiments' bytes cannot be read back (the previous request read them, and failed).
+go#12 36cfdbf 885c7d2 ^BenchmarkSerialize$/^strings-(1000|mixed-1000)$/^Nino$
+go#12 36cfdbf 17602b6 ^BenchmarkSerialize$/^strings-(1000|mixed-1000)$/^Nino$
+go#12 36cfdbf c5721e2 ^BenchmarkSerialize$/^strings-(1000|mixed-1000)$/^Nino$
+go#12 36cfdbf 36cfdbf ^BenchmarkSerialize$/^strings-(1000|mixed-1000)$/^Nino$
