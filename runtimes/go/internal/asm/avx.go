@@ -71,7 +71,7 @@ func (t tier) short(f frame) {
 	if t.evex {
 		c.JNZ(l("slatin"))
 	} else {
-		c.JNZ(l("shand"))
+		c.JNZ(l("long"))
 	}
 	c.Label("sstore")
 	c.Comment("The header, 2n+1, in the first byte.")
@@ -81,28 +81,7 @@ func (t tier) short(f frame) {
 	c.VMOVDQU(Y0, Mem{Base: RDI})
 	if t.evex {
 		t.shortLatin1()
-	} else {
-		t.shortHand(f)
 	}
-}
-
-// shortHand is the AVX2 short path for text with a byte of 0x80 or above: the block read (Y0, from the byte before
-// the text) moved down a byte and handed to the kernel as the block it would read, past its page check and load.
-func (t tier) shortHand(f frame) {
-	c.JMP(l("sdone"))
-	c.Label("shand")
-	c.VPERM2I128(U8(0x81), Y0, Y0, Y1) // the high half low, zeros high
-	c.VPALIGNR(U8(1), Y0, Y1, Y0)      // the text from the first byte, zeros past it
-	c.MOVQ(RBX, RAX)
-	lowBits(R13L)
-	c.INCQ(RDI)
-	c.MOVQ(RDI, f.start)
-	c.MOVQ(RDI, f.wide)
-	c.XORQ(RDX, RDX)
-	c.VPXOR(Y14, Y14, Y14)
-	c.VPXOR(Y12, Y12, Y12)
-	c.JMP(l("lbody"))
-	c.Label("sdone")
 }
 
 // shortLatin1 is the AVX-512 short path for text with a byte of 0x80 or above (R8 the mask of those, Y0 the block
