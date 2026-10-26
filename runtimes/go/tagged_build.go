@@ -745,6 +745,10 @@ func (b *builder) mapCodec(c *codec) error {
 		pairMin += vc.min
 		slot += int(vt.Size())
 	}
+	if f, ok := fastMaps[t]; ok && b.fast && !c.enter {
+		c.read, c.write = f.codecs(pairMin)
+		return nil
+	}
 	c.read = func(r *Reader, v reflect.Value) {
 		n := r.Length(pairMin)
 		if n < 0 {
@@ -818,6 +822,62 @@ func (b *builder) mapCodec(c *codec) error {
 		}
 	}
 	return nil
+}
+
+// fastMaps holds, for the map types of built-in key and value types a struct most often has, a read and a write
+// on the unsafe path: as generated code does ([ReadMap], and the pairs written in key order as [keyOrder] gives
+// them), with no reflect.Value a key or value.
+var fastMaps = map[reflect.Type]fastMap{}
+
+type fastMap struct {
+	codecs func(pairMin int) (func(*Reader, reflect.Value), func(*Writer, reflect.Value))
+}
+
+func init() {
+	addFastMaps((*Reader).I32, (*Writer).I32)
+	addFastMaps((*Reader).I64, (*Writer).I64)
+	addFastMaps((*Reader).String, (*Writer).String)
+}
+
+// addFastMaps adds the maps of keys K (read and written by rk and wk) to values int32, int64 and string.
+func addFastMaps[K cmp.Ordered](rk func(*Reader) K, wk func(*Writer, K)) {
+	addFastMap(rk, wk, (*Reader).I32, (*Writer).I32)
+	addFastMap(rk, wk, (*Reader).I64, (*Writer).I64)
+	addFastMap(rk, wk, (*Reader).String, (*Writer).String)
+}
+
+func addFastMap[K cmp.Ordered, V any](rk func(*Reader) K, wk func(*Writer, K), rv func(*Reader) V, wv func(*Writer, V)) {
+	fastMaps[reflect.TypeFor[map[K]V]()] = fastMap{codecs: func(pairMin int) (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
+		read := func(r *Reader, v reflect.Value) {
+			m := ReadMap(r, pairMin, rk, rv)
+			if r.err == nil {
+				v.Set(reflect.ValueOf(m))
+			}
+		}
+		write := func(w *Writer, v reflect.Value) {
+			p := v.UnsafePointer()
+			m := *(*map[K]V)(unsafe.Pointer(&p))
+			if m == nil {
+				w.Null()
+				return
+			}
+			w.Length(len(m))
+			var room [16]Entry[K, V]
+			e := room[:0]
+			if len(m) > len(room) {
+				e = make([]Entry[K, V], 0, len(m))
+			}
+			for k, x := range m {
+				e = append(e, Entry[K, V]{k, x})
+			}
+			slices.SortFunc(e, func(a, b Entry[K, V]) int { return cmp.Compare(a.Key, b.Key) })
+			for _, x := range e {
+				wk(w, x.Key)
+				wv(w, x.Value)
+			}
+		}
+		return read, write
+	}}
 }
 
 // keyOrder returns the indexes of keys (a slice) in key order when the keys have one (numbers, strings, bools),
