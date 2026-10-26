@@ -93,6 +93,31 @@ func (r *Reader) NullableString() (s string, ok bool) {
 	var h uint32
 	if len(b) != 0 && b[0] < 0x80 {
 		h, b = uint32(b[0]), b[1:]
+		if h&1 != 0 && h-3 < 2*shortWords && len(b) >= 16 && len(r.text) >= 16 {
+			// Latin-1 of 1 to shortWords chars, with 16 bytes of data and of r.text left: when it is ASCII, read
+			// and stored as two words, the bytes past the text with them (r.text past the string is written again
+			// by the next), with no call to memmove. Written here, as a call (above the inlining budget) cost more
+			// than it saves.
+			n := int(h >> 1)
+			p := unsafe.Pointer(unsafe.SliceData(b))
+			w0, w1 := load64(p, 0), load64(p, 8)
+			// The bytes of the text in each word.
+			k := uint(8 * n)
+			m0, m1 := ^uint64(0), uint64(0)
+			if k < 64 {
+				m0 = 1<<k - 1
+			} else {
+				m1 = 1<<(k-64) - 1
+			}
+			if (w0&m0|w1&m1)&highBits == 0 {
+				t := unsafe.Pointer(unsafe.SliceData(r.text))
+				store64(t, 0, w0)
+				store64(t, 8, w1)
+				r.text = r.text[n:]
+				r.buf = b[n:]
+				return unsafe.String((*byte)(t), n), true
+			}
+		}
 	} else {
 		h = r.longHeader()
 		b = r.buf
@@ -403,6 +428,9 @@ func (r *Reader) stringBox(s string) *string {
 func (r *Reader) boxRoom() {
 	r.boxes = make([]string, min(stringBoxes, 1+len(r.buf)))
 }
+
+// shortWords is the most bytes of text [Reader.NullableString] reads as two words.
+const shortWords = 16
 
 // textCopy returns a copy of b (0 < len(b) <= textShort), in r.text.
 func (r *Reader) textCopy(b []byte) string {
