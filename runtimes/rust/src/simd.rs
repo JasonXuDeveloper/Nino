@@ -121,8 +121,8 @@ pub(crate) const SHORT: usize = 32;
 
 /// Appends a Latin-1 string's header and bytes for `bytes` (at most [`SHORT`] of them) and returns true when they are
 /// all ASCII; else appends nothing and returns false. The bytes are read as the first and last 16 (or 8, or 4) bytes,
-/// which may overlap, or as three bytes, tested, and stored as they were read: no loop, no call to `memcpy`. Every
-/// target.
+/// which may overlap, or as three bytes, tested, and stored as they were read, the header shifted in below the first
+/// block (but at 32 bytes and below 4): no loop, no call to `memcpy`. Every target.
 #[inline(always)]
 pub(crate) fn ascii_short(out: &mut Vec<u8>, bytes: &[u8]) -> bool {
     let (src, len) = (bytes.as_ptr(), bytes.len());
@@ -142,11 +142,17 @@ pub(crate) fn ascii_short(out: &mut Vec<u8>, bytes: &[u8]) -> bool {
         }
         out.reserve(len.wrapping_add(1));
         // SAFETY: the room reserved holds `1 + len` bytes from `at`; the stores cover `at .. at + 1 + len` exactly
-        // (the second block ends at `1 + last + 16 = 1 + len`), and initialize all of it.
+        // (the second block ends at `1 + last + 16 = 1 + len`), and initialize all of it: below 32 bytes, the header
+        // and the first 15 bytes as one block (the second starts at `1 + last <= 16`, so it covers the 16th).
         unsafe {
             let dst = out.as_mut_ptr().add(at);
-            dst.write(header);
-            dst.add(1).cast::<[u8; 16]>().write_unaligned(a);
+            if len < 32 {
+                let first = (u128::from_le_bytes(a) << 8) | u128::from(header);
+                dst.cast::<[u8; 16]>().write_unaligned(first.to_le_bytes());
+            } else {
+                dst.write(header);
+                dst.add(1).cast::<[u8; 16]>().write_unaligned(a);
+            }
             dst.add(1).add(last).cast::<[u8; 16]>().write_unaligned(b);
             out.set_len(at.wrapping_add(1).wrapping_add(len));
         }
@@ -162,11 +168,13 @@ pub(crate) fn ascii_short(out: &mut Vec<u8>, bytes: &[u8]) -> bool {
         }
         out.reserve(len.wrapping_add(1));
         // SAFETY: the room reserved holds `1 + len` bytes from `at`; the stores cover `at .. at + 1 + len` exactly
-        // (the second word ends at `1 + last + 8 = 1 + len`), and initialize all of it.
+        // (the second word ends at `1 + last + 8 = 1 + len`), and initialize all of it: the header and the first
+        // seven bytes as one word (`len < 16`: the second starts at `1 + last <= 8`, so it covers the eighth). One
+        // store fewer than a byte for the header.
         unsafe {
             let dst = out.as_mut_ptr().add(at);
-            dst.write(header);
-            dst.add(1).cast::<[u8; 8]>().write_unaligned(a);
+            let first = (u64::from_le_bytes(a) << 8) | u64::from(header);
+            dst.cast::<[u8; 8]>().write_unaligned(first.to_le_bytes());
             dst.add(1).add(last).cast::<[u8; 8]>().write_unaligned(b);
             out.set_len(at.wrapping_add(1).wrapping_add(len));
         }
@@ -181,11 +189,11 @@ pub(crate) fn ascii_short(out: &mut Vec<u8>, bytes: &[u8]) -> bool {
             return false;
         }
         out.reserve(len.wrapping_add(1));
-        // SAFETY: as above, with four-byte halves.
+        // SAFETY: as above, with four-byte halves (`len < 8`).
         unsafe {
             let dst = out.as_mut_ptr().add(at);
-            dst.write(header);
-            dst.add(1).cast::<[u8; 4]>().write_unaligned(a);
+            let first = (u32::from_le_bytes(a) << 8) | u32::from(header);
+            dst.cast::<[u8; 4]>().write_unaligned(first.to_le_bytes());
             dst.add(1).add(last).cast::<[u8; 4]>().write_unaligned(b);
             out.set_len(at.wrapping_add(1).wrapping_add(len));
         }
