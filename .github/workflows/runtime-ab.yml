@@ -3,7 +3,7 @@ name: Runtime A/B (test branch)
 # Development only, on the test branch: never merge this file into main. A push that changes .github/ab-request.txt
 # measures, on the x64 and Arm64 runners, each line's two commits one after the other on the same runner:
 #
-#   <go|go:<dir>|rust|typescript> <base sha> <head sha> [filter]
+#   <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter]
 #
 # Both commits must be on a branch of this repository (main, or this branch: push them here, merging, never
 # force-pushing).
@@ -72,6 +72,9 @@ jobs:
             if [[ $lang == rust:* ]]; then bench=${lang#rust:}; lang=rust; fi
             # go:<dir> runs the benchmarks of runtimes/go/<dir> (default bench; go:. the runtime's own, such as
             # BenchmarkStringTiers, which times every string kernel tier the runner has).
+            # go#<n> (or go:<dir>#<n>) runs n rounds of each side instead of 6.
+            rounds=6
+            if [[ $lang == go*'#'* ]]; then rounds=${lang##*#}; lang=${lang%#*}; fi
             godir=bench
             if [[ $lang == go:* ]]; then godir=${lang#go:}; lang=go; fi
             read -r base_env head_env <<< "${envs:-- -}"
@@ -80,7 +83,7 @@ jobs:
             case $lang in
               go)
                 : > "$out/base.txt"; : > "$out/head.txt"
-                for _ in 1 2 3 4 5 6; do
+                for _ in $(seq "$rounds"); do
                   for side in base head; do
                     ref=$base; [[ $side == head ]] && ref=$head
                     (cd "$RUNNER_TEMP/$ref/runtimes/go/$godir" &&

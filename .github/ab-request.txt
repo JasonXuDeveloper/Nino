@@ -1,4 +1,4 @@
-# <go|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# ab/ts-strings-2: main c73ee57 + A/B-only string scenarios (a84786e) -> inline UTF-16 code units with Node's threshold
-# kept at 24, and short wide writes in JavaScript (340000a).
-typescript a84786e 340000a
+# <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+# phase6/string-varint: Go string cases, 10 rounds: main 36cfdbf against itself (noise floor), then against the varint headers (ab-string-varint 5a1c091).
+go#10 36cfdbf 36cfdbf /strings-(1000|mixed-1000)/Nino
+go#10 36cfdbf 5a1c091 /strings-(1000|mixed-1000)/Nino
