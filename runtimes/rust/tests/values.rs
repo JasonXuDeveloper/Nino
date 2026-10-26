@@ -113,6 +113,8 @@ fn strings() {
     assert_eq!(kind::<Utf8>("02 04 C3A9C3A9"), ErrorKind::InvalidLength);
     assert_eq!(kind::<Utf8>("03 01 61"), ErrorKind::InvalidLength);
     assert_eq!(kind::<Utf8>("02 02 C328"), ErrorKind::InvalidUtf8);
+    // As many bytes as chars is ASCII (read without the UTF-8 checks), else invalid.
+    round(Utf8(String::from("ab")), "03 02 6162");
     assert_eq!(kind::<Utf8>("03 02 C3A9"), ErrorKind::InvalidUtf8);
     assert_eq!(kind::<Utf8>("02 03 EDA080"), ErrorKind::InvalidUtf8);
     // An astral char is 2 UTF-16 units.
