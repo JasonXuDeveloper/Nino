@@ -228,12 +228,22 @@ impl NinoRead for String {
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         r.string()
     }
+
+    #[inline]
+    fn read_many(r: &mut Reader<'_>, count: usize) -> Result<Vec<Self>> {
+        r.strings(count)
+    }
 }
 
 impl NinoWrite for String {
     #[inline]
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.string(Some(self))
+    }
+
+    #[inline]
+    fn write_many<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
+        crate::strings::write_strings(w, values)
     }
 
     #[inline]
