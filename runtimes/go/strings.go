@@ -208,6 +208,19 @@ func (r *Reader) UTF8Ptr() *string {
 
 // NullableUTF8 reads a [NinoUtf8] string: ok is false for null.
 func (r *Reader) NullableUTF8() (s string, ok bool) {
+	// Both counts one byte (text of up to 126 code units and 127 bytes): read as a pair, and r.buf set once (each
+	// store to it is a write barrier while the GC marks). Anything else, a failure included, takes the general path.
+	b := r.buf
+	if len(b) >= 2 && b[0] >= 2 && (b[0]|b[1]) < 0x80 {
+		c, size := int(b[0])-1, int(b[1])
+		if size <= len(b)-2 {
+			t := b[2 : 2+size]
+			if size >= c && utf8Units(t, c) {
+				r.buf = b[2+size:]
+				return r.textCopy(t), true
+			}
+		}
+	}
 	h := r.header()
 	if h <= 1 {
 		return "", h == 1 && r.err == nil
@@ -220,7 +233,7 @@ func (r *Reader) NullableUTF8() (s string, ok bool) {
 		r.Fail(CodeInvalidData, "invalid UTF-8 string")
 		return "", false
 	}
-	b := r.buf
+	b = r.buf
 	if uint64(size) > uint64(len(b)) {
 		r.eof()
 		return "", false

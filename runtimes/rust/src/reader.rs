@@ -397,6 +397,14 @@ impl<'d> Reader<'d> {
             return Err(Error::length(size as i32));
         }
         let bytes = self.take(size as usize)?;
+        if size == chars {
+            // A char above U+007F takes more bytes than code units: as many bytes as code units is ASCII, or not
+            // valid. One test instead of the validation and the count.
+            if !bytes.is_ascii() {
+                return Err(Error::of(ErrorKind::InvalidUtf8));
+            }
+            return Ok(Some(crate::simd::latin1_string(bytes)));
+        }
         let text = core::str::from_utf8(bytes).map_err(|_| Error::of(ErrorKind::InvalidUtf8))?;
         if crate::strings::utf16_len(bytes) != chars_u {
             return Err(Error::of(ErrorKind::InvalidUtf8));

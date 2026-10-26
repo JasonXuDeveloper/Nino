@@ -708,14 +708,14 @@ pub(crate) unsafe fn wide_avx512<const ONE: bool>(out: &mut Vec<u8>, text: &str)
 ///
 /// # Safety
 /// The CPU has SSSE3.
-/// `room` bytes are writable at `dst`, the UTF-8's length.
+/// `room` bytes are writable at `dst`, at least the UTF-8's length.
 #[target_feature(enable = "ssse3")]
 pub(crate) unsafe fn latin1_ssse3(bytes: &[u8], dst: *mut u8, room: usize) -> usize {
     let (src, len) = (bytes.as_ptr(), bytes.len());
     let (mut k, mut o) = (0usize, 0usize);
     let (zero, lead_bits, cont_bits) = (_mm_setzero_si128(), _mm_set1_epi8(0xC0u8 as i8), _mm_set1_epi8(0x80u8 as i8));
-    // Invariant: `o <= room` is the UTF-8 of `bytes[..k]`, so `room - o` is that of the rest (no wrap). A step reads 16
-    // bytes and stores at most 32 from `o`.
+    // Invariant: `o <= room` is the UTF-8 of `bytes[..k]`, so `room - o` is at least that of the rest (no wrap). A step
+    // reads 16 bytes and stores at most 32 from `o`.
     while k.wrapping_add(16) <= len && room.wrapping_sub(o) >= 32 {
         // SAFETY: `k + 16 <= len`.
         let v = unsafe { _mm_loadu_si128(src.add(k).cast()) };

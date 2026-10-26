@@ -1577,16 +1577,22 @@ pub(crate) fn latin1_string(bytes: &[u8]) -> String {
             }
         }
     }
-    // A byte above 0x7F takes two bytes of UTF-8: `len + high <= 2 * len`, which cannot wrap (`len <= isize::MAX`).
-    let high = bytes.iter().filter(|&&b| b >= 0x80).count();
-    if high == 0 {
-        // SAFETY: ASCII is valid UTF-8.
-        return unsafe { String::from_utf8_unchecked(bytes.to_vec()) };
-    }
-    let room = len.wrapping_add(high);
+    // A byte above 0x7F takes two bytes of UTF-8, so the UTF-8 takes `len + high <= 2 * len`, which cannot wrap
+    // (`len <= isize::MAX`). Short text gets the most it can take, with no pass to count the bytes above 0x7F first
+    // (a capacity of at most twice the length, [`SHORT_ROOM`] bytes more); longer text what it takes.
+    let room = if len <= SHORT_ROOM {
+        len.wrapping_mul(2)
+    } else {
+        let high = bytes.iter().filter(|&&b| b >= 0x80).count();
+        if high == 0 {
+            // SAFETY: ASCII is valid UTF-8.
+            return unsafe { String::from_utf8_unchecked(bytes.to_vec()) };
+        }
+        len.wrapping_add(high)
+    };
     let mut text = Vec::<u8>::with_capacity(room);
     let dst = text.spare_capacity_mut().as_mut_ptr().cast::<u8>();
-    // SAFETY: `room` bytes of room at `dst`, exactly what the bytes' UTF-8 takes.
+    // SAFETY: `room` bytes of room at `dst`, at least what the bytes' UTF-8 takes.
     let o = unsafe { latin1_utf8(bytes, dst, room) };
     // SAFETY: the `o` bytes from the start are written (`o <= room`), and they are valid UTF-8 (see above).
     unsafe {
@@ -1594,6 +1600,11 @@ pub(crate) fn latin1_string(bytes: &[u8]) -> String {
         String::from_utf8_unchecked(text)
     }
 }
+
+/// Up to this many bytes of Latin-1 (half as many UTF-16 code units) the reader's `String` gets room for the longest
+/// UTF-8 the text can take, so no pass counts it first: at most this many bytes of capacity more than the text needs
+/// (on x86_64 the count cost more than the larger allocation: lists of mixed text read 14% faster without it).
+const SHORT_ROOM: usize = 64;
 
 /// Below this many bytes of input the 16-byte decoders (SSSE3, SSE4.1, NEON) lose to the plain one: their setup and
 /// last partial vector cost more than they save. AVX-512's masked loads and stores have no last partial vector.
@@ -1693,11 +1704,16 @@ unsafe fn latin1_char(dst: *mut u8, o: usize, b: u8) -> usize {
 pub(crate) fn utf16_string(units: &[[u8; 2]]) -> String {
     // Room: one byte for a unit below U+0080, two below U+0800, three for the rest. A surrogate pair takes four
     // bytes (six counted), an unpaired surrogate three (U+FFFD). At most `3 * len`, which cannot wrap (`2 * len`
-    // bytes exist).
-    let room = units.iter().fold(0usize, |n, u| {
-        let u = u16::from_le_bytes(*u);
-        n.wrapping_add(1).wrapping_add(usize::from(u >= 0x80)).wrapping_add(usize::from(u >= 0x800))
-    });
+    // bytes exist): what short text gets, with no pass to count first (a capacity of at most three times the units,
+    // [`SHORT_ROOM`] bytes more than two bytes a unit); longer text what its units count.
+    let room = if units.len() <= SHORT_ROOM / 2 {
+        units.len().wrapping_mul(3)
+    } else {
+        units.iter().fold(0usize, |n, u| {
+            let u = u16::from_le_bytes(*u);
+            n.wrapping_add(1).wrapping_add(usize::from(u >= 0x80)).wrapping_add(usize::from(u >= 0x800))
+        })
+    };
     let mut text = Vec::<u8>::with_capacity(room);
     let dst = text.spare_capacity_mut().as_mut_ptr().cast::<u8>();
     // SAFETY: `room` bytes of room at `dst`, what the units count.

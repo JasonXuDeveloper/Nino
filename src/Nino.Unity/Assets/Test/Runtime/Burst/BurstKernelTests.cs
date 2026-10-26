@@ -208,9 +208,9 @@ namespace Test.Runtime.Burst
                 BitConverter.GetBytes(wide[i].Item2).CopyTo(expectedWide, 4 + i * 12 + 4);
             }
 
-            // 40 Latin-1 chars: ~length, then a byte each.
+            // 40 Latin-1 chars: the one-byte header 2 * 40 + 1, then a byte each.
             string text = new string(Enumerable.Range(0, 40).Select(i => (char)(0xA0 + i)).ToArray());
-            var latin1 = BitConverter.GetBytes(~40).Concat(text.Select(c => (byte)c)).ToArray();
+            var latin1 = new[] { (byte)(2 * 40 + 1) }.Concat(text.Select(c => (byte)c)).ToArray();
             foreach (int tier in Tiers)
             {
                 Use(tier);

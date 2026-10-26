@@ -324,13 +324,13 @@ fn first(q: usize) -> u64 {
 /// and those past the room a step needs, a word at a time.
 ///
 /// # Safety
-/// `room` bytes are writable at `dst`, the UTF-8's length.
+/// `room` bytes are writable at `dst`, at least the UTF-8's length.
 #[inline(never)]
 pub(crate) unsafe fn latin1(bytes: &[u8], dst: *mut u8, room: usize) -> usize {
     let (src, len) = (bytes.as_ptr(), bytes.len());
     let (mut k, mut o) = (0usize, 0usize);
-    // Invariant: `o <= room` is the UTF-8 of `bytes[..k]`, so `room - o` is that of the rest (no wrap). A step reads
-    // 16 bytes and stores at most 32 from `o`.
+    // Invariant: `o <= room` is the UTF-8 of `bytes[..k]`, so `room - o` is at least that of the rest (no wrap). A
+    // step reads 16 bytes and stores at most 32 from `o`.
     // SAFETY: NEON, and every access is as the comment beside it says.
     unsafe {
         while k.wrapping_add(16) <= len && room.wrapping_sub(o) >= 32 {
