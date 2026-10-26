@@ -63,6 +63,8 @@ func constants() {
 	tail := fill(0xFF)
 	tail[29], tail[30], tail[31] = 0xEF, 0xDF, 0xBF
 	mask := append(fill(0xFF), make([]byte, 32)...)
+	not0 := fill(0xFF)
+	not0[0] = 0
 	table := []struct {
 		name  string
 		bytes []byte
@@ -89,6 +91,7 @@ func constants() {
 		{"T2", lanes(t2)}, // by its low nibble
 		{"T3", lanes(t3)}, // by the high nibble of the byte
 		{"MASK", mask},    // 32 bytes of FF, then 32 of 0: from 32 minus the bytes left on, a mask of the bytes of the text
+		{"NOT0", not0},    // 0, then 31 bytes of FF: clears the byte before the text (see writer.short)
 		{"WFF80", words(0xFF80)},
 		{"WF800", words(0xF800)},
 		{"WFC00", words(0xFC00)},
@@ -183,7 +186,8 @@ type frame struct{ start, wide Mem }
 type writer struct {
 	setup  func()
 	kernel func(frame)
-	vex    bool // VZEROUPPER before returning
+	short  func() // the list kernel's path for short ASCII text (see above many), else a jump to long
+	vex    bool   // VZEROUPPER before returning
 }
 
 // single is wireString* of a tier: func(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int.
@@ -271,6 +275,14 @@ func many(name string, w writer) {
 	c.LEAQ(slack(1, RDI, RBX, 2), RAX)
 	c.CMPQ(RAX, end)
 	c.JA(l("finish"))
+	w.short()
+	c.Comment("Stored with its header.")
+	c.LEAQ(Mem{Base: RDI, Disp: 1, Index: RBX, Scale: 1}, RDI)
+	c.MOVQ(RDI, out)
+	c.INCQ(R14)
+	c.JMP(l("next"))
+
+	c.Label("long")
 	c.INCQ(RDI)
 	c.MOVQ(RDI, f.start)
 	c.MOVQ(RDI, f.wide)
@@ -311,6 +323,11 @@ func many(name string, w writer) {
 	}
 	c.RET()
 }
+
+// The list kernels' path for short ASCII text (writer.short): the bytes from the one before the text (cleared) to
+// the text's end, read as one block with zeros past them; the header, 2n+1, goes in the first byte, and the block
+// is stored where the string goes: the header and the text in one store. The header stored as a byte of its own
+// ahead of the text cost about 5% on short strings on Zen 4.
 
 // bytesOf splits the 32 bits of m into its bytes, R9 (the lowest) to R12.
 func bytesOf(m GPPhysical) {

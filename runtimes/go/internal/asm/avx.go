@@ -22,7 +22,7 @@ var (
 )
 
 func writerAVX(one, list string, t tier) {
-	w := writer{setup: t.setup, kernel: t.kernel, vex: true}
+	w := writer{setup: t.setup, kernel: t.kernel, short: t.short, vex: true}
 	single(one, w)
 	many(list, w)
 }
@@ -38,6 +38,87 @@ func (t tier) setup() {
 		c.VBROADCASTI32X4(k("T2"), t.t2)
 		c.VBROADCASTI32X4(k("T3"), t.t3)
 	}
+}
+
+// short takes ASCII text of fewer than 32 bytes (BX) at SI to the list kernel's one store (see many), else jumps
+// to long: the 32 bytes from the byte before the text, read under a mask (AVX-512: the byte before and the bytes
+// past the text masked out, so no fault) or where they lie in one page (AVX2: then masked).
+func (t tier) short() {
+	c.CMPQ(RBX, U8(32))
+	c.JAE(l("long"))
+	if t.evex {
+		c.MOVQ(RBX, RCX)
+		c.MOVL(U32(2), R13L)
+		c.SHLL(CL, R13L)
+		c.SUBL(U8(2), R13L) // bits 1 to n (n = 31: 2 << 31 is 0, less 2 is bits 1 to 31)
+		c.KMOVD(R13L, K1)
+		c.VMOVDQU8_Z(Mem{Base: RSI, Disp: -1}, K1, Y0)
+	} else {
+		c.LEAQ(Mem{Base: RSI, Disp: -1}, R8)
+		c.MOVL(R8L, R9L)
+		c.ANDL(U32(4095), R9L)
+		c.CMPL(R9L, U32(4064))
+		c.JA(l("long"))
+		c.LEAQ(k("MASK"), R10)
+		c.ADDQ(U8(31), R10)
+		c.SUBQ(RBX, R10) // FF for the byte before and the n bytes of text
+		c.VMOVDQU(Mem{Base: R8}, Y0)
+		c.VPAND(Mem{Base: R10}, Y0, Y0)
+		c.VPAND(k("NOT0"), Y0, Y0)
+	}
+	c.VPMOVMSKB(Y0, R8L)
+	c.TESTL(R8L, R8L)
+	if t.evex {
+		c.JNZ(l("slatin"))
+	} else {
+		c.JNZ(l("long"))
+	}
+	c.Label("sstore")
+	c.Comment("The header, 2n+1, in the first byte.")
+	c.LEAL(Mem{Base: RBX, Index: RBX, Scale: 1, Disp: 1}, ECX)
+	c.VMOVD(ECX, X1)
+	c.VPOR(Y1, Y0, Y0)
+	c.VMOVDQU(Y0, Mem{Base: RDI})
+	if t.evex {
+		t.shortLatin1()
+	}
+}
+
+// shortLatin1 is the AVX-512 short path for text with a byte of 0x80 or above (R8 the mask of those, Y0 the block
+// from the byte before the text): Latin-1 (ASCII, leads C2 and C3, each followed by its continuation) compressed as
+// latin1Masks does, the byte before kept as the first, the chars in BX, then back to sstore; anything else to long.
+func (t tier) shortLatin1() {
+	c.JMP(l("sdone"))
+	c.Label("slatin")
+	c.VPSUBUSB(k("C3"), Y0, Y4)
+	c.VPTEST(Y4, Y4)
+	c.JNZ(l("long"))            // a char above U+00FF, or not UTF-8
+	c.VPCMPGTB(Y0, Y13, K1)     // continuations
+	c.VPCMPEQB(k("C3"), Y0, K2) // C3
+	c.VPAND(k("FE"), Y0, Y4)
+	c.VPCMPEQB(k("C2"), Y4, K3) // the leads
+	c.KMOVD(K1, R9L)
+	c.KMOVD(K3, R10L)
+	c.KMOVD(K2, R11L)
+	c.MOVL(R10L, EAX)
+	c.ADDQ(RAX, RAX) // the bytes after the leads (a lead last sets bit 32)
+	c.XORQ(R9, RAX)
+	c.JNZ(l("long")) // a lead without its continuation (the bytes past the text are zeros), or the reverse
+	c.MOVL(R10L, EAX)
+	c.ORL(R9L, EAX)
+	c.NOTL(EAX)
+	c.ANDL(R8L, EAX)
+	c.JNZ(l("long")) // C0 or C1
+	c.ADDL(R11L, R11L)
+	c.KMOVD(R11L, K4)
+	c.VPADDB(k("B40"), Y0, K4, Y0) // the bytes: 40 more after C3
+	c.POPCNTL(R10L, EAX)
+	c.SUBQ(RAX, RBX) // the chars: a byte each but the leads
+	c.NOTL(R10L)
+	c.KMOVD(R10L, K2)
+	c.VPCOMPRESSB(Y0, K2, Y0) // all but the leads; the first byte (0) stays first
+	c.JMP(l("sstore"))
+	c.Label("sdone")
 }
 
 // load reads the block at SI+DX (AX bytes left, AX > 0) into Y0, R13 the mask of its bytes, then jumps to body;
