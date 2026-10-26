@@ -186,8 +186,8 @@ type frame struct{ start, wide Mem }
 type writer struct {
 	setup  func()
 	kernel func(frame)
-	short  func() // the list kernel's path for short ASCII text (see above many), else a jump to long
-	vex    bool   // VZEROUPPER before returning
+	short  func(frame) // the list kernel's path for short ASCII text (see above many), else a jump to long
+	vex    bool        // VZEROUPPER before returning
 }
 
 // single is wireString* of a tier: func(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int.
@@ -275,7 +275,7 @@ func many(name string, w writer) {
 	c.LEAQ(slack(1, RDI, RBX, 2), RAX)
 	c.CMPQ(RAX, end)
 	c.JA(l("finish"))
-	w.short()
+	w.short(f)
 	c.Comment("Stored with its header.")
 	c.LEAQ(Mem{Base: RDI, Disp: 1, Index: RBX, Scale: 1}, RDI)
 	c.MOVQ(RDI, out)
