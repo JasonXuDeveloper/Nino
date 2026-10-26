@@ -874,12 +874,7 @@ func (w *Writer) UTF8(s string) {
 	}
 	// The char count plus one and the byte count, headers: a byte each up to 126 bytes (units <= n).
 	if n < 0x7F {
-		b := w.Extend(2 + n)
-		if len(b) < 2 {
-			return
-		}
-		b[0], b[1] = byte(units+1), byte(n)
-		copy(b[2:], s)
+		w.shortUTF8(s, units)
 		return
 	}
 	w.appendHeader(uint32(units + 1))
