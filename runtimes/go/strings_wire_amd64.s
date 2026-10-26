@@ -576,14 +576,32 @@ text:
 	VPAND     wire<>+736(SB), Y0, Y0
 	VPMOVMSKB Y0, R8
 	TESTL     R8, R8
-	JNZ       long
+	JNZ       shand
 
 	// The header, 2n+1, in the first byte.
 	LEAL    1(BX)(BX*1), CX
 	VMOVD   CX, X1
 	VPOR    Y1, Y0, Y0
 	VMOVDQU Y0, (DI)
+	JMP     sdone
 
+shand:
+	VPERM2I128 $0x81, Y0, Y0, Y1
+	VPALIGNR   $0x01, Y0, Y1, Y0
+	MOVQ       BX, AX
+	MOVL       $0x00000001, R13
+	MOVQ       AX, CX
+	SHLL       CL, R13
+	DECL       R13
+	INCQ       DI
+	MOVQ       DI, 8(SP)
+	MOVQ       DI, (SP)
+	XORQ       DX, DX
+	VPXOR      Y14, Y14, Y14
+	VPXOR      Y12, Y12, Y12
+	JMP        lbody
+
+sdone:
 	// Stored with its header.
 	LEAQ 1(DI)(BX*1), DI
 	MOVQ DI, 16(SP)

@@ -334,7 +334,7 @@ func writerSSE() {
 }
 
 // shortSSE is the AVX2 kernels' short path (tier.short) 16 bytes at a time: text of fewer than 16 bytes.
-func shortSSE() {
+func shortSSE(frame) {
 	c.CMPQ(RBX, U8(16))
 	c.JAE(l("long"))
 	c.LEAQ(Mem{Base: RSI, Disp: -1}, R8)
