@@ -720,3 +720,61 @@ func TestParseHex32(t *testing.T) {
 		}
 	}
 }
+
+// Slices of strings, of a named string type too, read and written without a reflect.Value an element: the bytes of
+// WriteSlice, nil kept apart from empty, and a slice longer than its first capacity.
+type tagWord string
+
+type tagStrings struct {
+	Plain []string  `nino:"0"`
+	Named []tagWord `nino:"1"`
+	Nil   []string  `nino:"2"`
+	Empty []string  `nino:"3"`
+	Mixed []string  `nino:"4"`
+}
+
+func TestTagStrings(t *testing.T) {
+	bothModes(t, func(t *testing.T) {
+		v := &tagStrings{Named: []tagWord{"a", "", "crème", "строка 🎉"}, Empty: []string{}}
+		for i := range 300 {
+			v.Plain = append(v.Plain, strings.Repeat("s", i%70))
+			v.Mixed = append(v.Mixed, []string{"string", "crème brûlée", "字符串 🎉", "\xff"}[i%4])
+		}
+		got, err := Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := Serialize(v, func(w *Writer, v *tagStrings) {
+			w.Present(true)
+			WriteSlice(w, v.Plain, (*Writer).String)
+			WriteSlice(w, v.Named, func(w *Writer, s tagWord) { w.String(string(s)) })
+			WriteSlice(w, v.Nil, (*Writer).String)
+			WriteSlice(w, v.Empty, (*Writer).String)
+			WriteSlice(w, v.Mixed, (*Writer).String)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Fatalf("\n got %X\nwant %X", got, want)
+		}
+		var back *tagStrings
+		if err := UnmarshalExact(got, &back); err != nil {
+			t.Fatal(err)
+		}
+		for i := 3; i < len(v.Mixed); i += 4 {
+			v.Mixed[i] = "\uFFFD" // not UTF-8: written as U+FFFD
+		}
+		if !reflect.DeepEqual(back, v) {
+			t.Fatalf("read back\n%+v\nwant\n%+v", back, v)
+		}
+		if back.Nil != nil || back.Empty == nil {
+			t.Fatal("nil and empty slices not kept apart")
+		}
+		for n := 0; n < len(got); n++ {
+			if err := Unmarshal(got[:n], &back); err == nil {
+				t.Fatalf("truncated to %d: no error", n)
+			}
+		}
+	})
+}
