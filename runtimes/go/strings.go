@@ -877,6 +877,23 @@ func (w *Writer) UTF8(s string) {
 		w.shortUTF8(s, units)
 		return
 	}
+	if uint(n-0x80) <= 0xFFFF-0x80 {
+		// Both headers in one store (0x80 <= n <= 0xFFFF: the byte count's header is three bytes, the char count's one
+		// or three), its bytes past them overwritten by the text.
+		cs := headerSize(uint32(units + 1))
+		b := w.Extend(cs + 3 + n)
+		if len(b) < 8 {
+			return
+		}
+		count := uint64(header16) | uint64(n)<<8
+		if cs == 1 {
+			store32(unsafe.Pointer(&b[0]), 0, uint32(units+1)|uint32(count)<<8)
+		} else {
+			store64(unsafe.Pointer(&b[0]), 0, uint64(header16)|uint64(units+1)<<8|count<<24)
+		}
+		copy(b[cs+3:], s)
+		return
+	}
 	w.appendHeader(uint32(units + 1))
 	w.appendHeader(uint32(n))
 	w.buf = append(w.buf, s...)
