@@ -573,3 +573,30 @@ fn serde_feature() {
     assert!(serde_json::from_str::<Version>(r#"{"major":1,"minor":2,"build":-1,"revision":0}"#).is_err());
     assert!(serde_json::from_str::<Grid<i32, 2>>(r#"{"lengths":[2,2],"items":[1]}"#).is_err());
 }
+
+#[test]
+fn string_lists() {
+    // Lists of strings of every kind and length around the short paths (16 and 32 bytes), so that some end within
+    // 16 bytes of the data's end: the bytes of each string written on its own, read back, and every prefix an error.
+    let kinds = ["", "a", "é", "字", "🎉", "\u{80}"];
+    let mut values: Vec<String> = Vec::new();
+    for len in 0..40 {
+        for k in kinds {
+            values.push(format!("{}{k}", "x".repeat(len)));
+        }
+    }
+    for take in [0, 1, 2, 5, 17, 100, values.len()] {
+        for skip in [0, 3, 50] {
+            let list: Vec<String> = values.iter().skip(skip).take(take).cloned().collect();
+            let mut expected = (list.len() as i32).to_le_bytes().to_vec();
+            list.iter().for_each(|s| expected.extend(dotnet_string(s)));
+            assert_eq!(serialize(&list).unwrap(), expected);
+            assert_eq!(deserialize_exact::<Vec<String>>(&expected).unwrap(), list);
+            for n in 0..expected.len() {
+                assert!(deserialize::<Vec<String>>(&expected[..n]).is_err(), "prefix {n}");
+            }
+        }
+    }
+    // A null element is an error in a list of String (Option<String> elements read it).
+    assert_eq!(kind::<Vec<String>>("02000000 03 61 00"), ErrorKind::UnexpectedNull);
+}
