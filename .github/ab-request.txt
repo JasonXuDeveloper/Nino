@@ -1,13 +1,13 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase8/beat-main (9a78d7e: + Rust lists leave the ASCII run for good, the kernels' dispatch inline, short [NinoUtf8]
-# counts as a pair) against main before the string headers (36cfdbf), each with its floor. Five jobs a runner.
-go#12 36cfdbf 9a78d7e /(simple-class|simple-class-100|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(Nino|NinoTags)$
-go#12 36cfdbf 36cfdbf /(simple-class|simple-class-100|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(Nino|NinoTags)$
-rust 36cfdbf 9a78d7e ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 36cfdbf 36cfdbf ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 36cfdbf 9a78d7e ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 36cfdbf 36cfdbf ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 36cfdbf 9a78d7e ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 36cfdbf 36cfdbf ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 36cfdbf 9a78d7e ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+# phase8/beat-main 8f1f25e (+ Rust short text's room without a count, [NinoUtf8] ASCII by its counts; Go [NinoUtf8]
+# counts as a pair) and the variant fb4f3a4 (Go AVX2 short non-ASCII straight to the long path, Rust 8-15 byte ASCII
+# header stored as its own byte) against main before the string headers (36cfdbf).
+go#12 36cfdbf 8f1f25e /(simple-class|simple-class-100|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(Nino|NinoTags)$
+go#12 36cfdbf fb4f3a4 /(simple-class|simple-class-100|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(Nino|NinoTags)$
+rust 36cfdbf 8f1f25e ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf fb4f3a4 ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf 8f1f25e ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf fb4f3a4 ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf 8f1f25e ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf fb4f3a4 ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 rust 36cfdbf 36cfdbf ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
