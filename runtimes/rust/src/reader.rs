@@ -372,16 +372,26 @@ impl<'d> Reader<'d> {
     /// the bytes, the counts string headers of at most `i32::MAX`. The bytes must be strict UTF-8, with
     /// `count <= bytes <= 3 * count`, and decode to exactly `count` UTF-16 code units.
     pub fn utf8(&mut self) -> Result<Option<String>> {
-        let header = self.header()?;
-        if header <= 1 {
-            return Ok((header == 1).then(String::new));
-        }
-        // `header >= 2`: no wrap.
-        let chars = header.wrapping_sub(1);
-        if chars > i32::MAX as u32 {
-            return Err(Error::length(-1));
-        }
-        let size = self.header()?;
+        // Both counts one byte (text of up to 126 code units and 127 bytes): read as one pair.
+        let (chars, size) = match self.rest.split_first_chunk::<2>() {
+            Some((&[c, s], rest)) if c >= 2 && (c | s) < 0x80 => {
+                self.rest = rest;
+                // `c >= 2`: no wrap.
+                (u32::from(c).wrapping_sub(1), u32::from(s))
+            }
+            _ => {
+                let header = self.header()?;
+                if header <= 1 {
+                    return Ok((header == 1).then(String::new));
+                }
+                // `header >= 2`: no wrap.
+                let chars = header.wrapping_sub(1);
+                if chars > i32::MAX as u32 {
+                    return Err(Error::length(-1));
+                }
+                (chars, self.header()?)
+            }
+        };
         let chars_u = u64::from(chars);
         if size < chars || u64::from(size) > chars_u.saturating_mul(3) || size as usize > self.rest.len() {
             return Err(Error::length(size as i32));
