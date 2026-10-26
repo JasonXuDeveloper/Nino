@@ -73,17 +73,15 @@ impl<'a> Writer<'a> {
     /// A string header, then `bytes`: one capacity check for both.
     #[inline]
     pub(crate) fn header_bytes(&mut self, header: u32, bytes: &[u8]) {
-        let (h, n) = crate::strings::header(header);
-        self.buf.reserve(bytes.len().saturating_add(n));
-        self.buf.extend_from_slice(h.get(..n).unwrap_or_default());
+        self.buf.reserve(bytes.len().saturating_add(crate::strings::header_size(header)));
+        crate::strings::push_header(&mut self.buf, header);
         self.buf.extend_from_slice(bytes);
     }
 
     /// A string header alone.
     #[inline]
     pub(crate) fn header(&mut self, header: u32) {
-        let (h, n) = crate::strings::header(header);
-        self.buf.extend_from_slice(h.get(..n).unwrap_or_default());
+        crate::strings::push_header(&mut self.buf, header);
     }
 
     /// Ends a string started at `at` with `room` zero bytes for its header and followed by its chars: writes the
@@ -99,8 +97,12 @@ impl<'a> Writer<'a> {
             self.buf.copy_within(start.., at.saturating_add(n));
             self.buf.truncate(at.saturating_add(n).saturating_add(size));
         }
-        if let (Some(dst), Some(src)) = (self.buf.get_mut(at..at.saturating_add(n)), h.get(..n)) {
-            dst.copy_from_slice(src);
+        // A store of a constant size for each header size (not a copy of `n` bytes, a call to `memcpy`).
+        match (n, self.buf.get_mut(at..)) {
+            (1, Some([d0, ..])) => *d0 = h[0],
+            (3, Some([d0, d1, d2, ..])) => [*d0, *d1, *d2] = [h[0], h[1], h[2]],
+            (_, Some([d0, d1, d2, d3, d4, ..])) => [*d0, *d1, *d2, *d3, *d4] = h,
+            _ => {}
         }
         Ok(())
     }
@@ -239,11 +241,9 @@ impl<'a> Writer<'a> {
         let chars = u32::try_from(chars).ok().filter(|&c| c <= i32::MAX as u32).ok_or_else(Error::too_large)?;
         let size = u32::try_from(text.len()).ok().filter(|&c| c <= i32::MAX as u32).ok_or_else(Error::too_large)?;
         // One reservation: the two counts, then the bytes. `chars <= i32::MAX`: `chars + 1` cannot wrap.
-        let (c, cn) = crate::strings::header(chars.wrapping_add(1));
-        let (b, bn) = crate::strings::header(size);
         self.buf.reserve(text.len().saturating_add(10));
-        self.buf.extend_from_slice(c.get(..cn).unwrap_or_default());
-        self.buf.extend_from_slice(b.get(..bn).unwrap_or_default());
+        crate::strings::push_header(&mut self.buf, chars.wrapping_add(1));
+        crate::strings::push_header(&mut self.buf, size);
         self.buf.extend_from_slice(text.as_bytes());
         Ok(())
     }
