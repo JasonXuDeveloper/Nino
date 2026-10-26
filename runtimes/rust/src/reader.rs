@@ -301,23 +301,34 @@ impl<'d> Reader<'d> {
 
     /// `count` strings in the default encoding, none null (a list of them): short ASCII text (up to 16 bytes, with
     /// 16 bytes of data after its header) read as one block ([`crate::simd::ascii_block`]) with the position kept in
-    /// a register from one string to the next, every other string through [`Reader::string`].
+    /// a register from one string to the next, every other string through [`Reader::string`]. After a string the
+    /// block does not take, the next [`PLAIN`] go straight through [`Reader::string`]: in a list of mixed text the
+    /// test would mostly fail.
     pub(crate) fn strings(&mut self, count: usize) -> Result<Vec<String>> {
+        /// How many strings go through [`Reader::string`] after one the block does not take.
+        const PLAIN: usize = 8;
         let mut values = Vec::with_capacity(self.capacity::<String>(count));
         let mut rest = self.rest;
+        let mut plain = 0usize;
         for _ in 0..count {
-            if let Some((&header, tail)) = rest.split_first() {
-                // Latin-1 of 1 to 16 chars: 3, 5, ... 33.
-                if header & 1 != 0 && header.wrapping_sub(3) < 31 {
-                    if let Some(block) = tail.first_chunk::<16>() {
-                        let n = usize::from(header >> 1);
-                        if let Some(text) = crate::simd::ascii_block(block, n) {
-                            values.push(text);
-                            rest = tail.get(n..).unwrap_or_default();
-                            continue;
+            if plain == 0 {
+                if let Some((&header, tail)) = rest.split_first() {
+                    // Latin-1 of 1 to 16 chars: 3, 5, ... 33.
+                    if header & 1 != 0 && header.wrapping_sub(3) < 31 {
+                        if let Some(block) = tail.first_chunk::<16>() {
+                            let n = usize::from(header >> 1);
+                            if let Some(text) = crate::simd::ascii_block(block, n) {
+                                values.push(text);
+                                rest = tail.get(n..).unwrap_or_default();
+                                continue;
+                            }
                         }
                     }
                 }
+                plain = PLAIN;
+            } else {
+                // `plain > 0`.
+                plain = plain.wrapping_sub(1);
             }
             self.rest = rest;
             values.push(self.string()?.ok_or_else(Error::null)?);
