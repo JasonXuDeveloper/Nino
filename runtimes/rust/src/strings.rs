@@ -133,6 +133,25 @@ pub(crate) fn write(w: &mut Writer<'_>, text: &str) -> Result<()> {
     write_wide(w, text)
 }
 
+/// Writes each of `values` in the default encoding (a list's elements): runs of short ASCII strings through
+/// [`crate::simd::ascii_strings`], with one reservation a run and the output's end in a register, and each other
+/// string through [`write`].
+#[inline]
+pub(crate) fn write_strings(w: &mut Writer<'_>, values: &[String]) -> Result<()> {
+    let mut rest = values;
+    while !rest.is_empty() {
+        let (done, run) = crate::simd::ascii_strings(w.buffer(), rest);
+        rest = rest.get(done..).unwrap_or_default();
+        if done < run {
+            // Not short ASCII: the next string on its own.
+            let Some((first, tail)) = rest.split_first() else { break };
+            write(w, first)?;
+            rest = tail;
+        }
+    }
+    Ok(())
+}
+
 /// Text with a char above U+007F, written as Latin-1 when every char is at most U+00FF, else as UTF-16: transcoded
 /// straight into the buffer after room for the longest header its length allows ([`crate::simd::transcode`]), and
 /// the header written last (the chars moved down when it is shorter).
