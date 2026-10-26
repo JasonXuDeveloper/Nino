@@ -150,6 +150,44 @@ func (w *Writer) String(s string) {
 	}
 }
 
+// shortUTF8 writes a [NinoUtf8] string of n bytes (0 < n < 127) and units chars (units <= n): its two one-byte
+// headers in the low bytes of the first store, the text's first bytes above them, then the text a word at a time
+// (as [Writer.String] does): no byte stores and no call to memmove, which Zen 5 ran more than twice as slowly after
+// the two header bytes.
+func (w *Writer) shortUTF8(s string, units int) {
+	n := len(s)
+	at := len(w.buf)
+	end := at + 2 + n
+	if end > cap(w.buf) {
+		w.grow(2 + n + stringSlack)
+	}
+	w.buf = w.buf[:end]
+	b := w.buf[at:end]
+	src := unsafe.Pointer(unsafe.StringData(s))
+	h := uint64(units+1) | uint64(n)<<8
+	if n >= 8 {
+		// The headers and the first six bytes, the words from the seventh byte on before the last, then the last
+		// eight bytes (over the bytes before them: n >= 8, so they cover the seventh and eighth).
+		dst := unsafe.Pointer(&b[2])
+		store64(unsafe.Pointer(&b[0]), 0, load64(src, 0)<<16|h)
+		for i := 6; i < n-8; i += 8 {
+			store64(dst, i, load64(src, i))
+		}
+		store64(dst, n-8, load64(src, n-8))
+		return
+	}
+	if cap(w.buf)-end >= 6-n {
+		// The headers and up to six bytes; a seventh after them.
+		store64(unsafe.Pointer(&b[0]), 0, loadShort(src, n)<<16|h)
+		if n == 7 {
+			b[8] = s[6]
+		}
+		return
+	}
+	store16(unsafe.Pointer(&b[0]), 0, uint16(h))
+	copy(b[2:], s)
+}
+
 // stringRoom is the bytes reserved for the header of a string of n bytes: that of 2n, n chars of Latin-1 or UTF-16
 // (no char takes fewer bytes in UTF-8). A string of fewer chars may have a shorter header
 // ([Writer.endLongString]).
