@@ -2,10 +2,12 @@ package nino
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/hex"
 	"errors"
 	"math"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -777,4 +779,85 @@ func TestTagStrings(t *testing.T) {
 			}
 		}
 	})
+}
+
+type tagMaps struct {
+	IntString map[int32]string  `nino:"0"`
+	LongLong  map[int64]int64   `nino:"1"`
+	StrInt    map[string]int32  `nino:"2"`
+	Named     map[tagWord]int32 `nino:"3"` // not a built-in type: through reflect
+	Nil       map[int32]string  `nino:"4"`
+	Empty     map[string]string `nino:"5"`
+}
+
+// TestTagMaps checks the maps of built-in types (read and written without reflect on the unsafe path) against
+// generated code's calls, with keys in order, beside a map of a named type that takes reflect.
+func TestTagMaps(t *testing.T) {
+	bothModes(t, func(t *testing.T) {
+		v := &tagMaps{IntString: map[int32]string{}, LongLong: map[int64]int64{}, StrInt: map[string]int32{},
+			Named: map[tagWord]int32{}, Empty: map[string]string{}}
+		for i := range 40 {
+			v.IntString[int32(i*7919%101-50)] = strings.Repeat("crème ", i%5)
+			v.LongLong[int64(i)<<40-int64(i)] = int64(-i)
+			v.StrInt[strings.Repeat("k", i)] = int32(i)
+			v.Named[tagWord(strings.Repeat("n", 40-i))] = int32(i)
+		}
+		got, err := Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := Serialize(v, func(w *Writer, v *tagMaps) {
+			w.Present(true)
+			writeSorted(w, v.IntString, (*Writer).I32, (*Writer).String)
+			writeSorted(w, v.LongLong, (*Writer).I64, (*Writer).I64)
+			writeSorted(w, v.StrInt, (*Writer).String, (*Writer).I32)
+			writeSorted(w, v.Named, func(w *Writer, k tagWord) { w.String(string(k)) }, (*Writer).I32)
+			w.Null()
+			w.Length(0)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Fatalf("\n got %X\nwant %X", got, want)
+		}
+		var back *tagMaps
+		if err := UnmarshalExact(got, &back); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(back, v) || back.Nil != nil || back.Empty == nil {
+			t.Fatalf("read back\n%+v\nwant\n%+v", back, v)
+		}
+		for n := 0; n < len(got); n++ {
+			if err := Unmarshal(got[:n], &back); err == nil {
+				t.Fatalf("truncated to %d: no error", n)
+			}
+		}
+		// A key twice.
+		twice, _ := Serialize(v, func(w *Writer, _ *tagMaps) {
+			w.Present(true)
+			w.Length(2)
+			w.I32(1)
+			w.String("a")
+			w.I32(1)
+			w.String("b")
+		})
+		var dup *tagMaps
+		if err := Unmarshal(twice, &dup); !errors.Is(err, ErrDuplicateKey) {
+			t.Fatalf("a key twice: %v", err)
+		}
+	})
+}
+
+func writeSorted[K cmp.Ordered, V any](w *Writer, m map[K]V, wk func(*Writer, K), wv func(*Writer, V)) {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	w.Length(len(keys))
+	for _, k := range keys {
+		wk(w, k)
+		wv(w, m[k])
+	}
 }

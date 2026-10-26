@@ -153,7 +153,7 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
     // UTF-16 takes at most two bytes per byte of UTF-8, Latin-1 one; a step stores up to 64 bytes from where its
     // output starts. `len <= i32::MAX`: no sum below wraps.
-    let room = super::header_room(len);
+    let room = super::kernel_room(len);
     out.reserve(len.wrapping_mul(2).wrapping_add(room).wrapping_add(64));
     let at = out.len();
     // Invariants: `i <= len` is a char boundary of the valid UTF-8 at `src`, and `o <= i` bytes (Latin-1) or
@@ -196,7 +196,7 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) {
                 i = i.wrapping_add(q);
             }
             // The header's room is reserved at `at`, and `o` bytes after it written.
-            super::finish(out, at, room, o, true);
+            super::finish::<false>(out, at, room, o, true);
             return;
         }
         (i, o) = (0, 0);
@@ -256,7 +256,7 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) {
             i = i.wrapping_add(q);
         }
         // The header's room is reserved at `at`, and `o` bytes after it written.
-        super::finish(out, at, room, o, false);
+        super::finish::<false>(out, at, room, o, false);
     }
 }
 

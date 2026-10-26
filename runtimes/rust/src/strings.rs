@@ -43,6 +43,20 @@ pub(crate) fn header(value: u32) -> ([u8; 5], usize) {
     }
 }
 
+/// Appends `value` as a string header ([`header`]): one push when it is one byte, else an append of a constant
+/// size, never a copy of a length known only at run time (a call to `memcpy`).
+#[inline(always)]
+pub(crate) fn push_header(buf: &mut Vec<u8>, value: u32) {
+    let v = value.to_le_bytes();
+    if value < 0x80 {
+        buf.push(v[0]);
+    } else if value <= 0xFFFF {
+        buf.extend_from_slice(&[HEADER16, v[0], v[1]]);
+    } else {
+        buf.extend_from_slice(&[HEADER32, v[0], v[1], v[2], v[3]]);
+    }
+}
+
 /// The header of a default string of `count` chars: `2 * count + 1` for Latin-1, `2 * count` for UTF-16. Fails past
 /// `i32::MAX` chars.
 #[inline]
@@ -96,6 +110,26 @@ pub(crate) fn utf16_len(bytes: &[u8]) -> u64 {
     units.wrapping_add(head).wrapping_add(tail_units)
 }
 
+/// [`utf16_len`] a word at a time (no loop of byte lanes), for text of a few words: each word's code units, then
+/// the last bytes as the high bytes of the text's last word.
+#[inline(always)]
+pub(crate) fn utf16_len_words(bytes: &[u8]) -> u64 {
+    let (words, tail) = bytes.as_chunks::<8>();
+    let mut units = 0u64;
+    for w in words {
+        units = units.wrapping_add(word_units(u64::from_le_bytes(*w), 8));
+    }
+    let tail_units = match bytes.last_chunk::<8>() {
+        // `1 <= tail.len() < 8`: a shift of 8 to 56 bits.
+        Some(last) if !tail.is_empty() => word_units(
+            u64::from_le_bytes(*last) >> (8usize.wrapping_sub(tail.len()).wrapping_mul(8)),
+            tail.len() as u64,
+        ),
+        _ => tail.iter().map(|&b| u64::from(b as i8 >= -0x40).wrapping_add(u64::from(b >= 0xF0))).sum(),
+    };
+    units.wrapping_add(tail_units)
+}
+
 /// The UTF-16 code units of the `n` bytes of `w` (little-endian, zero above them; the bytes valid UTF-8 between char
 /// boundaries): `n`, less the continuation bytes, plus the four-byte leads.
 #[inline(always)]
@@ -134,23 +168,36 @@ pub(crate) fn write(w: &mut Writer<'_>, text: &str) -> Result<()> {
 }
 
 /// Writes each of `values` in the default encoding (a list's elements): runs of short ASCII strings through
-/// [`crate::simd::ascii_strings`], with one reservation a run and the output's end in a register, and each other
-/// string through [`write`].
+/// [`crate::simd::ascii_strings`], with one reservation a run and the output's end in a register; after a string that
+/// ends a run, the next ones one at a time through [`write`] (which takes short ASCII first): [`MIXED`], twice as many
+/// after each run that ends early, back to [`MIXED`] after a full run. A list of mixed text pays for a run's setup
+/// ever more rarely, and a list of short ASCII after some other text finds its runs again.
 #[inline]
 pub(crate) fn write_strings(w: &mut Writer<'_>, values: &[String]) -> Result<()> {
     let mut rest = values;
-    while !rest.is_empty() {
+    let mut mixed = MIXED;
+    loop {
         let (done, run) = crate::simd::ascii_strings(w.buffer(), rest);
         rest = rest.get(done..).unwrap_or_default();
-        if done < run {
-            // Not short ASCII: the next string on its own.
-            let Some((first, tail)) = rest.split_first() else { break };
-            write(w, first)?;
-            rest = tail;
+        if done == run {
+            if rest.is_empty() {
+                return Ok(());
+            }
+            mixed = MIXED;
+            continue;
         }
+        let (some, tail) = rest.split_at(rest.len().min(mixed));
+        for v in some {
+            write(w, v)?;
+        }
+        rest = tail;
+        // At most `MIXED << 10`: no wrap.
+        mixed = mixed.wrapping_mul(2).min(MIXED << 10);
     }
-    Ok(())
 }
+
+/// How many strings [`write_strings`] first writes one at a time after a run of short ASCII ends.
+const MIXED: usize = 8;
 
 /// Text with a char above U+007F, written as Latin-1 when every char is at most U+00FF, else as UTF-16: transcoded
 /// straight into the buffer after room for the longest header its length allows ([`crate::simd::transcode`]), and
@@ -158,7 +205,7 @@ pub(crate) fn write_strings(w: &mut Writer<'_>, values: &[String]) -> Result<()>
 #[inline(never)]
 fn write_wide(w: &mut Writer<'_>, text: &str) -> Result<()> {
     let at = w.position();
-    let room = crate::simd::header_room(text.len());
+    let room = crate::simd::text_room(text, utf16_len_words);
     let buf = w.buffer();
     buf.resize(at.saturating_add(room), 0);
     let latin1 = crate::simd::transcode(buf, text);
