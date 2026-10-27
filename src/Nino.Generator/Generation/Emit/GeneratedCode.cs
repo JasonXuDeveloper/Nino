@@ -20,25 +20,28 @@ internal static class GeneratedCode
                                           "InterceptsLocationAttribute;";
 
     /// <summary>
-    /// A generated file: the <see cref="Header"/>, <paramref name="preamble"/> (assembly attributes, as is), and the
-    /// <c>NinoGen</c> namespace holding <paramref name="aliases"/> (declarations, one per line), a blank line and
-    /// <paramref name="body"/> (indented one level, as <c>new CodeWriter(indent: 1)</c> writes it).
+    /// A generated file: the <see cref="Header"/>, <paramref name="preamble"/> (what precedes the namespace, such as
+    /// assembly attributes, as is), and the <c>NinoGen</c> namespace holding <paramref name="aliases"/> (declarations,
+    /// one per line, then a blank line) and <paramref name="body"/> (indented one level, as
+    /// <c>new CodeWriter(indent: 1)</c> writes it).
     /// </summary>
     public static string File(string preamble, IEnumerable<string> aliases, string body)
     {
         var sb = new StringBuilder(Header, body.Length + preamble.Length + 1024);
         sb.Append(preamble);
         sb.Append("namespace " + TypeNames.GenNamespace + "\n{\n");
+        int length = sb.Length;
         foreach (var alias in aliases)
             sb.Append("    ").Append(alias).Append('\n');
-        sb.Append('\n');
+        if (sb.Length != length)
+            sb.Append('\n');
         sb.Append(body);
         sb.Append("}\n");
         return sb.ToString();
     }
 
     /// <summary>
-    /// The Nino.Core names generated bodies repeat most, each with the alias <see cref="WithAliases"/> writes it as.
+    /// The names generated bodies repeat most, each with the alias <see cref="WithAliases"/> writes it as.
     /// A name ending in a dot is a static class, always followed by a member.
     /// </summary>
     private static readonly (string Name, string Alias)[] CoreAliases =
@@ -47,6 +50,8 @@ internal static class GeneratedCode
         (TypeNames.Core + "Reader", "__NinoReader"),
         (TypeNames.CoreCompilerServices + "NinoObject.", "__NinoObject."),
         (TypeNames.CoreCompilerServices + "NinoUnsafe.", "__NinoUnsafe."),
+        (TypeNames.Core + "NinoPolymorphic.", "__NinoPolymorphic."),
+        ("global::System.ReadOnlySpan<byte>", "__NinoBytes"),
     };
 
     /// <summary>

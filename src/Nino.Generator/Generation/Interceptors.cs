@@ -170,26 +170,19 @@ internal static class Interceptors
         var tops = new HashSet<string>(top.Select(n => TypeNames.Gen + n));
         var shallow = new HashSet<string>(shallowTwins.Select(n => TypeNames.Gen + n));
         string scope = fileLocal ? "file" : "internal";
-        var w = new CodeWriter(calls.Length * 384);
-        w.Raw(GeneratedCode.Header);
-        w.Open("namespace System.Runtime.CompilerServices");
-        w.Line("[global::System.AttributeUsage(global::System.AttributeTargets.Method, AllowMultiple = true)]");
-        w.Open($"{scope} sealed class InterceptsLocationAttribute : global::System.Attribute");
+        var attribute = new CodeWriter();
+        attribute.Open("namespace System.Runtime.CompilerServices");
+        attribute.Line("[global::System.AttributeUsage(global::System.AttributeTargets.Method, AllowMultiple = true)]");
+        attribute.Open($"{scope} sealed class InterceptsLocationAttribute : global::System.Attribute");
 #if ROSLYN4_12
-        w.Line("public InterceptsLocationAttribute(int version, string data) { }");
+        attribute.Line("public InterceptsLocationAttribute(int version, string data) { }");
 #else
-        w.Line("public InterceptsLocationAttribute(string filePath, int line, int character) { }");
+        attribute.Line("public InterceptsLocationAttribute(string filePath, int line, int character) { }");
 #endif
-        w.Close();
-        w.Close();
-        w.Line();
-        w.Open($"namespace {TypeNames.GenNamespace}");
-        // Aliases: each interceptor names them, more than a thousand times in a large project.
-        w.Line(GeneratedCode.InterceptsAlias);
-        foreach (var alias in GeneratedCode.InlineAliases)
-            w.Line(alias);
-        w.Line(GeneratedCode.DirectAlias);
-        w.Line();
+        attribute.Close();
+        attribute.Close();
+        attribute.Line();
+        var w = new CodeWriter(calls.Length * 384, indent: 1);
         w.Open($"{scope} static class NinoInterceptors");
         int n = 0;
         foreach (var group in calls.GroupBy(c => (c.Signature, Call: c.Inlinable ? WithTopCall(c, tops, shallow) : c.Call)))
@@ -208,8 +201,12 @@ internal static class Interceptors
         }
 
         w.Close();
-        w.Close();
-        return w.ToString();
+        // Aliases: each interceptor names them, more than a thousand times in a large project.
+        var aliases = new List<string> { GeneratedCode.InterceptsAlias };
+        aliases.AddRange(GeneratedCode.InlineAliases);
+        aliases.Add(GeneratedCode.DirectAlias);
+        string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
+        return GeneratedCode.File(attribute.ToString(), aliases, body);
     }
 }
 #endif
