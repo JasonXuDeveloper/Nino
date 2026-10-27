@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"math"
 	"math/big"
+	"unsafe"
 
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
@@ -17,6 +18,7 @@ var le = binary.LittleEndian
 var (
 	_ = math.Float32bits
 	_ = big.NewInt
+	_ unsafe.Pointer
 )
 
 // Flags is `Shapes.Flags`.
@@ -48,6 +50,11 @@ func encodeGappy(b []byte, v Gappy) {
 	le.PutUint32(b[4:], uint32(v.Large))
 }
 
+// asIsGappy: whether Gappy's memory is its bytes (on a little-endian host), for arrays copied as one block.
+const asIsGappy = unsafe.Sizeof(Gappy{}) == 8 &&
+	unsafe.Offsetof(Gappy{}.Small) == 0 &&
+	unsafe.Offsetof(Gappy{}.Large) == 4
+
 func readGappy(r *nino.Reader) Gappy {
 	return readRaw(r, 8, decodeGappy)
 }
@@ -75,6 +82,11 @@ func encodeThingStruct(b []byte, v ThingStruct) {
 	le.PutUint32(b, uint32(v.Id))
 	le.PutUint64(b[8:], uint64(v.Extra))
 }
+
+// asIsThingStruct: whether ThingStruct's memory is its bytes (on a little-endian host), for arrays copied as one block.
+const asIsThingStruct = unsafe.Sizeof(ThingStruct{}) == 16 &&
+	unsafe.Offsetof(ThingStruct{}.Id) == 0 &&
+	unsafe.Offsetof(ThingStruct{}.Extra) == 8
 
 func readThingStruct(r *nino.Reader) ThingStruct {
 	return readRaw(r, 16, decodeThingStruct)
@@ -1684,7 +1696,7 @@ func readV15(r *nino.Reader) Flags {
 }
 
 func readV16(r *nino.Reader) []Gappy {
-	return nino.ReadFixed(r, 8, decodeGappy)
+	return nino.ReadRaw(r, 8, asIsGappy, nil, decodeGappy)
 }
 
 func readV17(r *nino.Reader) nino.Entry[*string, int32] {
