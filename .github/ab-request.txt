@@ -1,5 +1,5 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase9/rust-records 4e4be1e again: against 36cfdbf three times (more rounds, and more CPUs drawn).
-rust 36cfdbf 4e4be1e ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+# phase9/rust-records 4e4be1e against 36cfdbf twice, and 36cfdbf against itself (the noise floor of each runner).
+rust 36cfdbf 36cfdbf ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 rust 36cfdbf 4e4be1e ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 rust 36cfdbf 4e4be1e ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
