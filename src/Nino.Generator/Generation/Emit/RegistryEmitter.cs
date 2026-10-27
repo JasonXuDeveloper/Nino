@@ -22,16 +22,15 @@ internal static class RegistryEmitter
     {
         string name = "NinoGenRegistry_" + new string(options.AssemblyName
             .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_').ToArray());
-        var w = new CodeWriter();
-        w.Raw(GeneratedCode.Header);
-        w.Line($"[assembly: {CoreCompilerServices}NinoGenerated(typeof({Gen}{name}))]");
+        var preamble = new CodeWriter();
+        preamble.Line($"[assembly: {CoreCompilerServices}NinoGenerated(typeof({Gen}{name}))]");
         var list = entries.ToList();
         // Generic [NinoType]s are closed at runtime: their formatter definitions are ordinary formatter
         // registrations (each implements INinoFormatter<Box<T>> in exactly the type's own parameters).
         foreach (var entry in list.Where(e => e.Arity != 0))
-            w.Line($"[assembly: {Core}NinoFormatter(typeof({Gen}{entry.FormatterName}<{new string(',', entry.Arity - 1)}>))]");
-        w.Line();
-        w.Open($"namespace {GenNamespace}");
+            preamble.Line($"[assembly: {Core}NinoFormatter(typeof({Gen}{entry.FormatterName}<{new string(',', entry.Arity - 1)}>))]");
+        preamble.Line();
+        var w = new CodeWriter(indent: 1);
         w.Lines($$"""
             /// <summary>
             /// Registers the Nino formatters generated for this assembly, lazily: a lookup that misses asks for the
@@ -76,23 +75,22 @@ internal static class RegistryEmitter
         }
 
         w.Close();
-        w.Close();
-        return w.ToString();
+        var aliases = new List<string>();
+        string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
+        return GeneratedCode.File(preamble.ToString(), aliases, body);
     }
 
     public static string EmitUsages(IEnumerable<FormatterRegistration> usages, IEnumerable<FactoryRegistration> factories,
         IEnumerable<TypeRegistration> generics, IEnumerable<string> layoutTypes)
     {
-        var w = new CodeWriter();
-        w.Raw(GeneratedCode.Header);
-        w.Open($"namespace {GenNamespace}");
+        var w = new CodeWriter(indent: 1);
         var kept = layoutTypes.ToList();
+        var aliases = new List<string>();
         if (kept.Count != 0)
         {
             const string codeAnalysis = "global::System.Diagnostics.CodeAnalysis.";
-            w.Line($"using __NinoDynamicDependency = {codeAnalysis}DynamicDependencyAttribute;");
-            w.Line($"using __NinoMembers = {codeAnalysis}DynamicallyAccessedMemberTypes;");
-            w.Line();
+            aliases.Add($"using __NinoDynamicDependency = {codeAnalysis}DynamicDependencyAttribute;");
+            aliases.Add($"using __NinoMembers = {codeAnalysis}DynamicallyAccessedMemberTypes;");
         }
 
         w.Open($"internal static class {UsagesClass}");
@@ -113,8 +111,8 @@ internal static class RegistryEmitter
             w.Line($"[__NinoDynamicDependency(__Fields, typeof({type}))]");
         EmitIdDispatch(w, "internal static", "", ById(statements));
         w.Close();
-        w.Close();
-        return w.ToString();
+        string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
+        return GeneratedCode.File("", aliases, body);
     }
 
     /// <summary>How the registry registers the formatter of <paramref name="m"/>; null for generic types.</summary>
