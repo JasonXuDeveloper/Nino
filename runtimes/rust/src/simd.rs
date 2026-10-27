@@ -1126,6 +1126,20 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
     wide_short(out, text)
 }
 
+/// Pads the code to the next multiple of 64 bytes (and aligns the function's section to 64), so that what follows
+/// sits where it does whatever code comes before it: the loops over a list of strings took up to 18% longer,
+/// depending on the CPU, from where the linker happened to place them (functions are aligned to 16 bytes only),
+/// each time unrelated code grew. Only at the start of a function that runs once for a list: the padding (a few
+/// multi-byte `nop`s) runs once a call. x86_64 and AArch64; not under Miri (no inline assembly there).
+#[inline(always)]
+pub(crate) fn align_code() {
+    #[cfg(all(not(miri), any(target_arch = "x86_64", target_arch = "aarch64")))]
+    // SAFETY: an assembler directive: padding that does nothing, touching no memory, stack or flags.
+    unsafe {
+        core::arch::asm!(".p2align 6", options(nomem, nostack, preserves_flags));
+    }
+}
+
 /// Writes strings from the start of `values` (a list's) with this CPU's list loop while it takes them (each under 64
 /// bytes on x86_64 with SSE4.1, else of up to [`SHORT`] bytes); returns how many it wrote.
 #[inline]

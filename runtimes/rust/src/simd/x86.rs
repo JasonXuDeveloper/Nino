@@ -716,6 +716,7 @@ macro_rules! strings_kernel {
         #[doc = concat!("The CPU has what `", stringify!($wide), "` needs (", $features, ").")]
         #[target_feature(enable = $features)]
         pub(crate) unsafe fn $name(out: &mut Vec<u8>, values: &[String]) -> usize {
+            super::align_code();
             for (k, v) in values.iter().enumerate() {
                 let len = v.len();
                 if len <= super::SHORT && super::ascii_short(out, v.as_bytes()) {
