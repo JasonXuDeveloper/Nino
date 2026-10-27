@@ -35,14 +35,14 @@ func blocksCase[T any](b *testing.B, name string, v T, write func(*nino.Writer, 
 		b.SetBytes(int64(len(data)))
 		b.ReportAllocs()
 		buf := make([]byte, 0, len(data))
-		for b.Loop() {
+		for range b.N {
 			buf, _ = nino.Append(buf[:0], v, write)
 		}
 	})
 	b.Run(name+"/Deserialize", func(b *testing.B) {
 		b.SetBytes(int64(len(data)))
 		b.ReportAllocs()
-		for b.Loop() {
+		for range b.N {
 			if _, err := nino.Deserialize(data, read); err != nil {
 				b.Fatal(err)
 			}
