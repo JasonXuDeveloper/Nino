@@ -91,53 +91,57 @@ DATA wire<>+656(SB)/8, $0x0101010101010101
 DATA wire<>+664(SB)/8, $0x01010101aaaaaee6
 DATA wire<>+672(SB)/8, $0xffffffffffffffff
 DATA wire<>+680(SB)/8, $0xffffffffffffffff
-DATA wire<>+688(SB)/8, $0xffffffffffffffff
-DATA wire<>+696(SB)/8, $0xffffffffffffffff
-DATA wire<>+704(SB)/8, $0x0000000000000000
-DATA wire<>+712(SB)/8, $0x0000000000000000
-DATA wire<>+720(SB)/8, $0x0000000000000000
-DATA wire<>+728(SB)/8, $0x0000000000000000
-DATA wire<>+736(SB)/8, $0xffffffffffffff00
-DATA wire<>+744(SB)/8, $0xffffffffffffffff
-DATA wire<>+752(SB)/8, $0xffffffffffffffff
-DATA wire<>+760(SB)/8, $0xffffffffffffffff
-DATA wire<>+768(SB)/8, $0xff80ff80ff80ff80
-DATA wire<>+776(SB)/8, $0xff80ff80ff80ff80
-DATA wire<>+784(SB)/8, $0xff80ff80ff80ff80
-DATA wire<>+792(SB)/8, $0xff80ff80ff80ff80
-DATA wire<>+800(SB)/8, $0xf800f800f800f800
-DATA wire<>+808(SB)/8, $0xf800f800f800f800
-DATA wire<>+816(SB)/8, $0xf800f800f800f800
-DATA wire<>+824(SB)/8, $0xf800f800f800f800
-DATA wire<>+832(SB)/8, $0xfc00fc00fc00fc00
-DATA wire<>+840(SB)/8, $0xfc00fc00fc00fc00
-DATA wire<>+848(SB)/8, $0xfc00fc00fc00fc00
-DATA wire<>+856(SB)/8, $0xfc00fc00fc00fc00
-DATA wire<>+864(SB)/8, $0xd800d800d800d800
-DATA wire<>+872(SB)/8, $0xd800d800d800d800
-DATA wire<>+880(SB)/8, $0xd800d800d800d800
-DATA wire<>+888(SB)/8, $0xd800d800d800d800
-DATA wire<>+896(SB)/8, $0x003f003f003f003f
-DATA wire<>+904(SB)/8, $0x003f003f003f003f
-DATA wire<>+912(SB)/8, $0x003f003f003f003f
-DATA wire<>+920(SB)/8, $0x003f003f003f003f
-DATA wire<>+928(SB)/8, $0x0080008000800080
-DATA wire<>+936(SB)/8, $0x0080008000800080
-DATA wire<>+944(SB)/8, $0x0080008000800080
-DATA wire<>+952(SB)/8, $0x0080008000800080
-DATA wire<>+960(SB)/8, $0x00c000c000c000c0
-DATA wire<>+968(SB)/8, $0x00c000c000c000c0
-DATA wire<>+976(SB)/8, $0x00c000c000c000c0
-DATA wire<>+984(SB)/8, $0x00c000c000c000c0
-DATA wire<>+992(SB)/8, $0x00e000e000e000e0
-DATA wire<>+1000(SB)/8, $0x00e000e000e000e0
-DATA wire<>+1008(SB)/8, $0x00e000e000e000e0
-DATA wire<>+1016(SB)/8, $0x00e000e000e000e0
-DATA wire<>+1024(SB)/8, $0x0040004000400040
-DATA wire<>+1032(SB)/8, $0x0040004000400040
-DATA wire<>+1040(SB)/8, $0x0040004000400040
-DATA wire<>+1048(SB)/8, $0x0040004000400040
-GLOBL wire<>(SB), RODATA|NOPTR, $1056
+DATA wire<>+688(SB)/8, $0x0000000000000000
+DATA wire<>+696(SB)/8, $0x0000000000000000
+DATA wire<>+704(SB)/8, $0x0706050403020100
+DATA wire<>+712(SB)/8, $0x0f0e0d0c0b0a0908
+DATA wire<>+720(SB)/8, $0x1716151413121110
+DATA wire<>+728(SB)/8, $0x1f1e1d1c1b1a1918
+DATA wire<>+736(SB)/8, $0x070605040302017f
+DATA wire<>+744(SB)/8, $0x0f0e0d0c0b0a0908
+DATA wire<>+752(SB)/8, $0x1716151413121110
+DATA wire<>+760(SB)/8, $0x1f1e1d1c1b1a1918
+DATA wire<>+768(SB)/8, $0xffffffffffffff00
+DATA wire<>+776(SB)/8, $0xffffffffffffffff
+DATA wire<>+784(SB)/8, $0xffffffffffffffff
+DATA wire<>+792(SB)/8, $0xffffffffffffffff
+DATA wire<>+800(SB)/8, $0xff80ff80ff80ff80
+DATA wire<>+808(SB)/8, $0xff80ff80ff80ff80
+DATA wire<>+816(SB)/8, $0xff80ff80ff80ff80
+DATA wire<>+824(SB)/8, $0xff80ff80ff80ff80
+DATA wire<>+832(SB)/8, $0xf800f800f800f800
+DATA wire<>+840(SB)/8, $0xf800f800f800f800
+DATA wire<>+848(SB)/8, $0xf800f800f800f800
+DATA wire<>+856(SB)/8, $0xf800f800f800f800
+DATA wire<>+864(SB)/8, $0xfc00fc00fc00fc00
+DATA wire<>+872(SB)/8, $0xfc00fc00fc00fc00
+DATA wire<>+880(SB)/8, $0xfc00fc00fc00fc00
+DATA wire<>+888(SB)/8, $0xfc00fc00fc00fc00
+DATA wire<>+896(SB)/8, $0xd800d800d800d800
+DATA wire<>+904(SB)/8, $0xd800d800d800d800
+DATA wire<>+912(SB)/8, $0xd800d800d800d800
+DATA wire<>+920(SB)/8, $0xd800d800d800d800
+DATA wire<>+928(SB)/8, $0x003f003f003f003f
+DATA wire<>+936(SB)/8, $0x003f003f003f003f
+DATA wire<>+944(SB)/8, $0x003f003f003f003f
+DATA wire<>+952(SB)/8, $0x003f003f003f003f
+DATA wire<>+960(SB)/8, $0x0080008000800080
+DATA wire<>+968(SB)/8, $0x0080008000800080
+DATA wire<>+976(SB)/8, $0x0080008000800080
+DATA wire<>+984(SB)/8, $0x0080008000800080
+DATA wire<>+992(SB)/8, $0x00c000c000c000c0
+DATA wire<>+1000(SB)/8, $0x00c000c000c000c0
+DATA wire<>+1008(SB)/8, $0x00c000c000c000c0
+DATA wire<>+1016(SB)/8, $0x00c000c000c000c0
+DATA wire<>+1024(SB)/8, $0x00e000e000e000e0
+DATA wire<>+1032(SB)/8, $0x00e000e000e000e0
+DATA wire<>+1040(SB)/8, $0x00e000e000e000e0
+DATA wire<>+1048(SB)/8, $0x00e000e000e000e0
+DATA wire<>+1056(SB)/8, $0x0040004000400040
+DATA wire<>+1064(SB)/8, $0x0040004000400040
+DATA wire<>+1072(SB)/8, $0x0040004000400040
+DATA wire<>+1080(SB)/8, $0x0040004000400040
+GLOBL wire<>(SB), RODATA|NOPTR, $1088
 
 // func wireStringAVX2(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int
 // Requires: AVX, AVX2, POPCNT
@@ -171,21 +175,21 @@ latin1:
 
 ltail:
 	// Fewer than 32 bytes left: R13 the mask of those, the bytes past them zeros.
-	MOVL    $0x00000001, R13
-	MOVQ    AX, CX
-	SHLL    CL, R13
-	DECL    R13
-	LEAQ    (SI)(DX*1), R8
-	MOVL    R8, R9
-	ANDL    $0x00000fff, R9
-	CMPL    R9, $0x00000fe0
-	JA      lcopy
-	VMOVDQU (R8), Y0
-	LEAQ    wire<>+672(SB), R10
-	ADDQ    $0x20, R10
-	SUBQ    AX, R10
-	VPAND   (R10), Y0, Y0
-	JMP     lbody
+	MOVL         $0x00000001, R13
+	MOVQ         AX, CX
+	SHLL         CL, R13
+	DECL         R13
+	LEAQ         (SI)(DX*1), R8
+	MOVL         R8, R9
+	ANDL         $0x00000fff, R9
+	CMPL         R9, $0x00000fe0
+	JA           lcopy
+	VMOVD        AX, X4
+	VPBROADCASTB X4, Y4
+	VPCMPGTB     wire<>+704(SB), Y4, Y4
+	VMOVDQU      (R8), Y0
+	VPAND        Y4, Y0, Y0
+	JMP          lbody
 
 lcopy:
 	// The 32 bytes from there cross into the next page: the bytes left are copied to where the output goes
@@ -309,21 +313,21 @@ wide:
 
 wtail:
 	// Fewer than 32 bytes left: R13 the mask of those, the bytes past them zeros.
-	MOVL    $0x00000001, R13
-	MOVQ    AX, CX
-	SHLL    CL, R13
-	DECL    R13
-	LEAQ    (SI)(DX*1), R8
-	MOVL    R8, R9
-	ANDL    $0x00000fff, R9
-	CMPL    R9, $0x00000fe0
-	JA      wcopy
-	VMOVDQU (R8), Y0
-	LEAQ    wire<>+672(SB), R10
-	ADDQ    $0x20, R10
-	SUBQ    AX, R10
-	VPAND   (R10), Y0, Y0
-	JMP     wbody
+	MOVL         $0x00000001, R13
+	MOVQ         AX, CX
+	SHLL         CL, R13
+	DECL         R13
+	LEAQ         (SI)(DX*1), R8
+	MOVL         R8, R9
+	ANDL         $0x00000fff, R9
+	CMPL         R9, $0x00000fe0
+	JA           wcopy
+	VMOVD        AX, X4
+	VPBROADCASTB X4, Y4
+	VPCMPGTB     wire<>+704(SB), Y4, Y4
+	VMOVDQU      (R8), Y0
+	VPAND        Y4, Y0, Y0
+	JMP          wbody
 
 wcopy:
 	// The 32 bytes from there cross into the next page: the bytes left are copied to where the output goes
@@ -529,31 +533,31 @@ next:
 	ADDQ CX, R8
 
 header:
-	MOVQ      (R8), SI
-	MOVQ      8(R8), BX
-	TESTQ     BX, BX
-	JZ        empty
-	CMPQ      BX, $const_wireMaxText
-	JAE       finish
-	LEAQ      const_wireSlack+1(DI)(BX*2), AX
-	CMPQ      AX, 24(SP)
-	JA        finish
-	CMPQ      BX, $0x20
-	JAE       long
-	LEAQ      -1(SI), R8
-	MOVL      R8, R9
-	ANDL      $0x00000fff, R9
-	CMPL      R9, $0x00000fe0
-	JA        long
-	LEAQ      wire<>+672(SB), R10
-	ADDQ      $0x1f, R10
-	SUBQ      BX, R10
-	VMOVDQU   (R8), Y0
-	VPAND     (R10), Y0, Y0
-	VPAND     wire<>+736(SB), Y0, Y0
-	VPMOVMSKB Y0, R8
-	TESTL     R8, R8
-	JNZ       shand
+	MOVQ         (R8), SI
+	MOVQ         8(R8), BX
+	TESTQ        BX, BX
+	JZ           empty
+	CMPQ         BX, $const_wireMaxText
+	JAE          finish
+	LEAQ         const_wireSlack+1(DI)(BX*2), AX
+	CMPQ         AX, 24(SP)
+	JA           finish
+	CMPQ         BX, $0x20
+	JAE          long
+	LEAQ         -1(SI), R8
+	MOVL         R8, R9
+	ANDL         $0x00000fff, R9
+	CMPL         R9, $0x00000fe0
+	JA           long
+	LEAL         1(BX), R10
+	VMOVD        R10, X4
+	VPBROADCASTB X4, Y4
+	VPCMPGTB     wire<>+736(SB), Y4, Y4
+	VMOVDQU      (R8), Y0
+	VPAND        Y4, Y0, Y0
+	VPMOVMSKB    Y0, R8
+	TESTL        R8, R8
+	JNZ          shand
 
 	// The header, 2n+1, in the first byte.
 	LEAL    1(BX)(BX*1), CX
@@ -628,21 +632,21 @@ latin1:
 
 ltail:
 	// Fewer than 32 bytes left: R13 the mask of those, the bytes past them zeros.
-	MOVL    $0x00000001, R13
-	MOVQ    AX, CX
-	SHLL    CL, R13
-	DECL    R13
-	LEAQ    (SI)(DX*1), R8
-	MOVL    R8, R9
-	ANDL    $0x00000fff, R9
-	CMPL    R9, $0x00000fe0
-	JA      lcopy
-	VMOVDQU (R8), Y0
-	LEAQ    wire<>+672(SB), R10
-	ADDQ    $0x20, R10
-	SUBQ    AX, R10
-	VPAND   (R10), Y0, Y0
-	JMP     lbody
+	MOVL         $0x00000001, R13
+	MOVQ         AX, CX
+	SHLL         CL, R13
+	DECL         R13
+	LEAQ         (SI)(DX*1), R8
+	MOVL         R8, R9
+	ANDL         $0x00000fff, R9
+	CMPL         R9, $0x00000fe0
+	JA           lcopy
+	VMOVD        AX, X4
+	VPBROADCASTB X4, Y4
+	VPCMPGTB     wire<>+704(SB), Y4, Y4
+	VMOVDQU      (R8), Y0
+	VPAND        Y4, Y0, Y0
+	JMP          lbody
 
 lcopy:
 	// The 32 bytes from there cross into the next page: the bytes left are copied to where the output goes
@@ -766,21 +770,21 @@ wide:
 
 wtail:
 	// Fewer than 32 bytes left: R13 the mask of those, the bytes past them zeros.
-	MOVL    $0x00000001, R13
-	MOVQ    AX, CX
-	SHLL    CL, R13
-	DECL    R13
-	LEAQ    (SI)(DX*1), R8
-	MOVL    R8, R9
-	ANDL    $0x00000fff, R9
-	CMPL    R9, $0x00000fe0
-	JA      wcopy
-	VMOVDQU (R8), Y0
-	LEAQ    wire<>+672(SB), R10
-	ADDQ    $0x20, R10
-	SUBQ    AX, R10
-	VPAND   (R10), Y0, Y0
-	JMP     wbody
+	MOVL         $0x00000001, R13
+	MOVQ         AX, CX
+	SHLL         CL, R13
+	DECL         R13
+	LEAQ         (SI)(DX*1), R8
+	MOVL         R8, R9
+	ANDL         $0x00000fff, R9
+	CMPL         R9, $0x00000fe0
+	JA           wcopy
+	VMOVD        AX, X4
+	VPBROADCASTB X4, Y4
+	VPCMPGTB     wire<>+704(SB), Y4, Y4
+	VMOVDQU      (R8), Y0
+	VPAND        Y4, Y0, Y0
+	JMP          wbody
 
 wcopy:
 	// The 32 bytes from there cross into the next page: the bytes left are copied to where the output goes
@@ -1891,7 +1895,7 @@ tail:
 	JA    cross
 	MOVOU (R10), X0
 	LEAQ  wire<>+672(SB), R13
-	ADDQ  $0x20, R13
+	ADDQ  $0x10, R13
 	SUBQ  R12, R13
 	MOVOU (R13), X1
 	PAND  X1, X0
@@ -1927,14 +1931,14 @@ TEXT ·utf16UTF8SSE(SB), NOSPLIT, $0-32
 	MOVQ  DI, R11
 	XORQ  DX, DX
 	PXOR  X7, X7
-	MOVOU wire<>+768(SB), X8
-	MOVOU wire<>+800(SB), X9
-	MOVOU wire<>+896(SB), X10
-	MOVOU wire<>+928(SB), X11
-	MOVOU wire<>+960(SB), X12
-	MOVOU wire<>+992(SB), X13
-	MOVOU wire<>+1024(SB), X14
-	MOVOU wire<>+832(SB), X15
+	MOVOU wire<>+800(SB), X8
+	MOVOU wire<>+832(SB), X9
+	MOVOU wire<>+928(SB), X10
+	MOVOU wire<>+960(SB), X11
+	MOVOU wire<>+992(SB), X12
+	MOVOU wire<>+1024(SB), X13
+	MOVOU wire<>+1056(SB), X14
+	MOVOU wire<>+864(SB), X15
 
 loop:
 	MOVQ  BX, CX
@@ -2023,7 +2027,7 @@ three:
 	ORL  CX, AX
 
 	// High surrogates.
-	MOVOU    wire<>+864(SB), X6
+	MOVOU    wire<>+896(SB), X6
 	MOVOA    X0, X5
 	PAND     X15, X5
 	PCMPEQW  X6, X5
@@ -2137,7 +2141,7 @@ tail:
 	JA    cross
 	MOVOU (R10), X0
 	LEAQ  wire<>+672(SB), R13
-	ADDQ  $0x20, R13
+	ADDQ  $0x10, R13
 	SUBQ  R12, R13
 	MOVOU (R13), X1
 	PAND  X1, X0
@@ -2275,7 +2279,7 @@ ltail:
 	JA    lcross
 	MOVOU (R10), X0
 	LEAQ  wire<>+672(SB), R13
-	ADDQ  $0x20, R13
+	ADDQ  $0x10, R13
 	SUBQ  R12, R13
 	MOVOU (R13), X1
 	PAND  X1, X0
@@ -2517,7 +2521,7 @@ wtail:
 	JA    wcross
 	MOVOU (R10), X0
 	LEAQ  wire<>+672(SB), R13
-	ADDQ  $0x20, R13
+	ADDQ  $0x10, R13
 	SUBQ  R12, R13
 	MOVOU (R13), X1
 	PAND  X1, X0
@@ -2604,12 +2608,12 @@ header:
 	CMPL     R9, $0x00000ff0
 	JA       long
 	LEAQ     wire<>+672(SB), R10
-	ADDQ     $0x1f, R10
+	ADDQ     $0x0f, R10
 	SUBQ     BX, R10
 	MOVOU    (R8), X0
 	MOVOU    (R10), X1
 	PAND     X1, X0
-	MOVOU    wire<>+736(SB), X1
+	MOVOU    wire<>+768(SB), X1
 	PAND     X1, X0
 	PMOVMSKB X0, R8
 	TESTL    R8, R8
@@ -2751,7 +2755,7 @@ ltail:
 	JA    lcross
 	MOVOU (R10), X0
 	LEAQ  wire<>+672(SB), R13
-	ADDQ  $0x20, R13
+	ADDQ  $0x10, R13
 	SUBQ  R12, R13
 	MOVOU (R13), X1
 	PAND  X1, X0
@@ -2993,7 +2997,7 @@ wtail:
 	JA    wcross
 	MOVOU (R10), X0
 	LEAQ  wire<>+672(SB), R13
-	ADDQ  $0x20, R13
+	ADDQ  $0x10, R13
 	SUBQ  R12, R13
 	MOVOU (R13), X1
 	PAND  X1, X0
