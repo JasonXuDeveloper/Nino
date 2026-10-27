@@ -117,14 +117,30 @@ rust:blocks 717f4bb 717f4bb blocks/(read/i8|write/map-i32-i32|(read|write)/tuple
 # code whose instructions are the same in both builds (objdump, amd64 and arm64); only where functions are placed
 # moved (75% of the runtime's functions changed their offset in a 64-byte line on amd64). Each floor is a ref against
 # itself, so a case is judged against the noise of its own build.
-go#12 1622ddb e70605d ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
-go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
-go#12 e70605d e70605d ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
-go:internal/generated#12 e5bf730 e70605d ^BenchmarkBlocks$
-go:internal/generated#12 e5bf730 e5bf730 ^BenchmarkBlocks$
-go:internal/generated#12 e70605d e70605d ^BenchmarkBlocks$
+# done (run 40551365265): go#12 1622ddb e70605d ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+# done (run 40551365265): go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+# done (run 40551365265): go#12 e70605d e70605d ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+# done (run 40551365265): go:internal/generated#12 e5bf730 e70605d ^BenchmarkBlocks$
+# done (run 40551365265): go:internal/generated#12 e5bf730 e5bf730 ^BenchmarkBlocks$
+# done (run 40551365265): go:internal/generated#12 e70605d e70605d ^BenchmarkBlocks$
 # phase10/go bc2f5dc: dictionaries of primitive keys and values as one block (intmap; intset as a control), with
 # a floor on each side. The bench module has no dictionary case.
-go:internal/generated#12 e70605d bc2f5dc ^BenchmarkBlocks$/^int
-go:internal/generated#12 e70605d e70605d ^BenchmarkBlocks$/^int
-go:internal/generated#12 bc2f5dc bc2f5dc ^BenchmarkBlocks$/^int
+# done (run 40555106437): go:internal/generated#12 e70605d bc2f5dc ^BenchmarkBlocks$/^int
+# done (run 40555106437): go:internal/generated#12 e70605d e70605d ^BenchmarkBlocks$/^int
+# done (run 40555106437): go:internal/generated#12 bc2f5dc bc2f5dc ^BenchmarkBlocks$/^int
+# phase10/go cac4ed8: padded raw arrays as one block (09ea3ce, Blocks/mixed and padded) and the tag path's string
+# slices through ReadStrings (cac4ed8, strings NinoTags), against main (bench module) and e5bf730 (Blocks), with a
+# floor on each side of every filter; filters differ in text so each line runs as its own job.
+go#12 1622ddb cac4ed8 ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+go#12 cac4ed8 cac4ed8 ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+go#12 1622ddb cac4ed8 ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
+go#12 1622ddb 1622ddb ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
+go#12 cac4ed8 cac4ed8 ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
+go#12 1622ddb cac4ed8 ^BenchmarkDeserialize$/^strings-1000$/^NinoTags$
+go#12 1622ddb 1622ddb ^BenchmarkDeserialize$/^strings-1000$/^NinoTags$
+go#12 cac4ed8 cac4ed8 ^BenchmarkDeserialize$/^strings-1000$/^NinoTags$
+go:internal/generated#12 e5bf730 cac4ed8 ^BenchmarkBlocks$
+go:internal/generated#12 cac4ed8 cac4ed8 ^BenchmarkBlocks$
+go:internal/generated#12 e5bf730 cac4ed8 ^BenchmarkBlocks$/(mixed|padded|vec2)
+go:internal/generated#12 e5bf730 e5bf730 ^BenchmarkBlocks$/(mixed|padded|vec2)
+go:internal/generated#12 cac4ed8 cac4ed8 ^BenchmarkBlocks$/(mixed|padded|vec2)
