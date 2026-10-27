@@ -2761,7 +2761,7 @@ mod tests {
     /// none leaks or is dropped twice when a decode fails partway), random input and failures at random places.
     #[test]
     fn decode_block_matches_plain() {
-        let decode = |c: &[u8]| -> crate::error::Result<String> {
+        let decode = |c: &[u8; 3]| -> crate::error::Result<String> {
             if c.first() == Some(&0xFF) {
                 return Err(crate::error::Error::new(crate::error::ErrorKind::InvalidBool, c.len() as i32));
             }
@@ -2772,8 +2772,8 @@ mod tests {
         for n in counts {
             for bad in [0, 0xFF] {
                 let bytes = random_bytes(&mut seed, n * 3, bad);
-                let plain: crate::error::Result<Vec<String>> = bytes.chunks_exact(3).map(decode).collect();
-                assert_eq!(decode_block(bytes.chunks_exact(3), decode), plain, "{n}");
+                let plain: crate::error::Result<Vec<String>> = bytes.as_chunks::<3>().0.iter().map(decode).collect();
+                assert_eq!(decode_block(bytes.as_chunks::<3>().0.iter(), decode), plain, "{n}");
             }
         }
     }

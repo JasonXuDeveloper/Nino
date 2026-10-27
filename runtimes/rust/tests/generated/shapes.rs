@@ -124,6 +124,11 @@ impl nino::Raw for Marked {
 
 impl NinoRead for Marked {
     const MIN_SIZE: usize = 8;
+    const FIXED_SIZE: usize = 8;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
 
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
         <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
@@ -131,6 +136,12 @@ impl NinoRead for Marked {
 }
 
 impl NinoWrite for Marked {
+    const FIXED_SIZE: usize = 8;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let mut b = [0u8; 8];
         nino::Raw::encode_raw(self, &mut b);
