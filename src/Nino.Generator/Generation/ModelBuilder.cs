@@ -98,7 +98,7 @@ internal static class ModelBuilder
             Block: !rawStruct && facts.IsBlock(type),
             FreshRead: kind == FormatterKind.SealedClass && !construction.Recreate &&
                        construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
-                       !attr.Keyed && members.Skip(built.BaseMemberCount).Any(static m => m.Fresh) &&
+                       !attr.Keyed && members.Skip(built.BaseMemberCount).Any(static m => m.Fresh && !m.IsString) &&
                        !members.Skip(built.BaseMemberCount).Any(static m => m.ReadsLoop) &&
                        ConstructsDefaults(type, ct),
             PublishesDeferrable: facts.Symbols.LayoutDeferrable,
@@ -576,9 +576,9 @@ internal static class ModelBuilder
                 .Where(former => former != key).Distinct())
             : EquatableArray<int>.Empty;
 
-        // Fresh: a Nino.Core formatter that reads into an existing value (not a string, object or cached one).
-        const FormatterTraits replaces = FormatterTraits.Cached | FormatterTraits.Object | FormatterTraits.String |
-                                         FormatterTraits.Utf8String;
+        // Fresh: a Nino.Core formatter that reads into an existing value (not an object or cached one), or a string,
+        // read without the value it replaces.
+        const FormatterTraits replaces = FormatterTraits.Cached | FormatterTraits.Object;
         return new MemberModel(
             Name: name,
             SourceName: symbol.Name,
