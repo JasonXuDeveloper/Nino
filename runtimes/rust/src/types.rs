@@ -14,20 +14,56 @@ macro_rules! fixed {
     ($t:ty, $n:literal) => {
         impl NinoRead for $t {
             const MIN_SIZE: usize = $n;
+            const FIXED_SIZE: usize = $n;
+
+            #[inline]
+            fn decode_fixed(bytes: &[u8]) -> Result<Self> {
+                bytes.first_chunk::<$n>().ok_or_else(Error::end).and_then(Self::decode)
+            }
 
             #[inline]
             fn read(r: &mut Reader<'_>) -> Result<Self> {
                 Self::decode(&r.array::<$n>()?)
             }
 
+            /// Each element converted (a copy, mostly) and checked in one pass with no early exit, a vector at a time
+            /// where the compiler can (`bad`: 0 only for valid values, and for all but a few at the edge of the
+            /// range). When one fails, the block is read with [`Self::decode`] one by one, which reports the first
+            /// invalid.
             #[inline]
             fn read_many(r: &mut Reader<'_>, count: usize) -> Result<Vec<Self>> {
-                let bytes = r.take(count.checked_mul($n).ok_or_else(Error::too_large)?)?;
-                bytes.as_chunks::<$n>().0.iter().map(Self::decode).collect()
+                let size = count.checked_mul($n).ok_or_else(Error::too_large)?;
+                let capacity = r.capacity::<Self>(count);
+                let bytes = r.take(size)?;
+                let chunks = bytes.as_chunks::<$n>().0;
+                if capacity < count {
+                    return crate::impls::grow_fixed(chunks.iter(), capacity, Self::decode);
+                }
+                let mut bad = 0;
+                let values = chunks
+                    .iter()
+                    .map(|c| {
+                        bad |= Self::bad(c);
+                        Self::wire(c)
+                    })
+                    .collect();
+                if bad != 0 {
+                    return decode_each(chunks, Self::decode);
+                }
+                Ok(values)
             }
         }
 
         impl NinoWrite for $t {
+            const FIXED_SIZE: usize = $n;
+
+            #[inline]
+            fn encode_fixed(&self, out: &mut [u8]) {
+                if let Some(dst) = out.first_chunk_mut::<$n>() {
+                    *dst = self.encode();
+                }
+            }
+
             #[inline]
             fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
                 w.array(self.encode());
@@ -63,6 +99,13 @@ macro_rules! fixed {
             }
         }
     };
+}
+
+/// `chunks` decoded one by one (a block whose quick test failed).
+#[cold]
+#[inline(never)]
+fn decode_each<T, const N: usize>(chunks: &[[u8; N]], decode: fn(&[u8; N]) -> Result<T>) -> Result<Vec<T>> {
+    crate::simd::decode_block(chunks.iter(), decode)
 }
 
 /// A value copied as raw bytes in the canonical layout (the specification, 5): what a `T?[]` of it holds at a
@@ -128,6 +171,8 @@ impl Raw for bool {
 
 /// `System.Decimal`, as its 16 wire bytes: `flags` (scale in bits 16-23, sign in bit 31), the high 32 bits and the
 /// low 64 bits of the 96-bit integer. The value is `(-1)^sign * (hi * 2^64 + lo) / 10^scale`.
+// `repr(C)`: the fields in wire order, so a block of them is read as one copy.
+#[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Decimal {
     pub flags: i32,
@@ -136,6 +181,22 @@ pub struct Decimal {
 }
 
 impl Decimal {
+    /// 0 when `b` holds a decimal [`Decimal::decode`] accepts: the bits other than the scale (16-23) and the sign,
+    /// and a carry into bit 24 from adding 255 - 28 to a scale past 28. No compare, no branch: a block of them is
+    /// checked a vector at a time.
+    #[inline]
+    fn bad(b: &[u8; 16]) -> u32 {
+        let flags = u128::from_le_bytes(*b) as u32;
+        (flags & 0x7F00_FFFF) | ((flags & 0x00FF_0000).wrapping_add((255 - 28) << 16) & 0x0100_0000)
+    }
+
+    /// The decimal `b` holds, unchecked.
+    #[inline]
+    fn wire(b: &[u8; 16]) -> Self {
+        let v = u128::from_le_bytes(*b);
+        Self { flags: v as i32, hi: (v >> 32) as u32, lo: (v >> 64) as u64 }
+    }
+
     const CANONICAL_ALIGN: usize = 8;
 
     /// A decimal of `mantissa` (below 2^96) / 10^`scale` (at most 28), negative if `negative`.
@@ -241,6 +302,16 @@ impl core::str::FromStr for Decimal {
 pub struct Guid(pub [u8; 16]);
 
 impl Guid {
+    #[inline]
+    fn bad(_: &[u8; 16]) -> u32 {
+        0
+    }
+
+    #[inline]
+    fn wire(b: &[u8; 16]) -> Self {
+        Self(*b)
+    }
+
     const CANONICAL_ALIGN: usize = 4;
 
     /// The Guid whose text form, read as one big-endian 128-bit number, is `value`
@@ -336,6 +407,19 @@ pub enum DateTimeKind {
 pub struct DateTime(u64);
 
 impl DateTime {
+    /// 0 when the high 32 bits of the ticks are below those of [`MAX_TICKS`] (a 32-bit compare: x86_64's SSE2 has
+    /// no 64-bit one); the last 2^32 ticks of the range go through [`DateTime::decode`].
+    #[inline]
+    fn bad(b: &[u8; 8]) -> u32 {
+        let high = (u64::from_le_bytes(*b) >> 32) as u32 & 0x3FFF_FFFF;
+        u32::from(high >= (MAX_TICKS >> 32) as u32)
+    }
+
+    #[inline]
+    fn wire(b: &[u8; 8]) -> Self {
+        Self(u64::from_le_bytes(*b))
+    }
+
     const CANONICAL_ALIGN: usize = 8;
 
     /// A `DateTime` of `ticks` (0 to [`MAX_TICKS`]) and `kind`.
@@ -392,6 +476,16 @@ fixed!(DateTime, 8);
 pub struct TimeSpan(pub i64);
 
 impl TimeSpan {
+    #[inline]
+    fn bad(_: &[u8; 8]) -> u32 {
+        0
+    }
+
+    #[inline]
+    fn wire(b: &[u8; 8]) -> Self {
+        Self(i64::from_le_bytes(*b))
+    }
+
     const CANONICAL_ALIGN: usize = 8;
 
     #[inline]
@@ -412,6 +506,17 @@ fixed!(TimeSpan, 8);
 pub struct DateOnly(i32);
 
 impl DateOnly {
+    #[inline]
+    fn bad(b: &[u8; 4]) -> u32 {
+        // Negative numbers are above `MAX_DAY` as `u32`.
+        u32::from(u32::from_le_bytes(*b) > Self::MAX_DAY as u32)
+    }
+
+    #[inline]
+    fn wire(b: &[u8; 4]) -> Self {
+        Self(i32::from_le_bytes(*b))
+    }
+
     const CANONICAL_ALIGN: usize = 4;
     /// The day number of 9999-12-31.
     pub const MAX_DAY: i32 = 3_652_058;
@@ -445,6 +550,18 @@ fixed!(DateOnly, 4);
 pub struct TimeOnly(i64);
 
 impl TimeOnly {
+    /// As `DateTime::bad`: 0 when the high 32 bits are below those of a day (negative ticks are above them as
+    /// `u32`).
+    #[inline]
+    fn bad(b: &[u8; 8]) -> u32 {
+        u32::from(((u64::from_le_bytes(*b) >> 32) as u32) >= (TICKS_PER_DAY >> 32) as u32)
+    }
+
+    #[inline]
+    fn wire(b: &[u8; 8]) -> Self {
+        Self(i64::from_le_bytes(*b))
+    }
+
     const CANONICAL_ALIGN: usize = 8;
 
     pub fn new(ticks: i64) -> Result<Self> {
@@ -521,19 +638,29 @@ impl DateTimeOffset {
 
 impl NinoRead for DateTimeOffset {
     const MIN_SIZE: usize = 10;
+    const FIXED_SIZE: usize = 10;
+
+    #[inline]
+    fn decode_fixed(bytes: &[u8]) -> Result<Self> {
+        bytes.first_chunk::<10>().ok_or_else(Error::end).and_then(Self::decode)
+    }
 
     #[inline]
     fn read(r: &mut Reader<'_>) -> Result<Self> {
         Self::decode(&r.array::<10>()?)
     }
-
-    fn read_many(r: &mut Reader<'_>, count: usize) -> Result<Vec<Self>> {
-        let bytes = r.take(count.checked_mul(10).ok_or_else(Error::too_large)?)?;
-        bytes.as_chunks::<10>().0.iter().map(Self::decode).collect()
-    }
 }
 
 impl NinoWrite for DateTimeOffset {
+    const FIXED_SIZE: usize = 10;
+
+    #[inline]
+    fn encode_fixed(&self, out: &mut [u8]) {
+        if let Some(dst) = out.first_chunk_mut::<10>() {
+            *dst = self.encode();
+        }
+    }
+
     #[inline]
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.array(self.encode());
@@ -546,6 +673,16 @@ impl NinoWrite for DateTimeOffset {
 pub struct Half(pub u16);
 
 impl Half {
+    #[inline]
+    fn bad(_: &[u8; 2]) -> u32 {
+        0
+    }
+
+    #[inline]
+    fn wire(b: &[u8; 2]) -> Self {
+        Self(u16::from_le_bytes(*b))
+    }
+
     const CANONICAL_ALIGN: usize = 2;
 
     #[inline]
@@ -572,6 +709,18 @@ impl Default for Rune {
 }
 
 impl Rune {
+    #[inline]
+    fn bad(b: &[u8; 4]) -> u32 {
+        let v = u32::from_le_bytes(*b);
+        // A scalar value: below 0x110000 and not a surrogate.
+        u32::from(v >= 0x11_0000) | u32::from(v.wrapping_sub(0xD800) < 0x800)
+    }
+
+    #[inline]
+    fn wire(b: &[u8; 4]) -> Self {
+        Self(char::from_u32(u32::from_le_bytes(*b)).unwrap_or_default())
+    }
+
     const CANONICAL_ALIGN: usize = 4;
 
     #[inline]
