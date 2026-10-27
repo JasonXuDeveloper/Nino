@@ -3,6 +3,7 @@ package sample
 import (
 	"encoding/binary"
 	"math"
+	"unsafe"
 
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
@@ -289,6 +290,15 @@ func writePointBody(w *nino.Writer, v *Point) {
 
 // Raw structs: decode and encode their canonical layout from and into exactly their bytes; the writer's bytes are
 // cleared first, so padding is written as zeros. Padding is not checked when read (.NET ignores it).
+//
+// Where a raw struct's Go memory is its bytes (these constants, false on a 32-bit host that aligns an int64 to 4
+// bytes), arrays of it are copied as one block on a little-endian host: read always, written when it has no padding.
+const (
+	asIsVec2   = unsafe.Sizeof(Vec2{}) == 8 && unsafe.Offsetof(Vec2{}.X) == 0 && unsafe.Offsetof(Vec2{}.Y) == 4
+	asIsPadded = unsafe.Sizeof(Padded{}) == 16 && unsafe.Offsetof(Padded{}.A) == 0 && unsafe.Offsetof(Padded{}.B) == 8
+	asIsMixed  = unsafe.Sizeof(Mixed{}) == 12 && unsafe.Offsetof(Mixed{}.A) == 0 && unsafe.Offsetof(Mixed{}.B) == 2 &&
+		unsafe.Offsetof(Mixed{}.C) == 4 && unsafe.Offsetof(Mixed{}.D) == 8
+)
 
 func decodeVec2(_ *nino.Reader, b []byte) Vec2 {
 	_ = b[7]
@@ -402,9 +412,9 @@ func readStructsBody(r *nino.Reader, v *Structs) {
 	v.Sized = readRaw(r, 16, decodeSized)
 	v.Nested = readRaw(r, 32, decodeNested)
 	v.Label = readLabel(r)
-	v.VecArray = nino.ReadFixed(r, 8, decodeVec2)
-	v.PaddedList = nino.ReadFixed(r, 16, decodePadded)
-	v.MixedArray = nino.ReadFixed(r, 12, decodeMixed)
+	v.VecArray = nino.ReadRaw(r, 8, asIsVec2, nil, decodeVec2)
+	v.PaddedList = nino.ReadRaw(r, 16, asIsPadded, nil, decodePadded)
+	v.MixedArray = nino.ReadRaw(r, 12, asIsMixed, nil, decodeMixed)
 	v.Labels = nino.ReadSlice(r, 5, readLabel)
 	v.RawTuple.Item1 = r.U8()
 	v.RawTuple.Item2 = r.I64()
@@ -422,7 +432,7 @@ func writeStructsBody(w *nino.Writer, v *Structs) {
 	writeRaw(w, v.Sized, 16, encodeSized)
 	writeRaw(w, v.Nested, 32, encodeNested)
 	writeLabel(w, v.Label)
-	nino.WriteFixed(w, v.VecArray, 8, encodeVec2)
+	nino.WriteRaw(w, v.VecArray, 8, asIsVec2, nil, encodeVec2)
 	nino.WriteFixed(w, v.PaddedList, 16, encodePadded)
 	nino.WriteFixed(w, v.MixedArray, 12, encodeMixed)
 	nino.WriteSlice(w, v.Labels, writeLabel)

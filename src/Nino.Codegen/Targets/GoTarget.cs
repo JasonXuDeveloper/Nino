@@ -45,6 +45,7 @@ namespace Nino.Codegen.Targets
         private readonly Dictionary<Type, string> _names = new();
         private readonly List<EnumModel> _enums = new();
         private readonly List<RawStructModel> _rawStructs = new();
+        private readonly Dictionary<RawStructModel, GoRawBlock?> _rawBlocks = new();
         private readonly List<GoNamed> _namedCollections = new();
         private readonly Dictionary<string, GoHelper> _helperByKey = new(StringComparer.Ordinal);
         private readonly List<GoHelper> _helpers = new();
@@ -258,6 +259,7 @@ namespace Nino.Codegen.Targets
         {
             _enums.Clear();
             _rawStructs.Clear();
+            _rawBlocks.Clear();
             _namedCollections.Clear();
             _helperByKey.Clear();
             _helpers.Clear();
@@ -722,7 +724,8 @@ namespace Nino.Codegen.Targets
 
                     if (model.Empty)
                         return new GoShape("emptystruct") { Struct = model, Size = 1, MinSize = 1 };
-                    return new GoShape("rawstruct") { Struct = model, Size = model.Size, MinSize = model.Size };
+                    return new GoShape("rawstruct")
+                        { Struct = model, Size = model.Size, MinSize = model.Size, RawBlock = RawBlock(model) };
                 }
                 case ValueKind.RawNullable:
                 {
@@ -748,6 +751,61 @@ namespace Nino.Codegen.Targets
                     throw new UnsupportedException(value.Problem!.Replace("{lang}", "Go"));
                 default:
                     throw new UnsupportedException($"{value.ClrName} ({value.Encoding}) has no Go form");
+            }
+        }
+
+        /// <summary>
+        /// Whether a raw struct can be copied as memory (<see cref="GoRawBlock"/>): its fields, nested raw structs'
+        /// included, are numbers, enums, bools and other values every bit pattern of which is valid (no
+        /// <c>decimal</c>, <c>DateTime</c>, <c>DateOnly</c>, <c>TimeOnly</c>, which are checked; no pointer, no
+        /// empty struct, which Go gives no byte). Null when it cannot.
+        /// </summary>
+        internal GoRawBlock? RawBlock(RawStructModel model)
+        {
+            if (_rawBlocks.TryGetValue(model, out var known))
+                return known;
+            _rawBlocks[model] = null;
+            if (model.Empty)
+                return null;
+            var block = new GoRawBlock(this, model);
+            foreach (var field in model.Fields)
+            {
+                if (!BlockField(block, field.Value, field.Offset))
+                    return null;
+            }
+
+            _rawBlocks[model] = block;
+            return block;
+        }
+
+        private bool BlockField(GoRawBlock block, ValueModel value, int offset)
+        {
+            switch (value.Kind)
+            {
+                case ValueKind.Primitive:
+                    if (!Primitives.TryGetValue(value.Primitive, out var p))
+                        return value.Fallback != null && BlockField(block, value.Fallback, offset);
+                    if (p.Name == "Bool")
+                        block.BoolOffsets.Add(offset);
+                    else if (p.Validated)
+                        return false;
+                    block.Bytes += value.Size;
+                    return true;
+                case ValueKind.Enum:
+                    block.Bytes += value.Size;
+                    return true;
+                case ValueKind.RawStruct:
+                {
+                    var inner = RawBlock(value.Struct!);
+                    if (inner == null)
+                        return false;
+                    block.BoolOffsets.AddRange(inner.BoolOffsets.Select(o => o + offset));
+                    block.Bytes += inner.Bytes;
+                    block.Nested.Add(inner);
+                    return true;
+                }
+                default:
+                    return false;
             }
         }
 
@@ -905,6 +963,9 @@ namespace Nino.Codegen.Targets
 
         /// <summary>Whether arrays of it are one block (<c>nino.ReadPrimitives</c>).</summary>
         public bool Block { get; internal set; }
+
+        /// <summary>A raw struct that can be copied as memory, its arrays as one block; else null.</summary>
+        public GoRawBlock? RawBlock { get; internal set; }
 
         /// <summary>Whether it is read in a run of fixed-size members: every bit pattern is a valid value.</summary>
         public bool Runnable { get; internal set; }
@@ -1184,6 +1245,62 @@ namespace Nino.Codegen.Targets
         public GoShape Shape { get; }
     }
 
+    /// <summary>
+    /// A raw struct whose Go memory may be its bytes: one whose fields are all values every bit pattern of which is
+    /// valid, but bools (see <see cref="GoTarget.RawBlock"/>). Whether its fields sit at their wire offsets in Go
+    /// is the Go compiler's to say: <see cref="Expression"/> is a constant of <c>unsafe.Sizeof</c> and
+    /// <c>unsafe.Offsetof</c> (false on a 32-bit host that aligns an <c>int64</c> to 4 bytes), named
+    /// <see cref="AsIs"/>, which <c>nino.ReadRaw</c> and <c>nino.WriteRaw</c> take with the offsets of its bools.
+    /// </summary>
+    public sealed class GoRawBlock
+    {
+        private readonly GoTarget _target;
+
+        internal GoRawBlock(GoTarget target, RawStructModel model)
+        {
+            _target = target;
+            Model = model;
+        }
+
+        internal RawStructModel Model { get; }
+
+        /// <summary>The offsets of its bools (those of nested raw structs too): their bytes must be 0 or 1.</summary>
+        internal List<int> BoolOffsets { get; } = new();
+
+        /// <summary>The bytes its fields fill: fewer than its size when it has padding.</summary>
+        internal int Bytes { get; set; }
+
+        internal List<GoRawBlock> Nested { get; } = new();
+
+        /// <summary>The constant's name: <c>asIs</c> and the struct's.</summary>
+        public string AsIs => "asIs" + _target.Name(Model);
+
+        /// <summary>Whether bytes between its fields are left: copied as they are when read, written as zeros.</summary>
+        public bool Padded => Bytes != Model.Size;
+
+        /// <summary>The offsets of its bools as a Go slice, or <c>nil</c>.</summary>
+        public string Bools => BoolOffsets.Count == 0
+            ? "nil"
+            : "[]int{" + string.Join(", ", BoolOffsets.Select(o => o.ToString(CultureInfo.InvariantCulture))) + "}";
+
+        /// <summary>The constant: its size and each field's offset as in the wire, and so for nested raw structs.</summary>
+        public string Expression
+        {
+            get
+            {
+                string name = _target.Name(Model);
+                var names = GoTarget.FieldNames(Model.Fields.Select(f => f.Name));
+                var parts = new List<string>
+                    { "unsafe.Sizeof(" + name + "{}) == " + Model.Size.ToString(CultureInfo.InvariantCulture) };
+                for (int i = 0; i < names.Count; i++)
+                    parts.Add("unsafe.Offsetof(" + name + "{}." + names[i] + ") == " +
+                              Model.Fields[i].Offset.ToString(CultureInfo.InvariantCulture));
+                parts.AddRange(Nested.Select(n => n.AsIs).Distinct(StringComparer.Ordinal));
+                return string.Join(" &&\n\t", parts);
+            }
+        }
+    }
+
     public sealed class GoRawStruct
     {
         internal GoRawStruct(GoTarget target, RawStructModel model)
@@ -1193,7 +1310,11 @@ namespace Nino.Codegen.Targets
             var names = GoTarget.FieldNames(model.Fields.Select(f => f.Name));
             Fields = model.Fields.Select((f, i) =>
                 new GoField(names[i], f.Name, f.Offset, target.Shape(f.Value, false))).ToList();
+            Block = target.RawBlock(model);
         }
+
+        /// <summary>Whether it can be copied as memory, and how; else null.</summary>
+        public GoRawBlock? Block { get; }
 
         public string Name { get; }
 
