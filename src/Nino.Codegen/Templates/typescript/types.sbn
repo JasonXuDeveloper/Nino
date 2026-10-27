@@ -277,11 +277,14 @@ func helper_body(h)
     ret $o + "}\n"
   else if $s.kind == "map"
     $o = "function " + $n + h.type_params + "(w: NinoWriter, map: ReadonlyMap<" + ts($s.key) + ", " + ts($s.value) + "> | null" + h.codecs + "): void {\n  if (map === null || map === undefined) {\n    w.i32(-1);\n    return;\n  }\n  w.i32(map.size);\n"
+    # The keys and the values side by side: for-of over the entries made an array an entry (in V8 a sixth more
+    # instructions an entry than two iterators).
+    $loop = "  for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {\n    const key = keys.next().value as " + ts($s.key) + ", value = values.next().value as " + ts($s.value) + ";\n"
     if $s.key.fixed && $s.value.fixed
       $size = $s.key.size + $s.value.size
-      $o = $o + "  let at = " + reserve("map.size * " + $size, $s.key.zeroed || $s.value.zeroed) + ";\n  for (const [key, value] of map) {\n    " + stmt(write_at($s.key, 0, "key")) + "\n    " + stmt(write_at($s.value, $s.key.size, "value")) + "\n    at += " + $size + ";\n  }\n"
+      $o = $o + "  let at = " + reserve("map.size * " + $size, $s.key.zeroed || $s.value.zeroed) + ";\n" + $loop + "    " + stmt(write_at($s.key, 0, "key")) + "\n    " + stmt(write_at($s.value, $s.key.size, "value")) + "\n    at += " + $size + ";\n  }\n"
     else
-      $o = $o + "  for (const [key, value] of map) {\n    " + stmt(write($s.key, "key")) + "\n    " + stmt(write($s.value, "value")) + "\n  }\n"
+      $o = $o + $loop + "    " + stmt(write($s.key, "key")) + "\n    " + stmt(write($s.value, "value")) + "\n  }\n"
     end
     ret $o + "}\n"
   end

@@ -1463,9 +1463,10 @@ export class NinoWriter {
     writeValue: (writer: NinoWriter, value: V) => void): void {
     if (map === null || map === undefined) { this.i32(-1); return; }
     this.i32(map.size);
-    for (const [key, value] of map) {
-      writeKey(this, key);
-      writeValue(this, value);
+    // The keys and the values side by side: for-of over the entries makes an array an entry.
+    for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {
+      writeKey(this, keys.next().value as K);
+      writeValue(this, values.next().value as V);
     }
   }
 
