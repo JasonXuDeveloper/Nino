@@ -186,10 +186,9 @@ pub(crate) fn ascii_short(out: &mut Vec<u8>, bytes: &[u8]) -> bool {
 }
 
 /// Writes a Latin-1 string's header and bytes for `bytes` at the pointer `room` returns, called once the bytes are
-/// found ASCII, and returns true; else writes nothing, does not call `room`, and returns false. The bytes are read as
-/// the first and last 16 (or 8, or 4) bytes, which may overlap, or as three bytes, tested, and stored as they were
-/// read, the header shifted in below the first word (from 4 to 15 bytes; else a store of its own): no loop, no call
-/// to `memcpy`.
+/// found ASCII, and returns true; else writes nothing, does not call `room`, and returns false. The bytes are read as the first and last 16 (or 8, or 4) bytes, which may
+/// overlap, or as three bytes, tested, and stored as they were read, the header shifted in below the first block
+/// (but at 32 bytes and below 4): no loop, no call to `memcpy`. On x86-64 the 16-byte blocks are SSE2 registers.
 ///
 /// # Safety
 /// `bytes.len() <= SHORT`, and `1 + bytes.len()` bytes are writable at the pointer `room` returns.
@@ -198,6 +197,35 @@ unsafe fn ascii_into(room: impl FnOnce() -> *mut u8, bytes: &[u8]) -> bool {
     let (src, len) = (bytes.as_ptr(), bytes.len());
     // `len <= 32`: none of the sums or differences below can wrap, and the header, `2 * len + 1`, is one byte.
     let header = (len as u8).wrapping_mul(2).wrapping_add(1);
+    #[cfg(target_arch = "x86_64")]
+    if len >= 16 {
+        use core::arch::x86_64::{
+            _mm_cvtsi32_si128, _mm_loadu_si128, _mm_movemask_epi8, _mm_or_si128, _mm_slli_si128, _mm_storeu_si128,
+        };
+        let last = len.wrapping_sub(16);
+        // SAFETY: SSE2 is in every x86-64 CPU; `16 <= len` bytes are readable at `src`, so sixteen are at `src` and at
+        // `src + len - 16`. The stores are those of the other targets' path below (in vector registers: two loads
+        // and two stores, where words take four of each and a double shift).
+        unsafe {
+            let (a, b) = (_mm_loadu_si128(src.cast()), _mm_loadu_si128(src.add(last).cast()));
+            if _mm_movemask_epi8(_mm_or_si128(a, b)) != 0 {
+                return false;
+            }
+            let dst = room();
+            if len < 32 {
+                _mm_storeu_si128(
+                    dst.cast(),
+                    _mm_or_si128(_mm_slli_si128::<1>(a), _mm_cvtsi32_si128(i32::from(header))),
+                );
+            } else {
+                dst.write(header);
+                _mm_storeu_si128(dst.add(1).cast(), a);
+            }
+            _mm_storeu_si128(dst.add(1).add(last).cast(), b);
+        }
+        return true;
+    }
+    #[cfg(not(target_arch = "x86_64"))]
     if len >= 16 {
         let last = len.wrapping_sub(16);
         // SAFETY: `16 <= len` bytes are readable at `src`, so sixteen are at `src` and at `src + len - 16`.
@@ -208,11 +236,16 @@ unsafe fn ascii_into(room: impl FnOnce() -> *mut u8, bytes: &[u8]) -> bool {
         }
         let dst = room();
         // SAFETY: the caller's room, `1 + len` bytes; the stores cover `dst .. dst + 1 + len` exactly (the second
-        // block ends at `1 + last + 16 = 1 + len`). The header is a store of its own: shifted in below the first
-        // block, it took two shifts of a 128-bit value (and wrote lists of records 4% slower on AMD Zen 3).
+        // block ends at `1 + last + 16 = 1 + len`): below 32 bytes, the header and the first 15 bytes as one block
+        // (the second starts at `1 + last <= 16`, so it covers the 16th).
         unsafe {
-            dst.write(header);
-            dst.add(1).cast::<[u8; 16]>().write_unaligned(a);
+            if len < 32 {
+                let first = (u128::from_le_bytes(a) << 8) | u128::from(header);
+                dst.cast::<[u8; 16]>().write_unaligned(first.to_le_bytes());
+            } else {
+                dst.write(header);
+                dst.add(1).cast::<[u8; 16]>().write_unaligned(a);
+            }
             dst.add(1).add(last).cast::<[u8; 16]>().write_unaligned(b);
         }
         return true;
@@ -501,35 +534,8 @@ impl Block for Words {
 /// For each set of the first eight bytes of a block that start a char (bit `p` for byte `p`): the shuffle that puts
 /// the `k`-th such byte and the byte after it in the 16-bit lane `k` (0x80, a zero byte, past the last), and the
 /// number of chars.
-/// A table placed at the start of a cache line, so that no row of it (16 bytes, or a [`Counted`]) straddles two. A
-/// static of bytes is aligned to 1: wherever the linker put one, a quarter of its rows of 16 bytes cost a split load,
-/// so the same code ran faster or slower from one build to the next.
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
-#[repr(C, align(64))]
-pub(crate) struct Lines<T>(pub(crate) T);
-
-/// A shuffle and how many bytes or chars it keeps, a row of a [`Lines`] table: 32 bytes, so within one cache line.
-#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
-#[derive(Clone, Copy)]
-#[repr(C, align(32))]
-pub(crate) struct Counted(pub(crate) [u8; 16], pub(crate) u8);
-
-/// `table` as rows of [`Counted`].
-// Every index is below the arrays' length (m < 256).
-#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
-#[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
-const fn counted(table: [([u8; 16], u8); 256]) -> Lines<[Counted; 256]> {
-    let mut rows = [Counted([0x80; 16], 0); 256];
-    let mut m = 0;
-    while m < 256 {
-        rows[m] = Counted(table[m].0, table[m].1);
-        m += 1;
-    }
-    Lines(rows)
-}
-
-#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
-static PAIRS: Lines<[Counted; 256]> = counted(pair_shuffles());
+static PAIRS: [([u8; 16], u8); 256] = pair_shuffles();
 
 // Every index is below the array's length (k < 8, m < 256).
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
@@ -685,7 +691,7 @@ impl Ssse3 {
             __m128i, _mm_and_si128, _mm_andnot_si128, _mm_cmplt_epi16, _mm_loadu_si128, _mm_or_si128, _mm_set1_epi16,
             _mm_shuffle_epi8, _mm_slli_epi16, _mm_srli_epi16,
         };
-        let Counted(shuffle, count) = PAIRS.0.get(starts & 0xFF).copied().unwrap_or(Counted([0x80; 16], 0));
+        let (shuffle, count) = PAIRS.get(starts & 0xFF).copied().unwrap_or(([0x80; 16], 0));
         // SAFETY: SSSE3 (the caller's contract) and SSE2; `shuffle` is 16 bytes.
         let units = unsafe {
             // Lane k: the k-th char's first byte (low) and the byte after it (high).
@@ -943,7 +949,7 @@ impl Neon {
             vandq_u16, vbslq_u16, vcltq_u16, vdupq_n_u16, vld1q_u8, vorrq_u16, vqtbl1q_u8, vreinterpretq_u16_u8,
             vshlq_n_u16, vshrq_n_u16,
         };
-        let Counted(shuffle, count) = PAIRS.0.get(starts & 0xFF).copied().unwrap_or(Counted([0x80; 16], 0));
+        let (shuffle, count) = PAIRS.get(starts & 0xFF).copied().unwrap_or(([0x80; 16], 0));
         // SAFETY: NEON; `shuffle` is 16 bytes.
         let units = unsafe {
             // Lane k: the k-th char's first byte (low) and the byte after it (high); indices of 0x80 give zeros.
@@ -2026,7 +2032,7 @@ unsafe fn utf16_words(units: &[[u8; 2]], mut k: usize, end: usize, dst: *mut u8,
 /// a continuation byte (high): the shuffle that keeps each lane's lead byte and, for the bytes in the set, its
 /// continuation byte, in order; and the bytes kept. Latin-1 and UTF-16 below U+0800 to UTF-8.
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
-static EXPAND: Lines<[[u8; 16]; 256]> = Lines(expand_shuffles());
+static EXPAND: [[u8; 16]; 256] = expand_shuffles();
 
 // Every index is below the array's length (o < 16, m < 256).
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
@@ -2054,7 +2060,7 @@ const fn expand_shuffles() -> [[u8; 16]; 256] {
 /// a unit (bit `2k` for unit `k` at least U+0080, bit `2k + 1` at least U+0800): the shuffle that keeps each lane's
 /// bytes, in order, and how many it keeps.
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
-static PACK3: Lines<[Counted; 256]> = counted(pack3_shuffles());
+static PACK3: [([u8; 16], u8); 256] = pack3_shuffles();
 
 // Every index is below the array's length (o < 16, m < 256).
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
