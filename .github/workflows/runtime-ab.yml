@@ -5,13 +5,16 @@ name: Runtime A/B (test branch)
 #
 #   <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter]
 #
+# Each line is a job of its own on every runner and copy, and a push runs only the lines it adds or changes: a line
+# already in the file before the push is not measured again (edit it, for example its filter, to run it again). A push
+# that changes this workflow measures every line.
 # Both commits must be on a branch of this repository (main, or this branch: push them here, merging, never
 # force-pushing).
 # The filter is a `go test -bench` regexp, a criterion filter or a bench.ts case name. Numbers are for development only.
 on:
   push:
     branches: [claude/zen-goldberg-5qqqcu]
-    paths: [.github/ab-request.txt]
+    paths: [.github/ab-request.txt, .github/workflows/runtime-ab.yml]
 
 permissions:
   contents: read
@@ -21,11 +24,45 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  plan:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    outputs:
+      lines: ${{ steps.lines.outputs.lines }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The request lines this push adds or changes (all of them when the previous commit is unknown or the push changes
+      # this workflow), as JSON.
+      - name: New lines
+        id: lines
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          active() { grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' | sed 's/[[:space:]]*$//' || true; }
+          active < .github/ab-request.txt > "$RUNNER_TEMP/now"
+          if git cat-file -e "$BEFORE:.github/ab-request.txt" 2> /dev/null &&
+            git diff --quiet "$BEFORE" HEAD -- .github/workflows/runtime-ab.yml; then
+            git show "$BEFORE:.github/ab-request.txt" | active > "$RUNNER_TEMP/before"
+          else
+            : > "$RUNNER_TEMP/before"
+          fi
+          lines=$(grep -vxF -f "$RUNNER_TEMP/before" "$RUNNER_TEMP/now" | jq -Rnc '[inputs]' || true)
+          [[ -n $lines ]] || lines='[]'
+          echo "lines=$lines" >> "$GITHUB_OUTPUT"
+          echo "$lines" | jq -r '.[]' | sed 's/^/measuring: /'
+
   ab:
-    name: A/B on ${{ matrix.runner }} (${{ matrix.copy }})
+    needs: plan
+    if: needs.plan.outputs.lines != '[]'
+    name: A/B ${{ matrix.line }} on ${{ matrix.runner }} (${{ matrix.copy }})
     strategy:
       fail-fast: false
       matrix:
+        line: ${{ fromJSON(needs.plan.outputs.lines) }}
         runner: [ubuntu-26.04, ubuntu-26.04-arm]
         # Several jobs a runner: the x64 runners draw different processors (EPYC 7763, 9V74, 9V45).
         copy: [1, 2, 3, 4, 5]
@@ -53,6 +90,7 @@ jobs:
       - name: Measure
         env:
           RUNNER: ${{ matrix.runner }}
+          LINE: ${{ matrix.line }}
         run: |
           set -euo pipefail
           go install golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e
@@ -157,4 +195,4 @@ jobs:
                 ;;
               *) echo "unknown language $lang"; exit 1 ;;
             esac
-          done 3< .github/ab-request.txt
+          done 3<<< "$LINE"
