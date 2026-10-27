@@ -1289,8 +1289,14 @@ export class NinoWriter {
     if (length <= (nodeText === null ? kernelWrite : shortText) && length < 64) {
       // `narrow`, written out here: the common path stays one function (calls to `narrow` and `utf16` measured
       // 8-12% slower in Chromium on short text, x64 and Arm64). Up to 63 chars: a one-byte header.
-      const at = this.reserve(1 + length), buffer = this.buffer;
+      const at = this.reserve(1 + length), buffer = this.buffer, view = this.view;
+      // Four chars a store: one bounds check where a byte each took four.
       let i = 0;
+      for (; i + 3 < length; i += 4) {
+        const a = value.charCodeAt(i), b = value.charCodeAt(i + 1), c = value.charCodeAt(i + 2), d = value.charCodeAt(i + 3);
+        if ((a | b | c | d) > 0xff) break;
+        view.setUint32(at + 1 + i, a | (b << 8) | (c << 16) | (d << 24), true);
+      }
       for (; i < length; i++) {
         const c = value.charCodeAt(i);
         if (c > 0xff) break;
