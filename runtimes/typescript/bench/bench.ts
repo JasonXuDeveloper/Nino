@@ -144,9 +144,13 @@ export async function run(read: (name: string) => Promise<Uint8Array>, only = ""
   return rows;
 }
 
-/** The rows as a Markdown table: per scenario and operation, each serializer's mean ± rme, and the sizes. */
+/**
+ * The rows as a Markdown table: per scenario and operation, each serializer's mean ± rme, and the sizes. Means have
+ * four significant digits: the string scenarios take a few hundredths of a millisecond, where three decimals would
+ * round away differences of several percent.
+ */
 export function table(rows: Row[]): string {
-  const ms = (r: Row | undefined) => (r ? `${r.mean.toFixed(3)} ± ${r.rme.toFixed(1)}%` : "");
+  const ms = (r: Row | undefined) => (r ? `${r.mean.toPrecision(4)} ± ${r.rme.toFixed(1)}%` : "");
   const lines = [
     `| Scenario | Operation | ${serializers.map((s) => s + " (ms)").join(" | ")} |`,
     `|---|---|${serializers.map(() => "--:|").join("")}`,
