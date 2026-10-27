@@ -8,11 +8,16 @@ rust 03fdc71 03fdc71
 # phase10/go: main 03fdc71 against itself with Nino, NinoTags, Protobuf and MessagePack (where Nino stands, and its floor).
 # done: go#12 03fdc71 03fdc71 //^(Nino|NinoTags|Protobuf|MessagePack)$
 # phase10/ts: main's runtime (506720c: main with a finer bench table) against 36cfdbf, and against itself (the floor).
-typescript 36cfdbf 506720c
-typescript 506720c 506720c
+# done: typescript 36cfdbf 506720c
+# done: typescript 506720c 506720c
 # phase10/go c3f953f: arrays of raw structs and bools (BenchmarkBlocks, base d2fe06a: main with the benchmark), with
 # its floor; the bench against main (block DateTime arrays in SimpleClass); the string tails' bounds checks alone.
 go:internal/generated#12 d2fe06a c3f953f Blocks
 go:internal/generated#12 d2fe06a d2fe06a Blocks
 go#12 03fdc71 af05371 //^(Nino|NinoTags)$
 go#12 af05371 c3f953f //^Nino$
+# phase10/ts 13f8fcf (string reads and writes, map writes in the templates; each side generates its own code):
+# against 36cfdbf, against main (506720c), and main against itself again (floor).
+typescript 36cfdbf 13f8fcf
+typescript 506720c 13f8fcf
+typescript 506720c 506720c
