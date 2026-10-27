@@ -1,6 +1,6 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase8/beat-main 0465b2d (+ the AVX2 list kernel's short text read from where it starts) against 36cfdbf.
-go#12 36cfdbf 0465b2d /(simple-class|simple-class-100|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(Nino|NinoTags)$
-rust 36cfdbf 0465b2d ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 36cfdbf 0465b2d ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+# phase8/beat-main a0cfe9f (+ Go short Latin-1 text that is not ASCII decoded without a second ASCII test) against 36cfdbf.
+go#12 36cfdbf a0cfe9f /(simple-class|simple-class-100|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(Nino|NinoTags)$
+rust 36cfdbf a0cfe9f ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf a0cfe9f ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 rust 36cfdbf 36cfdbf ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
