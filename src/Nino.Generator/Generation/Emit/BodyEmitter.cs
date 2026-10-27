@@ -1030,7 +1030,9 @@ internal sealed class BodyEmitter
 
     // ----- keyed ---------------------------------------------------------------------------------------------
 
-    /// <summary>(key, length) as the int64 a reader sees, for raw members of constant size; else null.</summary>
+    /// <summary>
+    /// (key, length) as the int64 a reader sees, for raw members of constant size, as an argument; else null.
+    /// </summary>
     private static string? KeyHeader(MemberModel member)
     {
         if (member.Raw is not { IsConstant: true } raw)
@@ -1039,7 +1041,7 @@ internal sealed class BodyEmitter
         uint key = unchecked((uint)member.Key);
         long le = (long)size << 32 | key;
         long be = (long)key << 32 | (uint)size;
-        return le == be ? $"{le}L" : $"(global::System.BitConverter.IsLittleEndian ? {le}L : {be}L)";
+        return le == be ? $"{le}L" : $"global::System.BitConverter.IsLittleEndian ? {le}L : {be}L";
     }
 
     /// <summary>
