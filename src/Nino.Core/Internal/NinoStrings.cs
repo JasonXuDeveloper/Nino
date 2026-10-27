@@ -554,7 +554,9 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>The string of the one Latin-1 char <paramref name="c"/>, shared.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        // Out of line: inlined, the table's static base (a helper call until the table is built) added 60 bytes to
+        // every method that reads a string, and Neoverse-N2 read a TimeZoneInfo 2.8% slower for it.
+        [MethodImpl(MethodImplOptions.NoInlining)]
         private static string OneChar(byte c)
         {
 #if NET8_0_OR_GREATER

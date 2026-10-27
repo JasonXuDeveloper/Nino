@@ -1124,10 +1124,23 @@ namespace Nino.Core
         private static SizedString ReadUtf8Over(ref byte source, int available, string current)
         {
             int length = current.Length;
-            // ASCII text of up to 126 chars: as many bytes as chars (both counts one byte), compared without decoding.
-            if ((uint)(length - 1) < 0x7E && available >= 2 + length && source == length + 1 &&
-                Unsafe.Add(ref source, 1) == length && NinoStrings.SameAscii(ref Unsafe.Add(ref source, 2), current))
-                return new SizedString(current, 2 + length);
+            // ASCII text, as many bytes as chars, compared without decoding: up to 126 chars both counts one byte,
+            // 128 to 65,534 both three bytes (Header16, then the count).
+            if ((uint)(length - 1) < 0x7E)
+            {
+                if (available >= 2 + length && source == length + 1 && Unsafe.Add(ref source, 1) == length &&
+                    NinoStrings.SameAscii(ref Unsafe.Add(ref source, 2), current))
+                    return new SizedString(current, 2 + length);
+            }
+            else if ((uint)(length - 0x80) < 0xFFFF - 0x80 && available - 6 >= length &&
+                     source == NinoStrings.Header16 && Unsafe.Add(ref source, 3) == NinoStrings.Header16 &&
+                     NinoUnsafe.Read<ushort>(ref Unsafe.Add(ref source, 1)) == length + 1 &&
+                     NinoUnsafe.Read<ushort>(ref Unsafe.Add(ref source, 4)) == length &&
+                     NinoStrings.SameAscii(ref Unsafe.Add(ref source, 6), current))
+            {
+                return new SizedString(current, 6 + length);
+            }
+
             return ReadUtf8At(ref source, available);
         }
 
