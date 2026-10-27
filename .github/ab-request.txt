@@ -1,13 +1,19 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
 # phase10/rust round 3: c1 (9980f8b) and c2 (2ccdfab) apart on the string reads (strings-mixed-1000/deserialize was +4% on EPYC 7763), and more of head and main.
+# phase10/ts 6ed8a8a (ca515d6, and short text written four chars a store tests the first char alone, for Chromium
+# on EPYC 7763): against main with its floor (12-char SHAs so they run again), against ca515d6, and 69c314d alone.
+typescript 506720c223f8 6ed8a8a
+typescript 506720c223f8 506720c223f8
+typescript ca515d6 6ed8a8a strings
+typescript 9389c00 69c314d strings
 rust 9980f8b 2ccdfab ^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/deserialize/nino$
 rust 1622ddb 9980f8b ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/deserialize/nino$
 rust 1622ddb 9768148 ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(deserialize|serialize)/nino$
 rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(deserialize|serialize)/nino$
 # phase10/rust round 2: the branch head 9768148 (c3 dropped) against main, main against itself, and the blocks bench floor.
 # phase10/ts ca515d6 again (full SHAs, so the lines run again): more samples against main and its floor.
-typescript 506720c223f846ff378520be7f486a8f24928893 ca515d62ed57830d5ecff82da0724ac4d9c64b7d
-typescript 506720c223f846ff378520be7f486a8f24928893 506720c223f846ff378520be7f486a8f24928893
+# done (run 40549039327): typescript 506720c223f846ff378520be7f486a8f24928893 ca515d62ed57830d5ecff82da0724ac4d9c64b7d
+# done (run 40549039327): typescript 506720c223f846ff378520be7f486a8f24928893 506720c223f846ff378520be7f486a8f24928893
 # done (run 40543026426): rust 1622ddb 9768148 ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(serialize|deserialize)/nino$
 # done (run 40543026426): rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(serialize|deserialize)/nino$
 # done (run 40543026426): rust:blocks 781d955 9768148 blocks/
