@@ -1,5 +1,8 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
 # phase10/rust round 2: the branch head 9768148 (c3 dropped) against main, main against itself, and the blocks bench floor.
+# phase10/ts ca515d6 again (full SHAs, so the lines run again): more samples against main and its floor.
+typescript 506720c223f846ff378520be7f486a8f24928893 ca515d62ed57830d5ecff82da0724ac4d9c64b7d
+typescript 506720c223f846ff378520be7f486a8f24928893 506720c223f846ff378520be7f486a8f24928893
 rust 1622ddb 9768148 ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(serialize|deserialize)/nino$
 rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(serialize|deserialize)/nino$
 rust:blocks 781d955 9768148 blocks/
@@ -29,12 +32,12 @@ rust:blocks 781d955 781d955 blocks/
 # done: typescript 13f8fcf f86b07a
 # phase10/ts ca515d6 (13f8fcf with short Latin-1 text read a byte a load again, for Chromium's ASCII reads):
 # against main (506720c) with its floor, and against 13f8fcf; then the string reads of each commit since main.
-typescript 506720c ca515d6
-typescript 506720c 506720c
-typescript 13f8fcf ca515d6 strings
-typescript 506720c e3d700f strings
-typescript e3d700f 9389c00 strings
-typescript 69c314d 13f8fcf strings
+# done (run 40533976003): typescript 506720c ca515d6
+# done (run 40533976003): typescript 506720c 506720c
+# done (run 40533976003): typescript 13f8fcf ca515d6 strings
+# done (run 40533976003): typescript 506720c e3d700f strings
+# done (run 40533976003): typescript e3d700f 9389c00 strings
+# done (run 40533976003): typescript 69c314d 13f8fcf strings
 # phase10/go c3f953f: arrays of raw structs and bools (BenchmarkBlocks, base d2fe06a: main with the benchmark), with
 # its floor; the bench against main (block DateTime arrays in SimpleClass); the string tails' bounds checks alone.
 # stopped (refs do not build on the module's Go 1.22: b.Loop): go:internal/generated#12 d2fe06a c3f953f Blocks
