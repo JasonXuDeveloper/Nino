@@ -514,10 +514,6 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string NewLatin1(ref byte source, int length)
         {
-            // A string of one char (a digit, a letter, a separator) is shared, as char.ToString shares those of
-            // ASCII chars on .NET 8 and later: no allocation.
-            if (length == 1)
-                return OneChar(source);
             string value = Allocate(length);
             Widen(ref source, ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan())),
                 (uint)length);
@@ -551,34 +547,6 @@ namespace Nino.Core.Internal
                 builder.Append(buffer, count);
             }
 #endif
-        }
-
-        /// <summary>The string of the one Latin-1 char <paramref name="c"/>, shared.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static string OneChar(byte c)
-        {
-#if NET8_0_OR_GREATER
-            return Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(OneChars.Table), c);
-#else
-            return OneChars.Table[c];
-#endif
-        }
-
-        /// <summary>
-        /// The strings of one Latin-1 char, indexed by the char (a class of its own, so NinoStrings has no static
-        /// constructor).
-        /// </summary>
-        private static class OneChars
-        {
-            public static readonly string[] Table = Make();
-
-            private static string[] Make()
-            {
-                var strings = new string[256];
-                for (int c = 0; c < strings.Length; c++)
-                    strings[c] = ((char)c).ToString();
-                return strings;
-            }
         }
 
         /// <summary>The high bytes of four UTF-16 chars in a ulong: set for a char above U+00FF.</summary>
