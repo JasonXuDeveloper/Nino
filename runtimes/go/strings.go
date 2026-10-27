@@ -304,13 +304,26 @@ func (r *Reader) NullableUTF8() (s string, ok bool) {
 }
 
 // utf8Units reports whether b is strict UTF-8 of exactly units UTF-16 code units.
+// isASCII and utf8Scan are written out (both above the inlining budget), as in [Writer.UTF8]: a call fewer each.
 func utf8Units(b []byte, units int) bool {
-	if len(b) == units {
+	n := len(b)
+	if n == units {
 		// As many bytes as chars: only ASCII can be.
+		switch {
+		case n > 16:
+			return isASCIILong(b)
+		case n >= 8:
+			p := unsafe.Pointer(unsafe.SliceData(b))
+			return (load64(p, 0)|load64(p, n-8))&highBits == 0
+		}
 		return isASCII(b)
 	}
-	n, ok := utf8Scan(b)
-	return ok && n == units
+	if useRead && n >= scanVector {
+		m := scanUTF8(unsafe.Pointer(unsafe.SliceData(b)), n)
+		return m >= 0 && m == units
+	}
+	m, ok := utf8ScanGo(b)
+	return ok && m == units
 }
 
 // utf8Scan reports whether b is strict UTF-8 (what utf8.Valid accepts: no overlong forms, encoded surrogates or
