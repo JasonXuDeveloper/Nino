@@ -59,12 +59,12 @@ func (t tier) short(f frame) {
 		c.ANDL(U32(4095), R9L)
 		c.CMPL(R9L, U32(4064))
 		c.JA(l("long"))
-		c.LEAQ(k("MASK"), R10)
-		c.ADDQ(U8(31), R10)
-		c.SUBQ(RBX, R10) // FF for the byte before and the n bytes of text
+		c.LEAL(Mem{Base: RBX, Disp: 1}, R10L)
+		c.VMOVD(R10L, X4)
+		c.VPBROADCASTB(X4, Y4)
+		c.VPCMPGTB(k("IDX1"), Y4, Y4) // FF for the n bytes of text, not the byte before
 		c.VMOVDQU(Mem{Base: R8}, Y0)
-		c.VPAND(Mem{Base: R10}, Y0, Y0)
-		c.VPAND(k("NOT0"), Y0, Y0)
+		c.VPAND(Y4, Y0, Y0)
 	}
 	c.VPMOVMSKB(Y0, R8L)
 	c.TESTL(R8L, R8L)
@@ -175,11 +175,11 @@ func (t tier) load(p, body string) {
 	c.ANDL(U32(4095), R9L)
 	c.CMPL(R9L, U32(4064))
 	c.JA(l(p + "copy"))
+	c.VMOVD(EAX, X4)
+	c.VPBROADCASTB(X4, Y4)
+	c.VPCMPGTB(k("IDX"), Y4, Y4) // FF for the AX bytes left
 	c.VMOVDQU(Mem{Base: R8}, Y0)
-	c.LEAQ(k("MASK"), R10)
-	c.ADDQ(U8(32), R10)
-	c.SUBQ(RAX, R10)
-	c.VPAND(Mem{Base: R10}, Y0, Y0)
+	c.VPAND(Y4, Y0, Y0)
 	c.JMP(l(body))
 
 	c.Label(p + "copy")
