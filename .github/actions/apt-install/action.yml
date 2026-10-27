@@ -1,0 +1,26 @@
+name: Install Ubuntu packages
+description: >-
+  apt-get install of the given packages, with a time limit and retries (apt-install.sh), the .deb files cached per
+  runner image and package list so a slow mirror costs one run, not every run.
+inputs:
+  packages:
+    description: The packages, and any apt-get install options (such as --no-install-recommends), space-separated.
+    required: true
+runs:
+  using: composite
+  steps:
+    - id: key
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+      run: echo "key=apt-$ImageOS-$ImageVersion-$RUNNER_ARCH-$(sha256sum <<< "$PACKAGES" | cut -c1-16)" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.apt-archives
+        key: ${{ steps.key.outputs.key }}
+    - shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+      # Word splitting of PACKAGES is wanted: it is a list.
+      # shellcheck disable=SC2086
+      run: APT_ARCHIVES="$HOME/.apt-archives" "$GITHUB_ACTION_PATH/apt-install.sh" $PACKAGES

@@ -19,7 +19,8 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
 - **Green**: never push a change whose workflow was not run locally in its parts (`verify`); `actionlint` with
   `.github/actionlint.yaml` after any workflow edit; a step that pipes a command keeps its failure (`bash -eo
   pipefail` by default). Flaky is not a root cause: find it. A step that downloads has a bound: Ubuntu packages go
-  through `.github/scripts/apt-install.sh` (each try cut off at five minutes, three tries), never a bare `apt-get`.
+  through `.github/actions/apt-install` (a time limit per try, three tries, the .deb files cached), never a bare
+  `apt-get`.
 - **Pinned**: every action by commit SHA with its version in a comment (`uses: actions/checkout@<sha> # v7.0.1`);
   Dependabot updates both, grouped.
 - **Least privilege**: `permissions: contents: read` unless a job writes; no ref taken from an input runs code in

@@ -21,6 +21,7 @@ on:
       - 'nuget.config'
       - '.github/workflows/fuzz.yml'
       - '.github/actions/setup-dotnet/**'
+      - '.github/actions/apt-install/**'
       - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
       - '!**/CLAUDE.md'
   pull_request:
@@ -164,9 +165,9 @@ jobs:
 
       - name: Install clang with libFuzzer
         run: |
-          .github/scripts/apt-install.sh clang
+          "$GITHUB_WORKSPACE/.github/actions/apt-install/apt-install.sh" clang
           version=$(clang --version | sed -n 's/.*clang version \([0-9]*\).*/\1/p')
-          .github/scripts/apt-install.sh "libclang-rt-$version-dev" || true
+          "$GITHUB_WORKSPACE/.github/actions/apt-install/apt-install.sh" "libclang-rt-$version-dev" || true
 
       # Every target (the list run.sh fuzzes without arguments), and this shard's share of them.
       - name: Fuzz this shard's targets
