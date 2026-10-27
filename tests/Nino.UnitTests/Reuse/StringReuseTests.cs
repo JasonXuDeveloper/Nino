@@ -89,6 +89,47 @@ namespace Nino.UnitTests
         }
 
         [TestMethod]
+        public void LongUtf8StringsAreKeptOrReplaced()
+        {
+            // ASCII of every length around the header sizes (one byte up to 126 chars, three from 128 to 65,534),
+            // kept when unchanged; one char changed at either end replaces it; non-ASCII text of the same length is decoded.
+            foreach (int length in new[] { 1, 126, 127, 128, 129, 360, 4096, 65534, 65535, 70000 })
+            {
+                string text = new string('x', length - 1) + "y";
+                var bytes = NinoSerializer.Serialize(new StringReuseKeyed { Name = "n", Code = text });
+                var target = new StringReuseKeyed { Code = new string('x', length - 1) + "y" };
+                var kept = target.Code;
+                NinoDeserializer.Deserialize(bytes, ref target);
+                Assert.AreEqual(text, target.Code, $"{length}");
+                // 127 chars (counts of three bytes and one) and from 65,535 (five-byte counts) are decoded.
+                if (length != 127 && length < 65535)
+                    Assert.AreSame(kept, target.Code, $"{length}");
+
+                foreach (string other in new[] { "z" + text.Substring(1), text.Substring(0, length - 1) + "z" })
+                {
+                    target = new StringReuseKeyed { Code = other };
+                    NinoDeserializer.Deserialize(bytes, ref target);
+                    Assert.AreEqual(text, target.Code, $"{length}");
+                }
+
+                string wide = text.Substring(0, length - 1) + "\u00e9";
+                var wideBytes = NinoSerializer.Serialize(new StringReuseKeyed { Code = wide });
+                target = new StringReuseKeyed { Code = text };
+                NinoDeserializer.Deserialize(wideBytes, ref target);
+                Assert.AreEqual(wide, target.Code, $"{length}");
+                target = new StringReuseKeyed { Code = wide };
+                NinoDeserializer.Deserialize(bytes, ref target);
+                Assert.AreEqual(text, target.Code, $"{length}");
+
+                // Cut inside the text: still invalid, not a match.
+                target = new StringReuseKeyed { Code = text };
+                var cut = bytes;
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                    NinoDeserializer.Deserialize(new System.ReadOnlySpan<byte>(cut, 0, cut.Length - 1), ref target));
+            }
+        }
+
+        [TestMethod]
         public void TruncatedDataStillThrows()
         {
             var bytes = NinoSerializer.Serialize(Make("1"));
