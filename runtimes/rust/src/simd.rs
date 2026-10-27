@@ -363,6 +363,12 @@ pub(crate) const SHORT_WIDE: usize = 64;
 /// it, the header written last. Every target.
 #[inline(never)]
 pub(crate) fn short_wide(out: &mut Vec<u8>, text: &str) {
+    short_wide_inline(out, text);
+}
+
+/// [`short_wide`], inlined (in [`strings_short`]'s loop).
+#[inline(always)]
+fn short_wide_inline(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
     if len > SHORT_WIDE {
         return;
@@ -1118,6 +1124,45 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
         return true;
     }
     wide_short(out, text)
+}
+
+/// Writes strings from the start of `values` (a list's) with this CPU's list loop while it takes them (each under 64
+/// bytes on x86_64 with SSE4.1, else of up to [`SHORT`] bytes); returns how many it wrote.
+#[inline]
+pub(crate) fn strings(out: &mut Vec<u8>, values: &[String]) -> usize {
+    #[cfg(target_arch = "x86_64")]
+    // SAFETY: the CPU has what each kernel needs (its tier).
+    unsafe {
+        match x86::tier() {
+            #[cfg(nino_avx512)]
+            x86::Tier::Avx512 => x86::strings_avx512(out, values),
+            x86::Tier::Avx2 => x86::strings_avx2(out, values),
+            // A compiler without AVX-512 never finds that tier.
+            #[cfg(not(nino_avx512))]
+            x86::Tier::Avx512 => x86::strings_avx2(out, values),
+            x86::Tier::Sse41 => x86::strings_sse41(out, values),
+            x86::Tier::Sse2 | x86::Tier::Ssse3 => strings_short(out, values),
+        }
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    strings_short(out, values)
+}
+
+/// The list loop without a one-pass kernel (every target but x86_64 with SSE4.1): the strings from the start of
+/// `values` while each is at most [`SHORT`] bytes, ASCII through [`ascii_short`] and other text through
+/// [`short_wide`]'s body inlined; returns how many it wrote.
+#[inline]
+fn strings_short(out: &mut Vec<u8>, values: &[String]) -> usize {
+    for (k, v) in values.iter().enumerate() {
+        if v.len() > SHORT {
+            return k;
+        }
+        if !ascii_short(out, v.as_bytes()) {
+            // Text of up to 32 bytes with a char above U+007F, which `short_wide` takes.
+            short_wide_inline(out, v);
+        }
+    }
+    values.len()
 }
 
 /// [`wide`] for text of up to [`SHORT`] bytes: [`short_wide`] directly on every target but x86_64 (where [`wide`]
@@ -2294,6 +2339,90 @@ mod tests {
                 expected.extend(v.chars().map(|c| c as u32 as u8));
             }
             assert_eq!(out, expected);
+        }
+    }
+
+    /// A string's bytes in the default encoding, header first, from the plain decoder.
+    fn encoded(text: &str) -> Vec<u8> {
+        let (bytes, latin1) = reference(text);
+        let count = if latin1 { bytes.len() } else { bytes.len() / 2 };
+        let (header, n) = crate::strings::header((count as u32).wrapping_mul(2).wrapping_add(u32::from(latin1)));
+        let mut out = header.get(..n).unwrap_or_default().to_vec();
+        out.extend_from_slice(&bytes);
+        out
+    }
+
+    /// A list loop: its name, the loop, and the longest string it must take.
+    type ListWay = (&'static str, fn(&mut Vec<u8>, &[String]) -> usize, usize);
+
+    /// Every list loop this CPU can run, with the longest string it must take: the plain one, each x86_64 tier's
+    /// (which [`strings`] picks from), and [`strings`] itself.
+    #[allow(clippy::vec_init_then_push)] // Which pushes run depends on the target.
+    fn list_ways() -> Vec<ListWay> {
+        #[allow(unused_mut)]
+        let mut ways: Vec<ListWay> = vec![("short", strings_short, SHORT), ("default", strings, SHORT)];
+        #[cfg(target_arch = "x86_64")]
+        {
+            if x86::tier() >= x86::Tier::Sse41 {
+                // SAFETY: the CPU has SSE4.1 (its tier).
+                ways.push(("sse4.1", |out, values| unsafe { x86::strings_sse41(out, values) }, 63));
+            }
+            if x86::tier() >= x86::Tier::Avx2 {
+                // SAFETY: the CPU has AVX2 (its tier).
+                ways.push(("avx2", |out, values| unsafe { x86::strings_avx2(out, values) }, 63));
+            }
+            #[cfg(nino_avx512)]
+            if x86::tier() >= x86::Tier::Avx512 {
+                // SAFETY: the CPU has AVX-512 (its tier).
+                ways.push(("avx-512", |out, values| unsafe { x86::strings_avx512(out, values) }, 63));
+            }
+        }
+        ways
+    }
+
+    #[test]
+    fn list_kernels() {
+        // Lists of every class of text at every length up to past 64 bytes (fewer under Miri), mixed: what each string
+        // written on its own gives, every list loop stopping only at a string longer than it must take.
+        let lengths = if cfg!(miri) { vec![0, 1, 7, 15, 16, 31, 32, 33, 63, 64, 70] } else { (0..=70).collect() };
+        let texts: Vec<String> = lengths
+            .iter()
+            .flat_map(|&len| {
+                ['a', 'é', 'Ж', '字', '😀'].map(|c| {
+                    let mut text: String = (0..len).map(|i| char::from(b'a' + (i % 26) as u8)).collect();
+                    if c != 'a' {
+                        // The char last, the text cut back to about `len` bytes.
+                        while !text.is_empty() && text.len() + c.len_utf8() > len.max(c.len_utf8()) {
+                            text.pop();
+                        }
+                        text.push(c);
+                    }
+                    text
+                })
+            })
+            .collect();
+        let rounds = if cfg!(miri) { 2 } else { 30 };
+        for (name, way, most) in list_ways() {
+            for round in 0..rounds {
+                let values: Vec<String> =
+                    texts.iter().cycle().skip(round * 11).take(texts.len() + round).cloned().collect();
+                let mut out = vec![0xAA; 3];
+                let mut rest = values.as_slice();
+                while !rest.is_empty() {
+                    let done = way(&mut out, rest);
+                    assert!(done <= rest.len(), "{name}");
+                    rest = rest.get(done..).unwrap_or_default();
+                    let Some((first, tail)) = rest.split_first() else { break };
+                    assert!(first.len() > most, "{name}: {first:?}");
+                    out.extend_from_slice(&encoded(first));
+                    rest = tail;
+                }
+                let mut expected = vec![0xAA; 3];
+                for v in &values {
+                    expected.extend_from_slice(&encoded(v));
+                }
+                assert_eq!(out, expected, "{name}");
+            }
         }
     }
 
