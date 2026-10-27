@@ -403,9 +403,17 @@ function decodeLatin1(data: Uint8Array, view: DataView, at: number, length: numb
   if (length <= 16) return decodeShortLatin1(data, view, at, length);
   if (nodeText !== null) return nodeText.latin1Slice.call(data, at, at + length);
   if (length <= mediumText) {
-    // In one call: concatenating the text would leave a string to flatten on first use.
+    // In one call: concatenating the text would leave a string to flatten on first use. Four bytes a DataView read.
     codes.length = length;
-    for (let i = 0; i < length; i++) codes[i] = data[at + i];
+    let i = 0;
+    for (; i + 3 < length; i += 4) {
+      const w = view.getUint32(at + i, true);
+      codes[i] = w & 0xff;
+      codes[i + 1] = (w >>> 8) & 0xff;
+      codes[i + 2] = (w >>> 16) & 0xff;
+      codes[i + 3] = w >>> 24;
+    }
+    for (; i < length; i++) codes[i] = data[at + i];
     return String.fromCharCode.apply(null, codes);
   }
   const bytes = new Uint8Array(data.buffer, data.byteOffset + at, length), text = latin1Decoder.decode(bytes);
