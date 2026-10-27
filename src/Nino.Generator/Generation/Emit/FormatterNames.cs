@@ -16,7 +16,6 @@ internal sealed class FormatterNames
 
     private readonly Dictionary<FormatterRef, string> _aliases = new();
     private readonly HashSet<FormatterRef> _used = new();
-    private string? _selfAlias, _self;
     private bool _inline;
 
     public FormatterNames(TypeModel m)
@@ -62,14 +61,11 @@ internal sealed class FormatterNames
         return alias;
     }
 
-    /// <summary>Declares <paramref name="alias"/> for the formatted type <paramref name="type"/> itself.</summary>
-    public void Alias(string alias, string type) => (_selfAlias, _self) = (alias, type);
-
     /// <summary>
-    /// The alias declarations: the inlining attribute aliases when used, the type's own (<see cref="Alias"/>), and
-    /// those of the formatter names used.
+    /// The alias declarations: the inlining attribute aliases when used, <paramref name="others"/> (those
+    /// <see cref="GeneratedCode.WithAliases"/> declared), and those of the formatter names used.
     /// </summary>
-    public IEnumerable<string> Declarations()
+    public IEnumerable<string> Declarations(IEnumerable<string> others)
     {
         if (_inline)
         {
@@ -77,8 +73,8 @@ internal sealed class FormatterNames
                 yield return alias;
         }
 
-        if (_selfAlias != null)
-            yield return $"using {_selfAlias} = {_self};";
+        foreach (var alias in others)
+            yield return alias;
 
         foreach (var pair in _aliases.Where(p => _used.Contains(p.Key)).OrderBy(p => p.Value.Length).ThenBy(p => p.Value))
             yield return $"using {pair.Value} = {pair.Key};";
