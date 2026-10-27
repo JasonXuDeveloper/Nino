@@ -51,6 +51,7 @@ tagged_codec.go              the codecs plans are made of
 tagged_cache.go              built codecs cached per reflect.Type (safe and unsafe field access)
 marshal.go                   Marshal / Unmarshal through the tag plans
 reader_test.go               the Reader and Writer against hand-written bytes
+race_test.go, norace_test.go  raceEnabled: allocation counts are checked without the race detector (sync.Pool drops)
 strings_test.go              strings against a plain char-by-char reference
 strings_utf8_test.go         the [NinoUtf8] paths against the plain ones
 strings_wire_test.go         each vector tier against the Go loops, byte for byte

@@ -777,7 +777,8 @@ func TestSerializeAPI(t *testing.T) {
 		dst, _ = Append(dst[:0], "hello", (*Writer).String)
 		_, _ = Deserialize(dst, (*Reader).I32)
 	})
-	if allocs != 0 {
+	// Under the race detector sync.Pool drops pooled values at random: the count is checked without it.
+	if allocs != 0 && !raceEnabled {
 		t.Fatalf("%v allocations", allocs)
 	}
 }
