@@ -318,18 +318,10 @@ internal sealed class BodyEmitter
     {
         int constant = _m.Kind == FormatterKind.SealedClass ? 1 : 0;
         var symbolic = new List<string>();
-        string Offset()
-        {
-            var parts = new List<string>(symbolic);
-            if (constant != 0 || parts.Count == 0)
-                parts.Insert(0, constant.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            return string.Join(" + ", parts);
-        }
-
         var members = new List<(MemberModel, string)>();
         foreach (var member in _m.Members)
         {
-            members.Add((member, Offset()));
+            members.Add((member, RawBlock.Size(constant, symbolic)));
             if (member.Raw is { IsConstant: true } raw)
                 constant += raw.Bytes;
             else if (member.Raw != null)
@@ -340,7 +332,7 @@ internal sealed class BodyEmitter
                 symbolic.Add($"default({Formatter(member)}).FixedSize");
         }
 
-        return (members, Offset());
+        return (members, RawBlock.Size(constant, symbolic));
     }
 
     /// <summary>
