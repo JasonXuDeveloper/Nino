@@ -633,8 +633,6 @@ where
     }
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
-        // The loop over the entries sits where it does whatever code comes before it (see `align_code`).
-        crate::simd::align_code();
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = HashMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
         for _ in 0..count {
@@ -700,9 +698,6 @@ where
 
 impl<K: NinoWrite, V: NinoWrite, S> NinoWrite for HashMap<K, V, S> {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        // The loop over the entries sits where it does whatever code comes before it (see `align_code`): writing
-        // 1,000 `i32` pairs took 13% less on EPYC 7763 and 15% more on 9V45 when unrelated code moved it.
-        crate::simd::align_code();
         w.length(self.len())?;
         for (k, v) in self {
             k.write(w)?;
