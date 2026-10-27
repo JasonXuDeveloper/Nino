@@ -19,8 +19,12 @@ tests/Nino.UnitTests/*.rsp
 # Python bytecode (the scripts under benchmarks/ and .github/scripts/)
 __pycache__/
 
-# Local AI agent state
-.claude/
+# Local AI agent state (tracked: the development skills in .claude/skills, which .agents/skills links to, and the
+# project's hooks and settings; settings.local.json and worktrees stay local)
+.claude/*
+!.claude/skills/
+!.claude/hooks/
+!.claude/settings.json
 .roo/
 .roomodes
 memory/

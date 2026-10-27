@@ -1,0 +1,46 @@
+name: Agent instructions
+
+# The AGENTS.md indexes, the CLAUDE.md imports, the skills' metadata and every directory's file map stay current
+# (tools/agents.sh --check). Runs on the paths that can make them stale: the instruction files and skills, and any
+# file added to or removed from a mapped directory.
+on:
+  push:
+    branches: [ "main" ]
+    paths: &paths
+      - '**/AGENTS.md'
+      - '**/CLAUDE.md'
+      - '.agents/**'
+      - '.claude/**'
+      - 'skills/**'
+      - 'tools/agents.sh'
+      - 'src/**'
+      - 'tests/**'
+      - 'benchmarks/**'
+      - 'runtimes/**'
+      - 'conformance/**'
+      - 'docs/**'
+      - '.github/workflows/agents.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths: *paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agents-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Indexes, imports and file maps
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check (tools/agents.sh --check)
+        run: tools/agents.sh --check
