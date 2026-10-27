@@ -1,10 +1,13 @@
 package nino
 
 import (
+	"bytes"
 	"errors"
+	"math"
 	"math/rand"
 	"slices"
 	"testing"
+	"unsafe"
 )
 
 type uniqueKind int16
@@ -123,4 +126,93 @@ func TestUniqueLargeSets(t *testing.T) {
 		r32[n-1] = r32[3]
 		checkUnique(t, r32, (*Writer).I32, (*Reader).I32, 4)
 	}
+}
+
+// checkPrimitiveEntries writes e with WritePrimitiveEntries (one block where Entry[K, V] has no padding on a
+// little-endian host, else a pair at a time) and checks the bytes are those of WriteEntries, then reads them back
+// with ReadPrimitiveEntries and checks the pairs and error against ReadUniqueEntries' (CodeDuplicateKey for a
+// repeated key), and that every truncation fails.
+func checkPrimitiveEntries[K, V Primitive](t *testing.T, e []Entry[K, V]) {
+	t.Helper()
+	w := NewWriter(0)
+	WritePrimitiveEntries(w, e)
+	b := w.Bytes()
+	ref := NewWriter(0)
+	WriteEntries(ref, e, writePrimitive[K], writePrimitive[V])
+	if !bytes.Equal(b, ref.Bytes()) {
+		t.Fatalf("%T: %d pairs: bytes %x, want %x", e, len(e), b, ref.Bytes())
+	}
+	code := func(err error) Code {
+		var x *Error
+		if errors.As(err, &x) {
+			return x.Code
+		}
+		if err != nil {
+			return 255
+		}
+		return 0
+	}
+	r := NewReader(b)
+	got := ReadPrimitiveEntries[K, V](r)
+	var p Entry[K, V]
+	rr := NewReader(b)
+	want := ReadUniqueEntries(rr, int(unsafe.Sizeof(p.Key)+unsafe.Sizeof(p.Value)), readPrimitive[K], readPrimitive[V])
+	if code(r.Err()) != code(rr.Err()) || (got == nil) != (want == nil) || len(got) != len(want) {
+		t.Fatalf("%T: %d pairs: got %d, %v; want %d, %v", e, len(e), len(got), r.Err(), len(want), rr.Err())
+	}
+	if got != nil {
+		back := NewWriter(0)
+		WritePrimitiveEntries(back, got)
+		if !bytes.Equal(back.Bytes(), b) || r.Remaining() != 0 {
+			t.Fatalf("%T: %d pairs read back as %x", e, len(e), back.Bytes())
+		}
+	}
+	for cut := range len(b) {
+		r := NewReader(b[:cut])
+		if v := ReadPrimitiveEntries[K, V](r); v != nil || r.Err() == nil {
+			t.Fatalf("%T: %d pairs cut at %d: got %d pairs, %v", e, len(e), cut, len(v), r.Err())
+		}
+	}
+}
+
+// primitiveEntries checks n pairs for each n up to 40 and 1000: distinct keys, then keys from a small range (most
+// with a repeated key).
+func primitiveEntries[K, V Primitive](t *testing.T, key func(int) K, value func(int) V) {
+	t.Helper()
+	rng := rand.New(rand.NewSource(3))
+	checkPrimitiveEntries[K, V](t, nil)
+	for n := 0; n <= 1000; n++ {
+		if n > 40 {
+			n = 1000
+		}
+		e := make([]Entry[K, V], n)
+		for i := range e {
+			e[i] = Entry[K, V]{key(i), value(rng.Int())}
+		}
+		checkPrimitiveEntries(t, e)
+		for i := range e {
+			e[i].Key = key(rng.Intn(2*n + 1))
+		}
+		checkPrimitiveEntries(t, e)
+	}
+}
+
+func TestPrimitiveEntries(t *testing.T) {
+	// No padding: one block on little-endian hosts.
+	primitiveEntries(t, func(i int) int32 { return int32(i) << 12 }, func(i int) int32 { return int32(i) })
+	primitiveEntries(t, func(i int) uint8 { return uint8(i) }, func(i int) int8 { return int8(i) })
+	primitiveEntries(t, func(i int) uint16 { return uint16(i * 7) }, func(i int) uint16 { return uint16(i) })
+	primitiveEntries(t, func(i int) int64 { return int64(i) << 40 }, func(i int) float64 { return float64(i) / 3 })
+	// Float keys keep the map: -0 and +0 are one key.
+	primitiveEntries(t, func(i int) float32 {
+		if i == 0 {
+			return float32(math.Copysign(0, -1))
+		}
+		return float32(i) / 2
+	}, func(i int) int32 { return int32(i) })
+	primitiveEntries(t, func(i int) float64 { return float64(i - 1) }, func(i int) uint64 { return uint64(i) })
+	// Padded in memory: a pair at a time everywhere.
+	primitiveEntries(t, func(i int) uint8 { return uint8(i) }, func(i int) int64 { return int64(i) << 33 })
+	primitiveEntries(t, func(i int) uniqueKind { return uniqueKind(i) }, func(i int) int8 { return int8(i) })
+	primitiveEntries(t, func(i int) int64 { return int64(i) }, func(i int) float32 { return float32(i) })
 }
