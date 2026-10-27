@@ -1,5 +1,5 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase9/rust-records c7dd45a (+ blocks of fixed-size elements stored without a zero fill): against 36cfdbf twice, and against 6d4963a.
-rust 36cfdbf c7dd45a ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 36cfdbf c7dd45a ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 6d4963a c7dd45a ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+# phase9/rust-records da43ccf (+ a collection's length and fixed-size elements with one capacity check): against 36cfdbf twice, and against c7dd45a.
+rust 36cfdbf da43ccf ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf da43ccf ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust c7dd45a da43ccf ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
