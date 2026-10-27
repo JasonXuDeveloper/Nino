@@ -7,3 +7,6 @@
 rust 03fdc71 03fdc71
 # phase10/go: main 03fdc71 against itself with Nino, NinoTags, Protobuf and MessagePack (where Nino stands, and its floor).
 go#12 03fdc71 03fdc71 //^(Nino|NinoTags|Protobuf|MessagePack)$
+# phase10/ts: main's runtime (506720c: main with a finer bench table) against 36cfdbf, and against itself (the floor).
+typescript 36cfdbf 506720c
+typescript 506720c 506720c
