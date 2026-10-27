@@ -38,23 +38,52 @@ func (r *Reader) String() string {
 
 // ReadStrings reads a sequence of strings into a []string (nil for null; a null element reads as ""): the bytes
 // [WriteStrings] writes, read as [ReadSlice] with [Reader.String] reads them, without a call through a func value
-// per string.
+// per string. Short ASCII text, the common case, is read in the loop itself (the first path of
+// [Reader.NullableString]), with no call a string; any other string through [Reader.String].
 func ReadStrings(r *Reader) []string {
 	n := r.Length(1)
 	if n < 0 {
 		return nil
 	}
 	v := make([]string, r.SliceCap(n, int(unsafe.Sizeof(""))))
-	for i := 0; i < n; i++ {
-		if i == len(v) {
-			v = growSlice(v, n)
+	for i := 0; ; {
+		// The elements v holds from i on, with no bounds check; then v grows, up to n.
+		rest := v[i:]
+		for j := range rest {
+			b := r.buf
+			// A one-byte header of Latin-1 of 1 to shortWords chars (h odd, 3 <= h < 3+2*shortWords), with 16 bytes of
+			// data after it and 16 bytes of r.text left, as in NullableString.
+			if len(b) > 16 && b[0]&1 != 0 && uint(b[0])-3 < 2*shortWords && len(r.text)-r.textAt >= 16 {
+				p := unsafe.Pointer(&b[1])
+				w0, w1 := load64(p, 0), load64(p, 8)
+				m := uint(b[0]) >> 1
+				k := 8 * m
+				m0, m1 := ^uint64(0), uint64(0)
+				if k < 64 {
+					m0 = 1<<k - 1
+				} else {
+					m1 = 1<<(k-64) - 1
+				}
+				if (w0&m0|w1&m1)&highBits == 0 {
+					t := unsafe.Add(unsafe.Pointer(unsafe.SliceData(r.text)), r.textAt)
+					store64(t, 0, w0)
+					store64(t, 8, w1)
+					r.textAt += int(m)
+					r.buf = b[1+m:]
+					rest[j] = unsafe.String((*byte)(t), int(m))
+					continue
+				}
+			}
+			rest[j] = r.String()
+			if r.err != nil {
+				return nil
+			}
 		}
-		v[i] = r.String()
-		if r.err != nil {
-			return nil
+		if i += len(rest); i >= n {
+			return v
 		}
+		v = growSlice(v, n)
 	}
-	return v
 }
 
 // header reads a string header (see the top of this file). The string readers decode a
@@ -932,11 +961,29 @@ func (w *Writer) UTF8(s string) {
 	}
 	bytes := stringBytes(s)
 	units := n
-	if !isASCII(bytes) {
+	// isASCII and utf8Scan written out (both above the inlining budget): 8 to 16 bytes tested here as two words, and
+	// the vector kernel called directly, a call fewer each.
+	var ascii bool
+	switch {
+	case n > 16:
+		ascii = isASCIILong(bytes)
+	case n >= 8:
+		p := unsafe.Pointer(unsafe.StringData(s))
+		ascii = (load64(p, 0)|load64(p, n-8))&highBits == 0
+	default:
+		ascii = isASCII(bytes)
+	}
+	if !ascii {
 		// Valid UTF-8 (the common case) is written as it is: its byte count is len(s). Anything else (an unpaired
 		// surrogate in WTF-8, a byte that is not UTF-8) goes through the char by char path.
-		var ok bool
-		if units, ok = utf8Scan(bytes); !ok {
+		ok := false
+		if useRead && n >= scanVector {
+			units = scanUTF8(unsafe.Pointer(unsafe.StringData(s)), n)
+			ok = units >= 0
+		} else {
+			units, ok = utf8ScanGo(bytes)
+		}
+		if !ok {
 			w.wideUtf8(s)
 			return
 		}
