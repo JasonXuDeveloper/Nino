@@ -36,10 +36,7 @@ macro_rules! fixed {
 
             #[inline]
             fn write_many<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
-                let out = w.reserve(values.len().saturating_mul($n));
-                for (dst, v) in out.as_chunks_mut::<$n>().0.iter_mut().zip(values) {
-                    *dst = v.encode();
-                }
+                w.encoded(values, |v| v.encode());
                 Ok(())
             }
         }
