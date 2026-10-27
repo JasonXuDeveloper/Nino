@@ -21,6 +21,7 @@ on:
       - 'nuget.config'
       - '.github/workflows/ci.yml'
       - '.github/actions/setup-dotnet/**'
+      - '.github/actions/apt-install/**'
       - '.github/scripts/test_shards.py'
       - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
       - '!**/CLAUDE.md'
@@ -357,13 +358,19 @@ jobs:
 
       - name: Install Mono
         if: matrix.id == 'arm64'
-        run: .github/scripts/apt-install.sh --no-install-recommends mono-complete
+        uses: ./.github/actions/apt-install
+        with:
+          packages: --no-install-recommends mono-complete
 
       # Mono, and the .NET runtime for linux-arm, run by qemu-user with the armhf C and C++ libraries.
-      - name: Install Mono, qemu and .NET for Arm32
+      - name: Install Mono and qemu for Arm32
+        if: matrix.id == 'linux'
+        uses: ./.github/actions/apt-install
+        with:
+          packages: --no-install-recommends mono-complete qemu-user libc6-armhf-cross libstdc++6-armhf-cross
+      - name: Install .NET for Arm32
         if: matrix.id == 'linux'
         run: |
-          .github/scripts/apt-install.sh --no-install-recommends mono-complete qemu-user libc6-armhf-cross libstdc++6-armhf-cross
           # The exact version of the runner's own .NET 10 runtime: with one, dotnet-install skips aka.ms, whose download
           # host can be down (it answered 409 for hours in October 2026) while the feeds still serve the files.
           version="$(dotnet --list-runtimes | awk '$1 == "Microsoft.NETCore.App" && $2 ~ /^10\./ { v = $2 } END { print v }')"

@@ -23,6 +23,7 @@ on:
       - 'nuget.config'
       - '.github/workflows/runtimes.yml'
       - '.github/actions/setup-dotnet/**'
+      - '.github/actions/apt-install/**'
       - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
       - '!**/CLAUDE.md'
   pull_request:
@@ -512,7 +513,9 @@ jobs:
 
       - name: Install qemu
         if: ${{ !cancelled() }}
-        run: .github/scripts/apt-install.sh --no-install-recommends qemu-user
+        uses: ./.github/actions/apt-install
+        with:
+          packages: --no-install-recommends qemu-user
 
       - name: Test on Arm32 under qemu
         if: ${{ !cancelled() }}
