@@ -198,6 +198,82 @@ func WriteFixed[T any](w *Writer, v []T, size int, encode func(b []byte, e T)) {
 	}
 }
 
+// ReadRaw reads a sequence of raw elements of size bytes each, as [ReadFixed] does, copying them as one block where
+// T's memory is their bytes. Generated code passes asIs, a constant that says so for a type without pointers whose
+// size and field offsets (unsafe.Sizeof, unsafe.Offsetof) are those of the wire; bools, the offsets of its bools in
+// an element, whose bytes must be 0 or 1; and decode, for the hosts where the block is not the memory (big-endian
+// ones) and asIs false (a 32-bit host that aligns an int64 to 4 bytes). Never pass asIs true for a T with pointers.
+func ReadRaw[T any](r *Reader, size int, asIs bool, bools []int, decode func(r *Reader, b []byte) T) []T {
+	var zero T
+	if !asIs || !littleEndian || int(unsafe.Sizeof(zero)) != size {
+		return ReadFixed(r, size, decode)
+	}
+	n := r.Length(size)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * size)
+	if len(b) != n*size {
+		return nil
+	}
+	if len(bools) != 0 && !rawBools(b, size, bools) {
+		r.Fail(CodeInvalidData, "invalid bool")
+		return nil
+	}
+	// As many bytes of memory as of data: no more than ReadFixed's bound.
+	v := make([]T, n)
+	copy(unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), n*size), b)
+	return v
+}
+
+// rawBools reports whether the bytes at each offset of bools in each element (size bytes) of b are 0 or 1.
+func rawBools(b []byte, size int, bools []int) bool {
+	var acc byte
+	for _, o := range bools {
+		for i := uint(o); i < uint(len(b)); i += uint(size) {
+			acc |= b[i]
+		}
+	}
+	return acc <= 1
+}
+
+// WriteRaw writes a sequence of raw elements of size bytes each, as [WriteFixed] does, copying their memory as one
+// block where it is their bytes: asIs and bools as for [ReadRaw], asIs also saying that T has no padding (which
+// [WriteFixed] writes as zeros). A bool whose byte is not 0 or 1 (set through unsafe) is written as 1.
+func WriteRaw[T any](w *Writer, v []T, size int, asIs bool, bools []int, encode func(b []byte, e T)) {
+	var zero T
+	if !asIs || !littleEndian || int(unsafe.Sizeof(zero)) != size {
+		WriteFixed(w, v, size, encode)
+		return
+	}
+	if v == nil {
+		w.Null()
+		return
+	}
+	w.Length(len(v))
+	b := w.Extend(len(v) * size)
+	if len(b) != len(v)*size {
+		return
+	}
+	copy(b, unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), len(v)*size))
+	if len(bools) != 0 && !rawBools(b, size, bools) {
+		normalizeRawBools(b, size, bools)
+	}
+}
+
+// normalizeRawBools sets each byte of a bool (at the offsets bools in each element of b) that is not 0 to 1.
+//
+//go:noinline
+func normalizeRawBools(b []byte, size int, bools []int) {
+	for _, o := range bools {
+		for i := uint(o); i < uint(len(b)); i += uint(size) {
+			if b[i] != 0 {
+				b[i] = 1
+			}
+		}
+	}
+}
+
 // Shape is the lengths of a multi-dimensional array (T[,], T[,,], T[,,,]), whose elements are written in row-major
 // order after them.
 type Shape struct {
