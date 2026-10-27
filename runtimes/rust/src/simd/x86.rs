@@ -99,8 +99,8 @@ const fn shift_shuffles<const N: usize>(down: bool) -> [[u8; 16]; N] {
     table
 }
 
-static DOWN: super::Lines<[[u8; 16]; 17]> = super::Lines(shift_shuffles::<17>(true));
-static UP: super::Lines<[[u8; 16]; 9]> = super::Lines(shift_shuffles::<9>(false));
+static DOWN: [[u8; 16]; 17] = shift_shuffles::<17>(true);
+static UP: [[u8; 16]; 9] = shift_shuffles::<9>(false);
 
 /// Row `k` of a table of shuffles, as a vector.
 ///
@@ -131,7 +131,7 @@ unsafe fn window(src: *const u8, len: usize, i: usize) -> __m128i {
         // SAFETY: the last 16 bytes end at `len`.
         let last = unsafe { _mm_loadu_si128(src.add(len.wrapping_sub(16)).cast::<__m128i>()) };
         // SAFETY: `16 - rest` is 1..15, a row of `DOWN`.
-        return _mm_shuffle_epi8(last, unsafe { row(&DOWN.0, 16usize.wrapping_sub(rest)) });
+        return _mm_shuffle_epi8(last, unsafe { row(&DOWN, 16usize.wrapping_sub(rest)) });
     }
     // SAFETY: `i < len`.
     let src = unsafe { src.add(i) };
@@ -141,7 +141,7 @@ unsafe fn window(src: *const u8, len: usize, i: usize) -> __m128i {
             (_mm_loadl_epi64(src.cast::<__m128i>()), _mm_loadl_epi64(src.add(rest.wrapping_sub(8)).cast::<__m128i>()))
         };
         // SAFETY: `rest - 8` is 0..7, a row of `UP`.
-        return _mm_or_si128(first, _mm_shuffle_epi8(last, unsafe { row(&UP.0, rest.wrapping_sub(8)) }));
+        return _mm_or_si128(first, _mm_shuffle_epi8(last, unsafe { row(&UP, rest.wrapping_sub(8)) }));
     }
     let word = if rest >= 4 {
         // SAFETY: the first four bytes from `src` and the last four before `src + rest` (`4 <= rest`).
@@ -792,12 +792,12 @@ pub(crate) unsafe fn latin1_ssse3(bytes: &[u8], dst: *mut u8, room: usize) -> us
         unsafe {
             _mm_storeu_si128(
                 dst.add(o).cast(),
-                _mm_shuffle_epi8(_mm_unpacklo_epi8(lead, cont), row(&super::EXPAND.0, m0)),
+                _mm_shuffle_epi8(_mm_unpacklo_epi8(lead, cont), row(&super::EXPAND, m0)),
             );
             o = o.wrapping_add(8).wrapping_add(m0.count_ones() as usize);
             _mm_storeu_si128(
                 dst.add(o).cast(),
-                _mm_shuffle_epi8(_mm_unpackhi_epi8(lead, cont), row(&super::EXPAND.0, m1)),
+                _mm_shuffle_epi8(_mm_unpackhi_epi8(lead, cont), row(&super::EXPAND, m1)),
             );
             o = o.wrapping_add(8).wrapping_add(m1.count_ones() as usize);
         }
@@ -841,7 +841,7 @@ pub(crate) unsafe fn utf16_sse41(units: &[[u8; 2]], dst: *mut u8, room: usize) -
             let lanes = _mm_blendv_epi8(two, w, ascii);
             let m = (!_mm_movemask_epi8(_mm_packs_epi16(ascii, ascii)) & 0xFF) as usize;
             // SAFETY: `m < 256`; 32 bytes of room.
-            unsafe { _mm_storeu_si128(dst.add(o).cast(), _mm_shuffle_epi8(lanes, row(&super::EXPAND.0, m))) };
+            unsafe { _mm_storeu_si128(dst.add(o).cast(), _mm_shuffle_epi8(lanes, row(&super::EXPAND, m))) };
             k = k.wrapping_add(8);
             o = o.wrapping_add(8).wrapping_add(m.count_ones() as usize);
             continue;
@@ -874,8 +874,8 @@ pub(crate) unsafe fn utf16_sse41(units: &[[u8; 2]], dst: *mut u8, room: usize) -
             );
             let lanes = _mm_blendv_epi8(one, two, _mm_cmpgt_epi32(u, s32(0x7F)));
             let lanes = _mm_blendv_epi8(lanes, three, _mm_cmpgt_epi32(u, s32(0x7FF)));
-            let super::Counted(shuffle, bytes) =
-                super::PACK3.0.get(((index >> half) & 0xFF) as usize).copied().unwrap_or(super::Counted([0x80; 16], 0));
+            let (shuffle, bytes) =
+                super::PACK3.get(((index >> half) & 0xFF) as usize).copied().unwrap_or(([0x80; 16], 0));
             // SAFETY: 32 bytes of room from where the step started; the first half stores 16 bytes from there, the
             // second from at most 12 after it.
             unsafe {
