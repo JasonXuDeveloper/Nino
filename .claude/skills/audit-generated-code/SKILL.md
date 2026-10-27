@@ -22,11 +22,18 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 ## The text
 
 - **Short names through one alias block**: a type named more than once goes through a file-level `using` alias, not
-  `global::System...` in every line; never a plain `using` a user type could shadow.
+  `global::System...` in every line; never a plain `using` a user type could shadow. Every file is framed by
+  `GeneratedCode.File`, and `GeneratedCode.WithAliases` rewrites a body's repeated names (the type's own as `__NinoT`,
+  `Writer`, `Reader`, `NinoObject`, `NinoUnsafe`, ...) where the alias makes the file shorter: write full names in
+  emitters and add a name to its table, never a second alias mechanism. It rewrites string literals too, so a
+  message names a type without `global::` ("cannot construct __NinoT" shipped that way).
 - **No line that does nothing**: no identity copy, no unread local, no empty method, no `x = default` the
   constructor gives, no parameter nobody reads. Each local also counts toward the JIT's tracking limit.
 - **Say a value once**: constants in place, setup that does not change per member written once, a table declared once
-  per type.
+  per type. An expression the JIT folds still costs IL against the caller's inlining budget first: a size repeated
+  in a sum is written `n * size` (`RawBlock.Size`); offsets in a block of four `PolymorphicTransform`s summed up to
+  four `SizeOf<T>()` calls each, and the PolymorphicFooBase dispatch called `get_BodySize` of 18 subtypes instead of
+  inlining it (76 stack accesses; 1 after).
 - **Parentheses only where precedence needs them**; layout as a formatter would leave it.
 - **Names a reader can follow**: locals after the member they hold.
 - **Generate once, refer to it**: a form that needs code another file generates names that code instead of copying
@@ -52,9 +59,14 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 ## Proof
 
 - Text only (names, aliases, parentheses, layout): the IL of the generated methods is identical between base and
-  head (build both, diff the IL of the test assembly).
+  head: build `benchmarks/Nino.Benchmark` (and `tests/Nino.UnitTests -f net10.0` for shapes the benchmark lacks, such
+  as keyed types) on both, `ilspycmd -il <dll> > side.il` (a dotnet tool), and `diff`: empty. (`-p:DebugType=none`
+  to compare the DLLs' bytes fails: Nino.Core embeds its sources.) Save the base side's `.il`, generated files and
+  `asm.py dump` JSON once, then compare each commit against them.
 - IL changes: the Tier1 listings of the benchmark types identical or better (`asm.py compare`), else runner A/B
-  (`benchmark`).
+  (`benchmark`). A whole-suite `asm.py diff` also lists methods the change cannot reach (PGO varies run to run):
+  compare the listings of the methods the changed generated code compiles into (their names in the dump), and
+  explain those.
 - nino-gen: regenerate (`NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests`), then the TypeScript, Go and
   Rust checks against the corpus (`src/Nino.Codegen/AGENTS.md`).
 - Bytes never change unless that is the change (`wire-format`).

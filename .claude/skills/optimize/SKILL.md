@@ -24,6 +24,10 @@ fix every method it lists.
   element loops, string allocation, recycling) out of line (`NoInlining`), with only the common path inline.
 - Never pass `ref reader` or `ref writer` to a method that is not inlined, even in a dead branch: the address keeps
   the struct in memory for the whole method. Pass it by value and return it (`reader = ReadEach(values, reader)`).
+  An instance method of `Reader` or `Writer` left out of line passes `this` the same way: `Reader.ReadString(current)`
+  calls `ReadStringOver` with the reader's address whenever `current` may be non-null, so generated code reads a new
+  instance's strings with `ReadString()` (`MemberModel.Fresh`): SimpleClass's `__ReadTop` went from 108 stack
+  accesses to 10, TolerantClass's from 174 to 10. Look for `Reader:...:this` and `Writer:...:this` calls in a listing.
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
