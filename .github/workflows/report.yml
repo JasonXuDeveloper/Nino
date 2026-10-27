@@ -34,6 +34,8 @@ env:
   # The very last section: the Burst kernels in a Unity IL2CPP player (benchmarks/unity_report.py's HEADING), from
   # unity.yml's benchmark run, appended after the runtime sections by publish-unity. The docs site looks for it.
   UNITY_HEADING: "## 🎮 Unity benchmark (Burst, IL2CPP)"
+  # The benchmark the Unity section comes from; a tag without it has no Unity section.
+  UNITY_BENCHMARK: src/Nino.Unity/Assets/Test/Runtime/Burst/BurstBenchmark.cs
 
 # Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
 defaults:
@@ -50,6 +52,7 @@ jobs:
       skip: ${{ steps.check_benchmark.outputs.skip }}
       matrix: ${{ steps.shards.outputs.matrix }}
       unity_skip: ${{ steps.check_unity.outputs.skip }}
+      runtimes: ${{ steps.release_tree.outputs.runtimes }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -81,6 +84,30 @@ jobs:
           fi
           echo "Benchmarking $TAG_NAME"
           echo "target_ref=$TAG_NAME" >> "$GITHUB_OUTPUT"
+
+      # What the tag's tree has: a manual run for an older tag (v4.0.0-rc.7 has neither the runtimes outside .NET nor
+      # the Unity benchmark) runs only the sections it can, instead of failing a job for each one it lacks.
+      - name: Check what the release has
+        id: release_tree
+        env:
+          TAG_NAME: ${{ steps.determine_target.outputs.target_ref }}
+        run: |
+          set -euo pipefail
+          langs=()
+          for lang in typescript go rust; do
+            if git cat-file -e "refs/tags/$TAG_NAME:runtimes/$lang/bench" 2>/dev/null; then
+              langs+=("$lang")
+            else
+              echo "::notice::$TAG_NAME has no runtimes/$lang/bench: no $lang benchmark"
+            fi
+          done
+          echo "runtimes=$(printf '%s\n' "${langs[@]}" | jq -Rnc '[inputs | select(length > 0)]')" >> "$GITHUB_OUTPUT"
+          if git cat-file -e "refs/tags/$TAG_NAME:$UNITY_BENCHMARK" 2>/dev/null; then
+            echo "unity=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "unity=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$TAG_NAME has no $UNITY_BENCHMARK: no Unity benchmark"
+          fi
 
       # The bench job's matrix: every shard of benchmarks/shards.json (this workflow's commit) on x64 and on Arm64, the
       # v3 globs on x64 only.
@@ -117,7 +144,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ steps.determine_target.outputs.target_ref }}
+          HAS_UNITY: ${{ steps.release_tree.outputs.unity }}
         run: |
+          if [[ "$HAS_UNITY" != true ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           gh release view "$TAG_NAME" --json body --jq '.body' > "$RUNNER_TEMP/unity-body.md"
           if grep -qF "$UNITY_HEADING" "$RUNNER_TEMP/unity-body.md"; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -487,6 +519,7 @@ jobs:
   runtimes:
     name: Runtime benchmark (${{ matrix.lang }}, ${{ matrix.arch }})
     needs: target
+    if: needs.target.outputs.runtimes != '[]'
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
     timeout-minutes: 40
     env:
@@ -496,7 +529,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        lang: [ typescript, go, rust ]
+        lang: ${{ fromJSON(needs.target.outputs.runtimes) }}
         arch: [ x64, arm64 ]
     steps:
       # The tag's runtimes and benchmarks; this workflow's commit for the report script.
@@ -588,7 +621,7 @@ jobs:
   publish-runtimes:
     name: Publish the runtime benchmarks
     needs: [ target, runtimes, publish ]
-    if: ${{ always() && needs.target.result == 'success' }}
+    if: ${{ always() && needs.target.result == 'success' && needs.target.outputs.runtimes != '[]' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     env:
