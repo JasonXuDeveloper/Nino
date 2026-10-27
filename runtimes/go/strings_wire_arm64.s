@@ -7,35 +7,37 @@
 
 DATA wireN<>+0x0(SB)/8, $0x8040201008040201
 DATA wireN<>+0x8(SB)/8, $0x8040201008040201
-DATA wireN<>+0x10(SB)/8, $0xffffffffffffffff
-DATA wireN<>+0x18(SB)/8, $0xffffffffffffffff
-DATA wireN<>+0x20(SB)/8, $0x0000000000000000
-DATA wireN<>+0x28(SB)/8, $0x0000000000000000
-DATA wireN<>+0x30(SB)/8, $0x0008000400020001
-DATA wireN<>+0x38(SB)/8, $0x0080004000200010
-DATA wireN<>+0x40(SB)/8, $0x0040001000040001
-DATA wireN<>+0x48(SB)/8, $0x4000100004000100
-DATA wireN<>+0x50(SB)/8, $0x0080002000080002
-DATA wireN<>+0x58(SB)/8, $0x8000200008000200
-DATA wireN<>+0x60(SB)/8, $0x0202020202020202
-DATA wireN<>+0x68(SB)/8, $0x4905012180808080
-DATA wireN<>+0x70(SB)/8, $0xcbcbcb8b8383a3e7
-DATA wireN<>+0x78(SB)/8, $0xcbcbcbcbcbcbcbcb
-DATA wireN<>+0x80(SB)/8, $0x0101010101010101
-DATA wireN<>+0x88(SB)/8, $0x01010101aaaaaee6
-DATA wireN<>+0x90(SB)/8, $0xffffffffffffffff
-DATA wireN<>+0x98(SB)/8, $0xbfdfefffffffffff
-GLOBL wireN<>(SB), RODATA|NOPTR, $0xa0
+DATA wireN<>+0x10(SB)/8, $0x0000000000000000
+DATA wireN<>+0x18(SB)/8, $0x0000000000000000
+DATA wireN<>+0x20(SB)/8, $0xffffffffffffffff
+DATA wireN<>+0x28(SB)/8, $0xffffffffffffffff
+DATA wireN<>+0x30(SB)/8, $0x0000000000000000
+DATA wireN<>+0x38(SB)/8, $0x0000000000000000
+DATA wireN<>+0x40(SB)/8, $0x0008000400020001
+DATA wireN<>+0x48(SB)/8, $0x0080004000200010
+DATA wireN<>+0x50(SB)/8, $0x0040001000040001
+DATA wireN<>+0x58(SB)/8, $0x4000100004000100
+DATA wireN<>+0x60(SB)/8, $0x0080002000080002
+DATA wireN<>+0x68(SB)/8, $0x8000200008000200
+DATA wireN<>+0x70(SB)/8, $0x0202020202020202
+DATA wireN<>+0x78(SB)/8, $0x4905012180808080
+DATA wireN<>+0x80(SB)/8, $0xcbcbcb8b8383a3e7
+DATA wireN<>+0x88(SB)/8, $0xcbcbcbcbcbcbcbcb
+DATA wireN<>+0x90(SB)/8, $0x0101010101010101
+DATA wireN<>+0x98(SB)/8, $0x01010101aaaaaee6
+DATA wireN<>+0xa0(SB)/8, $0xffffffffffffffff
+DATA wireN<>+0xa8(SB)/8, $0xbfdfefffffffffff
+GLOBL wireN<>(SB), RODATA|NOPTR, $0xb0
 
 #define N_BITS 0     // the bit of each byte of 8, twice
-#define N_MASK 16    // 16 bytes of FF, then 16 of 0
-#define N_LANES 48   // the bit of each 16-bit lane of 8
-#define N_PAIRS 64   // 1, 4, 16 ... 4^7: two bits a lane
-#define N_PAIRS2 80  // twice those
-#define N_T1 96      // the tables of the UTF-8 validation (see strings_wire_amd64.s)
-#define N_T2 112
-#define N_T3 128
-#define N_TAIL 144   // the most each of the last three bytes may be (no char cut at the end)
+#define N_MASK 32    // 16 bytes of FF, then 16 of 0 (32 bytes in: see constantsARM64)
+#define N_LANES 64   // the bit of each 16-bit lane of 8
+#define N_PAIRS 80   // 1, 4, 16 ... 4^7: two bits a lane
+#define N_PAIRS2 96  // twice those
+#define N_T1 112     // the tables of the UTF-8 validation (see strings_wire_amd64.s)
+#define N_T2 128
+#define N_T3 144
+#define N_TAIL 160   // the most each of the last three bytes may be (no char cut at the end)
 
 // func latin1UTF8NEON(dst, src unsafe.Pointer, n int) int
 //
