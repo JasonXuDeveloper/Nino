@@ -134,6 +134,14 @@ func latin1UTF8SSE(dst, src unsafe.Pointer, n int) int
 //go:noescape
 func utf16UTF8SSE(dst, src unsafe.Pointer, units int) int
 
+// utf8ScanSSE is utf8Scan of the n bytes at src (n > 0), 16 at a time: their UTF-16 code units, or -1 when they are
+// not strict UTF-8. Every tier takes it (its blocks are as long as most text it checks).
+//
+//go:noescape
+func utf8ScanSSE(src unsafe.Pointer, n int) int
+
+func scanUTF8(src unsafe.Pointer, n int) int { return utf8ScanSSE(src, n) }
+
 // readUTF16 and readLatin1 are the reader's kernels of the tier taken.
 func readUTF16(dst, src unsafe.Pointer, units int) int {
 	if readTier == tierAVX512 {

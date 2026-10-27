@@ -26,6 +26,7 @@ func fileAMD64() {
 	latin1UTF8SSE()
 	utf16UTF8SSE()
 	writerSSE()
+	utf8ScanSSE()
 	cpu()
 }
 
@@ -60,6 +61,7 @@ func lanes(t [16]byte) []byte { return append(t[:], t[:]...) }
 
 func constants() {
 	t1, t2, t3 := validationTables()
+	u1, u2, u3 := strictTables()
 	tail := fill(0xFF)
 	tail[29], tail[30], tail[31] = 0xEF, 0xDF, 0xBF
 	mask16 := append(fill(0xFF)[:16], make([]byte, 16)...)
@@ -109,6 +111,13 @@ func constants() {
 		{"WC0", words(0xC0)},
 		{"WE0", words(0xE0)},
 		{"W40", words(0x40)},
+		// utf8ScanSSE's (after the rest, which keep their places): the strict tables, a byte of 1 each, the shuffle
+		// that moves the last bytes of a block to its start.
+		{"U1", lanes(u1)},
+		{"U2", lanes(u2)},
+		{"U3", lanes(u3)},
+		{"B01", fill(0x01)},
+		{"SHR16", shiftTable()},
 	}
 	wire = c.StaticGlobal("wire")
 	c.DataAttributes(attr.RODATA | attr.NOPTR)
