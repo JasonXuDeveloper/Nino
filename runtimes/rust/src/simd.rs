@@ -1588,11 +1588,63 @@ unsafe fn utf16<B: Block>(bytes: &[u8], dst: *mut u8) -> usize {
 
 // ------------------------------------------------------------------------------------------------ the reader's text
 
+/// A `String` as its pointer and its length and capacity in one word (the length in the low half), returned in two
+/// registers. A `String` returned whole goes through memory, and the reader's caller reads it back in the pieces of
+/// its `Result<Option<String>>` (an [`crate::Error`] is an `i32` and a byte), which span the three stores that
+/// wrote it: a store forwarding stall for every string read. Only for text of at most [`PARTS_MAX`] bytes, whose
+/// `String` has fewer than 2^32 bytes of capacity.
+pub(crate) struct Parts {
+    ptr: *mut u8,
+    sizes: u64,
+}
+
+/// The longest text (in bytes of Latin-1 or of UTF-16) read through [`Parts`]: its UTF-8 takes at most three times
+/// as many bytes, fewer than 2^32.
+const PARTS_MAX: usize = (u32::MAX / 3) as usize;
+
+impl Parts {
+    /// `text`'s parts (its capacity below 2^32), its buffer now owned by them.
+    #[inline(always)]
+    fn of(text: String) -> Self {
+        let mut bytes = core::mem::ManuallyDrop::new(text.into_bytes());
+        let sizes = (bytes.len() as u64) | (bytes.capacity() as u64).wrapping_shl(32);
+        Self { ptr: bytes.as_mut_ptr(), sizes }
+    }
+
+    /// The `String` again.
+    #[inline(always)]
+    fn string(self) -> String {
+        // SAFETY: the parts of a `String` (`of`), whose length and capacity are below 2^32: taken back once.
+        unsafe { String::from_raw_parts(self.ptr, self.sizes as u32 as usize, (self.sizes >> 32) as usize) }
+    }
+}
+
 /// Latin-1 bytes (each byte is the code point U+0000..U+00FF) as a `String`: ASCII copied as it is, other bytes as
 /// two bytes of UTF-8, written straight into the room of a `Vec` that becomes the `String` unchecked. Each Latin-1
-/// byte is a Unicode scalar value, so what is written is valid UTF-8.
-#[inline(never)]
+/// byte is a Unicode scalar value, so what is written is valid UTF-8. Text of up to [`PARTS_MAX`] bytes comes back
+/// through [`Parts`].
+#[inline(always)]
 pub(crate) fn latin1_string(bytes: &[u8]) -> String {
+    if bytes.len() <= PARTS_MAX {
+        latin1_parts(bytes).string()
+    } else {
+        latin1_long(bytes)
+    }
+}
+
+#[inline(never)]
+fn latin1_parts(bytes: &[u8]) -> Parts {
+    Parts::of(latin1_text(bytes))
+}
+
+#[inline(never)]
+fn latin1_long(bytes: &[u8]) -> String {
+    latin1_text(bytes)
+}
+
+/// [`latin1_string`]'s work.
+#[inline(always)]
+fn latin1_text(bytes: &[u8]) -> String {
     // Short ASCII (the most common text): two words, or two pairs of words, that may overlap; no call to `memcpy`.
     let len = bytes.len();
     if let (Some(first), Some(last)) = (bytes.first_chunk::<8>(), bytes.last_chunk::<8>()) {
@@ -1745,8 +1797,30 @@ unsafe fn latin1_char(dst: *mut u8, o: usize, b: u8) -> usize {
 /// replacement char): written straight into the room of a `Vec` that becomes the `String` unchecked. Every sequence
 /// written is the UTF-8 of a Unicode scalar value (a code unit outside the surrogates, a valid surrogate pair or
 /// U+FFFD), so the whole is valid UTF-8.
-#[inline(never)]
+///
+/// Text of up to [`PARTS_MAX`] bytes (half as many units) comes back through [`Parts`].
+#[inline(always)]
 pub(crate) fn utf16_string(units: &[[u8; 2]]) -> String {
+    if units.len() <= PARTS_MAX / 2 {
+        utf16_parts(units).string()
+    } else {
+        utf16_long(units)
+    }
+}
+
+#[inline(never)]
+fn utf16_parts(units: &[[u8; 2]]) -> Parts {
+    Parts::of(utf16_text(units))
+}
+
+#[inline(never)]
+fn utf16_long(units: &[[u8; 2]]) -> String {
+    utf16_text(units)
+}
+
+/// [`utf16_string`]'s work.
+#[inline(always)]
+fn utf16_text(units: &[[u8; 2]]) -> String {
     // Room: one byte for a unit below U+0080, two below U+0800, three for the rest. A surrogate pair takes four
     // bytes (six counted), an unpaired surrogate three (U+FFFD). At most `3 * len`, which cannot wrap (`2 * len`
     // bytes exist): what short text gets, with no pass to count first (a capacity of at most three times the units,
