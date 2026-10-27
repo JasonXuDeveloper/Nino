@@ -117,12 +117,13 @@ func TestRawBlocks(t *testing.T) {
 				bad[4+8*i+4] = 2
 				expectCode(t, bad, CodeInvalidData, func(r *Reader) { ReadRaw(r, 8, asIs, bools, decodeRawPoint) })
 			}
-			// A bool set through unsafe to another byte is written as 1.
+			// A bool set through unsafe to another byte is written as 0 or 1, never as that byte (the block path writes
+			// 1; encodeRawPoint's test of the bool is the compiler's: arm64 tests its lowest bit).
 			if n > 0 {
 				odd := append([]rawPoint(nil), v...)
 				*(*byte)(unsafe.Pointer(&odd[n-1].Flag)) = 0x42
 				got := encode(t, func(w *Writer) { WriteRaw(w, odd, 8, asIs, bools, encodeRawPoint) })
-				if got[4+8*(n-1)+4] != 1 {
+				if got[4+8*(n-1)+4] > 1 || asIs && rawPointAsIs && littleEndian && got[4+8*(n-1)+4] != 1 {
 					t.Fatalf("n=%d asIs=%v: bool written as %d", n, asIs, got[4+8*(n-1)+4])
 				}
 			}
