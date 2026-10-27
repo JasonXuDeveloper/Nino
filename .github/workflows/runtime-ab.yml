@@ -7,7 +7,7 @@ name: Runtime A/B (test branch)
 #
 # Each line is a job of its own on every runner and copy, and a push runs only the lines it adds or changes: a line
 # already in the file before the push is not measured again (edit it, for example its filter, to run it again). A push
-# that changes this workflow measures every line.
+# that changes this workflow measures every line, unless its last commit message says "[ab: new lines only]".
 # Both commits must be on a branch of this repository (main, or this branch: push them here, merging, never
 # force-pushing).
 # The filter is a `go test -bench` regexp, a criterion filter or a bench.ts case name. Numbers are for development only.
@@ -44,8 +44,11 @@ jobs:
           set -euo pipefail
           active() { grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' | sed 's/[[:space:]]*$//' || true; }
           active < .github/ab-request.txt > "$RUNNER_TEMP/now"
+          # A push whose last commit message says "[ab: new lines only]" measures only its new lines even when it
+          # changes this workflow (a change that leaves the other lines' measurements as they were).
           if git cat-file -e "$BEFORE:.github/ab-request.txt" 2> /dev/null &&
-            git diff --quiet "$BEFORE" HEAD -- .github/workflows/runtime-ab.yml; then
+            { git diff --quiet "$BEFORE" HEAD -- .github/workflows/runtime-ab.yml ||
+              git log -1 --format=%B HEAD | grep -qF '[ab: new lines only]'; }; then
             git show "$BEFORE:.github/ab-request.txt" | active > "$RUNNER_TEMP/before"
           else
             : > "$RUNNER_TEMP/before"
@@ -137,12 +140,19 @@ jobs:
                 # A target directory per commit: with one shared, cargo took the head's sources (checked out before
                 # the base was built) as unchanged and ran the base's binary for both sides. Criterion's baselines
                 # go in one directory of their own.
+                # Both sides start every function at a 64-byte boundary (bench build only): unchanged functions then
+                # sit at the same offset modulo 64 on both sides, so a change elsewhere in the binary cannot move
+                # their loops across fetch blocks (16-byte shifts of identical code moved Zen 5 timings by up to 30%).
+                # A side's env NINO_AB_RUSTFLAGS=<flags> replaces the flags (NINO_AB_RUSTFLAGS= builds as before).
+                align=-Cllvm-args=-align-all-functions=6
                 export CRITERION_HOME="$RUNNER_TEMP/criterion"
                 rm -rf "$CRITERION_HOME"
                 for round in 1 2; do
                   (cd "$RUNNER_TEMP/$base/runtimes/rust" && export "$base_env" CARGO_TARGET_DIR="$RUNNER_TEMP/target-$base" &&
+                    export RUSTFLAGS="${NINO_AB_RUSTFLAGS-$align}" &&
                     cargo bench -q -p nino-bench --bench "$bench" -- --save-baseline base "${fargs[@]}" < /dev/null) > /dev/null
                   (cd "$RUNNER_TEMP/$head/runtimes/rust" && export "$head_env" CARGO_TARGET_DIR="$RUNNER_TEMP/target-$head" &&
+                    export RUSTFLAGS="${NINO_AB_RUSTFLAGS-$align}" &&
                     cargo bench -q -p nino-bench --bench "$bench" -- --baseline base "${fargs[@]}" < /dev/null) | tee "$out/rust-$round.txt"
                 done
                 { echo '```'; grep -E '^[a-z].*|time:|change:|faster|slower|No change' "$out/rust-2.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

@@ -1,24 +1,52 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+# phase10/rust round 8: both sides built with every function at a 64-byte boundary (the default for rust lines now),
+# 83950aa against 717f4bb, 781d955 (blocks) and main 1622ddb (compare), with floors; text-different filters for more samples a CPU.
+rust:blocks 717f4bb 83950aa blocks[/]
+rust:blocks 717f4bb 83950aa ^blocks[/]
+rust:blocks 717f4bb 83950aa blocks[/].*
+rust:blocks 717f4bb 83950aa block(s)/
+rust:blocks 781d955 83950aa blocks[/]
+rust:blocks 781d955 83950aa ^blocks[/]
+rust:blocks 83950aa 83950aa blocks[/]
+rust:blocks 83950aa 83950aa ^blocks[/]
+rust:blocks 83950aa 83950aa blocks[/].*
+rust:blocks 717f4bb 717f4bb blocks[/]
+rust:blocks 717f4bb 717f4bb ^blocks[/]
+rust:blocks 717f4bb 717f4bb blocks[/].*
+rust:blocks 781d955 781d955 blocks[/]
+rust:blocks 781d955 781d955 ^blocks[/]
+rust 1622ddb 83950aa [/]nino$
+rust 1622ddb 83950aa .*[/]nino$
+rust 1622ddb 83950aa /ni(no)$
+rust 717f4bb 83950aa [/]nino$
+rust 717f4bb 83950aa .*[/]nino$
+rust 717f4bb 83950aa /ni(no)$
+rust 83950aa 83950aa [/]nino$
+rust 83950aa 83950aa .*[/]nino$
+rust 1622ddb 1622ddb [/]nino$
+rust 1622ddb 1622ddb .*[/]nino$
+rust 717f4bb 717f4bb [/]nino$
+rust 717f4bb 717f4bb .*[/]nino$
 # phase10/rust round 7: 83950aa replaces 80ae370 (map write as one block; map read back to 717f4bb's) against 781d955 / 717f4bb / main, with floors; text-different filters for more samples a CPU.
-rust:blocks 781d955 83950aa blocks/(.*)
-rust:blocks 781d955 83950aa ^blocks/(.*)
-rust:blocks 781d955 83950aa blocks/.+
-rust:blocks 717f4bb 83950aa blocks/(.*)
-rust:blocks 717f4bb 83950aa ^blocks/(.*)
-rust:blocks 717f4bb 83950aa blocks/.+
-rust:blocks 83950aa 83950aa blocks/(.*)
-rust:blocks 83950aa 83950aa ^blocks/(.*)
-rust:blocks 717f4bb 717f4bb blocks/(.*)
-rust:blocks 717f4bb 717f4bb ^blocks/(.*)
-rust:blocks 781d955 781d955 blocks/(.*)
-rust 1622ddb 83950aa /nino$
-rust 1622ddb 83950aa .*/nino$
-rust 717f4bb 83950aa /nino$
-rust 717f4bb 83950aa .*/nino$
-rust 717f4bb 83950aa (/nino)$
-rust 83950aa 83950aa /nino$
-rust 717f4bb 717f4bb /(nino)$
-rust 1622ddb 1622ddb /(nino)$
+# done (run 40591560840): rust:blocks 781d955 83950aa blocks/(.*)
+# done (run 40591560840): rust:blocks 781d955 83950aa ^blocks/(.*)
+# done (run 40591560840): rust:blocks 781d955 83950aa blocks/.+
+# done (run 40591560840): rust:blocks 717f4bb 83950aa blocks/(.*)
+# done (run 40591560840): rust:blocks 717f4bb 83950aa ^blocks/(.*)
+# done (run 40591560840): rust:blocks 717f4bb 83950aa blocks/.+
+# done (run 40591560840): rust:blocks 83950aa 83950aa blocks/(.*)
+# done (run 40591560840): rust:blocks 83950aa 83950aa ^blocks/(.*)
+# done (run 40591560840): rust:blocks 717f4bb 717f4bb blocks/(.*)
+# done (run 40591560840): rust:blocks 717f4bb 717f4bb ^blocks/(.*)
+# done (run 40591560840): rust:blocks 781d955 781d955 blocks/(.*)
+# done (run 40591560840): rust 1622ddb 83950aa /nino$
+# done (run 40591560840): rust 1622ddb 83950aa .*/nino$
+# done (run 40591560840): rust 717f4bb 83950aa /nino$
+# done (run 40591560840): rust 717f4bb 83950aa .*/nino$
+# done (run 40591560840): rust 717f4bb 83950aa (/nino)$
+# done (run 40591560840): rust 83950aa 83950aa /nino$
+# done (run 40591560840): rust 717f4bb 717f4bb /(nino)$
+# done (run 40591560840): rust 1622ddb 1622ddb /(nino)$
 # phase10/rust round 6: maps of fixed-size entries as one block (80ae370) against 781d955 / 717f4bb / main, with floors; text-different filters for more samples a CPU.
 # done (run 40578335901): rust:blocks 781d955 80ae370 blocks/
 # done (run 40578335901): rust:blocks 781d955 80ae370 ^blocks/
