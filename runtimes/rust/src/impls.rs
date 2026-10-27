@@ -99,6 +99,11 @@ macro_rules! number {
                 w.encoded(values, |v| v.to_le_bytes());
                 Ok(())
             }
+
+            #[inline]
+            fn write_counted<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
+                w.counted(values, |v| v.to_le_bytes())
+            }
         }
     )*};
 }
@@ -340,10 +345,7 @@ fn write_seq<'a, T: NinoWrite>(values: Option<&'a [T]>, w: &mut Writer<'a>) -> R
             w.null_length();
             Ok(())
         }
-        Some(values) => {
-            w.length(values.len())?;
-            T::write_many(values, w)
-        }
+        Some(values) => T::write_counted(values, w),
     }
 }
 

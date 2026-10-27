@@ -73,7 +73,16 @@ impl<'a> Writer<'a> {
     /// Appends the `N` bytes `encode` gives for each of `values` (a block of fixed-size elements).
     #[inline]
     pub(crate) fn encoded<T, const N: usize>(&mut self, values: &[T], encode: impl Fn(&T) -> [u8; N]) {
-        crate::simd::extend_encoded(&mut self.buf, values, encode);
+        crate::simd::extend_encoded(&mut self.buf, [], values, encode);
+    }
+
+    /// Appends the length of `values` (fails past `i32::MAX`), then the `N` bytes `encode` gives for each: one
+    /// capacity check for both (a collection of fixed-size elements).
+    #[inline]
+    pub(crate) fn counted<T, const N: usize>(&mut self, values: &[T], encode: impl Fn(&T) -> [u8; N]) -> Result<()> {
+        let length = i32::try_from(values.len()).map_err(|_| Error::too_large())?;
+        crate::simd::extend_encoded(&mut self.buf, length.to_le_bytes(), values, encode);
+        Ok(())
     }
 
     /// A string header, then `bytes`: one capacity check for both.
