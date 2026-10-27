@@ -356,3 +356,34 @@ func BenchmarkWriteString(b *testing.B) {
 		})
 	}
 }
+
+// TestReadStrings checks ReadStrings against ReadSlice with Reader.String: the strings WriteStrings wrote (ASCII,
+// Latin-1, UTF-16, long), a null element, null, and every truncation.
+func TestReadStrings(t *testing.T) {
+	strs := []string{"", "a", "héllo", "日本語", strings.Repeat("x", 300), "\U0001F600", "end"}
+	w := NewWriter(0)
+	WriteStrings(w, strs)
+	data := w.Bytes()
+	r := NewReader(data)
+	if got := ReadStrings(r); r.Err() != nil || r.More() || strings.Join(got, "|") != strings.Join(strs, "|") {
+		t.Fatalf("read %q (%v)", got, r.Err())
+	}
+	w = NewWriter(0)
+	w.Length(2)
+	w.NullableString("", false)
+	w.String("b")
+	if got := ReadStrings(NewReader(w.Bytes())); len(got) != 2 || got[0] != "" || got[1] != "b" {
+		t.Fatalf("null element read as %q", got)
+	}
+	if got := ReadStrings(NewReader(hx("FFFFFFFF"))); got != nil {
+		t.Fatalf("null read as %q", got)
+	}
+	for cut := range len(data) {
+		r := NewReader(data[:cut])
+		ref := NewReader(data[:cut])
+		got, want := ReadStrings(r), ReadSlice(ref, 1, (*Reader).String)
+		if got != nil || want != nil || r.Err() == nil || r.Err().Error() != ref.Err().Error() {
+			t.Fatalf("cut at %d: %q (%v), want %q (%v)", cut, got, r.Err(), want, ref.Err())
+		}
+	}
+}
