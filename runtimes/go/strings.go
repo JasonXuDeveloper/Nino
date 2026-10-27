@@ -614,8 +614,9 @@ func latin1UTF8(dst, b []byte) int {
 		if j+2 > len(dst) {
 			break
 		}
-		dst[j] = 0xC0 | c>>6
-		dst[j+1] = 0x80 | c&0x3F
+		d := dst[j : j+2 : j+2]
+		d[0] = 0xC0 | c>>6
+		d[1] = 0x80 | c&0x3F
 		i, j = i+1, j+2
 	}
 	return j
@@ -693,7 +694,7 @@ func utf16UTF8(dst, p []byte) int {
 				continue
 			}
 		} else {
-			u = uint32(p[i]) | uint32(p[i+1])<<8
+			u = uint32(binary.LittleEndian.Uint16(p[i:]))
 		}
 		i += 2
 		switch {
@@ -707,28 +708,28 @@ func utf16UTF8(dst, p []byte) int {
 			if j+2 > len(dst) {
 				return j
 			}
-			dst[j] = 0xC0 | byte(u>>6)
-			dst[j+1] = 0x80 | byte(u)&0x3F
+			d := dst[j : j+2 : j+2]
+			d[0] = 0xC0 | byte(u>>6)
+			d[1] = 0x80 | byte(u)&0x3F
 			j += 2
 		case u&0xFC00 == 0xD800 && i+2 <= len(p) && p[i+1]&0xFC == 0xDC:
 			if j+4 > len(dst) {
 				return j
 			}
-			c := 0x10000 + (u-0xD800)<<10 + (uint32(p[i]) | uint32(p[i+1])<<8 - 0xDC00)
+			c := 0x10000 + (u-0xD800)<<10 + (uint32(binary.LittleEndian.Uint16(p[i:])) - 0xDC00)
 			i += 2
-			dst[j] = 0xF0 | byte(c>>18)
-			dst[j+1] = 0x80 | byte(c>>12)&0x3F
-			dst[j+2] = 0x80 | byte(c>>6)&0x3F
-			dst[j+3] = 0x80 | byte(c)&0x3F
+			binary.LittleEndian.PutUint32(dst[j:], uint32(0xF0|byte(c>>18))|uint32(0x80|byte(c>>12)&0x3F)<<8|
+				uint32(0x80|byte(c>>6)&0x3F)<<16|uint32(0x80|byte(c)&0x3F)<<24)
 			j += 4
 		default:
 			// A char of 3 bytes, or an unpaired surrogate in WTF-8 (the same form).
 			if j+3 > len(dst) {
 				return j
 			}
-			dst[j] = 0xE0 | byte(u>>12)
-			dst[j+1] = 0x80 | byte(u>>6)&0x3F
-			dst[j+2] = 0x80 | byte(u)&0x3F
+			d := dst[j : j+3 : j+3]
+			d[0] = 0xE0 | byte(u>>12)
+			d[1] = 0x80 | byte(u>>6)&0x3F
+			d[2] = 0x80 | byte(u)&0x3F
 			j += 3
 		}
 	}
