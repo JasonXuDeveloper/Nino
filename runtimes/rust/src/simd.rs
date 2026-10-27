@@ -377,6 +377,47 @@ pub(crate) fn extend_fixed<T, const H: usize>(
     unsafe { out.set_len(len.wrapping_add(total)) };
 }
 
+/// [`extend_fixed`] over an iterator (a map's entries): appends `head`, then the `size` bytes (at most
+/// [`FIXED_STACK`]) `encode` writes for each of at most `values.len()` items, with one reservation. Writes and keeps
+/// only what the iterator yields, so an iterator that yields fewer items than its `len` said leaves no byte
+/// unwritten.
+#[inline(always)]
+pub(crate) fn extend_fixed_iter<I, const H: usize>(
+    out: &mut Vec<u8>,
+    head: [u8; H],
+    values: I,
+    size: usize,
+    encode: impl Fn(I::Item, &mut [u8]),
+) where
+    I: ExactSizeIterator,
+{
+    let size = size.min(FIXED_STACK);
+    let count = values.len();
+    // Saturated, a size `reserve` refuses (it panics, as `resize` does).
+    out.reserve(count.saturating_mul(size).saturating_add(H));
+    let len = out.len();
+    let start = out.spare_capacity_mut().as_mut_ptr().cast::<u8>();
+    let mut written = 0usize;
+    // SAFETY: the room reserved holds `H` bytes from `len`, then `size` for each of at most `count` items (`take`);
+    // `at` has passed `size` for each item written so far, and `buffer` holds `size <= FIXED_STACK` bytes. `u8` has
+    // alignment 1.
+    unsafe {
+        start.cast::<[u8; H]>().write(head);
+        let mut at = start.add(H);
+        for v in values.take(count) {
+            let mut buffer = [0u8; FIXED_STACK];
+            encode(v, buffer.get_mut(..size).unwrap_or_default());
+            core::ptr::copy_nonoverlapping(buffer.as_ptr(), at, size);
+            at = at.add(size);
+            // At most `count`: one an item.
+            written = written.wrapping_add(1);
+        }
+    }
+    // SAFETY: `H` bytes, then `size` for each of the `written <= count` items, are written from `len`, within the
+    // room reserved (so the product does not wrap).
+    unsafe { out.set_len(len.wrapping_add(H).wrapping_add(written.wrapping_mul(size))) };
+}
+
 /// Decodes each of `chunks` (the elements of a block of fixed-size values, its bytes already taken from the input)
 /// into a `Vec` allocated once at its exact length: `collect` into a `Result` does not know the length and grows the
 /// `Vec` as it goes. Stops at the first error, dropping the values decoded so far.
@@ -2787,6 +2828,144 @@ mod tests {
                 extend_fixed(&mut got, [], &values, size, encode);
                 assert_eq!(got.get(3..), want.get(7..), "{size} {n}");
             }
+        }
+    }
+
+    /// `extend_fixed_iter` against encoding each item in turn, for every count to 256 and sizes of 1 to `FIXED_STACK`
+    /// bytes, and with an iterator that yields fewer items than its `len` says (only those are kept).
+    #[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+    #[test]
+    fn extend_fixed_iter_matches_plain() {
+        /// Yields the items of `inner`, while its `len` claims `extra` more.
+        struct Short<I> {
+            inner: I,
+            extra: usize,
+        }
+        impl<I: ExactSizeIterator> Iterator for Short<I> {
+            type Item = I::Item;
+            fn next(&mut self) -> Option<I::Item> {
+                self.inner.next()
+            }
+            fn size_hint(&self) -> (usize, Option<usize>) {
+                let n = self.inner.len() + self.extra;
+                (n, Some(n))
+            }
+        }
+        impl<I: ExactSizeIterator> ExactSizeIterator for Short<I> {}
+        let mut seed = 0xC2B2_AE3D_27D4_EB4Fu64;
+        let counts: Vec<usize> = if cfg!(miri) { vec![0, 1, 5, 17] } else { (0..=256).collect() };
+        for size in [1usize, 2, 3, 8, 10, 16, 33, FIXED_STACK] {
+            for &n in &counts {
+                let values: Vec<Vec<u8>> = (0..n).map(|_| random_bytes(&mut seed, size, 0)).collect();
+                // Writes all but the last byte, which stays zero.
+                let encode = |v: &Vec<u8>, out: &mut [u8]| {
+                    for (o, &b) in out.iter_mut().zip(v.iter().take(size - 1)) {
+                        *o = b;
+                    }
+                };
+                let mut want = vec![7u8; 3];
+                want.extend_from_slice(&[1, 2, 3, 4]);
+                for v in &values {
+                    let mut b = vec![0u8; size];
+                    encode(v, &mut b);
+                    want.extend_from_slice(&b);
+                }
+                let mut got = vec![7u8; 3];
+                extend_fixed_iter(&mut got, [1, 2, 3, 4], values.iter(), size, encode);
+                assert_eq!(got, want, "{size} {n}");
+                let mut got = vec![7u8; 3];
+                extend_fixed_iter(&mut got, [1, 2, 3, 4], Short { inner: values.iter(), extra: 3 }, size, encode);
+                assert_eq!(got, want, "{size} {n} short");
+                let mut got = vec![7u8; 3];
+                extend_fixed_iter(&mut got, [], values.iter(), size, encode);
+                assert_eq!(got.get(3..), want.get(7..), "{size} {n}");
+            }
+        }
+    }
+
+    /// A map of fixed-size keys and values, read and written as one block, against reading and writing its entries
+    /// one by one: every count to 256 (fewer under Miri), random bytes with bad bools and repeated keys, whole and cut
+    /// short; the same map or the same error, and the same bytes.
+    #[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::unwrap_used)]
+    #[test]
+    fn maps_match_entry_by_entry() {
+        use crate::error::{Error, ErrorKind, Result};
+        use crate::reader::Reader;
+        use crate::traits::{NinoRead, NinoWrite};
+        use crate::types::Guid;
+        use std::collections::{BTreeMap, HashMap};
+        /// The entries one by one, as maps of other keys and values are read.
+        fn each<K: NinoRead, V: NinoRead>(bytes: &[u8], mut insert: impl FnMut(K, V) -> bool) -> Result<()> {
+            let mut r = Reader::new(bytes);
+            // The length's own checks, as every map's read makes them.
+            let count = r.length(K::MIN_SIZE + V::MIN_SIZE)?.ok_or_else(Error::null)?;
+            for _ in 0..count {
+                let key = K::read(&mut r)?;
+                let value = V::read(&mut r)?;
+                if !insert(key, value) {
+                    return Err(Error::of(ErrorKind::DuplicateKey));
+                }
+            }
+            Ok(())
+        }
+        fn check<K, V>(seed: &mut u64, n: usize)
+        where
+            K: NinoRead + NinoWrite + Ord + core::hash::Hash + Clone + core::fmt::Debug,
+            V: NinoRead + NinoWrite + PartialEq + core::fmt::Debug,
+        {
+            let name = core::any::type_name::<(K, V)>();
+            let size = <K as NinoRead>::FIXED_SIZE + <V as NinoRead>::FIXED_SIZE;
+            for bad in [0u8, 0xFF] {
+                let mut bytes = (n as i32).to_le_bytes().to_vec();
+                bytes.extend(random_bytes(seed, n * size, bad));
+                // Mostly small keys and values (valid bools, repeated keys), some random.
+                if !seed.is_multiple_of(3) {
+                    for (k, b) in bytes.iter_mut().enumerate().skip(4) {
+                        if (k - 4) % size != 0 && *b != bad {
+                            *b = 0;
+                        } else if *b != bad {
+                            *b &= 1;
+                        }
+                    }
+                }
+                for cut in [0, 1, size] {
+                    let bytes = &bytes[..bytes.len().saturating_sub(cut).max(4)];
+                    let mut want = HashMap::new();
+                    let plain = each::<K, V>(bytes, |k, v| want.insert(k, v).is_none()).map(|()| want);
+                    let got = HashMap::<K, V>::read(&mut Reader::new(bytes));
+                    assert_eq!(got, plain, "{name} {n} {cut} hash");
+                    let mut want = BTreeMap::new();
+                    let plain = each::<K, V>(bytes, |k, v| want.insert(k, v).is_none()).map(|()| want);
+                    let got = BTreeMap::<K, V>::read(&mut Reader::new(bytes));
+                    assert_eq!(got, plain, "{name} {n} {cut} tree");
+                    // Written back: the length, then each entry in the map's order.
+                    if let Ok(map) = got {
+                        let mut w = crate::writer::Writer::new();
+                        w.length(map.len()).unwrap();
+                        for (k, v) in &map {
+                            k.write(&mut w).unwrap();
+                            v.write(&mut w).unwrap();
+                        }
+                        assert_eq!(crate::serialize(&map).unwrap(), w.into_vec(), "{name} {n} tree write");
+                        let hash: HashMap<K, V> = map.into_iter().collect();
+                        let mut w = crate::writer::Writer::new();
+                        w.length(hash.len()).unwrap();
+                        for (k, v) in &hash {
+                            k.write(&mut w).unwrap();
+                            v.write(&mut w).unwrap();
+                        }
+                        assert_eq!(crate::serialize(&hash).unwrap(), w.into_vec(), "{name} {n} hash write");
+                    }
+                }
+            }
+        }
+        let mut seed = 0x6A09_E667_F3BC_C908u64;
+        let counts: Vec<usize> = if cfg!(miri) { vec![0, 1, 7] } else { (0..=256).collect() };
+        for n in counts {
+            check::<i32, i32>(&mut seed, n);
+            check::<u8, bool>(&mut seed, n);
+            check::<bool, u64>(&mut seed, n);
+            check::<(i16, bool), Guid>(&mut seed, n);
         }
     }
 

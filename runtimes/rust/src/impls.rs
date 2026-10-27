@@ -119,6 +119,61 @@ pub(crate) fn read_key<T: NinoRead>(r: &mut Reader<'_>) -> Result<T> {
     Ok(value)
 }
 
+/// Whether a map of `K` and `V` is written as one block of entries ([`write_entries_fixed`]): both fixed-size, an
+/// entry small enough for [`crate::simd::extend_fixed_iter`]'s buffer.
+const fn entries_fixed(key: usize, value: usize) -> bool {
+    key != 0 && value != 0 && key.saturating_add(value) <= crate::simd::FIXED_STACK
+}
+
+/// A map's length and entries (fixed-size keys and values, [`entries_fixed`]) in one block: one reservation, each
+/// key and value encoded into its bytes, no length check, `Result` or reservation an entry.
+#[inline]
+fn write_entries_fixed<'e, K, V, I>(entries: I, w: &mut Writer<'_>) -> Result<()>
+where
+    K: NinoWrite + 'e,
+    V: NinoWrite + 'e,
+    I: ExactSizeIterator<Item = (&'e K, &'e V)>,
+{
+    let length = i32::try_from(entries.len()).map_err(|_| Error::too_large())?;
+    let size = K::FIXED_SIZE.saturating_add(V::FIXED_SIZE);
+    crate::simd::extend_fixed_iter(w.buffer(), length.to_le_bytes(), entries, size, |(k, v), out| {
+        if let Some((a, b)) = out.split_at_mut_checked(K::FIXED_SIZE) {
+            k.encode_fixed(a);
+            v.encode_fixed(b);
+        }
+    });
+    Ok(())
+}
+
+/// The bytes of a map's `count` entries (fixed-size keys and values, [`entries_fixed`]) with one length check, each
+/// key and value decoded from its bytes and passed to `insert` in order (the same values, errors and order as reading
+/// them one by one). `None`, having read nothing, when the input holds fewer bytes: the caller then reads entry by
+/// entry, which reports the error it always did.
+#[inline]
+fn read_entries_fixed<K: NinoRead, V: NinoRead>(
+    r: &mut Reader<'_>,
+    count: usize,
+    mut insert: impl FnMut(K, V) -> Result<()>,
+) -> Option<Result<()>> {
+    let size = K::FIXED_SIZE.saturating_add(V::FIXED_SIZE);
+    let bytes = r.take(count.checked_mul(size)?).ok()?;
+    for entry in bytes.chunks_exact(size) {
+        let Some((k, v)) = entry.split_at_checked(K::FIXED_SIZE) else { break };
+        let key = match K::decode_fixed(k) {
+            Ok(key) => key,
+            Err(e) => return Some(Err(e)),
+        };
+        let value = match V::decode_fixed(v) {
+            Ok(value) => value,
+            Err(e) => return Some(Err(e)),
+        };
+        if let Err(e) = insert(key, value) {
+            return Some(Err(e));
+        }
+    }
+    Some(Ok(()))
+}
+
 /// A [`Step::Dyn`] from a closure.
 pub fn dyn_step<F>(f: F) -> Step
 where
@@ -635,6 +690,18 @@ where
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = HashMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
+        if entries_fixed(K::FIXED_SIZE, V::FIXED_SIZE) {
+            let block = read_entries_fixed(r, count, |key, value| match map.entry(key) {
+                hash_map::Entry::Occupied(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+                hash_map::Entry::Vacant(e) => {
+                    e.insert(value);
+                    Ok(())
+                }
+            });
+            if let Some(done) = block {
+                return done.map(|()| Some(map));
+            }
+        }
         for _ in 0..count {
             let key = read_key::<K>(r)?;
             let value = if V::MAY_DEFER {
@@ -675,6 +742,15 @@ where
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = BTreeMap::new();
+        if entries_fixed(K::FIXED_SIZE, V::FIXED_SIZE) {
+            let block = read_entries_fixed(r, count, |key, value| match map.insert(key, value) {
+                Some(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+                None => Ok(()),
+            });
+            if let Some(done) = block {
+                return done.map(|()| Some(map));
+            }
+        }
         for _ in 0..count {
             let key = read_key::<K>(r)?;
             let value = if V::MAY_DEFER {
@@ -698,6 +774,9 @@ where
 
 impl<K: NinoWrite, V: NinoWrite, S> NinoWrite for HashMap<K, V, S> {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        if entries_fixed(K::FIXED_SIZE, V::FIXED_SIZE) {
+            return write_entries_fixed(self.iter(), w);
+        }
         w.length(self.len())?;
         for (k, v) in self {
             k.write(w)?;
@@ -719,6 +798,9 @@ impl<K: NinoWrite, V: NinoWrite, S> NinoWrite for HashMap<K, V, S> {
 
 impl<K: NinoWrite, V: NinoWrite> NinoWrite for BTreeMap<K, V> {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        if entries_fixed(K::FIXED_SIZE, V::FIXED_SIZE) {
+            return write_entries_fixed(self.iter(), w);
+        }
         w.length(self.len())?;
         for (k, v) in self {
             k.write(w)?;
