@@ -14,7 +14,7 @@ One set of inputs, written by .NET Nino, that every Nino runtime (.NET, TypeScri
 
 ```
 corpus/
-  index.json                 {"corpusVersion": 1, "valid": [names], "malicious": [names]}
+  index.json                 {"corpusVersion": 2, "valid": [names], "malicious": [names]}
   valid/<case>.bin           the bytes
   valid/<case>.json          what they are (below)
   malicious/<case>.bin       the bytes

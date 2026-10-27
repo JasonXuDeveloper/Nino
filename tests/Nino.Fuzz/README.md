@@ -1,9 +1,8 @@
 # Nino.Fuzz
 
 Fuzzing for Nino's deserializer: data from an untrusted source must be read or rejected with Nino's documented
-exception (`InvalidOperationException` whose message starts with `Nino: `, or `OverflowException` from
-`NinoThrow.TooLarge`), never anything else. CI runs it on every pull request and nightly
-(`.github/workflows/fuzz.yml`).
+exception (a `NinoDataException` whose message starts with `Nino: `), never anything else. CI runs it on every pull
+request and nightly (`.github/workflows/fuzz.yml`).
 
 It has three parts:
 

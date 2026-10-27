@@ -9,9 +9,9 @@ using Nino.Core.Internal;
 namespace Nino.UnitTests;
 
 /// <summary>
-/// Stack and Queue are read and written through their backing arrays (StackView, QueueView), and collections of raw
-/// elements behind an interface as one block: the bytes must stay those of the element-by-element encoding (a List of
-/// the same elements, in order), and the collections must work normally afterward.
+/// Stack and Queue are read and written through their backing arrays (the fields CollectionViews declares), and
+/// collections of raw elements behind an interface as one block: the bytes must stay those of the element-by-element
+/// encoding (a List of the same elements, in order), and the collections must work normally afterward.
 /// </summary>
 [TestClass]
 public class StackQueueTests
