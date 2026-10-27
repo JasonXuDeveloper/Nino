@@ -41,8 +41,11 @@ func (t tier) setup() {
 }
 
 // short takes ASCII text of fewer than 32 bytes (BX) at SI to the list kernel's one store (see many), else jumps
-// to long: the 32 bytes from the byte before the text, read under a mask (AVX-512: the byte before and the bytes
-// past the text masked out, so no fault) or where they lie in one page (AVX2: then masked).
+// to long or cold. AVX-512: the 32 bytes from the byte before the text, read under a mask (the byte before and the
+// bytes past the text masked out, so no fault). AVX2: the 32 bytes from the text where they lie in one page, the
+// bytes past it masked out, then moved up a byte for the header: a block read from the byte before the text, as
+// AVX-512 reads it, crossed a cache line more often, and text that is not ASCII handed to the kernel (shortHand)
+// had to be moved back down.
 func (t tier) short(f frame) {
 	c.CMPQ(RBX, U8(32))
 	c.JAE(l("long"))
@@ -54,16 +57,14 @@ func (t tier) short(f frame) {
 		c.KMOVD(R13L, K1)
 		c.VMOVDQU8_Z(Mem{Base: RSI, Disp: -1}, K1, Y0)
 	} else {
-		c.LEAQ(Mem{Base: RSI, Disp: -1}, R8)
-		c.MOVL(R8L, R9L)
+		c.MOVL(ESI, R9L)
 		c.ANDL(U32(4095), R9L)
 		c.CMPL(R9L, U32(4064))
 		c.JA(l("long"))
-		c.LEAL(Mem{Base: RBX, Disp: 1}, R10L)
-		c.VMOVD(R10L, X4)
+		c.VMOVD(EBX, X4)
 		c.VPBROADCASTB(X4, Y4)
-		c.VPCMPGTB(k("IDX1"), Y4, Y4) // FF for the n bytes of text, not the byte before
-		c.VMOVDQU(Mem{Base: R8}, Y0)
+		c.VPCMPGTB(k("IDX"), Y4, Y4) // FF for the n bytes of text
+		c.VMOVDQU(Mem{Base: RSI}, Y0)
 		c.VPAND(Y4, Y0, Y0)
 	}
 	c.VPMOVMSKB(Y0, R8L)
@@ -72,6 +73,10 @@ func (t tier) short(f frame) {
 		c.JNZ(l("slatin"))
 	} else {
 		c.JNZ(l("shand"))
+	}
+	if !t.evex {
+		c.VPERM2I128(U8(0x08), Y0, Y0, Y1) // the low half high, zeros low
+		c.VPALIGNR(U8(15), Y1, Y0, Y0)     // the text a byte up, the first byte zero
 	}
 	c.Label("sstore")
 	c.Comment("The header, 2n+1, in the first byte.")
@@ -90,12 +95,10 @@ func (t tier) cold(f frame) {
 	}
 }
 
-// shortHand is the AVX2 short path for text with a byte of 0x80 or above: the block read (Y0, from the byte before
-// the text) moved down a byte and handed to the kernel as the block it would read, past its page check and load.
+// shortHand is the AVX2 short path for text with a byte of 0x80 or above: the block read (Y0, the text and zeros
+// past it) handed to the kernel as the block it would read, past its page check and load.
 func (t tier) shortHand(f frame) {
 	c.Label("shand")
-	c.VPERM2I128(U8(0x81), Y0, Y0, Y1) // the high half low, zeros high
-	c.VPALIGNR(U8(1), Y0, Y1, Y0)      // the text from the first byte, zeros past it
 	c.MOVQ(RBX, RAX)
 	lowBits(R13L)
 	c.INCQ(RDI)
