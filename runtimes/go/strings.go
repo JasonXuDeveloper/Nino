@@ -117,6 +117,9 @@ func (r *Reader) NullableString() (s string, ok bool) {
 				r.buf = b[n:]
 				return unsafe.String((*byte)(t), n), true
 			}
+			// A char above U+007F: decoded without testing the text for ASCII again.
+			r.buf = b[n:]
+			return r.latin1Above(b[:n]), true
 		}
 	} else {
 		h = r.longHeader()
@@ -467,14 +470,33 @@ func (r *Reader) latin1Short(b []byte) string {
 	var m int
 	if isASCII(b) {
 		m = copy(t, b)
-	} else if useRead && len(t) >= n+wireSlack {
-		// The vector path (strings_wire_amd64.s), with room for its stores.
-		m = readLatin1(unsafe.Pointer(unsafe.SliceData(t)), unsafe.Pointer(unsafe.SliceData(b)), len(b))
 	} else {
-		m = latin1UTF8(t, b)
+		m = latin1Text(t, b)
 	}
 	r.textAt += m
 	return unsafe.String(unsafe.SliceData(t), m)
+}
+
+// latin1Above is latin1Short for text known to hold a char above U+007F (NullableString's ASCII test failed):
+// testing it for ASCII again cost Latin-1 text 14% on x86_64.
+func (r *Reader) latin1Above(b []byte) string {
+	n := 2 * len(b)
+	if len(r.text)-r.textAt < n {
+		r.textRoom(n)
+	}
+	t := r.text[r.textAt:]
+	m := latin1Text(t, b)
+	r.textAt += m
+	return unsafe.String(unsafe.SliceData(t), m)
+}
+
+// latin1Text writes the Latin-1 bytes b as UTF-8 to t (room for 2*len(b)) and returns the bytes written.
+func latin1Text(t, b []byte) int {
+	if useRead && len(t) >= 2*len(b)+wireSlack {
+		// The vector path (strings_wire_amd64.s), with room for its stores.
+		return readLatin1(unsafe.Pointer(unsafe.SliceData(t)), unsafe.Pointer(unsafe.SliceData(b)), len(b))
+	}
+	return latin1UTF8(t, b)
 }
 
 // utf16Short returns the text of UTF-16 code units (0 < len(b)/2 <= textShort/3) as WTF-8, in r.text.
