@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: game-message-zero-alloc
+expected_outcome: |
+  Messages.cs and MessageCodec.cs use Nino v4 correctly: [NinoType] types (partial where needed), a polymorphic Item base with Weapon and Potion, a blittable float struct, serialization into a reused IBufferWriter/NinoArrayBufferWriter, and deserialization into an existing instance; the code compiles against Nino v4 without NINO warnings.

@@ -11,8 +11,9 @@ readme = "README.md"
 homepage = "https://nino.xgamedev.net/en/docs/v4/advanced/codegen#rust"
 keywords = ["nino", "serialization", "binary", "dotnet", "serializer"]
 categories = ["encoding"]
-# The tests read the conformance corpus at the repository root; the published crate is the library alone.
-exclude = ["tests/"]
+# The tests read the conformance corpus at the repository root, and AGENTS.md / CLAUDE.md are for contributors:
+# the published crate is the library alone.
+exclude = ["tests/", "AGENTS.md", "CLAUDE.md"]
 
 [lib]
 name = "nino"

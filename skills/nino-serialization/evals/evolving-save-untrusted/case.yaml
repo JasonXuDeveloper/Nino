@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: evolving-save-untrusted
+expected_outcome: |
+  SaveGame.cs uses a keyed format (NinoFormat.Keyed) with [NinoFormerName("gold")] on coins (or an equivalent the source supports); SaveLoader.cs reads with Nino's untrusted settings and catches NinoDataException; NOTES.md correctly says what changes each format tolerates; everything compiles against Nino v4.

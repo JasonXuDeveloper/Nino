@@ -21,5 +21,14 @@ typescript 13f8fcf f86b07a
 # its floor; the bench against main (block DateTime arrays in SimpleClass); the string tails' bounds checks alone.
 # stopped (refs do not build on the module's Go 1.22: b.Loop): go:internal/generated#12 d2fe06a c3f953f Blocks
 # stopped (refs do not build on the module's Go 1.22: b.Loop): go:internal/generated#12 d2fe06a d2fe06a Blocks
-go#12 03fdc71 af05371 //^(Nino|NinoTags)$
-go#12 af05371 c3f953f //^Nino$
+# replaced by the lines below (phase10/go rebased on 1622ddb, every ref vetted with Go 1.22): go#12 03fdc71 af05371 //^(Nino|NinoTags)$
+# replaced by the lines below: go#12 af05371 c3f953f //^Nino$
+# phase10/go e70605d (rebased on main 1622ddb): BenchmarkBlocks from e5bf730 (main plus the benchmark) to the blocks
+# (0d3ffdc) with its floor; the integer-key repeat check (0d3ffdc to e70605d, Blocks/int); the bench module against
+# main with its floor; the string tails' bounds checks alone (0dd4684 to 88bfc1f).
+go:internal/generated#12 e5bf730 0d3ffdc Blocks
+go:internal/generated#12 e5bf730 e5bf730 Blocks
+go:internal/generated#12 0d3ffdc e70605d Blocks/int
+go#12 1622ddb e70605d //^(Nino|NinoTags)$
+go#12 1622ddb 1622ddb //^(Nino|NinoTags)$
+go#12 0dd4684 88bfc1f //^Nino$

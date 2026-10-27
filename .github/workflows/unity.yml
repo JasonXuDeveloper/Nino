@@ -27,6 +27,8 @@ on:
       - 'global.json'
       - 'nuget.config'
       - '.github/workflows/unity.yml'
+      - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
+      - '!**/CLAUDE.md'
   pull_request:
     branches: [ "main" ]
     paths: *paths

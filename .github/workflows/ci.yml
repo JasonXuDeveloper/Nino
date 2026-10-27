@@ -22,6 +22,9 @@ on:
       - '.github/workflows/ci.yml'
       - '.github/actions/setup-dotnet/**'
       - '.github/scripts/test_shards.py'
+      - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
+      - '!**/CLAUDE.md'
+      - '!tools/agents.sh'   # checked by agents.yml
   pull_request:
     branches: [ "main" ]
     paths: *paths

@@ -21,6 +21,8 @@ on:
       - 'nuget.config'
       - '.github/workflows/fuzz.yml'
       - '.github/actions/setup-dotnet/**'
+      - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
+      - '!**/CLAUDE.md'
   pull_request:
     branches: [ "main" ]
     paths: *paths
