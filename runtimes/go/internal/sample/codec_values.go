@@ -432,7 +432,7 @@ func writeStructsBody(w *nino.Writer, v *Structs) {
 	writeRaw(w, v.Sized, 16, encodeSized)
 	writeRaw(w, v.Nested, 32, encodeNested)
 	writeLabel(w, v.Label)
-	nino.WriteRaw(w, v.VecArray, 8, asIsVec2, nil, encodeVec2)
+	nino.WriteRaw(w, v.VecArray, 8, asIsVec2, nil, nil, encodeVec2)
 	nino.WriteFixed(w, v.PaddedList, 16, encodePadded)
 	nino.WriteFixed(w, v.MixedArray, 12, encodeMixed)
 	nino.WriteSlice(w, v.Labels, writeLabel)
