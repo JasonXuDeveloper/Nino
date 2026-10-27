@@ -123,14 +123,16 @@ func encodeARM64(s string) string {
 	return strings.Join(lines, "\n")
 }
 
-// constantsARM64 is the wireN<> table: the bit of each byte of 8 (twice), 16 bytes of FF then 16 of 0 (read from
-// 16 minus the bytes left on, a mask of the bytes of the text), the bit of each 16-bit lane of 8, then two bits
-// apart (and the higher of those), and the tables of the UTF-8 validation.
+// constantsARM64 is the wireN<> table: the bit of each byte of 8 (twice), 16 bytes of padding, 16 bytes of FF then
+// 16 of 0 (read from 16 minus the bytes left on, a mask of the bytes of the text; 32 bytes in, as the linker aligns
+// the table to 32 bytes only, so that no window of them crosses a cache line), the bit of each 16-bit lane of 8,
+// then two bits apart (and the higher of those), and the tables of the UTF-8 validation.
 func constantsARM64() string {
 	var t []byte
 	for i := 0; i < 16; i++ {
 		t = append(t, 1<<(i&7))
 	}
+	t = append(t, make([]byte, 16)...) // so that the mask starts 32 bytes in: see N_MASK
 	for i := 0; i < 16; i++ {
 		t = append(t, 0xFF)
 	}
@@ -163,14 +165,14 @@ func constantsARM64() string {
 	}
 	fmt.Fprintf(&b, "GLOBL wireN<>(SB), RODATA|NOPTR, $%#x\n\n", len(t))
 	b.WriteString(`#define N_BITS 0     // the bit of each byte of 8, twice
-#define N_MASK 16    // 16 bytes of FF, then 16 of 0
-#define N_LANES 48   // the bit of each 16-bit lane of 8
-#define N_PAIRS 64   // 1, 4, 16 ... 4^7: two bits a lane
-#define N_PAIRS2 80  // twice those
-#define N_T1 96      // the tables of the UTF-8 validation (see strings_wire_amd64.s)
-#define N_T2 112
-#define N_T3 128
-#define N_TAIL 144   // the most each of the last three bytes may be (no char cut at the end)
+#define N_MASK 32    // 16 bytes of FF, then 16 of 0 (32 bytes in: see constantsARM64)
+#define N_LANES 64   // the bit of each 16-bit lane of 8
+#define N_PAIRS 80   // 1, 4, 16 ... 4^7: two bits a lane
+#define N_PAIRS2 96  // twice those
+#define N_T1 112     // the tables of the UTF-8 validation (see strings_wire_amd64.s)
+#define N_T2 128
+#define N_T3 144
+#define N_TAIL 160   // the most each of the last three bytes may be (no char cut at the end)
 `)
 	return b.String()
 }
