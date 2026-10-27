@@ -59,6 +59,11 @@ impl nino::Raw for Point {
 
 impl NinoRead for Point {
     const MIN_SIZE: usize = 8;
+    const FIXED_SIZE: usize = 8;
+
+    fn decode_fixed(b: &[u8]) -> Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
 
     fn read(r: &mut Reader<'_>) -> Result<Self> {
         <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
@@ -66,6 +71,12 @@ impl NinoRead for Point {
 }
 
 impl NinoWrite for Point {
+    const FIXED_SIZE: usize = 8;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         let mut b = [0u8; 8];
         nino::Raw::encode_raw(self, &mut b);
