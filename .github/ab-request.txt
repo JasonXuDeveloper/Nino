@@ -1,9 +1,14 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+# phase10/rust round 2: the branch head 9768148 (c3 dropped) against main, main against itself, and the blocks bench floor.
+rust 1622ddb 9768148 ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(serialize|deserialize)/nino$
+rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(serialize|deserialize)/nino$
+rust:blocks 781d955 9768148 blocks/
+rust:blocks 781d955 781d955 blocks/
 # phase10/rust: first, so the 2-hour jobs reach them (each ~10 min): c1+c2 vs main, c3 on its own (string writes), main vs itself, the blocks bench.
-rust 1622ddb 2ccdfab ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 2ccdfab 73974ff ^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/serialize/nino$
-rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust:blocks 781d955 9980f8b
+# done (run 40533976003): rust 1622ddb 2ccdfab ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+# done (run 40533976003): rust 2ccdfab 73974ff ^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/serialize/nino$
+# done (run 40533976003): rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+# done (run 40533976003): rust:blocks 781d955 9980f8b
 # phase9/rust-records 4e4be1e against 36cfdbf twice, and 36cfdbf against itself (the noise floor of each runner). (done, landed as 9b03940)
 # done: rust 36cfdbf 36cfdbf ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 # done: rust 36cfdbf 4e4be1e ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
