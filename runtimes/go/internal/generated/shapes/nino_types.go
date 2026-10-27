@@ -1826,7 +1826,7 @@ func writeV17(w *nino.Writer, v Flags) {
 }
 
 func writeV18(w *nino.Writer, v []Gappy) {
-	nino.WriteFixed(w, v, 8, encodeGappy)
+	nino.WriteRaw(w, v, 8, asIsGappy, nil, []int{1, 2, 3}, encodeGappy)
 }
 
 func writeV19(w *nino.Writer, v nino.Entry[*string, int32]) {
@@ -1847,7 +1847,7 @@ func readV22(r *nino.Reader) []Marked {
 }
 
 func writeV23(w *nino.Writer, v []Marked) {
-	nino.WriteRaw(w, v, 8, asIsMarked, []int{4}, encodeMarked)
+	nino.WriteRaw(w, v, 8, asIsMarked, []int{4}, nil, encodeMarked)
 }
 
 func readV24(r *nino.Reader) []*Box[int32] {

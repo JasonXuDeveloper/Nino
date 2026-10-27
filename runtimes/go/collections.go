@@ -1,6 +1,9 @@
 package nino
 
-import "unsafe"
+import (
+	"encoding/binary"
+	"unsafe"
+)
 
 // Collections: an int32 length (-1 for null), then the elements; a dictionary's pairs key first. A nil slice or
 // map is null, an empty one is empty.
@@ -238,9 +241,10 @@ func rawBools(b []byte, size int, bools []int) bool {
 }
 
 // WriteRaw writes a sequence of raw elements of size bytes each, as [WriteFixed] does, copying their memory as one
-// block where it is their bytes: asIs and bools as for [ReadRaw], asIs also saying that T has no padding (which
-// [WriteFixed] writes as zeros). A bool whose byte is not 0 or 1 (set through unsafe) is written as 1.
-func WriteRaw[T any](w *Writer, v []T, size int, asIs bool, bools []int, encode func(b []byte, e T)) {
+// block where it is their bytes: asIs and bools as for [ReadRaw], and pads the offsets of the bytes no field fills
+// (padding), which [WriteFixed] writes as zeros and so does the block once copied. A bool whose byte is not 0 or 1
+// (set through unsafe) is written as 1.
+func WriteRaw[T any](w *Writer, v []T, size int, asIs bool, bools, pads []int, encode func(b []byte, e T)) {
 	var zero T
 	if !asIs || !littleEndian || int(unsafe.Sizeof(zero)) != size {
 		WriteFixed(w, v, size, encode)
@@ -256,8 +260,50 @@ func WriteRaw[T any](w *Writer, v []T, size int, asIs bool, bools []int, encode 
 		return
 	}
 	copy(b, unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), len(v)*size))
+	if len(pads) != 0 {
+		clearPads(b, size, pads)
+	}
 	if len(bools) != 0 && !rawBools(b, size, bools) {
 		normalizeRawBools(b, size, bools)
+	}
+}
+
+// clearPads sets the bytes at the offsets pads in each element (size bytes) of b to 0. Elements of up to 32 bytes
+// are cleared 8 at a time, ANDed a word at a time with a mask of 8 elements (size words, on the stack); larger ones
+// byte by byte.
+func clearPads(b []byte, size int, pads []int) {
+	if size > 32 {
+		for _, o := range pads {
+			for i := uint(o); i < uint(len(b)); i += uint(size) {
+				b[i] = 0
+			}
+		}
+		return
+	}
+	var bytes [32 * 8]byte
+	m := bytes[:8*size]
+	for i := range m {
+		m[i] = 0xFF
+	}
+	for e := 0; e < len(m); e += size {
+		for _, o := range pads {
+			m[e+o] = 0
+		}
+	}
+	var words [32]uint64
+	mask := words[:size]
+	for k := range mask {
+		mask[k] = binary.LittleEndian.Uint64(m[8*k:])
+	}
+	for len(b) >= len(m) {
+		for k, x := range mask {
+			w := b[8*k : 8*k+8 : 8*k+8]
+			binary.LittleEndian.PutUint64(w, binary.LittleEndian.Uint64(w)&x)
+		}
+		b = b[len(m):]
+	}
+	for i := range b {
+		b[i] &= m[i]
 	}
 }
 

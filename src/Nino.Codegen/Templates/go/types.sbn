@@ -216,8 +216,8 @@ func helper_body(h)
   end
   if $s.mode == "fixed"
     $b = $s.element.raw_block
-    if $b && !$b.padded
-      ret $o + "\tnino.WriteRaw(w, v, " + $s.element.size + ", " + $b.as_is + ", " + $b.bools + ", " + encode_fn($s.element) + ")\n}\n"
+    if $b
+      ret $o + "\tnino.WriteRaw(w, v, " + $s.element.size + ", " + $b.as_is + ", " + $b.bools + ", " + $b.pads + ", " + encode_fn($s.element) + ")\n}\n"
     end
     ret $o + "\tnino.WriteFixed(w, v, " + $s.element.size + ", " + encode_fn($s.element) + ")\n}\n"
   else if $s.element.block

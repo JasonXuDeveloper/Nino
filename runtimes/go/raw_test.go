@@ -103,7 +103,7 @@ func TestRawBlocks(t *testing.T) {
 		}
 		want := encode(t, func(w *Writer) { WriteFixed(w, v, 8, encodeRawPoint) })
 		for _, asIs := range []bool{true, false} {
-			got := encode(t, func(w *Writer) { WriteRaw(w, v, 8, asIs, bools, encodeRawPoint) })
+			got := encode(t, func(w *Writer) { WriteRaw(w, v, 8, asIs, bools, nil, encodeRawPoint) })
 			if !bytes.Equal(got, want) {
 				t.Fatalf("n=%d asIs=%v: wrote %x, want %x", n, asIs, got, want)
 			}
@@ -122,16 +122,92 @@ func TestRawBlocks(t *testing.T) {
 			if n > 0 {
 				odd := append([]rawPoint(nil), v...)
 				*(*byte)(unsafe.Pointer(&odd[n-1].Flag)) = 0x42
-				got := encode(t, func(w *Writer) { WriteRaw(w, odd, 8, asIs, bools, encodeRawPoint) })
+				got := encode(t, func(w *Writer) { WriteRaw(w, odd, 8, asIs, bools, nil, encodeRawPoint) })
 				if got[4+8*(n-1)+4] > 1 || asIs && rawPointAsIs && littleEndian && got[4+8*(n-1)+4] != 1 {
 					t.Fatalf("n=%d asIs=%v: bool written as %d", n, asIs, got[4+8*(n-1)+4])
 				}
 			}
 		}
 	}
-	expectBytes(t, encode(t, func(w *Writer) { WriteRaw[rawPoint](w, nil, 8, true, nil, encodeRawPoint) }), "FFFFFFFF")
+	expectBytes(t, encode(t, func(w *Writer) { WriteRaw[rawPoint](w, nil, 8, true, nil, nil, encodeRawPoint) }), "FFFFFFFF")
 	if v := ReadRaw(NewReader(hx("FFFFFFFF")), 8, true, nil, decodeRawPoint); v != nil {
 		t.Fatal(v)
 	}
 	expectCode(t, hx("02000000 0000000000000000"), CodeInvalidLength, func(r *Reader) { ReadRaw(r, 8, true, nil, decodeRawPoint) })
+}
+
+// rawMixed has padding: a byte after A and three after D (12 bytes, the wire's layout where int32 aligns to 4).
+type rawMixed struct {
+	A uint8
+	B int16
+	C int32
+	D uint8
+}
+
+const rawMixedAsIs = unsafe.Sizeof(rawMixed{}) == 12 && unsafe.Offsetof(rawMixed{}.B) == 2 &&
+	unsafe.Offsetof(rawMixed{}.C) == 4 && unsafe.Offsetof(rawMixed{}.D) == 8
+
+func encodeRawMixed(b []byte, v rawMixed) {
+	_ = b[11]
+	b[0] = v.A
+	binary.LittleEndian.PutUint16(b[2:], uint16(v.B))
+	binary.LittleEndian.PutUint32(b[4:], uint32(v.C))
+	b[8] = v.D
+}
+
+// rawWide has padding and is larger than clearPads' mask (40 bytes): byte by byte.
+type rawWide struct {
+	A uint8
+	B int64
+	C uint8
+	D int64
+	E int32
+	F bool
+}
+
+const rawWideAsIs = unsafe.Sizeof(rawWide{}) == 40 && unsafe.Offsetof(rawWide{}.B) == 8 &&
+	unsafe.Offsetof(rawWide{}.C) == 16 && unsafe.Offsetof(rawWide{}.D) == 24 && unsafe.Offsetof(rawWide{}.E) == 32 &&
+	unsafe.Offsetof(rawWide{}.F) == 36
+
+func encodeRawWide(b []byte, v rawWide) {
+	_ = b[39]
+	b[0] = v.A
+	binary.LittleEndian.PutUint64(b[8:], uint64(v.B))
+	b[16] = v.C
+	binary.LittleEndian.PutUint64(b[24:], uint64(v.D))
+	binary.LittleEndian.PutUint32(b[32:], uint32(v.E))
+	b[36] = boolByte(v.F)
+}
+
+// checkPadded writes v with its padding bytes set to garbage (through unsafe) with WriteRaw and checks the bytes are
+// WriteFixed's, padding written as zeros.
+func checkPadded[T any](t *testing.T, v []T, size int, asIs bool, bools, pads []int, enc func([]byte, T)) {
+	t.Helper()
+	for i := range v {
+		p := unsafe.Slice((*byte)(unsafe.Pointer(&v[i])), size)
+		for k, o := range pads {
+			p[o] = byte(0xA5 + i + k)
+		}
+	}
+	want := encode(t, func(w *Writer) { WriteFixed(w, v, size, enc) })
+	got := encode(t, func(w *Writer) { WriteRaw(w, v, size, asIs, bools, pads, enc) })
+	if !bytes.Equal(got, want) {
+		t.Fatalf("%T, %d elements: wrote %x, want %x", v, len(v), got, want)
+	}
+}
+
+// TestRawPadded checks WriteRaw on raw structs with padding against WriteFixed: every length to 40 (the mask covers 8
+// elements), elements of 12 bytes (the mask) and 40 (byte by byte).
+func TestRawPadded(t *testing.T) {
+	for n := 0; n <= 40; n++ {
+		m := make([]rawMixed, n)
+		wide := make([]rawWide, n)
+		for i := range m {
+			m[i] = rawMixed{A: uint8(i), B: int16(-i), C: int32(i) * 7919, D: uint8(i >> 2)}
+			wide[i] = rawWide{A: uint8(i), B: -int64(i) << 40, C: 0xFF, D: int64(i), E: int32(i) * 3, F: i%2 == 0}
+		}
+		checkPadded(t, m, 12, rawMixedAsIs, nil, []int{1, 9, 10, 11}, encodeRawMixed)
+		checkPadded(t, wide, 40, rawWideAsIs, []int{36}, []int{1, 2, 3, 4, 5, 6, 7, 17, 18, 19, 20, 21, 22, 23, 37, 38, 39},
+			encodeRawWide)
+	}
 }

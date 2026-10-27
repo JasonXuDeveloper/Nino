@@ -5611,7 +5611,7 @@ func readV74(r *nino.Reader) []Padded {
 }
 
 func writeV75(w *nino.Writer, v []Padded) {
-	nino.WriteFixed(w, v, 16, encodePadded)
+	nino.WriteRaw(w, v, 16, asIsPadded, nil, []int{1, 2, 3, 4, 5, 6, 7}, encodePadded)
 }
 
 func readV76(r *nino.Reader) []Vec2 {
@@ -5648,11 +5648,11 @@ func readV81(r *nino.Reader) nino.Entry[*string, Vec2] {
 }
 
 func writeV82(w *nino.Writer, v []Vec2) {
-	nino.WriteRaw(w, v, 8, asIsVec2, nil, encodeVec2)
+	nino.WriteRaw(w, v, 8, asIsVec2, nil, nil, encodeVec2)
 }
 
 func writeV83(w *nino.Writer, v []Mixed) {
-	nino.WriteFixed(w, v, 12, encodeMixed)
+	nino.WriteRaw(w, v, 12, asIsMixed, nil, []int{1, 9, 10, 11}, encodeMixed)
 }
 
 func writeV84(w *nino.Writer, v []Label) {
