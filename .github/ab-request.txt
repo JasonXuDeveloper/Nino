@@ -1,5 +1,5 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase9/rust-records fc7a19e (+ 16 to 32-byte ASCII strings in SSE2 registers on x64): against 36cfdbf twice, and against da43ccf.
+# phase9/rust-records fc7a19e again: against 36cfdbf three times (more rounds, and more CPUs drawn).
 rust 36cfdbf fc7a19e ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 rust 36cfdbf fc7a19e ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust da43ccf fc7a19e ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf fc7a19e ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
