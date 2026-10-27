@@ -69,7 +69,7 @@ those can express it).
 ## 8. Docs (`audit-docs`)
 
 Nino's README, README.zh.md, `docs/` and the nino.docs site (English and Chinese pages, the changelog), the public
-skill `skills/nino/SKILL.md`, the file map of each directory the change touches (`audit-layout`). Numbers only
+skill `skills/nino-serialization/SKILL.md`, the file map of each directory the change touches (`audit-layout`). Numbers only
 through the synced benchmark data.
 
 ## 9. Commits and landing (`verify`)

@@ -26,7 +26,7 @@ One round = parallel audits, each in its own worktree and branch off `origin/mai
 | `audit-ci` | `.github/workflows`, `.github/actions` | slow or serial jobs, red risks, pinning |
 | `audit-redundancy` | no files of its own: the sweep across every layer; fixes go to the owners | duplicated or dead code, unused files, overlapping stages, rules, APIs, generated code, skills and docs |
 | `audit-naming` | every name: a report; internal renames in their own commit | ambiguous or inconsistent names, Chinese terms |
-| `audit-docs` | README, README.zh.md, `docs/`, CONTRIBUTING.md, runtime READMEs, `skills/nino`, nino.docs | docs that disagree with the code or each other, duplication, gaps |
+| `audit-docs` | README, README.zh.md, `docs/`, CONTRIBUTING.md, runtime READMEs, `skills/nino-serialization`, nino.docs | docs that disagree with the code or each other, duplication, gaps |
 
 `audit-generator`, `audit-generated-code` and `audit-analyzer` share `src/Nino.Generator`: give the shared files
 (`NinoSymbols.cs`, `Model*.cs`) to one of them, or run them in different rounds. `optimize` and `audit-perf`

@@ -58,7 +58,7 @@ docs/           design, wire-format spec, codegen, diagnostics, pitfalls, benchm
 tools/          CodeGen (generated formatter families), agents.sh
 build/          the props users import to turn the generator on
 .github/        workflows, the setup-dotnet action, release and test scripts
-skills/nino/    the public skill: how AI agents use Nino (`npx skills add JasonXuDeveloper/Nino`)
+skills/         the public skill nino-serialization: how AI agents use Nino (`npx skills add JasonXuDeveloper/Nino`)
 .claude/skills/ the development skills (internal); .agents/skills links here
 ```
 

@@ -1,6 +1,6 @@
 ---
 name: audit-docs
-description: "Audit and write all of Nino's docs - the nino.docs site (English and Chinese pages, changelog, benchmark data), README.md and README.zh.md, docs/ in this repository, CONTRIBUTING.md, the runtimes' READMEs and the public skill skills/nino - so that every feature is documented in order with its recommended form, its fast form, its costs and pitfalls, every statement matches the code, nothing is said twice, and English and Chinese agree. Use once the code is final (the docs pass), after a user-facing change lands, and before a release. Triggers: docs, README, *.mdx, nino.docs, changelog, page, example, en/zh, llms.txt, the public skill, \"docs out of date\", 文档, 网站, 中文文档, 更新日志, 例子, 文档同步, 写得不对."
+description: "Audit and write all of Nino's docs - the nino.docs site (English and Chinese pages, changelog, benchmark data), README.md and README.zh.md, docs/ in this repository, CONTRIBUTING.md, the runtimes' READMEs and the public skill skills/nino-serialization - so that every feature is documented in order with its recommended form, its fast form, its costs and pitfalls, every statement matches the code, nothing is said twice, and English and Chinese agree. Use once the code is final (the docs pass), after a user-facing change lands, and before a release. Triggers: docs, README, *.mdx, nino.docs, changelog, page, example, en/zh, llms.txt, the public skill, \"docs out of date\", 文档, 网站, 中文文档, 更新日志, 例子, 文档同步, 写得不对."
 metadata:
   internal: true
 ---
@@ -66,7 +66,7 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   linking its issue and its page. Bring it in line with Nino at the start of any docs work (nino.docs AGENTS.md has
   the steps: releases, `git log <tag>..origin/main` with the trailers). A user-facing commit without a trailer
   needs a follow-up commit that carries one.
-- **The public skill** (`skills/nino/SKILL.md`) holds what users' agents need to write correct, fast Nino code: the
+- **The public skill** (`skills/nino-serialization/SKILL.md`) holds what users' agents need to write correct, fast Nino code: the
   recommended forms, the fast forms, the pitfalls and the diagnostics, matching the pages.
 - Stale names: grep the old names of every rename across both repositories; history pages (changelog, migration,
   v3-vs-v4) keep them on purpose.

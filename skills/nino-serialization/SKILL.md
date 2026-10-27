@@ -1,5 +1,5 @@
 ---
-name: nino
+name: nino-serialization
 description: "Write correct, fast code with Nino v4 (the source-generated binary serializer for C# on NuGet as Nino, in Unity from OpenUPM) - [NinoType] classes, structs, records and interfaces, member order, constructors, positional / version-tolerant / keyed formats, polymorphism, reference tracking, [NinoUtf8], [NinoPooled] and reuse deserialization, custom formatters, NinoSettings for untrusted input, ASP.NET Core bodies, and TypeScript, Go and Rust codecs from nino-gen - and fix what the NINO analyzer reports. Use when writing, reviewing or migrating code that uses Nino, or choosing a binary format for .NET, Unity, Godot or HybridCLR data. Triggers: a project referencing Nino, Nino.Serialization, Nino.Core, Nino.AspNetCore or Nino.Codegen, [NinoType], NinoSerializer, NinoDeserializer, NinoDataException, a NINO0xx or NINOGEN diagnostic, application/x-nino, nino-gen, 用 Nino 序列化, Nino 反序列化, 二进制序列化, 给类型加 NinoType."
 ---
 

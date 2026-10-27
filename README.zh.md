@@ -115,10 +115,10 @@ openupm add com.jasonxudeveloper.nino           # Unity（已包含生成器和 
 ### 给 AI 编程助手
 
 ```bash
-npx skills add JasonXuDeveloper/Nino   # 安装 `nino` skill：Claude Code、Codex、Cursor、Copilot 等都能用
+npx skills add JasonXuDeveloper/Nino   # 安装 `nino-serialization` skill：Claude Code、Codex、Cursor、Copilot 等都能用
 ```
 
-装上这个 skill（[skills/nino/SKILL.md](skills/nino/SKILL.md)）后，助手会按 Nino 的规则声明类型、调用 API、选用快的写法，
+装上这个 skill（[skills/nino-serialization/SKILL.md](skills/nino-serialization/SKILL.md)）后，助手会按 Nino 的规则声明类型、调用 API、选用快的写法，
 并修好 Nino 报的诊断。文档也有给模型读的版本：https://nino.xgamedev.net/llms.txt。
 
 ## 快速开始
