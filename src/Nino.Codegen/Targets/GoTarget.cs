@@ -510,7 +510,9 @@ namespace Nino.Codegen.Targets
                     var (k, v) = (Shape(value.Key!, true), Shape(value.Value!, false));
                     return Open(value, new GoShape("map")
                     {
-                        Key = k, Value = v, Mode = Comparable(k) || k.Kind is "keystring" or "keyutf8" ? "unique" : "entries",
+                        Key = k, Value = v,
+                        Mode = k.Block && v.Block ? "block"
+                            : Comparable(k) || k.Kind is "keystring" or "keyutf8" ? "unique" : "entries",
                         MinSize = 4,
                     }, false);
                 }
@@ -1013,8 +1015,9 @@ namespace Nino.Codegen.Targets
         /// <summary>
         /// A sequence's way: <c>bytes</c>, <c>block</c>, <c>bools</c>, <c>values</c> (a block of dates, decimals,
         /// Guids or 128-bit integers), <c>fixed</c> (raw values at their stride),
-        /// <c>unique</c> (a set of comparable values), <c>stringset</c>, <c>slice</c>; a map's: <c>unique</c>
-        /// (repeated keys fail) or <c>entries</c>.
+        /// <c>unique</c> (a set of comparable values), <c>stringset</c>, <c>slice</c>; a map's: <c>block</c>
+        /// (primitive keys and values, pairs copied as one block where their memory is their bytes; repeated keys
+        /// fail), <c>unique</c> (repeated keys fail) or <c>entries</c>.
         /// </summary>
         public string? Mode { get; internal set; }
 

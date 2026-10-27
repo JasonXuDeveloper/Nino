@@ -211,3 +211,85 @@ func normalizeBools(b []byte) {
 		}
 	}
 }
+
+// ReadPrimitiveEntries reads a dictionary of primitive keys and values as its pairs in the order of the data (nil
+// for null): a key read twice fails with CodeDuplicateKey, as [ReadUniqueEntries]. On little-endian hosts, where
+// Entry[K, V] has no padding (its memory is the bytes of a pair), the pairs are one block copied as memory; elsewhere
+// (big-endian hosts, a pair such as int8 and int64 that is padded in memory) they are read one at a time.
+func ReadPrimitiveEntries[K, V Primitive](r *Reader) []Entry[K, V] {
+	var e Entry[K, V]
+	size := int(unsafe.Sizeof(e))
+	wire := int(unsafe.Sizeof(e.Key) + unsafe.Sizeof(e.Value))
+	if !littleEndian || size != wire {
+		return ReadUniqueEntries(r, wire, readPrimitive[K], readPrimitive[V])
+	}
+	n := r.Length(size)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * size)
+	if len(b) != n*size {
+		return nil
+	}
+	v := make([]Entry[K, V], n)
+	copy(unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), n*size), b)
+	repeated := false
+	if keySize := intKeySize[K](); keySize != 0 {
+		repeated = repeatedKey(unsafe.Pointer(unsafe.SliceData(v)), n, size, keySize)
+	} else {
+		repeated = repeatedEntryKeys(v)
+	}
+	if repeated {
+		r.Fail(CodeDuplicateKey, "")
+		return nil
+	}
+	return v
+}
+
+// repeatedEntryKeys reports whether two keys (floating-point ones, compared as Go's maps compare them) of e are
+// equal.
+//
+//go:noinline
+func repeatedEntryKeys[K comparable, V any](e []Entry[K, V]) bool {
+	seen := make(map[K]struct{}, len(e))
+	for i, p := range e {
+		if seen[p.Key] = struct{}{}; len(seen) != i+1 {
+			return true
+		}
+	}
+	return false
+}
+
+// WritePrimitiveEntries writes a dictionary of primitive keys and values as its pairs, in order (nil is null): one
+// block copied from memory where [ReadPrimitiveEntries] reads one, else one pair at a time.
+func WritePrimitiveEntries[K, V Primitive](w *Writer, e []Entry[K, V]) {
+	var p Entry[K, V]
+	size := int(unsafe.Sizeof(p))
+	if !littleEndian || size != int(unsafe.Sizeof(p.Key)+unsafe.Sizeof(p.Value)) {
+		WriteEntries(w, e, writePrimitive[K], writePrimitive[V])
+		return
+	}
+	if e == nil {
+		w.Null()
+		return
+	}
+	w.Length(len(e))
+	b := w.Extend(len(e) * size)
+	if len(b) != len(e)*size {
+		return
+	}
+	copy(b, unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(e))), len(e)*size))
+}
+
+// readPrimitive reads one primitive in little-endian order.
+func readPrimitive[T Primitive](r *Reader) T {
+	var v [1]T
+	ReadPrimitivesInto(r, v[:])
+	return v[0]
+}
+
+// writePrimitive writes one primitive in little-endian order.
+func writePrimitive[T Primitive](w *Writer, x T) {
+	v := [1]T{x}
+	WritePrimitivesRaw(w, v[:])
+}
