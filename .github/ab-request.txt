@@ -21,3 +21,5 @@ go#12 af05371 c3f953f //^Nino$
 typescript 36cfdbf 13f8fcf
 typescript 506720c 13f8fcf
 typescript 506720c 506720c
+# phase10/ts f86b07a: medium Latin-1 text (17-32 chars) read four bytes a DataView call where Node's methods are missing.
+typescript 13f8fcf f86b07a
