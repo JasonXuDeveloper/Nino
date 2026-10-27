@@ -17,6 +17,17 @@ pub trait NinoRead: Sized + 'static {
     /// that many bytes per element are not left, before anything is allocated.
     const MIN_SIZE: usize = 1;
 
+    /// The size of every value on the wire when it is the same for all of them (numbers, `bool`, dates, raw
+    /// structs, tuples of these), else 0. A list of a fixed-size type is read as one block: one length check, then
+    /// [`NinoRead::decode_fixed`] on each element's bytes.
+    const FIXED_SIZE: usize = 0;
+
+    /// Reads a value from exactly [`NinoRead::FIXED_SIZE`] bytes (called only when that is not 0).
+    #[inline]
+    fn decode_fixed(bytes: &[u8]) -> Result<Self> {
+        Self::read(&mut Reader::new(bytes))
+    }
+
     /// Reads a value.
     fn read(r: &mut Reader<'_>) -> Result<Self>;
 
@@ -49,12 +60,31 @@ pub trait NinoRead: Sized + 'static {
     /// all with one length check.
     #[inline]
     fn read_many(r: &mut Reader<'_>, count: usize) -> Result<Vec<Self>> {
+        if Self::FIXED_SIZE != 0 {
+            return crate::impls::read_fixed(r, count);
+        }
         crate::impls::read_each(r, count)
     }
 }
 
 /// A value that can be written in Nino's format.
 pub trait NinoWrite {
+    /// As [`NinoRead::FIXED_SIZE`]: the size of every value on the wire when it is the same for all of them, else 0.
+    /// A slice of a fixed-size type is written as one block, [`NinoWrite::encode_fixed`] on each element's bytes.
+    const FIXED_SIZE: usize = 0;
+
+    /// Writes the value into `out`, exactly [`NinoWrite::FIXED_SIZE`] bytes, zeroed (called only when that is not 0).
+    #[inline]
+    fn encode_fixed(&self, out: &mut [u8]) {
+        let mut w = Writer::new();
+        if self.write(&mut w).is_ok() {
+            let bytes = w.as_slice();
+            if let Some(dst) = out.get_mut(..bytes.len()) {
+                dst.copy_from_slice(bytes);
+            }
+        }
+    }
+
     /// Writes the value. `'a` is the lifetime of the value: deferred bodies are written later in the same call.
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()>;
 
@@ -82,6 +112,10 @@ pub trait NinoWrite {
     where
         Self: Sized,
     {
+        if Self::FIXED_SIZE != 0 {
+            crate::impls::write_fixed(values, w);
+            return Ok(());
+        }
         for v in values {
             v.write(w)?;
         }
@@ -95,6 +129,9 @@ pub trait NinoWrite {
     where
         Self: Sized,
     {
+        if Self::FIXED_SIZE != 0 {
+            return crate::impls::write_counted_fixed(values, w);
+        }
         w.length(values.len())?;
         Self::write_many(values, w)
     }
