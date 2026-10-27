@@ -3,6 +3,7 @@ package nino
 import (
 	"bytes"
 	"cmp"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"math"
@@ -860,4 +861,65 @@ func writeSorted[K cmp.Ordered, V any](w *Writer, m map[K]V, wk func(*Writer, K)
 		wk(w, k)
 		wv(w, m[k])
 	}
+}
+
+type tagTimes []DateTime
+
+type tagBlocks struct {
+	Bools    []bool     `nino:"0"`
+	Times    tagTimes   `nino:"1"`
+	Days     []DateOnly `nino:"2"`
+	Clocks   []TimeOnly `nino:"3"`
+	Prices   []Decimal  `nino:"4"`
+	Ids      []Guid     `nino:"5"`
+	Signed   []Int128   `nino:"6"`
+	Unsigned []UInt128  `nino:"7"`
+	Empty    []bool     `nino:"8"`
+}
+
+// Slices of bools and BlockValues: the bytes writing each element gives, read back, nil and empty kept, and an
+// invalid value rejected, on both paths (the unsafe one reads and writes them as blocks).
+func TestTagBlocks(t *testing.T) {
+	bothModes(t, func(t *testing.T) {
+		v := &tagBlocks{
+			Bools: []bool{true, false, true}, Times: tagTimes{NewDateTime(638712864000000000, KindUtc), 0},
+			Days: []DateOnly{MaxDateOnly}, Clocks: []TimeOnly{MaxTimeOnly, 0}, Prices: []Decimal{{Flags: 3 << 16, Lo: 7}},
+			Ids: []Guid{{1, 2}}, Signed: []Int128{{Lo: 1, Hi: 2}}, Empty: []bool{},
+		}
+		got, err := Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := Serialize(v, func(w *Writer, v *tagBlocks) {
+			w.Present(true)
+			WriteSlice(w, v.Bools, (*Writer).Bool)
+			WriteSlice(w, v.Times, (*Writer).DateTime)
+			WriteSlice(w, v.Days, (*Writer).DateOnly)
+			WriteSlice(w, v.Clocks, (*Writer).TimeOnly)
+			WriteSlice(w, v.Prices, (*Writer).Decimal)
+			WriteSlice(w, v.Ids, (*Writer).Guid)
+			WriteSlice(w, v.Signed, (*Writer).I128)
+			WriteSlice(w, v.Unsigned, (*Writer).U128)
+			WriteSlice(w, v.Empty, (*Writer).Bool)
+		})
+		if err != nil || !bytes.Equal(got, want) {
+			t.Fatalf("\n got %X\nwant %X (%v)", got, want, err)
+		}
+		var back *tagBlocks
+		if err := UnmarshalExact(got, &back); err != nil || !reflect.DeepEqual(back, v) {
+			t.Fatalf("read back %+v (%v)", back, err)
+		}
+		// The first DateTime's kind bits kept, its ticks past MaxTicks.
+		bad := append([]byte(nil), got...)
+		at := 1 + 4 + 3 + 4
+		binary.LittleEndian.PutUint64(bad[at:], uint64(MaxTicks+1))
+		if err := UnmarshalExact(bad, &back); !errors.Is(err, ErrInvalidData) {
+			t.Fatalf("a DateTime past MaxTicks: %v", err)
+		}
+		bad = append([]byte(nil), got...)
+		bad[1+4+1] = 2
+		if err := UnmarshalExact(bad, &back); !errors.Is(err, ErrInvalidData) {
+			t.Fatalf("a bool of 2: %v", err)
+		}
+	})
 }
