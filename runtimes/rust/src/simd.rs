@@ -1285,13 +1285,18 @@ pub(crate) fn strings(out: &mut Vec<u8>, values: &[String]) -> usize {
             x86::Tier::Sse2 | x86::Tier::Ssse3 => strings_short(out, values),
         }
     }
-    #[cfg(not(target_arch = "x86_64"))]
+    // Arm64: the list kernel ([`neon::strings`]).
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+    return neon::strings(out, values);
+    #[cfg(not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little"))))]
     strings_short(out, values)
 }
 
 /// The list loop without a one-pass kernel (every target but x86_64 with SSE4.1): the strings from the start of
 /// `values` while each is at most [`SHORT`] bytes, ASCII through [`ascii_short`] and other text through
 /// [`short_wide`]'s body inlined; returns how many it wrote.
+// Arm64 takes `neon::strings` (the tests compare the two).
+#[cfg(any(test, not(all(target_arch = "aarch64", target_endian = "little"))))]
 #[inline]
 fn strings_short(out: &mut Vec<u8>, values: &[String]) -> usize {
     for (k, v) in values.iter().enumerate() {
@@ -2626,6 +2631,8 @@ mod tests {
                 ways.push(("avx-512", |out, values| unsafe { x86::strings_avx512(out, values) }, 63));
             }
         }
+        #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+        ways.push(("neon", neon::strings, 63));
         ways
     }
 
