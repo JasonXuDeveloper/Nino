@@ -172,6 +172,8 @@ pub(crate) fn write(w: &mut Writer<'_>, text: &str) -> Result<()> {
 /// from the first string that is not, each through [`write`], as other lists are written.
 #[inline]
 pub(crate) fn write_strings(w: &mut Writer<'_>, values: &[String]) -> Result<()> {
+    // The run's loop is inlined into the caller: where it sits is then the same whatever code comes before.
+    crate::simd::align_code();
     let mut rest = values;
     loop {
         let (done, run) = crate::simd::ascii_strings(w.buffer(), rest);
@@ -191,6 +193,8 @@ pub(crate) fn write_strings(w: &mut Writer<'_>, values: &[String]) -> Result<()>
 /// compiles as it does on its own (inlined after the run, a list of mixed text wrote 7% slower on x86_64 with AVX2).
 #[inline(never)]
 fn write_each(w: &mut Writer<'_>, values: &[String]) -> Result<()> {
+    // Where the list loop is (inlined here on every target but x86_64) is then the same in every build.
+    crate::simd::align_code();
     let mut rest = values;
     while !rest.is_empty() {
         let done = crate::simd::strings(w.buffer(), rest);

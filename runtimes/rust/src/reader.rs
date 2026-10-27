@@ -304,6 +304,7 @@ impl<'d> Reader<'d> {
     /// the first that is not, each through [`Reader::string`], as other lists are read (in a list of mixed text the
     /// block's test would mostly fail).
     pub(crate) fn strings(&mut self, count: usize) -> Result<Vec<String>> {
+        crate::simd::align_code();
         let mut values = Vec::with_capacity(self.capacity::<String>(count));
         let mut left = count;
         while left != 0 {
