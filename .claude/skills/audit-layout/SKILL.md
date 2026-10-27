@@ -38,6 +38,18 @@ its own `AGENTS.md` maps every file in it.
   `build/` props are imported by users) stays where it is unless the owner agrees.
 - Run `verify` for what the references touch, `actionlint` for workflows, and `tools/agents.sh` (then `--check`).
 
+## Adding files that nothing builds
+
+A new kind of file inside source folders (instruction files, notes, eval runs, generated reports) reaches every
+mechanism that selects files by path. Check each before landing it:
+- workflow `paths:` filters: exclude it where it only costs runs (`'!**/AGENTS.md'`); the AGENTS.md files once ran
+  every job, Unity's single license seat included, for a change nothing builds;
+- packages: Cargo `exclude` (the crate ships its whole folder otherwise), npm `files`, NuGet `Pack` items, the Unity
+  package copy in `release.yml`; a Go module always holds its folder, so keep only harmless text there;
+- `.gitignore` for what tools write next to sources (skill-creator's `<skill>-workspace/`), and patterns broad enough
+  to hide a source folder (anchor them: `/memory/`); `.gitattributes` for line endings, binaries and generated files;
+- scripts that walk a folder (`glob`, `rglob`, `os.walk`) and treat every file in it as theirs.
+
 ## Report
 
 Moves made (old → new, references updated), files deleted and why, and proposals left for the owner.
