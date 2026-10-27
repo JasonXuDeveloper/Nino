@@ -123,6 +123,8 @@ func rfn(s)
       ret "nino.ReadPrimitives[" + gotype(s.element) + "]"
     else if s.mode == "bools"
       ret "nino.ReadBools"
+    else if s.mode == "values"
+      ret "nino.ReadBlock[" + gotype(s.element) + "]"
     end
   end
   ret helper(s, "read")
@@ -193,6 +195,8 @@ func wfn(s)
       ret "nino.WritePrimitives[" + gotype(s.element) + "]"
     else if s.mode == "bools"
       ret "nino.WriteBools"
+    else if s.mode == "values"
+      ret "nino.WriteBlock[" + gotype(s.element) + "]"
     end
   end
   ret helper(s, "write")

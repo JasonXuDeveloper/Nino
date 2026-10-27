@@ -71,6 +71,72 @@ impl Gappy {
     pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x82B9FBC0; deferrable=false; members=raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)}";
 }
 
+/// `Shapes.Marked`: raw, 8 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Marked {
+    pub id: i32,
+    pub on: bool,
+    pub kind: u8,
+    pub code: i16,
+}
+
+impl nino::Raw for Marked {
+    const SIZE: usize = 8;
+    const ALIGN: usize = 4;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..8).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        Ok(Self {
+            id: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            on: <bool as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
+            kind: <u8 as nino::Raw>::decode_raw(b.get(5..).unwrap_or_default())?,
+            code: <i16 as nino::Raw>::decode_raw(b.get(6..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.id, o);
+        }
+        if let Some(o) = out.get_mut(4..) {
+            nino::Raw::encode_raw(&self.on, o);
+        }
+        if let Some(o) = out.get_mut(5..) {
+            nino::Raw::encode_raw(&self.kind, o);
+        }
+        if let Some(o) = out.get_mut(6..) {
+            nino::Raw::encode_raw(&self.code, o);
+        }
+    }
+}
+
+impl NinoRead for Marked {
+    const MIN_SIZE: usize = 8;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
+    }
+}
+
+impl NinoWrite for Marked {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 8];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+impl Marked {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0xA8246323u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Shapes.Marked";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0xA8246323; deferrable=false; members=raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)}";
+}
+
 /// `Shapes.ThingStruct`: raw, 16 bytes.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -1414,6 +1480,87 @@ impl ShapesRightItem {
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3418E03C; deferrable=true; members=Right:int:raw(4)";
 }
 
+/// `Shapes.Stamps`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Stamps {
+    pub times: Option<Vec<nino::DateTime>>,
+    pub days: Option<Vec<nino::DateOnly>>,
+    pub clocks: Option<Vec<nino::TimeOnly>>,
+    pub prices: Option<Vec<nino::Decimal>>,
+    pub ids: Option<Vec<nino::Guid>>,
+    pub signed: Option<Vec<i128>>,
+    pub unsigned: Option<Vec<u128>>,
+    pub marks: Option<Vec<Marked>>,
+}
+
+impl NinoReadBody for Stamps {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        self.times = r.read()?;
+        self.days = r.read()?;
+        self.clocks = r.read()?;
+        self.prices = r.read()?;
+        self.ids = r.read()?;
+        self.signed = r.read()?;
+        self.unsigned = r.read()?;
+        self.marks = r.read()?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for Stamps {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.times)?;
+        w.write(&self.days)?;
+        w.write(&self.clocks)?;
+        w.write(&self.prices)?;
+        w.write(&self.ids)?;
+        w.write(&self.signed)?;
+        w.write(&self.unsigned)?;
+        w.write(&self.marks)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for Stamps {
+    const MAY_DEFER: bool = true;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        r.read_sealed_value()
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        r.read_sealed()
+    }
+
+    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
+        r.read_sealed_boxed_value()
+    }
+
+    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
+        r.read_sealed_boxed()
+    }
+}
+
+impl NinoWrite for Stamps {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(Some(self))
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write_sealed(value)
+    }
+}
+
+impl Stamps {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0xB5FF2A7Fu32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Shapes.Stamps";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xB5FF2A7F; deferrable=true; members=Times:System.DateTime[]:seq(raw(8));Days:System.Collections.Generic.List<System.DateOnly>:seq(raw(4));Clocks:System.TimeOnly[]:seq(raw(8));Prices:decimal[]:seq(raw(16));Ids:System.Collections.Generic.List<System.Guid>:seq(raw(16));Signed:System.Int128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Unsigned:System.UInt128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Marks:Shapes.Marked[]:seq(raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)})";
+}
+
 /// `Shapes.ThingClass`: Positional, header NullFlag.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -1841,11 +1988,13 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Shapes.IThing" => f.visit::<Option<IThingRef>>(),
         "Shapes.Keywords" => f.visit::<Option<Box<Keywords>>>(),
         "Shapes.Left.Item" => f.visit::<Option<Box<ShapesLeftItem>>>(),
+        "Shapes.Marked" => f.visit::<Marked>(),
         "Shapes.NinoGrid" => f.visit::<Option<Box<NinoGrid>>>(),
         "Shapes.Outer+Inner" => f.visit::<Option<Box<OuterInner>>>(),
         "Shapes.Recursive" => f.visit::<Recursive>(),
         "Shapes.Renamed" => f.visit::<Option<Box<Renamed>>>(),
         "Shapes.Right.Item" => f.visit::<Option<Box<ShapesRightItem>>>(),
+        "Shapes.Stamps" => f.visit::<Option<Box<Stamps>>>(),
         "Shapes.ThingClass" => f.visit::<Option<Box<ThingClass>>>(),
         "Shapes.ThingStruct" => f.visit::<ThingStruct>(),
         _ => return None,

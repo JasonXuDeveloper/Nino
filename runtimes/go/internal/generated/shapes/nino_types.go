@@ -63,6 +63,49 @@ func writeGappy(w *nino.Writer, v Gappy) {
 	writeRaw(w, v, 8, encodeGappy)
 }
 
+// Marked is `Shapes.Marked`, copied as raw memory (8 bytes).
+type Marked struct {
+	Id   int32 `nino:"0" json:"id" yaml:"id"`
+	On   bool  `nino:"1" json:"on" yaml:"on"`
+	Kind uint8 `nino:"2" json:"kind" yaml:"kind"`
+	Code int16 `nino:"3" json:"code" yaml:"code"`
+}
+
+func decodeMarked(r *nino.Reader, b []byte) Marked {
+	_ = b[7]
+	var v Marked
+	v.Id = int32(le.Uint32(b))
+	v.On = r.BoolAt(b[4])
+	v.Kind = b[5]
+	v.Code = int16(le.Uint16(b[6:]))
+	return v
+}
+
+func encodeMarked(b []byte, v Marked) {
+	_ = b[7]
+	le.PutUint32(b, uint32(v.Id))
+	if v.On {
+		b[4] = 1
+	}
+	b[5] = byte(v.Kind)
+	le.PutUint16(b[6:], uint16(v.Code))
+}
+
+// asIsMarked: whether Marked's memory is its bytes (on a little-endian host), for arrays copied as one block.
+const asIsMarked = unsafe.Sizeof(Marked{}) == 8 &&
+	unsafe.Offsetof(Marked{}.Id) == 0 &&
+	unsafe.Offsetof(Marked{}.On) == 4 &&
+	unsafe.Offsetof(Marked{}.Kind) == 5 &&
+	unsafe.Offsetof(Marked{}.Code) == 6
+
+func readMarked(r *nino.Reader) Marked {
+	return readRaw(r, 8, decodeMarked)
+}
+
+func writeMarked(w *nino.Writer, v Marked) {
+	writeRaw(w, v, 8, encodeMarked)
+}
+
 // ThingStruct is `Shapes.ThingStruct`, copied as raw memory (16 bytes).
 type ThingStruct struct {
 	Id    int32 `nino:"0" json:"id" yaml:"id"`
@@ -129,6 +172,7 @@ var (
 	renamedClass         nino.Class[Renamed]
 	shapesLeftItemClass  nino.Class[ShapesLeftItem]
 	shapesRightItemClass nino.Class[ShapesRightItem]
+	stampsClass          nino.Class[Stamps]
 	thingClassClass      nino.Class[ThingClass]
 	unhashedKeysClass    nino.Class[UnhashedKeys]
 	usesClass            nino.Class[Uses]
@@ -172,6 +216,7 @@ func init() {
 	renamedClass = nino.Class[Renamed]{Read: readRenamedBody, Write: writeRenamedBody, Deferrable: true}
 	shapesLeftItemClass = nino.Class[ShapesLeftItem]{Read: readShapesLeftItemBody, Write: writeShapesLeftItemBody, Deferrable: true}
 	shapesRightItemClass = nino.Class[ShapesRightItem]{Read: readShapesRightItemBody, Write: writeShapesRightItemBody, Deferrable: true}
+	stampsClass = nino.Class[Stamps]{Read: readStampsBody, Write: writeStampsBody, Deferrable: true}
 	thingClassClass = nino.Class[ThingClass]{Read: readThingClassBody, Write: writeThingClassBody, Deferrable: true}
 	unhashedKeysClass = nino.Class[UnhashedKeys]{Read: readUnhashedKeysBody, Write: writeUnhashedKeysBody, Deferrable: true}
 	usesClass = nino.Class[Uses]{Read: readUsesBody, Write: writeUsesBody, Deferrable: true}
@@ -705,6 +750,26 @@ func writeKeywordsBody(w *nino.Writer, v *Keywords) {
 		le.PutUint32(b[16:], uint32(v.W))
 		le.PutUint32(b[20:], uint32(v.V))
 	}
+}
+
+func (Marked) NinoLayout() string {
+	return "format=Positional; header=None; trackReferences=false; raw=true; typeId=0xA8246323; deferrable=false; members=raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)}"
+}
+
+func (Marked) NinoTypeName() string {
+	return "Shapes.Marked"
+}
+
+func (Marked) NinoTypeID() int32 {
+	return -1474010333
+}
+
+func ReadMarked(r *nino.Reader) Marked {
+	return readMarked(r)
+}
+
+func WriteMarked(w *nino.Writer, v Marked) {
+	writeMarked(w, v)
 }
 
 // MoreOpen is `Shapes.Generic.MoreOpen<T>`.
@@ -1358,6 +1423,60 @@ func writeShapesRightItemBody(w *nino.Writer, v *ShapesRightItem) {
 	w.I32(v.Right)
 }
 
+// Stamps is `Shapes.Stamps`.
+type Stamps struct {
+	Times    []nino.DateTime `nino:"0" json:"times" yaml:"times"`
+	Days     []nino.DateOnly `nino:"1" json:"days" yaml:"days"`
+	Clocks   []nino.TimeOnly `nino:"2" json:"clocks" yaml:"clocks"`
+	Prices   []nino.Decimal  `nino:"3" json:"prices" yaml:"prices"`
+	Ids      []nino.Guid     `nino:"4" json:"ids" yaml:"ids"`
+	Signed   []nino.Int128   `nino:"5" json:"signed" yaml:"signed"`
+	Unsigned []nino.UInt128  `nino:"6" json:"unsigned" yaml:"unsigned"`
+	Marks    []Marked        `nino:"7" json:"marks" yaml:"marks"`
+}
+
+func (Stamps) NinoLayout() string {
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xB5FF2A7F; deferrable=true; members=Times:System.DateTime[]:seq(raw(8));Days:System.Collections.Generic.List<System.DateOnly>:seq(raw(4));Clocks:System.TimeOnly[]:seq(raw(8));Prices:decimal[]:seq(raw(16));Ids:System.Collections.Generic.List<System.Guid>:seq(raw(16));Signed:System.Int128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Unsigned:System.UInt128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Marks:Shapes.Marked[]:seq(raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)})"
+}
+
+func (Stamps) NinoTypeName() string {
+	return "Shapes.Stamps"
+}
+
+func (*Stamps) NinoTypeID() int32 {
+	return -1241568641
+}
+
+func ReadStamps(r *nino.Reader) *Stamps {
+	return nino.ReadSealed(r, &stampsClass)
+}
+
+func WriteStamps(w *nino.Writer, v *Stamps) {
+	nino.WriteSealed(w, v, &stampsClass)
+}
+
+func readStampsBody(r *nino.Reader, v *Stamps) {
+	v.Times = nino.ReadBlock[nino.DateTime](r)
+	v.Days = nino.ReadBlock[nino.DateOnly](r)
+	v.Clocks = nino.ReadBlock[nino.TimeOnly](r)
+	v.Prices = nino.ReadBlock[nino.Decimal](r)
+	v.Ids = nino.ReadBlock[nino.Guid](r)
+	v.Signed = nino.ReadBlock[nino.Int128](r)
+	v.Unsigned = nino.ReadBlock[nino.UInt128](r)
+	v.Marks = readV24(r)
+}
+
+func writeStampsBody(w *nino.Writer, v *Stamps) {
+	nino.WriteBlock[nino.DateTime](w, v.Times)
+	nino.WriteBlock[nino.DateOnly](w, v.Days)
+	nino.WriteBlock[nino.TimeOnly](w, v.Clocks)
+	nino.WriteBlock[nino.Decimal](w, v.Prices)
+	nino.WriteBlock[nino.Guid](w, v.Ids)
+	nino.WriteBlock[nino.Int128](w, v.Signed)
+	nino.WriteBlock[nino.UInt128](w, v.Unsigned)
+	writeV25(w, v.Marks)
+}
+
 // ThingClass is `Shapes.ThingClass`.
 type ThingClass struct {
 	Id    int32   `nino:"0" json:"id" yaml:"id"`
@@ -1502,13 +1621,13 @@ func readUsesBody(r *nino.Reader, v *Uses) {
 	v.Pair = codecV4.Read(r)
 	v.Nested = codecV5.Read(r)
 	v.Mixed = codecV7.Read(r)
-	v.Boxes = readV24(r)
+	v.Boxes = readV26(r)
 	v.Bag = codecV8.Read(r)
 	v.Chain = codecV9.Read(r)
 	v.Thing = codecV10.Read(r)
 	v.Array = codecV11.Read(r)
 	v.Complex = codecV12.Read(r)
-	v.Pairs = readV25(r)
+	v.Pairs = readV27(r)
 	v.Raw = codecV14.Read(r)
 	v.Tuple = codecV15.Read(r)
 	v.Maybe = codecV16.Read(r)
@@ -1524,13 +1643,13 @@ func writeUsesBody(w *nino.Writer, v *Uses) {
 	codecV4.Write(w, v.Pair)
 	codecV5.Write(w, v.Nested)
 	codecV7.Write(w, v.Mixed)
-	writeV26(w, v.Boxes)
+	writeV28(w, v.Boxes)
 	codecV8.Write(w, v.Bag)
 	codecV9.Write(w, v.Chain)
 	codecV10.Write(w, v.Thing)
 	codecV11.Write(w, v.Array)
 	codecV12.Write(w, v.Complex)
-	writeV27(w, v.Pairs)
+	writeV29(w, v.Pairs)
 	codecV14.Write(w, v.Raw)
 	codecV15.Write(w, v.Tuple)
 	codecV16.Write(w, v.Maybe)
@@ -1731,19 +1850,27 @@ func writeV23(w *nino.Writer, v []Recursive) {
 	nino.WriteSlice(w, v, WriteRecursive)
 }
 
-func readV24(r *nino.Reader) []*Box[int32] {
+func readV24(r *nino.Reader) []Marked {
+	return nino.ReadRaw(r, 8, asIsMarked, []int{4}, decodeMarked)
+}
+
+func writeV25(w *nino.Writer, v []Marked) {
+	nino.WriteRaw(w, v, 8, asIsMarked, []int{4}, encodeMarked)
+}
+
+func readV26(r *nino.Reader) []*Box[int32] {
 	return nino.ReadSlice(r, 1, codecV2.Read)
 }
 
-func readV25(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
+func readV27(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
 	return nino.ReadUniqueEntries(r, 1, keyString, codecV13.Read)
 }
 
-func writeV26(w *nino.Writer, v []*Box[int32]) {
+func writeV28(w *nino.Writer, v []*Box[int32]) {
 	nino.WriteSlice(w, v, codecV2.Write)
 }
 
-func writeV27(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
+func writeV29(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
 	nino.WriteEntries(w, v, (*nino.Writer).String, codecV13.Write)
 }
 
@@ -1866,6 +1993,8 @@ func NinoCodecOf(name string) (NinoCodec, bool) {
 		return codecOf(ReadIThing, WriteIThing), true
 	case "Shapes.Keywords":
 		return codecOf(ReadKeywords, WriteKeywords), true
+	case "Shapes.Marked":
+		return codecOf(ReadMarked, WriteMarked), true
 	case "Shapes.NinoGrid":
 		return codecOf(ReadNinoGridType, WriteNinoGridType), true
 	case "Shapes.Generic.OpenHolderUse":
@@ -1882,6 +2011,8 @@ func NinoCodecOf(name string) (NinoCodec, bool) {
 		return codecOf(ReadShapesLeftItem, WriteShapesLeftItem), true
 	case "Shapes.Right.Item":
 		return codecOf(ReadShapesRightItem, WriteShapesRightItem), true
+	case "Shapes.Stamps":
+		return codecOf(ReadStamps, WriteStamps), true
 	case "Shapes.ThingClass":
 		return codecOf(ReadThingClass, WriteThingClass), true
 	case "Shapes.ThingStruct":
