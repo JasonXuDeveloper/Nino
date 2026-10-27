@@ -12,11 +12,11 @@
 # done: typescript 506720c 506720c
 # phase10/ts 13f8fcf (string reads and writes, map writes in the templates; each side generates its own code):
 # against 36cfdbf, against main (506720c), and main against itself again (floor).
-typescript 36cfdbf 13f8fcf
-typescript 506720c 13f8fcf
-typescript 506720c 506720c
+# done: typescript 36cfdbf 13f8fcf
+# done: typescript 506720c 13f8fcf
+# done: typescript 506720c 506720c
 # phase10/ts f86b07a: medium Latin-1 text (17-32 chars) read four bytes a DataView call where Node's methods are missing.
-typescript 13f8fcf f86b07a
+# done: typescript 13f8fcf f86b07a
 # phase10/go c3f953f: arrays of raw structs and bools (BenchmarkBlocks, base d2fe06a: main with the benchmark), with
 # its floor; the bench against main (block DateTime arrays in SimpleClass); the string tails' bounds checks alone.
 # stopped (refs do not build on the module's Go 1.22: b.Loop): go:internal/generated#12 d2fe06a c3f953f Blocks
