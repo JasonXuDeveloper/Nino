@@ -345,8 +345,12 @@ func ReadUnique[T comparable](r *Reader, minSize int, read func(*Reader) T) []T 
 	}
 	var zero T
 	size := int(unsafe.Sizeof(zero))
+	keySize := intKeySize[T]()
 	v := make([]T, r.SliceCap(n, size))
-	seen := make(map[T]struct{}, capacity(n, size+hashSlot, len(r.buf)))
+	var seen map[T]struct{}
+	if keySize == 0 {
+		seen = make(map[T]struct{}, capacity(n, size+hashSlot, len(r.buf)))
+	}
 	for i := 0; i < n; i++ {
 		if i == len(v) {
 			v = growSlice(v, n)
@@ -355,11 +359,17 @@ func ReadUnique[T comparable](r *Reader, minSize int, read func(*Reader) T) []T 
 		if r.err != nil {
 			return nil
 		}
-		if seen[e] = struct{}{}; len(seen) != i+1 {
-			r.Fail(CodeDuplicateKey, "")
-			return nil
+		if keySize == 0 {
+			if seen[e] = struct{}{}; len(seen) != i+1 {
+				r.Fail(CodeDuplicateKey, "")
+				return nil
+			}
 		}
 		v[i] = e
+	}
+	if keySize != 0 && repeatedKey(unsafe.Pointer(unsafe.SliceData(v)), n, size, keySize) {
+		r.Fail(CodeDuplicateKey, "")
+		return nil
 	}
 	return v
 }
@@ -373,8 +383,13 @@ func ReadUniqueEntries[K comparable, V any](r *Reader, minSize int, readKey func
 	}
 	var e Entry[K, V]
 	var k K
-	v := make([]Entry[K, V], r.SliceCap(n, int(unsafe.Sizeof(e))))
-	seen := make(map[K]struct{}, capacity(n, int(unsafe.Sizeof(k))+hashSlot, len(r.buf)))
+	size := int(unsafe.Sizeof(e))
+	keySize := intKeySize[K]()
+	v := make([]Entry[K, V], r.SliceCap(n, size))
+	var seen map[K]struct{}
+	if keySize == 0 {
+		seen = make(map[K]struct{}, capacity(n, int(unsafe.Sizeof(k))+hashSlot, len(r.buf)))
+	}
 	for i := 0; i < n; i++ {
 		if i == len(v) {
 			v = growSlice(v, n)
@@ -384,11 +399,17 @@ func ReadUniqueEntries[K comparable, V any](r *Reader, minSize int, readKey func
 		if r.err != nil {
 			return nil
 		}
-		if seen[key] = struct{}{}; len(seen) != i+1 {
-			r.Fail(CodeDuplicateKey, "")
-			return nil
+		if keySize == 0 {
+			if seen[key] = struct{}{}; len(seen) != i+1 {
+				r.Fail(CodeDuplicateKey, "")
+				return nil
+			}
 		}
 		v[i] = Entry[K, V]{key, value}
+	}
+	if keySize != 0 && repeatedKey(unsafe.Pointer(unsafe.SliceData(v)), n, size, keySize) {
+		r.Fail(CodeDuplicateKey, "")
+		return nil
 	}
 	return v
 }
