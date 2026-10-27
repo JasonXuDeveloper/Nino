@@ -1,4 +1,13 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+# phase10/rust round 4: read/i8 (+12.5% on EPYC 7763 at n=10) against floors of 12+ a side: each line three times (filters that differ only in text), 2 rounds a job.
+rust:blocks 781d955 717f4bb ^blocks/(read/i8|write/map-i32-i32|(read|write)/tuple-.*)$
+rust:blocks 781d955 717f4bb blocks/(read/i8|write/map-i32-i32|(read|write)/tuple-[a-z0-9-]+)$
+rust:blocks 781d955 717f4bb blocks/((read|write)/tuple-.*|read/i8|write/map-i32-i32)$
+rust:blocks 781d955 781d955 ^blocks/(read/i8|write/map-i32-i32|(read|write)/tuple-.*)$
+rust:blocks 781d955 781d955 blocks/(read/i8|write/map-i32-i32|(read|write)/tuple-[a-z0-9-]+)$
+rust:blocks 781d955 781d955 blocks/((read|write)/tuple-.*|read/i8|write/map-i32-i32)$
+rust:blocks 717f4bb 717f4bb ^blocks/(read/i8|write/map-i32-i32|(read|write)/tuple-.*)$
+rust:blocks 717f4bb 717f4bb blocks/(read/i8|write/map-i32-i32|(read|write)/tuple-[a-z0-9-]+)$
 # phase10/rust round 3: c1 (9980f8b) and c2 (2ccdfab) apart on the string reads (strings-mixed-1000/deserialize was +4% on EPYC 7763), and more of head and main.
 # phase10/ts 6ed8a8a (ca515d6, and short text written four chars a store tests the first char alone, for Chromium
 # on EPYC 7763): against main with its floor (12-char SHAs so they run again), against ca515d6, and 69c314d alone.
