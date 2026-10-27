@@ -1,5 +1,9 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
 # phase10/rust round 4: read/i8 (+12.5% on EPYC 7763 at n=10) against floors of 12+ a side: each line three times (filters that differ only in text), 2 rounds a job.
+# phase10/ts-n2 experiments on 6ed8a8a, for Chromium on Neoverse-N2 (ASCII reads 28 or 32 ms by process, main 29.5):
+# 19d23a3 (string headers a byte a load, as main) and d9dd908 (also UTF-16 units as main), against main.
+typescript 506720c223f8 19d23a3
+typescript 506720c223f8 d9dd908
 rust:blocks 781d955 717f4bb ^blocks/(read/i8|write/map-i32-i32|(read|write)/tuple-.*)$
 rust:blocks 781d955 717f4bb blocks/(read/i8|write/map-i32-i32|(read|write)/tuple-[a-z0-9-]+)$
 rust:blocks 781d955 717f4bb blocks/((read|write)/tuple-.*|read/i8|write/map-i32-i32)$
@@ -11,10 +15,10 @@ rust:blocks 717f4bb 717f4bb blocks/(read/i8|write/map-i32-i32|(read|write)/tuple
 # phase10/rust round 3: c1 (9980f8b) and c2 (2ccdfab) apart on the string reads (strings-mixed-1000/deserialize was +4% on EPYC 7763), and more of head and main.
 # phase10/ts 6ed8a8a (ca515d6, and short text written four chars a store tests the first char alone, for Chromium
 # on EPYC 7763): against main with its floor (12-char SHAs so they run again), against ca515d6, and 69c314d alone.
-typescript 506720c223f8 6ed8a8a
-typescript 506720c223f8 506720c223f8
-typescript ca515d6 6ed8a8a strings
-typescript 9389c00 69c314d strings
+# done (run 40554938484): typescript 506720c223f8 6ed8a8a
+# done (run 40554938484): typescript 506720c223f8 506720c223f8
+# done (run 40554938484): typescript ca515d6 6ed8a8a strings
+# done (run 40554938484): typescript 9389c00 69c314d strings
 # done (run 40550306669): rust 9980f8b 2ccdfab ^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/deserialize/nino$
 # done (run 40550306669): rust 1622ddb 9980f8b ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/deserialize/nino$
 # done (run 40550306669): rust 1622ddb 9768148 ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(deserialize|serialize)/nino$
