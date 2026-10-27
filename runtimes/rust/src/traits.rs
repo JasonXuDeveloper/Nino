@@ -87,6 +87,17 @@ pub trait NinoWrite {
         }
         Ok(())
     }
+
+    /// Writes the length of a slice (fails past `i32::MAX`), then its elements ([`NinoWrite::write_many`]).
+    /// Fixed-size types write both as one block.
+    #[inline]
+    fn write_counted<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()>
+    where
+        Self: Sized,
+    {
+        w.length(values.len())?;
+        Self::write_many(values, w)
+    }
 }
 
 /// Reading the body of a `[NinoType]` class: what follows its header (presence byte or type id). Generated for every

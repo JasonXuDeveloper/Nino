@@ -39,6 +39,11 @@ macro_rules! fixed {
                 w.encoded(values, |v| v.encode());
                 Ok(())
             }
+
+            #[inline]
+            fn write_counted<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
+                w.counted(values, |v| v.encode())
+            }
         }
 
         impl Raw for $t {

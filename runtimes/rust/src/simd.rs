@@ -282,24 +282,32 @@ unsafe fn ascii_into(room: impl FnOnce() -> *mut u8, bytes: &[u8]) -> bool {
     true
 }
 
-/// Appends the `N` bytes `encode` gives for each of `values` (a block of fixed-size elements): one capacity check
-/// and the stores, where `Vec::resize` would first fill the room with zeros (a call to `memset` for each block).
+/// Appends `head` (a collection's length, or nothing), then the `N` bytes `encode` gives for each of `values` (a block
+/// of fixed-size elements): one capacity check and the stores, where `Vec::resize` would first fill the room with
+/// zeros (a call to `memset` for each block).
 #[inline(always)]
-pub(crate) fn extend_encoded<T, const N: usize>(out: &mut Vec<u8>, values: &[T], encode: impl Fn(&T) -> [u8; N]) {
+pub(crate) fn extend_encoded<T, const H: usize, const N: usize>(
+    out: &mut Vec<u8>,
+    head: [u8; H],
+    values: &[T],
+    encode: impl Fn(&T) -> [u8; N],
+) {
     // Saturated, a size `reserve` refuses (it panics, as `resize` did).
-    let size = values.len().saturating_mul(N);
+    let size = values.len().saturating_mul(N).saturating_add(H);
     out.reserve(size);
     let len = out.len();
-    let mut at = out.spare_capacity_mut().as_mut_ptr().cast::<[u8; N]>();
-    for v in values {
-        // SAFETY: the room reserved holds `N` bytes for each value from `len`, and `at` has passed `N` for each value
-        // written so far; `[u8; N]` has alignment 1.
-        unsafe {
+    let start = out.spare_capacity_mut().as_mut_ptr().cast::<[u8; H]>();
+    // SAFETY: the room reserved holds `H` bytes from `len`, then `N` for each value; `at` has passed `N` for each
+    // value written so far. `[u8; H]` and `[u8; N]` have alignment 1.
+    unsafe {
+        start.write(head);
+        let mut at = start.add(1).cast::<[u8; N]>();
+        for v in values {
             at.write(encode(v));
             at = at.add(1);
         }
     }
-    // SAFETY: the `size` bytes from `len` are written (`N` for each value), within the room reserved.
+    // SAFETY: the `size` bytes from `len` are written (`H`, then `N` for each value), within the room reserved.
     unsafe { out.set_len(len.wrapping_add(size)) };
 }
 
@@ -2391,8 +2399,8 @@ mod tests {
 
     #[test]
     fn encoded_blocks() {
-        // Every count up to 40, after output of every length up to 9 with and without spare room: the bytes of each
-        // value in order, after what the output held.
+        // Every count up to 40, after output of every length up to 9 with and without spare room: what the output
+        // held, the head, then the bytes of each value in order.
         for count in 0..=40u32 {
             let values: Vec<u32> = (0..count).map(|i| i.wrapping_mul(0x0102_0304) ^ 0xA5).collect();
             for held in 0..=9 {
@@ -2400,8 +2408,9 @@ mod tests {
                     let mut out = Vec::with_capacity(held + room);
                     out.extend((0..held).map(|i| i as u8));
                     let mut expected = out.clone();
+                    expected.extend([0xEE; 3]);
                     expected.extend(values.iter().flat_map(|v| v.to_le_bytes()));
-                    extend_encoded(&mut out, &values, |v| v.to_le_bytes());
+                    extend_encoded(&mut out, [0xEE; 3], &values, |v| v.to_le_bytes());
                     assert_eq!(out, expected, "{count} {held} {room}");
                 }
             }
