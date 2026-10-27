@@ -7,7 +7,6 @@ import { Bench } from "tinybench";
 import { deserialize, serialize, type NinoCodec } from "./gen/nino.ts";
 import * as b from "./gen/Bench.ts";
 import { protobuf } from "./protobuf.ts";
-import * as lv from "./lookup-variants.ts";
 
 /** The serializers, in the order of the tables. */
 export const serializers = ["Nino", "Protobuf", "MessagePack", "JSON"] as const;
@@ -93,7 +92,7 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
   const json = list.map(plain), text = json.map((j) => JSON.stringify(j));
   packed.forEach((x, i) => {
     // Read back: the same data (maps come back as objects, which plain JSON makes of Maps too).
-    if (!/Lazy|Json/.test(name) && JSON.stringify(plain(packr.unpack(x))) !== text[i]) throw new Error(`${name}[${i}]: MessagePack round trip`);
+    if (JSON.stringify(plain(packr.unpack(x))) !== text[i]) throw new Error(`${name}[${i}]: MessagePack round trip`);
   });
   // JSON is timed to and from UTF-8 bytes, as every other format is: what goes over a wire or into a file.
   const encoder = new TextEncoder(), decoder = new TextDecoder(), utf8 = text.map((s) => encoder.encode(s));
@@ -131,21 +130,9 @@ const scenarios: [string, string, NinoCodec<never>][] = [
   ["Mesh 20 x (2 x 500 Vec3, 1500 int)", "mesh", b.MeshCodec],
   ["Samples 20 x (3 x 1000 numbers)", "samples", b.SamplesCodec],
   ["Lookup 50 x (2 maps of 100)", "lookup", b.LookupCodec],
-  ["Lookup via HasSet", "lookup-hasset", lv.HasSetCodec],
-  ["Lookup via Pairs", "lookup-pairs", lv.PairsCodec],
-  ["Lookup via KeyCache", "lookup-keycache", lv.KeyCacheCodec],
-  ["Lookup via Lazy", "lookup-lazy", lv.LazyCodec],
-  ["Lookup via LazyTouched", "lookup-lazytouched", lv.LazyTouchedCodec],
-  ["Lookup via MapTouched", "lookup-maptouched", lv.MapTouchedCodec],
-  ["Lookup via V8", "lookup-v8", lv.V8Codec],
-  ["Lookup via Json", "lookup-json", lv.JsonCodec],
-  ["Lookup via JsonTouched", "lookup-jsontouched", lv.JsonTouchedCodec],
   ["Event x1000 (long)", "events", b.EventCodec],
   ["Strings 1000 (ASCII)", "strings", b.StringsCodec],
   ["Strings 1000 (ASCII, Latin-1, other)", "strings-mixed", b.StringsCodec],
-  ["Strings 1000 (CJK, Cyrillic, 4-16)", "strings-cjk", b.StringsCodec],
-  ["Strings 1000 (ASCII, Latin-1, 25-48)", "strings-mid", b.StringsCodec],
-  ["Strings 1000 (CJK, 24-40)", "strings-cjk-mid", b.StringsCodec],
 ] as [string, string, NinoCodec<never>][];
 
 /** Runs the scenarios whose data file starts with `only` (all when empty). */
@@ -153,7 +140,7 @@ export async function run(read: (name: string) => Promise<Uint8Array>, only = ""
   Promise<Row[]> {
   const rows: Row[] = [];
   for (const [name, file, codec] of scenarios)
-    if (file.startsWith(only)) rows.push(...await scenario(name, file.replace(/^lookup-.*$/, "lookup"), await read(file.replace(/^lookup-.*$/, "lookup")), codec, options));
+    if (file.startsWith(only)) rows.push(...await scenario(name, file, await read(file), codec, options));
   return rows;
 }
 

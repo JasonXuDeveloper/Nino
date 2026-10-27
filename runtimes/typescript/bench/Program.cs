@@ -134,18 +134,6 @@ namespace Bench
                     }).ToArray(),
                 },
             });
-
-            // A/B only (test branch): short CJK and Cyrillic text, Latin-1 and ASCII of 25 to 48 chars, and CJK of 24 to
-            // 40 chars, each 1,000 strings of lengths spread over the range.
-            const string cjk = "字符串测试文本数据序列化读取写入中文汉字编码解码";
-            const string cyrillic = "строкатекстданныесериализация";
-            Write(dir, "strings-cjk", new[] { new Strings { Values = Enumerable.Range(0, 1000).Select(i =>
-                (i % 2 == 0 ? cjk : cyrillic).Substring(i % 7, 4 + i % 13)).ToArray() } });
-            Write(dir, "strings-mid", new[] { new Strings { Values = Enumerable.Range(0, 1000).Select(i =>
-                ((i % 2 == 0 ? "The quick brown fox jumps over the lazy dog, " : "Crème brûlée à la française, déjà vu, señor ")
-                    + i.ToString("D4")).Substring(0, 25 + i % 24)).ToArray() } });
-            Write(dir, "strings-cjk-mid", new[] { new Strings { Values = Enumerable.Range(0, 1000).Select(i =>
-                (cjk + cjk).Substring(i % 9, 24 + i % 17)).ToArray() } });
         }
 
         /// <summary>The count, then each value's length and bytes.</summary>

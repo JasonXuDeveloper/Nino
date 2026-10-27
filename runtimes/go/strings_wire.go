@@ -32,22 +32,12 @@ func setReadTier(t int) {
 }
 
 // wireStrings writes strings from the start of one of strs or ptrs (at p) with the vector path, first giving the
-// buffer room for the next of them (up to 64), and returns how many it wrote.
+// buffer room for the next of them (up to 64) at the most a string the kernels take can need, and returns how many
+// it wrote. The kernels check each string's room themselves and stop at one that lacks it, so the room is not
+// summed string by string (a loop over the strings that cost about as much as writing short ones).
 func (w *Writer) wireStrings(p unsafe.Pointer, strs []string, ptrs []*string) int {
 	count := len(strs) + len(ptrs)
-	need := 0
-	for k := 0; k < min(count, 64); k++ {
-		n := 0
-		if strs != nil {
-			n = len(strs[k])
-		} else if ptrs[k] != nil {
-			n = len(*ptrs[k])
-		}
-		if n >= wireMaxText {
-			break
-		}
-		need += 1 + 2*n + wireSlack
-	}
+	need := min(count, 64) * (1 + 2*(wireMaxText-1) + wireSlack)
 	if cap(w.buf)-len(w.buf) < need {
 		w.grow(need)
 	}

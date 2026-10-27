@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 
 	"github.com/mmcloughlin/avo/build"
 	"github.com/mmcloughlin/avo/ir"
@@ -60,7 +61,17 @@ func generate() (amd64, arm64 []byte, err error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	amd64 = alignMarks.ReplaceAll(amd64, []byte("\tPCALIGN $$$1"))
 	return amd64, []byte(fileARM64()), nil
+}
+
+// alignMarks are the comments align writes, which become PCALIGN directives (avo has none).
+var alignMarks = regexp.MustCompile(`(?m)^\t// align (\d+)$`)
+
+// align pads the code to the next multiple of n bytes (a loop's head: its speed then does not depend on where the
+// code before it ends).
+func align(n int) {
+	c.Comment(fmt.Sprintf("align %d", n))
 }
 
 // checkRegisters fails the build when register allocation chose BP (the frame pointer) or R15 (what a global's

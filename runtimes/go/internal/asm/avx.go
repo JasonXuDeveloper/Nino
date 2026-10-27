@@ -22,7 +22,7 @@ var (
 )
 
 func writerAVX(one, list string, t tier) {
-	w := writer{setup: t.setup, kernel: t.kernel, short: t.short, vex: true}
+	w := writer{setup: t.setup, kernel: t.kernel, short: t.short, cold: t.cold, vex: true}
 	single(one, w)
 	many(list, w)
 }
@@ -71,7 +71,7 @@ func (t tier) short(f frame) {
 	if t.evex {
 		c.JNZ(l("slatin"))
 	} else {
-		c.JNZ(l("long"))
+		c.JNZ(l("shand"))
 	}
 	c.Label("sstore")
 	c.Comment("The header, 2n+1, in the first byte.")
@@ -79,16 +79,38 @@ func (t tier) short(f frame) {
 	c.VMOVD(ECX, X1)
 	c.VPOR(Y1, Y0, Y0)
 	c.VMOVDQU(Y0, Mem{Base: RDI})
+}
+
+// cold is what short jumps to that is not long (writer.cold), placed after the list kernel's loop.
+func (t tier) cold(f frame) {
 	if t.evex {
 		t.shortLatin1()
+	} else {
+		t.shortHand(f)
 	}
+}
+
+// shortHand is the AVX2 short path for text with a byte of 0x80 or above: the block read (Y0, from the byte before
+// the text) moved down a byte and handed to the kernel as the block it would read, past its page check and load.
+func (t tier) shortHand(f frame) {
+	c.Label("shand")
+	c.VPERM2I128(U8(0x81), Y0, Y0, Y1) // the high half low, zeros high
+	c.VPALIGNR(U8(1), Y0, Y1, Y0)      // the text from the first byte, zeros past it
+	c.MOVQ(RBX, RAX)
+	lowBits(R13L)
+	c.INCQ(RDI)
+	c.MOVQ(RDI, f.start)
+	c.MOVQ(RDI, f.wide)
+	c.XORQ(RDX, RDX)
+	c.VPXOR(Y14, Y14, Y14)
+	c.VPXOR(Y12, Y12, Y12)
+	c.JMP(l("lbody"))
 }
 
 // shortLatin1 is the AVX-512 short path for text with a byte of 0x80 or above (R8 the mask of those, Y0 the block
 // from the byte before the text): Latin-1 (ASCII, leads C2 and C3, each followed by its continuation) compressed as
 // latin1Masks does, the byte before kept as the first, the chars in BX, then back to sstore; anything else to long.
 func (t tier) shortLatin1() {
-	c.JMP(l("sdone"))
 	c.Label("slatin")
 	c.VPSUBUSB(k("C3"), Y0, Y4)
 	c.VPTEST(Y4, Y4)
@@ -118,7 +140,6 @@ func (t tier) shortLatin1() {
 	c.KMOVD(R10L, K2)
 	c.VPCOMPRESSB(Y0, K2, Y0) // all but the leads; the first byte (0) stays first
 	c.JMP(l("sstore"))
-	c.Label("sdone")
 }
 
 // load reads the block at SI+DX (AX bytes left, AX > 0) into Y0, R13 the mask of its bytes, then jumps to body;
