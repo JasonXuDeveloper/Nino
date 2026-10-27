@@ -101,3 +101,6 @@ requirements:
 - Before committing: `go vet ./...`, `go test -race ./...` with the conformance corpus present, a short run of
   `FuzzReader`, `FuzzDecode`, `FuzzTagged` and `FuzzTaggedDecode`, and the benchmarks back to back against the
   previous commit for a change to a read or write path. The runtime's module has no dependencies; competitors live in the `bench` module.
+- The module says Go 1.22 and CI builds and tests it with Go 1.22: no API newer than that outside the `bench` module,
+  tests and benchmarks included (`testing.B.Loop` is Go 1.24: loop with `for range b.N`). Check with
+  `GOTOOLCHAIN=go1.22.12 go vet ./...` before pushing.
