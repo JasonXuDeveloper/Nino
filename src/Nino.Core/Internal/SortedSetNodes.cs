@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
 {
@@ -61,10 +62,14 @@ namespace Nino.Core.Internal
                 ? CollectionFields.Root(CollectionFields.Set(dictionary))
                 : null;
 
+        /// <remarks><paramref name="count"/> is at most the array's length (Fill's callers rent it for them).</remarks>
         private static bool Increasing<T>(T[] items, int count, IComparer<T> comparer)
         {
+            // Indexed from the first item, without a bounds check per item. An index, not a cursor: a cursor bumped
+            // around the comparer's call was kept on the stack.
+            ref T first = ref NinoUnsafe.GetArrayDataReference(items);
             for (int i = 1; i < count; i++)
-                if (comparer.Compare(items[i - 1], items[i]) >= 0)
+                if (comparer.Compare(Unsafe.Add(ref first, i - 1), Unsafe.Add(ref first, i)) >= 0)
                     return false;
             return true;
         }
@@ -194,10 +199,12 @@ namespace Nino.Core.Internal
             int last = 0;
             for (int n = count; n > 1; n >>= 1)
                 last++;
-            return Make(items, 0, count - 1, 0, last == 0 ? -1 : last, layout, at, type);
+            // count is at most the array's length: every middle below is in it, read without a bounds check.
+            return Make(ref NinoUnsafe.GetArrayDataReference(items), 0, count - 1, 0, last == 0 ? -1 : last, layout,
+                at, type);
         }
 
-        private static object Make<T>(T[] items, int low, int high, int depth, int red, int layout, NodeOffsets at,
+        private static object Make<T>(ref T items, int low, int high, int depth, int red, int layout, NodeOffsets at,
             IntPtr type)
         {
             if (low > high)
@@ -205,9 +212,11 @@ namespace Nino.Core.Internal
             int middle = (low + high) >> 1;
             object node = layout == 1 ? new NodeCore<T>() : new NodeFramework<T>();
             ObjectTypes.Retype(node, type);
-            ObjectFields.At<T>(node, at.Item) = items[middle];
-            ObjectFields.At<object>(node, at.Left) = Make(items, low, middle - 1, depth + 1, red, layout, at, type);
-            ObjectFields.At<object>(node, at.Right) = Make(items, middle + 1, high, depth + 1, red, layout, at, type);
+            ObjectFields.At<T>(node, at.Item) = Unsafe.Add(ref items, middle);
+            ObjectFields.At<object>(node, at.Left) =
+                Make(ref items, low, middle - 1, depth + 1, red, layout, at, type);
+            ObjectFields.At<object>(node, at.Right) =
+                Make(ref items, middle + 1, high, depth + 1, red, layout, at, type);
             if (depth == red)
                 ObjectFields.At<byte>(node, at.Color) = 1;
             return node;
