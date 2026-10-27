@@ -39,6 +39,14 @@ func readUTF16(dst, src unsafe.Pointer, units int) int { return utf16UTF8NEON(ds
 
 func readLatin1(dst, src unsafe.Pointer, n int) int { return latin1UTF8NEON(dst, src, n) }
 
+// utf8ScanNEON is utf8Scan of the n bytes at src (n > 0), 16 at a time: their UTF-16 code units, or -1 when they
+// are not strict UTF-8.
+//
+//go:noescape
+func utf8ScanNEON(src unsafe.Pointer, n int) int
+
+func scanUTF8(src unsafe.Pointer, n int) int { return utf8ScanNEON(src, n) }
+
 // wireStringNEON converts src[i:n] (n > i, the bytes before i ASCII) to Latin-1 at dst+i, returning the bytes
 // written, or to UTF-16 at dst+2*i, returning ^units; for text that is not WTF-8 it returns wireInvalid. dst has
 // room for 2*n+wireSlack bytes.

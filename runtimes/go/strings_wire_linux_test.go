@@ -104,3 +104,35 @@ func TestReadVectorPageEnds(t *testing.T) {
 		}
 	}
 }
+
+// TestUtf8ScanPageEnds checks text that starts at the first byte after a page that cannot be read, and text that
+// ends at the last byte before one: utf8Scan's vector path must read no byte outside the pages of the text.
+func TestUtf8ScanPageEnds(t *testing.T) {
+	if !hasRead {
+		t.Skip("no vector path here")
+	}
+	page := syscall.Getpagesize()
+	mem, err := syscall.Mmap(-1, 0, 3*page, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE)
+	if err != nil {
+		t.Skip("mmap:", err)
+	}
+	defer syscall.Munmap(mem)
+	if syscall.Mprotect(mem[:page], syscall.PROT_NONE) != nil || syscall.Mprotect(mem[2*page:], syscall.PROT_NONE) != nil {
+		t.Skip("mprotect")
+	}
+	body := mem[page : 2*page]
+	for _, text := range []string{"a", "é", "字", "🎉", "\xED\xA0\x80", "\xC3"} {
+		for i := 0; i < len(body); i += len(text) {
+			copy(body[i:], text)
+		}
+		for n := 1; n <= 300; n++ {
+			for _, src := range [][]byte{body[:n], body[len(body)-n:]} {
+				want, wantOK := scanRef(src)
+				got, ok := scanVec(src)
+				if ok != wantOK || (ok && got != want) {
+					t.Fatalf("scanUTF8(% x) = %d %v, want %d %v", src, got, ok, want, wantOK)
+				}
+			}
+		}
+	}
+}

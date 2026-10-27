@@ -21,6 +21,7 @@ func fileARM64() string {
 `)
 	b.WriteString(constantsARM64())
 	b.WriteString(readersNEON)
+	b.WriteString(scanNEON)
 	b.WriteString(writersNEON())
 	return encodeARM64(b.String())
 }
@@ -155,6 +156,9 @@ func constantsARM64() string {
 	}
 	tail[13], tail[14], tail[15] = 0xEF, 0xDF, 0xBF
 	t = append(t, tail...)
+	u1, u2, u3 := strictTables()
+	t = append(append(append(t, u1[:]...), u2[:]...), u3[:]...)
+	t = append(t, shiftTable()...)
 	var b strings.Builder
 	for i := 0; i < len(t); i += 8 {
 		var v uint64
@@ -173,6 +177,8 @@ func constantsARM64() string {
 #define N_T2 128
 #define N_T3 144
 #define N_TAIL 160   // the most each of the last three bytes may be (no char cut at the end)
+#define N_U1 176     // the tables of utf8ScanNEON (strictTables)
+#define N_SHR16 224  // 0 to 15, then 16 bytes of 80 (32 bytes in a cache line: see N_MASK)
 `)
 	return b.String()
 }
@@ -972,3 +978,111 @@ func sub(s string, kv ...string) string {
 	}
 	return s
 }
+
+// scanNEON is utf8Scan's NEON path, as utf8ScanSSE (strings_wire_amd64.s): 16 bytes at a time, each block checked
+// (Keiser and Lemire, with the check for surrogates) and its code units summed (UADDLV); the last block read only
+// within the page of the text's end.
+const scanNEON = `
+// func utf8ScanNEON(src unsafe.Pointer, n int) int
+//
+// It returns the UTF-16 code units of the n bytes at src (n > 0) when they are strict UTF-8, else -1.
+TEXT ·utf8ScanNEON(SB), NOSPLIT, $0-24
+	MOVD    src+0(FP), R1
+	MOVD    n+8(FP), R2
+	MOVD    $0, R3
+	MOVD    $0, R4                  // the units
+	MOVD    $wireN<>(SB), R21
+	ADD     $N_U1, R21, R8
+	VLD1    (R8), [V20.B16, V21.B16, V22.B16]
+	ADD     $N_TAIL, R21, R8
+	VLD1    (R8), [V19.B16]
+	VMOVI   $0x80, V13.B16
+	VMOVI   $0x70, V17.B16
+	VMOVI   $0x60, V18.B16
+	VMOVI   $0xF0, V23.B16
+	VMOVI   $0x01, V29.B16
+	VMOVI   $0x0F, V30.B16
+	VMOVI   $0xC0, V31.B16
+	VEOR    V14.B16, V14.B16, V14.B16 // the block before
+	VEOR    V12.B16, V12.B16, V12.B16 // the errors
+	PCALIGN $32
+
+scloop:
+	SUB     R3, R2, R5              // the bytes left
+	CMP     $0, R5
+	BLE     scdone
+	ADD     R3, R1, R6
+	CMP     $16, R5
+	BLT     sctail
+	VLD1    (R6), [V0.B16]
+
+scbody:
+	// Check the block (Keiser and Lemire): V2 the byte one before each, V3 two before, V1 three before.
+	VEXT    $15, V0.B16, V14.B16, V2.B16
+	VEXT    $14, V0.B16, V14.B16, V3.B16
+	VEXT    $13, V0.B16, V14.B16, V1.B16
+	VUSHR   $4, V2.B16, V4.B16
+	VTBL    V4.B16, [V20.B16], V4.B16
+	VAND    V30.B16, V2.B16, V5.B16
+	VTBL    V5.B16, [V21.B16], V5.B16
+	VUSHR   $4, V0.B16, V6.B16
+	VTBL    V6.B16, [V22.B16], V6.B16
+	VAND    V5.B16, V4.B16, V4.B16
+	VAND    V6.B16, V4.B16, V4.B16
+	WORD    UQSUB V18.B16, V3.B16, V5.B16
+	WORD    UQSUB V17.B16, V1.B16, V6.B16
+	VORR    V6.B16, V5.B16, V5.B16
+	VAND    V13.B16, V5.B16, V5.B16
+	VEOR    V5.B16, V4.B16, V4.B16
+	VORR    V4.B16, V12.B16, V12.B16
+	// The units: 1 a byte, 0 for a continuation (less than C0, signed), 2 for F0 and above.
+	WORD    CMGT V0.B16, V31.B16, V4.B16
+	WORD    CMHS V23.B16, V0.B16, V6.B16
+	VADD    V4.B16, V29.B16, V5.B16
+	VSUB    V6.B16, V5.B16, V5.B16
+	VUADDLV V5.B16, V5
+	VMOV    V5.H[0], R7
+	ADD     R7, R4, R4
+	VORR    V0.B16, V0.B16, V14.B16
+	ADD     $16, R3
+	B       scloop
+
+sctail:
+	AND     $4095, R6, R8
+	CMP     $4080, R8
+	BHI     scend
+	VLD1    (R6), [V0.B16]
+	ADD     $(N_MASK+16), R21, R8
+	SUB     R5, R8, R8
+	VLD1    (R8), [V1.B16]
+	VAND    V1.B16, V0.B16, V0.B16
+	B       scbody
+
+scend:
+	// The 16 bytes that end the text, in the page of its start (which lies in the last 15 bytes of one).
+	ADD     R5, R6, R8
+	SUB     $16, R8, R8
+	VLD1    (R8), [V0.B16]
+	ADD     $(N_SHR16+16), R21, R8
+	SUB     R5, R8, R8
+	VLD1    (R8), [V1.B16]
+	VTBL    V1.B16, [V0.B16], V0.B16
+	B       scbody
+
+scdone:
+	// No char cut at the end, then no error.
+	WORD    UQSUB V19.B16, V14.B16, V4.B16
+	VORR    V4.B16, V12.B16, V12.B16
+	WORD    UMAXV V12.B16, V12
+	VMOV    V12.B[0], R7
+	CBNZ    R7, scinvalid
+	SUB     R2, R3, R3              // the zeros past the text
+	SUB     R3, R4, R4
+	MOVD    R4, ret+16(FP)
+	RET
+
+scinvalid:
+	MOVD    $-1, R4
+	MOVD    R4, ret+16(FP)
+	RET
+`

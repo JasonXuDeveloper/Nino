@@ -25,4 +25,6 @@ func wireStrings(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, p
 
 func readUTF16(dst, src unsafe.Pointer, units int) int { return 0 }
 
+func scanUTF8(src unsafe.Pointer, n int) int { return -1 }
+
 func readLatin1(dst, src unsafe.Pointer, n int) int { return 0 }

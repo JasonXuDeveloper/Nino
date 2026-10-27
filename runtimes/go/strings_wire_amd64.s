@@ -137,7 +137,27 @@ DATA wire<>+1024(SB)/8, $0x0040004000400040
 DATA wire<>+1032(SB)/8, $0x0040004000400040
 DATA wire<>+1040(SB)/8, $0x0040004000400040
 DATA wire<>+1048(SB)/8, $0x0040004000400040
-GLOBL wire<>(SB), RODATA|NOPTR, $1056
+DATA wire<>+1056(SB)/8, $0x0202020202020202
+DATA wire<>+1064(SB)/8, $0x4915012180808080
+DATA wire<>+1072(SB)/8, $0x0202020202020202
+DATA wire<>+1080(SB)/8, $0x4915012180808080
+DATA wire<>+1088(SB)/8, $0xcbcbcb8b8383a3e7
+DATA wire<>+1096(SB)/8, $0xcbcbdbcbcbcbcbcb
+DATA wire<>+1104(SB)/8, $0xcbcbcb8b8383a3e7
+DATA wire<>+1112(SB)/8, $0xcbcbdbcbcbcbcbcb
+DATA wire<>+1120(SB)/8, $0x0101010101010101
+DATA wire<>+1128(SB)/8, $0x01010101babaaee6
+DATA wire<>+1136(SB)/8, $0x0101010101010101
+DATA wire<>+1144(SB)/8, $0x01010101babaaee6
+DATA wire<>+1152(SB)/8, $0x0101010101010101
+DATA wire<>+1160(SB)/8, $0x0101010101010101
+DATA wire<>+1168(SB)/8, $0x0101010101010101
+DATA wire<>+1176(SB)/8, $0x0101010101010101
+DATA wire<>+1184(SB)/8, $0x0706050403020100
+DATA wire<>+1192(SB)/8, $0x0f0e0d0c0b0a0908
+DATA wire<>+1200(SB)/8, $0x8080808080808080
+DATA wire<>+1208(SB)/8, $0x8080808080808080
+GLOBL wire<>(SB), RODATA|NOPTR, $1216
 
 // func wireStringAVX2(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int
 // Requires: AVX, AVX2, POPCNT
@@ -3063,6 +3083,122 @@ finish:
 	MOVQ 16(SP), AX
 	SUBQ dst+0(FP), AX
 	MOVQ AX, written+48(FP)
+	RET
+
+// func utf8ScanSSE(src unsafe.Pointer, n int) int
+// Requires: SSE2, SSSE3
+TEXT ·utf8ScanSSE(SB), NOSPLIT, $0-24
+	MOVQ  src+0(FP), SI
+	MOVQ  n+8(FP), BX
+	XORQ  DX, DX
+	PXOR  X10, X10
+	PXOR  X11, X11
+	PXOR  X12, X12
+	PXOR  X13, X13
+	MOVOU wire<>+32(SB), X14
+	MOVOU wire<>+0(SB), X15
+	MOVOU wire<>+1056(SB), X7
+	MOVOU wire<>+1088(SB), X8
+	MOVOU wire<>+1120(SB), X9
+
+	PCALIGN $32
+loop:
+	MOVQ  BX, CX
+	SUBQ  DX, CX
+	JLE   done
+	LEAQ  (SI)(DX*1), R10
+	CMPQ  CX, $0x10
+	JB    tail
+	MOVOU (R10), X0
+
+body:
+	// Check the block (Keiser and Lemire): X2 the byte one before each, X3 two before, X1 three before.
+	MOVOA   X0, X2
+	PALIGNR $0x0f, X11, X2
+	MOVOA   X0, X3
+	PALIGNR $0x0e, X11, X3
+	MOVOA   X0, X1
+	PALIGNR $0x0d, X11, X1
+	MOVOA   X2, X4
+	PSRLW   $0x04, X4
+	PAND    X14, X4
+	MOVOA   X7, X5
+	PSHUFB  X4, X5
+	PAND    X14, X2
+	MOVOA   X8, X4
+	PSHUFB  X2, X4
+	PAND    X4, X5
+	MOVOA   X0, X6
+	PSRLW   $0x04, X6
+	PAND    X14, X6
+	MOVOA   X9, X4
+	PSHUFB  X6, X4
+	PAND    X4, X5
+	PSUBUSB wire<>+64(SB), X3
+	PSUBUSB wire<>+96(SB), X1
+	POR     X1, X3
+	PAND    wire<>+128(SB), X3
+	PXOR    X3, X5
+	POR     X5, X12
+
+	// The units: 1 a byte, 0 for a continuation (less than C0, signed), 2 for F0 and above.
+	MOVOA   X15, X4
+	PCMPGTB X0, X4
+	MOVOU   wire<>+320(SB), X6
+	PMAXUB  X0, X6
+	PCMPEQB X0, X6
+	MOVOU   wire<>+1152(SB), X5
+	PADDB   X4, X5
+	PSUBB   X6, X5
+	PSADBW  X13, X5
+	PADDQ   X5, X10
+	MOVOA   X0, X11
+	ADDQ    $0x10, DX
+	JMP     loop
+
+tail:
+	MOVL  R10, R13
+	ANDL  $0x00000fff, R13
+	CMPL  R13, $0x00000ff0
+	JA    end
+	MOVOU (R10), X0
+	LEAQ  wire<>+672(SB), R13
+	ADDQ  $0x10, R13
+	SUBQ  CX, R13
+	MOVOU (R13), X1
+	PAND  X1, X0
+	JMP   body
+
+	// The 16 bytes that end the text, in the page of its start (which lies in the last 15 bytes of one).
+end:
+	MOVOU  -16(R10)(CX*1), X0
+	LEAQ   wire<>+1184(SB), R13
+	ADDQ   $0x10, R13
+	SUBQ   CX, R13
+	MOVOU  (R13), X1
+	PSHUFB X1, X0
+	JMP    body
+
+done:
+	// No char cut at the end, then no error.
+	MOVOU    wire<>+560(SB), X4
+	PSUBUSB  X4, X11
+	POR      X11, X12
+	PCMPEQB  X13, X12
+	PMOVMSKB X12, AX
+	CMPL     AX, $0x0000ffff
+	JNE      invalid
+	PSHUFD   $0x4e, X10, X5
+	PADDQ    X5, X10
+	MOVQ     X10, AX
+	SUBQ     BX, DX
+	SUBQ     DX, AX
+	MOVQ     AX, ret+16(FP)
+	RET
+
+invalid:
+	MOVQ $-1, AX
+	MOVQ AX, ret+16(FP)
 	RET
 
 // func cpuid(eaxArg uint32, ecxArg uint32) (eax uint32, ebx uint32, ecx uint32, edx uint32)
