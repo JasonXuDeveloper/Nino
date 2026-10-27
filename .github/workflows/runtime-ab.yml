@@ -111,9 +111,9 @@ jobs:
                 ;;
               typescript)
                 # bench.ts is a library: node.ts (Node) and browser.mjs (Chromium) run it, on data and generated code
-                # that .NET writes (as bench/run.sh does). Both sides share the head's generated code and take their
-                # own src/nino.ts; each reads the data its own .NET writes (the same bytes unless the two differ in
-                # the wire format).
+                # that .NET writes (as bench/run.sh does). Both sides run the head's bench.ts; each takes the code its
+                # own nino-gen generates (so a change to the templates is measured too) with its own src/nino.ts, and
+                # reads the data its own .NET writes (the same bytes unless the two differ in the wire format).
                 B="$RUNNER_TEMP/$head/runtimes/typescript/bench"
                 (cd "$B" && npm ci --no-audit --no-fund > /dev/null)
                 if [[ ! -x "$(npm root -g)/playwright/cli.js" ]]; then
@@ -123,16 +123,18 @@ jobs:
                   PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-$arch npx -y playwright@1.56.1 install --with-deps chromium > /dev/null ||
                     PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-$arch npx -y playwright@1.56.1 install chromium > /dev/null
                 fi
-                dotnet build -c Release "$RUNNER_TEMP/$head/src/Nino.Codegen" > /dev/null
                 dotnet build -c Release "$B" > /dev/null
                 dotnet "$B/bin/Release/net10.0/Bench.dll" "$out/data"
                 BB="$RUNNER_TEMP/$base/runtimes/typescript/bench"
                 dotnet build -c Release "$BB" > /dev/null
                 dotnet "$BB/bin/Release/net10.0/Bench.dll" "$out/data-base"
-                dotnet "$RUNNER_TEMP/$head/src/Nino.Codegen/bin/Release/net8.0/nino-gen.dll" \
-                  --assembly "$B/bin/Release/net10.0/Bench.dll" --lang ts --out "$B/gen" --import-extension .ts > /dev/null
                 for side in base head; do
                   ref=$base; [[ $side == head ]] && ref=$head
+                  dotnet build -c Release "$RUNNER_TEMP/$ref/src/Nino.Codegen" > /dev/null
+                  rm -rf "$B/gen"
+                  dotnet "$RUNNER_TEMP/$ref/src/Nino.Codegen/bin/Release/net8.0/nino-gen.dll" \
+                    --assembly "$RUNNER_TEMP/$ref/runtimes/typescript/bench/bin/Release/net10.0/Bench.dll" --lang ts \
+                    --out "$B/gen" --import-extension .ts > /dev/null
                   cp "$RUNNER_TEMP/$ref/runtimes/typescript/src/nino.ts" "$B/gen/nino.ts"
                   mkdir -p "$out/$side"
                   (cd "$B" && npx esbuild bench.ts --bundle --format=esm --platform=browser --log-level=warning \
