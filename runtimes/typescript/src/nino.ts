@@ -487,23 +487,6 @@ function decodeShortUtf16(v: DataView, at: number, length: number): string {
   }
 }
 
-/** The text of `length` UTF-16 code units at `at`. */
-function decodeUtf16(data: Uint8Array, view: DataView, at: number, length: number): string {
-  if (length <= 24) return decodeShortUtf16(view, at, length);
-  if (nodeText !== null) return nodeText.ucs2Slice.call(data, at, at + 2 * length);
-  if (length <= mediumText) {
-    codes.length = length;
-    for (let i = 0; i < length; i++) codes[i] = view.getUint16(at + 2 * i, true);
-    return String.fromCharCode.apply(null, codes);
-  }
-  // The decoder writes U+FFFD for an unpaired surrogate: text with one is read code by code instead.
-  const text = utf16Decoder.decode(new Uint8Array(data.buffer, data.byteOffset + at, 2 * length));
-  if (!text.includes("\ufffd")) return text;
-  const units = new Uint16Array(length);
-  for (let i = 0; i < units.length; i++) units[i] = view.getUint16(at + 2 * i, true);
-  return fromCodes(units);
-}
-
 /**
  * Reads values from bytes written by Nino. Generated code reads a run of fixed-size values with one `take`, then
  * each value from `view` at its offset.
@@ -700,18 +683,48 @@ export class NinoReader {
     return this.otherString();
   }
 
-  /** `string` for every other header: null, UTF-16 text, or one-byte text of 64 chars or more. */
+  /**
+   * `string` for every other header: null, UTF-16 text, or one-byte text of 64 chars or more. The header, the bounds
+   * checks and the UTF-16 decoding are written out here, not called, so the function stays well over V8's limit for
+   * inlining (460 bytes of bytecode; 574 in Node 24) and never competes with the short-text path for the inlining
+   * budget of the functions that read strings.
+   */
   private otherString(): string | null {
-    const header = this.header(), length = header >>> 1;
-    if ((header & 1) !== 0) return length === 0 ? "" : this.latin1(this.take(length), length);
+    const data = this.data, view = this.view, pos = this.pos;
+    let header: number;
+    if (pos < this.end && data[pos] < 0x80) {
+      header = data[pos];
+      this.pos = pos + 1;
+    } else {
+      header = this.longHeader();
+    }
+    const length = header >>> 1, start = this.pos;
+    if ((header & 1) !== 0) {
+      if (length > this.end - start) throw new NinoError("unexpected end of data.");
+      this.pos = start + length;
+      return length === 0 ? "" : this.latin1(start, length);
+    }
     if (header === 0) return null;
-    if (length > (this.end - this.pos) >>> 1) throw new NinoError(`invalid length ${length}.`);
-    const at = this.take(length * 2);
-    if (nodeText === null && length > kernelUtf16 && length <= kernelText) {
+    if (length > (this.end - start) >>> 1) throw new NinoError(`invalid length ${length}.`);
+    const at = start;
+    this.pos = at + 2 * length;
+    if (length <= 24) return decodeShortUtf16(view, at, length);
+    if (nodeText !== null) return nodeText.ucs2Slice.call(data, at, at + 2 * length);
+    if (length > kernelUtf16 && length <= kernelText) {
       const k = kernels === undefined ? wasm() : kernels;
       if (k !== null) return k.utf16(this.inKernels(k, at, length * 2), length);
     }
-    return decodeUtf16(this.data, this.view, at, length);
+    if (length <= mediumText) {
+      codes.length = length;
+      for (let i = 0; i < length; i++) codes[i] = view.getUint16(at + 2 * i, true);
+      return String.fromCharCode.apply(null, codes);
+    }
+    // The decoder writes U+FFFD for an unpaired surrogate: text with one is read code by code instead.
+    const text = utf16Decoder.decode(new Uint8Array(data.buffer, data.byteOffset + at, 2 * length));
+    if (!text.includes("\ufffd")) return text;
+    const units = new Uint16Array(length);
+    for (let i = 0; i < units.length; i++) units[i] = view.getUint16(at + 2 * i, true);
+    return fromCodes(units);
   }
 
   /** Where the `size` bytes at `at` (taken, at most 2 * kernelText) are in the kernels' memory: copied if not there. */
