@@ -581,6 +581,12 @@ func (b *builder) slice(c *codec, variant uint8) error {
 		return nil
 	}
 	c.kind = kSlice
+	if f, ok := blockSlices[et]; ok && b.fast {
+		// A slice of bools, dates, decimals, Guids or 128-bit integers on the unsafe path: one block, as generated
+		// code reads and writes it (ReadBools, ReadBlock), with no reflect.Value an element.
+		c.read, c.write = f()
+		return nil
+	}
 	elemSize := int(et.Size())
 	if b.fast && e.kind == kString && !e.utf8 {
 		// A slice of strings (of any type whose kind is string: the same layout) in the default encoding, on the
@@ -822,6 +828,41 @@ func (b *builder) mapCodec(c *codec) error {
 		}
 	}
 	return nil
+}
+
+// blockSlices holds, for the element types whose slices generated code reads and writes as one block other than
+// numbers (bool and the BlockValue types), a read and a write on the unsafe path. A slice type with such elements
+// has their layout whatever its name, so the codecs set and take it as a []T.
+var blockSlices = map[reflect.Type]func() (func(*Reader, reflect.Value), func(*Writer, reflect.Value)){
+	reflect.TypeFor[bool](): func() (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
+		return blockSlice(ReadBools, WriteBools)
+	},
+	reflect.TypeFor[DateTime](): blockValues[DateTime],
+	reflect.TypeFor[DateOnly](): blockValues[DateOnly],
+	reflect.TypeFor[TimeOnly](): blockValues[TimeOnly],
+	reflect.TypeFor[Decimal]():  blockValues[Decimal],
+	reflect.TypeFor[Guid]():     blockValues[Guid],
+	reflect.TypeFor[Int128]():   blockValues[Int128],
+	reflect.TypeFor[UInt128]():  blockValues[UInt128],
+}
+
+func blockValues[T BlockValue]() (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
+	return blockSlice(ReadBlock[T], WriteBlock[T])
+}
+
+func blockSlice[T any](read func(*Reader) []T, write func(*Writer, []T)) (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
+	return func(r *Reader, v reflect.Value) {
+			s := read(r)
+			if r.err == nil {
+				*(*[]T)(unsafe.Pointer(v.UnsafeAddr())) = s
+			}
+		}, func(w *Writer, v reflect.Value) {
+			if v.IsNil() {
+				w.Null()
+				return
+			}
+			write(w, unsafe.Slice((*T)(v.UnsafePointer()), v.Len()))
+		}
 }
 
 // fastMaps holds, for the map types of built-in key and value types a struct most often has, a read and a write
