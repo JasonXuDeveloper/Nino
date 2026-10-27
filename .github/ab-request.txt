@@ -21,5 +21,5 @@ typescript 13f8fcf f86b07a
 # its floor; the bench against main (block DateTime arrays in SimpleClass); the string tails' bounds checks alone.
 # stopped (refs do not build on the module's Go 1.22: b.Loop): go:internal/generated#12 d2fe06a c3f953f Blocks
 # stopped (refs do not build on the module's Go 1.22: b.Loop): go:internal/generated#12 d2fe06a d2fe06a Blocks
-# stopped (refs do not build on the module's Go 1.22: b.Loop): go#12 03fdc71 af05371 //^(Nino|NinoTags)$
-# stopped (refs do not build on the module's Go 1.22: b.Loop): go#12 af05371 c3f953f //^Nino$
+go#12 03fdc71 af05371 //^(Nino|NinoTags)$
+go#12 af05371 c3f953f //^Nino$
