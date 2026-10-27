@@ -149,16 +149,35 @@ typescript 506720c223 506720c223
 # phase10/go cac4ed8: padded raw arrays as one block (09ea3ce, Blocks/mixed and padded) and the tag path's string
 # slices through ReadStrings (cac4ed8, strings NinoTags), against main (bench module) and e5bf730 (Blocks), with a
 # floor on each side of every filter; filters differ in text so each line runs as its own job.
-go#12 1622ddb cac4ed8 ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
-go#12 cac4ed8 cac4ed8 ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
-go#12 1622ddb cac4ed8 ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
-go#12 1622ddb 1622ddb ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
-go#12 cac4ed8 cac4ed8 ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
-go#12 1622ddb cac4ed8 ^BenchmarkDeserialize$/^strings-1000$/^NinoTags$
-go#12 1622ddb 1622ddb ^BenchmarkDeserialize$/^strings-1000$/^NinoTags$
-go#12 cac4ed8 cac4ed8 ^BenchmarkDeserialize$/^strings-1000$/^NinoTags$
-go:internal/generated#12 e5bf730 cac4ed8 ^BenchmarkBlocks$
-go:internal/generated#12 cac4ed8 cac4ed8 ^BenchmarkBlocks$
-go:internal/generated#12 e5bf730 cac4ed8 ^BenchmarkBlocks$/(mixed|padded|vec2)
-go:internal/generated#12 e5bf730 e5bf730 ^BenchmarkBlocks$/(mixed|padded|vec2)
-go:internal/generated#12 cac4ed8 cac4ed8 ^BenchmarkBlocks$/(mixed|padded|vec2)
+# done (run 40570826451): go#12 1622ddb cac4ed8 ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+# done (run 40570826451): go#12 cac4ed8 cac4ed8 ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+# done (run 40570826451): go#12 1622ddb cac4ed8 ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
+# done (run 40570826451): go#12 1622ddb 1622ddb ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
+# done (run 40570826451): go#12 cac4ed8 cac4ed8 ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
+# done (run 40570826451): go#12 1622ddb cac4ed8 ^BenchmarkDeserialize$/^strings-1000$/^NinoTags$
+# done (run 40570826451): go#12 1622ddb 1622ddb ^BenchmarkDeserialize$/^strings-1000$/^NinoTags$
+# done (run 40570826451): go#12 cac4ed8 cac4ed8 ^BenchmarkDeserialize$/^strings-1000$/^NinoTags$
+# done (run 40570826451): go:internal/generated#12 e5bf730 cac4ed8 ^BenchmarkBlocks$
+# done (run 40570826451): go:internal/generated#12 cac4ed8 cac4ed8 ^BenchmarkBlocks$
+# done (run 40570826451): go:internal/generated#12 e5bf730 cac4ed8 ^BenchmarkBlocks$/(mixed|padded|vec2)
+# done (run 40570826451): go:internal/generated#12 e5bf730 e5bf730 ^BenchmarkBlocks$/(mixed|padded|vec2)
+# done (run 40570826451): go:internal/generated#12 cac4ed8 cac4ed8 ^BenchmarkBlocks$/(mixed|padded|vec2)
+# phase10/go ad33b1a: ReadStrings reads short ASCII in its loop (strings-1000 NinoTags Deserialize, +2.9% on EPYC 7763
+# in run 40570826451) and Writer.UTF8 tests for ASCII in place and calls the scan kernel directly (strings-mixed-utf8
+# Serialize, +3.9% on Neoverse-N2): against main with floors on both sides; filters differ in text so each line runs as
+# its own job, for 12+ jobs a side on Neoverse-N2 and EPYC 7763 on the string cases; cac4ed8 -> ad33b1a alone.
+go#12 1622ddb ad33b1a ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+go#12 ad33b1a ad33b1a ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$/./^(Nino|NinoTags)$
+go#12 1622ddb ad33b1a ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
+go#12 1622ddb ad33b1a ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
+go#12 1622ddb ad33b1a ^Benchmark(Serialize|Deserialize)$/strings/^(Nino|NinoTags)$
+go#12 ad33b1a ad33b1a ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
+go#12 ad33b1a ad33b1a ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
+go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
+go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$/strings/^(Nino|NinoTags)$
+go#12 1622ddb ad33b1a ^Benchmark(Serialize|Deserialize)$/^(strings-1000|strings-mixed-utf8-1000)$/^(Nino|NinoTags)$
+go#12 1622ddb ad33b1a ^Benchmark(Deserialize|Serialize)$/^(strings-mixed-utf8-1000|strings-1000)$/^(NinoTags|Nino)$
+go#12 ad33b1a ad33b1a ^Benchmark(Serialize|Deserialize)$/^(strings-1000|strings-mixed-utf8-1000)$/^(Nino|NinoTags)$
+go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$/^(strings-1000|strings-mixed-utf8-1000)$/^(Nino|NinoTags)$
+go#12 cac4ed8 ad33b1a ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
