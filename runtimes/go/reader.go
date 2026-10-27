@@ -28,10 +28,15 @@ type Reader struct {
 	regions int32
 	// Deferred bodies and open struct bodies, created on first use.
 	ctx *readContext
-	// The room left in the block short strings are converted into (see [Reader.shortString]), kept across Reset.
-	text []byte
-	// The strings left in the block StringPtr and UTF8Ptr point into (see [Reader.stringBox]), kept across Reset.
+	// The block short strings are converted into and where its room starts (see textRoom), kept across Reset. The
+	// room is an offset, not a reslice of text: a string read stores an int, not a pointer (a write barrier while
+	// the GC marks).
+	text   []byte
+	textAt int
+	// The block of strings StringPtr and UTF8Ptr point into and the next one free (see [Reader.stringBox]), kept
+	// across Reset; an offset, as textAt is.
 	boxes []string
+	boxAt int
 }
 
 // NewReader returns a reader of data.

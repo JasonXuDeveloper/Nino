@@ -93,7 +93,7 @@ func (r *Reader) NullableString() (s string, ok bool) {
 	var h uint32
 	if len(b) != 0 && b[0] < 0x80 {
 		h, b = uint32(b[0]), b[1:]
-		if h&1 != 0 && h-3 < 2*shortWords && len(b) >= 16 && len(r.text) >= 16 {
+		if h&1 != 0 && h-3 < 2*shortWords && len(b) >= 16 && len(r.text)-r.textAt >= 16 {
 			// Latin-1 of 1 to shortWords chars, with 16 bytes of data and of r.text left: when it is ASCII, read
 			// and stored as two words, the bytes past the text with them (r.text past the string is written again
 			// by the next), with no call to memmove. Written here, as a call (above the inlining budget) cost more
@@ -110,10 +110,10 @@ func (r *Reader) NullableString() (s string, ok bool) {
 				m1 = 1<<(k-64) - 1
 			}
 			if (w0&m0|w1&m1)&highBits == 0 {
-				t := unsafe.Pointer(unsafe.SliceData(r.text))
+				t := unsafe.Add(unsafe.Pointer(unsafe.SliceData(r.text)), r.textAt)
 				store64(t, 0, w0)
 				store64(t, 8, w1)
-				r.text = r.text[n:]
+				r.textAt += n
 				r.buf = b[n:]
 				return unsafe.String((*byte)(t), n), true
 			}
@@ -416,20 +416,21 @@ const (
 	textBlock   = 2048
 )
 
-// textRoom makes r.text hold at least n bytes (n <= textShort): a new block, as large as the text left can take.
+// textRoom makes r.text hold at least n bytes from r.textAt (n <= textShort): a new block, as large as the text left
+// can take.
 //
 //go:noinline
 func (r *Reader) textRoom(n int) {
-	r.text = make([]byte, min(textBlock, n+2*len(r.buf)))
+	r.text, r.textAt = make([]byte, min(textBlock, n+2*len(r.buf))), 0
 }
 
 // stringBox returns a pointer to s, in a block of them the reader keeps (r.boxes): one allocation for many.
 func (r *Reader) stringBox(s string) *string {
-	if len(r.boxes) == 0 {
+	if r.boxAt >= len(r.boxes) {
 		r.boxRoom()
 	}
-	p := &r.boxes[0]
-	r.boxes = r.boxes[1:]
+	p := &r.boxes[r.boxAt]
+	r.boxAt++
 	*p = s
 	return p
 }
@@ -439,7 +440,7 @@ func (r *Reader) stringBox(s string) *string {
 //
 //go:noinline
 func (r *Reader) boxRoom() {
-	r.boxes = make([]string, min(stringBoxes, 1+len(r.buf)))
+	r.boxes, r.boxAt = make([]string, min(stringBoxes, 1+len(r.buf))), 0
 }
 
 // shortWords is the most bytes of text [Reader.NullableString] reads as two words.
@@ -447,22 +448,22 @@ const shortWords = 16
 
 // textCopy returns a copy of b (0 < len(b) <= textShort), in r.text.
 func (r *Reader) textCopy(b []byte) string {
-	if len(r.text) < len(b) {
+	if len(r.text)-r.textAt < len(b) {
 		r.textRoom(len(b))
 	}
-	t := r.text
+	t := r.text[r.textAt:]
 	m := copy(t, b)
-	r.text = t[m:]
+	r.textAt += m
 	return unsafe.String(unsafe.SliceData(t), m)
 }
 
 // latin1Short returns the text of Latin-1 bytes (0 < len(b) <= textShort/2) as UTF-8, in r.text.
 func (r *Reader) latin1Short(b []byte) string {
 	n := 2 * len(b)
-	if len(r.text) < n {
+	if len(r.text)-r.textAt < n {
 		r.textRoom(n)
 	}
-	t := r.text
+	t := r.text[r.textAt:]
 	var m int
 	if isASCII(b) {
 		m = copy(t, b)
@@ -472,17 +473,17 @@ func (r *Reader) latin1Short(b []byte) string {
 	} else {
 		m = latin1UTF8(t, b)
 	}
-	r.text = t[m:]
+	r.textAt += m
 	return unsafe.String(unsafe.SliceData(t), m)
 }
 
 // utf16Short returns the text of UTF-16 code units (0 < len(b)/2 <= textShort/3) as WTF-8, in r.text.
 func (r *Reader) utf16Short(b []byte) string {
 	n := 3 * (len(b) / 2)
-	if len(r.text) < n {
+	if len(r.text)-r.textAt < n {
 		r.textRoom(n)
 	}
-	t := r.text
+	t := r.text[r.textAt:]
 	var m int
 	if useRead && len(t) >= n+wireSlack {
 		// The vector path (strings_wire_amd64.s), with room for its stores.
@@ -490,7 +491,7 @@ func (r *Reader) utf16Short(b []byte) string {
 	} else {
 		m = utf16UTF8(t, b)
 	}
-	r.text = t[m:]
+	r.textAt += m
 	return unsafe.String(unsafe.SliceData(t), m)
 }
 
