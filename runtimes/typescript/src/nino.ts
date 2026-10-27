@@ -372,135 +372,159 @@ function decodeLatin1(data: Uint8Array, at: number, length: number): string {
 
 /**
  * The text of up to 24 UTF-16 code units at `at`, in one call: flat, unpaired surrogates kept, and in Chromium and
- * Node cheaper than a native decoder or an array of codes. Each code unit is one DataView read, inline: a helper per
- * unit was past V8's inlining budget in a function this large, and stayed a call.
+ * Node cheaper than a native decoder or an array of codes. The code units are read inline: a helper per unit was
+ * past V8's inlining budget in a function this large, and stayed a call.
  */
-function decodeShortUtf16(v: DataView, at: number, length: number): string {
+function decodeShortUtf16(d: Uint8Array, at: number, length: number): string {
   const c = String.fromCharCode;
   switch (length) {
     case 0: return "";
-    case 1: return c(v.getUint16(at, true));
-    case 2: return c(v.getUint16(at, true), v.getUint16(at + 2, true));
-    case 3: return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true));
+    case 1: return c(d[at] | (d[at + 1] << 8));
+    case 2: return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8));
+    case 3: return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8));
     case 4:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8));
     case 5:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8));
     case 6:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8));
     case 7:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8));
     case 8:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8));
     case 9:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8));
     case 10:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8));
     case 11:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8));
     case 12:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8));
     case 13:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true),
-        v.getUint16(at + 24, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8));
     case 14:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true),
-        v.getUint16(at + 24, true), v.getUint16(at + 26, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8));
     case 15:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true),
-        v.getUint16(at + 24, true), v.getUint16(at + 26, true), v.getUint16(at + 28, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8));
     case 16:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true),
-        v.getUint16(at + 24, true), v.getUint16(at + 26, true), v.getUint16(at + 28, true), v.getUint16(at + 30, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8));
     case 17:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true),
-        v.getUint16(at + 24, true), v.getUint16(at + 26, true), v.getUint16(at + 28, true), v.getUint16(at + 30, true),
-        v.getUint16(at + 32, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8));
     case 18:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true),
-        v.getUint16(at + 24, true), v.getUint16(at + 26, true), v.getUint16(at + 28, true), v.getUint16(at + 30, true),
-        v.getUint16(at + 32, true), v.getUint16(at + 34, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8));
     case 19:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true),
-        v.getUint16(at + 24, true), v.getUint16(at + 26, true), v.getUint16(at + 28, true), v.getUint16(at + 30, true),
-        v.getUint16(at + 32, true), v.getUint16(at + 34, true), v.getUint16(at + 36, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8),
+        d[at + 36] | (d[at + 37] << 8));
     case 20:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true),
-        v.getUint16(at + 24, true), v.getUint16(at + 26, true), v.getUint16(at + 28, true), v.getUint16(at + 30, true),
-        v.getUint16(at + 32, true), v.getUint16(at + 34, true), v.getUint16(at + 36, true), v.getUint16(at + 38, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8),
+        d[at + 36] | (d[at + 37] << 8), d[at + 38] | (d[at + 39] << 8));
     case 21:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true),
-        v.getUint16(at + 24, true), v.getUint16(at + 26, true), v.getUint16(at + 28, true), v.getUint16(at + 30, true),
-        v.getUint16(at + 32, true), v.getUint16(at + 34, true), v.getUint16(at + 36, true), v.getUint16(at + 38, true),
-        v.getUint16(at + 40, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8),
+        d[at + 36] | (d[at + 37] << 8), d[at + 38] | (d[at + 39] << 8), d[at + 40] | (d[at + 41] << 8));
     case 22:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true),
-        v.getUint16(at + 24, true), v.getUint16(at + 26, true), v.getUint16(at + 28, true), v.getUint16(at + 30, true),
-        v.getUint16(at + 32, true), v.getUint16(at + 34, true), v.getUint16(at + 36, true), v.getUint16(at + 38, true),
-        v.getUint16(at + 40, true), v.getUint16(at + 42, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8),
+        d[at + 36] | (d[at + 37] << 8), d[at + 38] | (d[at + 39] << 8), d[at + 40] | (d[at + 41] << 8),
+        d[at + 42] | (d[at + 43] << 8));
     case 23:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true),
-        v.getUint16(at + 24, true), v.getUint16(at + 26, true), v.getUint16(at + 28, true), v.getUint16(at + 30, true),
-        v.getUint16(at + 32, true), v.getUint16(at + 34, true), v.getUint16(at + 36, true), v.getUint16(at + 38, true),
-        v.getUint16(at + 40, true), v.getUint16(at + 42, true), v.getUint16(at + 44, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8),
+        d[at + 36] | (d[at + 37] << 8), d[at + 38] | (d[at + 39] << 8), d[at + 40] | (d[at + 41] << 8),
+        d[at + 42] | (d[at + 43] << 8), d[at + 44] | (d[at + 45] << 8));
     default:
-      return c(v.getUint16(at, true), v.getUint16(at + 2, true), v.getUint16(at + 4, true), v.getUint16(at + 6, true),
-        v.getUint16(at + 8, true), v.getUint16(at + 10, true), v.getUint16(at + 12, true), v.getUint16(at + 14, true),
-        v.getUint16(at + 16, true), v.getUint16(at + 18, true), v.getUint16(at + 20, true), v.getUint16(at + 22, true),
-        v.getUint16(at + 24, true), v.getUint16(at + 26, true), v.getUint16(at + 28, true), v.getUint16(at + 30, true),
-        v.getUint16(at + 32, true), v.getUint16(at + 34, true), v.getUint16(at + 36, true), v.getUint16(at + 38, true),
-        v.getUint16(at + 40, true), v.getUint16(at + 42, true), v.getUint16(at + 44, true), v.getUint16(at + 46, true));
+      return c(d[at] | (d[at + 1] << 8), d[at + 2] | (d[at + 3] << 8), d[at + 4] | (d[at + 5] << 8),
+        d[at + 6] | (d[at + 7] << 8), d[at + 8] | (d[at + 9] << 8), d[at + 10] | (d[at + 11] << 8),
+        d[at + 12] | (d[at + 13] << 8), d[at + 14] | (d[at + 15] << 8), d[at + 16] | (d[at + 17] << 8),
+        d[at + 18] | (d[at + 19] << 8), d[at + 20] | (d[at + 21] << 8), d[at + 22] | (d[at + 23] << 8),
+        d[at + 24] | (d[at + 25] << 8), d[at + 26] | (d[at + 27] << 8), d[at + 28] | (d[at + 29] << 8),
+        d[at + 30] | (d[at + 31] << 8), d[at + 32] | (d[at + 33] << 8), d[at + 34] | (d[at + 35] << 8),
+        d[at + 36] | (d[at + 37] << 8), d[at + 38] | (d[at + 39] << 8), d[at + 40] | (d[at + 41] << 8),
+        d[at + 42] | (d[at + 43] << 8), d[at + 44] | (d[at + 45] << 8), d[at + 46] | (d[at + 47] << 8));
   }
 }
 
 /** The text of `length` UTF-16 code units at `at`. */
-function decodeUtf16(data: Uint8Array, view: DataView, at: number, length: number): string {
-  if (length <= 24) return decodeShortUtf16(view, at, length);
+function decodeUtf16(data: Uint8Array, at: number, length: number): string {
+  if (length <= 24) return decodeShortUtf16(data, at, length);
   if (nodeText !== null) return nodeText.ucs2Slice.call(data, at, at + 2 * length);
   if (length <= mediumText) {
     codes.length = length;
-    for (let i = 0; i < length; i++) codes[i] = view.getUint16(at + 2 * i, true);
+    for (let i = 0; i < length; i++) codes[i] = data[at + 2 * i] | (data[at + 2 * i + 1] << 8);
     return String.fromCharCode.apply(null, codes);
   }
   // The decoder writes U+FFFD for an unpaired surrogate: text with one is read code by code instead.
   const text = utf16Decoder.decode(new Uint8Array(data.buffer, data.byteOffset + at, 2 * length));
   if (!text.includes("\ufffd")) return text;
   const units = new Uint16Array(length);
-  for (let i = 0; i < units.length; i++) units[i] = view.getUint16(at + 2 * i, true);
+  for (let i = 0; i < length; i++) units[i] = data[at + 2 * i] | (data[at + 2 * i + 1] << 8);
   return fromCodes(units);
 }
 
@@ -671,14 +695,15 @@ export class NinoReader {
     const first = data[at];
     if (first === 0x80) {
       if (left < 3) throw new NinoError("unexpected end of data.");
-      const value = this.view.getUint16(at + 1, true);
+      const value = data[at + 1] | (data[at + 2] << 8);
       if (value < 0x80) throw new NinoError("string header not minimal.");
       this.pos = at + 3;
       return value;
     }
     if (first !== 0x81) throw new NinoError("string header out of range.");
     if (left < 5) throw new NinoError("unexpected end of data.");
-    const value = this.view.getUint32(at + 1, true);
+    // >>> 0 reads it as unsigned (below 2^32).
+    const value = (data[at + 1] | (data[at + 2] << 8) | (data[at + 3] << 16) | (data[at + 4] << 24)) >>> 0;
     if (value <= 0xffff) throw new NinoError("string header not minimal.");
     this.pos = at + 5;
     return value;
@@ -711,7 +736,7 @@ export class NinoReader {
       const k = kernels === undefined ? wasm() : kernels;
       if (k !== null) return k.utf16(this.inKernels(k, at, length * 2), length);
     }
-    return decodeUtf16(this.data, this.view, at, length);
+    return decodeUtf16(this.data, at, length);
   }
 
   /** Where the `size` bytes at `at` (taken, at most 2 * kernelText) are in the kernels' memory: copied if not there. */
