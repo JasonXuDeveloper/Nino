@@ -155,54 +155,42 @@ namespace Nino.Core
 #endif
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref StringBuilder value, ref Reader reader) =>
-            // Read out of line taking the data, not the reader: inline, the reads of the header and the chars took
-            // the inlining budget of the caller, which then called the reader's own helpers (Reader.Skip,
-            // Reader.ReadRaw) with its address, keeping it in memory.
-            reader.UnsafeAdvance(Read(ref value, ref reader.Peek(), reader.Remaining));
-
-        /// <summary>
-        /// Reads the builder at <paramref name="source"/> (<paramref name="available"/> bytes) into
-        /// <paramref name="value"/> and returns the bytes it takes.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static unsafe int Read(ref StringBuilder value, ref byte source, int available)
+        public unsafe void Deserialize(ref StringBuilder value, ref Reader reader)
         {
+            int available = reader.Remaining;
             if (available <= 0)
                 NinoThrow.EndOfData();
-            ulong read = NinoStrings.ReadHeaderWide(ref source, available);
+            ulong read = NinoStrings.ReadHeaderWide(ref reader.Peek(), available);
             uint header = (uint)read;
-            int at = (int)(read >> 32);
+            reader.UnsafeAdvance((int)(read >> 32));
             if (header == NinoStrings.NullHeader)
             {
                 NinoRecycler.Discard(ref value);
-                return at;
+                return;
             }
 
             // Odd: Latin-1 chars, one byte each; even: UTF-16. Checked against the bytes left before the builder is
             // sized for it (in 64 bits: a UTF-16 length up to int.MaxValue doubles past an int).
             int length = (int)(header >> 1);
             bool latin1 = (header & 1) != 0;
-            if ((ulong)(uint)length * (latin1 ? 1u : sizeof(char)) > (uint)(available - at))
+            if ((ulong)(uint)length * (latin1 ? 1u : sizeof(char)) > (uint)reader.Remaining)
                 NinoThrow.EndOfData();
             var builder = value ??= new StringBuilder(length);
             builder.Clear();
             if (length == 0)
-                return at;
-            ref byte chars = ref Unsafe.Add(ref source, at);
+                return;
             if (latin1)
             {
-                NinoStrings.AppendLatin1(builder, ref chars, length);
-                return at + length;
+                var latin1Chars = reader.ReadRaw(length);
+                NinoStrings.AppendLatin1(builder, ref MemoryMarshal.GetReference(latin1Chars), length);
+                return;
             }
 
-            fixed (byte* p = &chars)
+            var chars = MemoryMarshal.Cast<byte, char>(reader.ReadRaw(length * sizeof(char)));
+            fixed (char* p = chars)
             {
-                builder.Append((char*)p, length);
+                builder.Append(p, chars.Length);
             }
-
-            return at + length * sizeof(char);
         }
     }
 
