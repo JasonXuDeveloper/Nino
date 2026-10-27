@@ -1,4 +1,9 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+# phase10/rust: first, so the 2-hour jobs reach them (each ~10 min): c1+c2 vs main, c3 on its own (string writes), main vs itself, the blocks bench.
+rust 1622ddb 2ccdfab ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 2ccdfab 73974ff ^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/serialize/nino$
+rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust:blocks 781d955 9980f8b
 # phase9/rust-records 4e4be1e against 36cfdbf twice, and 36cfdbf against itself (the noise floor of each runner). (done, landed as 9b03940)
 # done: rust 36cfdbf 36cfdbf ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 # done: rust 36cfdbf 4e4be1e ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
@@ -41,9 +46,9 @@ go#12 1622ddb e70605d //^(Nino|NinoTags)$
 go#12 1622ddb 1622ddb //^(Nino|NinoTags)$
 go#12 0dd4684 88bfc1f //^Nino$
 # phase10/rust (73974ff): blocks bench before/after c1, main vs each commit on the nino cases, main vs itself (floor).
-rust:blocks 781d955 9980f8b
-rust 1622ddb 9980f8b ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 9980f8b 2ccdfab ^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/deserialize/nino$
-rust 1622ddb 73974ff ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust:text 2ccdfab 73974ff write/
-rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+# superseded (the 2-hour job ended before reaching it): rust:blocks 781d955 9980f8b
+# superseded (the 2-hour job ended before reaching it): rust 1622ddb 9980f8b ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+# superseded (the 2-hour job ended before reaching it): rust 9980f8b 2ccdfab ^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/deserialize/nino$
+# superseded (the 2-hour job ended before reaching it): rust 1622ddb 73974ff ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+# superseded (the 2-hour job ended before reaching it): rust:text 2ccdfab 73974ff write/
+# superseded (the 2-hour job ended before reaching it): rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
