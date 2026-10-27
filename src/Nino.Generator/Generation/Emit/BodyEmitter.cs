@@ -318,18 +318,10 @@ internal sealed class BodyEmitter
     {
         int constant = _m.Kind == FormatterKind.SealedClass ? 1 : 0;
         var symbolic = new List<string>();
-        string Offset()
-        {
-            var parts = new List<string>(symbolic);
-            if (constant != 0 || parts.Count == 0)
-                parts.Insert(0, constant.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            return string.Join(" + ", parts);
-        }
-
         var members = new List<(MemberModel, string)>();
         foreach (var member in _m.Members)
         {
-            members.Add((member, Offset()));
+            members.Add((member, RawBlock.Size(constant, symbolic)));
             if (member.Raw is { IsConstant: true } raw)
                 constant += raw.Bytes;
             else if (member.Raw != null)
@@ -340,7 +332,7 @@ internal sealed class BodyEmitter
                 symbolic.Add($"default({Formatter(member)}).FixedSize");
         }
 
-        return (members, Offset());
+        return (members, RawBlock.Size(constant, symbolic));
     }
 
     /// <summary>
@@ -869,7 +861,9 @@ internal sealed class BodyEmitter
 
         if (c.Creator.Length == 0)
         {
-            _w.Line($"throw new global::System.NotSupportedException(\"Nino: cannot construct {EscapeString(T)}\");");
+            // The name as users write it: not global::-qualified, which the file's alias of the type would replace.
+            string name = EscapeString(T.Replace("global::", ""));
+            _w.Line($"throw new global::System.NotSupportedException(\"Nino: cannot construct {name}\");");
             return;
         }
 
@@ -1036,7 +1030,9 @@ internal sealed class BodyEmitter
 
     // ----- keyed ---------------------------------------------------------------------------------------------
 
-    /// <summary>(key, length) as the int64 a reader sees, for raw members of constant size; else null.</summary>
+    /// <summary>
+    /// (key, length) as the int64 a reader sees, for raw members of constant size, as an argument; else null.
+    /// </summary>
     private static string? KeyHeader(MemberModel member)
     {
         if (member.Raw is not { IsConstant: true } raw)
@@ -1045,7 +1041,7 @@ internal sealed class BodyEmitter
         uint key = unchecked((uint)member.Key);
         long le = (long)size << 32 | key;
         long be = (long)key << 32 | (uint)size;
-        return le == be ? $"{le}L" : $"(global::System.BitConverter.IsLittleEndian ? {le}L : {be}L)";
+        return le == be ? $"{le}L" : $"global::System.BitConverter.IsLittleEndian ? {le}L : {be}L";
     }
 
     /// <summary>

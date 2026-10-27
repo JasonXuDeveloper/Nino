@@ -70,28 +70,27 @@ internal static class DispatchEmitter
 
             string t = e.TypeName;
             w.Open($"partial struct {e.Self}");
-            w.Block($"internal static void __WriteSubtype({t} value, ref __NinoWriter writer)", () =>
+            w.Block($"internal static void __WriteSubtype({t} value, ref {Core}Writer writer)", () =>
             {
                 for (int i = 0; i < closed.Count; i++)
-                    w.Line($$"""if (typeof({{t}}) == typeof({{closed[i]}})) { {{classes[i]}}.__WriteSubtype(__NinoObject.SameType<{{closed[i]}}>(value), ref writer); return; }""");
+                    w.Line($$"""if (typeof({{t}}) == typeof({{closed[i]}})) { {{classes[i]}}.__WriteSubtype({{CoreCompilerServices}}NinoObject.SameType<{{closed[i]}}>(value), ref writer); return; }""");
                 w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.Serialize(value, ref writer);");
             });
             w.Line();
-            w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref __NinoReader reader)", () =>
+            w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref {Core}Reader reader)", () =>
             {
                 for (int i = 0; i < closed.Count; i++)
-                    w.Line($$"""if (typeof({{t}}) == typeof({{closed[i]}})) { {{classes[i]}}.__ReadSubtype(id, ref __NinoObject.SameTypeSlot<{{t}}, {{closed[i]}}>(ref value), ref reader); return; }""");
+                    w.Line($$"""if (typeof({{t}}) == typeof({{closed[i]}})) { {{classes[i]}}.__ReadSubtype(id, ref {{CoreCompilerServices}}NinoObject.SameTypeSlot<{{t}}, {{closed[i]}}>(ref value), ref reader); return; }""");
                 w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);");
             });
             w.Close();
             w.Line();
         }
 
-        // Aliases for the names every line repeats: this file has a few lines per (base, subtype) pair.
-        return GeneratedCode.File("", GeneratedCode.InlineAliases.Concat(new[]
-        {
-            GeneratedCode.ObjectAlias, GeneratedCode.WriterAlias, GeneratedCode.ReaderAlias,
-        }), w.ToString());
+        // This file has a few lines per (base, subtype) pair, each repeating the same names.
+        var aliases = new List<string>();
+        string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
+        return GeneratedCode.File("", GeneratedCode.InlineAliases.Concat(aliases), body);
     }
 
     /// <summary>
@@ -129,7 +128,7 @@ internal static class DispatchEmitter
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
     private static void EmitBase(CodeWriter w, string t, List<DispatchEntry> subtypes)
     {
-        w.Block($"internal static void __WriteSubtype({t} value, ref __NinoWriter writer)", () =>
+        w.Block($"internal static void __WriteSubtype({t} value, ref {Core}Writer writer)", () =>
         {
             // value.GetType() == typeof(X) compiles to one method table compare. WriteExact is inlined where the
             // caller's inlining budget allows (the dispatch is inlined into its callers), else called as shared code.
@@ -137,11 +136,11 @@ internal static class DispatchEmitter
             // array of 20 subtypes, but more where the bodies would have been inlined, and one more method per
             // subtype costs about 2.5% more compile time on a workload of hierarchies.
             foreach (var s in subtypes.Count <= MaxWriteChain ? subtypes : new List<DispatchEntry>())
-                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { __NinoObject.WriteExact{{(s.RawBody ? "Raw" : "")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
+                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{CoreCompilerServices}}NinoObject.WriteExact{{(s.RawBody ? "Raw" : "")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
             w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.Serialize(value, ref writer);");
         });
         w.Line();
-        w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref __NinoReader reader)", () =>
+        w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref {Core}Reader reader)", () =>
         {
             if (subtypes.Count != 0)
                 EmitReadSwitch(w, subtypes);
@@ -156,7 +155,7 @@ internal static class DispatchEmitter
         for (int i = 0; i < subtypes.Count; i++)
         {
             var s = subtypes[i];
-            w.Line($"{GeneratedCode.NoInline} static void __ReadExact{i}(ref {t} value, ref __NinoReader reader) => __NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref value, ref reader);");
+            w.Line($"{GeneratedCode.NoInline} static void __ReadExact{i}(ref {t} value, ref {Core}Reader reader) => {CoreCompilerServices}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref value, ref reader);");
         }
     }
 }

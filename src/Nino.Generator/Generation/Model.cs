@@ -112,13 +112,18 @@ internal sealed record MemberModel(
     // TypeFacts.ShallowTwin), for shallow bodies; the formatter itself when none has one.
     FormatterRef ShallowFormatter,
     // Whether a new instance (TypeModel.FreshRead) holds null in this member, which a Nino.Core formatter then reads
-    // from a null local rather than from the member: a field or auto-property of a reference type without an
-    // initializer, in a type whose constructors set nothing.
+    // from a null local rather than from the member, and a string is read without (no reuse of an equal string to
+    // check, and the reader's address not taken by Reader.ReadStringOver): a field or auto-property of a reference
+    // type without an initializer, in a type whose constructors set nothing.
     bool Fresh,
     // Whether the member's Nino.Core formatter reads its elements in a loop inlined into the body (any collection
     // but strings, raw arrays and lists, and dictionaries of raw keys and raw or string values; see
     // FormatterTraits.Flat).
-    bool ReadsLoop);
+    bool ReadsLoop)
+{
+    /// <summary>Whether the member is a string, which generated code reads and writes through the reader and writer.</summary>
+    public bool IsString => (Traits & (FormatterTraits.String | FormatterTraits.Utf8String)) != 0;
+}
 
 internal sealed record ConstructionModel(
     // Re-create the instance on every read (constructor arguments, init-only or readonly members).

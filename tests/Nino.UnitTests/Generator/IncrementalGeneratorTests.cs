@@ -263,6 +263,8 @@ public class Hidden
         var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
         Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
         StringAssert.Contains(Output(driver, "Hidden"), "NotSupportedException");
+        // The message names the type as users write it, not as the file's alias of it.
+        StringAssert.Contains(Output(driver, "Hidden"), "\"Nino: cannot construct Inc.Hidden\"");
     }
 
     [TestMethod]

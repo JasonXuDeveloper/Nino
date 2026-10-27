@@ -1,5 +1,4 @@
-using System.Linq;
-using System.Text;
+using System.Collections.Generic;
 using Nino.Generator.Common;
 using static Nino.Generator.Generation.Emit.MemberCode;
 using static Nino.Generator.Generation.TypeNames;
@@ -14,40 +13,13 @@ internal static class FormatterEmitter
         var names = new FormatterNames(m);
         var w = new CodeWriter(4096, indent: 1);
         EmitFormatter(w, m, names);
-        string body = m.IsGeneric ? w.ToString() : WithSelfAlias(w.ToString(), m.TypeName, names);
+        // The type's own name, which most lines of a formatter repeat, through an alias: not a generic type's, whose
+        // name has the formatter's type parameters.
+        var aliases = new List<string>();
+        string body = GeneratedCode.WithAliases(w.ToString(), m.IsGeneric ? null : m.TypeName, aliases);
 
-        string file = GeneratedCode.File(LayoutEmitter.Emit(m) + "\n", names.Declarations(), body);
+        string file = GeneratedCode.File(LayoutEmitter.Emit(m) + "\n", names.Declarations(aliases), body);
         return m.Partial.Declarations.Length > 0 ? file + AccessorEmitter.EmitPartial(m) : file;
-    }
-
-    /// <summary>The alias of a non-generic model's own type in its formatter's file (<see cref="WithSelfAlias"/>).</summary>
-    private const string SelfAlias = "__NinoT";
-
-    /// <summary>
-    /// <paramref name="body"/> with the type's own name, which most lines of a formatter repeat, replaced by
-    /// <see cref="SelfAlias"/>, declared with the file's other aliases. Only whole names are replaced: not one that
-    /// goes on with an identifier character or a dot (a longer name, a nested type, a namespace).
-    /// </summary>
-    private static string WithSelfAlias(string body, string typeName, FormatterNames names)
-    {
-        var sb = new StringBuilder(body.Length);
-        int start = 0, at;
-        while ((at = body.IndexOf(typeName, start, System.StringComparison.Ordinal)) >= 0)
-        {
-            int end = at + typeName.Length;
-            sb.Append(body, start, at - start);
-            if (end < body.Length && (char.IsLetterOrDigit(body[end]) || body[end] is '_' or '.'))
-                sb.Append(typeName);
-            else
-                sb.Append(SelfAlias);
-            start = end;
-        }
-
-        if (start == 0)
-            return body;
-        sb.Append(body, start, body.Length - start);
-        names.Alias(SelfAlias, typeName);
-        return sb.ToString();
     }
 
     private static void EmitFormatter(CodeWriter w, TypeModel m, FormatterNames names)
