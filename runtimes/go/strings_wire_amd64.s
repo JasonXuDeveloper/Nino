@@ -97,51 +97,47 @@ DATA wire<>+704(SB)/8, $0x0706050403020100
 DATA wire<>+712(SB)/8, $0x0f0e0d0c0b0a0908
 DATA wire<>+720(SB)/8, $0x1716151413121110
 DATA wire<>+728(SB)/8, $0x1f1e1d1c1b1a1918
-DATA wire<>+736(SB)/8, $0x070605040302017f
-DATA wire<>+744(SB)/8, $0x0f0e0d0c0b0a0908
-DATA wire<>+752(SB)/8, $0x1716151413121110
-DATA wire<>+760(SB)/8, $0x1f1e1d1c1b1a1918
-DATA wire<>+768(SB)/8, $0xffffffffffffff00
-DATA wire<>+776(SB)/8, $0xffffffffffffffff
-DATA wire<>+784(SB)/8, $0xffffffffffffffff
-DATA wire<>+792(SB)/8, $0xffffffffffffffff
-DATA wire<>+800(SB)/8, $0xff80ff80ff80ff80
-DATA wire<>+808(SB)/8, $0xff80ff80ff80ff80
-DATA wire<>+816(SB)/8, $0xff80ff80ff80ff80
-DATA wire<>+824(SB)/8, $0xff80ff80ff80ff80
-DATA wire<>+832(SB)/8, $0xf800f800f800f800
-DATA wire<>+840(SB)/8, $0xf800f800f800f800
-DATA wire<>+848(SB)/8, $0xf800f800f800f800
-DATA wire<>+856(SB)/8, $0xf800f800f800f800
-DATA wire<>+864(SB)/8, $0xfc00fc00fc00fc00
-DATA wire<>+872(SB)/8, $0xfc00fc00fc00fc00
-DATA wire<>+880(SB)/8, $0xfc00fc00fc00fc00
-DATA wire<>+888(SB)/8, $0xfc00fc00fc00fc00
-DATA wire<>+896(SB)/8, $0xd800d800d800d800
-DATA wire<>+904(SB)/8, $0xd800d800d800d800
-DATA wire<>+912(SB)/8, $0xd800d800d800d800
-DATA wire<>+920(SB)/8, $0xd800d800d800d800
-DATA wire<>+928(SB)/8, $0x003f003f003f003f
-DATA wire<>+936(SB)/8, $0x003f003f003f003f
-DATA wire<>+944(SB)/8, $0x003f003f003f003f
-DATA wire<>+952(SB)/8, $0x003f003f003f003f
-DATA wire<>+960(SB)/8, $0x0080008000800080
-DATA wire<>+968(SB)/8, $0x0080008000800080
-DATA wire<>+976(SB)/8, $0x0080008000800080
-DATA wire<>+984(SB)/8, $0x0080008000800080
-DATA wire<>+992(SB)/8, $0x00c000c000c000c0
-DATA wire<>+1000(SB)/8, $0x00c000c000c000c0
-DATA wire<>+1008(SB)/8, $0x00c000c000c000c0
-DATA wire<>+1016(SB)/8, $0x00c000c000c000c0
-DATA wire<>+1024(SB)/8, $0x00e000e000e000e0
-DATA wire<>+1032(SB)/8, $0x00e000e000e000e0
-DATA wire<>+1040(SB)/8, $0x00e000e000e000e0
-DATA wire<>+1048(SB)/8, $0x00e000e000e000e0
-DATA wire<>+1056(SB)/8, $0x0040004000400040
-DATA wire<>+1064(SB)/8, $0x0040004000400040
-DATA wire<>+1072(SB)/8, $0x0040004000400040
-DATA wire<>+1080(SB)/8, $0x0040004000400040
-GLOBL wire<>(SB), RODATA|NOPTR, $1088
+DATA wire<>+736(SB)/8, $0xffffffffffffff00
+DATA wire<>+744(SB)/8, $0xffffffffffffffff
+DATA wire<>+752(SB)/8, $0xffffffffffffffff
+DATA wire<>+760(SB)/8, $0xffffffffffffffff
+DATA wire<>+768(SB)/8, $0xff80ff80ff80ff80
+DATA wire<>+776(SB)/8, $0xff80ff80ff80ff80
+DATA wire<>+784(SB)/8, $0xff80ff80ff80ff80
+DATA wire<>+792(SB)/8, $0xff80ff80ff80ff80
+DATA wire<>+800(SB)/8, $0xf800f800f800f800
+DATA wire<>+808(SB)/8, $0xf800f800f800f800
+DATA wire<>+816(SB)/8, $0xf800f800f800f800
+DATA wire<>+824(SB)/8, $0xf800f800f800f800
+DATA wire<>+832(SB)/8, $0xfc00fc00fc00fc00
+DATA wire<>+840(SB)/8, $0xfc00fc00fc00fc00
+DATA wire<>+848(SB)/8, $0xfc00fc00fc00fc00
+DATA wire<>+856(SB)/8, $0xfc00fc00fc00fc00
+DATA wire<>+864(SB)/8, $0xd800d800d800d800
+DATA wire<>+872(SB)/8, $0xd800d800d800d800
+DATA wire<>+880(SB)/8, $0xd800d800d800d800
+DATA wire<>+888(SB)/8, $0xd800d800d800d800
+DATA wire<>+896(SB)/8, $0x003f003f003f003f
+DATA wire<>+904(SB)/8, $0x003f003f003f003f
+DATA wire<>+912(SB)/8, $0x003f003f003f003f
+DATA wire<>+920(SB)/8, $0x003f003f003f003f
+DATA wire<>+928(SB)/8, $0x0080008000800080
+DATA wire<>+936(SB)/8, $0x0080008000800080
+DATA wire<>+944(SB)/8, $0x0080008000800080
+DATA wire<>+952(SB)/8, $0x0080008000800080
+DATA wire<>+960(SB)/8, $0x00c000c000c000c0
+DATA wire<>+968(SB)/8, $0x00c000c000c000c0
+DATA wire<>+976(SB)/8, $0x00c000c000c000c0
+DATA wire<>+984(SB)/8, $0x00c000c000c000c0
+DATA wire<>+992(SB)/8, $0x00e000e000e000e0
+DATA wire<>+1000(SB)/8, $0x00e000e000e000e0
+DATA wire<>+1008(SB)/8, $0x00e000e000e000e0
+DATA wire<>+1016(SB)/8, $0x00e000e000e000e0
+DATA wire<>+1024(SB)/8, $0x0040004000400040
+DATA wire<>+1032(SB)/8, $0x0040004000400040
+DATA wire<>+1040(SB)/8, $0x0040004000400040
+DATA wire<>+1048(SB)/8, $0x0040004000400040
+GLOBL wire<>(SB), RODATA|NOPTR, $1056
 
 // func wireStringAVX2(dst unsafe.Pointer, i int, src unsafe.Pointer, n int) int
 // Requires: AVX, AVX2, POPCNT
@@ -544,20 +540,20 @@ header:
 	JA           finish
 	CMPQ         BX, $0x20
 	JAE          long
-	LEAQ         -1(SI), R8
-	MOVL         R8, R9
+	MOVL         SI, R9
 	ANDL         $0x00000fff, R9
 	CMPL         R9, $0x00000fe0
 	JA           long
-	LEAL         1(BX), R10
-	VMOVD        R10, X4
+	VMOVD        BX, X4
 	VPBROADCASTB X4, Y4
-	VPCMPGTB     wire<>+736(SB), Y4, Y4
-	VMOVDQU      (R8), Y0
+	VPCMPGTB     wire<>+704(SB), Y4, Y4
+	VMOVDQU      (SI), Y0
 	VPAND        Y4, Y0, Y0
 	VPMOVMSKB    Y0, R8
 	TESTL        R8, R8
 	JNZ          shand
+	VPERM2I128   $0x08, Y0, Y0, Y1
+	VPALIGNR     $0x0f, Y1, Y0, Y0
 
 	// The header, 2n+1, in the first byte.
 	LEAL    1(BX)(BX*1), CX
@@ -597,20 +593,18 @@ empty:
 	JMP  next
 
 shand:
-	VPERM2I128 $0x81, Y0, Y0, Y1
-	VPALIGNR   $0x01, Y0, Y1, Y0
-	MOVQ       BX, AX
-	MOVL       $0x00000001, R13
-	MOVQ       AX, CX
-	SHLL       CL, R13
-	DECL       R13
-	INCQ       DI
-	MOVQ       DI, 8(SP)
-	MOVQ       DI, (SP)
-	XORQ       DX, DX
-	VPXOR      Y14, Y14, Y14
-	VPXOR      Y12, Y12, Y12
-	JMP        lbody
+	MOVQ  BX, AX
+	MOVL  $0x00000001, R13
+	MOVQ  AX, CX
+	SHLL  CL, R13
+	DECL  R13
+	INCQ  DI
+	MOVQ  DI, 8(SP)
+	MOVQ  DI, (SP)
+	XORQ  DX, DX
+	VPXOR Y14, Y14, Y14
+	VPXOR Y12, Y12, Y12
+	JMP   lbody
 
 long:
 	INCQ  DI
@@ -1931,14 +1925,14 @@ TEXT ·utf16UTF8SSE(SB), NOSPLIT, $0-32
 	MOVQ  DI, R11
 	XORQ  DX, DX
 	PXOR  X7, X7
-	MOVOU wire<>+800(SB), X8
-	MOVOU wire<>+832(SB), X9
-	MOVOU wire<>+928(SB), X10
-	MOVOU wire<>+960(SB), X11
-	MOVOU wire<>+992(SB), X12
-	MOVOU wire<>+1024(SB), X13
-	MOVOU wire<>+1056(SB), X14
-	MOVOU wire<>+864(SB), X15
+	MOVOU wire<>+768(SB), X8
+	MOVOU wire<>+800(SB), X9
+	MOVOU wire<>+896(SB), X10
+	MOVOU wire<>+928(SB), X11
+	MOVOU wire<>+960(SB), X12
+	MOVOU wire<>+992(SB), X13
+	MOVOU wire<>+1024(SB), X14
+	MOVOU wire<>+832(SB), X15
 
 loop:
 	MOVQ  BX, CX
@@ -2027,7 +2021,7 @@ three:
 	ORL  CX, AX
 
 	// High surrogates.
-	MOVOU    wire<>+896(SB), X6
+	MOVOU    wire<>+864(SB), X6
 	MOVOA    X0, X5
 	PAND     X15, X5
 	PCMPEQW  X6, X5
@@ -2613,7 +2607,7 @@ header:
 	MOVOU    (R8), X0
 	MOVOU    (R10), X1
 	PAND     X1, X0
-	MOVOU    wire<>+768(SB), X1
+	MOVOU    wire<>+736(SB), X1
 	PAND     X1, X0
 	PMOVMSKB X0, R8
 	TESTL    R8, R8

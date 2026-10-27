@@ -63,11 +63,10 @@ func constants() {
 	tail := fill(0xFF)
 	tail[29], tail[30], tail[31] = 0xEF, 0xDF, 0xBF
 	mask16 := append(fill(0xFF)[:16], make([]byte, 16)...)
-	idx, idx1 := make([]byte, 32), make([]byte, 32)
+	idx := make([]byte, 32)
 	for i := range idx {
-		idx[i], idx1[i] = byte(i), byte(i)
+		idx[i] = byte(i)
 	}
-	idx1[0] = 0x7F
 	not0 := fill(0xFF)
 	not0[0] = 0
 	table := []struct {
@@ -99,8 +98,7 @@ func constants() {
 		// entry starts 32 bytes apart and the linker aligns the table to 32 bytes, so no 16-byte window of it crosses a
 		// cache line (a window of a 64-byte table may, for half of the builds: AVX2 compares IDX instead).
 		{"MASK16", mask16},
-		{"IDX", idx},   // 0 to 31: the bytes of a block below n, as n > IDX (AVX2)
-		{"IDX1", idx1}, // IDX, its first byte 7F: the byte before the text cleared and n bytes after it, as n+1 > IDX1
+		{"IDX", idx},   // 0 to 31: the first n bytes of a block, as n > IDX (AVX2)
 		{"NOT0", not0}, // 0, then 31 bytes of FF: clears the byte before the text (see writer.short)
 		{"WFF80", words(0xFF80)},
 		{"WF800", words(0xF800)},
@@ -345,9 +343,9 @@ func many(name string, w writer) {
 }
 
 // The list kernels' path for short ASCII text (writer.short): the bytes from the one before the text (cleared) to
-// the text's end, read as one block with zeros past them; the header, 2n+1, goes in the first byte, and the block
-// is stored where the string goes: the header and the text in one store. The header stored as a byte of its own
-// ahead of the text cost about 5% on short strings on Zen 4.
+// the text's end, read as one block with zeros past them (AVX2: the text, moved up a byte); the header, 2n+1, goes
+// in the first byte, and the block is stored where the string goes: the header and the text in one store. The
+// header stored as a byte of its own ahead of the text cost about 5% on short strings on Zen 4.
 
 // bytesOf splits the 32 bits of m into its bytes, R9 (the lowest) to R12.
 func bytesOf(m GPPhysical) {
