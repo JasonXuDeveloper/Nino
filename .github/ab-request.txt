@@ -1,4 +1,22 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+# phase10/rust round 6: maps of fixed-size entries as one block (80ae370) against 781d955 / 717f4bb / main, with floors; text-different filters for more samples a CPU.
+rust:blocks 781d955 80ae370 blocks/
+rust:blocks 781d955 80ae370 ^blocks/
+rust:blocks 781d955 80ae370 blocks/.*
+rust:blocks 717f4bb 80ae370 blocks/
+rust:blocks 717f4bb 80ae370 ^blocks/
+rust:blocks 717f4bb 80ae370 blocks/.*
+rust:blocks 80ae370 80ae370 blocks/
+rust:blocks 80ae370 80ae370 ^blocks/
+rust:blocks 717f4bb 717f4bb blocks/
+rust:blocks 781d955 781d955 blocks/
+rust:blocks 781d955 781d955 ^blocks/
+rust 1622ddb 80ae370 /nino$
+rust 1622ddb 80ae370 .*/nino$
+rust 717f4bb 80ae370 /nino$
+rust 717f4bb 80ae370 .*/nino$
+rust 80ae370 80ae370 /nino$
+rust 1622ddb 1622ddb /nino$
 # phase10/rust round 5: HashMap loops aligned (a012ca5) against 781d955 / 717f4bb / main, with floors; text-different filters for more samples a CPU.
 # phase10/ts 8a96588 (otherString kept over V8's inlining limit) against main, 6ed8a8a against main, and main against
 # itself: each three times, spelled differently, for 15 jobs a side on Neoverse-N2 (Chromium ASCII reads 28 or 32 ms).
