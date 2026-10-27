@@ -231,18 +231,18 @@ typescript 506720c223 506720c223
 # phase10/go 043fd89 (round 2): utf8Units calls isASCIILong and the scan kernel directly (strings-mixed-utf8 Deserialize,
 # +1.2% on EPYC 7763 in run 40589012038) and the arm64 list kernel takes five instructions fewer a short string
 # (strings-1000 Serialize, +0.6% on Neoverse-N2): against main with floors on both sides, and ad33b1a -> 043fd89.
-go#12 1622ddb 043fd89 ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
-go#12 043fd89 043fd89 ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
-go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
-go#12 1622ddb 043fd89 ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
-go#12 1622ddb 043fd89 ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
-go#12 1622ddb 043fd89 ^Benchmark(Serialize|Deserialize)$/strings/^(Nino|NinoTags)$
-go#12 043fd89 043fd89 ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
-go#12 043fd89 043fd89 ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
-go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
-go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$/strings/^(Nino|NinoTags)$
-go#12 1622ddb 043fd89 ^Benchmark(Serialize|Deserialize)$/^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)$/^Nino$
-go#12 1622ddb 043fd89 ^Benchmark(Deserialize|Serialize)$/^(strings-mixed-utf8-1000|strings-mixed-1000|strings-1000)$/^Nino$
-go#12 043fd89 043fd89 ^Benchmark(Serialize|Deserialize)$/^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)$/^Nino$
-go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$/^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)$/^Nino$
-go#12 ad33b1a 043fd89 ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
+# done (run 40595852434): go#12 1622ddb 043fd89 ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+# done (run 40595852434): go#12 043fd89 043fd89 ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+# done (run 40595852434): go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+# done (run 40595852434): go#12 1622ddb 043fd89 ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
+# done (run 40595852434): go#12 1622ddb 043fd89 ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
+# done (run 40595852434): go#12 1622ddb 043fd89 ^Benchmark(Serialize|Deserialize)$/strings/^(Nino|NinoTags)$
+# done (run 40595852434): go#12 043fd89 043fd89 ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
+# done (run 40595852434): go#12 043fd89 043fd89 ^Benchmark(Deserialize|Serialize)$/^strings/^(NinoTags|Nino)$
+# done (run 40595852434): go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
+# done (run 40595852434): go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$/strings/^(Nino|NinoTags)$
+# done (run 40595852434): go#12 1622ddb 043fd89 ^Benchmark(Serialize|Deserialize)$/^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)$/^Nino$
+# done (run 40595852434): go#12 1622ddb 043fd89 ^Benchmark(Deserialize|Serialize)$/^(strings-mixed-utf8-1000|strings-mixed-1000|strings-1000)$/^Nino$
+# done (run 40595852434): go#12 043fd89 043fd89 ^Benchmark(Serialize|Deserialize)$/^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)$/^Nino$
+# done (run 40595852434): go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$/^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)$/^Nino$
+# done (run 40595852434): go#12 ad33b1a 043fd89 ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
