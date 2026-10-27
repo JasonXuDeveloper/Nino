@@ -82,3 +82,8 @@ go#12 e70605d e70605d ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
 go:internal/generated#12 e5bf730 e70605d ^BenchmarkBlocks$
 go:internal/generated#12 e5bf730 e5bf730 ^BenchmarkBlocks$
 go:internal/generated#12 e70605d e70605d ^BenchmarkBlocks$
+# phase10/go bc2f5dc: dictionaries of primitive keys and values as one block (intmap; intset as a control), with
+# a floor on each side. The bench module has no dictionary case.
+go:internal/generated#12 e70605d bc2f5dc ^BenchmarkBlocks$/^int
+go:internal/generated#12 e70605d e70605d ^BenchmarkBlocks$/^int
+go:internal/generated#12 bc2f5dc bc2f5dc ^BenchmarkBlocks$/^int
