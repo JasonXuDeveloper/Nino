@@ -729,6 +729,22 @@ export class NinoReader {
 
   /** A string (the default encoding): 0 null, 2n + 1 then n Latin-1 bytes, or 2n then n UTF-16 code units. */
   string(): string | null {
+    // Inline: text of up to 63 one-byte chars, whose one-byte header is odd and below 0x80, checked with its text.
+    const at = this.pos;
+    if (at < this.end) {
+      const first = this.data[at];
+      if ((first & 0x81) === 1) {
+        const length = first >>> 1, start = at + 1;
+        if (length > this.end - start) throw new NinoError("unexpected end of data.");
+        this.pos = start + length;
+        return length === 0 ? "" : this.latin1(start, length);
+      }
+    }
+    return this.otherString();
+  }
+
+  /** `string` for every other header: null, UTF-16 text, or one-byte text of 64 chars or more. */
+  private otherString(): string | null {
     const header = this.header(), length = header >>> 1;
     if ((header & 1) !== 0) return length === 0 ? "" : this.latin1(this.take(length), length);
     if (header === 0) return null;
