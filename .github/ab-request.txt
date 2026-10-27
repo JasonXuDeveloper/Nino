@@ -52,12 +52,12 @@ typescript 506720c223f846ff378520be7f486a8f24928893 506720c223f846ff378520be7f48
 # phase10/go e70605d (rebased on main 1622ddb): BenchmarkBlocks from e5bf730 (main plus the benchmark) to the blocks
 # (0d3ffdc) with its floor; the integer-key repeat check (0d3ffdc to e70605d, Blocks/int); the bench module against
 # main with its floor; the string tails' bounds checks alone (0dd4684 to 88bfc1f).
-go:internal/generated#12 e5bf730 0d3ffdc Blocks
-go:internal/generated#12 e5bf730 e5bf730 Blocks
-go:internal/generated#12 0d3ffdc e70605d Blocks/int
-go#12 1622ddb e70605d //^(Nino|NinoTags)$
-go#12 1622ddb 1622ddb //^(Nino|NinoTags)$
-go#12 0dd4684 88bfc1f //^Nino$
+# done (run 40533976003): go:internal/generated#12 e5bf730 0d3ffdc Blocks
+# done (run 40533976003): go:internal/generated#12 e5bf730 e5bf730 Blocks
+# done (run 40533976003): go:internal/generated#12 0d3ffdc e70605d Blocks/int
+# done (run 40533976003): go#12 1622ddb e70605d //^(Nino|NinoTags)$
+# done (run 40533976003): go#12 1622ddb 1622ddb //^(Nino|NinoTags)$
+# done (run 40533976003): go#12 0dd4684 88bfc1f //^Nino$
 # phase10/rust (73974ff): blocks bench before/after c1, main vs each commit on the nino cases, main vs itself (floor).
 # superseded (the 2-hour job ended before reaching it): rust:blocks 781d955 9980f8b
 # superseded (the 2-hour job ended before reaching it): rust 1622ddb 9980f8b ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
@@ -65,3 +65,14 @@ go#12 0dd4684 88bfc1f //^Nino$
 # superseded (the 2-hour job ended before reaching it): rust 1622ddb 73974ff ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 # superseded (the 2-hour job ended before reaching it): rust:text 2ccdfab 73974ff write/
 # superseded (the 2-hour job ended before reaching it): rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+# phase10/go e70605d again, with a floor for every line: run 40533976003's slower cases (Blocks mixed-1000 Serialize
+# +5% on Neoverse-N2, intmap Serialize +6-12% on EPYC 7763 and Xeon 6973P, strings +0.3-2.9% on EPYC 7763 and N2) run
+# code whose instructions are the same in both builds (objdump, amd64 and arm64); only where functions are placed
+# moved (75% of the runtime's functions changed their offset in a 64-byte line on amd64). Each floor is a ref against
+# itself, so a case is judged against the noise of its own build.
+go#12 1622ddb e70605d ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+go#12 e70605d e70605d ^Benchmark(Serialize|Deserialize)$//^(Nino|NinoTags)$
+go:internal/generated#12 e5bf730 e70605d ^BenchmarkBlocks$
+go:internal/generated#12 e5bf730 e5bf730 ^BenchmarkBlocks$
+go:internal/generated#12 e70605d e70605d ^BenchmarkBlocks$
