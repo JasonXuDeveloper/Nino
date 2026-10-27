@@ -2023,18 +2023,25 @@ unsafe fn utf16_utf8(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usize {
 /// # Safety
 /// The room from `dst + o` holds what `units[k..]` count (see [`utf16_string`]).
 #[inline(always)]
-unsafe fn utf16_words(units: &[[u8; 2]], mut k: usize, end: usize, dst: *mut u8, mut o: usize) -> (usize, usize) {
+unsafe fn utf16_words(units: &[[u8; 2]], k: usize, end: usize, dst: *mut u8, mut o: usize) -> (usize, usize) {
+    // The units from `k` to `end` as one slice taken from its front: one length check a step (the position follows
+    // from what is left), where indexing `units` at a position checks it against `end` and the length each time.
+    // `all` keeps the units after `end` readable for the low half of a pair at `end - 1`.
+    let all = units.get(k..).unwrap_or_default();
+    let mut rest = all.get(..end.saturating_sub(k)).unwrap_or(all);
+    let size = rest.len();
+    // 1 when a pair at `end - 1` took the unit after `end`.
+    let mut over = 0usize;
     // Invariant: the room left is at least what the units from `k` count, so each write below fits.
-    while k < end {
-        let Some(&[a, b]) = units.get(k) else { break };
+    while let Some((&[a, b], tail)) = rest.split_first() {
         // Four units of ASCII at a time, while four are left.
-        if let Some(four) = units.get(k..k.wrapping_add(4)).and_then(|q| q.as_flattened().first_chunk::<8>()) {
+        if let Some(four) = rest.first_chunk::<4>().map(|q| q.as_flattened()).and_then(|q| q.first_chunk::<8>()) {
             let w = u64::from_le_bytes(*four);
             if w & 0xFF80_FF80_FF80_FF80 == 0 {
                 let packed = (w & 0xFF) | ((w >> 8) & 0xFF00) | ((w >> 16) & 0xFF_0000) | ((w >> 24) & 0xFF00_0000);
                 // SAFETY: four units below U+0080 count four bytes of room.
                 unsafe { dst.add(o).cast::<[u8; 4]>().write_unaligned((packed as u32).to_le_bytes()) };
-                k = k.wrapping_add(4);
+                rest = rest.get(4..).unwrap_or_default();
                 o = o.wrapping_add(4);
                 continue;
             }
@@ -2050,13 +2057,13 @@ unsafe fn utf16_words(units: &[[u8; 2]], mut k: usize, end: usize, dst: *mut u8,
                 let pairs = (lead | (cont << 8)).to_le_bytes();
                 // SAFETY: four units of two bytes each count eight bytes of room.
                 unsafe { dst.add(o).cast::<[u8; 8]>().write_unaligned(pairs) };
-                k = k.wrapping_add(4);
+                rest = rest.get(4..).unwrap_or_default();
                 o = o.wrapping_add(8);
                 continue;
             }
         }
         let u = u32::from(u16::from_le_bytes([a, b]));
-        k = k.wrapping_add(1);
+        rest = tail;
         // SAFETY: each write is within the room the unit (and for a pair, the next one) counts, as said beside it.
         unsafe {
             if u < 0x80 {
@@ -2073,7 +2080,9 @@ unsafe fn utf16_words(units: &[[u8; 2]], mut k: usize, end: usize, dst: *mut u8,
                 dst.add(o).cast::<[u8; 3]>().write_unaligned(bytes);
                 o = o.wrapping_add(3);
             } else {
-                let low = units.get(k).map_or(0, |&n| u32::from(u16::from_le_bytes(n)));
+                // The unit after (past `end` too: a pair at `end - 1` is taken whole). `rest` is a tail of `all`'s
+                // first `size` units.
+                let low = all.get(size.wrapping_sub(rest.len())).map_or(0, |&n| u32::from(u16::from_le_bytes(n)));
                 if u < 0xDC00 && low & 0xFC00 == 0xDC00 {
                     // A pair: six bytes counted, four written.
                     let c = (((u & 0x3FF) << 10) | (low & 0x3FF)).wrapping_add(0x1_0000);
@@ -2084,7 +2093,11 @@ unsafe fn utf16_words(units: &[[u8; 2]], mut k: usize, end: usize, dst: *mut u8,
                         0x80 | (c & 0x3F) as u8,
                     ];
                     dst.add(o).cast::<[u8; 4]>().write_unaligned(bytes);
-                    k = k.wrapping_add(1);
+                    // The low half: past `end` when the pair started at `end - 1` (the loop then ends).
+                    match rest.split_first() {
+                        Some((_, tail)) => rest = tail,
+                        None => over = 1,
+                    }
                     o = o.wrapping_add(4);
                 } else {
                     // Unpaired: U+FFFD, three bytes counted.
@@ -2094,7 +2107,8 @@ unsafe fn utf16_words(units: &[[u8; 2]], mut k: usize, end: usize, dst: *mut u8,
             }
         }
     }
-    (k, o)
+    // `size - rest.len()` units taken from `k`, at most `units.len()` in all.
+    (k.wrapping_add(size.wrapping_sub(rest.len())).wrapping_add(over), o)
 }
 
 /// For each bit set of eight bytes (bit `k` for byte `k` above 0x7F), given 16-bit lanes of a lead byte (low) and
