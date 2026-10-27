@@ -112,6 +112,15 @@ openupm add com.jasonxudeveloper.nino           # Unity（已包含生成器和 
 `Nino` 包会引入运行时（`Nino.Serialization`）和源生成器（`Nino.Generator`）。Nino v4 是预发行版，所以必须加
 `--prerelease`：不加时 NuGet 会安装 3.9.x，它读写不了 v4 的数据。
 
+### 给 AI 编程助手
+
+```bash
+npx skills add JasonXuDeveloper/Nino   # 安装 `nino` skill：Claude Code、Codex、Cursor、Copilot 等都能用
+```
+
+装上这个 skill（[skills/nino/SKILL.md](skills/nino/SKILL.md)）后，助手会按 Nino 的规则声明类型、调用 API、选用快的写法，
+并修好 Nino 报的诊断。文档也有给模型读的版本：https://nino.xgamedev.net/llms.txt。
+
 ## 快速开始
 
 ```csharp

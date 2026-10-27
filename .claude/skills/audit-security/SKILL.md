@@ -1,0 +1,59 @@
+---
+name: audit-security
+description: "Audit and extend Nino's defenses against hostile input in every runtime (.NET, Go, Rust, TypeScript and the code nino-gen writes) - NinoDataException through NinoThrow, lengths checked before allocating, depth limits, canonical bytes only, hash-flooding limits, the Untrusted settings - and run the fuzzers, hostile-input tests and the malicious corpus. Use for any change to a read path, a new type or collection, a new setting, or a security review. Triggers: NinoDataException, NinoThrow, NinoLimits, TryReadLength, MaxDepth, MaxHashCollisions, Untrusted, EnterStruct, HashTables, tests/Nino.Fuzz, malicious corpus, StrictReadTests, crash, OOM, DoS, untrusted data, 安全, 恶意数据, 不可信输入, 模糊测试."
+metadata:
+  internal: true
+---
+
+# Security (hostile input)
+
+Nino reads untrusted data (network messages, files, request bodies): crafted bytes must never crash the process, read
+outside the input, allocate out of proportion to it, recurse without a bound or take time out of proportion to it.
+These rules hold in .NET; each runtime's own form of them is in `runtimes/*/AGENTS.md`, and generated code follows
+the runtime it targets.
+
+## Rules
+
+- Every check of the data throws `NinoDataException`, through a `NinoThrow` helper (out of line). The caller's
+  mistakes and the write side (a graph nested too deep or holding itself, a collection changed while written) keep
+  `InvalidOperationException`. Tests assert the exact type (`Assert.ThrowsExactly`).
+- Check a length against the bytes left (`TryReadLength`, `NinoLimits.TooLong`) before allocating; grow, never
+  presize, what an element larger in memory than on the wire claims. Every recursive path counts depth: class bodies
+  through `Depth`, structs and collections that can hold themselves through `EnterStruct`/`ExitStruct` on both the
+  reader and the writer, against `NinoSettings.MaxDepth`.
+- Reject bytes no writer writes: a `bool` or presence byte other than 0 or 1 (`ReadBool`, `ReadPresent`,
+  `NinoChecks.Bools`), keyed members that do not fill their entry (`EndMember`), sections of deferred bodies that do
+  not match their region, headers that are not minimal. A raw block copy of a type with a `bool` in it goes through
+  `NinoLayout<T>.CopiesAsIs`, never `IsCanonical` alone.
+- A hash table Nino fills counts the keys in each bucket against `NinoSettings.MaxHashCollisions` (`HashTables`:
+  `TryFill`, `Insert`, or `Added`/`Walk` after the table's own add, as `HashTables.Plan` says; `ConcurrentTables` for
+  `ConcurrentDictionary`). A new path that adds keys from the data to a hash table does one of these.
+- `NinoSettings.Untrusted` holds the checks that cost time on every read (seeded comparers, value checks of raw
+  structs, trailing bytes). It is a constant once frozen (`NinoLimits.Untrusted`): keep each test of it a single
+  `if` on the field, with the work out of line, so the default path compiles to what it was; prove it with
+  `benchmarks/asm.py compare` (`optimize`).
+- A rule the other runtimes must follow goes into `docs/spec/wire-format.md` §9, with malicious cases in the corpus
+  (`wire-format`).
+
+## Look for
+
+- A read that allocates from a count before checking it against the bytes left (collections, strings, multi-dim
+  arrays, `BigInteger`, `BitArray`, `StringBuilder`, custom formatters' helpers).
+- A recursive path without depth counting (a struct holding a collection of itself, polymorphic slots, tuples,
+  `object` members, reference tracking's back references).
+- A loop whose work grows faster than the input (nested lengths, quadratic rehashing, deferred sections re-read).
+- A new built-in type or collection without its malicious cases and fuzz shapes.
+- An exception other than `NinoDataException` escaping a read (`IndexOutOfRange`, `Overflow`, `OutOfMemory`,
+  `ArgumentException` from a BCL constructor fed raw data).
+- Settings that weaken a check by default.
+
+## Proof
+
+- `tests/Nino.Fuzz` (`tests/Nino.Fuzz/README.md`): `selftest`, then a timed run with and without
+  `DOTNET_EnableHWIntrinsic=0`; a finding becomes a regression test and, when it is about the bytes, a malicious case.
+- The hostile-input unit tests: `StrictReadTests`, `HashFloodingTests`, `UntrustedModeTests`, `SettingsTests`, the
+  nesting tests (`tests/Nino.UnitTests/Security`).
+- The conformance corpus in .NET, Go, Rust and TypeScript; the runtimes' own fuzzers (`FuzzReader`, `FuzzDecode`,
+  `FuzzTagged`, `FuzzTaggedDecode`; Rust `cargo fuzz` and the corpus fuzz tests; the TypeScript suite).
+- A security finding from a reviewer stays open until the owner decides; a weakened check is never the fix for a
+  failing test.

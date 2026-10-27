@@ -127,7 +127,7 @@ layout, or how .NET handles a malicious input fails CI until the corpus is regen
 
 `corpusVersion` in `index.json` changes when the file layout or the JSON schema changes incompatibly; a runtime's
 test checks it. Changes to the bytes follow Nino's wire format: the corpus always holds what the Nino of the same
-commit writes, and a commit that changes the wire format regenerates it (with a `Wire-Format:` trailer, CLAUDE.md).
+commit writes, and a commit that changes the wire format regenerates it (with a `Wire-Format:` trailer: AGENTS.md and the `wire-format` skill).
 Cases are added freely; a case is renamed or removed only with a reason in the commit.
 
 ## Known .NET gaps

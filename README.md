@@ -126,6 +126,16 @@ openupm add com.jasonxudeveloper.nino           # Unity (generator and Unity cla
 `Nino` brings in the runtime (`Nino.Serialization`) and the source generator (`Nino.Generator`). Nino v4 is a
 prerelease, so `--prerelease` is required: without it NuGet installs 3.9.x, which cannot read or write v4 data.
 
+### For AI coding assistants
+
+```bash
+npx skills add JasonXuDeveloper/Nino   # the `nino` skill: Claude Code, Codex, Cursor, Copilot and other agents
+```
+
+The skill ([skills/nino/SKILL.md](skills/nino/SKILL.md)) teaches your assistant to declare types, call the API, pick
+the fast forms and fix Nino's diagnostics. The docs are also published for models at
+https://nino.xgamedev.net/llms.txt.
+
 ## Quick start
 
 ```csharp
