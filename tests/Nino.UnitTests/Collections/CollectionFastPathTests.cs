@@ -582,6 +582,25 @@ public class CollectionFastPathTests
             NinoDeserializer.Deserialize<SortedDictionary<string, int>>(nullKey)).Message, "null key");
         StringAssert.Contains(Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<Dictionary<string, int>>(nullKey)).Message, "null key");
+
+        // Strings for both keys and values take a loop of their own: the same checks.
+        var stringNullKey =
+            NinoSerializer.Serialize(new List<KeyValuePair<string, string>> { new("a", "1"), new(null, "2") });
+        StringAssert.Contains(Assert.ThrowsExactly<NinoDataException>(() =>
+            NinoDeserializer.Deserialize<Dictionary<string, string>>(stringNullKey)).Message, "null key");
+        var twice = NinoSerializer.Serialize(new List<KeyValuePair<string, string>> { new("a", "1"), new("a", "2") });
+        StringAssert.Contains(Assert.ThrowsExactly<NinoDataException>(() =>
+            NinoDeserializer.Deserialize<Dictionary<string, string>>(twice)).Message, "twice");
+        var caselessStrings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var differentCase = NinoSerializer.Serialize(new Dictionary<string, string> { ["a"] = "1", ["A"] = "2" });
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(differentCase, ref caselessStrings));
+        var strings = new Dictionary<string, string> { ["k"] = "v", ["\u00e9"] = "\u4e2d", [""] = null };
+        var back = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(strings), ref back);
+        Assert.AreEqual(3, back.Count);
+        Assert.AreEqual("v", back["K"]);
+        Assert.AreEqual("\u4e2d", back["\u00e9"]);
+        Assert.IsNull(back[""]);
     }
 
     [TestMethod]
