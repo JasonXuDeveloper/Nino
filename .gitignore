@@ -27,7 +27,7 @@ __pycache__/
 !.claude/settings.json
 .roo/
 .roomodes
-memory/
+/memory/
 .cursor/
 .aider/
 .copilot/
@@ -58,3 +58,6 @@ runtimes/typescript/bench/gen/
 runtimes/typescript/node_modules/
 runtimes/typescript/dist/
 runtimes/typescript/bench/node_modules/
+# skill-creator writes each skill's eval runs next to it (<skill>-workspace/): results, not sources.
+skills/*-workspace/
+.claude/skills/*-workspace/
