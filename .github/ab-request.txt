@@ -1,31 +1,53 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+# phase10/rust round 9 (aligned build): the cells round 8 left near or beyond their floors, with more samples a CPU.
+rust:blocks 717f4bb 83950aa blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+rust:blocks 717f4bb 83950aa ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+rust:blocks 717f4bb 83950aa blocks/read/(u64|i8|map-i32-i32|point|tuple-i32-i32)$
+rust:blocks 717f4bb 83950aa blocks/read/(point|tuple-i32-i32|i8|u64|map-i32-i32)$
+rust:blocks 781d955 83950aa blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+rust:blocks 781d955 83950aa ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+rust:blocks 83950aa 83950aa blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+rust:blocks 83950aa 83950aa ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+rust:blocks 83950aa 83950aa blocks/read/(u64|i8|map-i32-i32|point|tuple-i32-i32)$
+rust:blocks 717f4bb 717f4bb blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+rust:blocks 717f4bb 717f4bb ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+rust:blocks 717f4bb 717f4bb blocks/read/(u64|i8|map-i32-i32|point|tuple-i32-i32)$
+rust:blocks 781d955 781d955 blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+rust:blocks 781d955 781d955 ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+rust 1622ddb 83950aa ^(f64-10000|i32-10000|strings-1000)/(serialize|deserialize)/nino$
+rust 1622ddb 83950aa ^(i32-10000|f64-10000|strings-1000)/(serialize|deserialize)/nino$
+rust 1622ddb 83950aa ^(strings-1000|f64-10000|i32-10000)/(serialize|deserialize)/nino$
+rust 83950aa 83950aa ^(f64-10000|i32-10000|strings-1000)/(serialize|deserialize)/nino$
+rust 83950aa 83950aa ^(i32-10000|f64-10000|strings-1000)/(serialize|deserialize)/nino$
+rust 1622ddb 1622ddb ^(f64-10000|i32-10000|strings-1000)/(serialize|deserialize)/nino$
+rust 1622ddb 1622ddb ^(i32-10000|f64-10000|strings-1000)/(serialize|deserialize)/nino$
 # phase10/rust round 8: both sides built with every function at a 64-byte boundary (the default for rust lines now),
 # (the first push, 26 lines, made a matrix over 256 jobs and ran nothing: 24 lines, spelled anew)
 # 83950aa against 717f4bb, 781d955 (blocks) and main 1622ddb (compare), with floors; text-different filters for more samples a CPU.
-rust:blocks 717f4bb 83950aa blocks[/]{1}
-rust:blocks 717f4bb 83950aa ^blocks[/]{1}
-rust:blocks 717f4bb 83950aa blocks[/]{1}.*
-rust:blocks 717f4bb 83950aa block(s){1}/
-rust:blocks 781d955 83950aa blocks[/]{1}
-rust:blocks 781d955 83950aa ^blocks[/]{1}
-rust:blocks 83950aa 83950aa blocks[/]{1}
-rust:blocks 83950aa 83950aa ^blocks[/]{1}
-rust:blocks 83950aa 83950aa blocks[/]{1}.*
-rust:blocks 717f4bb 717f4bb blocks[/]{1}
-rust:blocks 717f4bb 717f4bb ^blocks[/]{1}
-rust:blocks 717f4bb 717f4bb blocks[/]{1}.*
-rust:blocks 781d955 781d955 blocks[/]{1}
-rust 1622ddb 83950aa [/]{1}nino$
-rust 1622ddb 83950aa .*[/]{1}nino$
-rust 1622ddb 83950aa /ni(no)$
-rust 717f4bb 83950aa [/]{1}nino$
-rust 717f4bb 83950aa .*[/]{1}nino$
-rust 717f4bb 83950aa /ni(no)$
-rust 83950aa 83950aa [/]{1}nino$
-rust 83950aa 83950aa .*[/]{1}nino$
-rust 1622ddb 1622ddb [/]{1}nino$
-rust 1622ddb 1622ddb .*[/]{1}nino$
-rust 717f4bb 717f4bb [/]{1}nino$
+# done (run 40601530250): rust:blocks 717f4bb 83950aa blocks[/]{1}
+# done (run 40601530250): rust:blocks 717f4bb 83950aa ^blocks[/]{1}
+# done (run 40601530250): rust:blocks 717f4bb 83950aa blocks[/]{1}.*
+# done (run 40601530250): rust:blocks 717f4bb 83950aa block(s){1}/
+# done (run 40601530250): rust:blocks 781d955 83950aa blocks[/]{1}
+# done (run 40601530250): rust:blocks 781d955 83950aa ^blocks[/]{1}
+# done (run 40601530250): rust:blocks 83950aa 83950aa blocks[/]{1}
+# done (run 40601530250): rust:blocks 83950aa 83950aa ^blocks[/]{1}
+# done (run 40601530250): rust:blocks 83950aa 83950aa blocks[/]{1}.*
+# done (run 40601530250): rust:blocks 717f4bb 717f4bb blocks[/]{1}
+# done (run 40601530250): rust:blocks 717f4bb 717f4bb ^blocks[/]{1}
+# done (run 40601530250): rust:blocks 717f4bb 717f4bb blocks[/]{1}.*
+# done (run 40601530250): rust:blocks 781d955 781d955 blocks[/]{1}
+# done (run 40601530250): rust 1622ddb 83950aa [/]{1}nino$
+# done (run 40601530250): rust 1622ddb 83950aa .*[/]{1}nino$
+# done (run 40601530250): rust 1622ddb 83950aa /ni(no)$
+# done (run 40601530250): rust 717f4bb 83950aa [/]{1}nino$
+# done (run 40601530250): rust 717f4bb 83950aa .*[/]{1}nino$
+# done (run 40601530250): rust 717f4bb 83950aa /ni(no)$
+# done (run 40601530250): rust 83950aa 83950aa [/]{1}nino$
+# done (run 40601530250): rust 83950aa 83950aa .*[/]{1}nino$
+# done (run 40601530250): rust 1622ddb 1622ddb [/]{1}nino$
+# done (run 40601530250): rust 1622ddb 1622ddb .*[/]{1}nino$
+# done (run 40601530250): rust 717f4bb 717f4bb [/]{1}nino$
 # phase10/rust round 7: 83950aa replaces 80ae370 (map write as one block; map read back to 717f4bb's) against 781d955 / 717f4bb / main, with floors; text-different filters for more samples a CPU.
 # done (run 40591560840): rust:blocks 781d955 83950aa blocks/(.*)
 # done (run 40591560840): rust:blocks 781d955 83950aa ^blocks/(.*)
