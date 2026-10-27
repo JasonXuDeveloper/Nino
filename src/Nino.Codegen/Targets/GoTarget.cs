@@ -500,6 +500,7 @@ namespace Nino.Codegen.Targets
                         : set && element.Kind is "string" or "utf8" ? "stringset"
                         : element.Kind == "prim" && element.Primitive == "Bool" ? "bools"
                         : element.Block ? "block"
+                        : element.Kind == "prim" && BlockValues.Contains(element.Primitive!) ? "values"
                         : element.Kind is "rawstruct" or "rawnullable" or "rawtuple" ? "fixed"
                         : "slice";
                     return Open(value, new GoShape("seq") { Element = element, Mode = mode, MinSize = 4 }, false);
@@ -682,6 +683,13 @@ namespace Nino.Codegen.Targets
             [PrimitiveKind.DateOnly] = ("DateOnly", false, true),
             [PrimitiveKind.TimeOnly] = ("TimeOnly", false, true),
         };
+
+        /// <summary>
+        /// The primitives other than numbers whose arrays are one block (<c>nino.ReadBlock</c>, the runtime's
+        /// <c>BlockValue</c>): the checked ones checked as when read alone.
+        /// </summary>
+        private static readonly HashSet<string> BlockValues = new(StringComparer.Ordinal)
+            { "DateTime", "DateOnly", "TimeOnly", "Decimal", "Guid", "Int128", "UInt128" };
 
         /// <summary>A value copied as raw memory.</summary>
         private GoShape Raw(ValueModel value)
@@ -1003,7 +1011,8 @@ namespace Nino.Codegen.Targets
         public bool Pair { get; internal set; }
 
         /// <summary>
-        /// A sequence's way: <c>bytes</c>, <c>block</c>, <c>bools</c>, <c>fixed</c> (raw values at their stride),
+        /// A sequence's way: <c>bytes</c>, <c>block</c>, <c>bools</c>, <c>values</c> (a block of dates, decimals,
+        /// Guids or 128-bit integers), <c>fixed</c> (raw values at their stride),
         /// <c>unique</c> (a set of comparable values), <c>stringset</c>, <c>slice</c>; a map's: <c>unique</c>
         /// (repeated keys fail) or <c>entries</c>.
         /// </summary>
