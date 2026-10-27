@@ -186,7 +186,8 @@ type frame struct{ start, wide Mem }
 type writer struct {
 	setup  func()
 	kernel func(frame)
-	short  func(frame) // the list kernel's path for short ASCII text (see above many), else a jump to long
+	short  func(frame) // the list kernel's path for short ASCII text (see above many), else a jump to long or cold
+	cold   func(frame) // what short jumps to that is not long, placed after the loop (nil: nothing)
 	vex    bool        // VZEROUPPER before returning
 }
 
@@ -224,52 +225,33 @@ func many(name string, w writer) {
 	function(name, "func(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done, written int)")
 	f := frame{wide: c.AllocLocal(8), start: c.AllocLocal(8)}
 	out, end := c.AllocLocal(8), c.AllocLocal(8) // where the next string goes, the end of the room
-	c.MOVQ(param("dst"), RAX)
-	c.MOVQ(RAX, out)
+	c.MOVQ(param("dst"), RDI)
+	c.MOVQ(RDI, out)
+	c.MOVQ(RDI, RAX)
 	c.ADDQ(param("room"), RAX)
 	c.MOVQ(RAX, end)
 	c.XORQ(R14, R14) // the strings done (R14 is free in ABI0)
 	w.setup()
 
+	// The loop: a string of []string, not empty, short ASCII text falls through to the jump back (one branch taken a
+	// string); pointers, nil, empty and other text are placed after it. DI is out at the top of the loop (out is
+	// stored too, for the kernel's paths and finish), so a string does not wait for the store of the one before.
+	align(32)
 	c.Label("next")
 	c.MOVQ(R14, RCX)
 	c.CMPQ(RCX, param("count"))
 	c.JAE(l("finish"))
 	c.MOVQ(param("strs"), R8)
 	c.CMPB(param("ptrs"), U8(0))
-	c.JEQ(l("value"))
-	c.MOVQ(at(R8, RCX, 8), R8)
-	c.TESTQ(R8, R8)
-	c.JNZ(l("header"))
-	c.Comment("nil: the null string.")
-	c.MOVQ(out, RDI)
-	c.LEAQ(Mem{Base: RDI, Disp: 1}, RAX)
-	c.CMPQ(RAX, end)
-	c.JA(l("finish"))
-	c.MOVB(U8(0), Mem{Base: RDI})
-	c.MOVQ(RAX, out)
-	c.INCQ(R14)
-	c.JMP(l("next"))
-
-	c.Label("value")
+	c.JNE(l("pointer"))
 	c.SHLQ(U8(4), RCX)
 	c.ADDQ(RCX, R8)
 
 	c.Label("header")
 	c.MOVQ(Mem{Base: R8}, RSI)
 	c.MOVQ(Mem{Base: R8, Disp: 8}, RBX)
-	c.MOVQ(out, RDI)
 	c.TESTQ(RBX, RBX)
-	c.JNZ(l("text"))
-	c.LEAQ(Mem{Base: RDI, Disp: 1}, RAX)
-	c.CMPQ(RAX, end)
-	c.JA(l("finish"))
-	c.MOVB(U8(1), Mem{Base: RDI})
-	c.MOVQ(RAX, out)
-	c.INCQ(R14)
-	c.JMP(l("next"))
-
-	c.Label("text")
+	c.JZ(l("empty"))
 	cmpConst(RBX, "wireMaxText", 64)
 	c.JAE(l("finish"))
 	c.LEAQ(slack(1, RDI, RBX, 2), RAX)
@@ -281,6 +263,34 @@ func many(name string, w writer) {
 	c.MOVQ(RDI, out)
 	c.INCQ(R14)
 	c.JMP(l("next"))
+
+	c.Label("pointer")
+	c.MOVQ(at(R8, RCX, 8), R8)
+	c.TESTQ(R8, R8)
+	c.JNZ(l("header"))
+	c.Comment("nil: the null string.")
+	c.LEAQ(Mem{Base: RDI, Disp: 1}, RAX)
+	c.CMPQ(RAX, end)
+	c.JA(l("finish"))
+	c.MOVB(U8(0), Mem{Base: RDI})
+	c.MOVQ(RAX, RDI)
+	c.MOVQ(RAX, out)
+	c.INCQ(R14)
+	c.JMP(l("next"))
+
+	c.Label("empty")
+	c.LEAQ(Mem{Base: RDI, Disp: 1}, RAX)
+	c.CMPQ(RAX, end)
+	c.JA(l("finish"))
+	c.MOVB(U8(1), Mem{Base: RDI})
+	c.MOVQ(RAX, RDI)
+	c.MOVQ(RAX, out)
+	c.INCQ(R14)
+	c.JMP(l("next"))
+
+	if w.cold != nil {
+		w.cold(f)
+	}
 
 	c.Label("long")
 	c.INCQ(RDI)
