@@ -1415,7 +1415,8 @@ function write$4<T>(w: NinoWriter, map: ReadonlyMap<string | null, T> | null, c:
     return;
   }
   w.i32(map.size);
-  for (const [key, value] of map) {
+  for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {
+    const key = keys.next().value as string | null, value = values.next().value as T;
     w.string(key);
     c.p0.write(w, value);
   }
@@ -1449,7 +1450,8 @@ function write$7(w: NinoWriter, map: ReadonlyMap<number, number> | null): void {
   }
   w.i32(map.size);
   let at = w.reserve(map.size * 8);
-  for (const [key, value] of map) {
+  for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {
+    const key = keys.next().value as number, value = values.next().value as number;
     w.view.setFloat32(at, key, true);
     w.view.setInt32(at + 4, value, true);
     at += 8;
@@ -1525,7 +1527,8 @@ function write$14(w: NinoWriter, map: ReadonlyMap<number, string | null> | null)
     return;
   }
   w.i32(map.size);
-  for (const [key, value] of map) {
+  for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {
+    const key = keys.next().value as number, value = values.next().value as string | null;
     w.i32(key);
     w.string(value);
   }
@@ -1580,7 +1583,8 @@ function write$19<T>(w: NinoWriter, map: ReadonlyMap<T, number> | null, c: Keys$
     return;
   }
   w.i32(map.size);
-  for (const [key, value] of map) {
+  for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {
+    const key = keys.next().value as T, value = values.next().value as number;
     c.p0.write(w, key);
     w.i32(value);
   }
@@ -1644,7 +1648,8 @@ function write$25(w: NinoWriter, map: ReadonlyMap<string | null, Pair<number, nu
     return;
   }
   w.i32(map.size);
-  for (const [key, value] of map) {
+  for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {
+    const key = keys.next().value as string | null, value = values.next().value as Pair<number, number>;
     w.string(key);
     codec$14.write(w, value);
   }

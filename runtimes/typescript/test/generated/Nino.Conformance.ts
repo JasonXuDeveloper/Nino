@@ -4645,7 +4645,8 @@ function write$15(w: NinoWriter, map: ReadonlyMap<number, number> | null): void 
   }
   w.i32(map.size);
   let at = w.reserve(map.size * 8);
-  for (const [key, value] of map) {
+  for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {
+    const key = keys.next().value as number, value = values.next().value as number;
     w.view.setInt32(at, key, true);
     w.view.setInt32(at + 4, value, true);
     at += 8;
@@ -4800,7 +4801,8 @@ function write$29(w: NinoWriter, map: ReadonlyMap<number, number | null> | null)
     return;
   }
   w.i32(map.size);
-  for (const [key, value] of map) {
+  for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {
+    const key = keys.next().value as number, value = values.next().value as number | null;
     w.i32(key);
     if (value === null || value === undefined) w.u8(0); else { w.u8(1); w.i32(value); }
   }
@@ -4886,7 +4888,8 @@ function write$37(w: NinoWriter, map: ReadonlyMap<string | null, number> | null)
     return;
   }
   w.i32(map.size);
-  for (const [key, value] of map) {
+  for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {
+    const key = keys.next().value as string | null, value = values.next().value as number;
     w.string(key);
     w.i32(value);
   }
@@ -5044,7 +5047,8 @@ function write$53(w: NinoWriter, map: ReadonlyMap<number, TrackedNode | null> | 
     return;
   }
   w.i32(map.size);
-  for (const [key, value] of map) {
+  for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {
+    const key = keys.next().value as number, value = values.next().value as TrackedNode | null;
     w.i32(key);
     if (w.ref(value)) writeTrackedNode(w, value);
   }
@@ -5128,7 +5132,8 @@ function write$61(w: NinoWriter, map: ReadonlyMap<string | null, Animal | null> 
     return;
   }
   w.i32(map.size);
-  for (const [key, value] of map) {
+  for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {
+    const key = keys.next().value as string | null, value = values.next().value as Animal | null;
     w.string(key);
     AnimalCodec.write(w, value);
   }
@@ -5234,7 +5239,8 @@ function write$71(w: NinoWriter, map: ReadonlyMap<number, number | null> | null)
     return;
   }
   w.i32(map.size);
-  for (const [key, value] of map) {
+  for (let keys = map.keys(), values = map.values(), i = map.size; i > 0; i--) {
+    const key = keys.next().value as number, value = values.next().value as number | null;
     w.i32(key);
     if (value === null || value === undefined) w.u8(0); else { w.u8(1); w.f64(value); }
   }
