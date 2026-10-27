@@ -1,5 +1,5 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
-# phase9/rust-records 5f9bd3a (+ strings the reader decodes returned in two registers): against 36cfdbf twice, and against 8b87be0.
-rust 36cfdbf 5f9bd3a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 36cfdbf 5f9bd3a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
-rust 8b87be0 5f9bd3a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+# phase9/rust-records 6d4963a (+ list loops at a 64-byte boundary): against 36cfdbf twice, and against 5f9bd3a.
+rust 36cfdbf 6d4963a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 36cfdbf 6d4963a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 5f9bd3a 6d4963a ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
