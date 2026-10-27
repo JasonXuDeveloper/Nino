@@ -164,10 +164,9 @@ jobs:
 
       - name: Install clang with libFuzzer
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y -q clang
+          .github/scripts/apt-install.sh clang
           version=$(clang --version | sed -n 's/.*clang version \([0-9]*\).*/\1/p')
-          sudo apt-get install -y -q "libclang-rt-$version-dev" || true
+          .github/scripts/apt-install.sh "libclang-rt-$version-dev" || true
 
       # Every target (the list run.sh fuzzes without arguments), and this shard's share of them.
       - name: Fuzz this shard's targets

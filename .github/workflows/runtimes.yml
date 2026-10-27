@@ -512,7 +512,7 @@ jobs:
 
       - name: Install qemu
         if: ${{ !cancelled() }}
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qemu-user
+        run: .github/scripts/apt-install.sh --no-install-recommends qemu-user
 
       - name: Test on Arm32 under qemu
         if: ${{ !cancelled() }}
