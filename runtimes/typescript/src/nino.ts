@@ -318,46 +318,89 @@ function fromCodes(codes: ArrayLike<number>): string {
   return text;
 }
 
-/** The text of up to 16 Latin-1 bytes at `at`, in one call (a flat string, faster than any native decoder). */
-function decodeShortLatin1(d: Uint8Array, at: number, length: number): string {
+/**
+ * The text of up to 16 Latin-1 bytes at `at`, in one call (a flat string, faster than any native decoder): four bytes
+ * a DataView read, split with shifts, which takes fewer bounds checks than a load a byte.
+ */
+function decodeShortLatin1(d: Uint8Array, v: DataView, at: number, length: number): string {
   const c = String.fromCharCode;
   switch (length) {
     case 0: return "";
-    case 1: return c(d[at]);
-    case 2: return c(d[at], d[at + 1]);
-    case 3: return c(d[at], d[at + 1], d[at + 2]);
-    case 4: return c(d[at], d[at + 1], d[at + 2], d[at + 3]);
-    case 5: return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4]);
-    case 6: return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5]);
-    case 7: return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6]);
-    case 8: return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7]);
-    case 9: return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8]);
-    case 10:
-      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9]);
-    case 11:
-      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9],
-        d[at + 10]);
-    case 12:
-      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9],
-        d[at + 10], d[at + 11]);
-    case 13:
-      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9],
-        d[at + 10], d[at + 11], d[at + 12]);
-    case 14:
-      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9],
-        d[at + 10], d[at + 11], d[at + 12], d[at + 13]);
-    case 15:
-      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9],
-        d[at + 10], d[at + 11], d[at + 12], d[at + 13], d[at + 14]);
-    default:
-      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9],
-        d[at + 10], d[at + 11], d[at + 12], d[at + 13], d[at + 14], d[at + 15]);
+    case 1:
+      return c(d[at]);
+    case 2:
+      return c(d[at], d[at + 1]);
+    case 3:
+      return c(d[at], d[at + 1], d[at + 2]);
+    case 4: {
+      const w0 = v.getUint32(at, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24);
+    }
+    case 5: {
+      const w0 = v.getUint32(at, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24, d[at + 4]);
+    }
+    case 6: {
+      const w0 = v.getUint32(at, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24, d[at + 4], d[at + 5]);
+    }
+    case 7: {
+      const w0 = v.getUint32(at, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24, d[at + 4], d[at + 5], d[at + 6]);
+    }
+    case 8: {
+      const w0 = v.getUint32(at, true), w1 = v.getUint32(at + 4, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24, w1 & 255, (w1 >>> 8) & 255, (w1 >>> 16) & 255,
+        w1 >>> 24);
+    }
+    case 9: {
+      const w0 = v.getUint32(at, true), w1 = v.getUint32(at + 4, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24, w1 & 255, (w1 >>> 8) & 255, (w1 >>> 16) & 255,
+        w1 >>> 24, d[at + 8]);
+    }
+    case 10: {
+      const w0 = v.getUint32(at, true), w1 = v.getUint32(at + 4, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24, w1 & 255, (w1 >>> 8) & 255, (w1 >>> 16) & 255,
+        w1 >>> 24, d[at + 8], d[at + 9]);
+    }
+    case 11: {
+      const w0 = v.getUint32(at, true), w1 = v.getUint32(at + 4, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24, w1 & 255, (w1 >>> 8) & 255, (w1 >>> 16) & 255,
+        w1 >>> 24, d[at + 8], d[at + 9], d[at + 10]);
+    }
+    case 12: {
+      const w0 = v.getUint32(at, true), w1 = v.getUint32(at + 4, true), w2 = v.getUint32(at + 8, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24, w1 & 255, (w1 >>> 8) & 255, (w1 >>> 16) & 255,
+        w1 >>> 24, w2 & 255, (w2 >>> 8) & 255, (w2 >>> 16) & 255, w2 >>> 24);
+    }
+    case 13: {
+      const w0 = v.getUint32(at, true), w1 = v.getUint32(at + 4, true), w2 = v.getUint32(at + 8, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24, w1 & 255, (w1 >>> 8) & 255, (w1 >>> 16) & 255,
+        w1 >>> 24, w2 & 255, (w2 >>> 8) & 255, (w2 >>> 16) & 255, w2 >>> 24, d[at + 12]);
+    }
+    case 14: {
+      const w0 = v.getUint32(at, true), w1 = v.getUint32(at + 4, true), w2 = v.getUint32(at + 8, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24, w1 & 255, (w1 >>> 8) & 255, (w1 >>> 16) & 255,
+        w1 >>> 24, w2 & 255, (w2 >>> 8) & 255, (w2 >>> 16) & 255, w2 >>> 24, d[at + 12], d[at + 13]);
+    }
+    case 15: {
+      const w0 = v.getUint32(at, true), w1 = v.getUint32(at + 4, true), w2 = v.getUint32(at + 8, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24, w1 & 255, (w1 >>> 8) & 255, (w1 >>> 16) & 255,
+        w1 >>> 24, w2 & 255, (w2 >>> 8) & 255, (w2 >>> 16) & 255, w2 >>> 24, d[at + 12], d[at + 13], d[at + 14]);
+    }
+    default: {
+      const w0 = v.getUint32(at, true), w1 = v.getUint32(at + 4, true), w2 = v.getUint32(at + 8, true), w3 =
+        v.getUint32(at + 12, true);
+      return c(w0 & 255, (w0 >>> 8) & 255, (w0 >>> 16) & 255, w0 >>> 24, w1 & 255, (w1 >>> 8) & 255, (w1 >>> 16) & 255,
+        w1 >>> 24, w2 & 255, (w2 >>> 8) & 255, (w2 >>> 16) & 255, w2 >>> 24, w3 & 255, (w3 >>> 8) & 255, (w3 >>> 16) &
+        255, w3 >>> 24);
+    }
   }
 }
 
 /** The text of `length` Latin-1 bytes at `at`. */
-function decodeLatin1(data: Uint8Array, at: number, length: number): string {
-  if (length <= 16) return decodeShortLatin1(data, at, length);
+function decodeLatin1(data: Uint8Array, view: DataView, at: number, length: number): string {
+  if (length <= 16) return decodeShortLatin1(data, view, at, length);
   if (nodeText !== null) return nodeText.latin1Slice.call(data, at, at + length);
   if (length <= mediumText) {
     // In one call: concatenating the text would leave a string to flatten on first use.
@@ -713,9 +756,9 @@ export class NinoReader {
         const k = kernels === undefined ? wasm() : kernels;
         if (k !== null) return k.latin1(this.inKernels(k, at, length), length);
       }
-      return decodeLatin1(this.data, at, length);
+      return decodeLatin1(this.data, this.view, at, length);
     }
-    if (length > textSlice) return decodeLatin1(this.data, at, length);
+    if (length > textSlice) return decodeLatin1(this.data, this.view, at, length);
     if (at < this.textStart || at + length > this.textEnd) {
       const end = Math.min(this.end, at + this.textSize);
       if (this.textSize < textWindow) this.textSize *= 2;
