@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"math"
 	"math/big"
+	"unsafe"
 
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
@@ -17,6 +18,7 @@ var le = binary.LittleEndian
 var (
 	_ = math.Float32bits
 	_ = big.NewInt
+	_ unsafe.Pointer
 )
 
 // E16 is `Conformance.E16`.
@@ -150,6 +152,13 @@ func encodeMixed(b []byte, v Mixed) {
 	b[8] = byte(v.D)
 }
 
+// asIsMixed: whether Mixed's memory is its bytes (on a little-endian host), for arrays copied as one block.
+const asIsMixed = unsafe.Sizeof(Mixed{}) == 12 &&
+	unsafe.Offsetof(Mixed{}.A) == 0 &&
+	unsafe.Offsetof(Mixed{}.B) == 2 &&
+	unsafe.Offsetof(Mixed{}.C) == 4 &&
+	unsafe.Offsetof(Mixed{}.D) == 8
+
 func readMixed(r *nino.Reader) Mixed {
 	return readRaw(r, 12, decodeMixed)
 }
@@ -186,6 +195,15 @@ func encodeNested(b []byte, v Nested) {
 	}
 }
 
+// asIsNested: whether Nested's memory is its bytes (on a little-endian host), for arrays copied as one block.
+const asIsNested = unsafe.Sizeof(Nested{}) == 32 &&
+	unsafe.Offsetof(Nested{}.Inner) == 0 &&
+	unsafe.Offsetof(Nested{}.Position) == 16 &&
+	unsafe.Offsetof(Nested{}.Kind) == 24 &&
+	unsafe.Offsetof(Nested{}.Flag) == 25 &&
+	asIsPadded &&
+	asIsVec2
+
 func readNested(r *nino.Reader) Nested {
 	return readRaw(r, 32, decodeNested)
 }
@@ -217,6 +235,12 @@ func encodePacked(b []byte, v Packed) {
 	le.PutUint16(b[9:], uint16(v.C))
 }
 
+// asIsPacked: whether Packed's memory is its bytes (on a little-endian host), for arrays copied as one block.
+const asIsPacked = unsafe.Sizeof(Packed{}) == 11 &&
+	unsafe.Offsetof(Packed{}.A) == 0 &&
+	unsafe.Offsetof(Packed{}.B) == 1 &&
+	unsafe.Offsetof(Packed{}.C) == 9
+
 func readPacked(r *nino.Reader) Packed {
 	return readRaw(r, 11, decodePacked)
 }
@@ -245,6 +269,11 @@ func encodePadded(b []byte, v Padded) {
 	le.PutUint64(b[8:], uint64(v.B))
 }
 
+// asIsPadded: whether Padded's memory is its bytes (on a little-endian host), for arrays copied as one block.
+const asIsPadded = unsafe.Sizeof(Padded{}) == 16 &&
+	unsafe.Offsetof(Padded{}.A) == 0 &&
+	unsafe.Offsetof(Padded{}.B) == 8
+
 func readPadded(r *nino.Reader) Padded {
 	return readRaw(r, 16, decodePadded)
 }
@@ -269,6 +298,10 @@ func encodeSized(b []byte, v Sized) {
 	_ = b[15]
 	le.PutUint32(b, uint32(v.A))
 }
+
+// asIsSized: whether Sized's memory is its bytes (on a little-endian host), for arrays copied as one block.
+const asIsSized = unsafe.Sizeof(Sized{}) == 16 &&
+	unsafe.Offsetof(Sized{}.A) == 0
 
 func readSized(r *nino.Reader) Sized {
 	return readRaw(r, 16, decodeSized)
@@ -297,6 +330,11 @@ func encodeVec2(b []byte, v Vec2) {
 	le.PutUint32(b, math.Float32bits(v.X))
 	le.PutUint32(b[4:], math.Float32bits(v.Y))
 }
+
+// asIsVec2: whether Vec2's memory is its bytes (on a little-endian host), for arrays copied as one block.
+const asIsVec2 = unsafe.Sizeof(Vec2{}) == 8 &&
+	unsafe.Offsetof(Vec2{}.X) == 0 &&
+	unsafe.Offsetof(Vec2{}.Y) == 4
 
 func readVec2(r *nino.Reader) Vec2 {
 	return readRaw(r, 8, decodeVec2)
@@ -5577,7 +5615,7 @@ func writeV75(w *nino.Writer, v []nino.Entry[int32, *int32]) {
 }
 
 func readV76(r *nino.Reader) []Padded {
-	return nino.ReadFixed(r, 16, decodePadded)
+	return nino.ReadRaw(r, 16, asIsPadded, nil, decodePadded)
 }
 
 func writeV77(w *nino.Writer, v []Padded) {
@@ -5585,11 +5623,11 @@ func writeV77(w *nino.Writer, v []Padded) {
 }
 
 func readV78(r *nino.Reader) []Vec2 {
-	return nino.ReadFixed(r, 8, decodeVec2)
+	return nino.ReadRaw(r, 8, asIsVec2, nil, decodeVec2)
 }
 
 func readV79(r *nino.Reader) []Mixed {
-	return nino.ReadFixed(r, 12, decodeMixed)
+	return nino.ReadRaw(r, 12, asIsMixed, nil, decodeMixed)
 }
 
 func readV80(r *nino.Reader) []Label {
@@ -5618,7 +5656,7 @@ func readV83(r *nino.Reader) nino.Entry[*string, Vec2] {
 }
 
 func writeV84(w *nino.Writer, v []Vec2) {
-	nino.WriteFixed(w, v, 8, encodeVec2)
+	nino.WriteRaw(w, v, 8, asIsVec2, nil, encodeVec2)
 }
 
 func writeV85(w *nino.Writer, v []Mixed) {

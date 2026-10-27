@@ -150,15 +150,36 @@ func ReadBools(r *Reader) []bool {
 	if len(b) != n {
 		return nil
 	}
-	v := make([]bool, n)
-	for i, c := range b {
-		if c > 1 {
-			r.Fail(CodeInvalidData, "invalid bool")
-			return nil
-		}
-		v[i] = c != 0
+	if !boolBytes(b) {
+		r.Fail(CodeInvalidData, "invalid bool")
+		return nil
 	}
+	// A Go bool is one byte, 0 or 1: the checked bytes are the slice's memory.
+	v := make([]bool, n)
+	copy(unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), n), b)
 	return v
+}
+
+// notBool has the bits of a byte that are clear in 0 and 1, in each byte of a word.
+const notBool = 0xFEFEFEFEFEFEFEFE
+
+// boolBytes reports whether every byte of b is 0 or 1: the bytes ORed together, eight at a time (in any byte
+// order), have no bit but the lowest set.
+func boolBytes(b []byte) bool {
+	var acc uint64
+	for len(b) >= 32 {
+		acc |= binary.LittleEndian.Uint64(b) | binary.LittleEndian.Uint64(b[8:]) |
+			binary.LittleEndian.Uint64(b[16:]) | binary.LittleEndian.Uint64(b[24:32])
+		b = b[32:]
+	}
+	for len(b) >= 8 {
+		acc |= binary.LittleEndian.Uint64(b)
+		b = b[8:]
+	}
+	for _, c := range b {
+		acc |= uint64(c)
+	}
+	return acc&notBool == 0
 }
 
 // WriteBools writes a bool[] or List<bool> (nil is null).
@@ -169,13 +190,24 @@ func WriteBools(w *Writer, v []bool) {
 	}
 	w.Length(len(v))
 	b := w.Extend(len(v))
-	for i, x := range v {
-		if i < len(b) {
-			if x {
-				b[i] = 1
-			} else {
-				b[i] = 0
-			}
+	if len(b) != len(v) {
+		return
+	}
+	// A Go bool is 0 or 1, so its memory is the bytes, unless one was set through unsafe to another byte, which a
+	// reader would reject: those become 1.
+	copy(b, unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), len(v)))
+	if !boolBytes(b) {
+		normalizeBools(b)
+	}
+}
+
+// normalizeBools sets each byte of b that is not 0 to 1.
+//
+//go:noinline
+func normalizeBools(b []byte) {
+	for i, c := range b {
+		if c != 0 {
+			b[i] = 1
 		}
 	}
 }

@@ -187,6 +187,10 @@ func helper_body(h)
       $o = $o + "\t\tif s == nil {\n\t\t\tdup, null = null, true\n\t\t} else if _, dup = seen[*s]; !dup {\n\t\t\tseen[*s] = struct{}{}\n\t\t}\n"
       ret $o + "\t\tif dup {\n\t\t\tr.Fail(nino.CodeDuplicateKey, \"\")\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn v\n}\n"
     when "fixed"
+      $b = $s.element.raw_block
+      if $b
+        ret $o + "\treturn nino.ReadRaw(r, " + $s.element.size + ", " + $b.as_is + ", " + $b.bools + ", " + decode_fn($s.element) + ")\n}\n"
+      end
       ret $o + "\treturn nino.ReadFixed(r, " + $s.element.size + ", " + decode_fn($s.element) + ")\n}\n"
     end
     ret $o + "\treturn nino.ReadSlice(r, " + compact($s.element.min) + ", " + rfn($s.element) + ")\n}\n"
@@ -211,6 +215,10 @@ func helper_body(h)
     ret $o + "\tnino.WriteEntries(w, v, " + wfn($s.key) + ", " + wfn($s.value) + ")\n}\n"
   end
   if $s.mode == "fixed"
+    $b = $s.element.raw_block
+    if $b && !$b.padded
+      ret $o + "\tnino.WriteRaw(w, v, " + $s.element.size + ", " + $b.as_is + ", " + $b.bools + ", " + encode_fn($s.element) + ")\n}\n"
+    end
     ret $o + "\tnino.WriteFixed(w, v, " + $s.element.size + ", " + encode_fn($s.element) + ")\n}\n"
   else if $s.element.block
     ret $o + "\tnino.WritePrimitives(w, v)\n}\n"
@@ -477,6 +485,7 @@ import (
 	"encoding/binary"
 	"math"
 	"math/big"
+	"unsafe"
 
 	nino "{{ runtime_import }}"
 )
@@ -487,6 +496,7 @@ var le = binary.LittleEndian
 var (
 	_ = math.Float32bits
 	_ = big.NewInt
+	_ unsafe.Pointer
 )
 {{~
 for e in enums
@@ -527,6 +537,9 @@ for s in raw_structs
       lines(encode($f.shape, $f.offset, "v." + $f.name), "\t")
     end
     "}\n"
+    if s.block
+      "\n// " + s.block.as_is + ": whether " + s.name + "'s memory is its bytes (on a little-endian host), for arrays copied as one block.\nconst " + s.block.as_is + " = " + s.block.expression + "\n"
+    end
     "\nfunc read" + s.name + "(r *nino.Reader) " + s.name + " {\n\treturn readRaw(r, " + $model.size + ", decode" + s.name + ")\n}\n"
     "\nfunc write" + s.name + "(w *nino.Writer, v " + s.name + ") {\n\twriteRaw(w, v, " + $model.size + ", encode" + s.name + ")\n}\n"
   end

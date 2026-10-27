@@ -78,6 +78,33 @@ namespace Shapes
         public Keywords Keywords;
     }
 
+    /// <summary>
+    /// Arrays Go copies as one block: of dates, decimals, Guids and 128-bit integers (<c>nino.ReadBlock</c>), and of
+    /// a raw struct with a bool and no padding (<c>nino.ReadRaw</c>, <c>nino.WriteRaw</c>).
+    /// </summary>
+    [NinoType]
+    public sealed class Stamps
+    {
+        public System.DateTime[] Times;
+        public List<System.DateOnly> Days;
+        public System.TimeOnly[] Clocks;
+        public decimal[] Prices;
+        public List<System.Guid> Ids;
+        public System.Int128[] Signed;
+        public System.UInt128[] Unsigned;
+        public Marked[] Marks;
+    }
+
+    /// <summary>A raw struct with a bool and no padding.</summary>
+    [NinoType]
+    public struct Marked
+    {
+        public int Id;
+        public bool On;
+        public byte Kind;
+        public short Code;
+    }
+
     /// <summary>Keys Rust cannot hash: Rust leaves the type out, with a warning; Go and TypeScript keep it.</summary>
     [NinoType]
     public sealed class FloatKeys
