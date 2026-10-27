@@ -349,9 +349,9 @@ pub(crate) unsafe fn latin1(bytes: &[u8], dst: *mut u8, room: usize) -> usize {
             let cont = vorrq_u8(vandq_u8(v, vdupq_n_u8(0x3F)), vdupq_n_u8(0x80));
             let (m0, m1) = ((high & 0xFF) as usize, (high >> 8) as usize);
             // `m0, m1 < 256`; 32 bytes of room from `o`, and the second store starts at most 16 after it.
-            vst1q_u8(dst.add(o), vqtbl1q_u8(vzip1q_u8(lead, cont), row(&super::EXPAND, m0)));
+            vst1q_u8(dst.add(o), vqtbl1q_u8(vzip1q_u8(lead, cont), row(&super::EXPAND.0, m0)));
             o = o.wrapping_add(8).wrapping_add(ones(m0));
-            vst1q_u8(dst.add(o), vqtbl1q_u8(vzip2q_u8(lead, cont), row(&super::EXPAND, m1)));
+            vst1q_u8(dst.add(o), vqtbl1q_u8(vzip2q_u8(lead, cont), row(&super::EXPAND.0, m1)));
             o = o.wrapping_add(8).wrapping_add(ones(m1));
             k = k.wrapping_add(16);
         }
@@ -394,7 +394,7 @@ pub(crate) unsafe fn utf16(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usiz
                 let lanes = vbslq_u16(ascii, w, two);
                 let m = (!bits(vcombine_u8(vmovn_u16(ascii), vdup_n_u8(0xFF))) & 0xFF) as usize;
                 // `m < 256`; 32 bytes of room.
-                vst1q_u8(dst.add(o), vqtbl1q_u8(vreinterpretq_u8_u16(lanes), row(&super::EXPAND, m)));
+                vst1q_u8(dst.add(o), vqtbl1q_u8(vreinterpretq_u8_u16(lanes), row(&super::EXPAND.0, m)));
                 k = k.wrapping_add(8);
                 o = o.wrapping_add(8).wrapping_add(ones(m));
                 continue;
@@ -430,7 +430,8 @@ pub(crate) unsafe fn utf16(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usiz
                 // The four codes of the half, two bits each: byte `q`'s two bits moved down to bits `2q`, `2q + 1`.
                 let x = (codes >> half) as u32;
                 let index = ((x | (x >> 6) | (x >> 12) | (x >> 18)) & 0xFF) as usize;
-                let (shuffle, count) = super::PACK3.get(index).copied().unwrap_or(([0x80; 16], 0));
+                let super::Counted(shuffle, count) =
+                    super::PACK3.0.get(index).copied().unwrap_or(super::Counted([0x80; 16], 0));
                 // 32 bytes of room from where the step started; the first half stores 16 bytes from there, the second
                 // from at most 12 after it.
                 vst1q_u8(dst.add(o), vqtbl1q_u8(vreinterpretq_u8_u32(lanes), vld1q_u8(shuffle.as_ptr())));

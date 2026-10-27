@@ -476,8 +476,35 @@ impl Block for Words {
 /// For each set of the first eight bytes of a block that start a char (bit `p` for byte `p`): the shuffle that puts
 /// the `k`-th such byte and the byte after it in the 16-bit lane `k` (0x80, a zero byte, past the last), and the
 /// number of chars.
+/// A table placed at the start of a cache line, so that no row of it (16 bytes, or a [`Counted`]) straddles two. A
+/// static of bytes is aligned to 1: wherever the linker put one, a quarter of its rows of 16 bytes cost a split load,
+/// so the same code ran faster or slower from one build to the next.
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
-static PAIRS: [([u8; 16], u8); 256] = pair_shuffles();
+#[repr(C, align(64))]
+pub(crate) struct Lines<T>(pub(crate) T);
+
+/// A shuffle and how many bytes or chars it keeps, a row of a [`Lines`] table: 32 bytes, so within one cache line.
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
+#[derive(Clone, Copy)]
+#[repr(C, align(32))]
+pub(crate) struct Counted(pub(crate) [u8; 16], pub(crate) u8);
+
+/// `table` as rows of [`Counted`].
+// Every index is below the arrays' length (m < 256).
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
+#[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+const fn counted(table: [([u8; 16], u8); 256]) -> Lines<[Counted; 256]> {
+    let mut rows = [Counted([0x80; 16], 0); 256];
+    let mut m = 0;
+    while m < 256 {
+        rows[m] = Counted(table[m].0, table[m].1);
+        m += 1;
+    }
+    Lines(rows)
+}
+
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
+static PAIRS: Lines<[Counted; 256]> = counted(pair_shuffles());
 
 // Every index is below the array's length (k < 8, m < 256).
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
@@ -633,7 +660,7 @@ impl Ssse3 {
             __m128i, _mm_and_si128, _mm_andnot_si128, _mm_cmplt_epi16, _mm_loadu_si128, _mm_or_si128, _mm_set1_epi16,
             _mm_shuffle_epi8, _mm_slli_epi16, _mm_srli_epi16,
         };
-        let (shuffle, count) = PAIRS.get(starts & 0xFF).copied().unwrap_or(([0x80; 16], 0));
+        let Counted(shuffle, count) = PAIRS.0.get(starts & 0xFF).copied().unwrap_or(Counted([0x80; 16], 0));
         // SAFETY: SSSE3 (the caller's contract) and SSE2; `shuffle` is 16 bytes.
         let units = unsafe {
             // Lane k: the k-th char's first byte (low) and the byte after it (high).
@@ -891,7 +918,7 @@ impl Neon {
             vandq_u16, vbslq_u16, vcltq_u16, vdupq_n_u16, vld1q_u8, vorrq_u16, vqtbl1q_u8, vreinterpretq_u16_u8,
             vshlq_n_u16, vshrq_n_u16,
         };
-        let (shuffle, count) = PAIRS.get(starts & 0xFF).copied().unwrap_or(([0x80; 16], 0));
+        let Counted(shuffle, count) = PAIRS.0.get(starts & 0xFF).copied().unwrap_or(Counted([0x80; 16], 0));
         // SAFETY: NEON; `shuffle` is 16 bytes.
         let units = unsafe {
             // Lane k: the k-th char's first byte (low) and the byte after it (high); indices of 0x80 give zeros.
@@ -1886,7 +1913,7 @@ unsafe fn utf16_words(units: &[[u8; 2]], mut k: usize, end: usize, dst: *mut u8,
 /// a continuation byte (high): the shuffle that keeps each lane's lead byte and, for the bytes in the set, its
 /// continuation byte, in order; and the bytes kept. Latin-1 and UTF-16 below U+0800 to UTF-8.
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
-static EXPAND: [[u8; 16]; 256] = expand_shuffles();
+static EXPAND: Lines<[[u8; 16]; 256]> = Lines(expand_shuffles());
 
 // Every index is below the array's length (o < 16, m < 256).
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
@@ -1914,7 +1941,7 @@ const fn expand_shuffles() -> [[u8; 16]; 256] {
 /// a unit (bit `2k` for unit `k` at least U+0080, bit `2k + 1` at least U+0800): the shuffle that keeps each lane's
 /// bytes, in order, and how many it keeps.
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
-static PACK3: [([u8; 16], u8); 256] = pack3_shuffles();
+static PACK3: Lines<[Counted; 256]> = counted(pack3_shuffles());
 
 // Every index is below the array's length (o < 16, m < 256).
 #[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little")))]
