@@ -5,3 +5,5 @@
 # done: rust 36cfdbf 4e4be1e ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 # phase10/rust: main 03fdc71 against itself with every serializer (where Nino stands on each runner, and its floor).
 rust 03fdc71 03fdc71
+# phase10/go: main 03fdc71 against itself with Nino, NinoTags, Protobuf and MessagePack (where Nino stands, and its floor).
+go#12 03fdc71 03fdc71 //^(Nino|NinoTags|Protobuf|MessagePack)$
