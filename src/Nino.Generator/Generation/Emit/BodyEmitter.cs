@@ -861,7 +861,9 @@ internal sealed class BodyEmitter
 
         if (c.Creator.Length == 0)
         {
-            _w.Line($"throw new global::System.NotSupportedException(\"Nino: cannot construct {EscapeString(T)}\");");
+            // The name as users write it: not global::-qualified, which the file's alias of the type would replace.
+            string name = EscapeString(T.Replace("global::", ""));
+            _w.Line($"throw new global::System.NotSupportedException(\"Nino: cannot construct {name}\");");
             return;
         }
 
