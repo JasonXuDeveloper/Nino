@@ -671,14 +671,15 @@ export class NinoReader {
     const first = data[at];
     if (first === 0x80) {
       if (left < 3) throw new NinoError("unexpected end of data.");
-      const value = this.view.getUint16(at + 1, true);
+      const value = data[at + 1] | (data[at + 2] << 8);
       if (value < 0x80) throw new NinoError("string header not minimal.");
       this.pos = at + 3;
       return value;
     }
     if (first !== 0x81) throw new NinoError("string header out of range.");
     if (left < 5) throw new NinoError("unexpected end of data.");
-    const value = this.view.getUint32(at + 1, true);
+    // >>> 0 reads it as unsigned (below 2^32).
+    const value = (data[at + 1] | (data[at + 2] << 8) | (data[at + 3] << 16) | (data[at + 4] << 24)) >>> 0;
     if (value <= 0xffff) throw new NinoError("string header not minimal.");
     this.pos = at + 5;
     return value;
