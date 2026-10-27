@@ -150,40 +150,10 @@ unsafe fn window32(src: *const u8, len: usize, i: usize) -> (uint8x16_t, uint8x1
 /// The text is at most `WIDE_MAX` bytes (the caller's check; the header would not fit otherwise).
 #[inline(never)]
 pub(crate) fn wide(out: &mut Vec<u8>, text: &str) {
-    // SAFETY: the text is at most `WIDE_MAX` bytes (the caller's contract), and `ONE` is false.
-    unsafe { wide_in::<false>(out, text) }
-}
-
-/// A list kernel: the strings from the start of `values` while each is under 64 bytes (a one-byte header), short
-/// ASCII through [`super::ascii_short`] and other text through [`wide_in`] with `ONE`, inlined into the loop (its
-/// vector constants set up once for the list, where [`super::short_wide`] decodes char by char); returns how many it
-/// wrote. Text of 64 bytes or more is left to [`crate::strings::write`].
-pub(crate) fn strings(out: &mut Vec<u8>, values: &[String]) -> usize {
-    super::align_code();
-    for (k, v) in values.iter().enumerate() {
-        let len = v.len();
-        if len <= super::SHORT && super::ascii_short(out, v.as_bytes()) {
-            continue;
-        }
-        if len >= 64 {
-            return k;
-        }
-        // SAFETY: the text is under 64 bytes.
-        unsafe { wide_in::<true>(out, v) };
-    }
-    values.len()
-}
-
-/// [`wide`], with a one-byte header when `ONE` (text under 64 bytes: at most 63 chars or code units).
-///
-/// # Safety
-/// The text is at most `WIDE_MAX` bytes, under 64 with `ONE`.
-#[inline(always)]
-unsafe fn wide_in<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
     // UTF-16 takes at most two bytes per byte of UTF-8, Latin-1 one; a step stores up to 64 bytes from where its
     // output starts. `len <= i32::MAX`: no sum below wraps.
-    let room = if ONE { 1 } else { super::kernel_room(len) };
+    let room = super::kernel_room(len);
     out.reserve(len.wrapping_mul(2).wrapping_add(room).wrapping_add(64));
     let at = out.len();
     // Invariants: `i <= len` is a char boundary of the valid UTF-8 at `src`, and `o <= i` bytes (Latin-1) or
@@ -226,7 +196,7 @@ unsafe fn wide_in<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
                 i = i.wrapping_add(q);
             }
             // The header's room is reserved at `at`, and `o` bytes after it written.
-            super::finish::<ONE>(out, at, room, o, true);
+            super::finish::<false>(out, at, room, o, true);
             return;
         }
         (i, o) = (0, 0);
@@ -286,7 +256,7 @@ unsafe fn wide_in<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
             i = i.wrapping_add(q);
         }
         // The header's room is reserved at `at`, and `o` bytes after it written.
-        super::finish::<ONE>(out, at, room, o, false);
+        super::finish::<false>(out, at, room, o, false);
     }
 }
 
