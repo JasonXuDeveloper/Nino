@@ -474,10 +474,18 @@ namespace Nino.Core
                 CollectionFields.Keys(list) = keys = new TKey[length];
             if (values.Length < length)
                 CollectionFields.Values(list) = values = new TValue[length];
-            for (int i = 0; i < length; i++)
+            // Every array holds at least length items (pairs is rented for them, keys and values were checked
+            // above): cursors, without a bounds check per item.
+            ref var pair = ref NinoUnsafe.GetArrayDataReference(pairs);
+            ref TKey key = ref NinoUnsafe.GetArrayDataReference(keys);
+            ref TValue value = ref NinoUnsafe.GetArrayDataReference(values);
+            for (int n = length; n > 0; n--)
             {
-                keys[i] = pairs[i].Key;
-                values[i] = pairs[i].Value;
+                key = pair.Key;
+                value = pair.Value;
+                pair = ref Unsafe.Add(ref pair, 1);
+                key = ref Unsafe.Add(ref key, 1);
+                value = ref Unsafe.Add(ref value, 1);
             }
 
             CollectionFields.Size(list) = length;
@@ -486,21 +494,26 @@ namespace Nino.Core
         }
 
         /// <summary>Whether the keys are not null and strictly ascending under <paramref name="comparer"/>.</summary>
+        /// <remarks><paramref name="count"/> is not 0 and at most the array's length (it is rented for them).</remarks>
         private static bool InOrder(KeyValuePair<TKey, TValue>[] pairs, int count, IComparer<TKey> comparer)
         {
             if (HasNullKey(pairs, count))
                 return false;
+            // Indexed from the first pair, without a bounds check per pair. An index, not a cursor: a cursor bumped
+            // around the comparer's call was kept on the stack.
+            ref var first = ref NinoUnsafe.GetArrayDataReference(pairs);
             if (typeof(TKey).IsValueType && ReferenceEquals(comparer, Comparer<TKey>.Default))
             {
                 // Comparer<TKey>.Default devirtualized and inlined for value types.
                 for (int i = 1; i < count; i++)
-                    if (Comparer<TKey>.Default.Compare(pairs[i - 1].Key, pairs[i].Key) >= 0)
+                    if (Comparer<TKey>.Default.Compare(Unsafe.Add(ref first, i - 1).Key,
+                            Unsafe.Add(ref first, i).Key) >= 0)
                         return false;
                 return true;
             }
 
             for (int i = 1; i < count; i++)
-                if (comparer.Compare(pairs[i - 1].Key, pairs[i].Key) >= 0)
+                if (comparer.Compare(Unsafe.Add(ref first, i - 1).Key, Unsafe.Add(ref first, i).Key) >= 0)
                     return false;
             return true;
         }
@@ -509,9 +522,15 @@ namespace Nino.Core
         {
             if (typeof(TKey).IsValueType)
                 return false;
-            for (int i = 0; i < count; i++)
-                if (pairs[i].Key == null)
+            // count is at most the array's length (it is rented for them).
+            ref var at = ref NinoUnsafe.GetArrayDataReference(pairs);
+            for (int n = count; n > 0; n--)
+            {
+                if (at.Key == null)
                     return true;
+                at = ref Unsafe.Add(ref at, 1);
+            }
+
             return false;
         }
 

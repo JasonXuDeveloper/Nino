@@ -1002,26 +1002,40 @@ namespace Nino.Core
         {
             if (available <= 0)
                 NinoThrow.EndOfData();
-            ulong read = NinoStrings.ReadHeader(ref source, available);
-            uint header = (uint)read;
-            int at = (int)(read >> 32);
-            if (header < 2)
+            uint header, bytes;
+            int at;
+            // Both counts of three bytes (64 to 32,766 chars of up to 65,535 bytes: descriptions, paragraphs) read
+            // here at constant offsets, with no call before the decoding (which is inlined here too).
+            if (source == NinoStrings.Header16 && available >= 6 && Unsafe.Add(ref source, 3) == NinoStrings.Header16)
             {
-                return new SizedString(header == 0 ? null : string.Empty, at);
+                header = NinoUnsafe.Read<ushort>(ref Unsafe.Add(ref source, 1));
+                bytes = NinoUnsafe.Read<ushort>(ref Unsafe.Add(ref source, 4));
+                if (header < 0x80 || bytes < 0x80)
+                    NinoThrow.InvalidData("string header not minimal.");
+                at = 6;
+            }
+            else
+            {
+                ulong read = NinoStrings.ReadHeader(ref source, available);
+                header = (uint)read;
+                at = (int)(read >> 32);
+                if (header < 2)
+                    return new SizedString(header == 0 ? null : string.Empty, at);
+
+                if (header > (uint)int.MaxValue + 1)
+                    NinoThrow.InvalidData("invalid UTF-8 string.");
+                if (at >= available)
+                    NinoThrow.EndOfData();
+                read = NinoStrings.ReadHeader(ref Unsafe.Add(ref source, at), available - at);
+                bytes = (uint)read;
+                at += (int)(read >> 32);
+                if (bytes > int.MaxValue)
+                    NinoThrow.InvalidData("invalid UTF-8 string.");
             }
 
-            if (header > (uint)int.MaxValue + 1)
-                NinoThrow.InvalidData("invalid UTF-8 string.");
-            if (at >= available)
-                NinoThrow.EndOfData();
-            read = NinoStrings.ReadHeader(ref Unsafe.Add(ref source, at), available - at);
-            uint bytes = (uint)read;
-            at += (int)(read >> 32);
-            if (bytes > int.MaxValue)
-                NinoThrow.InvalidData("invalid UTF-8 string.");
             if (bytes > (uint)(available - at))
                 NinoThrow.EndOfData();
-            return new SizedString(DecodeUtf8(ref Unsafe.Add(ref source, at), (int)bytes, (int)(header - 1)),
+            return new SizedString(Decode(ref Unsafe.Add(ref source, at), (int)bytes, (int)(header - 1)),
                 at + (int)bytes);
         }
 
@@ -1030,13 +1044,22 @@ namespace Nino.Core
         /// same chars: reading into an existing object keeps an unchanged string instead of allocating a copy.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public string ReadString(string current) => current == null ? ReadString() : ReadStringOver(current);
-
-        private string ReadStringOver(string current)
+        public string ReadString(string current)
         {
-            string value = NinoStrings.Read(ref Cur, Avail, current, out int size);
-            Skip(size);
-            return value;
+            if (current == null)
+                return ReadString();
+            // Out of line taking the data, not the reader: an instance call would take the reader's address, which
+            // keeps all its fields in memory in the caller (every generated body reading a string member).
+            SizedString read = ReadStringOver(ref Cur, Avail, current);
+            Skip(read.Size);
+            return read.Value;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static SizedString ReadStringOver(ref byte source, int available, string current)
+        {
+            string value = NinoStrings.Read(ref source, available, current, out int size);
+            return new SizedString(value, size);
         }
 
         /// <summary>
@@ -1045,24 +1068,25 @@ namespace Nino.Core
         /// unchanged string instead of allocating a copy.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public string ReadUtf8(string current) => current == null ? ReadUtf8() : ReadUtf8Over(current);
+        public string ReadUtf8(string current)
+        {
+            if (current == null)
+                return ReadUtf8();
+            // Out of line taking the data, as ReadString(string).
+            SizedString read = ReadUtf8Over(ref Cur, Avail, current);
+            Skip(read.Size);
+            return read.Value;
+        }
 
-        private string ReadUtf8Over(string current)
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static SizedString ReadUtf8Over(ref byte source, int available, string current)
         {
             int length = current.Length;
             // ASCII text of up to 126 chars: as many bytes as chars (both counts one byte), compared without decoding.
-            if ((uint)(length - 1) < 0x7E && Avail >= 2 + length)
-            {
-                ref byte start = ref Cur;
-                if (start == length + 1 && Unsafe.Add(ref start, 1) == length &&
-                    NinoStrings.SameAscii(ref Unsafe.Add(ref start, 2), current))
-                {
-                    Skip(2 + length);
-                    return current;
-                }
-            }
-
-            return ReadUtf8();
+            if ((uint)(length - 1) < 0x7E && available >= 2 + length && source == length + 1 &&
+                Unsafe.Add(ref source, 1) == length && NinoStrings.SameAscii(ref Unsafe.Add(ref source, 2), current))
+                return new SizedString(current, 2 + length);
+            return ReadUtf8At(ref source, available);
         }
 
         /// <summary>
@@ -1071,7 +1095,11 @@ namespace Nino.Core
         /// number of chars, throw; a char count above the byte count throws before the string is allocated.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static unsafe string DecodeUtf8(ref byte src, int size, int length)
+        private static string DecodeUtf8(ref byte src, int size, int length) => Decode(ref src, size, length);
+
+        /// <summary><see cref="DecodeUtf8"/> inline, for <see cref="ReadUtf8At"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe string Decode(ref byte src, int size, int length)
         {
             // Every char (UTF-16 code unit) takes 1 to 3 bytes (a surrogate pair 4 for 2): size >= length bounds the
             // allocation by the data. size > 3 * length decodes to more chars than the string holds, which the
