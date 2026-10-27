@@ -177,7 +177,7 @@ pub(crate) fn ascii_short(out: &mut Vec<u8>, bytes: &[u8]) -> bool {
         unsafe { out.as_mut_ptr().add(at) }
     };
     // SAFETY: `room` reserves `1 + len` bytes from `at`, and `len <= SHORT`.
-    if !unsafe { ascii_into(room, bytes) } {
+    if !unsafe { ascii_into::<true>(room, bytes) } {
         return false;
     }
     // SAFETY: the `1 + len` bytes from `at` are written.
@@ -188,17 +188,18 @@ pub(crate) fn ascii_short(out: &mut Vec<u8>, bytes: &[u8]) -> bool {
 /// Writes a Latin-1 string's header and bytes for `bytes` at the pointer `room` returns, called once the bytes are
 /// found ASCII, and returns true; else writes nothing, does not call `room`, and returns false. The bytes are read as the first and last 16 (or 8, or 4) bytes, which may
 /// overlap, or as three bytes, tested, and stored as they were read, the header shifted in below the first block
-/// (but at 32 bytes and below 4): no loop, no call to `memcpy`. On x86-64 the 16-byte blocks are SSE2 registers.
+/// (but at 32 bytes and below 4): no loop, no call to `memcpy`. With `VECTOR`, on x86-64, the 16-byte blocks are SSE2
+/// registers: faster for one string ([`ascii_short`]), but not in [`ascii_strings`]' loop on AMD's Zen 4 and 5.
 ///
 /// # Safety
 /// `bytes.len() <= SHORT`, and `1 + bytes.len()` bytes are writable at the pointer `room` returns.
 #[inline(always)]
-unsafe fn ascii_into(room: impl FnOnce() -> *mut u8, bytes: &[u8]) -> bool {
+unsafe fn ascii_into<const VECTOR: bool>(room: impl FnOnce() -> *mut u8, bytes: &[u8]) -> bool {
     let (src, len) = (bytes.as_ptr(), bytes.len());
     // `len <= 32`: none of the sums or differences below can wrap, and the header, `2 * len + 1`, is one byte.
     let header = (len as u8).wrapping_mul(2).wrapping_add(1);
     #[cfg(target_arch = "x86_64")]
-    if len >= 16 {
+    if VECTOR && len >= 16 {
         use core::arch::x86_64::{
             _mm_cvtsi32_si128, _mm_loadu_si128, _mm_movemask_epi8, _mm_or_si128, _mm_slli_si128, _mm_storeu_si128,
         };
@@ -225,7 +226,6 @@ unsafe fn ascii_into(room: impl FnOnce() -> *mut u8, bytes: &[u8]) -> bool {
         }
         return true;
     }
-    #[cfg(not(target_arch = "x86_64"))]
     if len >= 16 {
         let last = len.wrapping_sub(16);
         // SAFETY: `16 <= len` bytes are readable at `src`, so sixteen are at `src` and at `src + len - 16`.
@@ -359,7 +359,7 @@ pub(crate) fn ascii_strings(out: &mut Vec<u8>, values: &[String]) -> (usize, usi
     for v in values.iter().take(run) {
         // SAFETY: `v.len() <= SHORT`, and the room reserved holds `1 + SHORT` bytes from `o` for each string of the
         // run, of which `o` has passed at most that many for each string written.
-        if v.len() > SHORT || !unsafe { ascii_into(|| base.add(o), v.as_bytes()) } {
+        if v.len() > SHORT || !unsafe { ascii_into::<false>(|| base.add(o), v.as_bytes()) } {
             break;
         }
         o = o.wrapping_add(1).wrapping_add(v.len());
