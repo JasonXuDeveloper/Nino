@@ -4,7 +4,7 @@
 # done: rust 36cfdbf 4e4be1e ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 # done: rust 36cfdbf 4e4be1e ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
 # phase10/rust: main 03fdc71 against itself with every serializer (where Nino stands on each runner, and its floor).
-rust 03fdc71 03fdc71
+# done: rust 03fdc71 03fdc71
 # phase10/go: main 03fdc71 against itself with Nino, NinoTags, Protobuf and MessagePack (where Nino stands, and its floor).
 # done: go#12 03fdc71 03fdc71 //^(Nino|NinoTags|Protobuf|MessagePack)$
 # phase10/ts: main's runtime (506720c: main with a finer bench table) against 36cfdbf, and against itself (the floor).
@@ -32,3 +32,10 @@ go:internal/generated#12 0d3ffdc e70605d Blocks/int
 go#12 1622ddb e70605d //^(Nino|NinoTags)$
 go#12 1622ddb 1622ddb //^(Nino|NinoTags)$
 go#12 0dd4684 88bfc1f //^Nino$
+# phase10/rust (73974ff): blocks bench before/after c1, main vs each commit on the nino cases, main vs itself (floor).
+rust:blocks 781d955 9980f8b
+rust 1622ddb 9980f8b ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust 9980f8b 2ccdfab ^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/deserialize/nino$
+rust 1622ddb 73974ff ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
+rust:text 2ccdfab 73974ff write/
+rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/.*/nino$
