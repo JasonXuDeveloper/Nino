@@ -1,6 +1,7 @@
 package shapes
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -48,6 +49,49 @@ func TestShapesRoundTrip(t *testing.T) {
 	}
 	if r, err := nino.DeserializeExact(data, ReadRenamed); err != nil || !reflect.DeepEqual(r, renamed) {
 		t.Fatalf("renamed: %v, %+v", err, r)
+	}
+}
+
+// Arrays copied as one block (nino.ReadBlock, nino.ReadRaw): the same bytes as element by element, and a bool of a
+// raw struct other than 0 or 1 fails.
+func TestBlockShapesRoundTrip(t *testing.T) {
+	stamps := &Stamps{
+		Times:    []nino.DateTime{nino.NewDateTime(638712864000000000, nino.KindUtc), 0},
+		Days:     []nino.DateOnly{nino.MaxDateOnly, 1},
+		Clocks:   []nino.TimeOnly{nino.MaxTimeOnly},
+		Prices:   []nino.Decimal{{Flags: 2 << 16, Lo: 12345}},
+		Ids:      []nino.Guid{{1, 2, 3}, {15: 9}},
+		Signed:   []nino.Int128{{Lo: 1, Hi: ^uint64(0)}},
+		Unsigned: []nino.UInt128{{Lo: 2, Hi: 3}},
+		Marks:    []Marked{{Id: 1, On: true, Kind: 2, Code: -3}, {Id: -4, Kind: 5, Code: 6}},
+	}
+	data, err := nino.Serialize(stamps, WriteStamps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	each, err := nino.Serialize(stamps, func(w *nino.Writer, v *Stamps) {
+		w.Present(true)
+		nino.WriteSlice(w, v.Times, (*nino.Writer).DateTime)
+		nino.WriteSlice(w, v.Days, (*nino.Writer).DateOnly)
+		nino.WriteSlice(w, v.Clocks, (*nino.Writer).TimeOnly)
+		nino.WriteSlice(w, v.Prices, (*nino.Writer).Decimal)
+		nino.WriteSlice(w, v.Ids, (*nino.Writer).Guid)
+		nino.WriteSlice(w, v.Signed, (*nino.Writer).I128)
+		nino.WriteSlice(w, v.Unsigned, (*nino.Writer).U128)
+		nino.WriteFixed(w, v.Marks, 8, encodeMarked)
+	})
+	if err != nil || !reflect.DeepEqual(data, each) {
+		t.Fatalf("wrote %x, element by element %x (%v)", data, each, err)
+	}
+	back, err := nino.DeserializeExact(data, ReadStamps)
+	if err != nil || !reflect.DeepEqual(back, stamps) {
+		t.Fatalf("read back %+v (%v)", back, err)
+	}
+	// The second Marked's bool is the data's fourth byte from the end.
+	bad := append([]byte(nil), data...)
+	bad[len(bad)-4] = 2
+	if _, err := nino.DeserializeExact(bad, ReadStamps); !errors.Is(err, nino.ErrInvalidData) {
+		t.Fatalf("a bool of 2 read: %v", err)
 	}
 }
 
