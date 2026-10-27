@@ -44,6 +44,66 @@ pub(crate) fn read_each<T: NinoRead>(r: &mut Reader<'_>, count: usize) -> Result
     read_into_vec(r, count, vec_item::<T>)
 }
 
+/// [`NinoRead::read_many`]'s default for a fixed-size type: the elements' bytes with one length check, then
+/// [`NinoRead::decode_fixed`] on each.
+#[inline]
+pub(crate) fn read_fixed<T: NinoRead>(r: &mut Reader<'_>, count: usize) -> Result<Vec<T>> {
+    let size = count.checked_mul(T::FIXED_SIZE).ok_or_else(Error::too_large)?;
+    let capacity = r.capacity::<T>(count);
+    let bytes = r.take(size)?;
+    if capacity < count {
+        return grow_fixed(bytes.chunks_exact(T::FIXED_SIZE), capacity, T::decode_fixed);
+    }
+    crate::simd::decode_block(bytes.chunks_exact(T::FIXED_SIZE), T::decode_fixed)
+}
+
+/// A block of fixed-size elements past the allocation budget ([`Reader::capacity`]): `capacity` of them allocated up
+/// front, the `Vec` grown for the rest.
+#[cold]
+#[inline(never)]
+pub(crate) fn grow_fixed<C, T>(
+    chunks: impl Iterator<Item = C>,
+    capacity: usize,
+    decode: impl Fn(C) -> Result<T>,
+) -> Result<Vec<T>> {
+    let mut values = Vec::with_capacity(capacity);
+    for c in chunks {
+        values.push(decode(c)?);
+    }
+    Ok(values)
+}
+
+/// [`NinoWrite::write_many`]'s default for a fixed-size type: room for every element, then
+/// [`NinoWrite::encode_fixed`] into each element's bytes.
+#[inline]
+pub(crate) fn write_fixed<T: NinoWrite>(values: &[T], w: &mut Writer<'_>) {
+    if T::FIXED_SIZE <= crate::simd::FIXED_STACK {
+        crate::simd::extend_fixed(w.buffer(), [], values, T::FIXED_SIZE, T::encode_fixed);
+        return;
+    }
+    let out = w.reserve(values.len().saturating_mul(T::FIXED_SIZE));
+    for (v, o) in values.iter().zip(out.chunks_exact_mut(T::FIXED_SIZE)) {
+        v.encode_fixed(o);
+    }
+}
+
+/// [`NinoWrite::write_counted`]'s default for a fixed-size type: the length and the elements in one block.
+#[inline]
+pub(crate) fn write_counted_fixed<T: NinoWrite>(values: &[T], w: &mut Writer<'_>) -> Result<()> {
+    let length = i32::try_from(values.len()).map_err(|_| Error::too_large())?;
+    if T::FIXED_SIZE <= crate::simd::FIXED_STACK {
+        crate::simd::extend_fixed(w.buffer(), length.to_le_bytes(), values, T::FIXED_SIZE, T::encode_fixed);
+        return Ok(());
+    }
+    let out = w.reserve(values.len().saturating_mul(T::FIXED_SIZE).saturating_add(4));
+    let Some((head, out)) = out.split_first_chunk_mut::<4>() else { return Ok(()) };
+    *head = length.to_le_bytes();
+    for (v, o) in values.iter().zip(out.chunks_exact_mut(T::FIXED_SIZE)) {
+        v.encode_fixed(o);
+    }
+    Ok(())
+}
+
 /// Reads a value that is hashed or ordered (a dictionary key, a set element): a body deferred inside it could not
 /// be put in place after the value is in the collection, so that is reported instead.
 #[inline]
@@ -73,6 +133,12 @@ macro_rules! number {
     ($($t:ty, $n:literal, $method:ident;)*) => {$(
         impl NinoRead for $t {
             const MIN_SIZE: usize = $n;
+            const FIXED_SIZE: usize = $n;
+
+            #[inline]
+            fn decode_fixed(bytes: &[u8]) -> Result<Self> {
+                bytes.first_chunk::<$n>().map(|b| <$t>::from_le_bytes(*b)).ok_or_else(Error::end)
+            }
 
             #[inline]
             fn read(r: &mut Reader<'_>) -> Result<Self> {
@@ -88,6 +154,15 @@ macro_rules! number {
         }
 
         impl NinoWrite for $t {
+            const FIXED_SIZE: usize = $n;
+
+            #[inline]
+            fn encode_fixed(&self, out: &mut [u8]) {
+                if let Some(dst) = out.first_chunk_mut::<$n>() {
+                    *dst = self.to_le_bytes();
+                }
+            }
+
             #[inline]
             fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
                 w.$method(*self);
@@ -123,6 +198,12 @@ number! {
 
 impl NinoRead for u8 {
     const MIN_SIZE: usize = 1;
+    const FIXED_SIZE: usize = 1;
+
+    #[inline]
+    fn decode_fixed(bytes: &[u8]) -> Result<Self> {
+        bytes.first().copied().ok_or_else(Error::end)
+    }
 
     #[inline]
     fn read(r: &mut Reader<'_>) -> Result<Self> {
@@ -137,6 +218,15 @@ impl NinoRead for u8 {
 }
 
 impl NinoWrite for u8 {
+    const FIXED_SIZE: usize = 1;
+
+    #[inline]
+    fn encode_fixed(&self, out: &mut [u8]) {
+        if let Some(b) = out.first_mut() {
+            *b = *self;
+        }
+    }
+
     #[inline]
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.u8(*self);
@@ -152,6 +242,12 @@ impl NinoWrite for u8 {
 
 impl NinoRead for i8 {
     const MIN_SIZE: usize = 1;
+    const FIXED_SIZE: usize = 1;
+
+    #[inline]
+    fn decode_fixed(bytes: &[u8]) -> Result<Self> {
+        bytes.first().map(|&b| b as i8).ok_or_else(Error::end)
+    }
 
     #[inline]
     fn read(r: &mut Reader<'_>) -> Result<Self> {
@@ -165,6 +261,15 @@ impl NinoRead for i8 {
 }
 
 impl NinoWrite for i8 {
+    const FIXED_SIZE: usize = 1;
+
+    #[inline]
+    fn encode_fixed(&self, out: &mut [u8]) {
+        if let Some(b) = out.first_mut() {
+            *b = *self as u8;
+        }
+    }
+
     #[inline]
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.i8(*self);
@@ -173,33 +278,65 @@ impl NinoWrite for i8 {
 
     #[inline]
     fn write_many<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
-        w.reserve_capacity(values.len());
-        for &v in values {
-            w.i8(v);
-        }
+        w.encoded(values, |&v| [v as u8]);
         Ok(())
+    }
+
+    #[inline]
+    fn write_counted<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
+        w.counted(values, |&v| [v as u8])
     }
 }
 
 impl NinoRead for bool {
     const MIN_SIZE: usize = 1;
+    const FIXED_SIZE: usize = 1;
+
+    #[inline]
+    fn decode_fixed(bytes: &[u8]) -> Result<Self> {
+        match bytes.first() {
+            Some(0) => Ok(false),
+            Some(1) => Ok(true),
+            Some(&b) => Err(Error::new(ErrorKind::InvalidBool, i32::from(b))),
+            None => Err(Error::end()),
+        }
+    }
 
     #[inline]
     fn read(r: &mut Reader<'_>) -> Result<Self> {
         r.bool()
     }
 
+    /// One pass that ORs every byte (no early exit, so it runs a vector at a time): a byte other than 0 and 1 sets
+    /// a bit above the lowest. Only then is the bad byte looked for.
     #[inline]
     fn read_many(r: &mut Reader<'_>, count: usize) -> Result<Vec<Self>> {
         let bytes = r.take(count)?;
-        if let Some(&b) = bytes.iter().find(|&&b| b > 1) {
-            return Err(Error::new(ErrorKind::InvalidBool, i32::from(b)));
+        if bytes.iter().fold(0u8, |a, &b| a | b) > 1 {
+            return Err(invalid_bool(bytes));
         }
         Ok(bytes.iter().map(|&b| b != 0).collect())
     }
 }
 
+/// The error for the first byte of `bytes` that is not 0 or 1.
+#[cold]
+#[inline(never)]
+fn invalid_bool(bytes: &[u8]) -> Error {
+    let b = bytes.iter().copied().find(|&b| b > 1).unwrap_or(2);
+    Error::new(ErrorKind::InvalidBool, i32::from(b))
+}
+
 impl NinoWrite for bool {
+    const FIXED_SIZE: usize = 1;
+
+    #[inline]
+    fn encode_fixed(&self, out: &mut [u8]) {
+        if let Some(b) = out.first_mut() {
+            *b = u8::from(*self);
+        }
+    }
+
     #[inline]
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.bool(*self);
@@ -208,11 +345,13 @@ impl NinoWrite for bool {
 
     #[inline]
     fn write_many<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
-        w.reserve_capacity(values.len());
-        for &v in values {
-            w.bool(v);
-        }
+        w.encoded(values, |&v| [u8::from(v)]);
         Ok(())
+    }
+
+    #[inline]
+    fn write_counted<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
+        w.counted(values, |&v| [u8::from(v)])
     }
 }
 
@@ -607,6 +746,21 @@ macro_rules! tuple {
         impl<$($name: NinoRead),+> NinoRead for ($($name,)+) {
             const MAY_DEFER: bool = false $(|| $name::MAY_DEFER)+;
             const MIN_SIZE: usize = 0usize $(.saturating_add($name::MIN_SIZE))+;
+            /// The items' sizes added up when every item is fixed-size.
+            const FIXED_SIZE: usize =
+                if false $(|| <$name as NinoRead>::FIXED_SIZE == 0)+ { 0 } else { 0usize $(.saturating_add(<$name as NinoRead>::FIXED_SIZE))+ };
+
+            // The last item's tail is not read.
+            #[allow(unused_assignments)]
+            #[inline]
+            fn decode_fixed(bytes: &[u8]) -> Result<Self> {
+                let mut rest = bytes;
+                Ok(($({
+                    let (item, tail) = rest.split_at_checked(<$name as NinoRead>::FIXED_SIZE).ok_or_else(Error::end)?;
+                    rest = tail;
+                    $name::decode_fixed(item)?
+                },)+))
+            }
 
             #[inline]
             fn read(r: &mut Reader<'_>) -> Result<Self> {
@@ -617,6 +771,21 @@ macro_rules! tuple {
         }
 
         impl<$($name: NinoWrite),+> NinoWrite for ($($name,)+) {
+            const FIXED_SIZE: usize =
+                if false $(|| <$name as NinoWrite>::FIXED_SIZE == 0)+ { 0 } else { 0usize $(.saturating_add(<$name as NinoWrite>::FIXED_SIZE))+ };
+
+            // The last item's tail is not written.
+            #[allow(unused_assignments)]
+            #[inline]
+            fn encode_fixed(&self, out: &mut [u8]) {
+                let mut rest = out;
+                $(
+                    let Some((item, tail)) = rest.split_at_mut_checked(<$name as NinoWrite>::FIXED_SIZE) else { return };
+                    rest = tail;
+                    self.$index.encode_fixed(item);
+                )+
+            }
+
             #[inline]
             fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
                 $(self.$index.write(w)?;)+
