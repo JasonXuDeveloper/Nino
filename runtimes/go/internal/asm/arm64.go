@@ -858,25 +858,16 @@ TEXT ·wireStringsNEON(SB), NOSPLIT, $0-56
 `
 
 const manyNEONLoop = `
+	MOVD    count+24(FP), R26        // the strings to write
+	// Each string costs a few instructions at least (short ASCII, the common case, about 30): the loop takes as few
+	// as it can, with strings falling through to their header and pointers to strings taken out of line (mptr).
+
 mnext:
-	MOVD    count+24(FP), R8
-	CMP     R8, R14
+	CMP     R26, R14
 	BGE     mfinish
 	MOVD    strs+16(FP), R9
 	MOVBU   ptrs+32(FP), R10
-	CBZ     R10, mvalue
-	MOVD    (R9)(R14<<3), R9
-	CBNZ    R9, mheader
-	// nil: the null string.
-	ADD     $1, R15, R10
-	CMP     R16, R10
-	BHI     mfinish
-	MOVB    ZR, (R15)
-	MOVD    R10, R15
-	ADD     $1, R14
-	B       mnext
-
-mvalue:
+	CBNZ    R10, mptr
 	ADD     R14<<4, R9, R9
 
 mheader:
@@ -893,8 +884,7 @@ mheader:
 	B       mnext
 
 mtext:
-	MOVD    $const_wireMaxText, R10
-	CMP     R10, R2
+	CMP     $const_wireMaxText, R2
 	BHS     mfinish
 	ADD     R2<<1, R15, R10
 	ADD     $(1+const_wireSlack), R10
@@ -914,17 +904,27 @@ mtext:
 	SUB     R2, R8, R8
 	VLD1    (R8), [V1.B16]
 	VAND    V1.B16, V0.B16, V0.B16
-	LSL     $1, R2, R11
-	ADD     $1, R11
+	// The header 2n+1 as (n+1)+n, n+1 also the bytes the string takes; ASCII when the largest byte is below 0x80.
+	ADD     $1, R2, R8
+	ADD     R2, R8, R11
 	VMOV    R11, V0.B[0]
-	VMOV    V0.D[0], R8
-	VMOV    V0.D[1], R9
-	ORR     R8, R9, R10
-	TST     R22, R10
-	BNE     mlong
+	WORD $0x6e30a802 //    UMAXV V0.B16, V2
+	VMOV    V2.B[0], R10
+	TBNZ    $7, R10, mlong
 	VST1    [V0.B16], (R15)
-	ADD     R2, R15, R15
-	ADD     $1, R15
+	ADD     R8, R15, R15
+	ADD     $1, R14
+	B       mnext
+
+mptr:
+	MOVD    (R9)(R14<<3), R9
+	CBNZ    R9, mheader
+	// nil: the null string.
+	ADD     $1, R15, R10
+	CMP     R16, R10
+	BHI     mfinish
+	MOVB    ZR, (R15)
+	MOVD    R10, R15
 	ADD     $1, R14
 	B       mnext
 
