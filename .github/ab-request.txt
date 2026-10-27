@@ -6,10 +6,10 @@ typescript 506720c223f8 6ed8a8a
 typescript 506720c223f8 506720c223f8
 typescript ca515d6 6ed8a8a strings
 typescript 9389c00 69c314d strings
-rust 9980f8b 2ccdfab ^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/deserialize/nino$
-rust 1622ddb 9980f8b ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/deserialize/nino$
-rust 1622ddb 9768148 ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(deserialize|serialize)/nino$
-rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(deserialize|serialize)/nino$
+# done (run 40550306669): rust 9980f8b 2ccdfab ^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/deserialize/nino$
+# done (run 40550306669): rust 1622ddb 9980f8b ^(record|records-1000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/deserialize/nino$
+# done (run 40550306669): rust 1622ddb 9768148 ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(deserialize|serialize)/nino$
+# done (run 40550306669): rust 1622ddb 1622ddb ^(record|records-1000|i32-10000|f64-10000|strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)/(deserialize|serialize)/nino$
 # phase10/rust round 2: the branch head 9768148 (c3 dropped) against main, main against itself, and the blocks bench floor.
 # phase10/ts ca515d6 again (full SHAs, so the lines run again): more samples against main and its floor.
 # done (run 40549039327): typescript 506720c223f846ff378520be7f486a8f24928893 ca515d62ed57830d5ecff82da0724ac4d9c64b7d
