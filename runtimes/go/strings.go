@@ -264,11 +264,26 @@ func utf8Units(b []byte, units int) bool {
 }
 
 // utf8Scan reports whether b is strict UTF-8 (what utf8.Valid accepts: no overlong forms, encoded surrogates or
-// values past U+10FFFF, no sequence cut short) and returns its length in UTF-16 code units, in one pass: a
-// shift-based DFA, one table load, shift and mask a byte, with no branch on the data. Each row of utf8DFA holds,
-// for every state (a multiple of 6, the shift that picks it), the next state in the 6 bits at that shift, and in
-// its top two bits the code units the byte starts (0 for a continuation byte, 2 for a 4-byte lead, else 1).
+// values past U+10FFFF, no sequence cut short) and returns its length in UTF-16 code units, in one pass. From
+// scanVector bytes on, where there is a vector path (amd64 with SSSE3, arm64), its kernel checks 16 bytes at a time
+// (utf8ScanSSE, utf8ScanNEON); shorter text, and every other platform, take utf8ScanGo.
 func utf8Scan(b []byte) (units int, ok bool) {
+	if useRead && len(b) >= scanVector {
+		units = scanUTF8(unsafe.Pointer(unsafe.SliceData(b)), len(b))
+		return units, units >= 0
+	}
+	return utf8ScanGo(b)
+}
+
+// scanVector is the length from which utf8Scan takes the vector path: below it, the few bytes the Go loop runs
+// through its table cost less than a call (measured on x64; a block of 16 bytes costs about the same at any length).
+const scanVector = 8
+
+// utf8ScanGo is utf8Scan in Go: a shift-based DFA, one table load, shift and mask a byte, with no branch on the
+// data. Each row of utf8DFA holds, for every state (a multiple of 6, the shift that picks it), the next state in the
+// 6 bits at that shift, and in its top two bits the code units the byte starts (0 for a continuation byte, 2 for a
+// 4-byte lead, else 1).
+func utf8ScanGo(b []byte) (units int, ok bool) {
 	units = len(b)
 	var state uint64
 	// Eight bytes at a time: a word of ASCII between chars is skipped; any other runs through the DFA unrolled,

@@ -59,3 +59,30 @@ func validationTables() (t1, t2, t3 [16]byte) {
 	}
 	return t1, t2, t3
 }
+
+// surrogate is the check strict UTF-8 adds: ED followed by A0 to BF, a surrogate encoded as three bytes.
+const surrogate = 1 << 4
+
+// strictTables are validationTables with the check for surrogates: the tables of utf8Scan's kernels, which accept
+// what utf8.Valid accepts.
+func strictTables() (t1, t2, t3 [16]byte) {
+	t1, t2, t3 = validationTables()
+	t1[0xE] |= surrogate
+	t2[0xD] |= surrogate
+	t3[0xA] |= surrogate
+	t3[0xB] |= surrogate
+	return t1, t2, t3
+}
+
+// shiftTable is 0 to 15, then 16 bytes of 80: read from 16 minus the bytes left on, the shuffle that moves the last
+// bytes of a block to its start, zeros after them.
+func shiftTable() []byte {
+	t := make([]byte, 32)
+	for i := range t {
+		t[i] = byte(i)
+		if i >= 16 {
+			t[i] = 0x80
+		}
+	}
+	return t
+}

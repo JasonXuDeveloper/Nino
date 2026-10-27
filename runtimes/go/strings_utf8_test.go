@@ -3,8 +3,10 @@ package nino
 import (
 	"bytes"
 	"math/rand"
+	"strings"
 	"testing"
 	"unicode/utf8"
+	"unsafe"
 )
 
 // The [NinoUtf8] paths against the plain ones they replace: oldUtf8Units validates rune by rune, oldUtf8 writes
@@ -158,4 +160,56 @@ func FuzzUtf8(f *testing.F) {
 		f.Add([]byte(s))
 	}
 	f.Fuzz(func(t *testing.T, b []byte) { checkUtf8(t, string(b)) })
+}
+
+// scanVec is the vector path of utf8Scan on b (any length but 0), as utf8Scan answers.
+func scanVec(b []byte) (int, bool) {
+	units := scanUTF8(unsafe.Pointer(unsafe.SliceData(b)), len(b))
+	return units, units >= 0
+}
+
+// TestUtf8ScanVector compares the vector path of utf8Scan with the plain answer: every sequence of up to three bytes
+// across the end of the first block and at the end of the text, each piece of utf8Pieces at every place in the
+// first blocks, and random text.
+func TestUtf8ScanVector(t *testing.T) {
+	if !hasRead {
+		t.Skip("no vector path here")
+	}
+	check := func(b []byte) {
+		t.Helper()
+		want, wantOK := scanRef(b)
+		got, ok := scanVec(b)
+		if ok != wantOK || (ok && got != want) {
+			t.Fatalf("scanUTF8(% x) = %d %v, want %d %v", b, got, ok, want, wantOK)
+		}
+	}
+	b := []byte(strings.Repeat("a", 40))
+	steps := 1 << 24
+	if testing.Short() {
+		steps = 1 << 18
+	}
+	for _, at := range []int{13, 14, 15, 29} {
+		for x := range steps {
+			b[at], b[at+1], b[at+2] = byte(x), byte(x>>8), byte(x>>16)
+			check(b[:at+3])
+			if at == 13 {
+				check(b[:at+3+4])
+			}
+		}
+		b[at], b[at+1], b[at+2] = 'a', 'a', 'a'
+	}
+	for _, p := range utf8Pieces {
+		for at := 0; at < 40; at++ {
+			for after := 0; after < 20; after++ {
+				check([]byte(strings.Repeat("a", at) + p + strings.Repeat("b", after)))
+				check([]byte(strings.Repeat("é", at/2) + p + strings.Repeat("字", after/3)))
+			}
+		}
+	}
+	rnd := rand.New(rand.NewSource(7))
+	for range 200000 {
+		if s := randomUtf8(rnd); s != "" {
+			check([]byte(s))
+		}
+	}
 }
