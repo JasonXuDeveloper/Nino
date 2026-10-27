@@ -24,3 +24,8 @@ harness = false
 [[bench]]
 name = "text"
 harness = false
+
+# Nino's block paths on elements other than numbers (development only: not in the report).
+[[bench]]
+name = "blocks"
+harness = false
