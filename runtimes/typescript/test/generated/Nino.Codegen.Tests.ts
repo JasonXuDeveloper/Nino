@@ -31,6 +31,30 @@ function writeGappy(w: NinoWriter, at: number, v: Gappy): void {
   w.view.setInt32(at + 4, v.large, true);
 }
 
+/** `Shapes.Marked`, copied as raw memory (8 bytes). */
+export class Marked {
+  id: number = 0;
+  on: boolean = false;
+  kind: number = 0;
+  code: number = 0;
+}
+
+function readMarked(r: NinoReader, at: number): Marked {
+  const v = new Marked();
+  v.id = r.view.getInt32(at, true);
+  v.on = r.boolAt(at + 4);
+  v.kind = r.view.getUint8(at + 5);
+  v.code = r.view.getInt16(at + 6, true);
+  return v;
+}
+
+function writeMarked(w: NinoWriter, at: number, v: Marked): void {
+  w.view.setInt32(at, v.id, true);
+  w.view.setUint8(at + 4, v.on ? 1 : 0);
+  w.view.setUint8(at + 5, v.kind);
+  w.view.setInt16(at + 6, v.code, true);
+}
+
 /** `Shapes.ThingStruct`, copied as raw memory (16 bytes). */
 export class ThingStruct {
   id: number = 0;
@@ -938,6 +962,7 @@ types.add(-324129149, FloatKeys, readFloatKeys, writeFloatKeys);
 types.add(-2101740608, Gappy, (r) => readGappy(r, r.take(8)), (w, v) => writeGappy(w, w.raw(8), v));
 types.add(-2087122985, Holder, readHolder, writeHolder);
 types.add(1492398245, Keywords, readKeywords, writeKeywords);
+types.add(-1474010333, Marked, (r) => readMarked(r, r.take(8)), (w, v) => writeMarked(w, w.reserve(8), v));
 types.add(66748393, NinoGrid, readNinoGrid, writeNinoGrid);
 types.add(-1638490777, OpenHolderUse, readOpenHolderUse, writeOpenHolderUse);
 types.add(-91676345, OpenUse, readOpenUse, writeOpenUse);
@@ -1015,6 +1040,10 @@ export const KeywordsCodec: NinoCodec<Keywords | null> = {
   write: (w, v) => {
     if (v === null || v === undefined) w.u8(0); else { w.u8(1); writeKeywords(w, v); }
   },
+};
+export const MarkedCodec: NinoCodec<Marked> = {
+  read: (r) => readMarked(r, r.take(8)),
+  write: (w, v) => writeMarked(w, w.reserve(8), v),
 };
 export const NinoGridCodec: NinoCodec<NinoGrid | null> = {
   read: (r) => (r.notNull() ? readNinoGrid(r) : null),

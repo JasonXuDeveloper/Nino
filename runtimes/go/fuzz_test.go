@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"testing"
+	"unsafe"
 )
 
 // FuzzReader runs a program of reads (the first bytes, one op each) over the rest of the input. No sequence of
@@ -15,6 +16,7 @@ func FuzzReader(f *testing.F) {
 	f.Add([]byte{7, 8, 9, 10}, hx("0A000080 01000000 00 00000000 00000000"))
 	f.Add([]byte{11, 12, 13, 14, 15}, hx("02000000 FF00 01000000 02000000 03000000 0400000005000000"))
 	f.Add([]byte{16, 17, 18, 19}, hx("01000000 07 01 0000 D00102030405060708090A0B0C0D0E0F"))
+	f.Add([]byte{20, 21, 22, 23}, hx("01000000 0000000000000000 01000000 00001C00000000000000000000000000 01000000 01000000 01000000 0000803F 01 02 0300"))
 	f.Fuzz(func(t *testing.T, program, data []byte) {
 		if len(program) > 64 {
 			program = program[:64]
@@ -25,7 +27,7 @@ func FuzzReader(f *testing.F) {
 			before := r.Pos()
 			fuzzOp(t, op, r, w)
 			if r.Pos() < before || r.Pos() > len(data) {
-				t.Fatalf("op %d moved from %d to %d (of %d)", op%20, before, r.Pos(), len(data))
+				t.Fatalf("op %d moved from %d to %d (of %d)", op%fuzzOps, before, r.Pos(), len(data))
 			}
 			if r.Failed() {
 				var e *Error
@@ -50,14 +52,14 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 		w.Reset()
 		write(w)
 		if w.Err() != nil {
-			t.Fatalf("op %d: a value read did not write back: %v", op%20, w.Err())
+			t.Fatalf("op %d: a value read did not write back: %v", op%fuzzOps, w.Err())
 		}
 		back := NewReader(w.Bytes())
 		if !read(back) || back.Err() != nil || back.More() {
-			t.Fatalf("op %d: written bytes %x read back differently (%v)", op%20, w.Bytes(), back.Err())
+			t.Fatalf("op %d: written bytes %x read back differently (%v)", op%fuzzOps, w.Bytes(), back.Err())
 		}
 	}
-	switch op % 20 {
+	switch op % fuzzOps {
 	case 0:
 		v := r.Bool()
 		check(func(w *Writer) { w.Bool(v) }, func(b *Reader) bool { return b.Bool() == v })
@@ -146,7 +148,37 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 	case 19:
 		v := r.Guid()
 		check(func(w *Writer) { w.Guid(v) }, func(b *Reader) bool { return b.Guid() == v })
+	case 20:
+		v := ReadBlock[DateTime](r)
+		check(func(w *Writer) { WriteBlock(w, v) }, func(b *Reader) bool { return equalSlices(ReadBlock[DateTime](b), v) })
+	case 21:
+		v := ReadBlock[Decimal](r)
+		check(func(w *Writer) { WriteBlock(w, v) }, func(b *Reader) bool { return equalSlices(ReadBlock[Decimal](b), v) })
+	case 22:
+		v := ReadBlock[DateOnly](r)
+		check(func(w *Writer) { WriteBlock(w, v) }, func(b *Reader) bool { return equalSlices(ReadBlock[DateOnly](b), v) })
+	case 23:
+		// A raw struct with a bool, copied as a block where its memory is its bytes.
+		v := ReadRaw(r, 8, rawPointAsIs, []int{4}, decodeRawPoint)
+		check(func(w *Writer) { WriteRaw(w, v, 8, rawPointAsIs, []int{4}, encodeRawPoint) }, func(b *Reader) bool {
+			return equalSlices(ReadRaw(b, 8, rawPointAsIs, []int{4}, decodeRawPoint), v)
+		})
 	}
+}
+
+// fuzzOps is the number of ops fuzzOp runs.
+const fuzzOps = 24
+
+// equalSlices reports whether a and b are both nil, or both not nil with the same memory (bit for bit: a NaN equals
+// itself; the types compared have no padding).
+func equalSlices[T any](a, b []T) bool {
+	if (a == nil) != (b == nil) || len(a) != len(b) {
+		return false
+	}
+	var zero T
+	size := len(a) * int(unsafe.Sizeof(zero))
+	return size == 0 || bytes.Equal(unsafe.Slice((*byte)(unsafe.Pointer(&a[0])), size),
+		unsafe.Slice((*byte)(unsafe.Pointer(&b[0])), size))
 }
 
 func equalUnits(a, b []uint16) bool {

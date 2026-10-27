@@ -48,7 +48,7 @@ func readSimpleClassBody(r *nino.Reader, v *SimpleClass) {
 	v.Name = r.String()
 	v.Desc = r.UTF8()
 	v.Numbers = nino.ReadPrimitives[int32](r)
-	v.Dates = nino.ReadSlice(r, 8, (*nino.Reader).DateTime)
+	v.Dates = nino.ReadBlock[nino.DateTime](r)
 	v.Map1 = nino.ReadMap(r, 8, (*nino.Reader).I32, (*nino.Reader).String)
 	v.Map2 = nino.ReadMap(r, 8, (*nino.Reader).I32, (*nino.Reader).I32)
 }
@@ -68,7 +68,7 @@ func writeSimpleClassBody(w *nino.Writer, v *SimpleClass) {
 	w.String(v.Name)
 	w.UTF8(v.Desc)
 	nino.WritePrimitives(w, v.Numbers)
-	nino.WriteSlice(w, v.Dates, (*nino.Writer).DateTime)
+	nino.WriteBlock(w, v.Dates)
 	nino.WriteMap(w, v.Map1, (*nino.Writer).I32, (*nino.Writer).String)
 	nino.WriteMap(w, v.Map2, (*nino.Writer).I32, (*nino.Writer).I32)
 }
