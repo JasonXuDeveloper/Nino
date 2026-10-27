@@ -378,6 +378,34 @@ func TestReadStrings(t *testing.T) {
 	if got := ReadStrings(NewReader(hx("FFFFFFFF"))); got != nil {
 		t.Fatalf("null read as %q", got)
 	}
+	// Short text of every length around the in-loop path's bounds (1 to 16 chars of ASCII), Latin-1 and UTF-16 among
+	// it, enough to grow the slice and to fill several blocks of r.text, then a byte after: the same strings as
+	// ReadSlice reads, and nothing past them read.
+	var many []string
+	for i := range 5000 {
+		s := "abcdefghijklmnopqrstuvwxyz"[:i%20]
+		switch i % 7 {
+		case 3:
+			s += "é"
+		case 5:
+			s += "日"
+		}
+		many = append(many, s)
+	}
+	w = NewWriter(0)
+	WriteStrings(w, many)
+	w.U8(0x7E)
+	for _, cut := range []int{len(w.Bytes()), len(w.Bytes()) - 1} {
+		r, ref := NewReader(w.Bytes()[:cut]), NewReader(w.Bytes()[:cut])
+		got, want := ReadStrings(r), ReadSlice(ref, 1, (*Reader).String)
+		if strings.Join(got, "|") != strings.Join(want, "|") || r.Remaining() != ref.Remaining() ||
+			(r.Err() == nil) != (ref.Err() == nil) || r.Err() != nil && r.Err().Error() != ref.Err().Error() {
+			t.Fatalf("%d strings, cut at %d: %d read (%v), want %d (%v)", len(many), cut, len(got), r.Err(), len(want), ref.Err())
+		}
+		if cut == len(w.Bytes()) && (r.Err() != nil || strings.Join(got, "|") != strings.Join(many, "|")) {
+			t.Fatalf("%d strings read as %d (%v)", len(many), len(got), r.Err())
+		}
+	}
 	for cut := range len(data) {
 		r := NewReader(data[:cut])
 		ref := NewReader(data[:cut])
