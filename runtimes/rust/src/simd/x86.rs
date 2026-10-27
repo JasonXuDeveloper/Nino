@@ -219,6 +219,7 @@ unsafe fn window32(src: *const u8, len: usize, i: usize) -> (__m128i, __m128i) {
 ///
 /// # Safety
 /// The CPU has SSSE3, SSE4.1 and POPCNT, and `text.len() <= WIDE_MAX`.
+#[inline]
 #[target_feature(enable = "ssse3,sse4.1,popcnt")]
 pub(crate) unsafe fn wide_sse41<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
@@ -414,6 +415,7 @@ fn lanes_avx2(v: __m128i, next: __m128i, three: u32, four: u32) -> __m256i {
 ///
 /// # Safety
 /// The CPU has AVX2, SSSE3, SSE4.1 and POPCNT, and `text.len() <= WIDE_MAX`.
+#[inline]
 #[target_feature(enable = "avx2,ssse3,sse4.1,popcnt")]
 pub(crate) unsafe fn wide_avx2<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
@@ -607,6 +609,7 @@ fn compress8(keep: u64, v: __m512i) -> __m512i {
 #[cfg(nino_avx512)]
 // AVX-512 is stable since Rust 1.89, after the MSRV: build.rs sets `nino_avx512` only for a compiler that has it.
 #[allow(clippy::incompatible_msrv)]
+#[inline]
 #[target_feature(enable = "avx512f,avx512bw,avx512vl,avx512vbmi2,avx2,bmi1,bmi2,lzcnt,popcnt")]
 pub(crate) unsafe fn wide_avx512<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
@@ -699,6 +702,57 @@ pub(crate) unsafe fn wide_avx512<const ONE: bool>(out: &mut Vec<u8>, text: &str)
     // SAFETY: the header's room is reserved at `at`, and `o` bytes after it written.
     unsafe { super::finish::<ONE>(out, at, room, o, false) };
 }
+
+// ------------------------------------------------------------------------------------------------ lists of strings
+
+/// A list kernel: the strings from the start of `values` while each is under 64 bytes (a one-byte header), short
+/// ASCII through [`super::ascii_short`] and other text through the tier's one-pass writer with `ONE`, inlined into
+/// the loop (a call a string, with its vector constants set up each time, is what [`super::wide`] costs); returns
+/// how many it wrote. Text of 64 bytes or more is left to [`crate::strings::write`].
+macro_rules! strings_kernel {
+    ($(#[$attr:meta])* $name:ident, $features:literal, $wide:ident) => {
+        $(#[$attr])*
+        /// # Safety
+        #[doc = concat!("The CPU has what `", stringify!($wide), "` needs (", $features, ").")]
+        #[target_feature(enable = $features)]
+        pub(crate) unsafe fn $name(out: &mut Vec<u8>, values: &[String]) -> usize {
+            for (k, v) in values.iter().enumerate() {
+                let len = v.len();
+                if len <= super::SHORT && super::ascii_short(out, v.as_bytes()) {
+                    continue;
+                }
+                if len >= 64 {
+                    return k;
+                }
+                // SAFETY: the CPU has what the kernel needs (the caller's contract), and the text is under 64 bytes.
+                unsafe { $wide::<true>(out, v) };
+            }
+            values.len()
+        }
+    };
+}
+
+strings_kernel!(
+    /// The list kernel with SSE4.1 ([`wide_sse41`]).
+    strings_sse41,
+    "ssse3,sse4.1,popcnt",
+    wide_sse41
+);
+strings_kernel!(
+    /// The list kernel with AVX2 ([`wide_avx2`]).
+    strings_avx2,
+    "avx2,ssse3,sse4.1,popcnt",
+    wide_avx2
+);
+// AVX-512 is stable since Rust 1.89, after the MSRV: build.rs sets `nino_avx512` only for a compiler that has it.
+strings_kernel!(
+    /// The list kernel with AVX-512 ([`wide_avx512`]).
+    #[cfg(nino_avx512)]
+    #[allow(clippy::incompatible_msrv)]
+    strings_avx512,
+    "avx512f,avx512bw,avx512vl,avx512vbmi2,avx2,bmi1,bmi2,lzcnt,popcnt",
+    wide_avx512
+);
 
 // ------------------------------------------------------------------------------------------------ the reader's text
 
