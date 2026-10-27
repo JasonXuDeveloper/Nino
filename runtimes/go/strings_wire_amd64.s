@@ -507,8 +507,9 @@ done:
 // func wireStringsAVX2(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done int, written int)
 // Requires: AVX, AVX2, POPCNT
 TEXT ·wireStringsAVX2(SB), NOSPLIT, $32-56
-	MOVQ    dst+0(FP), AX
-	MOVQ    AX, 16(SP)
+	MOVQ    dst+0(FP), DI
+	MOVQ    DI, 16(SP)
+	MOVQ    DI, AX
 	ADDQ    room+8(FP), AX
 	MOVQ    AX, 24(SP)
 	XORQ    R14, R14
@@ -516,46 +517,22 @@ TEXT ·wireStringsAVX2(SB), NOSPLIT, $32-56
 	VMOVDQU wire<>+32(SB), Y11
 	VMOVDQU wire<>+0(SB), Y13
 
+	PCALIGN $32
 next:
-	MOVQ  R14, CX
-	CMPQ  CX, count+24(FP)
-	JAE   finish
-	MOVQ  strs+16(FP), R8
-	CMPB  ptrs+32(FP), $0x00
-	JEQ   value
-	MOVQ  (R8)(CX*8), R8
-	TESTQ R8, R8
-	JNZ   header
-
-	// nil: the null string.
-	MOVQ 16(SP), DI
-	LEAQ 1(DI), AX
-	CMPQ AX, 24(SP)
-	JA   finish
-	MOVB $0x00, (DI)
-	MOVQ AX, 16(SP)
-	INCQ R14
-	JMP  next
-
-value:
+	MOVQ R14, CX
+	CMPQ CX, count+24(FP)
+	JAE  finish
+	MOVQ strs+16(FP), R8
+	CMPB ptrs+32(FP), $0x00
+	JNE  pointer
 	SHLQ $0x04, CX
 	ADDQ CX, R8
 
 header:
-	MOVQ  (R8), SI
-	MOVQ  8(R8), BX
-	MOVQ  16(SP), DI
-	TESTQ BX, BX
-	JNZ   text
-	LEAQ  1(DI), AX
-	CMPQ  AX, 24(SP)
-	JA    finish
-	MOVB  $0x01, (DI)
-	MOVQ  AX, 16(SP)
-	INCQ  R14
-	JMP   next
-
-text:
+	MOVQ      (R8), SI
+	MOVQ      8(R8), BX
+	TESTQ     BX, BX
+	JZ        empty
 	CMPQ      BX, $const_wireMaxText
 	JAE       finish
 	LEAQ      const_wireSlack+1(DI)(BX*2), AX
@@ -583,7 +560,37 @@ text:
 	VMOVD   CX, X1
 	VPOR    Y1, Y0, Y0
 	VMOVDQU Y0, (DI)
-	JMP     sdone
+
+	// Stored with its header.
+	LEAQ 1(DI)(BX*1), DI
+	MOVQ DI, 16(SP)
+	INCQ R14
+	JMP  next
+
+pointer:
+	MOVQ  (R8)(CX*8), R8
+	TESTQ R8, R8
+	JNZ   header
+
+	// nil: the null string.
+	LEAQ 1(DI), AX
+	CMPQ AX, 24(SP)
+	JA   finish
+	MOVB $0x00, (DI)
+	MOVQ AX, DI
+	MOVQ AX, 16(SP)
+	INCQ R14
+	JMP  next
+
+empty:
+	LEAQ 1(DI), AX
+	CMPQ AX, 24(SP)
+	JA   finish
+	MOVB $0x01, (DI)
+	MOVQ AX, DI
+	MOVQ AX, 16(SP)
+	INCQ R14
+	JMP  next
 
 shand:
 	VPERM2I128 $0x81, Y0, Y0, Y1
@@ -600,13 +607,6 @@ shand:
 	VPXOR      Y14, Y14, Y14
 	VPXOR      Y12, Y12, Y12
 	JMP        lbody
-
-sdone:
-	// Stored with its header.
-	LEAQ 1(DI)(BX*1), DI
-	MOVQ DI, 16(SP)
-	INCQ R14
-	JMP  next
 
 long:
 	INCQ  DI
@@ -1255,8 +1255,9 @@ done:
 // func wireStringsAVX512(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done int, written int)
 // Requires: AVX, AVX2, AVX512BW, AVX512F, AVX512VBMI2, AVX512VL, POPCNT
 TEXT ·wireStringsAVX512(SB), NOSPLIT, $32-56
-	MOVQ            dst+0(FP), AX
-	MOVQ            AX, 16(SP)
+	MOVQ            dst+0(FP), DI
+	MOVQ            DI, 16(SP)
+	MOVQ            DI, AX
 	ADDQ            room+8(FP), AX
 	MOVQ            AX, 24(SP)
 	XORQ            R14, R14
@@ -1267,46 +1268,22 @@ TEXT ·wireStringsAVX512(SB), NOSPLIT, $32-56
 	VBROADCASTI32X4 wire<>+608(SB), Y17
 	VBROADCASTI32X4 wire<>+640(SB), Y18
 
+	PCALIGN $32
 next:
-	MOVQ  R14, CX
-	CMPQ  CX, count+24(FP)
-	JAE   finish
-	MOVQ  strs+16(FP), R8
-	CMPB  ptrs+32(FP), $0x00
-	JEQ   value
-	MOVQ  (R8)(CX*8), R8
-	TESTQ R8, R8
-	JNZ   header
-
-	// nil: the null string.
-	MOVQ 16(SP), DI
-	LEAQ 1(DI), AX
-	CMPQ AX, 24(SP)
-	JA   finish
-	MOVB $0x00, (DI)
-	MOVQ AX, 16(SP)
-	INCQ R14
-	JMP  next
-
-value:
+	MOVQ R14, CX
+	CMPQ CX, count+24(FP)
+	JAE  finish
+	MOVQ strs+16(FP), R8
+	CMPB ptrs+32(FP), $0x00
+	JNE  pointer
 	SHLQ $0x04, CX
 	ADDQ CX, R8
 
 header:
-	MOVQ  (R8), SI
-	MOVQ  8(R8), BX
-	MOVQ  16(SP), DI
-	TESTQ BX, BX
-	JNZ   text
-	LEAQ  1(DI), AX
-	CMPQ  AX, 24(SP)
-	JA    finish
-	MOVB  $0x01, (DI)
-	MOVQ  AX, 16(SP)
-	INCQ  R14
-	JMP   next
-
-text:
+	MOVQ       (R8), SI
+	MOVQ       8(R8), BX
+	TESTQ      BX, BX
+	JZ         empty
 	CMPQ       BX, $const_wireMaxText
 	JAE        finish
 	LEAQ       const_wireSlack+1(DI)(BX*2), AX
@@ -1330,7 +1307,37 @@ sstore:
 	VMOVD   CX, X1
 	VPOR    Y1, Y0, Y0
 	VMOVDQU Y0, (DI)
-	JMP     sdone
+
+	// Stored with its header.
+	LEAQ 1(DI)(BX*1), DI
+	MOVQ DI, 16(SP)
+	INCQ R14
+	JMP  next
+
+pointer:
+	MOVQ  (R8)(CX*8), R8
+	TESTQ R8, R8
+	JNZ   header
+
+	// nil: the null string.
+	LEAQ 1(DI), AX
+	CMPQ AX, 24(SP)
+	JA   finish
+	MOVB $0x00, (DI)
+	MOVQ AX, DI
+	MOVQ AX, 16(SP)
+	INCQ R14
+	JMP  next
+
+empty:
+	LEAQ 1(DI), AX
+	CMPQ AX, 24(SP)
+	JA   finish
+	MOVB $0x01, (DI)
+	MOVQ AX, DI
+	MOVQ AX, 16(SP)
+	INCQ R14
+	JMP  next
 
 slatin:
 	VPSUBUSB    wire<>+160(SB), Y0, Y4
@@ -1361,13 +1368,6 @@ slatin:
 	KMOVD       R10, K2
 	VPCOMPRESSB Y0, K2, Y0
 	JMP         sstore
-
-sdone:
-	// Stored with its header.
-	LEAQ 1(DI)(BX*1), DI
-	MOVQ DI, 16(SP)
-	INCQ R14
-	JMP  next
 
 long:
 	INCQ  DI
@@ -2565,8 +2565,9 @@ done:
 // func wireStringsSSE(dst unsafe.Pointer, room int, strs unsafe.Pointer, count int, ptrs bool) (done int, written int)
 // Requires: SSE2, SSSE3
 TEXT ·wireStringsSSE(SB), NOSPLIT, $32-56
-	MOVQ  dst+0(FP), AX
-	MOVQ  AX, 16(SP)
+	MOVQ  dst+0(FP), DI
+	MOVQ  DI, 16(SP)
+	MOVQ  DI, AX
 	ADDQ  room+8(FP), AX
 	MOVQ  AX, 24(SP)
 	XORQ  R14, R14
@@ -2574,46 +2575,22 @@ TEXT ·wireStringsSSE(SB), NOSPLIT, $32-56
 	MOVOU wire<>+32(SB), X14
 	MOVOU wire<>+0(SB), X15
 
+	PCALIGN $32
 next:
-	MOVQ  R14, CX
-	CMPQ  CX, count+24(FP)
-	JAE   finish
-	MOVQ  strs+16(FP), R8
-	CMPB  ptrs+32(FP), $0x00
-	JEQ   value
-	MOVQ  (R8)(CX*8), R8
-	TESTQ R8, R8
-	JNZ   header
-
-	// nil: the null string.
-	MOVQ 16(SP), DI
-	LEAQ 1(DI), AX
-	CMPQ AX, 24(SP)
-	JA   finish
-	MOVB $0x00, (DI)
-	MOVQ AX, 16(SP)
-	INCQ R14
-	JMP  next
-
-value:
+	MOVQ R14, CX
+	CMPQ CX, count+24(FP)
+	JAE  finish
+	MOVQ strs+16(FP), R8
+	CMPB ptrs+32(FP), $0x00
+	JNE  pointer
 	SHLQ $0x04, CX
 	ADDQ CX, R8
 
 header:
-	MOVQ  (R8), SI
-	MOVQ  8(R8), BX
-	MOVQ  16(SP), DI
-	TESTQ BX, BX
-	JNZ   text
-	LEAQ  1(DI), AX
-	CMPQ  AX, 24(SP)
-	JA    finish
-	MOVB  $0x01, (DI)
-	MOVQ  AX, 16(SP)
-	INCQ  R14
-	JMP   next
-
-text:
+	MOVQ     (R8), SI
+	MOVQ     8(R8), BX
+	TESTQ    BX, BX
+	JZ       empty
 	CMPQ     BX, $const_wireMaxText
 	JAE      finish
 	LEAQ     const_wireSlack+1(DI)(BX*2), AX
@@ -2647,6 +2624,31 @@ text:
 	// Stored with its header.
 	LEAQ 1(DI)(BX*1), DI
 	MOVQ DI, 16(SP)
+	INCQ R14
+	JMP  next
+
+pointer:
+	MOVQ  (R8)(CX*8), R8
+	TESTQ R8, R8
+	JNZ   header
+
+	// nil: the null string.
+	LEAQ 1(DI), AX
+	CMPQ AX, 24(SP)
+	JA   finish
+	MOVB $0x00, (DI)
+	MOVQ AX, DI
+	MOVQ AX, 16(SP)
+	INCQ R14
+	JMP  next
+
+empty:
+	LEAQ 1(DI), AX
+	CMPQ AX, 24(SP)
+	JA   finish
+	MOVB $0x01, (DI)
+	MOVQ AX, DI
+	MOVQ AX, 16(SP)
 	INCQ R14
 	JMP  next
 
