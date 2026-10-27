@@ -3,6 +3,7 @@ package nino
 import (
 	"bytes"
 	"errors"
+	"math"
 	"testing"
 	"unsafe"
 )
@@ -16,6 +17,7 @@ func FuzzReader(f *testing.F) {
 	f.Add([]byte{7, 8, 9, 10}, hx("0A000080 01000000 00 00000000 00000000"))
 	f.Add([]byte{11, 12, 13, 14, 15}, hx("02000000 FF00 01000000 02000000 03000000 0400000005000000"))
 	f.Add([]byte{16, 17, 18, 19}, hx("01000000 07 01 0000 D00102030405060708090A0B0C0D0E0F"))
+	f.Add([]byte{24, 25}, hx("02000000 01000000 02000000 03000000 04000000 01000000 07 0000000000000840"))
 	f.Add([]byte{20, 21, 22, 23}, hx("01000000 0000000000000000 01000000 00001C00000000000000000000000000 01000000 01000000 01000000 0000803F 01 02 0300"))
 	f.Fuzz(func(t *testing.T, program, data []byte) {
 		if len(program) > 64 {
@@ -163,11 +165,31 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 		check(func(w *Writer) { WriteRaw(w, v, 8, rawPointAsIs, []int{4}, encodeRawPoint) }, func(b *Reader) bool {
 			return equalSlices(ReadRaw(b, 8, rawPointAsIs, []int{4}, decodeRawPoint), v)
 		})
+	case 24:
+		v := ReadPrimitiveEntries[int32, int32](r)
+		check(func(w *Writer) { WritePrimitiveEntries(w, v) }, func(b *Reader) bool {
+			return equalSlices(ReadPrimitiveEntries[int32, int32](b), v)
+		})
+	case 25:
+		// Padded in memory: a pair at a time.
+		v := ReadPrimitiveEntries[uint8, float64](r)
+		check(func(w *Writer) { WritePrimitiveEntries(w, v) }, func(b *Reader) bool {
+			back := ReadPrimitiveEntries[uint8, float64](b)
+			if (back == nil) != (v == nil) || len(back) != len(v) {
+				return false
+			}
+			for i, e := range back {
+				if e.Key != v[i].Key || math.Float64bits(e.Value) != math.Float64bits(v[i].Value) {
+					return false
+				}
+			}
+			return true
+		})
 	}
 }
 
 // fuzzOps is the number of ops fuzzOp runs.
-const fuzzOps = 24
+const fuzzOps = 26
 
 // equalSlices reports whether a and b are both nil, or both not nil with the same memory (bit for bit: a NaN equals
 // itself; the types compared have no padding).
