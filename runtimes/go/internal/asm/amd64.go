@@ -62,7 +62,12 @@ func constants() {
 	t1, t2, t3 := validationTables()
 	tail := fill(0xFF)
 	tail[29], tail[30], tail[31] = 0xEF, 0xDF, 0xBF
-	mask := append(fill(0xFF), make([]byte, 32)...)
+	mask16 := append(fill(0xFF)[:16], make([]byte, 16)...)
+	idx, idx1 := make([]byte, 32), make([]byte, 32)
+	for i := range idx {
+		idx[i], idx1[i] = byte(i), byte(i)
+	}
+	idx1[0] = 0x7F
 	not0 := fill(0xFF)
 	not0[0] = 0
 	table := []struct {
@@ -90,8 +95,13 @@ func constants() {
 		{"T1", lanes(t1)}, // the checks by the high nibble of the byte before
 		{"T2", lanes(t2)}, // by its low nibble
 		{"T3", lanes(t3)}, // by the high nibble of the byte
-		{"MASK", mask},    // 32 bytes of FF, then 32 of 0: from 32 minus the bytes left on, a mask of the bytes of the text
-		{"NOT0", not0},    // 0, then 31 bytes of FF: clears the byte before the text (see writer.short)
+		// 16 bytes of FF, then 16 of 0: from 16 minus the bytes left on, a mask of the bytes of the text (SSE). Every
+		// entry starts 32 bytes apart and the linker aligns the table to 32 bytes, so no 16-byte window of it crosses a
+		// cache line (a window of a 64-byte table may, for half of the builds: AVX2 compares IDX instead).
+		{"MASK16", mask16},
+		{"IDX", idx},   // 0 to 31: the bytes of a block below n, as n > IDX (AVX2)
+		{"IDX1", idx1}, // IDX, its first byte 7F: the byte before the text cleared and n bytes after it, as n+1 > IDX1
+		{"NOT0", not0}, // 0, then 31 bytes of FF: clears the byte before the text (see writer.short)
 		{"WFF80", words(0xFF80)},
 		{"WF800", words(0xF800)},
 		{"WFC00", words(0xFC00)},
