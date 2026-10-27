@@ -70,6 +70,12 @@ impl<'a> Writer<'a> {
         self.buf.get_mut(start..).unwrap_or_default()
     }
 
+    /// Appends the `N` bytes `encode` gives for each of `values` (a block of fixed-size elements).
+    #[inline]
+    pub(crate) fn encoded<T, const N: usize>(&mut self, values: &[T], encode: impl Fn(&T) -> [u8; N]) {
+        crate::simd::extend_encoded(&mut self.buf, values, encode);
+    }
+
     /// A string header, then `bytes`: one capacity check for both.
     #[inline]
     pub(crate) fn header_bytes(&mut self, header: u32, bytes: &[u8]) {

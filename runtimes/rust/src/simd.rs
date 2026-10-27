@@ -278,6 +278,27 @@ unsafe fn ascii_into(room: impl FnOnce() -> *mut u8, bytes: &[u8]) -> bool {
     true
 }
 
+/// Appends the `N` bytes `encode` gives for each of `values` (a block of fixed-size elements): one capacity check
+/// and the stores, where `Vec::resize` would first fill the room with zeros (a call to `memset` for each block).
+#[inline(always)]
+pub(crate) fn extend_encoded<T, const N: usize>(out: &mut Vec<u8>, values: &[T], encode: impl Fn(&T) -> [u8; N]) {
+    // Saturated, a size `reserve` refuses (it panics, as `resize` did).
+    let size = values.len().saturating_mul(N);
+    out.reserve(size);
+    let len = out.len();
+    let mut at = out.spare_capacity_mut().as_mut_ptr().cast::<[u8; N]>();
+    for v in values {
+        // SAFETY: the room reserved holds `N` bytes for each value from `len`, and `at` has passed `N` for each value
+        // written so far; `[u8; N]` has alignment 1.
+        unsafe {
+            at.write(encode(v));
+            at = at.add(1);
+        }
+    }
+    // SAFETY: the `size` bytes from `len` are written (`N` for each value), within the room reserved.
+    unsafe { out.set_len(len.wrapping_add(size)) };
+}
+
 /// The most strings [`ascii_strings`] writes with one reservation.
 const RUN: usize = 64;
 
@@ -2387,6 +2408,25 @@ mod tests {
             } else {
                 assert!(!done, "{len}");
                 assert_eq!(out, [0xAA; 3], "{len}");
+            }
+        }
+    }
+
+    #[test]
+    fn encoded_blocks() {
+        // Every count up to 40, after output of every length up to 9 with and without spare room: the bytes of each
+        // value in order, after what the output held.
+        for count in 0..=40u32 {
+            let values: Vec<u32> = (0..count).map(|i| i.wrapping_mul(0x0102_0304) ^ 0xA5).collect();
+            for held in 0..=9 {
+                for room in [0, 7] {
+                    let mut out = Vec::with_capacity(held + room);
+                    out.extend((0..held).map(|i| i as u8));
+                    let mut expected = out.clone();
+                    expected.extend(values.iter().flat_map(|v| v.to_le_bytes()));
+                    extend_encoded(&mut out, &values, |v| v.to_le_bytes());
+                    assert_eq!(out, expected, "{count} {held} {room}");
+                }
             }
         }
     }
