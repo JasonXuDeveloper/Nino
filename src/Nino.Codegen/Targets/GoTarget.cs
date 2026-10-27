@@ -799,10 +799,10 @@ namespace Nino.Codegen.Targets
                         block.BoolOffsets.Add(offset);
                     else if (p.Validated)
                         return false;
-                    block.Bytes += value.Size;
+                    block.Fill(offset, value.Size);
                     return true;
                 case ValueKind.Enum:
-                    block.Bytes += value.Size;
+                    block.Fill(offset, value.Size);
                     return true;
                 case ValueKind.RawStruct:
                 {
@@ -810,7 +810,7 @@ namespace Nino.Codegen.Targets
                     if (inner == null)
                         return false;
                     block.BoolOffsets.AddRange(inner.BoolOffsets.Select(o => o + offset));
-                    block.Bytes += inner.Bytes;
+                    block.Filled.UnionWith(inner.Filled.Select(o => o + offset));
                     block.Nested.Add(inner);
                     return true;
                 }
@@ -1279,21 +1279,31 @@ namespace Nino.Codegen.Targets
         /// <summary>The offsets of its bools (those of nested raw structs too): their bytes must be 0 or 1.</summary>
         internal List<int> BoolOffsets { get; } = new();
 
-        /// <summary>The bytes its fields fill: fewer than its size when it has padding.</summary>
-        internal int Bytes { get; set; }
+        /// <summary>The offsets of the bytes its fields fill: fewer than its size when it has padding.</summary>
+        internal SortedSet<int> Filled { get; } = new();
+
+        internal void Fill(int offset, int size) => Filled.UnionWith(Enumerable.Range(offset, size));
 
         internal List<GoRawBlock> Nested { get; } = new();
 
         /// <summary>The constant's name: <c>asIs</c> and the struct's.</summary>
         public string AsIs => "asIs" + _target.Name(Model);
 
-        /// <summary>Whether bytes between its fields are left: copied as they are when read, written as zeros.</summary>
-        public bool Padded => Bytes != Model.Size;
+        /// <summary>
+        /// The offsets of its padding bytes as a Go slice, or <c>nil</c>: <c>nino.WriteRaw</c> writes them as zeros.
+        /// </summary>
+        public string Pads => Offsets(Enumerable.Range(0, Model.Size).Where(o => !Filled.Contains(o)));
 
         /// <summary>The offsets of its bools as a Go slice, or <c>nil</c>.</summary>
-        public string Bools => BoolOffsets.Count == 0
-            ? "nil"
-            : "[]int{" + string.Join(", ", BoolOffsets.Select(o => o.ToString(CultureInfo.InvariantCulture))) + "}";
+        public string Bools => Offsets(BoolOffsets);
+
+        private static string Offsets(IEnumerable<int> offsets)
+        {
+            var list = offsets.ToList();
+            return list.Count == 0
+                ? "nil"
+                : "[]int{" + string.Join(", ", list.Select(o => o.ToString(CultureInfo.InvariantCulture))) + "}";
+        }
 
         /// <summary>The constant: its size and each field's offset as in the wire, and so for nested raw structs.</summary>
         public string Expression

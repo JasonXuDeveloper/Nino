@@ -36,6 +36,27 @@ func (r *Reader) String() string {
 	return s
 }
 
+// ReadStrings reads a sequence of strings into a []string (nil for null; a null element reads as ""): the bytes
+// [WriteStrings] writes, read as [ReadSlice] with [Reader.String] reads them, without a call through a func value
+// per string.
+func ReadStrings(r *Reader) []string {
+	n := r.Length(1)
+	if n < 0 {
+		return nil
+	}
+	v := make([]string, r.SliceCap(n, int(unsafe.Sizeof(""))))
+	for i := 0; i < n; i++ {
+		if i == len(v) {
+			v = growSlice(v, n)
+		}
+		v[i] = r.String()
+		if r.err != nil {
+			return nil
+		}
+	}
+	return v
+}
+
 // header reads a string header (see the top of this file). The string readers decode a
 // one-byte header in place instead (a call to header, above the inlining budget, cost 7-9% on short strings).
 func (r *Reader) header() uint32 {

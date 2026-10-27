@@ -590,38 +590,9 @@ func (b *builder) slice(c *codec, variant uint8) error {
 	elemSize := int(et.Size())
 	if b.fast && e.kind == kString && !e.utf8 {
 		// A slice of strings (of any type whose kind is string: the same layout) in the default encoding, on the
-		// unsafe path: read and written as generated code does (ReadSlice and WriteStrings), with no reflect.Value
+		// unsafe path: read and written as generated code does (ReadStrings and WriteStrings), with no reflect.Value
 		// an element. Strings cannot nest, so it counts no depth.
-		c.read = func(r *Reader, v reflect.Value) {
-			n := r.Length(1)
-			if n < 0 {
-				v.SetZero()
-				return
-			}
-			capacity := r.SliceCap(n, elemSize)
-			s := reflect.MakeSlice(t, capacity, capacity)
-			p := unsafe.Slice((*string)(s.UnsafePointer()), capacity)
-			for i := 0; i < n; i++ {
-				if i == len(p) {
-					grown := reflect.MakeSlice(t, min(n, 2*len(p)), min(n, 2*len(p)))
-					reflect.Copy(grown, s)
-					s = grown
-					p = unsafe.Slice((*string)(s.UnsafePointer()), s.Len())
-				}
-				p[i] = r.String()
-				if r.err != nil {
-					return
-				}
-			}
-			v.Set(s)
-		}
-		c.write = func(w *Writer, v reflect.Value) {
-			if v.IsNil() {
-				w.Null()
-				return
-			}
-			WriteStrings(w, unsafe.Slice((*string)(v.UnsafePointer()), v.Len()))
-		}
+		c.read, c.write = blockSlice(ReadStrings, WriteStrings)
 		return nil
 	}
 	c.read = func(r *Reader, v reflect.Value) {

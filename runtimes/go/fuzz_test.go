@@ -162,7 +162,7 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 	case 23:
 		// A raw struct with a bool, copied as a block where its memory is its bytes.
 		v := ReadRaw(r, 8, rawPointAsIs, []int{4}, decodeRawPoint)
-		check(func(w *Writer) { WriteRaw(w, v, 8, rawPointAsIs, []int{4}, encodeRawPoint) }, func(b *Reader) bool {
+		check(func(w *Writer) { WriteRaw(w, v, 8, rawPointAsIs, []int{4}, nil, encodeRawPoint) }, func(b *Reader) bool {
 			return equalSlices(ReadRaw(b, 8, rawPointAsIs, []int{4}, decodeRawPoint), v)
 		})
 	case 24:
