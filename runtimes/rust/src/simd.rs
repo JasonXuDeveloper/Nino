@@ -340,6 +340,75 @@ pub(crate) fn extend_encoded<T, const H: usize, const N: usize>(
     unsafe { out.set_len(len.wrapping_add(size)) };
 }
 
+/// The largest element [`extend_fixed`] encodes through a buffer on the stack.
+pub(crate) const FIXED_STACK: usize = 64;
+
+/// Appends `head`, then the `size` bytes (at most [`FIXED_STACK`]) `encode` writes for each of `values` (a block of
+/// a fixed-size type that encodes into a slice): each into a zeroed buffer on the stack, copied to the room reserved
+/// once. When `size` is a constant (it is, inlined), the compiler drops the buffer and stores straight into the room,
+/// where zeroing the room itself first (`Vec::resize`) would cost a pass over it.
+#[inline(always)]
+pub(crate) fn extend_fixed<T, const H: usize>(
+    out: &mut Vec<u8>,
+    head: [u8; H],
+    values: &[T],
+    size: usize,
+    encode: impl Fn(&T, &mut [u8]),
+) {
+    let size = size.min(FIXED_STACK);
+    // Saturated, a size `reserve` refuses (it panics, as `resize` does).
+    let total = values.len().saturating_mul(size).saturating_add(H);
+    out.reserve(total);
+    let len = out.len();
+    let start = out.spare_capacity_mut().as_mut_ptr().cast::<u8>();
+    // SAFETY: the room reserved holds `H` bytes from `len`, then `size` for each value; `at` has passed `size` for each
+    // value written so far, and `buffer` holds `size <= FIXED_STACK` bytes. `u8` has alignment 1.
+    unsafe {
+        start.cast::<[u8; H]>().write(head);
+        let mut at = start.add(H);
+        for v in values {
+            let mut buffer = [0u8; FIXED_STACK];
+            encode(v, buffer.get_mut(..size).unwrap_or_default());
+            core::ptr::copy_nonoverlapping(buffer.as_ptr(), at, size);
+            at = at.add(size);
+        }
+    }
+    // SAFETY: the `total` bytes from `len` are written (`H`, then `size` for each value), within the room reserved.
+    unsafe { out.set_len(len.wrapping_add(total)) };
+}
+
+/// Decodes each of `chunks` (the elements of a block of fixed-size values, its bytes already taken from the input)
+/// into a `Vec` allocated once at its exact length: `collect` into a `Result` does not know the length and grows the
+/// `Vec` as it goes. Stops at the first error, dropping the values decoded so far.
+#[inline(always)]
+pub(crate) fn decode_block<C, T, I, F>(chunks: I, decode: F) -> crate::error::Result<Vec<T>>
+where
+    I: ExactSizeIterator<Item = C>,
+    F: Fn(C) -> crate::error::Result<T>,
+{
+    let len = chunks.len();
+    let mut out = Vec::with_capacity(len);
+    let room = out.spare_capacity_mut();
+    let mut done = 0usize;
+    for (slot, bytes) in room.iter_mut().zip(chunks) {
+        match decode(bytes) {
+            Ok(value) => {
+                slot.write(value);
+                // At most `len`: one a slot.
+                done = done.wrapping_add(1);
+            }
+            Err(e) => {
+                // SAFETY: the first `done` slots are written.
+                unsafe { out.set_len(done) };
+                return Err(e);
+            }
+        }
+    }
+    // SAFETY: the capacity is at least `len` and `zip` wrote a slot for each of the `len` chunks: `done == len`.
+    unsafe { out.set_len(done) };
+    Ok(out)
+}
+
 /// The most strings [`ascii_strings`] writes with one reservation.
 const RUN: usize = 64;
 
@@ -2645,6 +2714,169 @@ mod tests {
                 })
                 .collect();
             check(&text);
+        }
+    }
+
+    /// Bytes from a xorshift: `len` of them, a share of them set to `bad` (0 for none) so decoders fail at random
+    #[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+    /// places.
+    fn random_bytes(seed: &mut u64, len: usize, bad: u8) -> Vec<u8> {
+        (0..len)
+            .map(|_| {
+                *seed ^= *seed << 13;
+                *seed ^= *seed >> 7;
+                *seed ^= *seed << 17;
+                if bad != 0 && seed.is_multiple_of(97) {
+                    bad
+                } else {
+                    (*seed >> 24) as u8
+                }
+            })
+            .collect()
+    }
+
+    /// `decode_block` against `collect` into a `Result` for every count to 256, values that own memory (Miri checks
+    #[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+    /// none leaks or is dropped twice when a decode fails partway), random input and failures at random places.
+    #[test]
+    fn decode_block_matches_plain() {
+        let decode = |c: &[u8]| -> crate::error::Result<String> {
+            if c.first() == Some(&0xFF) {
+                return Err(crate::error::Error::new(crate::error::ErrorKind::InvalidBool, c.len() as i32));
+            }
+            Ok(c.iter().map(|&b| char::from(b)).collect())
+        };
+        let mut seed = 0x2545_F491_4F6C_DD1Du64;
+        let counts: Vec<usize> = if cfg!(miri) { vec![0, 1, 2, 7, 33] } else { (0..=256).collect() };
+        for n in counts {
+            for bad in [0, 0xFF] {
+                let bytes = random_bytes(&mut seed, n * 3, bad);
+                let plain: crate::error::Result<Vec<String>> = bytes.chunks_exact(3).map(decode).collect();
+                assert_eq!(decode_block(bytes.chunks_exact(3), decode), plain, "{n}");
+            }
+        }
+    }
+
+    /// `extend_fixed` against encoding each value into a zeroed buffer and appending it, for every count to 256,
+    #[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+    /// sizes of 1 to `FIXED_STACK` bytes and a head of none or four bytes, after what the `Vec` held.
+    #[test]
+    fn extend_fixed_matches_plain() {
+        let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+        let counts: Vec<usize> = if cfg!(miri) { vec![0, 1, 5, 17] } else { (0..=256).collect() };
+        for size in [1usize, 2, 3, 8, 10, 16, 33, FIXED_STACK] {
+            for &n in &counts {
+                let values: Vec<Vec<u8>> = (0..n).map(|_| random_bytes(&mut seed, size, 0)).collect();
+                // Writes all but the last byte, which stays zero.
+                let encode = |v: &Vec<u8>, out: &mut [u8]| {
+                    for (o, &b) in out.iter_mut().zip(v.iter().take(size - 1)) {
+                        *o = b;
+                    }
+                };
+                let mut want = vec![7u8; 3];
+                want.extend_from_slice(&[1, 2, 3, 4]);
+                for v in &values {
+                    let mut b = vec![0u8; size];
+                    encode(v, &mut b);
+                    want.extend_from_slice(&b);
+                }
+                let mut got = vec![7u8; 3];
+                extend_fixed(&mut got, [1, 2, 3, 4], &values, size, encode);
+                assert_eq!(got, want, "{size} {n}");
+                let mut got = vec![7u8; 3];
+                extend_fixed(&mut got, [], &values, size, encode);
+                assert_eq!(got.get(3..), want.get(7..), "{size} {n}");
+            }
+        }
+    }
+
+    /// Each fixed-size type's block read (`read_many`) against reading its elements one by one, for every count to
+    #[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+    /// 256 and random bytes, valid or not: the same values, or the same error.
+    #[test]
+    fn blocks_match_one_by_one() {
+        use crate::reader::Reader;
+        use crate::traits::NinoRead;
+        use crate::types::{DateOnly, DateTime, DateTimeOffset, Decimal, Guid, Half, Rune, TimeOnly, TimeSpan};
+        fn check<T: NinoRead + PartialEq + core::fmt::Debug>(seed: &mut u64, n: usize) {
+            let size = T::FIXED_SIZE;
+            for bad in [0u8, 0xFF] {
+                let mut bytes = random_bytes(seed, n * size, bad);
+                // Mostly small values (valid dates, decimals and runes), some random.
+                if !seed.is_multiple_of(4) {
+                    for (k, b) in bytes.iter_mut().enumerate() {
+                        if k % size > size.min(4) / 2 && *b != bad {
+                            *b = 0;
+                        }
+                    }
+                }
+                let block = T::read_many(&mut Reader::new(&bytes), n);
+                let mut r = Reader::new(&bytes);
+                let each: crate::error::Result<Vec<T>> = (0..n).map(|_| T::read(&mut r)).collect();
+                assert_eq!(block, each, "{} {n}", core::any::type_name::<T>());
+                // With the allocation budget spent: the `Vec` grown as it goes.
+                let mut spent = Reader::new(&bytes);
+                spent.capacity::<u8>(usize::MAX);
+                assert_eq!(T::read_many(&mut spent, n), each, "{} {n} spent", core::any::type_name::<T>());
+            }
+        }
+        let mut seed = 0x1234_5678_9ABC_DEF1u64;
+        let counts: Vec<usize> = if cfg!(miri) { vec![0, 1, 9] } else { (0..=256).collect() };
+        for n in counts {
+            for _ in 0..if cfg!(miri) { 1 } else { 4 } {
+                check::<bool>(&mut seed, n);
+                check::<i8>(&mut seed, n);
+                check::<u16>(&mut seed, n);
+                check::<u64>(&mut seed, n);
+                check::<Decimal>(&mut seed, n);
+                check::<Guid>(&mut seed, n);
+                check::<DateTime>(&mut seed, n);
+                check::<TimeSpan>(&mut seed, n);
+                check::<DateOnly>(&mut seed, n);
+                check::<TimeOnly>(&mut seed, n);
+                check::<DateTimeOffset>(&mut seed, n);
+                check::<Half>(&mut seed, n);
+                check::<Rune>(&mut seed, n);
+                check::<(i32, i32)>(&mut seed, n);
+                check::<(i64, bool, u8)>(&mut seed, n);
+                check::<(DateOnly, Decimal)>(&mut seed, n);
+            }
+        }
+        // Values at the edges of the ranges, which the quick test sends one by one: read the same either way.
+        let max = crate::types::MAX_TICKS;
+        let edges = [
+            (max - (1 << 32)).to_le_bytes(),
+            max.to_le_bytes(),
+            (max + 1).to_le_bytes(),
+            (max | 3 << 62).to_le_bytes(),
+            (crate::types::TICKS_PER_DAY - 1).to_le_bytes(),
+            crate::types::TICKS_PER_DAY.to_le_bytes(),
+        ];
+        for k in 0..edges.len() {
+            let bytes: Vec<u8> = edges.iter().take(k + 1).flatten().copied().collect();
+            let n = k + 1;
+            for (block, each) in [
+                (
+                    format!("{:?}", DateTime::read_many(&mut Reader::new(&bytes), n)),
+                    format!(
+                        "{:?}",
+                        (0..n)
+                            .map(|i| DateTime::read(&mut Reader::new(&bytes[i * 8..])))
+                            .collect::<crate::error::Result<Vec<_>>>()
+                    ),
+                ),
+                (
+                    format!("{:?}", TimeOnly::read_many(&mut Reader::new(&bytes), n)),
+                    format!(
+                        "{:?}",
+                        (0..n)
+                            .map(|i| TimeOnly::read(&mut Reader::new(&bytes[i * 8..])))
+                            .collect::<crate::error::Result<Vec<_>>>()
+                    ),
+                ),
+            ] {
+                assert_eq!(block, each, "{k}");
+            }
         }
     }
 }
