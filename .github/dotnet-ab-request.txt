@@ -1,7 +1,8 @@
 # [cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...> (see .github/workflows/dotnet-ab.yml); one job per line.
-# phase7/string-header, tuned (ab-string-header-2 83adf7e: one test per short Latin-1 or UTF-16 header on read, 17 to
-# 63 chars narrowed in 128-bit steps on write): main against it, main against itself, and the untuned branch
-# (fe5fbaa) against it, 12 rounds each, on EPYC 7763 and Arm64.
-cpu='7763|Neoverse' 36cfdbf 83adf7e 12 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
-cpu='7763|Neoverse' 36cfdbf 36cfdbf 12 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
-cpu='7763|Neoverse' fe5fbaa 83adf7e 12 *CommonTypesTest.Nino*StringDictionary* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino*TolerantClass* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone*
+# phase10/bce 278da7a (phase10/net's string reads: no reader address in generated bodies, StringBuilder read out of
+# line, shared one-char strings; then sorted and immutable collections read without bounds checks): main against it
+# (string cases and the sorted/immutable reads), old main 36cfdbf against it (string cases), and main against itself,
+# 12 rounds each, on EPYC 7763 and Arm64.
+cpu='7763|Neoverse' 67aa99b 278da7a 12 *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone* *BclTypesTest.Nino*Lazy* *BclTypesTest.Nino*Culture* *CommonTypesTest.Nino*StringDictionary* *CommonTypesTest.Nino*Players* *CommonTypesTest.Nino*Orders* *PooledTest.Nino* *ReferenceTest.Nino* *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable*
+cpu='7763|Neoverse' 36cfdbf 278da7a 12 *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone* *BclTypesTest.Nino*Lazy* *BclTypesTest.Nino*Culture* *CommonTypesTest.Nino*StringDictionary* *CommonTypesTest.Nino*Players* *CommonTypesTest.Nino*Orders* *PooledTest.Nino* *ReferenceTest.Nino*
+cpu='7763|Neoverse' 67aa99b 67aa99b 12 *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone* *BclTypesTest.Nino*Lazy* *BclTypesTest.Nino*Culture* *CommonTypesTest.Nino*StringDictionary* *CommonTypesTest.Nino*Players* *CommonTypesTest.Nino*Orders* *PooledTest.Nino* *ReferenceTest.Nino* *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable*
