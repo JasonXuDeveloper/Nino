@@ -119,6 +119,32 @@ pub(crate) fn read_key<T: NinoRead>(r: &mut Reader<'_>) -> Result<T> {
     Ok(value)
 }
 
+/// Whether a map of `K` and `V` is written as one block of entries ([`write_entries_fixed`]): both fixed-size, an
+/// entry small enough for [`crate::simd::extend_fixed_iter`]'s buffer.
+const fn entries_fixed(key: usize, value: usize) -> bool {
+    key != 0 && value != 0 && key.saturating_add(value) <= crate::simd::FIXED_STACK
+}
+
+/// A map's length and entries (fixed-size keys and values, [`entries_fixed`]) in one block: one reservation, each
+/// key and value encoded into its bytes, no length check, `Result` or reservation an entry.
+#[inline]
+fn write_entries_fixed<'e, K, V, I>(entries: I, w: &mut Writer<'_>) -> Result<()>
+where
+    K: NinoWrite + 'e,
+    V: NinoWrite + 'e,
+    I: ExactSizeIterator<Item = (&'e K, &'e V)>,
+{
+    let length = i32::try_from(entries.len()).map_err(|_| Error::too_large())?;
+    let size = K::FIXED_SIZE.saturating_add(V::FIXED_SIZE);
+    crate::simd::extend_fixed_iter(w.buffer(), length.to_le_bytes(), entries, size, |(k, v), out| {
+        if let Some((a, b)) = out.split_at_mut_checked(K::FIXED_SIZE) {
+            k.encode_fixed(a);
+            v.encode_fixed(b);
+        }
+    });
+    Ok(())
+}
+
 /// A [`Step::Dyn`] from a closure.
 pub fn dyn_step<F>(f: F) -> Step
 where
@@ -698,6 +724,9 @@ where
 
 impl<K: NinoWrite, V: NinoWrite, S> NinoWrite for HashMap<K, V, S> {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        if entries_fixed(K::FIXED_SIZE, V::FIXED_SIZE) {
+            return write_entries_fixed(self.iter(), w);
+        }
         w.length(self.len())?;
         for (k, v) in self {
             k.write(w)?;
@@ -719,6 +748,9 @@ impl<K: NinoWrite, V: NinoWrite, S> NinoWrite for HashMap<K, V, S> {
 
 impl<K: NinoWrite, V: NinoWrite> NinoWrite for BTreeMap<K, V> {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        if entries_fixed(K::FIXED_SIZE, V::FIXED_SIZE) {
+            return write_entries_fixed(self.iter(), w);
+        }
         w.length(self.len())?;
         for (k, v) in self {
             k.write(w)?;
