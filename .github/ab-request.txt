@@ -512,7 +512,12 @@ typescript 506720c223 506720c223
 # done (run 40595852434): go#12 1622ddb 1622ddb ^Benchmark(Serialize|Deserialize)$/^(strings-1000|strings-mixed-1000|strings-mixed-utf8-1000)$/^Nino$
 # done (run 40595852434): go#12 ad33b1a 043fd89 ^Benchmark(Serialize|Deserialize)$/^strings/^(Nino|NinoTags)$
 # go-dict 035c10f: maps of primitive pairs read and written as one block (ReadPrimitiveMap / WritePrimitiveMap), against main 966177f, with the main-vs-main floor
-go#12 966177f 035c10f ^Benchmark(Serialize|Deserialize)$/^simple-class
-go#12 966177f 035c10f ^Benchmark(Deserialize|Serialize)$/^simple-class
-go#12 966177f 966177f ^Benchmark(Serialize|Deserialize)$/^simple-class
-go#12 966177f 966177f ^Benchmark(Deserialize|Serialize)$/^simple-class
+# done (run 40644033445): go#12 966177f 035c10f ^Benchmark(Serialize|Deserialize)$/^simple-class
+# done (run 40644033445): go#12 966177f 035c10f ^Benchmark(Deserialize|Serialize)$/^simple-class
+# done (run 40644033445): go#12 966177f 966177f ^Benchmark(Serialize|Deserialize)$/^simple-class
+# done (run 40644033445): go#12 966177f 966177f ^Benchmark(Deserialize|Serialize)$/^simple-class
+# go-dict cc4df16 (round 2): the struct-tag path also writes maps of integer pairs, sorted, as one block; against main 966177f, with more floor jobs
+go#12 966177f cc4df16 ^Benchmark(Serialize|Deserialize)$/^simple-class
+go#12 966177f cc4df16 ^Benchmark(Deserialize|Serialize)$/^simple-class
+go#12 966177f 966177f ^Benchmark(Serialize|Deserialize)$/^simple-class/
+go#12 966177f 966177f ^Benchmark(Deserialize|Serialize)$/^simple-class/
