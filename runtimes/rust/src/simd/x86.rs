@@ -429,6 +429,9 @@ pub(crate) unsafe fn wide_avx2<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
     let (mut i, mut o) = (0usize, 0usize);
     let zero = _mm_setzero_si128();
     let starts = |v: __m256i| u64::from(!(_mm256_movemask_epi8(_mm256_cmpgt_epi8(_mm256_set1_epi8(-64), v)) as u32));
+    // The window the Latin-1 pass stopped at, when it was the text's first: the UTF-16 pass starts from it without
+    // loading it again (text of up to 32 bytes is one window).
+    let mut stopped = None;
     'latin1: {
         let (low6, top2) = (_mm256_set1_epi8(0x3F), _mm256_set1_epi8(0xC0u8 as i8));
         while i < len {
@@ -438,6 +441,9 @@ pub(crate) unsafe fn wide_avx2<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
             let v = _mm256_set_m128i(hi, lo);
             let over = _mm256_subs_epu8(v, _mm256_set1_epi8(0xC3u8 as i8));
             if _mm256_testz_si256(over, over) == 0 {
+                if i == 0 {
+                    stopped = Some((lo, hi));
+                }
                 break 'latin1;
             }
             let s = starts(v);
@@ -472,8 +478,11 @@ pub(crate) unsafe fn wide_avx2<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
     (i, o) = (0, 0);
     while i < len {
         let rest = len.wrapping_sub(i);
-        // SAFETY: SSSE3, and `i < len`.
-        let (lo, hi) = unsafe { window32(src, len, i) };
+        let (lo, hi) = match stopped.take() {
+            Some(w) => w,
+            // SAFETY: SSSE3, and `i < len`.
+            None => unsafe { window32(src, len, i) },
+        };
         let v = _mm256_set_m128i(hi, lo);
         let high = _mm256_movemask_epi8(v) as u32;
         if high == 0 {
