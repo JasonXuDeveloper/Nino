@@ -40,6 +40,11 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 3. Judge per CPU (AMD EPYC 7763, EPYC 9V74 / Zen 4, EPYC 9V45 / Zen 5, Xeon Platinum / 6973P, Neoverse-N2 / V3):
    n >= 12 per side; faster only beyond that CPU's floor; no case slower beyond it. Go through benchstat, Rust through
    criterion's change estimate, .NET through the medians.
+   On the test branch, `runtime-ab.yml` builds both sides of a Rust line with
+   `RUSTFLAGS=-Cllvm-args=-align-all-functions=6` (every function at a 64-byte boundary): on Zen 5 identical code
+   moved by 16 bytes changed timings by 10–50%. A side's env `NINO_AB_RUSTFLAGS=` builds without it. A side's env
+   is one `NAME=VALUE` without spaces: for several flags, set `CARGO_ENCODED_RUSTFLAGS` to them separated by the
+   0x1f byte; cargo then ignores `RUSTFLAGS`, so repeat the alignment flag there.
 4. A loss or a wash is reverted, and its numbers go into the commit message or the report, so nobody tries it again
    blind.
 
