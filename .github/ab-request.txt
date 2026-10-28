@@ -1,12 +1,12 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
 # phase10/rust round 15 (aligned build): 7a765b6 = fixed-size map entries one take each (one bounds check an entry), entry API.
 # Round 14: one take for all entries stays 4% slower on Neoverse-N2 with loops aligned too.
-rust:blocks 83950aa 7a765b6 blocks/read/(map-i32-i32)$
-rust:blocks 83950aa 7a765b6 blocks/read/map-i32-i3(2)$
-rust:blocks 83950aa 7a765b6 blocks/read/map-i32-(i32)$
-rust:blocks 7a765b6 7a765b6 blocks/read/map-i32-i32$
-rust:blocks 7a765b6 7a765b6 ^blocks/read/map-i32-i32$
-rust:blocks 83950aa 83950aa blocks/read/map-i32-(i32)$
+# done (run 40619032730): rust:blocks 83950aa 7a765b6 blocks/read/(map-i32-i32)$
+# done (run 40619032730): rust:blocks 83950aa 7a765b6 blocks/read/map-i32-i3(2)$
+# done (run 40619032730): rust:blocks 83950aa 7a765b6 blocks/read/map-i32-(i32)$
+# done (run 40619032730): rust:blocks 7a765b6 7a765b6 blocks/read/map-i32-i32$
+# done (run 40619032730): rust:blocks 7a765b6 7a765b6 ^blocks/read/map-i32-i32$
+# done (run 40619032730): rust:blocks 83950aa 83950aa blocks/read/map-i32-(i32)$
 # phase10/rust round 14: functions and loops at 64-byte boundaries on both sides (CARGO_ENCODED_RUSTFLAGS, flags
 # separated by 0x1F): is the 3.9% Neoverse-N2 loss of d089ee4 (one block + entry) the loop's placement?
 # done (run 40618480874): rust:blocks 83950aa d089ee4 blocks/read/map-i32-i32$ CARGO_ENCODED_RUSTFLAGS=-Cllvm-args=-align-all-functions=6-Cllvm-args=-align-loops=64 CARGO_ENCODED_RUSTFLAGS=-Cllvm-args=-align-all-functions=6-Cllvm-args=-align-loops=64
