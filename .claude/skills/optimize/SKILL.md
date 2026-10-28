@@ -121,7 +121,14 @@ fix every method it lists.
   to 2.3 times as fast locally with the prefetching loop. Platforms: .NET x64 `Sse.Prefetch0`; Unity through a
   `NinoKernels` hook to Burst's `Common.Prefetch`; Rust `_mm_prefetch` on x86 and `asm!("prfm pldl1keep, ...")` on
   aarch64, both in `src/simd.rs`; Go only through an assembly stub, one call per batch; .NET Arm64, wasm and
-  TypeScript have no prefetch instruction.
+  TypeScript have no prefetch instruction. Go, measured and not landed: a stub `prefetch8` (eight PREFETCHT0 / PRFM PLDL1KEEP a
+  call) in `WriteSlice` above a per-type threshold, objects 16 elements ahead and their strings 8 ahead, wrote
+  1,000,000 shuffled records 2.2-3.1 times as fast on EPYC 7763, 9V45 and 9V74 and 4-5.5 times on Neoverse-N2, but
+  13-38 % slower on Xeon 6973P-C, whose L3 holds the 100 MB set (its base was already 2-3 times as fast: nothing to
+  hide, only the extra loads and calls), and moved short-slice cases 1.5-4.7 % on x64 (test branch 4e2099b, 42ae966
+  against c44171f). Before trying it again, find a gate for data larger than the last-level cache. Keep only the
+  length compare inline: a plan lookup that does not inline (cost 147) in every `WriteSlice` cost 1-3.8 % on
+  SimpleClass.
 
 ## Owned elsewhere
 
