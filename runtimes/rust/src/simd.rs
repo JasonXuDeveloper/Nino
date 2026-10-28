@@ -526,6 +526,10 @@ pub(crate) fn ascii_block(block: &[u8; 16], n: usize) -> Option<String> {
 /// none between strings (measured on x86_64).
 pub(crate) const SHORT_WIDE: usize = 64;
 
+/// Arm64: the longest text with a char above U+007F that [`short_wide`] writes; longer text takes [`neon::wide`].
+#[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+const NEON_FROM: usize = 0;
+
 /// Appends the header and chars of `text`, at most [`SHORT_WIDE`] bytes with a char above U+007F: as Latin-1 when every
 /// char is at most U+00FF, else as UTF-16 LE code units. One reservation, the chars decoded one by one straight into
 /// it, the header written last. Every target.
@@ -1287,7 +1291,7 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
     }
     // Arm64: short text stays with `short_wide`, which beats the 32-byte windows' setup there (Neoverse-N2).
     #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
-    if text.len() > SHORT_WIDE && text.len() <= WIDE_MAX {
+    if text.len() > NEON_FROM && text.len() <= WIDE_MAX {
         neon::wide(out, text);
         return true;
     }
@@ -1409,6 +1413,11 @@ fn strings_short(out: &mut Vec<u8>, values: &[String]) -> usize {
             return k;
         }
         if !ascii_short(out, v.as_bytes()) {
+            #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+            if v.len() > NEON_FROM {
+                neon::wide(out, v);
+                continue;
+            }
             // Text of up to 32 bytes with a char above U+007F, which `short_wide` takes.
             short_wide_inline(out, v);
         }
@@ -1420,6 +1429,11 @@ fn strings_short(out: &mut Vec<u8>, values: &[String]) -> usize {
 /// takes such text to it), so the writer's inlined path is that call alone.
 #[inline(always)]
 pub(crate) fn wide_short_text(out: &mut Vec<u8>, text: &str) {
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+    if text.len() > NEON_FROM {
+        neon::wide(out, text);
+        return;
+    }
     #[cfg(not(target_arch = "x86_64"))]
     short_wide(out, text);
     #[cfg(target_arch = "x86_64")]
