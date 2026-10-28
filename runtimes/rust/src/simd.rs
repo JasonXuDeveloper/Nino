@@ -534,35 +534,40 @@ pub(crate) fn short_wide(out: &mut Vec<u8>, text: &str) {
     short_wide_inline(out, text);
 }
 
-/// [`short_wide`], inlined (in [`strings_short`]'s loop).
+/// [`short_wide`], inlined (in [`strings_short`]'s loop). Each char is taken from the four bytes at its start as one
+/// word (the text's last bytes from a word built without reading past it), its length from its lead byte and its
+/// code point from shifts and masks, with no branch on its class: the chars of mixed text (Cyrillic, CJK, emoji and
+/// ASCII in one string) took a mispredicted branch each when decoded class by class.
 #[inline(always)]
 fn short_wide_inline(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
     if len > SHORT_WIDE {
         return;
     }
-    // UTF-16 takes at most two bytes per byte of UTF-8, Latin-1 one. `len <= 64`: no sum below can wrap. A char above
-    // U+007F takes two bytes or more, so there are at most 63 chars or code units and the header is one byte.
-    out.reserve(len.wrapping_mul(2).wrapping_add(1));
+    // UTF-16 takes at most two bytes per byte of UTF-8, Latin-1 one, and a code unit is stored as four bytes (the
+    // next one overwrites the two after it): `3 + 2 * len`. `len <= 64`: no sum below can wrap. A char above U+007F
+    // takes two bytes or more, so there are at most 63 chars or code units and the header is one byte.
+    out.reserve(len.wrapping_mul(2).wrapping_add(3));
     let at = out.len();
-    // SAFETY: the room reserved holds `1 + 2 * len` bytes from `at`. Invariants: `i <= len`, a char boundary of the
-    // valid UTF-8 at `src`, and `o <= i` (Latin-1) or `o <= 2 * i` (UTF-16) bytes written after the header.
+    // SAFETY: `i < len`, and `len` bytes are readable at `src`.
+    let char_word = |i: usize| unsafe { char_word(src, i, len) };
+    // SAFETY: the room reserved holds `3 + 2 * len` bytes from `at`. Invariants: `i <= len`, a char boundary of the
+    // valid UTF-8 at `src`, and `o <= i` (Latin-1) or `o <= 2 * i` (UTF-16) bytes written after the header, so a
+    // four-byte store at `o` (UTF-16, `i < len`) ends within `1 + 2 * (len - 1) + 4`.
     unsafe {
         let base = out.as_mut_ptr().add(at);
         let dst = base.add(1);
         let (mut i, mut o) = (0usize, 0usize);
         while i < len {
-            let b = src.add(i).read();
-            if b < 0x80 {
-                dst.add(o).write(b);
-                i = i.wrapping_add(1);
-            } else if b < 0xC4 {
-                // U+0080..U+00FF: its lead byte's two low bits, then its continuation byte's six.
-                dst.add(o).write((b << 6) | (src.add(i.wrapping_add(1)).read() & 0x3F));
-                i = i.wrapping_add(2);
-            } else {
+            let w = char_word(i);
+            let (b0, b1) = (w as u8, (w >> 8) as u8);
+            if b0 >= 0xC4 {
                 break;
             }
+            // U+0080..U+00FF: its lead byte's two low bits, then its continuation byte's six.
+            let two = b0 >= 0x80;
+            dst.add(o).write(if two { (b0 << 6) | (b1 & 0x3F) } else { b0 });
+            i = i.wrapping_add(1).wrapping_add(usize::from(two));
             o = o.wrapping_add(1);
         }
         if i == len {
@@ -579,32 +584,56 @@ fn short_wide_inline(out: &mut Vec<u8>, text: &str) {
             dst.add(k.wrapping_mul(2)).cast::<[u8; 2]>().write_unaligned(unit.to_le_bytes());
         }
         let mut o = o.wrapping_mul(2);
-        let unit = |o: usize, u: u32| dst.add(o).cast::<[u8; 2]>().write_unaligned((u as u16).to_le_bytes());
         while i < len {
-            let byte = |k: usize| u32::from(src.add(i.wrapping_add(k)).read());
-            let b = byte(0);
-            if b < 0x80 {
-                unit(o, b);
-                i = i.wrapping_add(1);
-            } else if b < 0xE0 {
-                unit(o, ((b & 0x1F) << 6) | (byte(1) & 0x3F));
-                i = i.wrapping_add(2);
-            } else if b < 0xF0 {
-                unit(o, ((b & 0x0F) << 12) | ((byte(1) & 0x3F) << 6) | (byte(2) & 0x3F));
-                i = i.wrapping_add(3);
-            } else {
-                let c = ((b & 0x07) << 18) | ((byte(1) & 0x3F) << 12) | ((byte(2) & 0x3F) << 6) | (byte(3) & 0x3F);
-                let v = c.wrapping_sub(0x1_0000);
-                unit(o, 0xD800 | (v >> 10));
-                o = o.wrapping_add(2);
-                unit(o, 0xDC00 | (v & 0x3FF));
-                i = i.wrapping_add(4);
-            }
-            o = o.wrapping_add(2);
+            let w = char_word(i);
+            let b0 = w & 0xFF;
+            // 1 to 4 bytes (valid UTF-8): a lead byte of 0xC0, 0xE0 or 0xF0 and up adds one each.
+            let n = 1u32
+                .wrapping_add(u32::from(b0 >= 0xC0))
+                .wrapping_add(u32::from(b0 >= 0xE0))
+                .wrapping_add(u32::from(b0 >= 0xF0));
+            // The lead byte's payload (7, 5, 4 or 3 bits) and three continuation payloads as one 21-bit value, of
+            // which a char of `n` bytes keeps the top `6 * n + 3 - ...` bits: shifted down by 6 per byte it lacks.
+            let lead = b0 & (0x7F >> (n.wrapping_add(u32::from(n > 1)).wrapping_sub(1)));
+            let all = (lead << 18) | ((w & 0x3F00) << 4) | ((w >> 10) & 0xFC0) | ((w >> 24) & 0x3F);
+            let c = all >> (4u32.wrapping_sub(n).wrapping_mul(6));
+            // Above U+FFFF: a surrogate pair, the high one first.
+            let pair = c >= 0x1_0000;
+            let v = c.wrapping_sub(0x1_0000);
+            let units = if pair { (0xD800 | (v >> 10)) | ((0xDC00 | (v & 0x3FF)) << 16) } else { c };
+            dst.add(o).cast::<[u8; 4]>().write_unaligned(units.to_le_bytes());
+            o = o.wrapping_add(2).wrapping_add(usize::from(pair).wrapping_mul(2));
+            i = i.wrapping_add(n as usize);
         }
         // `o / 2` code units, at most 63: the header `2 * (o / 2)`, which is `o`.
         base.write(o as u8);
         out.set_len(at.wrapping_add(1).wrapping_add(o));
+    }
+}
+
+/// The four bytes of `src[..len]` from `i` as a word read little-endian, zero past `len`: one load while four are
+/// left, else the text's last four shifted down, or in text of under four bytes, its bytes one by one.
+///
+/// # Safety
+/// `i < len`, and `len` bytes are readable at `src`.
+#[inline(always)]
+unsafe fn char_word(src: *const u8, i: usize, len: usize) -> u32 {
+    // `i < len`: no difference wraps, and the shift is by 8 to 24 bits.
+    let rest = len.wrapping_sub(i);
+    // SAFETY: `i + 4 <= len`; or the last four bytes, `4 <= len`; or bytes `i..len`.
+    unsafe {
+        if rest >= 4 {
+            return u32::from_le_bytes(src.add(i).cast::<[u8; 4]>().read_unaligned());
+        }
+        if len >= 4 {
+            let last = u32::from_le_bytes(src.add(len.wrapping_sub(4)).cast::<[u8; 4]>().read_unaligned());
+            return last >> (4usize.wrapping_sub(rest).wrapping_mul(8));
+        }
+        let mut w = 0u32;
+        for k in 0..rest {
+            w |= u32::from(src.add(i.wrapping_add(k)).read()) << k.wrapping_mul(8);
+        }
+        w
     }
 }
 
