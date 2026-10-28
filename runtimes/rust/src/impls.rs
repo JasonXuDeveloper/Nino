@@ -150,7 +150,7 @@ where
 /// (Neoverse-N2) it was 3–4% slower, the entry held in a vector register across the hash call. Every other target
 /// (Arm64, 32-bit Arm, WebAssembly, big-endian) keeps the generic loop, which reads the same entries in the same order.
 const fn entries_fixed_read<K: NinoRead, V: NinoRead>() -> bool {
-    cfg!(any(target_arch = "x86", target_arch = "x86_64"))
+    (cfg!(any(target_arch = "x86", target_arch = "x86_64")) || K::FIXED_SIZE.saturating_add(V::FIXED_SIZE) == 8)
         && K::FIXED_SIZE != 0
         && V::FIXED_SIZE != 0
         && K::MIN_SIZE == K::FIXED_SIZE
@@ -167,6 +167,15 @@ fn read_entries_fixed<K: NinoRead, V: NinoRead>(
     mut insert: impl FnMut(K, V) -> Result<()>,
 ) -> Result<()> {
     let size = K::FIXED_SIZE.saturating_add(V::FIXED_SIZE);
+    if !cfg!(any(target_arch = "x86", target_arch = "x86_64")) {
+        // EXPERIMENT: an 8-byte entry as one array (general-purpose registers), not a slice.
+        for _ in 0..count {
+            let entry = r.array::<8>()?;
+            let Some((k, v)) = entry.split_at_checked(K::FIXED_SIZE) else { break };
+            insert(K::decode_fixed(k)?, V::decode_fixed(v)?)?;
+        }
+        return Ok(());
+    }
     for _ in 0..count {
         let entry = r.take(size)?;
         // Never `None`: an entry is `K::FIXED_SIZE + V::FIXED_SIZE` bytes.
@@ -693,13 +702,20 @@ where
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = HashMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
         if entries_fixed_read::<K, V>() {
-            read_entries_fixed(r, count, |key, value| match map.entry(key) {
-                hash_map::Entry::Occupied(_) => Err(Error::of(ErrorKind::DuplicateKey)),
-                hash_map::Entry::Vacant(e) => {
-                    e.insert(value);
-                    Ok(())
-                }
-            })?;
+            if cfg!(any(target_arch = "x86", target_arch = "x86_64")) {
+                read_entries_fixed(r, count, |key, value| match map.entry(key) {
+                    hash_map::Entry::Occupied(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+                    hash_map::Entry::Vacant(e) => {
+                        e.insert(value);
+                        Ok(())
+                    }
+                })?;
+            } else {
+                read_entries_fixed(r, count, |key, value| match map.insert(key, value) {
+                    Some(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+                    None => Ok(()),
+                })?;
+            }
             return Ok(Some(map));
         }
         for _ in 0..count {
