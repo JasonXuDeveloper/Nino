@@ -47,6 +47,11 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    identical listing, or IL identical to main) is not counted against the branch, whatever its number (the owner's
    rule): show the listings side by side in the report (the gen/dedupe landing, 61747f6, had cases up to 1.2 % past a
    one-job floor with IL identical to main). Pool rounds of the same code before judging; a single round is not n.
+   On the test branch, `runtime-ab.yml` builds both sides of a Rust line with
+   `RUSTFLAGS=-Cllvm-args=-align-all-functions=6` (every function at a 64-byte boundary): on Zen 5 identical code
+   moved by 16 bytes changed timings by 10–50%. A side's env `NINO_AB_RUSTFLAGS=` builds without it. A side's env
+   is one `NAME=VALUE` without spaces: for several flags, set `CARGO_ENCODED_RUSTFLAGS` to them separated by the
+   0x1f byte; cargo then ignores `RUSTFLAGS`, so repeat the alignment flag there.
 4. A loss or a wash is reverted, and its numbers go into the commit message or the report, so nobody tries it again
    blind.
 
