@@ -322,7 +322,7 @@ dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*'
 dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*ReferenceTest*' '*VersionTolerantTest*' '*FixedSizeTest*'   # some classes only
 ```
 
-The suite has eleven classes, all against MemoryPack 1.21.4, and against MessagePack and protobuf-net wherever they
+The suite has twelve classes, all against MemoryPack 1.21.4, and against MessagePack and protobuf-net wherever they
 can write the same data ([benchmarks/README.md](../benchmarks/README.md#messagepack-and-protobuf-net) lists the cases
 they cannot): `SimpleTest`, `PolymorphicTest`, `GenericPolymorphicTest` (subtypes through a
 non-generic base and through closed instances of a generic base, whose union MemoryPack registers at runtime), `PooledTest` and `PooledGraphTest` (reuse and
@@ -331,8 +331,9 @@ pooling), `ReferenceTest` (a graph with shared references and cycles: `trackRefe
 against MemoryPack's `GenerateType.VersionTolerant`, one and 100) and `FixedSizeTest` (types of fixed size serialized
 to a `byte[]` of exactly that size: an unmanaged struct, a sealed class of the same members and an array of 100 of
 them), `CommonTypesTest` (players, orders, shapes, a tree, padded structs and a string dictionary), `CollectionsTest`
-(collections of the base class library) and `BclTypesTest` (other base class library types and the immutable
-collections).
+(collections of the base class library), `BclTypesTest` (other base class library types and the immutable
+collections) and `ScatteredTest` (arrays of a million objects whose order in the array is not their order in memory,
+which every other class's data, allocated in order and in the cache, never shows).
 [benchmarks/README.md](../benchmarks/README.md) lists their cases.
 
 The v3 numbers come from the v3 build of [`benchmarks/Nino.Benchmark`](../benchmarks/Nino.Benchmark)
