@@ -451,7 +451,7 @@ namespace Nino.Core.Internal
                 // 24 bytes, 15-byte blocks, took 1.7 us written one at a time on an AVX-512 Xeon, 0.43 us in groups);
                 // on Arm64 for values its 64-byte permutes do not take (more than 8 bytes in memory: the same 1,000
                 // values took 1.44 us written one at a time on GitHub's Neoverse-N2 runners, MemoryPack 0.39 us).
-                bool others = Permutes || (writes ? Groups : ReadPlan<NinoPhase0>.Enabled);
+                bool others = Permutes || (writes ? Groups || PerPair > 0 : ReadPlan<NinoPhase0>.Enabled);
                 var plan = NinoLanes.Solve(width, Bytes, writes, AdvSimd.Arm64.IsSupported,
                     AdvSimd.Arm64.IsSupported ? !others : !Avx512Vbmi.IsSupported || !others);
                 // A value a group is what Shuffles does already, without the group loop around it.
@@ -471,6 +471,35 @@ namespace Nino.Core.Internal
         public static readonly bool Permutes = Shuffles && PerVector >= 2 &&
                                                (Avx512Vbmi.IsSupported ||
                                                 AdvSimd.Arm64.IsSupported && Unsafe.SizeOf<T>() <= 8);
+
+        /// <summary>
+        /// Values written per two-source 64-byte byte permute (<see cref="NinoBlock"/>.WritePairs), 0 when they are not:
+        /// with AVX-512 VBMI, values of more than 16 bytes (which neither <see cref="Shuffles"/> nor
+        /// <see cref="Permutes"/> takes) whose blocks are not written in <see cref="Groups"/>, as many as 128 bytes of
+        /// their memory and 64 of their blocks hold, at least three. Each step is two loads, one permute and one store
+        /// (1,000 24-byte values, 15-byte blocks, four a step: on GitHub's Xeon Platinum 8573C runners they took 425 ns
+        /// in lane groups of two, MemoryPack's copy of their memory 249 ns).
+        /// </summary>
+        public static readonly int PerPair = Map != null && !IsMemory && !Groups && !Shuffles &&
+                                             NinoBlock.Size<T, TFormatter>() < Unsafe.SizeOf<T>() &&
+                                             Avx512Vbmi.IsSupported &&
+                                             Math.Min(128 / Unsafe.SizeOf<T>(), 64 / NinoBlock.Size<T, TFormatter>()) is
+                                                 var pair && pair >= 3
+            ? pair
+            : 0;
+
+        /// <summary>The indices of <see cref="PerPair"/> values' blocks into 128 bytes of their memory.</summary>
+        public static readonly Vector512<byte> ToWire128 =
+            PerPair > 0 ? Vector512.Create(Bytes.Indices(toWire: true, PerPair, 64)) : default;
+
+        /// <summary>
+        /// The last of <paramref name="count"/> values a <see cref="PerPair"/> step may start at: its 128 bytes of
+        /// loads stay inside the values, its 64-byte store inside their blocks.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int LastPair(int count) =>
+            count - Math.Max((128 + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>(),
+                (64 + NinoBlock.Size<T, TFormatter>() - 1) / NinoBlock.Size<T, TFormatter>());
 
         /// <summary>
         /// <see cref="ToWire"/> for <see cref="PerVector"/> values; on Arm64 each quarter's indices count from the first
