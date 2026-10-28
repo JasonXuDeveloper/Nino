@@ -16,7 +16,7 @@
 # done (run 40591340557): cpu='7763|Neoverse' 1622ddb 1622ddb 12 *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*StringBuilder* *BclTypesTest.Nino*TimeZone* *BclTypesTest.Nino*Lazy* *BclTypesTest.Nino*Culture* *CommonTypesTest.Nino*StringDictionary* *CommonTypesTest.Nino*Players* *CommonTypesTest.Nino*Orders* *PooledTest.Nino* *ReferenceTest.Nino* *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable*
 # done (run 40591340557): cpu='7763|Neoverse' 4b77fac 667cbe9 12 *PooledTest.Nino* *BclTypesTest.Nino*TimeZone* *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino* *CommonTypesTest.Nino*StringDictionary* *BclTypesTest.Nino*Uri* *BclTypesTest.Nino*Culture*
 # gen/dedupe 7cc6b66 again (second run of 40576825531, filters reordered), with its floor.
-cpu='7763|Neoverse' 1622ddb 7cc6b66 12 *PolymorphicTest.Nino* *PooledTest.Nino* *VersionTolerantTest.Nino* *SimpleTest.Nino*
-cpu='7763|Neoverse' 1622ddb 1622ddb 12 *PolymorphicTest.Nino* *PooledTest.Nino* *VersionTolerantTest.Nino* *SimpleTest.Nino*
+# done (run 40605225864): cpu='7763|Neoverse' 1622ddb 7cc6b66 12 *PolymorphicTest.Nino* *PooledTest.Nino* *VersionTolerantTest.Nino* *SimpleTest.Nino*
+# done (run 40605225864): cpu='7763|Neoverse' 1622ddb 1622ddb 12 *PolymorphicTest.Nino* *PooledTest.Nino* *VersionTolerantTest.Nino* *SimpleTest.Nino*
 # phase10/bce cd2ffff: 667cbe9 with the one-char lookup inline again (out of line cost N2 SimpleClass 3%), against main.
-cpu='7763|Neoverse' 1622ddb cd2ffff 12 *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino* *PooledTest.Nino* *BclTypesTest.Nino*TimeZone* *CommonTypesTest.Nino*StringDictionary*
+# done (run 40605225864): cpu='7763|Neoverse' 1622ddb cd2ffff 12 *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino* *PooledTest.Nino* *BclTypesTest.Nino*TimeZone* *CommonTypesTest.Nino*StringDictionary*
