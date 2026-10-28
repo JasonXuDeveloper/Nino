@@ -419,6 +419,8 @@ fn benches(c: &mut Criterion) {
         proto::Strings
     );
     formats!(c, "strings-mixed-1000", 1000, mixed_strings(), Vec<String>, strings, proto::Strings);
+    // A null change for A/B runs (one more case: the binary's layout moves, its code does not).
+    nino_only!(c, "null-change", 1, 7u8, u8);
     // The same strings as a `[NinoUtf8] string[]`: each as UTF-8 (wire format 4.2), read with the same checks
     // (strict UTF-8, the char count) as a `[NinoUtf8]` member, as the other serializers check theirs.
     nino_only!(
