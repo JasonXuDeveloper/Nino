@@ -6,32 +6,28 @@ using Nino.Generator.Common;
 namespace Nino.Generator.Generation;
 
 /// <summary>
-/// How many objects of a class its collections hold before they prefetch them (INinoPrefetchFormatter in Nino.Core):
-/// about <see cref="Budget"/> bytes of the objects and of what their reference members point to, each reference member
-/// counted as another miss. A collection shorter than that is likely in the cache, where a prefetch per element costs
-/// more than it saves (1,000 shapes, a few KiB, serialized 14 to 15% slower with one); 4,096 shapes of about 100 bytes
-/// were on par with none.
+/// Which classes' collections prefetch their objects (INinoPrefetchFormatter in Nino.Core), and the bytes one element
+/// brings into the cache: its object, and a line of each object its reference members point to. Nino.Core prefetches
+/// a collection whose elements take more than the machine's last-level cache (NinoPrefetch.CacheBytes): a shorter one
+/// is likely in the cache, where a prefetch per element costs more than it saves (1,000 shapes, a few KiB, serialized
+/// 14 to 15% slower with one), and Go's prefetch of 1M records (about 100 MB) was 13 to 38% slower on a Xeon whose L3
+/// holds them.
 /// </summary>
 internal static class PrefetchRules
 {
-    /// <summary>The bytes a collection's objects take before it prefetches them (about an L2 cache).</summary>
-    public const int Budget = 512 << 10;
-
     /// <summary>The bytes counted for what a reference member points to: a line of another object.</summary>
     public const int PerReference = 64;
 
     /// <summary>The object header and method table pointer of every object (64-bit).</summary>
     private const int Header = 16;
 
-    /// <summary>The bounds of the threshold, whatever the estimate.</summary>
-    private const int Min = 1024, Max = 65536;
-
     /// <summary>
-    /// The threshold of <paramref name="type"/>'s collections, or 0 for none: only classes and interfaces (their
-    /// elements are references to objects elsewhere in the heap) that are not generic (their formatter is shared
-    /// generic code, where the collection loops would look it up at run time).
+    /// The bytes an element of <paramref name="type"/>'s collections brings into the cache, or 0 for collections that
+    /// do not prefetch: only classes and interfaces (their elements are references to objects elsewhere in the heap)
+    /// that are not generic (their formatter is shared generic code, where the collection loops would look it up at
+    /// run time).
     /// </summary>
-    public static int Threshold(INamedTypeSymbol type, FormatterKind kind, bool generic, bool fixedSize)
+    public static int Bytes(INamedTypeSymbol type, FormatterKind kind, bool generic, bool fixedSize)
     {
         // A class of fixed size: its body is a few stores the JIT inlines into the collection loop with the writer
         // in registers, where the call's copy of the writer takes one more register (FixedSizeTest's FixedClasses:
@@ -41,8 +37,8 @@ internal static class PrefetchRules
         int bytes = Header;
         for (var t = type; t != null && t.SpecialType != SpecialType.System_Object; t = t.BaseType)
             bytes += Fields(t, 0);
-        int threshold = Budget / System.Math.Max(bytes, 24);
-        return System.Math.Min(System.Math.Max(threshold, Min), Max);
+        // The smallest object is 24 bytes; no estimate above a page.
+        return System.Math.Min(System.Math.Max(bytes, 24), 4096);
     }
 
     /// <summary>The most members whose objects are prefetched: each a load of the element's object and a prefetch.</summary>

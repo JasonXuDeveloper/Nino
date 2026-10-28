@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using System.Runtime.CompilerServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 
 #nullable disable
 namespace Nino.UnitTests;
@@ -37,14 +39,16 @@ public sealed class PrefetchSquare : PrefetchShape
 }
 
 /// <summary>
-/// Arrays and lists of objects long enough for the loops that prefetch them (INinoPrefetchFormatter: at most 65,536
-/// elements, x64 and Arm64 on .NET 8+): the same values back, null slots kept, existing objects reused; and which
-/// formatters the generator gives the prefetching loops.
+/// The loops that prefetch long collections of objects (NinoPrefetched, taken for more elements than the last-level
+/// cache holds: x64 and Arm64 on .NET 8+, netstandard with prefetching kernels), called directly so that they run
+/// whatever the machine's cache: the bytes of the ordinary loop, null slots kept, existing objects reused; arrays and
+/// lists of every length through the public API; the cache size the threshold is scaled to; and which formatters the
+/// generator gives the prefetching loops.
 /// </summary>
 [TestClass]
 public class PrefetchTests
 {
-    // Past the largest threshold (PrefetchRules.Max), and not a multiple of the prefetch distance.
+    // Not a multiple of the prefetch distances; prefetched where the last-level cache holds fewer of the elements.
     private const int Long = 70_001;
 
     private static PrefetchItem[] Items(int count, int seed)
@@ -85,6 +89,73 @@ public class PrefetchTests
             CollectionAssert.AreEqual(expected[i].Values, actual[i].Values, $"[{i}]");
             Assert.AreEqual(expected[i].Value, actual[i].Value, $"[{i}]");
         }
+    }
+
+    /// <summary>The bytes of <paramref name="items"/> as an array, its elements written by the prefetching loop.</summary>
+    private static byte[] WritePrefetched(PrefetchItem[] items)
+    {
+        var buffer = new NinoArrayBufferWriter();
+        var writer = new Writer(buffer);
+        writer.WriteLength(items.Length);
+        if (items.Length > 0)
+            writer = NinoPrefetched.Write<PrefetchItem, NinoGen.Nino_UnitTests_PrefetchItemFormatter>(
+                ref Unsafe.As<PrefetchItem, nint>(ref items[0]), items.Length, writer);
+        writer.Flush();
+        return buffer.WrittenSpan.ToArray();
+    }
+
+    /// <summary>Reads <paramref name="bytes"/> (an array) into <paramref name="target"/> by the prefetching loop.</summary>
+    private static void ReadPrefetched(byte[] bytes, PrefetchItem[] target)
+    {
+        var reader = new Reader(bytes);
+        Assert.AreEqual(target.Length, reader.ReadLength());
+        if (target.Length > 0)
+            reader = NinoPrefetched.Read<PrefetchItem, NinoGen.Nino_UnitTests_PrefetchItemFormatter>(
+                ref Unsafe.As<PrefetchItem, nint>(ref target[0]), target.Length, reader);
+    }
+
+    [TestMethod]
+    public void PrefetchingLoopsWriteAndReadTheSameBytes()
+    {
+        foreach (int count in new[] { 0, 1, 7, 8, 9, 16, 17, 33, 5000 })
+        {
+            var items = Items(count, count);
+            byte[] bytes = NinoSerializer.Serialize(items);
+            CollectionAssert.AreEqual(bytes, WritePrefetched(items), $"PrefetchItem[{count}]");
+
+            var target = Items(count, count + 1);
+            var before = (PrefetchItem[])target.Clone();
+            ReadPrefetched(bytes, target);
+            AreEqual(items, target);
+            for (int i = 0; i < count; i++)
+            {
+                if (before[i] != null && items[i] != null)
+                    Assert.AreSame(before[i], target[i], $"[{i}]");
+            }
+        }
+    }
+
+    [TestMethod]
+    public void TheCacheIsTheLastLevel()
+    {
+        long bytes = Nino.Core.Internal.NinoPrefetch.CacheBytes;
+        Assert.IsTrue(bytes >= 1 << 20, bytes.ToString());
+        const string sys = "/sys/devices/system/cpu/cpu0/cache";
+        if (!System.IO.Directory.Exists(sys))
+            return;
+        // The largest size of the highest level, as /sys lists them ("32768K").
+        var caches = System.IO.Directory.GetDirectories(sys, "index*")
+            .Where(d => System.IO.File.Exists(d + "/level") && System.IO.File.Exists(d + "/size"))
+            .Select(d => (Level: int.Parse(System.IO.File.ReadAllText(d + "/level").Trim()),
+                Size: System.IO.File.ReadAllText(d + "/size").Trim()))
+            .ToList();
+        if (caches.Count == 0)
+            return;
+        int top = caches.Max(c => c.Level);
+        long expected = caches.Where(c => c.Level == top).Max(c =>
+            c.Size.EndsWith("K") ? long.Parse(c.Size[..^1]) << 10 :
+            c.Size.EndsWith("M") ? long.Parse(c.Size[..^1]) << 20 : long.Parse(c.Size));
+        Assert.AreEqual(expected, bytes);
     }
 
     [TestMethod]
@@ -171,7 +242,8 @@ public class PrefetchTests
 
         // Two reference members at most, fields and auto-properties only, read directly.
         string item = Output("Item");
-        StringAssert.Contains(item, "INinoPrefetchFormatter.PrefetchThreshold =>");
+        // 16 (header) + 4 + 8 + two references of 8 + 64: 172 bytes.
+        StringAssert.Contains(item, "INinoPrefetchFormatter.PrefetchBytes => 172;");
         StringAssert.Contains(item, "NinoPrefetched.At(v.Name) + global::Nino.Core.CompilerServices.NinoPrefetched.At(v.Values)");
         string computed = Output("Computed");
         StringAssert.Contains(computed, "NinoPrefetched.At(v.Other);");

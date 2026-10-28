@@ -104,7 +104,7 @@ internal static class ModelBuilder
                        ConstructsDefaults(type, ct),
             PublishesDeferrable: facts.Symbols.LayoutDeferrable,
             RawLayout: rawStruct ? RawLayout.Describe(type) : "",
-            PrefetchThreshold: PrefetchRules.Threshold(type, kind, generic, fixedSize),
+            PrefetchBytes: PrefetchRules.Bytes(type, kind, generic, fixedSize),
             PrefetchMembers: PrefetchRules.Members(built.Models, built.Symbols));
     }
 

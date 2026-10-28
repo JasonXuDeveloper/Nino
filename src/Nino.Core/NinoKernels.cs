@@ -64,9 +64,9 @@ namespace Nino.Core
         public abstract void Widen(byte* source, char* destination, int length);
 
         /// <summary>
-        /// Whether <see cref="Prefetch"/> prefetches: long arrays and lists of a generated class's objects then call it
-        /// for each run of 16 elements, 16 to 31 elements ahead of the one written or read (the threshold of elements is
-        /// the class's, see <c>INinoPrefetchFormatter.PrefetchThreshold</c>).
+        /// Whether <see cref="Prefetch"/> prefetches: arrays and lists of a generated class's objects that take more
+        /// than the last-level cache then call it for each run of 16 elements, 16 to 31 elements ahead of the one
+        /// written or read.
         /// </summary>
         public virtual bool Prefetches => false;
 

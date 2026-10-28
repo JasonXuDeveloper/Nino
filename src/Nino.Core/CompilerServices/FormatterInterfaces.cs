@@ -148,8 +148,8 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// Generated formatters of non-generic classes: arrays and lists of at least <see cref="PrefetchThreshold"/> of
-    /// their objects are written, and read into existing objects, by a loop that prefetches each object a few elements
+    /// Generated formatters of non-generic classes: arrays and lists of their objects that take more than the
+    /// last-level cache (<see cref="PrefetchBytes"/> each) are written, and read into existing objects, by a loop that prefetches each object a few elements
     /// ahead (<see cref="NinoPrefetched"/>; x64 on .NET 8+, elsewhere the same loop as shorter ones). The collection
     /// loops test <c>default(TFormatter) is INinoPrefetchFormatter</c>, a JIT-time constant: for every other formatter
     /// the test and the branch are not compiled. Through the formatter, whose type is exact even where the element type
@@ -159,11 +159,11 @@ namespace Nino.Core.CompilerServices
     public interface INinoPrefetchFormatter
     {
         /// <summary>
-        /// The fewest elements a collection prefetches for (a constant): about 512 KiB of the objects and what their
-        /// reference members point to, which a shorter collection likely has in the cache, where a prefetch per
-        /// element costs more than it saves.
+        /// The bytes an element brings into the cache (a constant): its object, and a line of each object its
+        /// reference members point to. A collection whose elements fit in the last-level cache likely has them there,
+        /// where a prefetch per element costs more than it saves.
         /// </summary>
-        int PrefetchThreshold { get; }
+        int PrefetchBytes { get; }
 
         /// <summary>
         /// Writes the <paramref name="count"/> elements whose references start at <paramref name="first"/>. The writer

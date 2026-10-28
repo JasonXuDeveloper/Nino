@@ -249,9 +249,9 @@ internal sealed record TypeModel(
     // A raw struct's bytes in the canonical layout, its published layout (LayoutEmitter, RawLayout.Describe); empty
     // for any other type, whose layout is its members.
     string RawLayout,
-    // The fewest elements of an array or list of this class that are written and read through a loop that prefetches
-    // them (PrefetchRules: the formatter implements INinoPrefetchFormatter); 0 for none.
-    int PrefetchThreshold,
+    // The bytes an element of an array or list of this class brings into the cache (PrefetchRules), for the loop that
+    // prefetches long ones (the formatter implements INinoPrefetchFormatter); 0 for none.
+    int PrefetchBytes,
     // The members (C# names, read as value.Member) whose objects those loops prefetch too, once the element's object is
     // in the cache (PrefetchRules.Members).
     EquatableArray<string> PrefetchMembers)

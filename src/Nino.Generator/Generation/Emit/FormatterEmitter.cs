@@ -157,9 +157,9 @@ internal static class FormatterEmitter
         w.Close();
     }
 
-    /// <summary>The interface of a formatter whose collections prefetch (see <see cref="TypeModel.PrefetchThreshold"/>).</summary>
+    /// <summary>The interface of a formatter whose collections prefetch (see <see cref="TypeModel.PrefetchBytes"/>).</summary>
     private static string Prefetch(TypeModel m) =>
-        m.PrefetchThreshold > 0 ? $", {CoreCompilerServices}INinoPrefetchFormatter" : "";
+        m.PrefetchBytes > 0 ? $", {CoreCompilerServices}INinoPrefetchFormatter" : "";
 
     /// <summary>
     /// INinoPrefetchFormatter of the formatter (or twin) <paramref name="self"/>: the threshold, and the loops of
@@ -167,12 +167,12 @@ internal static class FormatterEmitter
     /// </summary>
     private static void EmitPrefetch(CodeWriter w, TypeModel m, FormatterNames names, string self)
     {
-        if (m.PrefetchThreshold == 0)
+        if (m.PrefetchBytes == 0)
             return;
         string t = m.TypeName;
         string prefetch = $"{CoreCompilerServices}INinoPrefetchFormatter";
         w.Line();
-        w.Line($"int {prefetch}.PrefetchThreshold => {m.PrefetchThreshold};");
+        w.Line($"int {prefetch}.PrefetchBytes => {m.PrefetchBytes};");
         w.Line(names.Inline);
         w.Line($"{Core}Writer {prefetch}.WritePrefetched(ref global::System.IntPtr first, int count, {Core}Writer writer) =>");
         w.Indented(() => w.Line($"{CoreCompilerServices}NinoPrefetched.Write<{t}, {self}>(ref first, count, writer);"));
