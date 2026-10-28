@@ -1,13 +1,23 @@
+# land/rust round 19b: the blocks lines against 1696e9f (main bb57eca plus the blocks bench, no runtime change); main has no blocks bench.
+rust:blocks 1696e9f c1f52b1 blocks/{1}
+rust:blocks 1696e9f c1f52b1 ^blocks/{1}
+rust:blocks 1696e9f c1f52b1 blocks/{1}.*
+rust:blocks 1696e9f c1f52b1 ^blocks/{1}.*
+rust:blocks 1696e9f c1f52b1 (blocks/)
+rust:blocks 1696e9f c1f52b1 ^(blocks/)
+rust:blocks 1696e9f 1696e9f blocks/{1}
+rust:blocks 1696e9f 1696e9f ^blocks/{1}
+rust:blocks 1696e9f 1696e9f .*blocks/{1}
 # land/rust round 19 (aligned build): land/rust c1f52b1 (lists and maps of fixed-size elements as blocks, map read on x86) against main bb57eca, full blocks and compare suites.
-rust:blocks bb57eca c1f52b1 blocks/{1}
-rust:blocks bb57eca c1f52b1 ^blocks/{1}
-rust:blocks bb57eca c1f52b1 blocks/{1}.*
-rust:blocks bb57eca c1f52b1 ^blocks/{1}.*
-rust:blocks bb57eca c1f52b1 (blocks/)
-rust:blocks bb57eca c1f52b1 ^(blocks/)
-rust:blocks bb57eca bb57eca blocks/{1}
-rust:blocks bb57eca bb57eca ^blocks/{1}
-rust:blocks bb57eca bb57eca .*blocks/{1}
+# failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca c1f52b1 blocks/{1}
+# failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca c1f52b1 ^blocks/{1}
+# failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca c1f52b1 blocks/{1}.*
+# failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca c1f52b1 ^blocks/{1}.*
+# failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca c1f52b1 (blocks/)
+# failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca c1f52b1 ^(blocks/)
+# failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca bb57eca blocks/{1}
+# failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca bb57eca ^blocks/{1}
+# failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca bb57eca .*blocks/{1}
 rust:blocks c1f52b1 c1f52b1 blocks/{1}
 rust:blocks c1f52b1 c1f52b1 ^blocks/{1}
 rust:blocks c1f52b1 c1f52b1 .*blocks/{1}
