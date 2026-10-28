@@ -124,7 +124,8 @@ NinoUnknownIds.cs            type ids a polymorphic read did not find, cached so
 ```
 NinoActivator.cs             NinoActivator<T>: creates the instances Nino needs (a registered creator: the [NinoFactory]
                              method, else new T(); resolved by reflection for types generated code never saw)
-NinoPool.cs                  INinoPooled, NinoPool<T> (per-thread stacks over a shared one), NinoPoolLine
+NinoPool.cs                  INinoPooled, NinoPool<T> (per-thread stacks over a shared one); NinoPoolLine and
+                             NinoPoolThreadLine, the padded structs that keep its hot fields on a cache line of their own
 NinoRecycler.cs              NinoRecycler<T> / NinoRecycler: where reuse deserialization sends the instances it drops,
                              and the ownership rules of a formatter's Deserialize(ref T)
 ```

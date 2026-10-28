@@ -622,9 +622,12 @@ Cache-line reasoning assumes 64-byte lines.
   (it follows a struct, `n + NinoUnsafe.SizeOf<S>()`) made the reference a temporary and cost an `lea`/`add` per
   member (x64 and ARM64).
 * `NinoPool<T>` reads its generation (and warmup flag) on every take and add. They sit on a 64-byte line of their
-  own (`NinoPoolLine`, a non-generic explicit-layout base class, since generic classes cannot have one: 56 bytes
-  of padding before and after), away from the shared stack's count and lock, which batch transfers write, and
-  from neighbouring objects. Measured with 4 threads churning 100 instances each, the cost there is the lock
+  own (`NinoPoolLine`, a struct field with an explicit layout and 64 bytes of padding on each side, so the line
+  stays clear wherever the runtime places the struct among the pool's fields; a base class did not: CoreCLR put the
+  derived class's `_count` directly after the base's last padding byte, on the line of `Filled` whenever the object's
+  fields started on a 64-byte boundary), away from the shared stack's count and lock, which batch transfers write, and
+  from neighbouring objects. A thread stack's count and generation, written on every take and add, are padded the
+  same way (`NinoPoolThreadLine`), so another thread's stack never shares their line. Measured with 4 threads churning 100 instances each, the cost there is the lock
   itself; the padding is kept so the fast path never shares a line with a writer.
 * No static field is written on a hot path: formatter instances, `NinoRecycler.PoolsInUse`
   are written once; scratch buffers and reference tables are thread-static.

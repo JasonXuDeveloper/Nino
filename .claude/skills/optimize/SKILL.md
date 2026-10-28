@@ -48,6 +48,18 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   two `vmovups`; written `Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32` at each site, the x64
   listing was identical to main. A `|` of a constant and a field does not fold either: R2R x86 kept the field load
   and its class-init helper call.
+- Keep a field that a hot path reads off the cache line of anything another thread writes by putting it in a non-generic
+  struct with `LayoutKind.Explicit`, 64 bytes of padding on each side (`Size = 64 + fields + 64`), held as a field,
+  never as an explicit-layout base class or padding fields of the class itself. The runtime orders a class's fields as
+  it likes and packs a derived class's fields right after the base's last byte, and objects are only 8-byte aligned,
+  while a struct moves as one block with its padding. `NinoPool<T>` had the base-class form: CoreCLR put the derived
+  `_count`, which batch transfers write, at offset 124, on `Filled`'s line (64) whenever the object's fields started on
+  a 64-byte boundary, one placement in eight (field offsets read with `ldflda`; locally, 4 threads, the 7 of 40 runs
+  placed so took a median 1134 ms against the other 33 runs' 940 ms, though the struct form's own spread was as wide);
+  `NinoPoolLine` and `NinoPoolThreadLine` are the struct form. Generic classes cannot take an explicit layout either;
+  the struct field works there. Read and write such a field through a local (`count = s.Line.Count` ... `s.Line.Count =
+  count + 1`), not with `s.Line.Count++` in an expression: that took the field's address and loaded it a second time in
+  `TryTake` and `Add` (one `add` and one load more per call); with the local the listing is main's, one `add` fewer.
 - A JIT-time check made of several helper calls is one `static readonly` field instead (`NinoElements.Traits`,
   `NinoBlock<T, TFormatter>.Size`): one load, nothing to inline.
 - Do not inline a generic method that needs a runtime lookup into shared code on a hot path.
