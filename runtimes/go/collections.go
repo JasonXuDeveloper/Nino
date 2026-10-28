@@ -53,6 +53,10 @@ func WriteSlice[T any](w *Writer, v []T, write func(*Writer, T)) {
 		return
 	}
 	w.Length(len(v))
+	if hasPrefetch && len(v) >= prefetchFloor {
+		writeLong(w, v, write)
+		return
+	}
 	for _, e := range v {
 		write(w, e)
 	}
