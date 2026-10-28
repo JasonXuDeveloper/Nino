@@ -98,11 +98,22 @@ Why the qemu flags:
 - No module initializers on HybridCLR: registration goes through the generated registration calls.
 - IL2CPP has no `Reflection.Emit` and shares generic code: no runtime code generation, and the mirror-class rules of
   `runtime-internals` (static code only).
-- WebGL has no Burst: Burst compiles jobs with LLVM into a native library the player calls, and the WebGL player
-  (IL2CPP to C++, Emscripten to one wasm module) has no slot for it, so `[BurstCompile]` is ignored there and the code
-  runs as IL2CPP output (Unity staff, discussions.unity.com/t/burst-for-webgl/849368, 2021-2024: not on the roadmap).
-  IL2CPP has no `System.Runtime.Intrinsics` either, so WebGL takes the scalar paths; the only SIMD there is what
-  Emscripten auto-vectorizes when the project enables the WebAssembly 2023 feature set (wasm SIMD128).
+- WebGL has no Burst: Burst compiles jobs with LLVM into a native library the player calls, and the WebGL player (IL2CPP
+  to C++, Emscripten to one wasm module) has no slot for it, so `[BurstCompile]` is ignored there and the code runs as
+  IL2CPP output (Unity staff, discussions.unity.com/t/burst-for-webgl/849368, 2021-2024: not on the roadmap). IL2CPP has
+  no `System.Runtime.Intrinsics` either. WebGL's kernels are therefore C (`Packages/.../WebGL/nino_wasm.c`, a source
+  plugin Unity's Emscripten compiles into the player, called through `[DllImport("__Internal")]`), with SIMD only under
+  `__wasm_simd128__`: Unity 6's "Target WebAssembly 2023" (`PlayerSettings.WebGL.wasm2023`, Unity 2023.2+) compiles the
+  whole player, plugins included, with `-msimd128`. Unity 2022.3 has no such setting and supports Safari 15+ (its WebGL
+  browser compatibility page), while wasm SIMD needs Safari 16.4 (caniuse "wasm-simd"; MDN browser-compat-data
+  `webassembly.simd`): a 2022.3 player built with SIMD would not load there, so Nino never turns it on; a project may
+  (`--compiler-flags=-msimd128` in Additional IL2CPP Arguments reaches the plugin's compile too). Write the C with
+  Clang's vector extensions and `__builtin_wasm_*`, never `#include <wasm_simd128.h>`: 2022.3's Emscripten 3.1.8 sysroot
+  has a wrapper of it whose `#include_next` finds nothing in Unity's LLVM, and the build fails (`fatal error:
+  'wasm_simd128.h' file not found`, unity.yml run 40717516438); with vector extensions the 2022.3 player builds, loads
+  in Chrome and passes (run 40735278928). The WebGL player collects garbage only between frames: a test or benchmark
+  that allocates must yield a frame now and then (a coroutine), or the heap fills within one frame (`OOM`, then "memory
+  access out of bounds").
 - The Burst kernels (`src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Burst/NinoBurst.cs`) write the same bytes as
   Nino.Core; their golden-bytes tests (`Assets/Test/Runtime/Burst/BurstKernelTests.cs`) change with any wire-format
   change (`wire-format`).

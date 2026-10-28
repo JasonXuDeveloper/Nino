@@ -26,8 +26,16 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
 - **Least privilege**: `permissions: contents: read` unless a job writes; no ref taken from an input runs code in
   a cache scope that is not its own (cache poisoning); publishing goes through Trusted Publishing (NuGet, crates.io,
   npm), never a stored key in a file.
-- **Unity**: `unity.yml` runs one Unity version at a time (`max-parallel: 1`) and is never cancelled while running,
-  so CI holds at most one license seat; `report.yml`'s Unity section the same.
+- **Unity**: `unity.yml` runs one Unity version at a time (`max-parallel: 1`) and is never cancelled while running, so
+  CI holds at most one license seat; `report.yml`'s Unity section the same. `unity.yml` also builds a WebGL player per
+  version after the tests (`webgl` job, `max-parallel: 1`) and runs it in headless Chrome (playwright-core with the
+  runner's Chrome, `.github/scripts/webgl_run.mjs`, which must exit as soon as the player reports done: a pending
+  `setTimeout` kept Node, and with it the run that holds the `unity-license` group, for 40 more minutes). An agent
+  session's GitHub integration cannot `workflow_dispatch` (403 "Resource not accessible by integration", also after
+  `add_repo` with push access): to run unity.yml on an experiment, push a branch whose own unity.yml adds it to
+  `on.push.branches`, check first that no Unity run is queued (a newer pending run in the `unity-license` group replaces
+  an older pending one), and name the branch in the report: the session cannot delete it either (`git push --delete`
+  returned 403).
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
   runs only the sections the release's tree has.
 - **A/B workflows** (`runtime-ab.yml`, `dotnet-ab.yml`) live on the test branch and read `.github/ab-request.txt`

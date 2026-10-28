@@ -25,6 +25,11 @@ Every number that counts comes from a GitHub runner. Local runs only choose betw
 | TypeScript | `runtimes/typescript/bench/run.sh [scenario]` (Node and headless Chromium) |
 | Unity, IL2CPP and Burst | `unity.yml` only (one license seat, `audit-ci`) |
 
+In the Unity player, time small cases without allocation: `NinoSerializer.Serialize` to a new array made the
+6000.3 player's string rows bimodal (the same case 1.0x or 1.3x from run to run); `SerializeTo` a reused
+`NinoArrayBufferWriter`, `GC.Collect` before each sample group and groups in the order A B B A, keeping the lower of
+each pair, kept most rows within 10 % between the two runs of a group (unity.yml run 40735278928). A WebGL player times in a coroutine (`platforms`).
+
 Both .NET modes run v3 3.3.13 (NuGet, `NINO_BENCH_V3=true`) once, directly before v4, on the same machine; MemoryPack
 runs in both, so its two results show how much the machine moved. Heavy runs go through
 `flock -o /tmp/nino-heavy.lock`.

@@ -124,6 +124,34 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
 - ARM64 is a load/store architecture: what x64 does in one instruction on memory is a load, an operation and a store
   there, and 64-bit constants and addresses take several instructions. Keep hot state in registers.
 
+## Unity kernels and IL2CPP
+
+- Call Burst kernels through `delegate* unmanaged[Cdecl]` from `FunctionPointer<T>.Value`, with `.Invoke` delegates as
+  the fallback where the pointer call fails (`NinoBurst.PointersWork`): per call 0.3 to 0.6 ns faster (Narrow16 5.99
+  against 6.29 ns, Widen16 4.12 against 4.73, Permute1 16.2 against 17.2 on 2022.3; the same on 6000.3, unity.yml run
+  40717516438), on par in whole Serialize and Deserialize calls.
+- Set each kernel threshold from a sweep that forces the kernels from 1 value or 16 chars, per call site, with
+  allocation kept out (`SerializeTo` into a reused writer, `GC.Collect` before each group, groups A B B A, the lower of
+  each pair: `benchmark`). The sweep of unity.yml run 40735278928 (IL2CPP x64 players, 2022.3 and 6000.3): blocks of
+  tuples gain from 1 to 2 values (1.04 to 1.30x at 1 to 2, 1.5 to 1.9x at 4); Latin-1 strings from 16 chars (1.24 to
+  1.55x); text above U+00FF costs up to 10 % at any length (the failed narrowing), so a lower MinChars adds no new loss;
+  the padded copy (`NinoLayout.Copy`, whose own path copies masked words) breaks even at 12 to 16 values, hence its own
+  floor (`NinoKernelHook.CopyFloor`).
+- Build only the mask a call needs: `PermuteVectors` built all sixteen 16-byte masks on the stack before its one-load,
+  one-store loop, about 35 ns per call; the table itself as one mask moved the padded copy's break-even from about 24
+  values to 12 (0.69 to 0.75x at 1 to 2 values before, 0.75 to 0.80x after; 1.06 to 1.09x at 16).
+- On WebGL (wasm SIMD, `Nino.WebGL`) the same kernels pay off only for strings from 16 chars (1.07 to 1.45x, 2 to 10x
+  from 1000) and the padded copy from 32 values (2.3 to 5.3x from 1000); blocks of tuples gained nothing consistent
+  (Unity 6000.3 and 2022.3, headless Chrome, run 40735278928).
+- IL2CPP class formatters: a `SimpleClass` read (3.4 us on 6000.3, 2.1 on 2022.3) is mostly objects and collections
+  built, not Nino's code: per member, `Dictionary<int, string>`(10) 1.2 us, `Dictionary<int, int>`(10) 0.9 us (the
+  `HashTables` fill is on there: `RuntimePathsTests` asserts every flag), a `List<class>`(10) about 0.1 us per new
+  element, the 360-char UTF-8 string 0.65 us; Burst changes the class only through its strings (`Name` 1.2 to 1.4x). The
+  generated C++ shows shared generic code where a type argument is a class (`ListFormatter<__Canon, ...>`: an
+  `il2cpp_rgctx_method` lookup per call, `il2cpp_codegen_runtime_class_init_inline(Reader)` before Reader calls) but no
+  per-element cost that a change in Nino removes was found; time classes of one member each (the run above did) before
+  changing a formatter for IL2CPP.
+
 ## Reading the listings
 
 - x64: `--asm` of `benchmarks/asm.py`, once per ISA (`DOTNET_EnableAVX512=0`, `DOTNET_EnableAVX2=0`).
