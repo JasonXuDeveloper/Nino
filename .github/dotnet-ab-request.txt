@@ -67,3 +67,8 @@
 # done (run 40691513998): cpu='EPYC|Xeon|Neoverse' 5d474be 9e28b7d 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted*
 # done (run 40691513998): cpu='EPYC|Xeon|Neoverse' 5d474be 9e28b7d 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted* # copy 2
 # done (run 40691513998): cpu='EPYC|Xeon|Neoverse' 5d474be 5d474be 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted* # floor 2
+# land/poolline bb7c571: NinoPool's hot fields in padded structs (NinoPoolLine, NinoPoolThreadLine) instead of an
+# explicit-layout base class, against main ab233bf (single-threaded PooledTest must not be slower), with floor.
+cpu='EPYC|Neoverse' ab233bf bb7c571 12 *PooledTest.Nino*
+cpu='EPYC|Neoverse' ab233bf bb7c571 12 *PooledTest.Nino* # copy 2
+cpu='EPYC|Neoverse' ab233bf ab233bf 12 *PooledTest.Nino* # floor
