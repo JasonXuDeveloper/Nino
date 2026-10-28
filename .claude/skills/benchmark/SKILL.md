@@ -35,11 +35,18 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    `<go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]` runs
    `runtime-ab.yml`; .NET lines run `dotnet-ab.yml`. Keep other workers' lines, mark finished ones `# done:`, batch
    requests into one push, merge only, never force-push. `ab-bench.yml` on `main` compares a ref with the previous
-   release or its base on one runner.
-2. Always request the floor too: the base against itself, on the same runners.
+   release or its base on one runner. Limits: a matrix holds 256 jobs, so at most 25 runtime lines per push
+   (`[ab: new lines only]` in the commit message runs only the lines that push added); `.github/dotnet-ab-request.txt`
+   takes at most 3 active lines across all workers, and Arm64 runs one job per line, so more Neoverse-N2 samples need
+   duplicate lines that differ in text (a filter or round count).
+2. Always request the floor too: the base against itself, on the same runners, over several jobs. A floor from one
+   job underestimates the noise: the TimeZoneInfo floor jobs' own medians spanned 0.982 to 1.023 on one EPYC CPU.
 3. Judge per CPU (AMD EPYC 7763, EPYC 9V74 / Zen 4, EPYC 9V45 / Zen 5, Xeon Platinum / 6973P, Neoverse-N2 / V3):
    n >= 12 per side; faster only beyond that CPU's floor; no case slower beyond it. Go through benchstat, Rust through
-   criterion's change estimate, .NET through the medians.
+   criterion's change estimate, .NET through the medians. A case that runs the same machine code as the base (an
+   identical listing, or IL identical to main) is not counted against the branch, whatever its number (the owner's
+   rule): show the listings side by side in the report (the gen/dedupe landing, 61747f6, had cases up to 1.2 % past a
+   one-job floor with IL identical to main). Pool rounds of the same code before judging; a single round is not n.
 4. A loss or a wash is reverted, and its numbers go into the commit message or the report, so nobody tries it again
    blind.
 

@@ -38,6 +38,15 @@ fix every method it lists.
 - Do not inline a generic method that needs a runtime lookup into shared code on a hot path.
 - Past the JIT's tracking limit, locals are zeroed in the prolog: rare paths out of line also keep the local count
   down.
+- A smaller listing is not a faster one: measure. Reading TimeZoneInfo's two strings through one out-of-line helper
+  with two `out` strings cut the listing but put both on the stack: 7.5 to 12.8 % slower on runners. A constant
+  parameter at each call site (`share: false`) let the inliner drop the dead branch per caller instead, with the
+  listing as before and the string classes 17 to 21 % faster.
+- Outside .NET the same budget exists: V8 inlines only functions under 460 bytes of bytecode, so a TypeScript read
+  helper that grows past it (`otherString` at 574 bytes) becomes a call on every use; split the rare path out. Rust:
+  when a shape helps one target and hurts another, put it behind `cfg(target_arch)` and keep the generic loop for
+  every other target (the map read taking one check per entry is x86/x86_64 only: on Arm64 it held the key/value pair
+  in a SIMD register across the hash call and Neoverse-N2 ran 3 to 4 % slower). Test both paths (`platforms`).
 
 ## Bounds checks
 
