@@ -528,7 +528,7 @@ pub(crate) const SHORT_WIDE: usize = 64;
 
 /// Arm64: the longest text with a char above U+007F that [`short_wide`] writes; longer text takes [`neon::wide`].
 #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
-const NEON_FROM: usize = 0;
+const NEON_FROM: usize = 16;
 
 /// Appends the header and chars of `text`, at most [`SHORT_WIDE`] bytes with a char above U+007F: as Latin-1 when every
 /// char is at most U+00FF, else as UTF-16 LE code units. One reservation, the chars decoded one by one straight into
