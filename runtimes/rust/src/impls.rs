@@ -146,9 +146,14 @@ where
 }
 
 /// Whether a map's entries are read as one block ([`read_entries_fixed`]): keys and values of a fixed size that is
-/// also their least, so the length check against the bytes left has already found every entry's bytes.
+/// also their least, so the length check against the bytes left has already found every entry's bytes. Not on
+/// Arm64: there it measured slower than reading each key and value (Neoverse-N2), and those keep the generic loop.
 const fn entries_fixed_read<K: NinoRead, V: NinoRead>() -> bool {
-    K::FIXED_SIZE != 0 && V::FIXED_SIZE != 0 && K::MIN_SIZE == K::FIXED_SIZE && V::MIN_SIZE == V::FIXED_SIZE
+    !cfg!(target_arch = "aarch64")
+        && K::FIXED_SIZE != 0
+        && V::FIXED_SIZE != 0
+        && K::MIN_SIZE == K::FIXED_SIZE
+        && V::MIN_SIZE == V::FIXED_SIZE
 }
 
 /// Reads `count` entries of fixed-size keys and values: one take of their bytes, then each key and value decoded from
