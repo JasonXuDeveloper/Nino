@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.IO;
+using System.Linq;
 using BenchmarkDotNet.Configs;
 using MemoryPack;
 using MessagePack;
@@ -111,6 +112,33 @@ public class ScatteredTest
         _protobufStream = new MemoryStream(Count * 32);
         _ninoTarget = Targets(1);
         _memoryPackTarget = Targets(2);
+        Probe();
+    }
+
+    private delegate bool ScatteredProbe(ref object first);
+
+    // A/B only: what the prefetch gate sees on this runner (the workflow prints the lines starting with "// ADDR").
+    private void Probe()
+    {
+        var prefetch = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.NinoPrefetch");
+        if (prefetch == null)
+            return;
+        var flags = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public |
+                    System.Reflection.BindingFlags.NonPublic;
+        string Threshold(string formatter) => prefetch.GetNestedType("Of`1", flags)!
+            .MakeGenericType(typeof(ScatteredTest).Assembly.GetType("NinoGen." + formatter)!)
+            .GetField("Threshold", flags)!.GetValue(null)!.ToString();
+        var scattered = prefetch.GetMethod("Scattered", flags)!.CreateDelegate<ScatteredProbe>();
+        string Order<T>(T[] values) where T : class =>
+            scattered(ref System.Runtime.CompilerServices.Unsafe.As<T, object>(ref values[0])).ToString();
+        Console.WriteLine($"// ADDR cache={prefetch.GetField("CacheBytes", flags)!.GetValue(null)} " +
+                          $"items={Threshold("Nino_Benchmark_ScatteredItemFormatter")} " +
+                          $"shapes={Threshold("Nino_Benchmark_ShapeFormatter")} " +
+                          $"scatteredItems={Order(Items)} scatteredShapes={Order(ScatteredShapes)} " +
+                          $"inOrderShapes={Order(InOrderShapes)} target={Order(_ninoTarget)} deltas=" +
+                          string.Join(",", Enumerable.Range(1, 8).Select(i =>
+                              System.Runtime.CompilerServices.Unsafe.As<Shape, nint>(ref InOrderShapes[i]) -
+                              System.Runtime.CompilerServices.Unsafe.As<Shape, nint>(ref InOrderShapes[i - 1]))));
     }
 
     /// <summary>The objects a read into an existing array reuses, shuffled as <see cref="Items"/> are.</summary>
