@@ -1,3 +1,14 @@
+# rust strings round 2 (aligned build): mixed strings on Neoverse-N2. 63d1033 = short text decoded a char a word,
+# no branch on its class (2.7x the instructions on x86); 0f9d909 = short text through neon::wide in the list loop.
+rust c13bbf7 63d1033 strings-mixed-1000/serialize/nino$
+rust c13bbf7 63d1033 strings-mixed-1000/s{1}erialize/nino$
+rust c13bbf7 63d1033 strings-mixed-1000/se{1}rialize/nino$
+rust c13bbf7 0f9d909 strings-mixed-1000/serialize/nino$
+rust c13bbf7 0f9d909 strings-mixed-1000/s{1}erialize/nino$
+rust c13bbf7 0f9d909 strings-mixed-1000/se{1}rialize/nino$
+rust c13bbf7 c13bbf7 strings-mixed-1000/serialize/nino$
+rust c13bbf7 c13bbf7 strings-mixed-1000/s{1}erialize/nino$
+rust c13bbf7 c13bbf7 strings-mixed-1000/se{1}rialize/nino$
 # rust strings round 1: main 536e45a against itself on the whole compare suite, every serializer: where Nino trails
 # a competitor, per CPU (the newest release, rc.7, has no Rust section).
 rust 536e45a 536e45a .
