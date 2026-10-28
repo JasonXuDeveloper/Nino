@@ -145,6 +145,37 @@ where
     Ok(())
 }
 
+/// Whether a map's entries are read with one bounds check each ([`read_entries_fixed`]): keys and values of a fixed
+/// size that is also their least. Only on x86_64, where it measured faster, and 32-bit x86 (the same code): on Arm64
+/// (Neoverse-N2) it was 3–4% slower, the entry held in a vector register across the hash call. Every other target
+/// (Arm64, 32-bit Arm, WebAssembly, big-endian) keeps the generic loop, which reads the same entries in the same order.
+const fn entries_fixed_read<K: NinoRead, V: NinoRead>() -> bool {
+    cfg!(any(target_arch = "x86", target_arch = "x86_64"))
+        && K::FIXED_SIZE != 0
+        && V::FIXED_SIZE != 0
+        && K::MIN_SIZE == K::FIXED_SIZE
+        && V::MIN_SIZE == V::FIXED_SIZE
+}
+
+/// Reads `count` entries of fixed-size keys and values: one take of each entry's bytes, its key and value decoded
+/// from them and handed to `insert`, in order, so a cut entry, a bad value or a repeated key fails at the same entry
+/// and with the same error as reading them one at a time.
+#[inline]
+fn read_entries_fixed<K: NinoRead, V: NinoRead>(
+    r: &mut Reader<'_>,
+    count: usize,
+    mut insert: impl FnMut(K, V) -> Result<()>,
+) -> Result<()> {
+    let size = K::FIXED_SIZE.saturating_add(V::FIXED_SIZE);
+    for _ in 0..count {
+        let entry = r.take(size)?;
+        // Never `None`: an entry is `K::FIXED_SIZE + V::FIXED_SIZE` bytes.
+        let Some((k, v)) = entry.split_at_checked(K::FIXED_SIZE) else { break };
+        insert(K::decode_fixed(k)?, V::decode_fixed(v)?)?;
+    }
+    Ok(())
+}
+
 /// A [`Step::Dyn`] from a closure.
 pub fn dyn_step<F>(f: F) -> Step
 where
@@ -661,6 +692,16 @@ where
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = HashMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
+        if entries_fixed_read::<K, V>() {
+            read_entries_fixed(r, count, |key, value| match map.entry(key) {
+                hash_map::Entry::Occupied(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+                hash_map::Entry::Vacant(e) => {
+                    e.insert(value);
+                    Ok(())
+                }
+            })?;
+            return Ok(Some(map));
+        }
         for _ in 0..count {
             let key = read_key::<K>(r)?;
             let value = if V::MAY_DEFER {
@@ -701,6 +742,13 @@ where
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = BTreeMap::new();
+        if entries_fixed_read::<K, V>() {
+            read_entries_fixed(r, count, |key, value| match map.insert(key, value) {
+                Some(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+                None => Ok(()),
+            })?;
+            return Ok(Some(map));
+        }
         for _ in 0..count {
             let key = read_key::<K>(r)?;
             let value = if V::MAY_DEFER {
