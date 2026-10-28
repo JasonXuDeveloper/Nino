@@ -105,10 +105,13 @@ namespace Nino.Core
         public T TryTake(ref PerThread stack)
         {
             var s = stack;
-            if (s != null && s.Line.Count != 0 && s.Line.Generation == _line.Generation)
+            // The count goes through a local: `--s.Line.Count` made the JIT take the field's address and load it twice.
+            int count;
+            if (s != null && (count = s.Line.Count) != 0 && s.Line.Generation == _line.Generation)
             {
+                s.Line.Count = --count;
                 // Count is within [0, ThreadCapacity], the length of Items: no bounds checks.
-                ref T item = ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(s.Items), --s.Line.Count);
+                ref T item = ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(s.Items), count);
                 var value = item;
                 item = null;
                 return value;
@@ -124,8 +127,12 @@ namespace Nino.Core
         public void Add(T value, ref PerThread stack)
         {
             var s = stack;
-            if (s != null && s.Line.Count != ThreadCapacity && s.Line.Generation == _line.Generation)
-                Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(s.Items), s.Line.Count++) = value;
+            int count;
+            if (s != null && (count = s.Line.Count) != ThreadCapacity && s.Line.Generation == _line.Generation)
+            {
+                s.Line.Count = count + 1;
+                Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(s.Items), count) = value;
+            }
             else
                 AddSlow(value, ref stack);
         }
