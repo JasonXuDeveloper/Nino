@@ -829,23 +829,33 @@ typescript 506720c223 506720c223
 # done (run 40663930640): go#12 2958379 2958379 ^Benchmark(Deserialize|Serialize)$/^(simple|strings)/^(NinoTags|Nino)$
 # rt-gaps: where the Go, Rust and TypeScript runtimes are not ahead of their competitors now. Main 4beee30 against
 # itself with the competitors (no JSON, gob or serde_json), twice each: the gap table and the floor at once.
-go#12 4beee30 4beee30 ^Benchmark(Serialize|Deserialize)$/./^(Nino|NinoTags|Protobuf|MessagePack)$
-go#12 4beee30 4beee30 ^Benchmark(Serialize|Deserialize)$/./^(Nino|NinoTags|Protobuf|MessagePack)$ # copy 2
-rust 4beee30 4beee30 /(nino|prost|bincode|postcard|rmp-serde)$
-rust 4beee30 4beee30 /(nino|prost|bincode|postcard|rmp-serde)$ # copy 2
-typescript 4beee30 4beee30
-typescript 4beee30 4beee30 # copy 2
+# done: go#12 4beee30 4beee30 ^Benchmark(Serialize|Deserialize)$/./^(Nino|NinoTags|Protobuf|MessagePack)$
+# done: go#12 4beee30 4beee30 ^Benchmark(Serialize|Deserialize)$/./^(Nino|NinoTags|Protobuf|MessagePack)$ # copy 2
+# done: rust 4beee30 4beee30 /(nino|prost|bincode|postcard|rmp-serde)$
+# done: rust 4beee30 4beee30 /(nino|prost|bincode|postcard|rmp-serde)$ # copy 2
+# done: typescript 4beee30 4beee30
+# done: typescript 4beee30 4beee30 # copy 2
 # rt-gaps rust-neon: Arm64 writes short non-ASCII text through neon::wide (0fced91: all of it; dda2c89: over 16 bytes) against main 4beee30, with the floor. x64 runs the same code (a null change there).
-rust 4beee30 0fced91 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 1
-rust 4beee30 dda2c89 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 1
-rust 4beee30 4beee30 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # floor 1
-rust 4beee30 0fced91 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 2
-rust 4beee30 dda2c89 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 2
-rust 4beee30 4beee30 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # floor 2
-rust 4beee30 0fced91 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 3
-rust 4beee30 dda2c89 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 3
-rust 4beee30 4beee30 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # floor 3
-rust:text 4beee30 0fced91 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 1
-rust:text 4beee30 dda2c89 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 1
-rust:text 4beee30 0fced91 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 2
-rust:text 4beee30 dda2c89 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 2
+# done: rust 4beee30 0fced91 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 1
+# done: rust 4beee30 dda2c89 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 1
+# done: rust 4beee30 4beee30 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # floor 1
+# done: rust 4beee30 0fced91 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 2
+# done: rust 4beee30 dda2c89 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 2
+# done: rust 4beee30 4beee30 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # floor 2
+# done: rust 4beee30 0fced91 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 3
+# done: rust 4beee30 dda2c89 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 3
+# done: rust 4beee30 4beee30 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # floor 3
+# done: rust:text 4beee30 0fced91 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 1
+# done: rust:text 4beee30 dda2c89 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 1
+# done: rust:text 4beee30 0fced91 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 2
+# done: rust:text 4beee30 dda2c89 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 2
+# rust-neon (0fced91, dda2c89): rejected. Neoverse-N2 strings-mixed-1000 serialize +50 % (n=15), text/write/mixed/16 +112 %, cyrillic/16 +18 %; only latin1/24 (-25 %) and cjk/24 (-12 %) faster. Short text stays with short_wide on Arm64.
+# rust-avx2-half 907b0f7: the AVX2 writer picks each 16-byte half's longest char (a half of Cyrillic before one with an emoji takes the two-byte units). Against main 4beee30, with the floor; EPYC 7763 is the AVX2 CPU, the others run the AVX-512 kernel (unchanged).
+rust 4beee30 907b0f7 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 1
+rust 4beee30 4beee30 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # floor 1b
+rust 4beee30 907b0f7 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 2
+rust 4beee30 4beee30 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # floor 2b
+rust 4beee30 907b0f7 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 3
+rust 4beee30 4beee30 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # floor 3b
+rust:text 4beee30 907b0f7 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 1
+rust:text 4beee30 907b0f7 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 2
