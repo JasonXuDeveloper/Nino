@@ -1,13 +1,41 @@
+# land/rust round 20 (aligned build). Option 1: f0927df = land/rust cf18a01 with 8-byte map entries read as one array off x86
+# (plain insert); option 2: 4338415 = 1696e9f plus code run once before the cases (placement control, map read listing identical);
+# more 9V74 jobs on write/u64 and write/datetime, and full-suite floors for the Xeon runners.
+rust:blocks cf18a01 f0927df read/map-i32-i3{1}2$
+rust:blocks cf18a01 f0927df ^blocks/read/map-i32-i3{1}2$
+rust:blocks cf18a01 f0927df read/(map-i32-i32)$
+rust:blocks cf18a01 f0927df read/map-(i32-i32)$
+rust:blocks cf18a01 cf18a01 read/map-i32-i3{1}2$
+rust:blocks cf18a01 cf18a01 ^blocks/read/(map-i32-i32)$
+rust:blocks 1696e9f 4338415 read/map-i32-i3{1}2$
+rust:blocks 1696e9f 4338415 ^blocks/read/map-i32-i3{1}2$
+rust:blocks 1696e9f 4338415 read/(map-i32-i32)$
+rust:blocks 1696e9f 1696e9f read/map-(i32-i32)$
+rust:blocks 1696e9f cf18a01 write/(u64|datetime)$
+rust:blocks 1696e9f cf18a01 ^blocks/write/(u64|datetime)$
+rust:blocks 1696e9f cf18a01 write/(u64|datetime){1}$
+rust:blocks 1696e9f cf18a01 (write/(u64|datetime))$
+rust:blocks 1696e9f 1696e9f write/(u64|datetime)$
+rust:blocks 1696e9f 1696e9f ^blocks/write/(u64|datetime)$
+rust:blocks cf18a01 cf18a01 write/(u64|datetime)$
+rust:blocks cf18a01 cf18a01 ^blocks/write/(u64|datetime)$
+rust:blocks 1696e9f 1696e9f b{1}locks/
+rust:blocks cf18a01 cf18a01 b{1}locks/
+rust:blocks 1696e9f 1696e9f ^b{1}locks/
+rust:blocks cf18a01 cf18a01 ^b{1}locks/
+rust:blocks 1696e9f cf18a01 b{1}locks/
+rust:blocks 1696e9f cf18a01 ^b{1}locks/
+rust:blocks 1696e9f cf18a01 .*b{1}locks/
 # land/rust round 19b: the blocks lines against 1696e9f (main bb57eca plus the blocks bench, no runtime change); main has no blocks bench.
-rust:blocks 1696e9f c1f52b1 blocks/{1}
-rust:blocks 1696e9f c1f52b1 ^blocks/{1}
-rust:blocks 1696e9f c1f52b1 blocks/{1}.*
-rust:blocks 1696e9f c1f52b1 ^blocks/{1}.*
-rust:blocks 1696e9f c1f52b1 (blocks/)
-rust:blocks 1696e9f c1f52b1 ^(blocks/)
-rust:blocks 1696e9f 1696e9f blocks/{1}
-rust:blocks 1696e9f 1696e9f ^blocks/{1}
-rust:blocks 1696e9f 1696e9f .*blocks/{1}
+# done (run 40630112120): rust:blocks 1696e9f c1f52b1 blocks/{1}
+# done (run 40630112120): rust:blocks 1696e9f c1f52b1 ^blocks/{1}
+# done (run 40630112120): rust:blocks 1696e9f c1f52b1 blocks/{1}.*
+# done (run 40630112120): rust:blocks 1696e9f c1f52b1 ^blocks/{1}.*
+# done (run 40630112120): rust:blocks 1696e9f c1f52b1 (blocks/)
+# done (run 40630112120): rust:blocks 1696e9f c1f52b1 ^(blocks/)
+# done (run 40630112120): rust:blocks 1696e9f 1696e9f blocks/{1}
+# done (run 40630112120): rust:blocks 1696e9f 1696e9f ^blocks/{1}
+# done (run 40630112120): rust:blocks 1696e9f 1696e9f .*blocks/{1}
 # land/rust round 19 (aligned build): land/rust c1f52b1 (lists and maps of fixed-size elements as blocks, map read on x86) against main bb57eca, full blocks and compare suites.
 # failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca c1f52b1 blocks/{1}
 # failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca c1f52b1 ^blocks/{1}
@@ -18,18 +46,18 @@ rust:blocks 1696e9f 1696e9f .*blocks/{1}
 # failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca bb57eca blocks/{1}
 # failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca bb57eca ^blocks/{1}
 # failed (main has no blocks bench; run 40628398802): rust:blocks bb57eca bb57eca .*blocks/{1}
-rust:blocks c1f52b1 c1f52b1 blocks/{1}
-rust:blocks c1f52b1 c1f52b1 ^blocks/{1}
-rust:blocks c1f52b1 c1f52b1 .*blocks/{1}
-rust bb57eca c1f52b1 /{1}nino$
-rust bb57eca c1f52b1 .*/{1}nino$
-rust bb57eca c1f52b1 /{1}(nino)$
-rust bb57eca c1f52b1 (/{1}nino)$
-rust bb57eca c1f52b1 /(nino)$
-rust bb57eca bb57eca /{1}nino$
-rust bb57eca bb57eca (/{1}nino)$
-rust c1f52b1 c1f52b1 /{1}nino$
-rust c1f52b1 c1f52b1 (/{1}nino)$
+# done (run 40630112120): rust:blocks c1f52b1 c1f52b1 blocks/{1}
+# done (run 40630112120): rust:blocks c1f52b1 c1f52b1 ^blocks/{1}
+# done (run 40630112120): rust:blocks c1f52b1 c1f52b1 .*blocks/{1}
+# done (run 40628398802): rust bb57eca c1f52b1 /{1}nino$
+# done (run 40628398802): rust bb57eca c1f52b1 .*/{1}nino$
+# done (run 40628398802): rust bb57eca c1f52b1 /{1}(nino)$
+# done (run 40628398802): rust bb57eca c1f52b1 (/{1}nino)$
+# done (run 40628398802): rust bb57eca c1f52b1 /(nino)$
+# done (run 40628398802): rust bb57eca bb57eca /{1}nino$
+# done (run 40628398802): rust bb57eca bb57eca (/{1}nino)$
+# done (run 40628398802): rust c1f52b1 c1f52b1 /{1}nino$
+# done (run 40628398802): rust c1f52b1 c1f52b1 (/{1}nino)$
 # phase10/rust round 18 (aligned build): ffbca8f (map read one take an entry on x64 only; round 17: x64 -1.7 to -4.3%,
 # Neoverse-N2 0.0%) against 781d955 (blocks) and main 1622ddb (compare) on the full suites, and 83950aa, with floors.
 # done (run 40624408587): rust:blocks 781d955 ffbca8f blocks/{1}
