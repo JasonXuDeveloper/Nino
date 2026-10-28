@@ -26,10 +26,12 @@
         <EmbeddedFiles Include="$(GeneratedAssemblyInfoFile)"/>
     </ItemGroup>
 
-    <!-- The unit tests, and Unity's formatters (Nino.UnityTypes, shipped with Nino.Core in the Unity package), which
-         use the wire constants and the errors Nino.Core's own formatters use. -->
+    <!-- The unit tests, the NativeAOT program (which checks that the vector paths keep their instructions there), and
+         Unity's formatters (Nino.UnityTypes, shipped with Nino.Core in the Unity package), which use the wire constants
+         and the errors Nino.Core's own formatters use. -->
     <ItemGroup>
         <InternalsVisibleTo Include="Nino.UnitTests"/>
+        <InternalsVisibleTo Include="Nino.AotTests"/>
         <InternalsVisibleTo Include="Nino.UnityTypes"/>
     </ItemGroup>
 

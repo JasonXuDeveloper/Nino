@@ -20,8 +20,8 @@ NinoDeserializer.cs          the public Deserialize<T> (a new value, or into an 
 NinoSettings.cs              every process-wide setting (MaxDepth, MaxCollectionLength, MaxHashCollisions, Untrusted,
                              pool sizes, SetRecycler<T>), plain fields frozen on first use (NinoLimits)
 NinoDataException.cs         the exception every check of the data throws (an InvalidOperationException)
-NinoKernels.cs               NinoKernels: native Permute / Narrow / Widen / Prefetch kernels the netstandard builds call
-                             when registered (Unity's Burst kernels), with their scalar forms; NinoKernelHook holds them
+NinoKernels.cs               NinoKernels: native Permute / Narrow / Widen kernels the netstandard builds call when one is
+                             registered (Unity's Burst kernels), with their scalar forms; NinoKernelHook holds them
 Properties.cs                [module: SkipLocalsInit]
 ```
 
@@ -51,8 +51,7 @@ NinoTypeLayoutAttribute.cs   [assembly: NinoTypeLayout]: the published wire layo
 
 ```
 FormatterInterfaces.cs       INinoBodyFormatter<T> (+ NinoBody flags), INinoRawBodyFormatter<T>, INinoTopFormatter<T>
-                             (__Top twins), INinoFixedSizeFormatter<T>, INinoBlockFormatter<T>, INinoRawFormatter,
-                             INinoPrefetchFormatter (classes whose long collections prefetch)
+                             (__Top twins), INinoFixedSizeFormatter<T>, INinoBlockFormatter<T>, INinoRawFormatter
 NinoObject.cs                header handling of generated class formatters: null flag / type id / reference header, then
                              the body; the ...Raw forms write header and raw body into one reservation
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call)
@@ -64,8 +63,6 @@ NinoSubtypeHandler.cs        NinoSubtypeHandler: writes and reads one registered
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
 NinoUnsafe.cs                unaligned little-endian memory access, block copies (vector loops, paired loads),
                              ReadBool, array allocation; used by Reader, Writer and generated code
-NinoPrefetched.cs            the element loops of long collections of objects that prefetch them and their members'
-                             objects, which generated formatters' INinoPrefetchFormatter instantiates for their type
 ```
 
 ## Formatters/
@@ -151,8 +148,6 @@ NinoLayoutCore.cs            the struct layout algorithm shared with the generat
 NinoReflection.cs            what Nino.Core reads by reflection with the generator's rules (NinoType, raw, tracking)
 NinoFormatterBinding.cs      binding of [NinoFormatter] registrations, shared with the generator (INinoTypeSystem)
 NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed)
-NinoPrefetch.cs              software prefetch of a collection's objects ahead of its loop (x64 prefetcht0, an Arm64
-                             load, netstandard through NinoKernels.Prefetch): the distances and the gate (Takes)
 NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
 NinoBlock.cs                 collections of INinoBlockFormatter values: whole-block reads and writes, vector groups
 NinoBlockPlan.cs             NinoBlock<T, TFormatter>: the per-type block plan (ReadPlan, LanePlan, KernelTables)

@@ -30,10 +30,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - **No line that does nothing**: no identity copy, no unread local, no empty method, no `x = default` the
   constructor gives, no parameter nobody reads. Each local also counts toward the JIT's tracking limit.
 - **Say a value once**: constants in place, setup that does not change per member written once, a table declared once
-  per type. An expression the JIT folds still costs IL against the caller's inlining budget first: a size repeated
-  in a sum is written `n * size` (`RawBlock.Size`); offsets in a block of four `PolymorphicTransform`s summed up to
-  four `SizeOf<T>()` calls each, and the PolymorphicFooBase dispatch called `get_BodySize` of 18 subtypes instead of
-  inlining it (76 stack accesses; 1 after).
+  per type. Leaner IL is not by itself faster: raw block offsets written as `n * SizeOf<T>()` instead of a sum of
+  `SizeOf<T>()` calls made the PolymorphicFooBase dispatch inline every subtype's `BodySize` (x64 76 stack accesses
+  to 1, Arm64 57 to 9), yet PolymorphicClass and PolymorphicClassArray serialize measured 1.2-2.1% slower on EPYC
+  7763 and Neoverse-N2 in two runner A/Bs, so the sum stayed. Take the decision from runners, not the listing.
 - **Parentheses only where precedence needs them**; layout as a formatter would leave it.
 - **Names a reader can follow**: locals after the member they hold.
 - **Generate once, refer to it**: a form that needs code another file generates names that code instead of copying

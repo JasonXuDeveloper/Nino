@@ -39,7 +39,7 @@ diff <(grep -v '^#' dotnet.txt) <(grep -v '^#' mono.txt)
 `runtimes.yml` tests the Go (with and without `-tags purego`), Rust and TypeScript runtimes on x64 and on an Arm64
 runner, and Go also on 386, Arm32 and big-endian s390x (the last two under qemu); the release's `report.yml`
 benchmarks the three on x64 and Arm64. The
-Unity tests (`src/Nino.Unity`, on Unity 2022.3 and the newest Unity 6 LTS, in the editor and in an IL2CPP player) run in `unity.yml`, one job at a time
+Unity tests (`src/Nino.Unity`, on Unity 2022.3 and the newest Unity 6 LTS: the editor's tests, then the play mode tests in an IL2CPP player, in one job per version) run in `unity.yml`, one version at a time
 and never cancelled while running, so CI holds at most one seat of the Unity license. Locally, the same split keeps a run in memory:
 `--filter "FullyQualifiedName!~ShapeMatrixTests"`, then `--filter "FullyQualifiedName~ShapeMatrixTests"`.
 
@@ -93,7 +93,20 @@ packages, the crates `nino-serialization-derive` and `nino-serialization` and th
 release with generated notes. Pre-releases also get the `vX.Y.Z-preview.N` tag OpenUPM reads. If a step fails after
 tagging, fix the cause and re-run the failed job: each publish skips what its registry already has.
 
-Trusted Publishing is configured on a package that exists, so the first version of each crate and of the npm package
-is published by hand (`cargo publish -p nino-serialization-derive`, then `-p nino-serialization`, in `runtimes/rust`;
-`npm run build && npm publish --access public --tag next` in `runtimes/typescript`, with the repository's `LICENSE`
-copied there), then each gets the trusted publisher JasonXuDeveloper/Nino, workflow `release.yml`.
+Trusted Publishing is configured on a package that exists, so the first release that carries the crates and the
+npm package publishes NuGet and the Go tag as usual, and its `crates` and `npm` jobs stop with a message. Publish those
+first versions by hand from the tag, with no token stored anywhere:
+
+```bash
+git checkout v<version>
+cd runtimes/rust && cargo login        # a crates.io token with the publish-new scope; revoke it afterwards
+cargo publish -p nino-serialization-derive && cargo publish -p nino-serialization
+cd ../typescript && cp ../../LICENSE . && npm ci
+npm login                              # interactive, with two-factor authentication
+npm publish --access public --tag next # `next` for a pre-release, `latest` for a stable one
+```
+
+Then add the trusted publisher (repository JasonXuDeveloper/Nino, workflow `release.yml`) to both crates on crates.io
+and to the npm package (where npm also offers "Require two-factor authentication and disallow tokens"); every later
+release publishes them from CI. Alternatively the jobs publish a first version themselves with the repository secrets
+`CARGO_REGISTRY_TOKEN` and `NPM_TOKEN`, if set; delete them once the trusted publishers are in place.

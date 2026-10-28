@@ -4,8 +4,11 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 using System.Security.Cryptography;
 using Nino.Core;
+using Nino.Core.Internal;
 
 // Round trips of every kind of type Nino handles, run trimmed and with NativeAOT by CI. The hash of everything written
 // is printed so the runs can be compared byte for byte (raw structs included: padding must be cleared the same way).
@@ -328,6 +331,17 @@ public static class Program
         Check(iset.Count == 2 && iset.Contains(5), "immutable hash set top level");
         var iarr = NinoDeserializer.Deserialize<ImmutableArray<Point>>(Ser(ImmutableArray.Create(new Point { X = 1, Y = 2 })));
         Check(iarr.Length == 1 && iarr[0].Y == 2, "immutable array of structs top level");
+
+        // Block types are moved by a 16-byte shuffle where Ssse3.IsSupported, a check made at run time here: NativeAOT
+        // compiles x64 code for SSE2 and emits pshufb only behind that check, else a software form (1,000 (int, long)
+        // were written 200 times as slowly as under the JIT). pshufb takes an index's low four bits, the software form
+        // gives a zero from 16 on.
+        if (Ssse3.IsSupported)
+        {
+            var shuffled = NinoBlock<int, UnmanagedFormatter<int>>.Shuffle(
+                Vector128.Create((byte)0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15), Vector128.Create((byte)0x11));
+            Check(shuffled.GetElement(0) == 1, "block shuffles by SSSE3 (pshufb)");
+        }
 
         Console.WriteLine("payload sha256: " + Convert.ToHexString(SHA256.HashData(AllBytes.ToArray())));
 

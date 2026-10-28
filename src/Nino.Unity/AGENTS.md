@@ -20,7 +20,7 @@ Packages/
     Runtime/                 Nino.Core.dll (netstandard2.1), Nino.Generator.dll (Roslyn 4.3), Nino.Generator.CodeFixes.dll,
                              Nino.UnityTypes.dll; ThirdParty/: System.Buffers, System.Memory,
                              System.Runtime.CompilerServices.Unsafe
-    Burst/                   Nino.Burst: NinoBurst.cs registers Burst-compiled NinoKernels (Permute, Narrow, Widen, Prefetch;
+    Burst/                   Nino.Burst: NinoBurst.cs registers Burst-compiled NinoKernels (Permute, Narrow, Widen;
                              AVX2 / SSSE3 / AArch64 Neon with scalar branches) at startup; compiled only with
                              com.unity.burst 1.8+ (NINO_BURST, versionDefines)
 Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.Tests, Runtime.Tests, Burst.Tests,

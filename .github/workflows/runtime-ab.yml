@@ -6,8 +6,10 @@ name: Runtime A/B (test branch)
 #   <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter]
 #
 # Each line is a job of its own on every runner and copy, and a push runs only the lines it adds or changes: a line
-# already in the file before the push is not measured again (edit it, for example its filter, to run it again). A push
-# that changes this workflow measures every line, unless its last commit message says "[ab: new lines only]".
+# already in the file before the push is not measured again (add or change a note after " #" to run it again; never
+# change its filter to a regexp that matches nothing). At most 25 new lines are measured per push (a matrix holds 256
+# jobs); more are cut with a warning. A push that changes this workflow measures every line, unless its last commit
+# message says "[ab: new lines only]".
 # Both commits must be on a branch of this repository (main, or this branch: push them here, merging, never
 # force-pushing).
 # The filter is a `go test -bench` regexp, a criterion filter or a bench.ts case name. Numbers are for development only.
@@ -53,7 +55,16 @@ jobs:
           else
             : > "$RUNNER_TEMP/before"
           fi
-          lines=$(grep -vxF -f "$RUNNER_TEMP/before" "$RUNNER_TEMP/now" | jq -Rnc '[inputs]' || true)
+          grep -vxF -f "$RUNNER_TEMP/before" "$RUNNER_TEMP/now" > "$RUNNER_TEMP/new" || true
+          # A matrix holds 256 jobs and each line takes 10 (two runners, five copies): measure the first 25 and say so,
+          # rather than fail the whole run. The rest are already in the file: edit them (a note) to run them.
+          if (( $(wc -l < "$RUNNER_TEMP/new") > 25 )); then
+            echo "::warning::$(wc -l < "$RUNNER_TEMP/new") new lines: measuring the first 25 only (push the rest in later pushes)"
+            sed -i '26,$d' "$RUNNER_TEMP/new"
+          fi
+          # A note after " #" on a line ("... records-1000 # rerun 2") makes an unchanged line new again; it is not
+          # part of the request.
+          lines=$(sed 's/[[:space:]][[:space:]]*#.*$//' "$RUNNER_TEMP/new" | jq -Rnc '[inputs]')
           [[ -n $lines ]] || lines='[]'
           echo "lines=$lines" >> "$GITHUB_OUTPUT"
           echo "$lines" | jq -r '.[]' | sed 's/^/measuring: /'

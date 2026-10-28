@@ -7,7 +7,7 @@ name: .NET A/B (test branch)
 #
 #   <base sha> <head sha> <rounds> <BenchmarkDotNet filters...>
 #
-# Each line is a job of its own on each runner (up to three lines). A line may start with cpu=<regex> (an
+# Each line is a job of its own on each runner (up to three lines; a note after " #" is not part of it). A line may start with cpu=<regex> (an
 # case-insensitive extended regular expression on lscpu's model name, for example cpu='Intel|Neoverse'): the x64 runner pool mixes
 # Intel and AMD processors, so such a line runs on up to eight x64 runners at once (slots), each going on only when its
 # processor matches (the others end at once, successfully, with a notice); a line without it runs on one runner of each kind as before. Both commits must be on a branch of this
@@ -73,7 +73,9 @@ jobs:
           set -euo pipefail
           lscpu | grep -E 'Model name|Flags' | cut -c1-2000 || true
           go=true
-          request=$(grep -v -e '^#' -e '^[[:space:]]*$' .github/dotnet-ab-request.txt | sed -n "${LINE}p")
+          # A file with every line commented out (all done) is no request: grep finds nothing, and that is not an error.
+          request=$({ grep -v -e '^#' -e '^[[:space:]]*$' .github/dotnet-ab-request.txt || true; } | sed -n "${LINE}p")
+          request=${request%%[[:space:]]#*}  # a note after " #" is not part of the line
           model=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -1)
           cpu=''
           if [[ $request == cpu=* ]]; then read -r cpu request <<< "$request"; cpu=${cpu#cpu=}; cpu=${cpu//\'/}; fi
@@ -109,7 +111,9 @@ jobs:
           set -f  # the filters are patterns for BenchmarkDotNet, not for the shell
           # BenchmarkDotNet's high priority (see arm64-bench.yml).
           sudo prlimit --pid $$ --nice=40:40 || echo "::warning::could not raise the nice limit: normal priority"
-          request=$(grep -v -e '^#' -e '^[[:space:]]*$' .github/dotnet-ab-request.txt | sed -n "${LINE}p")
+          # A file with every line commented out (all done) is no request: grep finds nothing, and that is not an error.
+          request=$({ grep -v -e '^#' -e '^[[:space:]]*$' .github/dotnet-ab-request.txt || true; } | sed -n "${LINE}p")
+          request=${request%%[[:space:]]#*}  # a note after " #" is not part of the line
           if [[ $request == cpu=* ]]; then read -r _ request <<< "$request"; fi
           model=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -1)
           read -r base head rounds filters <<< "$request"

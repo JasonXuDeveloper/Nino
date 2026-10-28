@@ -28,15 +28,6 @@ unique.go                    duplicate keys of sets and maps read in data order:
                              sorted, no map
 collections.go               slices, maps, sets, entries, fixed-size runs, multidimensional shapes; counts checked
                              against the bytes left, unique keys
-prefetch.go                  slices of pointers and of structs with strings larger than the last-level cache written
-                             with prefetches ahead (a plan per element type)
-prefetch_asm.go              prefetch8's declaration (amd64, arm64)
-prefetch_amd64.s             prefetch8: eight PREFETCHT0 (hand-written)
-prefetch_arm64.s             prefetch8: eight PRFM PLDL1KEEP (hand-written)
-prefetch_noasm.go            hasPrefetch false and a no-op prefetch8 elsewhere (other architectures, purego)
-cache_linux.go               the last-level cache's size from sysfs (prefetch.go's threshold)
-cache_darwin.go              the last-level cache's size from sysctl
-cache_other.go               no size elsewhere (prefetch.go assumes 32 MB)
 depth.go                     class bodies (Class, ReadClass, WriteClass), regions, deferral past 128, the 512 limit
 poly.go                      polymorphism: TypeID (FNV-1a), Subtype, TypeSet, ReadAny / WriteAny (allowed ids only)
 refs.go                      reference tracking (wire-format spec §7.9): reference headers, Track, Back
@@ -66,7 +57,6 @@ marshal.go                   Marshal / Unmarshal through the tag plans
 block_test.go                block sizes and ReadBlock / WriteBlock against element-by-element reads
 raw_test.go                  bool blocks, raw struct blocks and padded structs
 unique_test.go               duplicate keys: integer keys, large sets, primitive entries
-prefetch_test.go             prefetch plans, and long slices written with prefetches against a plain loop
 reader_test.go               the Reader and Writer against hand-written bytes
 race_test.go, norace_test.go  raceEnabled: allocation counts are checked without the race detector (sync.Pool drops)
 strings_test.go              strings against a plain char-by-char reference

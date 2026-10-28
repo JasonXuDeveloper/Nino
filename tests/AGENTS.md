@@ -19,7 +19,8 @@ Nino.RuntimeTests/           one program (net10.0; net472 with the netstandard2.
                              (FastPaths: a row per startup flag of CollectionViews, HashTables, ConcurrentTables,
                              SortedSetNodes, ObjectTypes, HashTrees, SortedTrees)
 Nino.AotTests/               a program over every kind of type, published trimmed and with NativeAOT (warnings are
-                             errors); prints a hash of everything written to compare runs
+                             errors); prints a hash of everything written to compare runs, and checks that the block
+                             shuffle keeps its instruction (pshufb) under NativeAOT
 Nino.AspNetCore.Tests/       Nino.AspNetCore: MVC and Minimal API round trips, errors, allocations, unloading
 Nino.Codegen.Tests/          nino-gen: the IR (ModelTests), targets and command line (TargetTests), the layout attribute
                              contract, and GeneratedFilesTests: the files committed under runtimes/ are what nino-gen

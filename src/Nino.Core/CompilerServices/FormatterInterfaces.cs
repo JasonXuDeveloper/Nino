@@ -148,45 +148,6 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// Generated formatters of non-generic classes: arrays and lists of their objects that take more than the
-    /// last-level cache (<see cref="PrefetchBytes"/> each) are written, and read into existing objects, by a loop that prefetches each object a few elements
-    /// ahead (<see cref="NinoPrefetched"/>; x64 on .NET 8+, elsewhere the same loop as shorter ones). The collection
-    /// loops test <c>default(TFormatter) is INinoPrefetchFormatter</c>, a JIT-time constant: for every other formatter
-    /// the test and the branch are not compiled. Through the formatter, whose type is exact even where the element type
-    /// is shared generic code, the loop is entered without a runtime lookup of its instantiation.
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public interface INinoPrefetchFormatter
-    {
-        /// <summary>
-        /// The bytes an element brings into the cache (a constant): its object, and a line of each object its
-        /// reference members point to. A collection whose elements fit in the last-level cache likely has them there,
-        /// where a prefetch per element costs more than it saves.
-        /// </summary>
-        int PrefetchBytes { get; }
-
-        /// <summary>
-        /// Writes the <paramref name="count"/> elements whose references start at <paramref name="first"/>. The writer
-        /// by value and returned, as the reader: by reference, its address taken would put the caller's writer in
-        /// memory for the caller's whole loop where the element body is inlined there.
-        /// </summary>
-        Writer WritePrefetched(ref nint first, int count, Writer writer);
-
-        /// <summary>
-        /// Reads into the <paramref name="count"/> elements whose references start at <paramref name="first"/>. The
-        /// reader by value and returned, as <see cref="WritePrefetched"/> takes the writer.
-        /// </summary>
-        Reader ReadPrefetched(ref nint first, int count, Reader reader);
-
-        /// <summary>
-        /// Prefetches the objects the reference members of <paramref name="value"/> (an element, or null) point to,
-        /// through <see cref="NinoPrefetched.At"/>, and returns the sum of what that returned. Called a few elements
-        /// after the element's own object was prefetched, when it is likely in the cache.
-        /// </summary>
-        int PrefetchMembers(object value);
-    }
-
-    /// <summary>
     /// Marker for struct formatters whose output is exactly the in-memory bytes of the value
     /// (<c>Unsafe.SizeOf&lt;T&gt;()</c> bytes). The top-level APIs copy such values directly.
     /// </summary>

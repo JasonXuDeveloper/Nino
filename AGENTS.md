@@ -162,6 +162,8 @@ reusing is written down before the task ends, in the same series of commits as t
   (`git fetch -q origin main && git merge-base --is-ancestor origin/main HEAD && git push -q origin HEAD:refs/heads/main`);
   the test branch only by merge. No force push, no pull request unless the owner asks, never trigger a release.
 - **Shell**: never bare `git stash`, `pkill -f` or `pgrep -f`; heavy commands (builds, tests, benchmarks, cargo) run
-  under `flock -o /tmp/nino-heavy.lock` when agents share the machine; scratch files stay out of the repository.
+  under `flock -o /tmp/nino-heavy.lock` when agents share the machine; scratch files stay out of the repository. In
+  cloud sessions `env` on the PATH is uv's `~/.local/bin/env` script, which runs nothing and prints nothing: write
+  `VAR=0 cmd` or `/usr/bin/env VAR=0 cmd`.
 - **Secrets** go only into GitHub secrets, never into chat, files or logs.
 - **The owner talks in Chinese**: answer in Chinese; everything committed stays English (docs: English and Chinese).

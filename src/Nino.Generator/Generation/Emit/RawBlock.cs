@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 
 namespace Nino.Generator.Generation.Emit;
 
@@ -55,27 +54,14 @@ internal sealed class RawBlock
         }
     }
 
-    private string Sum(int extra) => Size(_constant + extra, _symbolic);
-
-    /// <summary>
-    /// A size as C#: <paramref name="constant"/> bytes plus the <paramref name="symbolic"/> sizes, a size that occurs
-    /// n times written once, as <c>n * size</c> (offsets in a block of n structs of one type would otherwise repeat
-    /// it up to n times each).
-    /// </summary>
-    public static string Size(int constant, IReadOnlyList<string> symbolic)
+    private string Sum(int extra)
     {
-        if (symbolic.Count == 0)
+        int constant = _constant + extra;
+        if (_symbolic.Count == 0)
             return constant.ToString(CultureInfo.InvariantCulture);
-        var parts = new List<string>(symbolic.Count + 1);
+        var parts = new List<string>(_symbolic);
         if (constant != 0)
-            parts.Add(constant.ToString(CultureInfo.InvariantCulture));
-        // In the order each size first occurs.
-        foreach (var size in symbolic.GroupBy(static size => size, System.StringComparer.Ordinal))
-        {
-            int count = size.Count();
-            parts.Add(count == 1 ? size.Key : $"{count.ToString(CultureInfo.InvariantCulture)} * {size.Key}");
-        }
-
+            parts.Insert(0, constant.ToString(CultureInfo.InvariantCulture));
         return string.Join(" + ", parts);
     }
 

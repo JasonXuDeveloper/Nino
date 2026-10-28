@@ -29,13 +29,11 @@ namespace Nino.Core
             // Thresholds off first and on last: a thread between the two sees no kernels, or the new ones whole.
             NinoKernelHook.MinBlocks = int.MaxValue;
             NinoKernelHook.MinChars = int.MaxValue;
-            NinoKernelHook.Prefetches = false;
             Volatile.Write(ref NinoKernelHook.Kernels, kernels);
             if (kernels == null)
                 return;
             NinoKernelHook.MinBlocks = Math.Max(1, kernels.MinBlocks);
             NinoKernelHook.MinChars = Math.Max(16, kernels.MinChars);
-            NinoKernelHook.Prefetches = kernels.Prefetches;
         }
 
         /// <summary>The fewest values of a collection <see cref="Permute"/> is called for.</summary>
@@ -62,22 +60,6 @@ namespace Nino.Core
 
         /// <summary>Widens the <paramref name="length"/> Latin-1 bytes at <paramref name="source"/> to UTF-16 chars at <paramref name="destination"/>.</summary>
         public abstract void Widen(byte* source, char* destination, int length);
-
-        /// <summary>
-        /// Whether <see cref="Prefetch"/> prefetches: arrays and lists of a generated class's objects that take more
-        /// than the last-level cache then call it for each run of 16 elements, 16 to 31 elements ahead of the one
-        /// written or read.
-        /// </summary>
-        public virtual bool Prefetches => false;
-
-        /// <summary>
-        /// Prefetches the objects the <paramref name="count"/> references at <paramref name="references"/> point to,
-        /// skipping null ones (<see cref="Prefetches"/>). A prefetch is a hint: it must not fault on any address, as
-        /// the GC may move an object after its reference was read. Nothing by default.
-        /// </summary>
-        public virtual void Prefetch(IntPtr* references, int count)
-        {
-        }
 
         /// <summary>The bytes <see cref="Permute"/> must write, one at a time.</summary>
         public static void PermuteScalar(byte* source, int sourceStride, byte* destination, int destinationStride,
@@ -119,9 +101,6 @@ namespace Nino.Core
 
         // Tested first on each path: one load and a compare, failing without kernels.
         internal static int MinBlocks = int.MaxValue, MinChars = int.MaxValue;
-
-        // Whether the kernels prefetch (NinoKernels.Prefetches; the netstandard builds' NinoPrefetch).
-        internal static bool Prefetches;
 
         /// <summary>
         /// <see cref="NinoKernels.Permute"/> of the <paramref name="count"/> values at <paramref name="source"/>; false

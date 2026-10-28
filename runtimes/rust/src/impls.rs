@@ -145,6 +145,52 @@ where
     Ok(())
 }
 
+/// Whether this target reads a map's fixed-size entries as a slice each, the key and value decoded from it and
+/// inserted through the entry API: x86_64, where that measured faster, and 32-bit x86 (the same code). On Arm64 it was
+/// 3–4% slower (Neoverse-N2), the entry held in a vector register across the hash call.
+const ENTRY_SLICES: bool = cfg!(any(target_arch = "x86", target_arch = "x86_64"));
+
+/// Whether a map's entries are read with one bounds check each ([`read_entries_fixed`]): keys and values of a fixed
+/// size that is also their least, on x86 ([`ENTRY_SLICES`]) and, elsewhere, when an entry is 8 bytes (two `i32`s, an
+/// `i64` and a `u32` and `u16`, ...), read as one array. Other entries off x86 keep the generic loop, which reads the
+/// same entries in the same order.
+const fn entries_fixed_read<K: NinoRead, V: NinoRead>() -> bool {
+    (ENTRY_SLICES || K::FIXED_SIZE.saturating_add(V::FIXED_SIZE) == 8)
+        && K::FIXED_SIZE != 0
+        && V::FIXED_SIZE != 0
+        && K::MIN_SIZE == K::FIXED_SIZE
+        && V::MIN_SIZE == V::FIXED_SIZE
+}
+
+/// Reads `count` entries of fixed-size keys and values: one bounds check for each entry's bytes, its key and value
+/// decoded from them and handed to `insert`, in order, so a cut entry, a bad value or a repeated key fails at the same
+/// entry and with the same error as reading them one at a time. Off x86 an entry is 8 bytes, taken as one array: the
+/// key and value stay in general-purpose registers (Neoverse-N2: 0.8% faster than the generic loop).
+#[inline]
+fn read_entries_fixed<K: NinoRead, V: NinoRead>(
+    r: &mut Reader<'_>,
+    count: usize,
+    mut insert: impl FnMut(K, V) -> Result<()>,
+) -> Result<()> {
+    if !ENTRY_SLICES {
+        for _ in 0..count {
+            let entry = r.array::<8>()?;
+            // Never `None`: `K::FIXED_SIZE + V::FIXED_SIZE` is 8 here ([`entries_fixed_read`]).
+            let Some((k, v)) = entry.split_at_checked(K::FIXED_SIZE) else { break };
+            insert(K::decode_fixed(k)?, V::decode_fixed(v)?)?;
+        }
+        return Ok(());
+    }
+    let size = K::FIXED_SIZE.saturating_add(V::FIXED_SIZE);
+    for _ in 0..count {
+        let entry = r.take(size)?;
+        // Never `None`: an entry is `K::FIXED_SIZE + V::FIXED_SIZE` bytes.
+        let Some((k, v)) = entry.split_at_checked(K::FIXED_SIZE) else { break };
+        insert(K::decode_fixed(k)?, V::decode_fixed(v)?)?;
+    }
+    Ok(())
+}
+
 /// A [`Step::Dyn`] from a closure.
 pub fn dyn_step<F>(f: F) -> Step
 where
@@ -661,6 +707,25 @@ where
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = HashMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
+        if entries_fixed_read::<K, V>() {
+            if ENTRY_SLICES {
+                read_entries_fixed(r, count, |key, value| match map.entry(key) {
+                    hash_map::Entry::Occupied(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+                    hash_map::Entry::Vacant(e) => {
+                        e.insert(value);
+                        Ok(())
+                    }
+                })?;
+            } else {
+                // A plain insert, as measured on Neoverse-N2. The map is dropped on the error, so a repeated key's
+                // replaced value is never seen.
+                read_entries_fixed(r, count, |key, value| match map.insert(key, value) {
+                    Some(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+                    None => Ok(()),
+                })?;
+            }
+            return Ok(Some(map));
+        }
         for _ in 0..count {
             let key = read_key::<K>(r)?;
             let value = if V::MAY_DEFER {
@@ -701,6 +766,13 @@ where
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = BTreeMap::new();
+        if entries_fixed_read::<K, V>() {
+            read_entries_fixed(r, count, |key, value| match map.insert(key, value) {
+                Some(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+                None => Ok(()),
+            })?;
+            return Ok(Some(map));
+        }
         for _ in 0..count {
             let key = read_key::<K>(r)?;
             let value = if V::MAY_DEFER {

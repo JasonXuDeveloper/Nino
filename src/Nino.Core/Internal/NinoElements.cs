@@ -262,22 +262,6 @@ namespace Nino.Core.Internal
 
             // By reference, as in WriteOnLocal.
             ref T item = ref MemoryMarshal.GetReference(values);
-            // Long collections of a generated class's objects: through a loop that prefetches them, out of line (see
-            // NinoPrefetch). For other elements the test is not compiled (netstandard: one load and a compare): the
-            // type test in this method's own IL, which the JIT folds while importing it, so that the branch is never
-            // imported. Through Takes alone it was, and its use of the writer kept the writer of other collections in
-            // memory (ImmutableSortedSet<int>: 21 stack accesses to 40).
-#if NET8_0_OR_GREATER
-            if (default(TFormatter) is INinoPrefetchFormatter && NinoPrefetch.Takes<TFormatter>(values.Length))
-#else
-            if (NinoPrefetch.Takes<TFormatter>(values.Length))
-#endif
-            {
-                writer = NinoPrefetch.Formatter<TFormatter>().WritePrefetched(ref Unsafe.As<T, nint>(ref item),
-                    values.Length, writer);
-                return;
-            }
-
             for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
                 default(TFormatter).Serialize(item, ref writer);
         }
@@ -408,17 +392,6 @@ namespace Nino.Core.Internal
             // The reader a local, its cursor in registers, where through a reference every element would store it and
             // load it back (List<(int, long)>: 2x faster).
             ref T item = ref MemoryMarshal.GetReference(values); // by reference, see WriteOnLocal
-            // The existing objects of a long collection prefetched, as in Write.
-#if NET8_0_OR_GREATER
-            if (default(TFormatter) is INinoPrefetchFormatter && NinoPrefetch.Takes<TFormatter>(values.Length))
-#else
-            if (NinoPrefetch.Takes<TFormatter>(values.Length))
-#endif
-            {
-                return NinoPrefetch.Formatter<TFormatter>().ReadPrefetched(ref Unsafe.As<T, nint>(ref item),
-                    values.Length, reader);
-            }
-
             for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
                 default(TFormatter).Deserialize(ref item, ref reader);
             return reader;

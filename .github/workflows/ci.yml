@@ -536,7 +536,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        classes: [ SimpleTest PooledTest, CommonTypesTest FixedSizeTest GenericPolymorphicTest, PolymorphicTest VersionTolerantTest BclTypesTest, CollectionsTest ReferenceTest PooledGraphTest ScatteredTest ]
+        classes: [ SimpleTest PooledTest, CommonTypesTest FixedSizeTest GenericPolymorphicTest, PolymorphicTest VersionTolerantTest BclTypesTest, CollectionsTest ReferenceTest PooledGraphTest ]
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
