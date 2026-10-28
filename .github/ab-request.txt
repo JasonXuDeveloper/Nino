@@ -1,27 +1,45 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+# phase10/rust round 11 (aligned build): 6bbd139 (maps read as one block, one probe an entry; the bench-input change dropped)
+# against 781d955 (blocks) and main 1622ddb (compare), and 83950aa, with floors.
+rust:blocks 781d955 6bbd139 blocks/{1}
+rust:blocks 781d955 6bbd139 ^blocks/{1}
+rust:blocks 781d955 6bbd139 blocks/{1}.*
+rust:blocks 83950aa 6bbd139 blocks/{1}
+rust:blocks 83950aa 6bbd139 ^blocks/{1}
+rust:blocks 6bbd139 6bbd139 blocks/{1}
+rust:blocks 6bbd139 6bbd139 ^blocks/{1}
+rust:blocks 781d955 781d955 blocks/{1}
+rust:blocks 781d955 781d955 ^blocks/{1}
+rust 1622ddb 6bbd139 /{1}nino$
+rust 1622ddb 6bbd139 .*/{1}nino$
+rust 1622ddb 6bbd139 /{1}(nino)$
+rust 6bbd139 6bbd139 /{1}nino$
+rust 6bbd139 6bbd139 .*/{1}nino$
+rust 1622ddb 1622ddb /{1}nino$
+rust 1622ddb 1622ddb .*/{1}nino$
 # phase10/rust round 10 (aligned build): the bench reads each input from a buffer of its own (ad4af02 on 717f4bb,
 # 9b50221 on 83950aa): the map read against its floors, and 9b50221 against main (blocks: 781d955) on the full suites.
-rust:blocks ad4af02 9b50221 blocks/read/map-i32-i32$
-rust:blocks ad4af02 9b50221 ^blocks/read/map-i32-i32$
-rust:blocks ad4af02 9b50221 blocks/read/map-i32-i32
-rust:blocks ad4af02 9b50221 blocks/read/(map-i32-i32)$
-rust:blocks ad4af02 9b50221 ^blocks/read/map-i32-i32
-rust:blocks ad4af02 ad4af02 blocks/read/map-i32-i32$
-rust:blocks ad4af02 ad4af02 ^blocks/read/map-i32-i32$
-rust:blocks ad4af02 ad4af02 blocks/read/map-i32-i32
-rust:blocks ad4af02 ad4af02 blocks/read/(map-i32-i32)$
-rust:blocks 9b50221 9b50221 blocks/read/map-i32-i32$
-rust:blocks 9b50221 9b50221 ^blocks/read/map-i32-i32$
-rust:blocks 9b50221 9b50221 blocks/read/map-i32-i32
-rust:blocks 9b50221 9b50221 blocks/read/(map-i32-i32)$
-rust:blocks 781d955 9b50221 blocks/
-rust:blocks 781d955 9b50221 ^blocks/
-rust:blocks 9b50221 9b50221 blocks/
-rust:blocks 781d955 781d955 blocks/
-rust 1622ddb 9b50221 /nino$
-rust 1622ddb 9b50221 .*/nino$
-rust 9b50221 9b50221 /nino$
-rust 1622ddb 1622ddb /nino$
+# done (run 40609180216): rust:blocks ad4af02 9b50221 blocks/read/map-i32-i32$
+# done (run 40609180216): rust:blocks ad4af02 9b50221 ^blocks/read/map-i32-i32$
+# done (run 40609180216): rust:blocks ad4af02 9b50221 blocks/read/map-i32-i32
+# done (run 40609180216): rust:blocks ad4af02 9b50221 blocks/read/(map-i32-i32)$
+# done (run 40609180216): rust:blocks ad4af02 9b50221 ^blocks/read/map-i32-i32
+# done (run 40609180216): rust:blocks ad4af02 ad4af02 blocks/read/map-i32-i32$
+# done (run 40609180216): rust:blocks ad4af02 ad4af02 ^blocks/read/map-i32-i32$
+# done (run 40609180216): rust:blocks ad4af02 ad4af02 blocks/read/map-i32-i32
+# done (run 40609180216): rust:blocks ad4af02 ad4af02 blocks/read/(map-i32-i32)$
+# done (run 40609180216): rust:blocks 9b50221 9b50221 blocks/read/map-i32-i32$
+# done (run 40609180216): rust:blocks 9b50221 9b50221 ^blocks/read/map-i32-i32$
+# done (run 40609180216): rust:blocks 9b50221 9b50221 blocks/read/map-i32-i32
+# done (run 40609180216): rust:blocks 9b50221 9b50221 blocks/read/(map-i32-i32)$
+# done (run 40609180216): rust:blocks 781d955 9b50221 blocks/
+# done (run 40609180216): rust:blocks 781d955 9b50221 ^blocks/
+# done (run 40609180216): rust:blocks 9b50221 9b50221 blocks/
+# done (run 40609180216): rust:blocks 781d955 781d955 blocks/
+# done (run 40609180216): rust 1622ddb 9b50221 /nino$
+# done (run 40609180216): rust 1622ddb 9b50221 .*/nino$
+# done (run 40609180216): rust 9b50221 9b50221 /nino$
+# done (run 40609180216): rust 1622ddb 1622ddb /nino$
 # phase10/rust round 9 (aligned build): the cells round 8 left near or beyond their floors, with more samples a CPU.
 # done (run 40605364090): rust:blocks 717f4bb 83950aa blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
 # done (run 40605364090): rust:blocks 717f4bb 83950aa ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
