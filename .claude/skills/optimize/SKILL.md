@@ -15,13 +15,20 @@ here, as a bullet: the rule, why, the evidence.
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) can slow cases it does not
 touch: everything a top-level call reaches is inlined into one method, under one inlining budget. Before committing
 one, run `python3 benchmarks/asm.py compare origin/main` (about two minutes, see benchmarks/README.md) and explain or
-fix every method it lists.
+fix every method it lists. To prove the code unchanged, dump both sides with `DOTNET_TieredCompilation=0` (the
+variable around `asm.py dump [--ref REF] --runs 1 --asm FILE`) and compare the listings per method: FullOpts code
+has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in code a change did not reach.
 
 ## What has gone wrong before
 
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlock.Size`, ...) is compiled and inlined even
   for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops, element by
-  element loops, string allocation, recycling) out of line (`NoInlining`), with only the common path inline.
+  element loops, string allocation, recycling) out of line (`NoInlining`), with only the common path inline. This
+  holds for a test that folds away too: callers' budgets count an inlinee's whole IL, so a branch for one platform
+  goes in the out-of-line part, never in the inline one. Evidence: `Is64Bit || IsX86 || UnalignedWide32` written in
+  `NinoUnsafe.Copy` changed the x64 code of an ImmutableSortedDictionary write (`NinoBlock.WriteAll` inlined, `Copy`
+  left a call) in an `asm.py` dump with `DOTNET_TieredCompilation=0`; moved into `CopyOver64`, all 990 methods were
+  identical to main (`CopyBlock` keeps Arm64's branch out of `Copy` for the same reason).
 - Never pass `ref reader` or `ref writer` to a method that is not inlined, even in a dead branch: the address keeps
   the struct in memory for the whole method. Pass it by value and return it (`reader = ReadEach(values, reader)`).
   An instance method of `Reader` or `Writer` left out of line passes `this` the same way: `Reader.ReadString(current)`
@@ -33,6 +40,14 @@ fix every method it lists.
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
   twice as long as SSSE3's. Look for such calls in the Tier1 listing of every ISA a path takes (`--asm`, with
   `DOTNET_EnableAVX512=0` and `DOTNET_EnableAVX2=0` too).
+- Write a platform test that must fold as `A || B || ...` at each site, each operand a branch-free property (a
+  constant or one `static readonly` field), never as one property whose body has `||`: the inliner gives a property
+  with several returns a temporary, so the branch folds only after struct promotion was decided. Evidence: with
+  `NinoUnsafe`'s 32-bit gate as one property (`Is64Bit || X86Base.IsSupported || WideAccess.Unaligned`), x64 read a
+  24-byte struct with three `vmovsd` pairs instead of `vmovdqu` + `mov` and a 16-byte one with six `mov`s instead of
+  two `vmovups`; written `Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32` at each site, the x64
+  listing was identical to main. A `|` of a constant and a field does not fold either: R2R x86 kept the field load
+  and its class-init helper call.
 - A JIT-time check made of several helper calls is one `static readonly` field instead (`NinoElements.Traits`,
   `NinoBlock<T, TFormatter>.Size`): one load, nothing to inline.
 - Do not inline a generic method that needs a runtime lookup into shared code on a hot path.
@@ -94,11 +109,13 @@ fix every method it lists.
 
 - x64: `--asm` of `benchmarks/asm.py`, once per ISA (`DOTNET_EnableAVX512=0`, `DOTNET_EnableAVX2=0`).
 - Arm64 from an x64 machine: `benchmarks/cross-jit.sh` installs the other architecture's JIT, and
-  `DISASM=1 benchmarks/members/run.sh` writes both listings for the member cases; or build for `linux-arm64` and run
-  under `qemu-aarch64-static` with `DOTNET_TieredCompilation=0 DOTNET_JitDisasm='<method>' DOTNET_JitStdOutFile=<file>`
-  (the code paths only a type outside the benchmark suite takes, such as `(byte, int)` for the 64-byte permutes, need
-  a small program of their own). A clean loop is loads (`ldp`), lookups, stores (`stp`) and the cursor adds;
-  `stp`/`ldp` to `[fp, ...]`, `mul` or `mov v..` in it are the signs above.
+  `DISASM=1 benchmarks/members/run.sh` writes both listings for the member cases (that JIT only lists: with
+  `DOTNET_AltJit='*'` around `asm.py`, the build and the benchmark died with SIGSEGV); or build for `linux-arm64` and
+  run under `qemu-aarch64-static` with
+  `DOTNET_TieredCompilation=0 DOTNET_JitDisasm='<method>' DOTNET_JitStdOutFile=<file>` (the code paths only a type
+  outside the benchmark suite takes, such as `(byte, int)` for the 64-byte permutes, need a small program of their own).
+  A clean loop is loads (`ldp`), lookups, stores (`stp`) and the cursor adds; `stp`/`ldp` to `[fp, ...]`, `mul` or
+  `mov v..` in it are the signs above.
 - The signs in any listing: `Reader:Skip`, `Reader:CopyTo` or `NinoUnsafe:Read` as calls (the budget ran out);
   `NinoReadContext:Return` or `NinoWriteContext:Return` calls and `[rbp-0x..]` loads and stores of the cursor (the
   reader or writer was not kept in registers).
