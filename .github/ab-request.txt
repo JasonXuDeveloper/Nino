@@ -1,46 +1,46 @@
 # rust prefetch, simplified (two pushes of 20 lines: a matrix holds 256 jobs) (4fad702: threshold tested in write_many, no wrapper) against a8b72d0, with the null
 # change 0635898 in the same run as the layout-noise yardstick. Land if records-1000 stays within the null
 # change's spread on every CPU and scattered-1m is faster beyond the floor on the high-n CPUs.
-rust a8b72d0 4fad702 r{1,1}ecords-1000/serialize/nino$
-rust a8b72d0 4fad702 re{1,1}cords-1000/serialize/nino$
-rust a8b72d0 4fad702 rec{1,1}ords-1000/serialize/nino$
-rust a8b72d0 4fad702 reco{1,1}rds-1000/serialize/nino$
-rust a8b72d0 4fad702 recor{1,1}ds-1000/serialize/nino$
-rust a8b72d0 4fad702 record{1,1}s-1000/serialize/nino$
-rust a8b72d0 4fad702 records{1,1}-1000/serialize/nino$
-rust a8b72d0 4fad702 records-1{1,1}000/serialize/nino$
-rust a8b72d0 4fad702 records-10{1,1}00/serialize/nino$
-rust a8b72d0 4fad702 records-100{1,1}0/serialize/nino$
-rust a8b72d0 4fad702 records-1000{1,1}/serialize/nino$
-rust a8b72d0 4fad702 records-1000/s{1,1}erialize/nino$
-rust a8b72d0 4fad702 records-1000/se{1,1}rialize/nino$
-rust a8b72d0 4fad702 records-1000/ser{1,1}ialize/nino$
-rust:text a8b72d0 4fad702 w{1,1}rite/scattered-1m$
-rust:text a8b72d0 4fad702 wr{1,1}ite/scattered-1m$
-rust:text a8b72d0 4fad702 wri{1,1}te/scattered-1m$
-rust:text a8b72d0 4fad702 writ{1,1}e/scattered-1m$
-rust:text a8b72d0 4fad702 write{1,1}/scattered-1m$
-rust:text a8b72d0 4fad702 write/s{1,1}cattered-1m$
-rust a8b72d0 0635898 r{1,1}ecords-1000/serialize/nino$
-rust a8b72d0 0635898 re{1,1}cords-1000/serialize/nino$
-rust a8b72d0 0635898 rec{1,1}ords-1000/serialize/nino$
-rust a8b72d0 0635898 reco{1,1}rds-1000/serialize/nino$
-rust a8b72d0 0635898 recor{1,1}ds-1000/serialize/nino$
-rust a8b72d0 0635898 record{1,1}s-1000/serialize/nino$
-rust a8b72d0 0635898 records{1,1}-1000/serialize/nino$
-rust a8b72d0 0635898 records-1{1,1}000/serialize/nino$
-rust a8b72d0 0635898 records-10{1,1}00/serialize/nino$
-rust a8b72d0 0635898 records-100{1,1}0/serialize/nino$
-rust a8b72d0 0635898 records-1000{1,1}/serialize/nino$
-rust a8b72d0 0635898 records-1000/s{1,1}erialize/nino$
-rust a8b72d0 0635898 records-1000/se{1,1}rialize/nino$
-rust a8b72d0 0635898 records-1000/ser{1,1}ialize/nino$
-rust:text a8b72d0 0635898 w{1,1}rite/scattered-1m$
-rust:text a8b72d0 0635898 wr{1,1}ite/scattered-1m$
-rust:text a8b72d0 0635898 wri{1,1}te/scattered-1m$
-rust:text a8b72d0 0635898 writ{1,1}e/scattered-1m$
-rust:text a8b72d0 0635898 write{1,1}/scattered-1m$
-rust:text a8b72d0 0635898 write/s{1,1}cattered-1m$
+# done: rust a8b72d0 4fad702 r{1,1}ecords-1000/serialize/nino$
+# done: rust a8b72d0 4fad702 re{1,1}cords-1000/serialize/nino$
+# done: rust a8b72d0 4fad702 rec{1,1}ords-1000/serialize/nino$
+# done: rust a8b72d0 4fad702 reco{1,1}rds-1000/serialize/nino$
+# done: rust a8b72d0 4fad702 recor{1,1}ds-1000/serialize/nino$
+# done: rust a8b72d0 4fad702 record{1,1}s-1000/serialize/nino$
+# done: rust a8b72d0 4fad702 records{1,1}-1000/serialize/nino$
+# done: rust a8b72d0 4fad702 records-1{1,1}000/serialize/nino$
+# done: rust a8b72d0 4fad702 records-10{1,1}00/serialize/nino$
+# done: rust a8b72d0 4fad702 records-100{1,1}0/serialize/nino$
+# done: rust a8b72d0 4fad702 records-1000{1,1}/serialize/nino$
+# done: rust a8b72d0 4fad702 records-1000/s{1,1}erialize/nino$
+# done: rust a8b72d0 4fad702 records-1000/se{1,1}rialize/nino$
+# done: rust a8b72d0 4fad702 records-1000/ser{1,1}ialize/nino$
+# done: rust:text a8b72d0 4fad702 w{1,1}rite/scattered-1m$
+# done: rust:text a8b72d0 4fad702 wr{1,1}ite/scattered-1m$
+# done: rust:text a8b72d0 4fad702 wri{1,1}te/scattered-1m$
+# done: rust:text a8b72d0 4fad702 writ{1,1}e/scattered-1m$
+# done: rust:text a8b72d0 4fad702 write{1,1}/scattered-1m$
+# done: rust:text a8b72d0 4fad702 write/s{1,1}cattered-1m$
+# done: rust a8b72d0 0635898 r{1,1}ecords-1000/serialize/nino$
+# done: rust a8b72d0 0635898 re{1,1}cords-1000/serialize/nino$
+# done: rust a8b72d0 0635898 rec{1,1}ords-1000/serialize/nino$
+# done: rust a8b72d0 0635898 reco{1,1}rds-1000/serialize/nino$
+# done: rust a8b72d0 0635898 recor{1,1}ds-1000/serialize/nino$
+# done: rust a8b72d0 0635898 record{1,1}s-1000/serialize/nino$
+# done: rust a8b72d0 0635898 records{1,1}-1000/serialize/nino$
+# done: rust a8b72d0 0635898 records-1{1,1}000/serialize/nino$
+# done: rust a8b72d0 0635898 records-10{1,1}00/serialize/nino$
+# done: rust a8b72d0 0635898 records-100{1,1}0/serialize/nino$
+# done: rust a8b72d0 0635898 records-1000{1,1}/serialize/nino$
+# done: rust a8b72d0 0635898 records-1000/s{1,1}erialize/nino$
+# done: rust a8b72d0 0635898 records-1000/se{1,1}rialize/nino$
+# done: rust a8b72d0 0635898 records-1000/ser{1,1}ialize/nino$
+# done: rust:text a8b72d0 0635898 w{1,1}rite/scattered-1m$
+# done: rust:text a8b72d0 0635898 wr{1,1}ite/scattered-1m$
+# done: rust:text a8b72d0 0635898 wri{1,1}te/scattered-1m$
+# done: rust:text a8b72d0 0635898 writ{1,1}e/scattered-1m$
+# done: rust:text a8b72d0 0635898 write{1,1}/scattered-1m$
+# done: rust:text a8b72d0 0635898 write/s{1,1}cattered-1m$
 # rust null change (aligned build): 0635898 = a8b72d0 plus one small bench case, to size the layout noise
 # between two binaries on records-1000 (prefetch and its placebo were 1.2 to 2.6% slower there).
 # done: rust a8b72d0 0635898 r{1}ecords-1000/serialize/nino$
