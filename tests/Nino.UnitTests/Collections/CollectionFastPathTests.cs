@@ -398,6 +398,7 @@ public class CollectionFastPathTests
         ReadsAtEveryAlignment(i => ((short)i, (double)i / 3));
         // 20 bytes in memory: no group of whole vectors fits in four, so groups that end inside a vector.
         ReadsAtEveryAlignment(i => ((byte)i, i, i * 3, i * 5, i * 7));
+        ReadsAtEveryAlignment(i => (i * 1f, i * 2f, (i, (short)i), i % 2 == 0));
     }
 
     private static void ReadsAtEveryAlignment<T>(Func<int, T> make) where T : unmanaged
@@ -442,6 +443,9 @@ public class CollectionFastPathTests
         WritesAsEachValue(i => (i, (short)i, i * 9L));
         WritesAsEachValue(i => ((double)i, i, (byte)i));
         WritesAsEachValue(i => ((byte)i, i, i * 3, i * 5, i * 7));
+        // Padded values over 8 bytes with a bool (24 in memory, 15 on the wire): AVX-512 VBMI's pairs of vectors and
+        // Arm64's partial lane groups.
+        WritesAsEachValue(i => (i * 1f, i * 2f, (i, (short)i), i % 2 == 0));
     }
 
     private static void WritesAsEachValue<T>(Func<int, T> make) where T : unmanaged
