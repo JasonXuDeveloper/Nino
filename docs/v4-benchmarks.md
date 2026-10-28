@@ -190,15 +190,16 @@ the result objects.
   A raw nullable reads its has-value byte and its value under one bounds check, and multi-dimensional arrays take
   the block paths of flat ones.
 * **Copies sized to the CPU.** Up to 64 bytes (on 64-bit runtimes) or 128 bytes (with 32-byte vectors) are copied
-  inline, as overlapping loads and stores of the widest vector that fits; up to 32 KB (64-byte vectors) or 16 KB
-  (32-byte vectors, from 256 bytes) as vectors with aligned stores; on Arm64 up to 64 KB as pairs of 16-byte loads
-  and stores (`ldp`/`stp`), 64 bytes a step from an aligned source address, which beats the C library's `memcpy`
-  there (with only 16-byte vectors on x64 with SSE and WebAssembly, `memmove` from 65 bytes); beyond, with `memmove`, which is several times slower than
-  the vector loop at these sizes on some CPUs (GitHub's EPYC 7763 runners). Reads of 6 KB or more into a new array use
-  `memmove`, whose `rep movsb` writes fresh cache lines without reading them first, except on AMD CPUs, where it is
-  slower than vector stores there too (1,000 `KeyValuePair<int, int>` read in 418 ns instead of 465 ns on GitHub's
-  EPYC 7763 runners); a list of up to 64 bytes read in place calls `memmove` directly, cheaper than the out-of-line
-  copy for so few bytes.
+  inline, as overlapping loads and stores of the widest vector that fits (up to 64 bytes the same way in one call on
+  32-bit x86, WebAssembly and .NET on Arm32, where unaligned 8-byte accesses cannot fault); up to 32 KB (64-byte
+  vectors) or 16 KB (32-byte vectors, from 256 bytes) as vectors with aligned stores; on Arm64 up to 64 KB as pairs of
+  16-byte loads and stores (`ldp`/`stp`), 64 bytes a step from an aligned source address, which beats the C library's
+  `memcpy` there (with only 16-byte vectors on x64 with SSE and WebAssembly, `memmove` from 65 bytes); beyond, with
+  `memmove`, which is several times slower than the vector loop at these sizes on some CPUs (GitHub's EPYC 7763
+  runners). Reads of 6 KB or more into a new array use `memmove`, whose `rep movsb` writes fresh cache lines without
+  reading them first, except on AMD CPUs, where it is slower than vector stores there too (1,000
+  `KeyValuePair<int, int>` read in 418 ns instead of 465 ns on GitHub's EPYC 7763 runners); a list of up to 64 bytes
+  read in place calls `memmove` directly, cheaper than the out-of-line copy for so few bytes.
 * **Zeroing only where it pays.** A new array that one block copy fills is allocated uninitialized from 6 KB: below,
   the runtime's uninitialized allocation costs more than zeroing on GitHub's x64 and Arm64 runners.
   One filled by vector shuffles or value by value (padded tuples, `DateTimeOffset`s) is allocated zeroed: the

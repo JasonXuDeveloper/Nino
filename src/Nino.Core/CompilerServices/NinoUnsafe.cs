@@ -45,6 +45,70 @@ namespace Nino.Core.CompilerServices
             get => IntPtr.Size == 8;
         }
 
+        /// <summary>
+        /// In a 32-bit process, whether a value of 8 bytes or more is loaded and stored at any address in one access
+        /// (<c>Unsafe.ReadUnaligned</c> / <c>WriteUnaligned</c>), as every 64-bit process does in
+        /// <see cref="Read{T}(ref byte)"/>, <see cref="Write{T}(ref byte, T)"/> and the sizes up to 64 of
+        /// <see cref="Copy"/>: x86 (<see cref="IsX86"/>, a constant) and the processes <see cref="WideAccess"/> names.
+        /// Elsewhere such values are copied byte by byte, and <see cref="Copy"/> calls Memmove. Each test is written
+        /// <c>Is64Bit || IsX86 || ... || UnalignedWide32</c>: a 64-bit process folds the first and an x86 one the
+        /// second before the rest is imported, so their code stays as it was (a property holding the whole test, with
+        /// a branch, was inlined through a temporary and changed how x64 copied structs); the probe folds once its
+        /// class is initialized (Tier1).
+        /// </summary>
+        private static bool UnalignedWide32
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => WideAccess.Unaligned;
+        }
+
+        /// <summary>
+        /// Tested after <see cref="Is64Bit"/>: whether a 32-bit process runs on x86 (the .NET 8 and later builds; a
+        /// constant to the JIT, without a branch, so that it folds where it is inlined).
+        /// </summary>
+        private static bool IsX86
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => X86Base.IsSupported;
+#else
+            get => false;
+#endif
+        }
+
+        /// <summary>
+        /// The 32-bit processes where an unaligned access of 8 bytes or more cannot fault: .NET Framework and .NET on
+        /// x86 and .NET on WebAssembly, which never fault on alignment, and .NET (CoreCLR) on 32-bit Arm, whose JIT
+        /// compiles an unaligned load or store of 8 bytes or more to ldr/str of 4 bytes each (and vmov for a double),
+        /// which take any address. Mono (Unity's, and .NET's on Android) and IL2CPP on 32-bit Arm may emit
+        /// ldrd/strd/vldr/vstr, which fault on an address that is not a multiple of 4: they keep the byte-wise copies,
+        /// as does every runtime not named here (Unity, Mono and IL2CPP on any 32-bit CPU included). Its own class, so
+        /// that NinoUnsafe gets no static constructor.
+        /// </summary>
+        private static class WideAccess
+        {
+            internal static readonly bool Unaligned = !Is64Bit && Probe();
+
+            private static bool Probe()
+            {
+                var architecture = RuntimeInformation.ProcessArchitecture;
+#if NET8_0_OR_GREATER
+                if (architecture == Architecture.Wasm)
+                    return true;
+#endif
+                if (architecture != Architecture.X86 && architecture != Architecture.Arm)
+                    return false;
+                // .NET Framework, .NET Core and .NET 5+ start with ".NET"; Mono's and IL2CPP's class libraries say
+                // "Mono ...". .NET's Mono (Android, .NET 6 and later) says ".NET" too, and is told by its types.
+                string framework = RuntimeInformation.FrameworkDescription;
+                if (!framework.StartsWith(".NET", StringComparison.Ordinal) ||
+                    Type.GetType("Mono.RuntimeStructs") != null || Type.GetType("Mono.Runtime") != null)
+                    return false;
+                return architecture == Architecture.X86 ||
+                       !framework.StartsWith(".NET Framework", StringComparison.Ordinal);
+            }
+        }
+
         /// <summary>Size of <typeparamref name="T"/> in bytes. Constant-folded by the JIT.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int SizeOf<T>() => Unsafe.SizeOf<T>();
@@ -56,10 +120,10 @@ namespace Nino.Core.CompilerServices
         public static void Write<T>(ref byte destination, T value)
         {
             // 32-bit ARM faults on unaligned 8-byte (LDRD/STRD/VSTR) accesses, which some runtimes emit for
-            // unaligned stores of 8+ byte values. A byte-wise block copy is always safe there. It takes the value's
-            // address, so it is in another method: an address taken here, even on a branch the JIT folds away,
-            // would make every inlined caller pass the value through a stack temporary.
-            if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
+            // unaligned stores of 8+ byte values (UnalignedWide32). A byte-wise block copy is always safe there. It
+            // takes the value's address, so it is in another method: an address taken here, even on a branch the JIT
+            // folds away, would make every inlined caller pass the value through a stack temporary.
+            if (Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32)
                 Unsafe.WriteUnaligned(ref destination, value);
             else
                 WriteBytes(ref destination, value);
@@ -78,7 +142,7 @@ namespace Nino.Core.CompilerServices
             // a computed reference handed to another inlined method becomes a temporary when the offset is not an
             // IL constant (offset + NinoUnsafe.SizeOf<S>()), and the store then no longer folds the offset into its
             // address (an extra lea/add per member). Same in WriteIn, WriteValue(In) and Read below.
-            if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
+            if (Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32)
                 Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, offset), value);
             else
                 WriteBytes(ref Unsafe.Add(ref destination, offset), value);
@@ -104,7 +168,7 @@ namespace Nino.Core.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteIn<T>(ref byte destination, in T value)
         {
-            if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
+            if (Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32)
                 Unsafe.WriteUnaligned(ref destination, value);
             else
                 Unsafe.CopyBlockUnaligned(ref destination, ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)),
@@ -115,7 +179,7 @@ namespace Nino.Core.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteIn<T>(ref byte destination, int offset, in T value)
         {
-            if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
+            if (Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32)
                 Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, offset), value);
             else
                 Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref destination, offset),
@@ -137,11 +201,14 @@ namespace Nino.Core.CompilerServices
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Read<T>(ref byte source) =>
-            Is64Bit || Unsafe.SizeOf<T>() <= 4 ? Unsafe.ReadUnaligned<T>(ref source) : ReadBytes<T>(ref source);
+            Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32
+                ? Unsafe.ReadUnaligned<T>(ref source)
+                : ReadBytes<T>(ref source);
 
         // Not AggressiveInlining, unlike WriteBytes: the 32-bit branch of Read is imported before it folds away, and
         // this body inlined there takes inlining budget from large methods (with it, on x64, a generated __WriteBody
-        // made 9 stack accesses instead of 3, and a generated __ReadTop 83 instead of 69). Only 32-bit runtimes call it.
+        // made 9 stack accesses instead of 3, and a generated __ReadTop 83 instead of 69). Only the 32-bit runtimes
+        // UnalignedWide32 leaves out call it.
         private static T ReadBytes<T>(ref byte source)
         {
             T value = default;
@@ -154,7 +221,7 @@ namespace Nino.Core.CompilerServices
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Read<T>(ref byte source, int offset) =>
-            Is64Bit || Unsafe.SizeOf<T>() <= 4
+            Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32
                 ? Unsafe.ReadUnaligned<T>(ref Unsafe.Add(ref source, offset))
                 : ReadBytes<T>(ref Unsafe.Add(ref source, offset));
 
@@ -207,14 +274,15 @@ namespace Nino.Core.CompilerServices
         /// <summary>
         /// Copies <paramref name="size"/> bytes. Up to 64 (most strings) inline, as overlapping loads and stores of the
         /// largest width that fits (33 to 64 bytes: two 32-byte vectors where they are accelerated, else four 16-byte
-        /// moves); more out of line (<see cref="CopyOver64"/>, as every size in a 32-bit process), 65 to 128 as four
-        /// 32-byte vectors where they are accelerated: a block copy of a size that is not a constant calls Memmove.
-        /// Beyond, up to 32 KB with 64-byte vectors where they are accelerated, else from 256
-        /// bytes to 16 KB with 32-byte ones (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an
-        /// AVX-512 Xeon (.NET 10, source and destination of different alignments), with AVX-512 on or off: 33 to 64
-        /// bytes in 4.0 to 4.5 ns instead of 4.7 to 5.4 (Memmove), 65 to 128 in about 4.2 ns instead of 5.4 to 6.6. A
-        /// loop of 16-byte vectors (WebAssembly, SSE only) is slower than Memmove from 2 KB, so those CPUs call Memmove
-        /// from 65 bytes; Arm64 copies up to 64 KB with <see cref="CopyPairs"/>, out of line.
+        /// moves); more out of line (<see cref="CopyOver64"/>, as every size in a 32-bit process, where up to 64 bytes
+        /// are copied the same way on x86 and where <see cref="UnalignedWide32"/>), 65 to 128 as four 32-byte vectors
+        /// where they are accelerated: a block copy of a size that is not a constant calls Memmove. Beyond, up to 32 KB
+        /// with 64-byte vectors where they are accelerated, else from 256 bytes to 16 KB with 32-byte ones
+        /// (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an AVX-512 Xeon (.NET 10, source and
+        /// destination of different alignments), with AVX-512 on or off: 33 to 64 bytes in 4.0 to 4.5 ns instead of 4.7
+        /// to 5.4 (Memmove), 65 to 128 in about 4.2 ns instead of 5.4 to 6.6. A loop of 16-byte vectors (WebAssembly,
+        /// SSE only) is slower than Memmove from 2 KB, so those CPUs call Memmove from 65 bytes; Arm64 copies up to
+        /// 64 KB with <see cref="CopyPairs"/>, out of line.
         /// </summary>
         // In parts, each AggressiveInlining: the JIT checks an inline against the caller's inlining budget by the
         // callee's whole IL, before the branches the sizes and the CPU decide fold away. Copy in one method (662 bytes
@@ -303,20 +371,35 @@ namespace Nino.Core.CompilerServices
         }
 
         /// <summary>
-        /// More than 64 bytes (any size in a 32-bit process): 65 to 128 as four 32-byte vectors where they are
-        /// accelerated, then <see cref="CopyVectors{TVector}"/> or <see cref="CopyBlock"/>. Out of line (see
-        /// <see cref="Copy"/>).
+        /// More than 64 bytes, or any size in a 32-bit process (up to 64 as Copy does on x86 and where
+        /// <see cref="UnalignedWide32"/>): 65 to 128 as
+        /// four 32-byte vectors where they are accelerated, then <see cref="CopyVectors{TVector}"/> or
+        /// <see cref="CopyBlock"/>. Out of line (see <see cref="Copy"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void CopyOver64(ref byte destination, ref byte source, uint size)
         {
+            // Up to 64 bytes in a 32-bit process that accesses 8 bytes at any address: the parts Copy inlines, here
+            // so that Copy's IL, which callers' inlining budgets count, is the same in every process (written in Copy,
+            // this test changed what the JIT inlined into an ImmutableSortedDictionary write on x64).
+            if (!Is64Bit && (IsX86 || UnalignedWide32) && size <= 64)
+            {
+                if (size > 32)
+                    Copy33To64(ref destination, ref source, size);
+                else if (size >= 16)
+                    Copy16To32(ref destination, ref source, size);
+                else
+                    CopyUpTo15(ref destination, ref source, size);
+                return;
+            }
+
 #if NET8_0_OR_GREATER
             if (Vector256.IsHardwareAccelerated)
             {
                 if (size <= 128)
                 {
-                    // 65 to 128 bytes (32-bit processes, which skip the small sizes above, go to Memmove).
-                    if (Is64Bit)
+                    // 65 to 128 bytes (processes that skip the small sizes above go to Memmove).
+                    if (Is64Bit || IsX86 || UnalignedWide32)
                     {
                         var a = Vector256.LoadUnsafe(ref source);
                         var b = Vector256.LoadUnsafe(ref Unsafe.Add(ref source, 32));
