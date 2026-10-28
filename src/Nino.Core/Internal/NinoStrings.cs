@@ -4,6 +4,8 @@ using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics;
+#else
+using System.Numerics;
 #endif
 
 namespace Nino.Core.Internal
@@ -425,13 +427,17 @@ namespace Nino.Core.Internal
         private static unsafe bool NarrowWords(ref char source, ref byte destination, nuint n)
         {
 #if !NET8_0_OR_GREATER
-            // The netstandard builds (Unity, .NET Framework): the registered kernels (NinoKernels), for long text.
+            // The netstandard builds (Unity, .NET Framework): the registered kernels (NinoKernels), for long text; else
+            // Vector<T> where it is fast (TextVectors).
             if (n >= (uint)NinoKernelHook.MinChars && NinoKernelHook.Kernels is { } kernels)
             {
                 fixed (char* from = &source)
                 fixed (byte* to = &destination)
                     return kernels.Narrow(from, to, (int)n);
             }
+
+            if (NinoUnsafe.NumericVectors && n >= (uint)(2 * Vector<ushort>.Count))
+                return TextVectors.Narrow(ref source, ref destination, n);
 #endif
             nuint i = 0;
             for (; i + 4 <= n; i += 4)
@@ -700,6 +706,12 @@ namespace Nino.Core.Internal
                     kernels.Widen(from, (char*)to, (int)n);
                 return;
             }
+
+            if (NinoUnsafe.NumericVectors && n >= (uint)Vector<byte>.Count)
+            {
+                TextVectors.Widen(ref source, ref destination, n);
+                return;
+            }
 #endif
             nuint i = 0;
             for (; i + 4 <= n; i += 4)
@@ -711,6 +723,64 @@ namespace Nino.Core.Internal
             for (; i < n; i++)
                 Unsafe.Add(ref destination, (nint)i) = Unsafe.Add(ref source, (nint)i);
         }
+
+#if !NET8_0_OR_GREATER
+        /// <summary>
+        /// The netstandard builds' narrowing and widening of long text with <see cref="Vector{T}"/>, where it is fast
+        /// (<see cref="NinoUnsafe.NumericVectors"/>: .NET Framework and .NET Core, never Mono or Unity, which take
+        /// their Burst kernels, tested first). Measured with the netstandard2.0 build on .NET 10 (the only runtime
+        /// here that accelerates it; .NET Framework is not measured): 1,024 chars written in 200 ns instead of 450 to
+        /// 770, read in 310 instead of 530 to 780. The same bytes as the scalar loops.
+        /// </summary>
+        private static class TextVectors
+        {
+            /// <summary>
+            /// <see cref="NinoStrings.Narrow"/> of at least two vectors of chars: two at a time, then the last two
+            /// again, overlapping the previous (the chars are the same).
+            /// </summary>
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static bool Narrow(ref char source, ref byte destination, nuint n)
+            {
+                nuint count = (nuint)Vector<ushort>.Count, step = 2 * count;
+                var high = new Vector<ushort>(0xFF00);
+                ref byte from = ref Unsafe.As<char, byte>(ref source);
+                nuint i = 0;
+                while (true)
+                {
+                    var a = Unsafe.ReadUnaligned<Vector<ushort>>(ref Unsafe.Add(ref from, (nint)(i * 2)));
+                    var b = Unsafe.ReadUnaligned<Vector<ushort>>(ref Unsafe.Add(ref from, (nint)((i + count) * 2)));
+                    if (!Vector.EqualsAll((a | b) & high, Vector<ushort>.Zero))
+                        return false;
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)i), Vector.Narrow(a, b));
+                    if (i + step == n)
+                        return true;
+                    i = i + 2 * step <= n ? i + step : n - step;
+                }
+            }
+
+            /// <summary>
+            /// <see cref="NinoStrings.Widen"/> of at least one vector of bytes: one at a time, then the last one again,
+            /// overlapping the previous.
+            /// </summary>
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static void Widen(ref byte source, ref ushort destination, nuint n)
+            {
+                nuint step = (nuint)Vector<byte>.Count;
+                ref byte to = ref Unsafe.As<ushort, byte>(ref destination);
+                nuint i = 0;
+                while (true)
+                {
+                    Vector.Widen(Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, (nint)i)),
+                        out Vector<ushort> lower, out Vector<ushort> upper);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref to, (nint)(i * 2)), lower);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref to, (nint)(i * 2 + step)), upper);
+                    if (i + step == n)
+                        return;
+                    i = i + 2 * step <= n ? i + step : n - step;
+                }
+            }
+        }
+#endif
 
         /// <summary>Whether the Latin-1 chars at <paramref name="source"/> are those of <paramref name="value"/> (as long).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]

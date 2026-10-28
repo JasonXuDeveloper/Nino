@@ -109,6 +109,39 @@ namespace Nino.Core.CompilerServices
             }
         }
 
+        /// <summary>
+        /// Whether <c>System.Numerics.Vector&lt;T&gt;</c> is worth using: the JIT accelerates it and, in the
+        /// netstandard builds, the runtime is .NET Framework or .NET (Core), whose descriptions start with ".NET".
+        /// Never on Mono or Unity, whatever <c>Vector.IsHardwareAccelerated</c> says: Mono 6.8 on x64 reports it true
+        /// with the System.Numerics.Vectors package Nino.Core brings, yet masked 1,024 bytes with
+        /// <c>Vector&lt;byte&gt;</c> in 2,628 ns against 410 with ulongs (an array of 1,000 padded structs serialized
+        /// in 36 to 40 µs with the vectors, 11 to 13 with ulongs) and ran <c>Vector.Narrow</c> of 1,024 chars in 5,478
+        /// ns against 2,838 for a scalar loop; Unity's runtimes (Mono, IL2CPP: "Mono ...") are not measured
+        /// and take their Burst kernels (<see cref="NinoKernels"/>) instead. Constant-folded by the JIT (the probe once
+        /// its class is initialized).
+        /// </summary>
+        internal static bool NumericVectors
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => System.Numerics.Vector.IsHardwareAccelerated;
+#else
+            get => NumericVectorProbe.Fast;
+#endif
+        }
+
+#if !NET8_0_OR_GREATER
+        /// <summary>
+        /// <see cref="NumericVectors"/> in the netstandard builds (a class of its own, see <see cref="WideAccess"/>).
+        /// </summary>
+        private static class NumericVectorProbe
+        {
+            internal static readonly bool Fast = System.Numerics.Vector.IsHardwareAccelerated &&
+                                                 RuntimeInformation.FrameworkDescription.StartsWith(".NET",
+                                                     StringComparison.Ordinal);
+        }
+#endif
+
         /// <summary>Size of <typeparamref name="T"/> in bytes. Constant-folded by the JIT.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int SizeOf<T>() => Unsafe.SizeOf<T>();

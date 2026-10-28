@@ -391,7 +391,7 @@ namespace Nino.Core.Internal
 
     /// <summary>
     /// A byte mask (0xFF keeps a byte, 0 clears it) applied while copying values to the wire, in one pass:
-    /// SIMD when hardware accelerated, 8-byte words otherwise.
+    /// SIMD where it is fast (<see cref="NinoUnsafe.NumericVectors"/>), 8-byte words otherwise.
     /// </summary>
     internal sealed class NinoMask
     {
@@ -452,7 +452,7 @@ namespace Nino.Core.Internal
             _words = new ulong[words.Length / 8];
             for (int i = 0; i < _words.Length; i++)
                 _words[i] = Unsafe.ReadUnaligned<ulong>(ref words[i * 8]);
-            if (Vector.IsHardwareAccelerated)
+            if (NinoUnsafe.NumericVectors)
                 _vectorMask = Repeat(mask, Vector<byte>.Count, Vector<byte>.Count, out _vectorPeriod);
 #if NET8_0_OR_GREATER
             if (Vector512.IsHardwareAccelerated)

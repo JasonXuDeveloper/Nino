@@ -7,10 +7,12 @@ namespace Nino.Core
 {
     /// <summary>
     /// Native kernels for the netstandard builds of Nino.Core, which have no hardware intrinsics: Unity (Mono, IL2CPP,
-    /// HybridCLR) and .NET Framework take scalar code for the work below unless kernels are registered. Unity's package
-    /// registers Burst-compiled ones (its Nino.Burst assembly, compiled when com.unity.burst is installed) at startup;
-    /// without any, nothing changes. The .NET 8 and later builds use their own vector paths: the type is there too, so
-    /// code built against any of Nino.Core's targets runs on all of them, but those builds never call the kernels.
+    /// HybridCLR) and .NET Framework take scalar code for the work below unless kernels are registered (.NET Framework
+    /// narrows and widens long text with <c>System.Numerics.Vector&lt;T&gt;</c> where its JIT accelerates it). Unity's
+    /// package registers Burst-compiled ones (its Nino.Burst assembly, compiled when com.unity.burst is installed) at
+    /// startup; without any, nothing changes. The .NET 8 and later builds use their own vector paths: the type is there
+    /// too, so code built against any of Nino.Core's targets runs on all of them, but those builds never call the
+    /// kernels.
     /// </summary>
     /// <remarks>
     /// Each kernel must produce exactly the bytes of its scalar reference (<see cref="PermuteScalar"/>,

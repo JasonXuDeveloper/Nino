@@ -934,7 +934,10 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   every path.
 * **Kernels for the netstandard builds.** The netstandard builds have no hardware intrinsics, so on Unity (Mono,
   IL2CPP, HybridCLR) and .NET Framework the block paths above, the masked copy of raw structs with padding
-  (`NinoMask.Copy`) and the narrowing and widening of Latin-1 text (`NinoStrings.NarrowWords`/`WidenWords`) are scalar.
+  (`NinoMask.Copy`) and the narrowing and widening of Latin-1 text (`NinoStrings.NarrowWords`/`WidenWords`) are scalar,
+  except that the last two use `System.Numerics.Vector<T>` where it is fast (`NinoUnsafe.NumericVectors`: accelerated,
+  on .NET Framework or .NET Core; never on Mono, whose 6.8 reports it accelerated on x64 and runs it several times
+  slower than the scalar loops, nor on Unity).
   `NinoKernels` (public, netstandard builds only) lets a host register native kernels for them: `Permute` (a byte
   table per value, 0xFF for a zero byte; strides 1 to 64), `Narrow`, `Widen`. Nino calls them for runs of at least
   `MinBlocks` values or `MinChars` chars, from the paths that are already out of line, after one static load and

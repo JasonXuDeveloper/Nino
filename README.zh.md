@@ -92,7 +92,7 @@ CPU 或运行时没有向量指令时由可移植代码接手。[各平台的 SI
 |---|---|---|
 | .NET 8 和 10 | x64：AVX-512（字节置换、64 字节复制）、AVX2、SSSE3；Arm64：AdvSimd（`TBL` 查表、成对加载与存储）；WebAssembly（.NET 10）：`PackedSimd` 重排；其他平台走可移植代码 | [.NET](https://nino.xgamedev.net/zh/docs/v4/perf) |
 | Unity（Mono、IL2CPP） | 装有 `com.unity.burst` 时：Burst 编译的内核，x86 和 x64 用 AVX2（256 个值以上的块）和 SSSE3，Arm64 用 Neon；Armv7、WebGL 和没有 Burst 时走 Nino.Core 自身的路径 | [Unity](https://nino.xgamedev.net/zh/docs/v4/perf-unity) |
-| .NET Framework、.NET Core 3.0–7 | 没有硬件内在函数（netstandard 构建）：块用 `memmove` 复制，文本按字处理 | |
+| .NET Framework、.NET Core 3.0–7 | 没有硬件内在函数（netstandard 构建）：超过 64 字节的块用 `memmove` 复制；JIT 加速 `Vector<T>` 时，较长的 Latin-1 文本和带填充的结构体用它处理，否则按字处理 | |
 | Go | 字符串用汇编：amd64 上 AVX2 和 AVX-512 转换，16 字节 ASCII 复制（amd64 SSE2、arm64 NEON）；其他平台和 `purego` 标签下用纯 Go | [Go](https://nino.xgamedev.net/zh/docs/v4/perf-runtimes#go) |
 | Rust | 字符串，在其唯一的 `unsafe` 模块里：x86_64 上 AVX-512、AVX2、SSE4.1、SSSE3 和 SSE2（运行时检测），Arm64 上 NEON；其他平台每步两个 `u64` 字 | [Rust](https://nino.xgamedev.net/zh/docs/v4/perf-runtimes#rust) |
 
