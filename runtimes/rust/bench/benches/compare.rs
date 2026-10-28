@@ -130,6 +130,20 @@ impl NinoRead for Record {
 }
 
 impl NinoWrite for Record {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<String> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<i32>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.name.prefetch();
+        self.tags.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.name.prefetch_members();
+        self.tags.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.write_sealed(Some(self))
     }

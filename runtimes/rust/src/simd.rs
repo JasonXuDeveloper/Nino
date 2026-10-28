@@ -1294,6 +1294,35 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
     wide_short(out, text)
 }
 
+/// Asks the CPU to bring the cache line at `p` into the cache closest to the core, without waiting for it: x86 and
+/// x86_64 `prefetcht0` (SSE), Arm64 `prfm pldl1keep`; nothing on other targets and under Miri. A prefetch never
+/// faults, whatever the address (a dangling pointer of an empty `String` included), and changes nothing the program
+/// can observe.
+#[inline(always)]
+pub(crate) fn prefetch<T: ?Sized>(p: *const T) {
+    #[cfg(all(not(miri), target_arch = "x86_64"))]
+    // SAFETY: SSE is part of every x86_64 target; a prefetch reads nothing and never faults.
+    unsafe {
+        core::arch::x86_64::_mm_prefetch::<{ core::arch::x86_64::_MM_HINT_T0 }>(p.cast::<i8>());
+    }
+    #[cfg(all(not(miri), target_arch = "x86", target_feature = "sse"))]
+    // SAFETY: the target has SSE (the cfg); a prefetch reads nothing and never faults.
+    unsafe {
+        core::arch::x86::_mm_prefetch::<{ core::arch::x86::_MM_HINT_T0 }>(p.cast::<i8>());
+    }
+    #[cfg(all(not(miri), target_arch = "aarch64"))]
+    // SAFETY: a hint that touches no register but its address and never faults; no memory is read or written as
+    // far as the program can tell, no stack, no flags.
+    unsafe {
+        core::arch::asm!("prfm pldl1keep, [{0}]", in(reg) p.cast::<u8>(), options(nostack, readonly, preserves_flags));
+    }
+    #[cfg(any(
+        miri,
+        not(any(target_arch = "x86_64", all(target_arch = "x86", target_feature = "sse"), target_arch = "aarch64"))
+    ))]
+    let _ = p;
+}
+
 /// Pads the code to the next multiple of 64 bytes (and aligns the function's section to 64), so that what follows
 /// sits where it does whatever code comes before it: the loops over a list of strings took up to 18% longer,
 /// depending on the CPU, from where the linker happened to place them (functions are aligned to 16 bytes only),

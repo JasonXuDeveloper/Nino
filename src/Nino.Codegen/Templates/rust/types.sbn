@@ -132,6 +132,39 @@ func write_elements(t)
   ret ""
 end
 
+# NinoWrite's PREFETCH and prefetch stages, for a type with members that may point elsewhere (text, a list, a class,
+# or a type that may hold one): their bytes summed and their stages in turn; none for a type of numbers.
+func prefetch(t)
+  $fields = []
+  $types = []
+  if t.elements_member
+    $fields = array.add $fields t.elements_member.name
+    $types = array.add $types (bare(t.elements_member.shape))
+  end
+  for $m in t.members
+    if (["string", "keystring", "seq", "class", "genericclass", "struct", "generic", "param", "nullable"] | array.contains $m.shape.kind) && !($m.shape.wide)
+      $fields = array.add $fields $m.name
+      $types = array.add $types (rtype($m.shape))
+    end
+  end
+  if $fields.size == 0
+    ret ""
+  end
+  $o = "    const PREFETCH: usize = 0usize"
+  for $ty in $types
+    $o = $o + "\n        .saturating_add(<" + $ty + " as NinoWrite>::PREFETCH)"
+  end
+  $o = $o + ";\n\n    fn prefetch(&self) {\n"
+  for $f in $fields
+    $o = $o + "        self." + $f + ".prefetch();\n"
+  end
+  $o = $o + "    }\n\n    fn prefetch_members(&self) {\n"
+  for $f in $fields
+    $o = $o + "        self." + $f + ".prefetch_members();\n"
+  end
+  ret $o + "    }\n\n"
+end
+
 # MAY_DEFER of a struct: a member holding a type parameter asks its argument.
 func may_defer(t)
   $parts = []
@@ -420,7 +453,7 @@ impl{{ t.impl_generics }} NinoRead for {{ t.name }}{{ t.generics }} {
 }
 
 impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+{{ prefetch(t) }}    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         self.write_body(w)
     }
 }
@@ -447,7 +480,7 @@ impl{{ t.impl_generics }} NinoRead for {{ t.name }}{{ t.generics }} {
 }
 
 impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+{{ prefetch(t) }}    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
 

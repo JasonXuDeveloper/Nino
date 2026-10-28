@@ -583,6 +583,7 @@ fn expand_struct(
         Side::Read => read_body(&members, &keys, format, krate),
         Side::Write => write_body(&members, &keys, format, krate),
     };
+    let prefetch = prefetch_items(&members, krate);
     let tokens = match (side, kind) {
         (Side::Read, Kind::Class) => quote! {
             impl #impl_g #krate::NinoReadBody for #name #ty_g #where_clause {
@@ -627,6 +628,7 @@ fn expand_struct(
                 }
             }
             impl #impl_g #krate::NinoWrite for #name #ty_g #where_clause {
+                #prefetch
                 #[inline]
                 fn write<'a>(&'a self, w: &mut #krate::Writer<'a>) -> #krate::Result<()> {
                     w.write_sealed(::core::option::Option::Some(self))
@@ -683,6 +685,7 @@ fn expand_struct(
                 }
             }
             impl #impl_g #krate::NinoWrite for #name #ty_g #where_clause {
+                #prefetch
                 #[inline]
                 fn write<'a>(&'a self, w: &mut #krate::Writer<'a>) -> #krate::Result<()> {
                     w.i32(<Self as #krate::NinoWriteBody>::TYPE_ID);
@@ -751,6 +754,7 @@ fn expand_struct(
                 }
             }
             impl #impl_g #krate::NinoWrite for #name #ty_g #where_clause {
+                #prefetch
                 #[inline]
                 fn write<'a>(&'a self, w: &mut #krate::Writer<'a>) -> #krate::Result<()> {
                     #krate::NinoWriteBody::write_body(self, w)
@@ -763,6 +767,29 @@ fn expand_struct(
         #tokens
         const _: () = { #checks };
     })
+}
+
+/// `NinoWrite::PREFETCH` and the two prefetch stages of a type with members: the sum of its members' bytes, and each
+/// member's stage in turn (a member whose type points nowhere adds 0 and asks for nothing, so a type of numbers has
+/// what the defaults give). The members written as UTF-8 (`utf8`) are left out: their type need not be `NinoWrite`.
+fn prefetch_items(members: &[Member], krate: &syn::Path) -> Tokens {
+    let members: Vec<&Member> = members.iter().filter(|m| m.opts.utf8.is_none()).collect();
+    if members.is_empty() {
+        return quote!();
+    }
+    let tys = members.iter().map(|m| m.ty);
+    let fields: Vec<&syn::Ident> = members.iter().map(|m| m.ident).collect();
+    quote! {
+        const PREFETCH: usize = 0usize #(.saturating_add(<#tys as #krate::NinoWrite>::PREFETCH))*;
+        #[inline(always)]
+        fn prefetch(&self) {
+            #(#krate::NinoWrite::prefetch(&self.#fields);)*
+        }
+        #[inline(always)]
+        fn prefetch_members(&self) {
+            #(#krate::NinoWrite::prefetch_members(&self.#fields);)*
+        }
+    }
 }
 
 fn mentions_param(t: proc_macro2::TokenTree, params: &[String]) -> bool {

@@ -73,6 +73,46 @@ pub(crate) fn grow_fixed<C, T>(
     Ok(values)
 }
 
+/// The elements a prefetching loop runs ahead: at element `i`, element `i + 2 * PREFETCH_AHEAD`'s targets are asked
+/// for ([`NinoWrite::prefetch`]), and element `i + PREFETCH_AHEAD`'s targets' own ([`NinoWrite::prefetch_members`],
+/// their lines asked for a batch earlier). The same as the Go runtime's.
+const PREFETCH_AHEAD: usize = 8;
+
+/// The shortest slice written prefetching ahead: 1 MiB (about what the caches near the core hold) over an element's
+/// size and the bytes it points to ([`NinoWrite::PREFETCH`]), and never under 512. Shorter slices are likely in the
+/// cache already, where a prefetch per element costs more than it saves.
+#[inline(always)]
+pub(crate) const fn prefetch_from<T: NinoWrite>() -> usize {
+    let bytes = core::mem::size_of::<T>().saturating_add(T::PREFETCH);
+    let n = match (1usize << 20).checked_div(bytes) {
+        Some(n) => n,
+        None => usize::MAX,
+    };
+    if n < 512 {
+        512
+    } else {
+        n
+    }
+}
+
+/// [`NinoWrite::write_many`] for a long slice of elements that point elsewhere ([`prefetch_from`]): the same bytes,
+/// each element's targets asked for [`PREFETCH_AHEAD`] elements before they are written, in two stages. Out of line,
+/// so that the loop of every other slice stays as it was.
+#[inline(never)]
+pub(crate) fn write_prefetched<'a, T: NinoWrite>(values: &'a [T], w: &mut Writer<'a>) -> Result<()> {
+    for (i, v) in values.iter().enumerate() {
+        // `i < values.len() <= isize::MAX`: the sums cannot wrap.
+        if let Some(ahead) = values.get(i.wrapping_add(2 * PREFETCH_AHEAD)) {
+            ahead.prefetch();
+        }
+        if let Some(next) = values.get(i.wrapping_add(PREFETCH_AHEAD)) {
+            next.prefetch_members();
+        }
+        v.write(w)?;
+    }
+    Ok(())
+}
+
 /// [`NinoWrite::write_many`]'s default for a fixed-size type: room for every element, then
 /// [`NinoWrite::encode_fixed`] into each element's bytes.
 #[inline]
@@ -449,6 +489,13 @@ impl NinoRead for String {
 }
 
 impl NinoWrite for String {
+    const PREFETCH: usize = 64;
+
+    #[inline(always)]
+    fn prefetch(&self) {
+        crate::simd::prefetch(self.as_ptr());
+    }
+
     #[inline]
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         w.string(Some(self))
@@ -456,6 +503,9 @@ impl NinoWrite for String {
 
     #[inline]
     fn write_many<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
+        if values.len() >= prefetch_from::<Self>() {
+            return crate::strings::write_strings_prefetched(w, values);
+        }
         crate::strings::write_strings(w, values)
     }
 
@@ -500,6 +550,22 @@ impl<T: NinoRead> NinoRead for Option<T> {
 }
 
 impl<T: NinoWrite> NinoWrite for Option<T> {
+    const PREFETCH: usize = T::PREFETCH;
+
+    #[inline(always)]
+    fn prefetch(&self) {
+        if let Some(v) = self {
+            v.prefetch();
+        }
+    }
+
+    #[inline(always)]
+    fn prefetch_members(&self) {
+        if let Some(v) = self {
+            v.prefetch_members();
+        }
+    }
+
     #[inline]
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         T::write_option(self.as_ref(), w)
@@ -535,6 +601,20 @@ impl<T: NinoRead> NinoRead for Box<T> {
 }
 
 impl<T: NinoWrite> NinoWrite for Box<T> {
+    // Its target's size and 64 for the target's own targets (not `T::PREFETCH`: a type that holds itself through a
+    // `Box` would define the constant through itself).
+    const PREFETCH: usize = core::mem::size_of::<T>().saturating_add(64);
+
+    #[inline(always)]
+    fn prefetch(&self) {
+        crate::simd::prefetch(&**self);
+    }
+
+    #[inline(always)]
+    fn prefetch_members(&self) {
+        (**self).prefetch();
+    }
+
     #[inline]
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         (**self).write(w)
@@ -581,6 +661,13 @@ impl<T: NinoRead> NinoRead for Vec<T> {
 }
 
 impl<T: NinoWrite> NinoWrite for Vec<T> {
+    const PREFETCH: usize = 64;
+
+    #[inline(always)]
+    fn prefetch(&self) {
+        crate::simd::prefetch(self.as_ptr());
+    }
+
     #[inline]
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         write_seq(Some(self.as_slice()), w)
