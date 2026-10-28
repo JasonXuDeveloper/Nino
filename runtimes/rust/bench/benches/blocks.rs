@@ -79,7 +79,20 @@ where
     g.finish();
 }
 
+/// EXPERIMENT (placement control): code run once before the cases, outside every timed loop, which moves the
+/// functions linked after it.
+#[inline(never)]
+fn placement_control() {
+    let mut x = black_box(0u64);
+    for i in 0..black_box(64u64) {
+        x = x.rotate_left(7) ^ i.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ black_box(x >> 3);
+        x = x.wrapping_add(black_box(i) << 9).rotate_right(11) ^ black_box(x.wrapping_mul(31));
+    }
+    black_box(x);
+}
+
 fn benches(c: &mut Criterion) {
+    placement_control();
     const N: i32 = 10_000;
     case(c, "bool", (0..N).map(|i| i % 3 == 0).collect::<Vec<bool>>());
     case(c, "i8", (0..N).map(|i| i as i8).collect::<Vec<i8>>());
