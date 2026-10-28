@@ -262,6 +262,15 @@ namespace Nino.Core.Internal
 
             // By reference, as in WriteOnLocal.
             ref T item = ref MemoryMarshal.GetReference(values);
+            // Long collections of a generated class's objects: through a loop that prefetches them, out of line (see
+            // NinoPrefetch). For other elements the test is not compiled (netstandard: one load and a compare).
+            if (NinoPrefetch.Takes<TFormatter>(values.Length))
+            {
+                writer = NinoPrefetch.Formatter<TFormatter>().WritePrefetched(ref Unsafe.As<T, nint>(ref item),
+                    values.Length, writer);
+                return;
+            }
+
             for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
                 default(TFormatter).Serialize(item, ref writer);
         }
@@ -392,6 +401,13 @@ namespace Nino.Core.Internal
             // The reader a local, its cursor in registers, where through a reference every element would store it and
             // load it back (List<(int, long)>: 2x faster).
             ref T item = ref MemoryMarshal.GetReference(values); // by reference, see WriteOnLocal
+            // The existing objects of a long collection prefetched, as in Write.
+            if (NinoPrefetch.Takes<TFormatter>(values.Length))
+            {
+                return NinoPrefetch.Formatter<TFormatter>().ReadPrefetched(ref Unsafe.As<T, nint>(ref item),
+                    values.Length, reader);
+            }
+
             for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
                 default(TFormatter).Deserialize(ref item, ref reader);
             return reader;

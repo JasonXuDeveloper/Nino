@@ -84,6 +84,9 @@ namespace Test.Runtime.Burst
                     .ToArray()))
                 .ToList();
             cases.Add(Text($"List of {words.Count} ASCII strings (8–40 chars)", words));
+            // A million objects in an order other than their order in memory: each a cache miss the hardware
+            // prefetcher cannot predict, which the kernels prefetch (NinoKernels.Prefetch).
+            cases.Add(Objects("ScatteredItem[1000000] (shuffled)", ScatteredItem.Shuffled(1000000, 6)));
             return cases;
         }
 
@@ -98,6 +101,22 @@ namespace Test.Runtime.Burst
                 return () => NinoDeserializer.Deserialize(bytes, ref into);
             },
             ReadBack = bytes => NinoSerializer.Serialize(NinoDeserializer.Deserialize<T[]>(bytes)),
+        };
+
+        /// <summary>
+        /// An array of objects: serialized to a new array, deserialized into an array of other objects, shuffled too,
+        /// which every call reuses.
+        /// </summary>
+        private static Case Objects(string name, ScatteredItem[] values) => new Case
+        {
+            Name = name,
+            Serialize = () => NinoSerializer.Serialize(values),
+            Deserialize = bytes =>
+            {
+                var into = ScatteredItem.Shuffled(values.Length, 7);
+                return () => NinoDeserializer.Deserialize(bytes, ref into);
+            },
+            ReadBack = bytes => NinoSerializer.Serialize(NinoDeserializer.Deserialize<ScatteredItem[]>(bytes)),
         };
 
         /// <summary>A string or a list of them: serialized to a new array, deserialized to a new value.</summary>

@@ -791,6 +791,7 @@ PlayerSettings:
   webGLPowerPreference: 2
   scriptingDefineSymbols:
     7: IL2CPP
+    Standalone: UNITY_BURST_EXPERIMENTAL_PREFETCH_INTRINSIC
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

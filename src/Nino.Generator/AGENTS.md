@@ -71,6 +71,8 @@ FormatterTraits.cs           flags of what a formatter is and how it reads and w
 SymbolTypeSystem.cs          ITypeSymbol for NinoFormatterBinding (the binding shared with the runtime)
 RawRules.cs                  which values are written as raw bytes, memoized per compilation
 RawLayout.cs                 whether a struct's memory is the same on every runtime (the canonical layout)
+PrefetchRules.cs             from how many elements a class's collections prefetch its objects (INinoPrefetchFormatter):
+                             a cache budget over the object's estimated bytes, and which members' objects it prefetches
 LayoutTypes.cs               unmanaged structs whose layout the runtime measures ([DynamicDependency] for NativeAOT)
 WireEncoding.cs              a member's encoding as the published layout shows it ([NinoTypeLayout])
 TypeNames.cs                 type names as generated code and the runtime spell them, and the ids hashed from them

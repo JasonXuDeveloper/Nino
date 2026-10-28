@@ -17,6 +17,37 @@ namespace Test.Runtime.Burst
     }
 
     /// <summary>
+    /// A small class with a string, whose long arrays and lists Nino prefetches through the kernels
+    /// (NinoKernels.Prefetch): about 5,000 elements or more.
+    /// </summary>
+    [NinoType]
+    public sealed class ScatteredItem
+    {
+        public int Id;
+        public string Name;
+        public long Value;
+
+        /// <summary>
+        /// <paramref name="count"/> items in an order other than the one they were allocated in, every seventh slot
+        /// null (no prefetch, a null byte on the wire).
+        /// </summary>
+        public static ScatteredItem[] Shuffled(int count, int seed)
+        {
+            var random = new Random(seed);
+            var items = new ScatteredItem[count];
+            for (int i = 0; i < count; i++)
+                items[i] = i % 7 == 3 ? null : new ScatteredItem { Id = i, Name = "item " + i, Value = i * 7L };
+            for (int i = count - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                (items[i], items[j]) = (items[j], items[i]);
+            }
+
+            return items;
+        }
+    }
+
+    /// <summary>
     /// The Burst kernels (Nino.Burst) against Nino.Core's scalar paths: the same bytes with the kernels registered and
     /// without, for every kernel kind and lengths around each threshold. Run in play mode and in an IL2CPP player
     /// (Burst AOT), and in edit mode through Test.Editor.Burst.BurstKernelsInEditMode. Their speed is measured by
@@ -183,6 +214,35 @@ namespace Test.Runtime.Burst
                 Same(latin1, $"Latin-1 x {n}");
                 Same(latin1 + "中", $"UTF-16 x {n}");
             }
+        }
+
+        /// <summary>
+        /// Arrays and lists of objects around the prefetch threshold and far past it: the same bytes with the kernels
+        /// prefetching and without, and read into an existing array (whose objects are reused) back to them.
+        /// </summary>
+        [Test]
+        public void PrefetchedCollectionsAreTheSame()
+        {
+#if UNITY_BURST_EXPERIMENTAL_PREFETCH_INTRINSIC
+            Assert.IsTrue(NinoKernels.Current.Prefetches, "the kernels do not prefetch");
+#endif
+            foreach (int n in new[] { 0, 1, 17, 5000, 5300, 5317, 70001 })
+            {
+                var items = ScatteredItem.Shuffled(n, n);
+                Same(items, $"ScatteredItem[{n}]");
+                Same(items.ToList(), $"List<ScatteredItem> x {n}");
+
+                byte[] bytes = NinoSerializer.Serialize(items);
+                var into = ScatteredItem.Shuffled(n, n + 1);
+                NinoDeserializer.Deserialize(bytes, ref into);
+                CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(into), $"read into ScatteredItem[{n}]");
+            }
+
+            // Null references are skipped, and a run of none is nothing.
+            var kernels = NinoKernels.Current;
+            var references = stackalloc IntPtr[16];
+            kernels.Prefetch(references, 16);
+            kernels.Prefetch(references, 0);
         }
 
         [Test]

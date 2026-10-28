@@ -63,6 +63,7 @@ internal static class ModelBuilder
             ct);
 
         bool instantiable = kind is FormatterKind.Class or FormatterKind.SealedClass;
+        bool fixedSize = !rawStruct && facts.IsFixedSize(type);
         return new TypeModel(
             TypeName: Global(type),
             OpenTypeName: generic ? OpenName(type) : Global(type),
@@ -94,7 +95,7 @@ internal static class ModelBuilder
             // The analyzer needs none of the types the registry names.
             Registrations: BuildRegistrations(type, kind, generic, built, factories, facts,
                 namesTypes: diagnostics == null),
-            FixedSize: !rawStruct && facts.IsFixedSize(type),
+            FixedSize: fixedSize,
             Block: !rawStruct && facts.IsBlock(type),
             FreshRead: kind == FormatterKind.SealedClass && !construction.Recreate &&
                        construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
@@ -102,7 +103,9 @@ internal static class ModelBuilder
                        !members.Skip(built.BaseMemberCount).Any(static m => m.ReadsLoop) &&
                        ConstructsDefaults(type, ct),
             PublishesDeferrable: facts.Symbols.LayoutDeferrable,
-            RawLayout: rawStruct ? RawLayout.Describe(type) : "");
+            RawLayout: rawStruct ? RawLayout.Describe(type) : "",
+            PrefetchThreshold: PrefetchRules.Threshold(type, kind, generic, fixedSize),
+            PrefetchMembers: PrefetchRules.Members(built.Models, built.Symbols));
     }
 
     /// <summary>

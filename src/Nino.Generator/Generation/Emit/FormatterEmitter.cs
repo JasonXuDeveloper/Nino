@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Nino.Generator.Common;
 using static Nino.Generator.Generation.Emit.MemberCode;
 using static Nino.Generator.Generation.TypeNames;
@@ -37,6 +38,7 @@ internal static class FormatterEmitter
             iface += $", {CoreCompilerServices}INinoRawBodyFormatter<{t}>";
         if (m.Block)
             iface += $", {CoreCompilerServices}INinoBlockFormatter<{t}>";
+        iface += Prefetch(m);
 
         w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.Constraints}");
         var body = new BodyEmitter(m, w, names);
@@ -61,6 +63,7 @@ internal static class FormatterEmitter
                 w.Line();
             }
 
+            EmitPrefetch(w, m, names, self);
             w.Close();
             return;
         }
@@ -148,8 +151,48 @@ internal static class FormatterEmitter
             EmitShallow(w, m, names, body);
         }
 
+        EmitPrefetch(w, m, names, self);
         AccessorEmitter.EmitUnsafeAccessors(w, m);
 
+        w.Close();
+    }
+
+    /// <summary>The interface of a formatter whose collections prefetch (see <see cref="TypeModel.PrefetchThreshold"/>).</summary>
+    private static string Prefetch(TypeModel m) =>
+        m.PrefetchThreshold > 0 ? $", {CoreCompilerServices}INinoPrefetchFormatter" : "";
+
+    /// <summary>
+    /// INinoPrefetchFormatter of the formatter (or twin) <paramref name="self"/>: the threshold, and the loops of
+    /// Nino.Core instantiated here for the exact type, which the collection loops call without a runtime lookup.
+    /// </summary>
+    private static void EmitPrefetch(CodeWriter w, TypeModel m, FormatterNames names, string self)
+    {
+        if (m.PrefetchThreshold == 0)
+            return;
+        string t = m.TypeName;
+        string prefetch = $"{CoreCompilerServices}INinoPrefetchFormatter";
+        w.Line();
+        w.Line($"int {prefetch}.PrefetchThreshold => {m.PrefetchThreshold};");
+        w.Line(names.Inline);
+        w.Line($"{Core}Writer {prefetch}.WritePrefetched(ref global::System.IntPtr first, int count, {Core}Writer writer) =>");
+        w.Indented(() => w.Line($"{CoreCompilerServices}NinoPrefetched.Write<{t}, {self}>(ref first, count, writer);"));
+        w.Line(names.Inline);
+        w.Line($"{Core}Reader {prefetch}.ReadPrefetched(ref global::System.IntPtr first, int count, {Core}Reader reader) =>");
+        w.Indented(() => w.Line($"{CoreCompilerServices}NinoPrefetched.Read<{t}, {self}>(ref first, count, reader);"));
+        w.Line(names.Inline);
+        if (m.PrefetchMembers.Length == 0)
+        {
+            w.Line($"int {prefetch}.PrefetchMembers(object value) => 0;");
+            return;
+        }
+
+        w.Line($"int {prefetch}.PrefetchMembers(object value)");
+        w.Open();
+        w.Line("if (value == null)");
+        w.Indented(() => w.Line("return 0;"));
+        w.Line($"var v = global::System.Runtime.CompilerServices.Unsafe.As<{t}>(value);");
+        w.Line("return " + string.Join(" + ",
+            m.PrefetchMembers.Select(name => $"{CoreCompilerServices}NinoPrefetched.At(v.{name})")) + ";");
         w.Close();
     }
 
@@ -200,7 +243,7 @@ internal static class FormatterEmitter
             w.Line();
         }
 
-        OpenTwin(w, m, TopTwinName, $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>");
+        OpenTwin(w, m, TopTwinName, $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>{Prefetch(m)}");
         w.Line(names.Inline);
         w.Line(serializeTop
             ? $"{Signature.Serialize(t)} => __SerializeTop(value, ref writer);"
@@ -217,6 +260,7 @@ internal static class FormatterEmitter
             : $"public {t} Read(global::System.ReadOnlySpan<byte> data) => {CoreCompilerServices}NinoDirect.Deserialize<{t}, {top}>(data);");
         ForwardWriteBody(w, m, names, m.TopInline ? "__WriteBodyInline" : null);
         ForwardReadBody(w, m, names, m.TopInline ? "__ReadBodyInline" : null);
+        EmitPrefetch(w, m, names, top);
         w.Close();
     }
 
@@ -278,7 +322,7 @@ internal static class FormatterEmitter
         string t = m.TypeName;
         string self = m.Self;
         string twin = self + Shallow;
-        OpenTwin(w, m, ShallowTwinName, $"{CoreCompilerServices}INinoBodyFormatter<{t}>");
+        OpenTwin(w, m, ShallowTwinName, $"{CoreCompilerServices}INinoBodyFormatter<{t}>{Prefetch(m)}");
         w.Line(names.Inline);
         w.Line(m.Kind == FormatterKind.Struct
             ? $"{Signature.Serialize(t)} => WriteBody(value, ref writer);"
@@ -301,6 +345,7 @@ internal static class FormatterEmitter
             ForwardReadBody(w, m, names, m.ShallowBodies ? "__ReadBodyShallow" : null);
         }
 
+        EmitPrefetch(w, m, names, twin);
         w.Close();
     }
 
