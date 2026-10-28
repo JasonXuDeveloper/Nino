@@ -1,57 +1,82 @@
+# rust prefetch round 3, again with {1}: the {2} lines of round 3 doubled a letter and matched nothing (placebo
+# 79d2c33 and the text bench).
+rust a8b72d0 79d2c33 r{1}ecords-1000/serialize/nino$
+rust a8b72d0 79d2c33 re{1}cords-1000/serialize/nino$
+rust a8b72d0 79d2c33 rec{1}ords-1000/serialize/nino$
+rust a8b72d0 79d2c33 reco{1}rds-1000/serialize/nino$
+rust a8b72d0 79d2c33 recor{1}ds-1000/serialize/nino$
+rust a8b72d0 79d2c33 record{1}s-1000/serialize/nino$
+rust a8b72d0 79d2c33 records{1}-1000/serialize/nino$
+rust a8b72d0 79d2c33 records-1{1}000/serialize/nino$
+rust a8b72d0 79d2c33 records-10{1}00/serialize/nino$
+rust a8b72d0 79d2c33 records-100{1}0/serialize/nino$
+rust a8b72d0 79d2c33 records-1000{1}/serialize/nino$
+rust a8b72d0 79d2c33 records-1000/s{1}erialize/nino$
+rust a8b72d0 79d2c33 records-1000/se{1}rialize/nino$
+rust a8b72d0 79d2c33 records-1000/ser{1}ialize/nino$
+rust a8b72d0 79d2c33 records-1000/seri{1}alize/nino$
+rust:text a8b72d0 626e359 w{1}rite/scattered-1m$
+rust:text a8b72d0 626e359 wr{1}ite/scattered-1m$
+rust:text a8b72d0 626e359 wri{1}te/scattered-1m$
+rust:text a8b72d0 626e359 writ{1}e/scattered-1m$
+rust:text a8b72d0 626e359 write{1}/scattered-1m$
+rust:text a8b72d0 626e359 write/s{1}cattered-1m$
+rust:text 626e359 626e359 w{1}rite/scattered-1m$
+rust:text 626e359 626e359 wr{1}ite/scattered-1m$
 # rust prefetch round 3, push B: more of the same pairs, and Vec<String> (text bench).
-rust a8b72d0 626e359 (scattered-1m|re{2}cords-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered-1m|rec{2}ords-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered-1m|reco{2}rds-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered-1m|recor{2}ds-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered-1m|record{2}s-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered-1m|records{2}-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered-1m|records-1{2}000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered-1m|records-10{2}00|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered-1m|records-100{2}0|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered-1m|records-1000{2}|strings-1000)/serialize/nino$
-rust a8b72d0 79d2c33 records-10{2}00/serialize/nino$
-rust a8b72d0 79d2c33 records-100{2}0/serialize/nino$
-rust a8b72d0 79d2c33 records-1000{2}/serialize/nino$
-rust a8b72d0 79d2c33 records-1000/s{2}erialize/nino$
-rust a8b72d0 79d2c33 records-1000/se{2}rialize/nino$
-rust a8b72d0 79d2c33 records-1000/ser{2}ialize/nino$
-rust a8b72d0 79d2c33 records-1000/seri{2}alize/nino$
-rust:text a8b72d0 626e359 w{2}rite/scattered-1m$
-rust:text a8b72d0 626e359 wr{2}ite/scattered-1m$
-rust:text a8b72d0 626e359 wri{2}te/scattered-1m$
-rust:text a8b72d0 626e359 writ{2}e/scattered-1m$
-rust:text a8b72d0 626e359 write{2}/scattered-1m$
-rust:text a8b72d0 626e359 write/s{2}cattered-1m$
-rust:text 626e359 626e359 w{2}rite/scattered-1m$
-rust:text 626e359 626e359 wr{2}ite/scattered-1m$
+# done: rust a8b72d0 626e359 (scattered-1m|re{2}cords-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered-1m|rec{2}ords-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered-1m|reco{2}rds-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered-1m|recor{2}ds-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered-1m|record{2}s-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered-1m|records{2}-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered-1m|records-1{2}000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered-1m|records-10{2}00|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered-1m|records-100{2}0|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered-1m|records-1000{2}|strings-1000)/serialize/nino$
+# done: rust a8b72d0 79d2c33 records-10{2}00/serialize/nino$
+# done: rust a8b72d0 79d2c33 records-100{2}0/serialize/nino$
+# done: rust a8b72d0 79d2c33 records-1000{2}/serialize/nino$
+# done: rust a8b72d0 79d2c33 records-1000/s{2}erialize/nino$
+# done: rust a8b72d0 79d2c33 records-1000/se{2}rialize/nino$
+# done: rust a8b72d0 79d2c33 records-1000/ser{2}ialize/nino$
+# done: rust a8b72d0 79d2c33 records-1000/seri{2}alize/nino$
+# done: rust:text a8b72d0 626e359 w{2}rite/scattered-1m$
+# done: rust:text a8b72d0 626e359 wr{2}ite/scattered-1m$
+# done: rust:text a8b72d0 626e359 wri{2}te/scattered-1m$
+# done: rust:text a8b72d0 626e359 writ{2}e/scattered-1m$
+# done: rust:text a8b72d0 626e359 write{2}/scattered-1m$
+# done: rust:text a8b72d0 626e359 write/s{2}cattered-1m$
+# done: rust:text 626e359 626e359 w{2}rite/scattered-1m$
+# done: rust:text 626e359 626e359 wr{2}ite/scattered-1m$
 # rust prefetch round 3 (aligned build), push A of two: 626e359 prefetches only lists whose estimated data outgrows
 # the last-level cache (sysfs; Go was slower on Xeon 6973P-C, whose L3 held the set); 79d2c33 is a placebo (the
 # out-of-line loop, never prefetching) to tell placement from prefetch on records-1000.
-rust a8b72d0 626e359 (s{2}cattered-1m|records-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (sc{2}attered-1m|records-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (sca{2}ttered-1m|records-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scat{2}tered-1m|records-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scatt{2}ered-1m|records-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scatte{2}red-1m|records-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scatter{2}ed-1m|records-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattere{2}d-1m|records-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered{2}-1m|records-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered-1{2}m|records-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered-1m{2}|records-1000|strings-1000)/serialize/nino$
-rust a8b72d0 626e359 (scattered-1m|r{2}ecords-1000|strings-1000)/serialize/nino$
-rust a8b72d0 79d2c33 r{2}ecords-1000/serialize/nino$
-rust a8b72d0 79d2c33 re{2}cords-1000/serialize/nino$
-rust a8b72d0 79d2c33 rec{2}ords-1000/serialize/nino$
-rust a8b72d0 79d2c33 reco{2}rds-1000/serialize/nino$
-rust a8b72d0 79d2c33 recor{2}ds-1000/serialize/nino$
-rust a8b72d0 79d2c33 record{2}s-1000/serialize/nino$
-rust a8b72d0 79d2c33 records{2}-1000/serialize/nino$
-rust a8b72d0 79d2c33 records-1{2}000/serialize/nino$
-rust 626e359 626e359 (s{2}cattered-1m|records-1000|strings-1000)/serialize/nino$
-rust 626e359 626e359 (sc{2}attered-1m|records-1000|strings-1000)/serialize/nino$
-rust 626e359 626e359 (sca{2}ttered-1m|records-1000|strings-1000)/serialize/nino$
-rust 626e359 626e359 (scat{2}tered-1m|records-1000|strings-1000)/serialize/nino$
-rust 626e359 626e359 (scatt{2}ered-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (s{2}cattered-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (sc{2}attered-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (sca{2}ttered-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scat{2}tered-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scatt{2}ered-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scatte{2}red-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scatter{2}ed-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattere{2}d-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered{2}-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered-1{2}m|records-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered-1m{2}|records-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 626e359 (scattered-1m|r{2}ecords-1000|strings-1000)/serialize/nino$
+# done: rust a8b72d0 79d2c33 r{2}ecords-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 re{2}cords-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 rec{2}ords-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 reco{2}rds-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 recor{2}ds-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 record{2}s-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 records{2}-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 records-1{2}000/serialize/nino$
+# done: rust 626e359 626e359 (s{2}cattered-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust 626e359 626e359 (sc{2}attered-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust 626e359 626e359 (sca{2}ttered-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust 626e359 626e359 (scat{2}tered-1m|records-1000|strings-1000)/serialize/nino$
+# done: rust 626e359 626e359 (scatt{2}ered-1m|records-1000|strings-1000)/serialize/nino$
 # rust mixed strings, experiment C (d8cc696), more samples for n>=12 on the AVX2-only 7763 (-4.3% at n=10).
 # done: rust c13bbf7 d8cc696 s{1}trings-mixed-1000/serialize/nino$
 # done: rust c13bbf7 d8cc696 st{1}rings-mixed-1000/serialize/nino$
