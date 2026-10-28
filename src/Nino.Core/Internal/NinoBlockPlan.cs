@@ -535,14 +535,28 @@ namespace Nino.Core.Internal
         /// <summary>The indices of <see cref="ToWire64"/> or <see cref="ToMemory64"/> into all 64 bytes.</summary>
         private static byte[] Indices64(bool toWire) => Bytes.Indices(toWire, PerVector, 64);
 
+        /// <summary>
+        /// pshufb, tbl or i8x16.swizzle: one instruction on each platform <see cref="Shuffles"/> is on for, each asked
+        /// for by name behind its <c>IsSupported</c>. NativeAOT compiles x64 code for SSE2 and emits a later set's
+        /// instructions only there (a check at run time, which the JIT folds to a constant): <c>Vector128.ShuffleNative</c>
+        /// took its software form under NativeAOT while <see cref="Shuffles"/> was on (1,000 (int, long) written 200
+        /// times as slowly as under the JIT), and a fallback that is a call (that form, or a platform's intrinsic
+        /// called where it does not exist) left the vectors around it on the stack.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Vector128<byte> Shuffle(Vector128<byte> value, Vector128<byte> mask) =>
+        public static Vector128<byte> Shuffle(Vector128<byte> value, Vector128<byte> mask)
+        {
+            if (Ssse3.IsSupported)
+                return Ssse3.Shuffle(value, mask);
+            if (AdvSimd.Arm64.IsSupported)
+                return AdvSimd.Arm64.VectorTableLookup(value, mask);
 #if NET10_0_OR_GREATER
-            // pshufb, tbl or i8x16.swizzle: one instruction on each platform Shuffles is on for.
-            Vector128.ShuffleNative(value, mask);
-#else
-            Ssse3.IsSupported ? Ssse3.Shuffle(value, mask) : AdvSimd.Arm64.VectorTableLookup(value, mask);
+            if (PackedSimd.IsSupported)
+                return PackedSimd.Swizzle(value, mask);
 #endif
+            // Never reached: Shuffles and the 16-byte lanes are off without one of the above.
+            return value;
+        }
 #endif
     }
 
