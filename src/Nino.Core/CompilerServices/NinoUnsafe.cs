@@ -339,8 +339,8 @@ namespace Nino.Core.CompilerServices
         /// moves); more out of line (<see cref="CopyOver64"/>, as every size in a 32-bit process, where up to 64 bytes
         /// are copied the same way on x86 and where <see cref="UnalignedWide32"/>), 65 to 128 as four 32-byte vectors
         /// where they are accelerated: a block copy of a size that is not a constant calls Memmove. Beyond, up to 32 KB
-        /// with 64-byte vectors where they are accelerated, else from 256 bytes to 16 KB with 32-byte ones
-        /// (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an AVX-512 Xeon (.NET 10, source and
+        /// with 64-byte vectors where they are accelerated, and from there (else from 256 bytes) to 1 MB with 32-byte
+        /// ones (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an AVX-512 Xeon (.NET 10, source and
         /// destination of different alignments), with AVX-512 on or off: 33 to 64 bytes in 4.0 to 4.5 ns instead of 4.7
         /// to 5.4 (Memmove), 65 to 128 in about 4.2 ns instead of 5.4 to 6.6. A loop of 16-byte vectors (WebAssembly,
         /// SSE only) is slower than Memmove from 2 KB, so those CPUs call Memmove from 65 bytes; Arm64 copies up to
@@ -474,9 +474,11 @@ namespace Nino.Core.CompilerServices
                         return;
                     }
                 }
-                else if (Vector512.IsHardwareAccelerated ? size <= MaxVectorCopy : size - 256 <= MaxVector256Copy - 256)
+                else if (Vector512.IsHardwareAccelerated ? size <= MaxVector256Copy : size - 256 <= MaxVector256Copy - 256)
                 {
-                    if (Vector512.IsHardwareAccelerated)
+                    // With 64-byte vectors up to MaxVectorCopy, then 32-byte ones up to MaxVector256Copy: beyond 32 KB
+                    // the 64-byte loop lost to Memmove, the 32-byte one still beats it.
+                    if (Vector512.IsHardwareAccelerated && size <= MaxVectorCopy)
                         CopyVectors<Vector512<byte>>(ref destination, ref source, size);
                     else
                         CopyVectors<Vector256<byte>>(ref destination, ref source, size);
