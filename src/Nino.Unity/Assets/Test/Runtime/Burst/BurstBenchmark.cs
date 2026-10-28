@@ -19,8 +19,8 @@ namespace Test.Runtime.Burst
     /// <summary>
     /// The release benchmark of the Burst kernels, measured with the Unity Performance Testing package: each case is a
     /// call a user makes (NinoSerializer.Serialize to a new array, NinoDeserializer.Deserialize into an existing array,
-    /// or to a new string or list), measured by <c>Measure.Method</c> (its own warm-up and probing, then 9 measurements
-    /// of about 100 ms, each the mean time per call) once per sample group:
+    /// or to a new string, list or class), measured by <c>Measure.Method</c> (its own warm-up and probing, then 9
+    /// measurements of about 100 ms, each the mean time per call) once per sample group:
     /// <list type="bullet">
     /// <item>"Without Burst": NinoKernels.Register(null), Nino.Core's own paths (as without com.unity.burst);</item>
     /// <item>"SSSE3 only" (AVX2 CPUs): the kernels limited to their 16-byte paths, to compare the two tiers;</item>
@@ -74,16 +74,21 @@ namespace Test.Runtime.Burst
             // Latin-1 text (printable ASCII), which Nino writes a byte a char; and CJK text, which it writes as UTF-16
             // after the narrowing stops at the first char.
             foreach (int n in Lengths)
-                cases.Add(Text($"ASCII string ({n} chars)",
+                cases.Add(One($"ASCII string ({n} chars)",
                     new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(32, 127)).ToArray())));
             foreach (int n in Lengths)
-                cases.Add(Text($"UTF-16 string ({n} CJK chars)",
+                cases.Add(One($"UTF-16 string ({n} CJK chars)",
                     new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(0x4E00, 0x9FA6)).ToArray())));
             var words = Enumerable.Range(0, 1000)
                 .Select(_ => new string(Enumerable.Range(0, random.Next(8, 41)).Select(c => (char)random.Next(32, 127))
                     .ToArray()))
                 .ToList();
-            cases.Add(Text($"List of {words.Count} ASCII strings (8–40 chars)", words));
+            cases.Add(One($"List of {words.Count} ASCII strings (8–40 chars)", words));
+            // Classes of the .NET benchmark's SimpleClass shape, one and an array of 100 as in its SimpleTest: what the
+            // generated formatters cost under IL2CPP. Of their members only Name (36 Latin-1 chars) takes a kernel.
+            cases.Add(One("SimpleClass", BenchClass.Create(random)));
+            cases.Add(Values("SimpleClass[100]",
+                Enumerable.Range(0, 100).Select(_ => BenchClass.Create(random)).ToArray()));
             return cases;
         }
 
@@ -100,8 +105,8 @@ namespace Test.Runtime.Burst
             ReadBack = bytes => NinoSerializer.Serialize(NinoDeserializer.Deserialize<T[]>(bytes)),
         };
 
-        /// <summary>A string or a list of them: serialized to a new array, deserialized to a new value.</summary>
-        private static Case Text<T>(string name, T value) => new Case
+        /// <summary>A string, a list of them or a class: serialized to a new array, deserialized to a new value.</summary>
+        private static Case One<T>(string name, T value) => new Case
         {
             Name = name,
             Serialize = () => NinoSerializer.Serialize(value),
