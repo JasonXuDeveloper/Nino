@@ -2883,9 +2883,9 @@ mod tests {
         }
     }
 
-    /// A map of fixed-size keys and values, written as one block, against reading and writing its entries one by
-    /// one: every count to 256 (fewer under Miri), random bytes with bad bools and repeated keys, whole and cut
-    /// short; the same map or the same error, and the same bytes.
+    /// A map of fixed-size keys and values, read and written as one block, against reading and writing its entries
+    /// one by one: every count to 256 (fewer under Miri), random bytes with bad bools and repeated keys, whole and
+    /// cut short; the same map or the same error, and the same bytes.
     #[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::unwrap_used)]
     #[test]
     fn maps_match_entry_by_entry() {
