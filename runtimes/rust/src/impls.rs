@@ -151,21 +151,22 @@ const fn entries_fixed_read<K: NinoRead, V: NinoRead>() -> bool {
     K::FIXED_SIZE != 0 && V::FIXED_SIZE != 0 && K::MIN_SIZE == K::FIXED_SIZE && V::MIN_SIZE == V::FIXED_SIZE
 }
 
-/// Reads `count` entries of fixed-size keys and values: one take of their bytes, then each key and value decoded from
-/// its slice and handed to `insert`, in order, so a bad value or a repeated key fails at the same entry as reading
-/// them one at a time.
+/// Reads `count` entries of fixed-size keys and values, one bounds check an entry: each key decoded from its bytes and
+/// handed to `insert` with its value's bytes, in order. `insert` decodes the value, after finding the key's place
+/// when it can, so the value's bytes are not held across the key's hashing.
 #[inline]
-fn read_entries_fixed<K: NinoRead, V: NinoRead>(
-    r: &mut Reader<'_>,
+fn read_entries_fixed<'d, K: NinoRead>(
+    r: &mut Reader<'d>,
     count: usize,
-    mut insert: impl FnMut(K, V) -> Result<()>,
+    value_size: usize,
+    mut insert: impl FnMut(K, &'d [u8]) -> Result<()>,
 ) -> Result<()> {
-    let size = K::FIXED_SIZE.saturating_add(V::FIXED_SIZE);
+    let size = K::FIXED_SIZE.saturating_add(value_size);
     for _ in 0..count {
         let entry = r.take(size)?;
-        // Never `None`: an entry is `K::FIXED_SIZE + V::FIXED_SIZE` bytes.
+        // Never `None`: an entry is `K::FIXED_SIZE + value_size` bytes.
         let Some((k, v)) = entry.split_at_checked(K::FIXED_SIZE) else { break };
-        insert(K::decode_fixed(k)?, V::decode_fixed(v)?)?;
+        insert(K::decode_fixed(k)?, v)?;
     }
     Ok(())
 }
@@ -687,10 +688,14 @@ where
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = HashMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
         if entries_fixed_read::<K, V>() {
-            read_entries_fixed(r, count, |key, value| match map.entry(key) {
-                hash_map::Entry::Occupied(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+            // The value is decoded where reading the entries one by one would fail on it: before a repeated key.
+            read_entries_fixed(r, count, V::FIXED_SIZE, |key: K, v| match map.entry(key) {
+                hash_map::Entry::Occupied(_) => {
+                    V::decode_fixed(v)?;
+                    Err(Error::of(ErrorKind::DuplicateKey))
+                }
                 hash_map::Entry::Vacant(e) => {
-                    e.insert(value);
+                    e.insert(V::decode_fixed(v)?);
                     Ok(())
                 }
             })?;
@@ -737,7 +742,7 @@ where
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = BTreeMap::new();
         if entries_fixed_read::<K, V>() {
-            read_entries_fixed(r, count, |key, value| match map.insert(key, value) {
+            read_entries_fixed(r, count, V::FIXED_SIZE, |key: K, v| match map.insert(key, V::decode_fixed(v)?) {
                 Some(_) => Err(Error::of(ErrorKind::DuplicateKey)),
                 None => Ok(()),
             })?;
