@@ -105,6 +105,8 @@ fix every method it lists.
 ## Owned elsewhere
 
 - `NinoSettings.Untrusted` tests stay a single `if` on a frozen field with the work out of line (`audit-security`).
-- Paths through a runtime's internals: `runtime-internals`. Platform matrix and emulators: `platforms`.
+- Paths through a runtime's internals: `runtime-internals`. Platform matrix and emulators: `platforms`; a vector
+  path chosen by `X.IsSupported` uses X's own intrinsics under that test, or NativeAOT runs it in software
+  (`platforms`).
 - The same rules for Go, Rust and TypeScript: `audit-runtimes` and `runtimes/*/AGENTS.md`.
 - Generated code's listings: `audit-generated-code`.

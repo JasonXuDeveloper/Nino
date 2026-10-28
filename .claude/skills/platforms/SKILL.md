@@ -18,6 +18,23 @@ the shared path kept as the fallback; say in a comment which platforms take it, 
 read the same bytes (run the suite once with the fast path off: `DOTNET_EnableHWIntrinsic=0`, the `netstandard`
 builds of Nino.Core, Mono).
 
+- Under NativeAOT, emit every instruction a run-time plan leads to as that set's own intrinsic, under its own
+  `X.IsSupported` test in the method that uses it (`if (Ssse3.IsSupported) return Ssse3.Shuffle(...)`), and give the
+  test a fallback that is not a call. Why: ILC compiles x64 for SSE2 and emits a later set only behind its test (a
+  check at run time for SSSE3 to SSE4.x, false for AVX and later unless `IlcInstructionSet` raises the baseline),
+  while a cross-platform API (`Vector128.ShuffleNative`, `Vector512` operations) takes the form of the baseline; the
+  JIT folds the test, so its code does not change. Evidence: plans chosen from `Ssse3.IsSupported` (true at run
+  time) led to `Vector128.ShuffleNative`, compiled to its software form: 1,000 `(int, long)` written in 25 us
+  against 126 ns under the JIT, read in 18 us against 1.9 us (local, AVX-512 Xeon). Naming `Ssse3.Shuffle` with a
+  call fallback still spilled every vector around the call (2.7 us); with `return value` as the never-taken
+  fallback, 1.9 us, the JIT's listings unchanged on every ISA. Find such fallbacks in a NativeAOT binary: calls from
+  `Nino_Core_*` symbols to `S_P_CoreLib_System_Runtime_Intrinsics_*` (`objdump -d` with the `.dbg` file's symbols);
+  dead branches of another architecture show too. `tests/Nino.AotTests` checks the shuffle is `pshufb`. Arm64 is not
+  affected (AdvSimd is in its baseline); an Arm64 object can be built on x64 (`dotnet publish -r linux-arm64` stops
+  at the link, `obj/.../native/*.o` is there for `llvm-objdump`). What is left: under NativeAOT a `static readonly`
+  field a static constructor computes is a load, not a constant, so the plans' offsets are loaded per group and
+  `Lanes16` stays a call; the lane paths ran about twice as long as the JIT's with the same instruction sets.
+
 ## Running each locally
 
 | Platform | How |
