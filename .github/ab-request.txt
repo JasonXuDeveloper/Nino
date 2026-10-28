@@ -897,28 +897,55 @@ typescript 506720c223 506720c223
 # done (run 40753062510): rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 4
 # Round 3 (run 40753062510): 79d5b32 on 4beee30 strings-mixed-1000 -2.9 % EPYC 7763 (n=20, floor -0.45), -8.9 % 9V45 (n=8), -3.7 % 9V74 (n=5), -8.8 % Xeon 8573C (n=5),
 # N2 0.0 (n=40). Round 4: more samples for the AVX-512 CPUs (n >= 12 each), text floors for the noisy 9V74 latin1/24.
-rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 9
-rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 10
-rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 11
-rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 12
-rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 13
-rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 14
-rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 15
-rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 16
-rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 17
-rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 18
-rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 19
-rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 20
-rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 5
-rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 6
-rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 7
-rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 8
-rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 9
-rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 10
-rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 11
-rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 12
-rust 4beee30 4beee30 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # floor 5
-rust 4beee30 4beee30 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # floor 6
-rust:text 4beee30 4beee30 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # floor 1
-rust:text 4beee30 4beee30 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # floor 2
-rust:text 4beee30 4beee30 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # floor 3
+# done (run 40756504471): rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 9
+# done (run 40756504471): rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 10
+# done (run 40756504471): rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 11
+# done (run 40756504471): rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 12
+# done (run 40756504471): rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 13
+# done (run 40756504471): rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 14
+# done (run 40756504471): rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 15
+# done (run 40756504471): rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 16
+# done (run 40756504471): rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 17
+# done (run 40756504471): rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 18
+# done (run 40756504471): rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 19
+# done (run 40756504471): rust 4beee30 79d5b32 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 20
+# done (run 40756504471): rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 5
+# done (run 40756504471): rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 6
+# done (run 40756504471): rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 7
+# done (run 40756504471): rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 8
+# done (run 40756504471): rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 9
+# done (run 40756504471): rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 10
+# done (run 40756504471): rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 11
+# done (run 40756504471): rust:text 4beee30 79d5b32 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 12
+# done (run 40756504471): rust 4beee30 4beee30 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # floor 5
+# done (run 40756504471): rust 4beee30 4beee30 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # floor 6
+# done (run 40756504471): rust:text 4beee30 4beee30 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # floor 1
+# done (run 40756504471): rust:text 4beee30 4beee30 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # floor 2
+# done (run 40756504471): rust:text 4beee30 4beee30 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # floor 3
+# Rounds 3+4 (runs 40753062510, 40756504471): 79d5b32 on 4beee30 strings-mixed-1000 -8.9 % 9V45 (n=11), -3.5 % 9V74 (n=27), -8.9 % 8573C (n=9), -6.2 % 8370C (n=6);
+# the AVX2 half (907b0f7) made text cyrillic/16 +3.0 % on EPYC 7763 (n=32), so it is dropped. Round 5: the AVX-512 change alone (0f109bd) against main, for n >= 12 on the AVX-512 CPUs.
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 1
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 2
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 3
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 4
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 5
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 6
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 7
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 8
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 9
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 10
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 11
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 12
+rust 4beee30 0f109bd ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # copy 13
+rust:text 4beee30 0f109bd ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 1
+rust:text 4beee30 0f109bd ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 2
+rust:text 4beee30 0f109bd ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 3
+rust:text 4beee30 0f109bd ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 4
+rust:text 4beee30 0f109bd ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 5
+rust:text 4beee30 0f109bd ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 6
+rust:text 4beee30 0f109bd ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 7
+rust:text 4beee30 0f109bd ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24)$ # copy 8
+rust 4beee30 4beee30 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # floor 7
+rust 4beee30 4beee30 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # floor 8
+rust 4beee30 4beee30 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # floor 9
+rust 4beee30 4beee30 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # floor 10
