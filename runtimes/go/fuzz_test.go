@@ -185,11 +185,17 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 			}
 			return true
 		})
+	case 26:
+		v := ReadPrimitiveMap[int32, int64](r)
+		check(func(w *Writer) { WritePrimitiveMap(w, v) }, func(b *Reader) bool {
+			back := ReadPrimitiveMap[int32, int64](b)
+			return (back == nil) == (v == nil) && sameMap(back, v)
+		})
 	}
 }
 
 // fuzzOps is the number of ops fuzzOp runs.
-const fuzzOps = 26
+const fuzzOps = 27
 
 // equalSlices reports whether a and b are both nil, or both not nil with the same memory (bit for bit: a NaN equals
 // itself; the types compared have no padding).

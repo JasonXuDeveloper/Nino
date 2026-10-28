@@ -849,6 +849,26 @@ func init() {
 	addFastMaps((*Reader).I32, (*Writer).I32)
 	addFastMaps((*Reader).I64, (*Writer).I64)
 	addFastMaps((*Reader).String, (*Writer).String)
+	primitiveFastMap[int32, int32]()
+	primitiveFastMap[int32, int64]()
+	primitiveFastMap[int64, int32]()
+	primitiveFastMap[int64, int64]()
+}
+
+// primitiveFastMap makes the fast map of integer keys and values read its pairs as one block ([ReadPrimitiveMap]);
+// it is written as before, in key order.
+func primitiveFastMap[K, V Primitive]() {
+	t := reflect.TypeFor[map[K]V]()
+	codecs := fastMaps[t].codecs
+	fastMaps[t] = fastMap{codecs: func(pairMin int) (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
+		_, write := codecs(pairMin)
+		return func(r *Reader, v reflect.Value) {
+			m := ReadPrimitiveMap[K, V](r)
+			if r.err == nil {
+				v.Set(reflect.ValueOf(m))
+			}
+		}, write
+	}}
 }
 
 // addFastMaps adds the maps of keys K (read and written by rk and wk) to values int32, int64 and string.

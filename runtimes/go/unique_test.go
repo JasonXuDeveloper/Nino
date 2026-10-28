@@ -172,7 +172,52 @@ func checkPrimitiveEntries[K, V Primitive](t *testing.T, e []Entry[K, V]) {
 		if v := ReadPrimitiveEntries[K, V](r); v != nil || r.Err() == nil {
 			t.Fatalf("%T: %d pairs cut at %d: got %d pairs, %v", e, len(e), cut, len(v), r.Err())
 		}
+		r = NewReader(b[:cut])
+		if m := ReadPrimitiveMap[K, V](r); m != nil || r.Err() == nil {
+			t.Fatalf("map[%T]%T: %d pairs cut at %d: got %d pairs, %v", p.Key, p.Value, len(e), cut, len(m), r.Err())
+		}
 	}
+	checkPrimitiveMap[K, V](t, b, code)
+}
+
+// checkPrimitiveMap reads b (a dictionary's bytes) with ReadPrimitiveMap and checks the map and error against
+// ReadMap's, then writes the map with WritePrimitiveMap and checks those bytes read back as the same map with
+// ReadMap.
+func checkPrimitiveMap[K, V Primitive](t *testing.T, b []byte, code func(error) Code) {
+	t.Helper()
+	var p Entry[K, V]
+	wire := int(unsafe.Sizeof(p.Key) + unsafe.Sizeof(p.Value))
+	r, rr := NewReader(b), NewReader(b)
+	got := ReadPrimitiveMap[K, V](r)
+	want := ReadMap(rr, wire, readPrimitive[K], readPrimitive[V])
+	if code(r.Err()) != code(rr.Err()) || (got == nil) != (want == nil) || !sameMap(got, want) ||
+		r.Remaining() != rr.Remaining() {
+		t.Fatalf("map[%T]%T: got %d, %v; want %d, %v", p.Key, p.Value, len(got), r.Err(), len(want), rr.Err())
+	}
+	if got == nil {
+		return
+	}
+	w := NewWriter(0)
+	WritePrimitiveMap(w, got)
+	back := NewReader(w.Bytes())
+	if m := ReadMap(back, wire, readPrimitive[K], readPrimitive[V]); back.Err() != nil || back.Remaining() != 0 ||
+		!sameMap(m, got) || len(w.Bytes()) != 4+len(got)*wire {
+		t.Fatalf("map[%T]%T: %d pairs written as %x", p.Key, p.Value, len(got), w.Bytes())
+	}
+}
+
+// sameMap reports whether a and b hold the same pairs, values compared bit for bit (a NaN equals itself).
+func sameMap[K comparable, V any](a, b map[K]V) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, x := range a {
+		y, ok := b[k]
+		if !ok || !equalSlices([]V{x}, []V{y}) {
+			return false
+		}
+	}
+	return true
 }
 
 // primitiveEntries checks n pairs for each n up to 40 and 1000: distinct keys, then keys from a small range (most
