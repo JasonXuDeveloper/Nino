@@ -1,56 +1,56 @@
 # land/rust round 21, push B: the same three pairs, spelled differently.
-rust:blocks 1696e9f 38a0948 (write/(u64|dat{1}etime)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u64|date{1}time)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u64|datet{1}ime)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u64|dateti{1}me)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u64|datetim{1}e)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u64|datetime{1})|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u64|datetime)|r{1}ead/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u64|datetime)|re{1}ad/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u64|datetime)|rea{1}d/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u64|datetime)|read{1}/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (write/(u64|d{1}atetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (write/(u64|da{1}tetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (write/(u64|dat{1}etime)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (write/(u64|date{1}time)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (write/(u64|datet{1}ime)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (write/(u64|dateti{1}me)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (write/(u64|datetim{1}e)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (write/(u64{1}|datetime)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (write/(u64|d{1}atetime)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (write/(u64|da{1}tetime)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (write/(u64|dat{1}etime)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (write/(u64|date{1}time)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (write/(u64|datet{1}ime)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (write/(u64|dateti{1}me)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (write/(u64|datetim{1}e)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|dat{1}etime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|date{1}time)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|datet{1}ime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|dateti{1}me)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|datetim{1}e)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|datetime{1})|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|datetime)|r{1}ead/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|datetime)|re{1}ad/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|datetime)|rea{1}d/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|datetime)|read{1}/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (write/(u64|d{1}atetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (write/(u64|da{1}tetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (write/(u64|dat{1}etime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (write/(u64|date{1}time)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (write/(u64|datet{1}ime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (write/(u64|dateti{1}me)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (write/(u64|datetim{1}e)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (write/(u64{1}|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (write/(u64|d{1}atetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (write/(u64|da{1}tetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (write/(u64|dat{1}etime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (write/(u64|date{1}time)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (write/(u64|datet{1}ime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (write/(u64|dateti{1}me)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (write/(u64|datetim{1}e)|read/map-i32-i32)$
 # land/rust round 21 (aligned build): land/rust 38a0948 (option 1 folded in) against main+bench 1696e9f directly, on
 # write/u64, write/datetime and map read, with both floors: n>=12 a side on EPYC 9V74 and Xeon (push A of two).
-rust:blocks 1696e9f 38a0948 (w{1}rite/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (wr{1}ite/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (wri{1}te/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (writ{1}e/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write{1}/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u{1}64|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u6{1}4|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u64{1}|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u64|d{1}atetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 38a0948 (write/(u64|da{1}tetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (w{1}rite/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (wr{1}ite/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (wri{1}te/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (writ{1}e/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (write{1}/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (write/(u{1}64|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (write/(u6{1}4|datetime)|read/map-i32-i32)$
-rust:blocks 1696e9f 1696e9f (write/(u64{1}|datetime)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (w{1}rite/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (wr{1}ite/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (wri{1}te/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (writ{1}e/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (write{1}/(u64|datetime)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (write/(u{1}64|datetime)|read/map-i32-i32)$
-rust:blocks 38a0948 38a0948 (write/(u6{1}4|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (w{1}rite/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (wr{1}ite/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (wri{1}te/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (writ{1}e/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write{1}/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u{1}64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u6{1}4|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64{1}|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|d{1}atetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|da{1}tetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (w{1}rite/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (wr{1}ite/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (wri{1}te/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (writ{1}e/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (write{1}/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (write/(u{1}64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (write/(u6{1}4|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 1696e9f (write/(u64{1}|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (w{1}rite/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (wr{1}ite/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (wri{1}te/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (writ{1}e/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (write{1}/(u64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (write/(u{1}64|datetime)|read/map-i32-i32)$
+# done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 38a0948 38a0948 (write/(u6{1}4|datetime)|read/map-i32-i32)$
 # land/rust round 20 (aligned build). Option 1: f0927df = land/rust cf18a01 with 8-byte map entries read as one array off x86
 # (plain insert); option 2: 4338415 = 1696e9f plus code run once before the cases (placement control, map read listing identical);
 # more 9V74 jobs on write/u64 and write/datetime, and full-suite floors for the Xeon runners.
