@@ -95,22 +95,6 @@ fn outgrows_cache(len: usize, bytes: usize) -> bool {
     len.saturating_mul(bytes) > crate::simd::last_level_cache()
 }
 
-/// [`NinoWrite::write_many`] for elements that point elsewhere ([`NinoWrite::PREFETCH`]): a long slice through
-/// [`write_prefetched`], a shorter one element by element. Out of line, its loop at a 64-byte boundary: inlined into
-/// the caller next to the length test, the same loop wrote 1,000 records 1 to 3% slower than without the test, from
-/// where it happened to sit (GitHub's x64 and Arm64 runners).
-#[inline(never)]
-pub(crate) fn write_pointing<'a, T: NinoWrite>(values: &'a [T], w: &mut Writer<'a>) -> Result<()> {
-    if prefetches::<T>(values.len()) {
-        return write_prefetched(values, w);
-    }
-    crate::simd::align_code();
-    for v in values {
-        v.write(w)?;
-    }
-    Ok(())
-}
-
 /// [`NinoWrite::write_many`] for a long slice of elements that point elsewhere ([`prefetches`]): the same bytes,
 /// each element's targets asked for [`PREFETCH_AHEAD`] elements before they are written, in two stages. Out of line,
 /// so that the loop of every other slice stays as it was.
