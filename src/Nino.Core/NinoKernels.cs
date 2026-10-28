@@ -30,15 +30,20 @@ namespace Nino.Core
         {
             // Thresholds off first and on last: a thread between the two sees no kernels, or the new ones whole.
             NinoKernelHook.MinBlocks = int.MaxValue;
+            NinoKernelHook.MinCopies = int.MaxValue;
             NinoKernelHook.MinChars = int.MaxValue;
             Volatile.Write(ref NinoKernelHook.Kernels, kernels);
             if (kernels == null)
                 return;
             NinoKernelHook.MinBlocks = Math.Max(1, kernels.MinBlocks);
+            NinoKernelHook.MinCopies = Math.Max(NinoKernelHook.CopyFloor, kernels.MinBlocks);
             NinoKernelHook.MinChars = Math.Max(16, kernels.MinChars);
         }
 
-        /// <summary>The fewest values of a collection <see cref="Permute"/> is called for.</summary>
+        /// <summary>
+        /// The fewest values of a collection <see cref="Permute"/> is called for (at least 16 to copy raw structs with
+        /// padding, whose own path already copies whole words).
+        /// </summary>
         public virtual int MinBlocks => 16;
 
         /// <summary>The fewest chars of a string <see cref="Narrow"/> and <see cref="Widen"/> are called for (at least 16).</summary>
@@ -102,7 +107,12 @@ namespace Nino.Core
         internal static NinoKernels Kernels;
 
         // Tested first on each path: one load and a compare, failing without kernels.
-        internal static int MinBlocks = int.MaxValue, MinChars = int.MaxValue;
+        internal static int MinBlocks = int.MaxValue, MinCopies = int.MaxValue, MinChars = int.MaxValue;
+
+        // The fewest raw structs with padding copied through the kernels: their scalar path copies masked words, so
+        // the kernels' call and setup only paid off from 12 to 16 values (Burst, IL2CPP players on Linux x64, Unity
+        // 2022.3 and 6000.3: 0.75-0.8x at 1-2 values, 1.06-1.09x at 16), where blocks of tuples gain from 2.
+        internal const int CopyFloor = 16;
 
         /// <summary>
         /// <see cref="NinoKernels.Permute"/> of the <paramref name="count"/> values at <paramref name="source"/>; false

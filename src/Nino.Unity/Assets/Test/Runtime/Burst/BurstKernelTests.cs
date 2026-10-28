@@ -33,6 +33,8 @@ namespace Test.Runtime.Burst
             Assert.IsTrue(NinoBurst.Register(), "the kernels did not register");
             // SSSE3, AVX2 or AArch64 Neon; 0 would be the scalar branch (or managed code, not Burst's).
             Assert.AreNotEqual(0, NinoBurst.Isa);
+            // Every Unity the package supports calls them through C# function pointers, not the delegate fallback.
+            Assert.IsTrue(NinoBurst.CallsThroughPointers, "the kernels are called through delegates");
             Debug.Log($"Nino Burst kernels: instruction set {NinoBurst.IsaName}");
         }
 

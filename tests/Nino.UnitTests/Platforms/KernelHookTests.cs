@@ -22,7 +22,9 @@ public unsafe class KernelHookTests
     private sealed class ScalarKernels : NinoKernels
     {
         public int Permutes, Narrows, Widens;
-        public override int MinBlocks => 16;
+        private readonly int _minBlocks;
+        public ScalarKernels(int minBlocks = 16) => _minBlocks = minBlocks;
+        public override int MinBlocks => _minBlocks;
         public override int MinChars => 32;
 
         public override void Permute(byte* source, int sourceStride, byte* destination, int destinationStride,
@@ -118,6 +120,27 @@ public unsafe class KernelHookTests
             byte[] hooked = NinoSerializer.Serialize(values);
             NinoKernels.Register(null);
             CollectionAssert.AreEqual(NinoSerializer.Serialize(clean), hooked);
+        }
+    }
+
+    [TestMethod]
+    public void PaddedCopiesTakeTheKernelsFromSixteenValuesWhateverMinBlocks()
+    {
+        // Blocks of tuples follow MinBlocks; the masked copy of raw structs with padding starts at 16 (its own path
+        // copies whole words, which the kernels' call only beat from there on Unity's players).
+        foreach (int n in Lengths)
+        {
+            var tuples = Enumerable.Range(0, n).Select(i => (i, (long)i << 17)).ToArray();
+            var padded = Enumerable.Range(0, n).Select(i => new PaddedPlain { A = (short)i, B = i * 7L }).ToArray();
+            var kernels = new ScalarKernels(minBlocks: 2);
+            NinoKernels.Register(kernels);
+            byte[] bytes = NinoSerializer.Serialize(tuples);
+            Assert.AreEqual(n >= 2 ? 1 : 0, kernels.Permutes, $"(int, long) x {n}");
+            kernels.Permutes = 0;
+            NinoSerializer.Serialize(padded);
+            Assert.AreEqual(n >= 16 ? 1 : 0, kernels.Permutes, $"PaddedPlain x {n}");
+            NinoKernels.Register(null);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(tuples), bytes);
         }
     }
 

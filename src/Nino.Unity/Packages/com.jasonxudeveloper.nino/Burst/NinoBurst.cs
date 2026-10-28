@@ -5,6 +5,11 @@
 // moves blocks of tuples and structs a field at a time and narrows or widens Latin-1 text a word at a time. The kernels
 // here do that work with AVX2 or SSSE3 (x86 and x64) or AArch64 Neon, called through Burst function pointers.
 //
+// Calls: through C# 9 function pointers (delegate* unmanaged[Cdecl]; Unity's compiler rejects only the extensible
+// calling conventions), which Mono and IL2CPP compile to a direct call of the native code, instead of
+// FunctionPointer<T>.Invoke, a delegate over it. Register checks the call form once (InstructionSet through the pointer
+// must return what its delegate returns) and keeps the delegates where it does not hold.
+//
 // x64 players: Burst AOT compiles each function pointer once per CPU target of the Burst AOT Settings (Burst 1.8.29's
 // default for x64 desktop players: SSE2 and AVX2; SSE4 can be added) and picks the variant the CPU runs at load time.
 // The AVX2 variant takes the 32-byte permute below for blocks of 256 values or more, an SSE4 variant the 16-byte (SSSE3)
@@ -21,12 +26,15 @@
 // - WebGL and any player where Burst does not run (BurstCompiler.IsEnabled false): nothing is registered.
 #if NINO_BURST
 using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using AOT;
 using Nino.Core;
 using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using UnityEngine;
+
+[assembly: InternalsVisibleTo("Burst.Tests")]
 
 namespace Nino.Burst
 {
@@ -79,6 +87,9 @@ namespace Nino.Burst
         // The kernels with every path the CPU has, and with the 16-byte ones only (on AVX2 CPUs, for measuring).
         private static Kernels _kernels, _kernels16;
 
+        /// <summary>Whether the kernels are called through C# function pointers (false: through delegates).</summary>
+        internal static bool CallsThroughPointers => NinoKernels.Current is PointerKernels;
+
         /// <summary>
         /// Compiles the kernels (once) and registers them with Nino.Core: false, with Nino's scalar paths kept, where
         /// Burst is off or the target has no SSSE3 or AArch64 Neon.
@@ -97,16 +108,20 @@ namespace Nino.Burst
                     return false;
                 try
                 {
-                    var isa = BurstCompiler.CompileFunctionPointer<IsaFunction>(InstructionSet).Invoke;
-                    _best = isa();
+                    var isa = BurstCompiler.CompileFunctionPointer<IsaFunction>(InstructionSet);
+                    _best = isa.Invoke();
                     if (_best == 0)
                         return false;
-                    _kernels = new Kernels(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute).Invoke,
-                        BurstCompiler.CompileFunctionPointer<NarrowFunction>(Narrow).Invoke,
-                        BurstCompiler.CompileFunctionPointer<WidenFunction>(Widen).Invoke);
+                    var permute = BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute);
+                    var narrow = BurstCompiler.CompileFunctionPointer<NarrowFunction>(Narrow);
+                    var widen = BurstCompiler.CompileFunctionPointer<WidenFunction>(Widen);
+                    bool pointers = PointersWork(isa);
+                    Kernels Make(FunctionPointer<PermuteFunction> p) => pointers
+                        ? new PointerKernels(p.Value, narrow.Value, widen.Value)
+                        : new DelegateKernels(p.Invoke, narrow.Invoke, widen.Invoke);
+                    _kernels = Make(permute);
                     _kernels16 = _best == Avx2
-                        ? new Kernels(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute16).Invoke,
-                            _kernels.NarrowPointer, _kernels.WidenPointer)
+                        ? Make(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute16))
                         : _kernels;
                 }
                 catch (Exception e)
@@ -120,6 +135,19 @@ namespace Nino.Burst
             Isa = _best == Avx2 && !wide ? Ssse3 : _best;
             NinoKernels.Register(wide ? _kernels : _kernels16);
             return true;
+        }
+
+        // Whether a call through the function pointer returns what the delegate's call returned (_best).
+        private static bool PointersWork(FunctionPointer<IsaFunction> isa)
+        {
+            try
+            {
+                return isa.Value != IntPtr.Zero && ((delegate* unmanaged[Cdecl]<int>)isa.Value)() == _best;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         /// <summary>Unregisters the kernels: Nino.Core takes its scalar paths again.</summary>
@@ -138,17 +166,48 @@ namespace Nino.Burst
         private static void RegisterInEditor() => UnityEditor.EditorApplication.delayCall += () => Register();
 #endif
 
-        /// <summary>The kernels as Nino.Core calls them: each a call through the Burst function pointer.</summary>
-        private sealed class Kernels : NinoKernels
+        /// <summary>The kernels as Nino.Core calls them, and the shortest runs it calls them for.</summary>
+        // The thresholds from a sweep in unity.yml run 40735278928 (IL2CPP players, Linux x64, 2022.3 and 6000.3): blocks of
+        // tuples were faster through the kernels from 2 values (1.09-1.30x; 0.99-1.14x at 1), strings of Latin-1 text
+        // from 16 chars (1.24-1.55x); text above U+00FF costs the same few percent at any length.
+        private abstract class Kernels : NinoKernels
+        {
+            public override int MinBlocks => 2;
+            public override int MinChars => 16;
+        }
+
+        /// <summary>Each kernel a call through its Burst function pointer, as a C# function pointer.</summary>
+        private sealed class PointerKernels : Kernels
+        {
+            private readonly delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void> _permute;
+            private readonly delegate* unmanaged[Cdecl]<ushort*, byte*, int, int> _narrow;
+            private readonly delegate* unmanaged[Cdecl]<byte*, ushort*, int, void> _widen;
+
+            public PointerKernels(IntPtr permute, IntPtr narrow, IntPtr widen)
+            {
+                _permute = (delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void>)permute;
+                _narrow = (delegate* unmanaged[Cdecl]<ushort*, byte*, int, int>)narrow;
+                _widen = (delegate* unmanaged[Cdecl]<byte*, ushort*, int, void>)widen;
+            }
+
+            public override void Permute(byte* source, int sourceStride, byte* destination, int destinationStride,
+                byte* table, int count) => _permute(source, sourceStride, destination, destinationStride, table, count);
+
+            public override bool Narrow(char* source, byte* destination, int length) =>
+                _narrow((ushort*)source, destination, length) != 0;
+
+            public override void Widen(byte* source, char* destination, int length) =>
+                _widen(source, (ushort*)destination, length);
+        }
+
+        /// <summary>The fallback: each kernel a call through the delegate of FunctionPointer.Invoke.</summary>
+        private sealed class DelegateKernels : Kernels
         {
             private readonly PermuteFunction _permute;
             private readonly NarrowFunction _narrow;
             private readonly WidenFunction _widen;
 
-            public NarrowFunction NarrowPointer => _narrow;
-            public WidenFunction WidenPointer => _widen;
-
-            public Kernels(PermuteFunction permute, NarrowFunction narrow, WidenFunction widen)
+            public DelegateKernels(PermuteFunction permute, NarrowFunction narrow, WidenFunction widen)
             {
                 _permute = permute;
                 _narrow = narrow;
@@ -229,6 +288,27 @@ namespace Nino.Burst
             if (last < 0)
                 return 0;
 
+            byte* at0 = source, to0 = destination;
+            int n = last + 1;
+            if (loads == 1 && stores == 1)
+            {
+                // Values and blocks of up to 16 bytes (most tuples and small structs): one shuffle each, by the table
+                // itself (an index of 0xFF, like any with the top bit set, gives 0 for both pshufb and tbl). Building
+                // only this mask moved the padded copy's break-even from about 24 values to 12.
+                v128 m = default;
+                byte* mask = (byte*)&m;
+                for (int j = 0; j < 16; j++)
+                    mask[j] = j < destinationStride ? table[j] : (byte)0x80;
+                for (int k = 0; k < n; k++)
+                {
+                    Store(to0, Shuffle(Load(at0), m));
+                    at0 += sourceStride;
+                    to0 += destinationStride;
+                }
+
+                return n;
+            }
+
             // The shuffle of load s for store o (masks[o * 4 + s]): its bytes from that load at their index, every other
             // byte 0x80 (zero for both pshufb and tbl). Bit o * 4 + s of used: the store takes bytes from the load.
             v128* masks = stackalloc v128[16];
@@ -246,22 +326,6 @@ namespace Nino.Burst
                     if (here)
                         used |= 1 << (o * 4 + s);
                 }
-            }
-
-            byte* at0 = source, to0 = destination;
-            int n = last + 1;
-            if (loads == 1 && stores == 1)
-            {
-                // Values and blocks of up to 16 bytes (most tuples and small structs): one shuffle each.
-                v128 m = masks[0];
-                for (int k = 0; k < n; k++)
-                {
-                    Store(to0, Shuffle(Load(at0), m));
-                    at0 += sourceStride;
-                    to0 += destinationStride;
-                }
-
-                return n;
             }
 
             for (int k = 0; k < n; k++)
