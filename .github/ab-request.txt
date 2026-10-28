@@ -1,21 +1,43 @@
+# land/rust round 19 (aligned build): land/rust c1f52b1 (lists and maps of fixed-size elements as blocks, map read on x86) against main bb57eca, full blocks and compare suites.
+rust:blocks bb57eca c1f52b1 blocks/{1}
+rust:blocks bb57eca c1f52b1 ^blocks/{1}
+rust:blocks bb57eca c1f52b1 blocks/{1}.*
+rust:blocks bb57eca c1f52b1 ^blocks/{1}.*
+rust:blocks bb57eca c1f52b1 (blocks/)
+rust:blocks bb57eca c1f52b1 ^(blocks/)
+rust:blocks bb57eca bb57eca blocks/{1}
+rust:blocks bb57eca bb57eca ^blocks/{1}
+rust:blocks bb57eca bb57eca .*blocks/{1}
+rust:blocks c1f52b1 c1f52b1 blocks/{1}
+rust:blocks c1f52b1 c1f52b1 ^blocks/{1}
+rust:blocks c1f52b1 c1f52b1 .*blocks/{1}
+rust bb57eca c1f52b1 /{1}nino$
+rust bb57eca c1f52b1 .*/{1}nino$
+rust bb57eca c1f52b1 /{1}(nino)$
+rust bb57eca c1f52b1 (/{1}nino)$
+rust bb57eca c1f52b1 /(nino)$
+rust bb57eca bb57eca /{1}nino$
+rust bb57eca bb57eca (/{1}nino)$
+rust c1f52b1 c1f52b1 /{1}nino$
+rust c1f52b1 c1f52b1 (/{1}nino)$
 # phase10/rust round 18 (aligned build): ffbca8f (map read one take an entry on x64 only; round 17: x64 -1.7 to -4.3%,
 # Neoverse-N2 0.0%) against 781d955 (blocks) and main 1622ddb (compare) on the full suites, and 83950aa, with floors.
-rust:blocks 781d955 ffbca8f blocks/{1}
-rust:blocks 781d955 ffbca8f ^blocks/{1}
-rust:blocks 781d955 ffbca8f blocks/{1}.*
-rust:blocks 83950aa ffbca8f blocks/{1}
-rust:blocks 83950aa ffbca8f ^blocks/{1}
-rust:blocks ffbca8f ffbca8f blocks/{1}
-rust:blocks ffbca8f ffbca8f ^blocks/{1}
-rust:blocks 781d955 781d955 blocks/{1}.*
-rust:blocks 781d955 781d955 ^blocks/{1}.*
-rust 1622ddb ffbca8f /{1}nino$
-rust 1622ddb ffbca8f .*/{1}nino$
-rust 1622ddb ffbca8f /{1}(nino)$
-rust ffbca8f ffbca8f /{1}nino$
-rust ffbca8f ffbca8f .*/{1}nino$
-rust 1622ddb 1622ddb /{1}(nino)$
-rust 1622ddb 1622ddb (/{1}nino)$
+# done (run 40624408587): rust:blocks 781d955 ffbca8f blocks/{1}
+# done (run 40624408587): rust:blocks 781d955 ffbca8f ^blocks/{1}
+# done (run 40624408587): rust:blocks 781d955 ffbca8f blocks/{1}.*
+# done (run 40624408587): rust:blocks 83950aa ffbca8f blocks/{1}
+# done (run 40624408587): rust:blocks 83950aa ffbca8f ^blocks/{1}
+# done (run 40624408587): rust:blocks ffbca8f ffbca8f blocks/{1}
+# done (run 40624408587): rust:blocks ffbca8f ffbca8f ^blocks/{1}
+# done (run 40624408587): rust:blocks 781d955 781d955 blocks/{1}.*
+# done (run 40624408587): rust:blocks 781d955 781d955 ^blocks/{1}.*
+# done (run 40624408587): rust 1622ddb ffbca8f /{1}nino$
+# done (run 40624408587): rust 1622ddb ffbca8f .*/{1}nino$
+# done (run 40624408587): rust 1622ddb ffbca8f /{1}(nino)$
+# done (run 40624408587): rust ffbca8f ffbca8f /{1}nino$
+# done (run 40624408587): rust ffbca8f ffbca8f .*/{1}nino$
+# done (run 40624408587): rust 1622ddb 1622ddb /{1}(nino)$
+# done (run 40624408587): rust 1622ddb 1622ddb (/{1}nino)$
 # phase10/rust round 17 (aligned build): ffbca8f = 7a765b6 (one take an entry) on x64 only; Arm64 keeps 83950aa's loop (same listing).
 # done (run 40623675895): rust:blocks 83950aa ffbca8f blocks/read/(map-i32-i32)$
 # done (run 40623675895): rust:blocks 83950aa ffbca8f blocks/read/map-i32-i3(2)$
