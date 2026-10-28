@@ -244,7 +244,7 @@ namespace Nino.Core.Internal
         /// chars, so reading into an existing object keeps an unchanged string instead of allocating a copy.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string Read(ref byte source, int available, string current, out int size)
+        public static string Read(ref byte source, int available, string current, out int size, bool share = true)
         {
             if (available <= 0)
                 NinoThrow.EndOfData();
@@ -263,7 +263,7 @@ namespace Nino.Core.Internal
                 size = 1 + (int)length;
                 return current != null && current.Length == (int)length && SameLatin1(ref chars, current)
                     ? current
-                    : NewLatin1(ref chars, (int)length);
+                    : NewLatin1(ref chars, (int)length, share);
             }
 
             // UTF-16: an even header of 2 to 126, the same test.
@@ -512,8 +512,12 @@ namespace Nino.Core.Internal
 
         /// <summary>A new string of the <paramref name="length"/> Latin-1 chars at <paramref name="source"/> (length &gt; 0).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string NewLatin1(ref byte source, int length)
+        public static string NewLatin1(ref byte source, int length, bool share = true)
         {
+            // A string of one char (a digit, a letter, a separator) is shared, as char.ToString shares those of
+            // ASCII chars on .NET 8 and later: no allocation. A constant share: false leaves the branch out.
+            if (share && length == 1)
+                return OneChar(source);
             string value = Allocate(length);
             Widen(ref source, ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan())),
                 (uint)length);
@@ -547,6 +551,36 @@ namespace Nino.Core.Internal
                 builder.Append(buffer, count);
             }
 #endif
+        }
+
+        /// <summary>The string of the one Latin-1 char <paramref name="c"/>, shared.</summary>
+        // Inline: out of line (a call per one-char string) SimpleClass reads were 3% slower on Neoverse-N2 (run
+        // 40591340557), and TimeZoneInfo reads, which never take this branch, no faster.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static string OneChar(byte c)
+        {
+#if NET8_0_OR_GREATER
+            return Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(OneChars.Table), c);
+#else
+            return OneChars.Table[c];
+#endif
+        }
+
+        /// <summary>
+        /// The strings of one Latin-1 char, indexed by the char (a class of its own, so NinoStrings has no static
+        /// constructor).
+        /// </summary>
+        private static class OneChars
+        {
+            public static readonly string[] Table = Make();
+
+            private static string[] Make()
+            {
+                var strings = new string[256];
+                for (int c = 0; c < strings.Length; c++)
+                    strings[c] = ((char)c).ToString();
+                return strings;
+            }
         }
 
         /// <summary>The high bytes of four UTF-16 chars in a ulong: set for a char above U+00FF.</summary>

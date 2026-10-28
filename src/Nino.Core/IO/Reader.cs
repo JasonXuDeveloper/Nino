@@ -872,8 +872,19 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// <see cref="ReadString()"/> with the string decoded out of line, for one that is rarely there or rarely
-        /// short: only the call and the position's update inline. The data, not the reader, goes to the call, so the
+        /// <see cref="ReadString()"/> without the shared strings of one char: for a formatter that never reads one, so
+        /// its inlined read has no branch for them.
+        /// </summary>
+        internal string ReadStringUnshared()
+        {
+            string value = NinoStrings.Read(ref Cur, Avail, null, out int size, share: false);
+            Skip(size);
+            return value;
+        }
+
+        /// <summary>
+        /// <see cref="ReadStringUnshared()"/> with the string decoded out of line, for one that is rarely there or
+        /// rarely short: only the call and the position's update inline. The data, not the reader, goes to the call, so the
         /// reader stays in registers.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -886,7 +897,7 @@ namespace Nino.Core
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static string ReadStringAt(ref byte source, int available, out int size) =>
-            NinoStrings.Read(ref source, available, null, out size);
+            NinoStrings.Read(ref source, available, null, out size, share: false);
 
         /// <summary>
         /// Reads <paramref name="count"/> strings into the slots starting at <paramref name="first"/> (the
