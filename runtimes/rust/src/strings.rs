@@ -188,7 +188,7 @@ pub(crate) fn write_strings(w: &mut Writer<'_>, values: &[String]) -> Result<()>
     write_each(w, rest)
 }
 
-/// [`write_strings`] for a long list (`String::write_many`, [`crate::impls::prefetch_from`]): the same bytes, a batch
+/// [`write_strings`] for a long list (`String::write_many`, [`crate::impls::prefetches`]): the same bytes, a batch
 /// of eight strings at a time, each batch's text asked for two batches before it is written. Out of line, so that
 /// shorter lists take [`write_strings`] as before.
 #[inline(never)]

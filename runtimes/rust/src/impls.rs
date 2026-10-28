@@ -78,21 +78,21 @@ pub(crate) fn grow_fixed<C, T>(
 /// their lines asked for a batch earlier). The same as the Go runtime's.
 const PREFETCH_AHEAD: usize = 8;
 
-/// The shortest slice written prefetching ahead: 1 MiB (about what the caches near the core hold) over an element's
-/// size and the bytes it points to ([`NinoWrite::PREFETCH`]), and never under 512. Shorter slices are likely in the
-/// cache already, where a prefetch per element costs more than it saves.
-#[inline(always)]
-pub(crate) const fn prefetch_from<T: NinoWrite>() -> usize {
-    let bytes = core::mem::size_of::<T>().saturating_add(T::PREFETCH);
-    let n = match (1usize << 20).checked_div(bytes) {
-        Some(n) => n,
-        None => usize::MAX,
-    };
-    if n < 512 {
-        512
-    } else {
-        n
-    }
+/// Whether a slice of `len` elements is written prefetching ahead: at least 512 elements, and more estimated data (an
+/// element's size and the bytes it points to, [`NinoWrite::PREFETCH`]) than the last-level cache holds
+/// ([`crate::simd::last_level_cache`]). Data that fits is likely in the cache already, where a prefetch per element
+/// costs more than it saves.
+#[inline]
+pub(crate) fn prefetches<T: NinoWrite>(len: usize) -> bool {
+    len >= 512 && outgrows_cache(len, core::mem::size_of::<T>().saturating_add(T::PREFETCH))
+}
+
+/// Whether `len` elements of `bytes` each are more than the last-level cache holds: out of line, so that a short
+/// list's code is one compare.
+#[cold]
+#[inline(never)]
+fn outgrows_cache(len: usize, bytes: usize) -> bool {
+    len.saturating_mul(bytes) > crate::simd::last_level_cache()
 }
 
 /// [`NinoWrite::write_many`] for elements that point elsewhere ([`NinoWrite::PREFETCH`]): a long slice through
@@ -101,7 +101,7 @@ pub(crate) const fn prefetch_from<T: NinoWrite>() -> usize {
 /// where it happened to sit (GitHub's x64 and Arm64 runners).
 #[inline(never)]
 pub(crate) fn write_pointing<'a, T: NinoWrite>(values: &'a [T], w: &mut Writer<'a>) -> Result<()> {
-    if values.len() >= prefetch_from::<T>() {
+    if prefetches::<T>(values.len()) {
         return write_prefetched(values, w);
     }
     crate::simd::align_code();
@@ -111,7 +111,7 @@ pub(crate) fn write_pointing<'a, T: NinoWrite>(values: &'a [T], w: &mut Writer<'
     Ok(())
 }
 
-/// [`NinoWrite::write_many`] for a long slice of elements that point elsewhere ([`prefetch_from`]): the same bytes,
+/// [`NinoWrite::write_many`] for a long slice of elements that point elsewhere ([`prefetches`]): the same bytes,
 /// each element's targets asked for [`PREFETCH_AHEAD`] elements before they are written, in two stages. Out of line,
 /// so that the loop of every other slice stays as it was.
 #[inline(never)]
@@ -519,7 +519,7 @@ impl NinoWrite for String {
 
     #[inline]
     fn write_many<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
-        if values.len() >= prefetch_from::<Self>() {
+        if prefetches::<Self>(values.len()) {
             return crate::strings::write_strings_prefetched(w, values);
         }
         crate::strings::write_strings(w, values)
@@ -1009,3 +1009,39 @@ tuple!(A 0, B 1, C 2, D 3);
 tuple!(A 0, B 1, C 2, D 3, E 4);
 tuple!(A 0, B 1, C 2, D 3, E 4, F 5);
 tuple!(A 0, B 1, C 2, D 3, E 4, F 5, G 6);
+
+#[cfg(test)]
+#[allow(clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::unwrap_used)]
+mod tests {
+    use crate::{serialize, NinoWrite, Writer};
+
+    /// The prefetching loops write the same bytes as their elements written one by one: strings (in batches),
+    /// optional strings and boxed strings (two stages), with lengths that end the batches and the look-ahead
+    /// anywhere, and lists too short to look ahead at all.
+    #[test]
+    fn prefetched_lists() {
+        let kinds = ["", "a", "é", "字", "🎉 строка", "crème brûlée"];
+        let text = |i: usize| format!("{}{}", kinds[i % kinds.len()], i % 97);
+        fn check<T: NinoWrite>(values: &[T], prefetched: impl for<'a> Fn(&'a [T], &mut Writer<'a>)) {
+            let mut expected = Vec::new();
+            values.iter().for_each(|v| expected.extend(serialize(v).unwrap()));
+            let mut w = Writer::new();
+            prefetched(values, &mut w);
+            assert_eq!(w.into_vec(), expected, "{} elements", values.len());
+        }
+        for n in [0usize, 1, 7, 8, 9, 15, 16, 17, 23, 24, 25, 1000, 1007, 1016, 1023] {
+            let strings: Vec<String> = (0..n).map(text).collect();
+            check(&strings, |v: &[String], w: &mut Writer<'_>| crate::strings::write_strings_prefetched(w, v).unwrap());
+            let options: Vec<Option<String>> = (0..n).map(|i| (i % 5 != 0).then(|| text(i))).collect();
+            check(&options, |v: &[Option<String>], w: &mut Writer<'_>| super::write_prefetched(v, w).unwrap());
+            let boxes: Vec<Option<Box<String>>> = (0..n).map(|i| (i % 7 != 0).then(|| Box::new(text(i)))).collect();
+            check(&boxes, |v: &[Option<Box<String>>], w: &mut Writer<'_>| super::write_prefetched(v, w).unwrap());
+        }
+    }
+
+    /// The last-level cache size is read (on Linux) or assumed, never zero.
+    #[test]
+    fn last_level_cache_is_known() {
+        assert!(crate::simd::last_level_cache() >= 1 << 20);
+    }
+}

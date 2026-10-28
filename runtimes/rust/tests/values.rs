@@ -602,29 +602,3 @@ fn string_lists() {
     // A null element is an error in a list of String (Option<String> elements read it).
     assert_eq!(kind::<Vec<String>>("02000000 03 61 00"), ErrorKind::UnexpectedNull);
 }
-
-#[test]
-fn prefetched_lists() {
-    // Lists long enough to be written prefetching ahead (NinoWrite::PREFETCH: 1 MiB over an element's bytes, about
-    // 11,000 strings) write the same bytes as their elements written one by one: strings (in batches), optional
-    // strings and boxed strings (two stages), with lengths that end the batches and the look-ahead anywhere.
-    let kinds = ["", "a", "é", "字", "🎉 строка", "crème brûlée"];
-    let text = |i: usize| format!("{}{}", kinds[i % kinds.len()], i % 97);
-    for n in [12_000usize, 12_007, 12_016, 12_023] {
-        let strings: Vec<String> = (0..n).map(text).collect();
-        let mut expected = (n as i32).to_le_bytes().to_vec();
-        strings.iter().for_each(|s| expected.extend(serialize(s).unwrap()));
-        assert_eq!(serialize(&strings).unwrap(), expected, "{n} strings");
-
-        let options: Vec<Option<String>> = (0..n).map(|i| (i % 5 != 0).then(|| text(i))).collect();
-        let mut expected = (n as i32).to_le_bytes().to_vec();
-        options.iter().for_each(|s| expected.extend(serialize(s).unwrap()));
-        assert_eq!(serialize(&options).unwrap(), expected, "{n} optional strings");
-
-        let boxes: Vec<Option<Box<String>>> = (0..n).map(|i| (i % 7 != 0).then(|| Box::new(text(i)))).collect();
-        let mut expected = (n as i32).to_le_bytes().to_vec();
-        boxes.iter().for_each(|s| expected.extend(serialize(s).unwrap()));
-        assert_eq!(serialize(&boxes).unwrap(), expected, "{n} boxed strings");
-        assert_eq!(deserialize_exact::<Vec<Option<Box<String>>>>(&expected).unwrap(), boxes);
-    }
-}
