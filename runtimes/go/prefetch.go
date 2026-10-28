@@ -79,21 +79,16 @@ func makePrefetchPlan(t reflect.Type) *prefetchPlan {
 	return p
 }
 
-// prefetchPlanFor returns the plan for writing v when it is long enough to prefetch, else nil.
-func prefetchPlanFor[T any](v []T) *prefetchPlan {
-	if !hasPrefetch || len(v) < prefetchFloor {
-		return nil
-	}
-	if p := prefetchPlanOf(reflect.TypeFor[T]()); p != nil && len(v) >= p.min {
-		return p
-	}
-	return nil
-}
-
-// writePrefetched writes the elements of v (whose plan is p) in batches of prefetchAhead, prefetching ahead.
+// writePrefetched writes the elements of v in batches of prefetchAhead, prefetching ahead, when their type has a
+// plan and v is at least its threshold long; else it writes nothing and returns false. Out of line: WriteSlice
+// keeps only its length check inline.
 //
 //go:noinline
-func writePrefetched[T any](w *Writer, v []T, write func(*Writer, T), p *prefetchPlan) {
+func writePrefetched[T any](w *Writer, v []T, write func(*Writer, T)) bool {
+	p := prefetchPlanOf(reflect.TypeFor[T]())
+	if p == nil || len(v) < p.min {
+		return false
+	}
 	var at [8]uintptr
 	var size T
 	stride := unsafe.Sizeof(size)
@@ -135,4 +130,5 @@ func writePrefetched[T any](w *Writer, v []T, write func(*Writer, T), p *prefetc
 			write(w, e)
 		}
 	}
+	return true
 }
