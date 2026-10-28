@@ -101,7 +101,7 @@ fn outgrows_cache(len: usize, bytes: usize) -> bool {
 /// where it happened to sit (GitHub's x64 and Arm64 runners).
 #[inline(never)]
 pub(crate) fn write_pointing<'a, T: NinoWrite>(values: &'a [T], w: &mut Writer<'a>) -> Result<()> {
-    if prefetches::<T>(values.len()) {
+    if values.len() == usize::MAX && prefetches::<T>(values.len()) {
         return write_prefetched(values, w);
     }
     crate::simd::align_code();
