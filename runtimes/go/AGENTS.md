@@ -20,10 +20,20 @@ wire.go                      the wire constants (Nino.Core's NinoWire and NinoDe
 types.go                     .NET value types without a Go equivalent (Decimal, Guid, DateTime, TimeSpan, DateOnly,
                              TimeOnly, DateTimeOffset, Int128, Half, Version, BigInteger), read and written as .NET does
 raw.go                       blocks of primitives as one copy (ReadPrimitives / WritePrimitives), bools checked 0 or 1
+block.go                     ReadBlock / WriteBlock: lists of dates, Decimal, Guid and Int128 (BlockValue) as one block,
+                             each value checked as when read alone
 endian_little.go             littleEndian = true on little-endian architectures (blocks copied as memory)
 endian_other.go              littleEndian = false elsewhere (blocks converted element by element)
+unique.go                    duplicate keys of sets and maps read in data order: integer keys compared pairwise or
+                             sorted, no map
 collections.go               slices, maps, sets, entries, fixed-size runs, multidimensional shapes; counts checked
                              against the bytes left, unique keys
+prefetch.go                  long slices of pointers and of structs with strings written with prefetches ahead (a
+                             plan per element type, a threshold from a cache budget)
+prefetch_asm.go              prefetch8's declaration (amd64, arm64)
+prefetch_amd64.s             prefetch8: eight PREFETCHT0 (hand-written)
+prefetch_arm64.s             prefetch8: eight PRFM PLDL1KEEP (hand-written)
+prefetch_noasm.go            hasPrefetch false and a no-op prefetch8 elsewhere (other architectures, purego)
 depth.go                     class bodies (Class, ReadClass, WriteClass), regions, deferral past 128, the 512 limit
 poly.go                      polymorphism: TypeID (FNV-1a), Subtype, TypeSet, ReadAny / WriteAny (allowed ids only)
 refs.go                      reference tracking (wire-format spec §7.9): reference headers, Track, Back
@@ -50,6 +60,10 @@ tagged_build.go              the builder: the codec of each Go type a plan reach
 tagged_codec.go              the codecs plans are made of
 tagged_cache.go              built codecs cached per reflect.Type (safe and unsafe field access)
 marshal.go                   Marshal / Unmarshal through the tag plans
+block_test.go                block sizes and ReadBlock / WriteBlock against element-by-element reads
+raw_test.go                  bool blocks, raw struct blocks and padded structs
+unique_test.go               duplicate keys: integer keys, large sets, primitive entries
+prefetch_test.go             prefetch plans, and long slices written with prefetches against a plain loop
 reader_test.go               the Reader and Writer against hand-written bytes
 race_test.go, norace_test.go  raceEnabled: allocation counts are checked without the race detector (sync.Pool drops)
 strings_test.go              strings against a plain char-by-char reference
@@ -72,7 +86,8 @@ internal/
   generated/                 nino_types.go: the corpus's types as nino-gen writes them (do not edit) and its corpus test;
                              shapes/: tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it, round-tripped
 bench/                       module of its own: the runtime against Protocol Buffers (benchpb/, buf), MessagePack,
-                             encoding/json and encoding/gob on the .NET benchmark's SimpleClass and strings;
+                             encoding/json and encoding/gob on the .NET benchmark's SimpleClass, strings and a
+                             scattered list of 1,000,000 records (scattered.go);
                              tiers_amd64_test.go checks tier detection against golang.org/x/sys/cpu
 ```
 
