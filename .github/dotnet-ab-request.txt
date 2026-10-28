@@ -55,3 +55,6 @@
 # done (run 40643963916): cpu='7763|Neoverse' 43031cf 2a0cde6 12 *CollectionsTest.NinoDeserializeConcurrentDictionary* *CollectionsTest.NinoSerializeConcurrentDictionary*
 # done (run 40643963916): cpu='7763|Neoverse' 43031cf 2a0cde6 12 *CollectionsTest.NinoSerializeConcurrentDictionary* *CollectionsTest.NinoDeserializeConcurrentDictionary*
 # done (run 40643963916): cpu='7763|Neoverse' 43031cf 43031cf 12 *CollectionsTest.NinoDeserializeConcurrentDictionary* *CollectionsTest.NinoSerializeConcurrentDictionary*
+cpu='EPYC|Neoverse' 43031cf 2a0cde6 12 *CollectionsTest.NinoDeserializeConcurrentDictionary* *CollectionsTest.NinoSerializeConcurrentDictionary*
+cpu='EPYC|Neoverse' 43031cf d9c6169 12 *CollectionsTest.NinoSerializeConcurrentDictionary* *CollectionsTest.NinoDeserializeConcurrentDictionary*
+cpu='EPYC|Neoverse' 43031cf 43031cf 12 *CollectionsTest.NinoDeserializeConcurrentDictionary* *CollectionsTest.NinoSerializeConcurrentDictionary*
