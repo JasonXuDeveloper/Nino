@@ -395,7 +395,8 @@ fn units_avx2<const LONGEST: u8>(b0: __m256i, b1: __m256i, b2: __m256i) -> __m25
     _mm256_blendv_epi8(u, high, at_least(0xEF))
 }
 
-/// The code units of the 16 bytes `v` (the bytes after them in `next`), for the window's longest char.
+/// The code units of the 16 bytes `v` (the bytes after them in `next`), for the longest char `three` and `four` (the
+/// lanes of three-byte and four-byte leads) show.
 #[inline]
 #[target_feature(enable = "avx2")]
 fn lanes_avx2(v: __m128i, next: __m128i, three: u32, four: u32) -> __m256i {
@@ -503,7 +504,13 @@ pub(crate) unsafe fn wide_avx2<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
         let at_least = |t: i8| _mm256_movemask_epi8(_mm256_cmpgt_epi8(v, _mm256_set1_epi8(t))) as u32 & high;
         let (three, four) = (at_least(-33), at_least(-17));
         let keep = (s | (u64::from(four) << 2)) & first(q);
-        for (v, next, keep) in [(lo, hi, keep & 0xFFFF), (hi, zero, (keep >> 16) & 0xFFFF)] {
+        // Each half's code units by the longest char that starts in it (a lane of four-byte chars also two lanes
+        // after a four-byte lead, its low surrogate's): a half of Cyrillic before a half with an emoji takes the
+        // two-byte units, not the four-byte ones.
+        for (v, next, keep, three, four) in [
+            (lo, hi, keep & 0xFFFF, three & 0xFFFF, four & 0xFFFF),
+            (hi, zero, (keep >> 16) & 0xFFFF, (three >> 16) | (four >> 14), four >> 14),
+        ] {
             let units = lanes_avx2(v, next, three, four);
             let (k0, k1) = ((keep & 0xFF) as usize, ((keep >> 8) & 0xFF) as usize);
             // SAFETY: `k0, k1 < 256`.
