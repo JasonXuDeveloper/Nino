@@ -33,6 +33,11 @@
 # 4090974 made TimeZoneInfo reads 13% slower on EPYC and 7.5% on Neoverse-N2 (the case's out params on the stack).
 # phase10/bce 570d771 (land/bce3): TimeZoneInfo reads its strings as main did, without the one-char table (its
 # listing is main's, byte for byte). Main 1622ddb against it, three times for three Arm64 jobs.
-cpu='7763|Neoverse' 1622ddb 570d771 12 *BclTypesTest.Nino*TimeZone* *SimpleTest.NinoDeserialize* *PooledTest.Nino*
-cpu='7763|Neoverse' 1622ddb 570d771 12 *SimpleTest.NinoDeserialize* *PooledTest.Nino* *BclTypesTest.Nino*TimeZone*
-cpu='7763|Neoverse' 1622ddb 570d771 12 *PooledTest.Nino* *BclTypesTest.Nino*TimeZone* *SimpleTest.NinoDeserialize*
+# done (run 40629246395): cpu='7763|Neoverse' 1622ddb 570d771 12 *BclTypesTest.Nino*TimeZone* *SimpleTest.NinoDeserialize* *PooledTest.Nino*
+# done (run 40629246395): cpu='7763|Neoverse' 1622ddb 570d771 12 *SimpleTest.NinoDeserialize* *PooledTest.Nino* *BclTypesTest.Nino*TimeZone*
+# done (run 40629246395): cpu='7763|Neoverse' 1622ddb 570d771 12 *PooledTest.Nino* *BclTypesTest.Nino*TimeZone* *SimpleTest.NinoDeserialize*
+# 570d771: TimeZoneInfo on par on Neoverse-N2, 0.988 on EPYC with main's listing. land/bce4 9d50a0a = 570d771 rebased
+# on main 61747f6 (gen/dedupe): against main twice (filters reordered), and main against itself as this run's floor.
+cpu='7763|Neoverse' 61747f6 9d50a0a 12 *BclTypesTest.Nino*TimeZone* *SimpleTest.NinoDeserialize* *PooledTest.Nino*
+cpu='7763|Neoverse' 61747f6 9d50a0a 12 *PooledTest.Nino* *SimpleTest.NinoDeserialize* *BclTypesTest.Nino*TimeZone*
+cpu='7763|Neoverse' 61747f6 61747f6 12 *BclTypesTest.Nino*TimeZone* *SimpleTest.NinoDeserialize* *PooledTest.Nino*
