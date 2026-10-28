@@ -528,12 +528,16 @@ typescript 506720c223 506720c223
 # done (run 40644033445): go#12 966177f 966177f ^Benchmark(Serialize|Deserialize)$/^simple-class
 # done (run 40644033445): go#12 966177f 966177f ^Benchmark(Deserialize|Serialize)$/^simple-class
 # go-dict cc4df16 (round 2): the struct-tag path also writes maps of integer pairs, sorted, as one block; against main 966177f, with more floor jobs
-go#12 966177f cc4df16 ^Benchmark(Serialize|Deserialize)$/^simple-class
-go#12 966177f cc4df16 ^Benchmark(Deserialize|Serialize)$/^simple-class
-go#12 966177f 966177f ^Benchmark(Serialize|Deserialize)$/^simple-class/
-go#12 966177f 966177f ^Benchmark(Deserialize|Serialize)$/^simple-class/
+# done (run 40647360754): go#12 966177f cc4df16 ^Benchmark(Serialize|Deserialize)$/^simple-class
+# done (run 40647360754): go#12 966177f cc4df16 ^Benchmark(Deserialize|Serialize)$/^simple-class
+# done (run 40647360754): go#12 966177f 966177f ^Benchmark(Serialize|Deserialize)$/^simple-class/
+# done (run 40647360754): go#12 966177f 966177f ^Benchmark(Deserialize|Serialize)$/^simple-class/
 # go-prefetch 4e2099b: prefetch ahead while writing long slices of pointers and of structs with strings, against c44171f (main c13bbf7 with the scattered-1m case), with the floor
 go#12 c44171f 4e2099b ^Benchmark(Serialize|Deserialize)$/^scattered-1m/
 go#12 c44171f 4e2099b ^Benchmark(Serialize|Deserialize)$/^(simple|strings)/^(Nino|NinoTags)$
 go#12 c44171f c44171f ^Benchmark(Serialize|Deserialize)$/^scattered-1m/
 go#12 c44171f c44171f ^Benchmark(Serialize|Deserialize)$/^(simple|strings)/^(Nino|NinoTags)$
+# go-dict cc4df16 (round 3): more x64 jobs (EPYC 9V74), Nino and NinoTags only
+go#12 966177f cc4df16 ^Benchmark(Serialize|Deserialize)$/^simple-class/^(Nino|NinoTags)$
+go#12 966177f cc4df16 ^Benchmark(Deserialize|Serialize)$/^simple-class/^(NinoTags|Nino)$
+go#12 966177f 966177f ^Benchmark(Serialize|Deserialize)$/^simple-class/^(Nino|NinoTags)$
