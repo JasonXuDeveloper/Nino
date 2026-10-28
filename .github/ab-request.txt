@@ -835,3 +835,17 @@ rust 4beee30 4beee30 /(nino|prost|bincode|postcard|rmp-serde)$
 rust 4beee30 4beee30 /(nino|prost|bincode|postcard|rmp-serde)$ # copy 2
 typescript 4beee30 4beee30
 typescript 4beee30 4beee30 # copy 2
+# rt-gaps rust-neon: Arm64 writes short non-ASCII text through neon::wide (0fced91: all of it; dda2c89: over 16 bytes) against main 4beee30, with the floor. x64 runs the same code (a null change there).
+rust 4beee30 0fced91 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 1
+rust 4beee30 dda2c89 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 1
+rust 4beee30 4beee30 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # floor 1
+rust 4beee30 0fced91 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 2
+rust 4beee30 dda2c89 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 2
+rust 4beee30 4beee30 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # floor 2
+rust 4beee30 0fced91 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 3
+rust 4beee30 dda2c89 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # copy 3
+rust 4beee30 4beee30 ^(strings-1000|strings-mixed-1000|records-1000)/serialize/(nino|rmp-serde)$ # floor 3
+rust:text 4beee30 0fced91 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 1
+rust:text 4beee30 dda2c89 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 1
+rust:text 4beee30 0fced91 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 2
+rust:text 4beee30 dda2c89 ^text/write/(latin1|cyrillic|cjk|mixed)/(16|24|64)$ # copy 2
