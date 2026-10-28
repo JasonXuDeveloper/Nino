@@ -51,3 +51,7 @@
 # done (run 40637660170): cpu='7763|Neoverse' 966177f 9a3e294 12 *CommonTypesTest.Nino*StringDictionary* *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable*
 # done (run 40637660170): cpu='7763|Neoverse' 966177f 966177f 12 *BclTypesTest.NinoDeserializeImmutable* *CommonTypesTest.Nino*StringDictionary* *CollectionsTest.NinoDeserializeSorted*
 # done (run 40637660170): cpu='7763|Neoverse' 966177f 966177f 12 *CommonTypesTest.Nino*StringDictionary* *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable*
+# land/cmod 2a0cde6: fast modulo for built ConcurrentDictionary buckets and locks, against its base 43031cf, with floor.
+cpu='7763|Neoverse' 43031cf 2a0cde6 12 *CollectionsTest.NinoDeserializeConcurrentDictionary* *CollectionsTest.NinoSerializeConcurrentDictionary*
+cpu='7763|Neoverse' 43031cf 2a0cde6 12 *CollectionsTest.NinoSerializeConcurrentDictionary* *CollectionsTest.NinoDeserializeConcurrentDictionary*
+cpu='7763|Neoverse' 43031cf 43031cf 12 *CollectionsTest.NinoDeserializeConcurrentDictionary* *CollectionsTest.NinoSerializeConcurrentDictionary*
