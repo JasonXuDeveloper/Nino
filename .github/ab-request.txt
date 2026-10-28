@@ -1,3 +1,11 @@
+# rust strings round 1: main 536e45a against itself on the whole compare suite, every serializer: where Nino trails
+# a competitor, per CPU (the newest release, rc.7, has no Rust section).
+rust 536e45a 536e45a .
+rust 536e45a 536e45a ..
+rust 536e45a 536e45a .*
+rust 536e45a 536e45a ^.
+rust 536e45a 536e45a (.)
+rust 536e45a 536e45a .{1}
 # land/rust round 21, push B: the same three pairs, spelled differently.
 # done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|dat{1}etime)|read/map-i32-i32)$
 # done (runs 40641650339, 40641666188; landed 536e45a): rust:blocks 1696e9f 38a0948 (write/(u64|date{1}time)|read/map-i32-i32)$
