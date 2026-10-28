@@ -31,18 +31,20 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 
 ## Deciding on runners (A/B)
 
-1. Merge the work into the test branch `claude/zen-goldberg-5qqqcu` and add a line to `.github/ab-request.txt` there:
+1. Make the commits reachable from the test branch `claude/zen-goldberg-5qqqcu` with `git merge -s ours --no-edit
+   <ref>` (history only: the test branch keeps main's code, so its CI runs main's code; merging an experiment's code
+   ran CI on it, and a Go test that overflowed `int` on 386 and a Windows stack test mailed the owner a failure per
+   push), and add a line to `.github/ab-request.txt` there:
    `<go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]` runs
    `runtime-ab.yml`; .NET lines run `dotnet-ab.yml`. Keep other workers' lines, mark finished ones `# done:`, batch
    requests into one push, merge only, never force-push. `ab-bench.yml` on `main` compares a ref with the previous
-   release or its base on one runner. Limits: a matrix holds 256 jobs, so at most 25 runtime lines per push
-   (`[ab: new lines only]` in the commit message runs only the lines that push added); `.github/dotnet-ab-request.txt`
-   takes at most 3 active lines across all workers, and Arm64 runs one job per line, so more Neoverse-N2 samples need
-   duplicate lines that differ in text (a filter or round count). To repeat a line on any runner, put `{1}` (or
-   `{1,1}`) after a different letter of its filter in each copy (`r{1}ecords-1000`, `re{1}cords-1000`): a regex
-   quantifier that changes nothing. Never `{2}` or more, which demands the letter twice: every job of such a line
-   matches no bench and fails (the first three-way prefetch round, 400 failed jobs). A line already measured needs new
-   text to run again, since a push measures only the lines its parent did not have.
+   release or its base on one runner. Limits: a matrix holds 256 jobs, so at most 25 runtime lines per push (the
+   workflow measures the first 25 and warns; `[ab: new lines only]` in the commit message runs only the lines that
+   push added); `.github/dotnet-ab-request.txt` takes at most 3 active lines across all workers, and Arm64 runs one job
+   per line, so more Neoverse-N2 samples need duplicate lines. To run a line again or twice, add or change a note after
+   ` #` (`rust <base> <head> records-1000 # copy 2`), since a push measures only the lines its parent did not have.
+   Never bend the filter to make lines differ: `r{4}ecords` demands the letter four times, every job of such a line
+   matches no bench and fails (the first three-way prefetch round, 400 failed jobs).
    Match x64 runners with `cpu='EPYC|Neoverse'`, not `'7763|Neoverse'`: runners are also EPYC 9V45 and 9V74, and a
    line whose regex misses them ends its slots without measuring (the first land/cmod round got one EPYC job).
 2. Always request the floor too: the base against itself, on the same runners, over several jobs. A floor from one
