@@ -151,6 +151,14 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   a base of 57 ms (cache-resident speed: the gate did not turn it off, so the VM's sysfs size or the per-string
   estimate is wrong there; log what sysfs reports on each runner before trying again), and
   `Serialize/simple-class-100` 0.8 % slower on Neoverse-N2 (n=10, floor 0.998-1.003) for the one compare.
+  Rust, landed (869408d): `NinoWrite::PREFETCH` (bytes read through pointers, summed by the derive and nino-gen) is a
+  const, so `write_many` of every other type folds the test away; a slice of 512 or more whose estimated data
+  outgrows the last-level cache (sysfs, 32 MiB default) takes the prefetching loop, the size test `#[cold]` out of
+  line. 1,000,000 shuffled records took 67-78 % less time on EPYC 7763, 9V45, 9V74 and Neoverse-N2, 39 % on Xeon
+  8370C, on par on Xeon 8573C (its cache holds the set). Gate on the cache, not a fixed budget: prefetching every
+  list over 1 MiB (b93fe69) had the same gains but moved cached records-1000 1.5-3 % on EPYC and Neoverse-N2; gated,
+  records-1000 stayed within a null change's spread measured in the same run (`benchmark`). Putting the eligible
+  loop out of line at a 64-byte boundary (8dc3b04) did not help: +2.7 % on 7763 and N2.
 
 ## Owned elsewhere
 
