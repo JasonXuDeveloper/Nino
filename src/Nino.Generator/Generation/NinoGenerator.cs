@@ -179,13 +179,16 @@ public sealed class NinoGenerator : IIncrementalGenerator
         // (see DepthModel.Shallow).
         var top = NamesWhere(models, static m => m.HasTop).WithTrackingName("TopTwins");
         var shallow = NamesWhere(models, static m => m.Depth.Shallow).WithTrackingName("ShallowTwins");
+        // Formatters whose arrays and lists prefetch at the top level (see TypeModel.PrefetchBytes).
+        var prefetch = NamesWhere(models, static m => m.PrefetchBytes > 0).WithTrackingName("Prefetchers");
         context.RegisterImplementationSourceOutput(
-            intercepted.Combine(fileLocal).Combine(enabled).Combine(top).Combine(shallow),
+            intercepted.Combine(fileLocal).Combine(enabled).Combine(top).Combine(shallow).Combine(prefetch),
             static (spc, x) =>
             {
-                var ((((calls, local), on), tops), twins) = x;
+                var (((((calls, local), on), tops), twins), prefetchers) = x;
                 if (on && calls.Length != 0)
-                    spc.AddSource("NinoGen.Interceptors.g.cs", Interceptors.Emit(calls, local, tops, twins));
+                    spc.AddSource("NinoGen.Interceptors.g.cs",
+                        Interceptors.Emit(calls, local, tops, twins, prefetchers));
             });
 
 #endif

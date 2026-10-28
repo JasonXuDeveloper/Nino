@@ -11,10 +11,22 @@ namespace Nino.Core
     /// <c>List&lt;T&gt;</c> (or a type derived from it): count (-1 = null), then the elements.
     /// An existing list is reused, and its elements are reused by index.
     /// </summary>
-    public struct ListFormatter<[NinoCreated] TList, T, TFormatter> : INinoFormatter<TList>, INinoSizedFormatter<TList>
+    public struct ListFormatter<[NinoCreated] TList, T, TFormatter> : INinoFormatter<TList>, INinoSizedFormatter<TList>,
+        INinoPrefetchTopFormatter<TList>
         where TList : List<T>
         where TFormatter : struct, INinoFormatter<T>
     {
+        // A top-level call (NinoPrefetch): a compare against a constant inline, the rest out of line.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool INinoPrefetchTopFormatter<TList>.TryWrite(TList value, NinoArrayBufferWriter buffer) =>
+            value != null && NinoPrefetch.Long<TFormatter>(value.Count) &&
+            NinoPrefetch.Write<T, TFormatter>(value, buffer);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool INinoPrefetchTopFormatter<TList>.TryRead(ReadOnlySpan<byte> data, ref TList value) =>
+            value != null && NinoPrefetch.Long<TFormatter>(value.Count) &&
+            NinoPrefetch.Read<T, TFormatter>(data, value);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int INinoSizedFormatter<TList>.Size(TList value) =>
             NinoElements.SizedBytes<T, TFormatter>(value == null ? -1 : value.Count);
