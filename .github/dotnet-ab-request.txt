@@ -22,5 +22,11 @@
 # done (run 40605225864): cpu='7763|Neoverse' 1622ddb cd2ffff 12 *SimpleTest.Nino*SimpleClass* *VersionTolerantTest.Nino* *PooledTest.Nino* *BclTypesTest.Nino*TimeZone* *CommonTypesTest.Nino*StringDictionary*
 # gen/dedupe-b 218b0f0 = gen/dedupe without 3105e87 (raw sizes as products): PolymorphicClass(Array) serialize was
 # 1.2-2.1% slower in runs 40576825531 and 40605225864. Main 1622ddb against 218b0f0, and main against itself (floor).
-cpu='7763|Neoverse' 1622ddb 218b0f0 12 *PolymorphicTest.Nino*Serialize* *SimpleTest.Nino* *VersionTolerantTest.Nino* *PooledTest.Nino*
-cpu='7763|Neoverse' 1622ddb 1622ddb 12 *SimpleTest.Nino* *VersionTolerantTest.Nino* *PooledTest.Nino* *PolymorphicTest.Nino*Serialize*
+# running (run 40620680970): cpu='7763|Neoverse' 1622ddb 218b0f0 12 *PolymorphicTest.Nino*Serialize* *SimpleTest.Nino* *VersionTolerantTest.Nino* *PooledTest.Nino*
+# running (run 40620680970): cpu='7763|Neoverse' 1622ddb 1622ddb 12 *SimpleTest.Nino* *VersionTolerantTest.Nino* *PooledTest.Nino* *PolymorphicTest.Nino*Serialize*
+# phase10/bce 4090974 (land/bce2): TimeZoneInfo reads its id and rules in one call out of line, with no branch for
+# the one-char table inline (2.4% slower on Neoverse-N2 in run 40605225864). Main 1622ddb against it; the line three
+# times, filters reordered, for three Arm64 jobs.
+cpu='7763|Neoverse' 1622ddb 4090974 12 *BclTypesTest.Nino*TimeZone* *SimpleTest.NinoDeserialize* *PooledTest.Nino*
+cpu='7763|Neoverse' 1622ddb 4090974 12 *SimpleTest.NinoDeserialize* *PooledTest.Nino* *BclTypesTest.Nino*TimeZone*
+cpu='7763|Neoverse' 1622ddb 4090974 12 *PooledTest.Nino* *BclTypesTest.Nino*TimeZone* *SimpleTest.NinoDeserialize*
