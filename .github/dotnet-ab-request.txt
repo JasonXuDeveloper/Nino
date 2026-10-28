@@ -61,6 +61,9 @@
 # land/prefetch: long arrays and lists of classes prefetch their objects and their members' objects. Base 5d474be (main
 # b2cd50c + the ScatteredTest case); cdd36a9 prefetches collections larger than the last-level cache (land/prefetch-llc),
 # 10c2f5b collections over a fixed 512 KiB budget (to see what the LLC gate gives up on Xeon); and the floor.
-cpu='EPYC|Xeon|Neoverse' 5d474be cdd36a9 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted*
-cpu='EPYC|Xeon|Neoverse' 5d474be 10c2f5b 12 *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted* *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize*
-cpu='EPYC|Xeon|Neoverse' 5d474be 5d474be 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted*
+# done (run 40666897058): cpu='EPYC|Xeon|Neoverse' 5d474be cdd36a9 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted*
+# done (run 40666897058): cpu='EPYC|Xeon|Neoverse' 5d474be 10c2f5b 12 *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted* *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize*
+# done (run 40666897058): cpu='EPYC|Xeon|Neoverse' 5d474be 5d474be 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted*
+cpu='EPYC|Xeon|Neoverse' 5d474be 9e28b7d 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted*
+cpu='EPYC|Xeon|Neoverse' 5d474be 9e28b7d 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted* # copy 2
+cpu='EPYC|Xeon|Neoverse' 5d474be 5d474be 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted* # floor 2
