@@ -133,8 +133,8 @@ pub trait NinoWrite {
             crate::impls::write_fixed(values, w);
             return Ok(());
         }
-        if Self::PREFETCH != 0 && values.len() >= crate::impls::prefetch_from::<Self>() {
-            return crate::impls::write_prefetched(values, w);
+        if Self::PREFETCH != 0 {
+            return crate::impls::write_pointing(values, w);
         }
         for v in values {
             v.write(w)?;
