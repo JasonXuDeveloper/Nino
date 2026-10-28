@@ -1,3 +1,12 @@
+# phase10/rust round 16 (aligned build): 0f27037 = 7a765b6 with the value decoded after the probe (pair kept in GPRs on Arm64).
+rust:blocks 83950aa 0f27037 blocks/read/(map-i32-i32)$
+rust:blocks 83950aa 0f27037 blocks/read/map-i32-i3(2)$
+rust:blocks 83950aa 0f27037 blocks/read/map-i32-(i32)$
+rust:blocks 83950aa 0f27037 ^blocks/read/(map-i32-i32)$
+rust:blocks 83950aa 0f27037 ^blocks/read/map-i32-(i32)$
+rust:blocks 0f27037 0f27037 blocks/read/(map-i32-i32)$
+rust:blocks 0f27037 0f27037 ^blocks/read/map-i32-(i32)$
+rust:blocks 83950aa 83950aa blocks/read/(map-i32-i32)$
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
 # phase10/rust round 15 (aligned build): 7a765b6 = fixed-size map entries one take each (one bounds check an entry), entry API.
 # Round 14: one take for all entries stays 4% slower on Neoverse-N2 with loops aligned too.
