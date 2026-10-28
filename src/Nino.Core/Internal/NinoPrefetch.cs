@@ -65,7 +65,7 @@ namespace Nino.Core.Internal
         /// <summary>
         /// Whether the collection loops of <typeparamref name="TFormatter"/>'s elements take the prefetching loop for
         /// <paramref name="count"/> of them: a platform that prefetches, a generated class formatter, and more of its
-        /// elements than the last-level cache holds (<see cref="Of{TFormatter}.Threshold"/>). On .NET 8+ all of it
+        /// elements than a quarter of the last-level cache holds (<see cref="Of{TFormatter}.Threshold"/>). On .NET 8+ all of it
         /// but the length is a JIT-time constant once the threshold is set (one compare); where the first two are
         /// false nothing of this is compiled.
         /// </summary>
@@ -96,10 +96,19 @@ namespace Nino.Core.Internal
         private const int MinElements = 1024;
 
         /// <summary>
+        /// The share of the last-level cache a collection's elements may take without prefetching: a quarter. Objects
+        /// scattered over a set that fits the cache still miss it (and the TLB), as other data competes for it: 1M
+        /// shapes of 24 bytes on an EPYC 7763 (32 MB L3) serialized twice as fast with the prefetching loop, which a
+        /// gate at the whole cache left out; Go's prefetch of 1M records (about 100 MB) was slower only on a Xeon
+        /// whose L3 is several times that.
+        /// </summary>
+        private const int CacheShare = 4;
+
+        /// <summary>
         /// <typeparamref name="TFormatter"/> boxed once as the interface (null for other formatters), and the most
-        /// elements its collections hold without prefetching: the last-level cache over the element's bytes, at
-        /// least <see cref="MinElements"/>; int.MaxValue for other formatters. Static readonly: the JIT takes both as
-        /// constants once they are set.
+        /// elements its collections hold without prefetching: a <see cref="CacheShare"/> of the last-level cache over
+        /// the element's bytes, at least <see cref="MinElements"/>; int.MaxValue for other formatters. Static
+        /// readonly: the JIT takes both as constants once they are set.
         /// </summary>
         public static class Of<TFormatter> where TFormatter : struct
         {
@@ -109,7 +118,7 @@ namespace Nino.Core.Internal
             public static readonly int Threshold = Formatter == null
                 ? int.MaxValue
                 : (int)System.Math.Min(int.MaxValue - 1,
-                    System.Math.Max(MinElements, CacheBytes / System.Math.Max(1, Formatter.PrefetchBytes)));
+                    System.Math.Max(MinElements, CacheBytes / CacheShare / System.Math.Max(1, Formatter.PrefetchBytes)));
         }
 
         /// <summary>

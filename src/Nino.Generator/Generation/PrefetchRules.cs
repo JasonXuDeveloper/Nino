@@ -8,10 +8,10 @@ namespace Nino.Generator.Generation;
 /// <summary>
 /// Which classes' collections prefetch their objects (INinoPrefetchFormatter in Nino.Core), and the bytes one element
 /// brings into the cache: its object, and a line of each object its reference members point to. Nino.Core prefetches
-/// a collection whose elements take more than the machine's last-level cache (NinoPrefetch.CacheBytes): a shorter one
-/// is likely in the cache, where a prefetch per element costs more than it saves (1,000 shapes, a few KiB, serialized
-/// 14 to 15% slower with one), and Go's prefetch of 1M records (about 100 MB) was 13 to 38% slower on a Xeon whose L3
-/// holds them.
+/// a collection whose elements take more than a quarter of the machine's last-level cache (NinoPrefetch.CacheBytes):
+/// a shorter one is likely in the cache, where a prefetch per element costs more than it saves (1,000 shapes, a few
+/// KiB, serialized 14 to 15% slower with one), and Go's prefetch of 1M records (about 100 MB) was 13 to 38% slower on
+/// a Xeon whose L3 holds them.
 /// </summary>
 internal static class PrefetchRules
 {

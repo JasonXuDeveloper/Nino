@@ -65,7 +65,7 @@ namespace Nino.Core
 
         /// <summary>
         /// Whether <see cref="Prefetch"/> prefetches: arrays and lists of a generated class's objects that take more
-        /// than the last-level cache then call it for each run of 16 elements, 16 to 31 elements ahead of the one
+        /// than a quarter of the last-level cache then call it for each run of 16 elements, 16 to 31 elements ahead of the one
         /// written or read.
         /// </summary>
         public virtual bool Prefetches => false;

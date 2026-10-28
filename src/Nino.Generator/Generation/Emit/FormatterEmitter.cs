@@ -174,11 +174,11 @@ internal static class FormatterEmitter
         w.Line();
         w.Line($"int {prefetch}.PrefetchBytes => {m.PrefetchBytes};");
         w.Line(names.Inline);
-        w.Line($"{Core}Writer {prefetch}.WritePrefetched(ref global::System.IntPtr first, int count, {Core}Writer writer) =>");
-        w.Indented(() => w.Line($"{CoreCompilerServices}NinoPrefetched.Write<{t}, {self}>(ref first, count, writer);"));
+        w.Line($"void {prefetch}.WritePrefetched(ref global::System.IntPtr first, int count, ref {Core}Writer writer) =>");
+        w.Indented(() => w.Line($"{CoreCompilerServices}NinoPrefetched.Write<{t}, {self}>(ref first, count, ref writer);"));
         w.Line(names.Inline);
-        w.Line($"{Core}Reader {prefetch}.ReadPrefetched(ref global::System.IntPtr first, int count, {Core}Reader reader) =>");
-        w.Indented(() => w.Line($"{CoreCompilerServices}NinoPrefetched.Read<{t}, {self}>(ref first, count, reader);"));
+        w.Line($"void {prefetch}.ReadPrefetched(ref global::System.IntPtr first, int count, ref {Core}Reader reader) =>");
+        w.Indented(() => w.Line($"{CoreCompilerServices}NinoPrefetched.Read<{t}, {self}>(ref first, count, ref reader);"));
         w.Line(names.Inline);
         if (m.PrefetchMembers.Length == 0)
         {

@@ -263,18 +263,16 @@ namespace Nino.Core.Internal
             // By reference, as in WriteOnLocal.
             ref T item = ref MemoryMarshal.GetReference(values);
             // Long collections of a generated class's objects: through a loop that prefetches them, out of line (see
-            // NinoPrefetch). For other elements the test is not compiled (netstandard: one load and a compare): the
-            // type test in this method's own IL, which the JIT folds while importing it, so that the branch is never
-            // imported. Through Takes alone it was, and its use of the writer kept the writer of other collections in
-            // memory (ImmutableSortedSet<int>: 21 stack accesses to 40).
-#if NET8_0_OR_GREATER
-            if (default(TFormatter) is INinoPrefetchFormatter && NinoPrefetch.Takes<TFormatter>(values.Length))
-#else
+            // NinoPrefetch). For other elements the test is not compiled (netstandard: one load and a compare). Through
+            // a copy of the writer, the only local whose address is taken: by value, the call's argument and its
+            // result were two more writers in the frame where nothing folds (Debug, Tier0), on every level of a
+            // nesting read or written recursively.
             if (NinoPrefetch.Takes<TFormatter>(values.Length))
-#endif
             {
-                writer = NinoPrefetch.Formatter<TFormatter>().WritePrefetched(ref Unsafe.As<T, nint>(ref item),
-                    values.Length, writer);
+                var copy = writer;
+                NinoPrefetch.Formatter<TFormatter>().WritePrefetched(ref Unsafe.As<T, nint>(ref item), values.Length,
+                    ref copy);
+                writer = copy;
                 return;
             }
 
@@ -409,14 +407,12 @@ namespace Nino.Core.Internal
             // load it back (List<(int, long)>: 2x faster).
             ref T item = ref MemoryMarshal.GetReference(values); // by reference, see WriteOnLocal
             // The existing objects of a long collection prefetched, as in Write.
-#if NET8_0_OR_GREATER
-            if (default(TFormatter) is INinoPrefetchFormatter && NinoPrefetch.Takes<TFormatter>(values.Length))
-#else
             if (NinoPrefetch.Takes<TFormatter>(values.Length))
-#endif
             {
-                return NinoPrefetch.Formatter<TFormatter>().ReadPrefetched(ref Unsafe.As<T, nint>(ref item),
-                    values.Length, reader);
+                var copy = reader;
+                NinoPrefetch.Formatter<TFormatter>().ReadPrefetched(ref Unsafe.As<T, nint>(ref item), values.Length,
+                    ref copy);
+                return copy;
             }
 
             for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))

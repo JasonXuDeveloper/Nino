@@ -98,8 +98,8 @@ public class PrefetchTests
         var writer = new Writer(buffer);
         writer.WriteLength(items.Length);
         if (items.Length > 0)
-            writer = NinoPrefetched.Write<PrefetchItem, NinoGen.Nino_UnitTests_PrefetchItemFormatter>(
-                ref Unsafe.As<PrefetchItem, nint>(ref items[0]), items.Length, writer);
+            NinoPrefetched.Write<PrefetchItem, NinoGen.Nino_UnitTests_PrefetchItemFormatter>(
+                ref Unsafe.As<PrefetchItem, nint>(ref items[0]), items.Length, ref writer);
         writer.Flush();
         return buffer.WrittenSpan.ToArray();
     }
@@ -110,8 +110,8 @@ public class PrefetchTests
         var reader = new Reader(bytes);
         Assert.AreEqual(target.Length, reader.ReadLength());
         if (target.Length > 0)
-            reader = NinoPrefetched.Read<PrefetchItem, NinoGen.Nino_UnitTests_PrefetchItemFormatter>(
-                ref Unsafe.As<PrefetchItem, nint>(ref target[0]), target.Length, reader);
+            NinoPrefetched.Read<PrefetchItem, NinoGen.Nino_UnitTests_PrefetchItemFormatter>(
+                ref Unsafe.As<PrefetchItem, nint>(ref target[0]), target.Length, ref reader);
     }
 
     [TestMethod]

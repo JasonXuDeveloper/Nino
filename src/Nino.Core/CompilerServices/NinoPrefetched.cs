@@ -14,13 +14,15 @@ namespace Nino.Core.CompilerServices
     public static class NinoPrefetched
     {
         /// <summary>
-        /// Writes the <paramref name="count"/> elements whose references start at <paramref name="first"/> and returns
-        /// the writer.
+        /// Writes the <paramref name="count"/> elements whose references start at <paramref name="first"/>. The writer
+        /// by reference, the caller's copy (see <see cref="INinoPrefetchFormatter.WritePrefetched"/>), and a local
+        /// here, its cursor in registers.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static unsafe Writer Write<T, TFormatter>(ref nint first, int count, Writer writer)
+        public static unsafe void Write<T, TFormatter>(ref nint first, int count, ref Writer target)
             where T : class where TFormatter : struct, INinoFormatter<T>, INinoPrefetchFormatter
         {
+            Writer writer = target;
             ref T item = ref Unsafe.As<nint, T>(ref first);
 #if NET8_0_OR_GREATER
             int left = count, sink = 0;
@@ -46,17 +48,18 @@ namespace Nino.Core.CompilerServices
                 }
             }
 #endif
-            return writer;
+            target = writer;
         }
 
         /// <summary>
-        /// Reads into the <paramref name="count"/> elements whose references start at <paramref name="first"/> and
-        /// returns the reader.
+        /// Reads into the <paramref name="count"/> elements whose references start at <paramref name="first"/>, the
+        /// reader taken as <see cref="Write{T, TFormatter}"/> takes the writer.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static unsafe Reader Read<T, TFormatter>(ref nint first, int count, Reader reader)
+        public static unsafe void Read<T, TFormatter>(ref nint first, int count, ref Reader target)
             where T : class where TFormatter : struct, INinoFormatter<T>, INinoPrefetchFormatter
         {
+            Reader reader = target;
             ref T item = ref Unsafe.As<nint, T>(ref first);
 #if NET8_0_OR_GREATER
             int left = count, sink = 0;
@@ -82,7 +85,7 @@ namespace Nino.Core.CompilerServices
                 }
             }
 #endif
-            return reader;
+            target = reader;
         }
 
 #if !NET8_0_OR_GREATER

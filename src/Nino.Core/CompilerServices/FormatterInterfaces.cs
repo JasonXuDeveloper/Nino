@@ -148,10 +148,11 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// Generated formatters of non-generic classes: arrays and lists of their objects that take more than the
-    /// last-level cache (<see cref="PrefetchBytes"/> each) are written, and read into existing objects, by a loop that prefetches each object a few elements
-    /// ahead (<see cref="NinoPrefetched"/>; x64 on .NET 8+, elsewhere the same loop as shorter ones). The collection
-    /// loops test <c>default(TFormatter) is INinoPrefetchFormatter</c>, a JIT-time constant: for every other formatter
+    /// Generated formatters of non-generic classes: arrays and lists of their objects that take more than a quarter
+    /// of the last-level cache (<see cref="PrefetchBytes"/> each) are written, and read into existing objects, by a
+    /// loop that prefetches each object a few elements ahead (<see cref="NinoPrefetched"/>; x64 and Arm64 on .NET 8+,
+    /// Unity with Burst's kernels, elsewhere the same loop as shorter ones). The collection loops test
+    /// <c>default(TFormatter) is INinoPrefetchFormatter</c>, a JIT-time constant on .NET 8+: for every other formatter
     /// the test and the branch are not compiled. Through the formatter, whose type is exact even where the element type
     /// is shared generic code, the loop is entered without a runtime lookup of its instantiation.
     /// </summary>
@@ -160,23 +161,23 @@ namespace Nino.Core.CompilerServices
     {
         /// <summary>
         /// The bytes an element brings into the cache (a constant): its object, and a line of each object its
-        /// reference members point to. A collection whose elements fit in the last-level cache likely has them there,
+        /// reference members point to. A collection whose elements take a small part of the last-level cache likely has them there,
         /// where a prefetch per element costs more than it saves.
         /// </summary>
         int PrefetchBytes { get; }
 
         /// <summary>
-        /// Writes the <paramref name="count"/> elements whose references start at <paramref name="first"/>. The writer
-        /// by value and returned, as the reader: by reference, its address taken would put the caller's writer in
-        /// memory for the caller's whole loop where the element body is inlined there.
+        /// Writes the <paramref name="count"/> elements whose references start at <paramref name="first"/>. The callers
+        /// pass a copy of their writer, whose address is taken instead of their own: the caller's writer taken by
+        /// reference would be kept in memory for the caller's whole loop where the element body is inlined there.
         /// </summary>
-        Writer WritePrefetched(ref nint first, int count, Writer writer);
+        void WritePrefetched(ref nint first, int count, ref Writer writer);
 
         /// <summary>
-        /// Reads into the <paramref name="count"/> elements whose references start at <paramref name="first"/>. The
-        /// reader by value and returned, as <see cref="WritePrefetched"/> takes the writer.
+        /// Reads into the <paramref name="count"/> elements whose references start at <paramref name="first"/>, through
+        /// a copy of the caller's reader as <see cref="WritePrefetched"/> takes the writer.
         /// </summary>
-        Reader ReadPrefetched(ref nint first, int count, Reader reader);
+        void ReadPrefetched(ref nint first, int count, ref Reader reader);
 
         /// <summary>
         /// Prefetches the objects the reference members of <paramref name="value"/> (an element, or null) point to,
