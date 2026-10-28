@@ -47,6 +47,9 @@ fix every method it lists.
   when a shape helps one target and hurts another, put it behind `cfg(target_arch)` and keep the generic loop for
   every other target (the map read taking one check per entry is x86/x86_64 only: on Arm64 it held the key/value pair
   in a SIMD register across the hash call and Neoverse-N2 ran 3 to 4 % slower). Test both paths (`platforms`).
+- Replace `%` by the runtime's fast modulo (multiply-high, `HashTables.Bucket`) on x64 only: on Arm64 `udiv`/`msub`
+  is cheap and the multiply sequence lost. ConcurrentDictionary's build with fast modulo read 18-23 % faster on EPYC
+  7763, on par on Zen 4 (9V45, 9V74), and 1.1 % slower on Neoverse-N2 in two rounds (3d4baf2).
 
 ## Bounds checks
 

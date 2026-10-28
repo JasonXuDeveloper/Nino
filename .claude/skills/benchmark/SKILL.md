@@ -39,6 +39,8 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    (`[ab: new lines only]` in the commit message runs only the lines that push added); `.github/dotnet-ab-request.txt`
    takes at most 3 active lines across all workers, and Arm64 runs one job per line, so more Neoverse-N2 samples need
    duplicate lines that differ in text (a filter or round count).
+   Match x64 runners with `cpu='EPYC|Neoverse'`, not `'7763|Neoverse'`: runners are also EPYC 9V45 and 9V74, and a
+   line whose regex misses them ends its slots without measuring (the first land/cmod round got one EPYC job).
 2. Always request the floor too: the base against itself, on the same runners, over several jobs. A floor from one
    job underestimates the noise: the TimeZoneInfo floor jobs' own medians spanned 0.982 to 1.023 on one EPYC CPU.
 3. Judge per CPU (AMD EPYC 7763, EPYC 9V74 / Zen 4, EPYC 9V45 / Zen 5, Xeon Platinum / 6973P, Neoverse-N2 / V3):
