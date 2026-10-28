@@ -392,6 +392,7 @@ fn benches(c: &mut Criterion) {
     formats!(c, "scattered-1m", 1_000_000, scattered_records(), Vec<Option<Box<Record>>>, many, proto::Records);
     let i32s = |v: &Vec<i32>| proto::I32s { values: v.clone() };
     formats!(c, "i32-10000", 10_000, (0..10_000).map(|i| i * 7919).collect(), Vec<i32>, i32s, proto::I32s);
+    formats!(c, "i32-null", 3, (0..3).map(|i| i * 7907).collect(), Vec<i32>, i32s, proto::I32s);
     let f64s = |v: &Vec<f64>| proto::F64s { values: v.clone() };
     formats!(c, "f64-10000", 10_000, (0..10_000).map(|i| f64::from(i) * 0.5).collect(), Vec<f64>, f64s, proto::F64s);
     let strings = |v: &Vec<String>| proto::Strings { values: v.clone() };
