@@ -102,6 +102,24 @@ fix every method it lists.
 - Timings on a shared machine vary by ±15 %: read the code before trusting a local difference, and take the decision
   from runners (`benchmark`). The wire format must not change unless that is the point: compare the bytes.
 
+## Prefetch
+
+- Decide whether a collection loop prefetches when the code is generated, never per element at run time (the owner's
+  design). Eligible: elements of a reference type in a contiguous container (array, `List<T>`, a span of references),
+  since each object and each of its reference members (strings, children) is a separate cache miss. Not eligible:
+  structs, unmanaged and block elements (contiguous; the hardware prefetcher covers them) and linked containers
+  (LinkedList, trees, SortedSet nodes: the next address is known only after loading the node). The decision and a
+  per-type threshold, a cache budget divided by the element's estimated bytes (object size plus a cost per reference
+  member), are `static readonly` values the JIT folds: an ineligible type's listing stays identical to main, an
+  eligible one adds one length compare and an out-of-line loop that takes the reader or writer by value. Two stages
+  for elements with reference members: at element i prefetch element i+2D, at i+D prefetch its members' targets.
+  Why: a prefetch on every element cost 14-15 % on 1,000 cached objects, and a large-collection branch that needed a
+  runtime generic lookup spilled the caller (Shapes 1 to 7 stack accesses); shuffled 1M-object arrays serialized 1.2
+  to 2.3 times as fast locally with the prefetching loop. Platforms: .NET x64 `Sse.Prefetch0`; Unity through a
+  `NinoKernels` hook to Burst's `Common.Prefetch`; Rust `_mm_prefetch` on x86 and `asm!("prfm pldl1keep, ...")` on
+  aarch64, both in `src/simd.rs`; Go only through an assembly stub, one call per batch; .NET Arm64, wasm and
+  TypeScript have no prefetch instruction.
+
 ## Owned elsewhere
 
 - `NinoSettings.Untrusted` tests stay a single `if` on a frozen field with the work out of line (`audit-security`).
