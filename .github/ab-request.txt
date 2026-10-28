@@ -1,28 +1,46 @@
+# rust null change (aligned build): 0635898 = a8b72d0 plus one small bench case, to size the layout noise
+# between two binaries on records-1000 (prefetch and its placebo were 1.2 to 2.6% slower there).
+rust a8b72d0 0635898 r{1}ecords-1000/serialize/nino$
+rust a8b72d0 0635898 re{1}cords-1000/serialize/nino$
+rust a8b72d0 0635898 rec{1}ords-1000/serialize/nino$
+rust a8b72d0 0635898 reco{1}rds-1000/serialize/nino$
+rust a8b72d0 0635898 recor{1}ds-1000/serialize/nino$
+rust a8b72d0 0635898 record{1}s-1000/serialize/nino$
+rust a8b72d0 0635898 records{1}-1000/serialize/nino$
+rust a8b72d0 0635898 records-1{1}000/serialize/nino$
+rust a8b72d0 0635898 records-10{1}00/serialize/nino$
+rust a8b72d0 0635898 records-100{1}0/serialize/nino$
+rust a8b72d0 0635898 records-1000{1}/serialize/nino$
+rust a8b72d0 0635898 records-1000/s{1}erialize/nino$
+rust a8b72d0 0635898 records-1000/se{1}rialize/nino$
+rust a8b72d0 0635898 records-1000/ser{1}ialize/nino$
+rust a8b72d0 0635898 records-1000/seri{1}alize/nino$
+rust a8b72d0 0635898 records-1000/seria{1}lize/nino$
 # rust prefetch round 3, again with {1}: the {2} lines of round 3 doubled a letter and matched nothing (placebo
 # 79d2c33 and the text bench).
-rust a8b72d0 79d2c33 r{1}ecords-1000/serialize/nino$
-rust a8b72d0 79d2c33 re{1}cords-1000/serialize/nino$
-rust a8b72d0 79d2c33 rec{1}ords-1000/serialize/nino$
-rust a8b72d0 79d2c33 reco{1}rds-1000/serialize/nino$
-rust a8b72d0 79d2c33 recor{1}ds-1000/serialize/nino$
-rust a8b72d0 79d2c33 record{1}s-1000/serialize/nino$
-rust a8b72d0 79d2c33 records{1}-1000/serialize/nino$
-rust a8b72d0 79d2c33 records-1{1}000/serialize/nino$
-rust a8b72d0 79d2c33 records-10{1}00/serialize/nino$
-rust a8b72d0 79d2c33 records-100{1}0/serialize/nino$
-rust a8b72d0 79d2c33 records-1000{1}/serialize/nino$
-rust a8b72d0 79d2c33 records-1000/s{1}erialize/nino$
-rust a8b72d0 79d2c33 records-1000/se{1}rialize/nino$
-rust a8b72d0 79d2c33 records-1000/ser{1}ialize/nino$
-rust a8b72d0 79d2c33 records-1000/seri{1}alize/nino$
-rust:text a8b72d0 626e359 w{1}rite/scattered-1m$
-rust:text a8b72d0 626e359 wr{1}ite/scattered-1m$
-rust:text a8b72d0 626e359 wri{1}te/scattered-1m$
-rust:text a8b72d0 626e359 writ{1}e/scattered-1m$
-rust:text a8b72d0 626e359 write{1}/scattered-1m$
-rust:text a8b72d0 626e359 write/s{1}cattered-1m$
-rust:text 626e359 626e359 w{1}rite/scattered-1m$
-rust:text 626e359 626e359 wr{1}ite/scattered-1m$
+# done: rust a8b72d0 79d2c33 r{1}ecords-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 re{1}cords-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 rec{1}ords-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 reco{1}rds-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 recor{1}ds-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 record{1}s-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 records{1}-1000/serialize/nino$
+# done: rust a8b72d0 79d2c33 records-1{1}000/serialize/nino$
+# done: rust a8b72d0 79d2c33 records-10{1}00/serialize/nino$
+# done: rust a8b72d0 79d2c33 records-100{1}0/serialize/nino$
+# done: rust a8b72d0 79d2c33 records-1000{1}/serialize/nino$
+# done: rust a8b72d0 79d2c33 records-1000/s{1}erialize/nino$
+# done: rust a8b72d0 79d2c33 records-1000/se{1}rialize/nino$
+# done: rust a8b72d0 79d2c33 records-1000/ser{1}ialize/nino$
+# done: rust a8b72d0 79d2c33 records-1000/seri{1}alize/nino$
+# done: rust:text a8b72d0 626e359 w{1}rite/scattered-1m$
+# done: rust:text a8b72d0 626e359 wr{1}ite/scattered-1m$
+# done: rust:text a8b72d0 626e359 wri{1}te/scattered-1m$
+# done: rust:text a8b72d0 626e359 writ{1}e/scattered-1m$
+# done: rust:text a8b72d0 626e359 write{1}/scattered-1m$
+# done: rust:text a8b72d0 626e359 write/s{1}cattered-1m$
+# done: rust:text 626e359 626e359 w{1}rite/scattered-1m$
+# done: rust:text 626e359 626e359 wr{1}ite/scattered-1m$
 # rust prefetch round 3, push B: more of the same pairs, and Vec<String> (text bench).
 # done: rust a8b72d0 626e359 (scattered-1m|re{2}cords-1000|strings-1000)/serialize/nino$
 # done: rust a8b72d0 626e359 (scattered-1m|rec{2}ords-1000|strings-1000)/serialize/nino$
