@@ -45,9 +45,9 @@
 # 40591340557, its ReadSorted listing changed). land/bce5 9a3e294 (= 9d50a0a on main 966177f) against main on the
 # collections bbba70e and 871eda5 touch, with a 966177f floor: two runs (this push and the next) of three lines each,
 # so that Neoverse-N2 has three jobs per side.
-# running (push f2723f4): cpu='7763|Neoverse' 966177f 9a3e294 12 *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable* *CommonTypesTest.Nino*StringDictionary*
-# running (push f2723f4): cpu='7763|Neoverse' 966177f 9a3e294 12 *BclTypesTest.NinoDeserializeImmutable* *CommonTypesTest.Nino*StringDictionary* *CollectionsTest.NinoDeserializeSorted*
-# running (push f2723f4): cpu='7763|Neoverse' 966177f 966177f 12 *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable* *CommonTypesTest.Nino*StringDictionary*
-cpu='7763|Neoverse' 966177f 9a3e294 12 *CommonTypesTest.Nino*StringDictionary* *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable*
-cpu='7763|Neoverse' 966177f 966177f 12 *BclTypesTest.NinoDeserializeImmutable* *CommonTypesTest.Nino*StringDictionary* *CollectionsTest.NinoDeserializeSorted*
-cpu='7763|Neoverse' 966177f 966177f 12 *CommonTypesTest.Nino*StringDictionary* *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable*
+# done (run 40637657228): cpu='7763|Neoverse' 966177f 9a3e294 12 *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable* *CommonTypesTest.Nino*StringDictionary*
+# done (run 40637657228): cpu='7763|Neoverse' 966177f 9a3e294 12 *BclTypesTest.NinoDeserializeImmutable* *CommonTypesTest.Nino*StringDictionary* *CollectionsTest.NinoDeserializeSorted*
+# done (run 40637657228): cpu='7763|Neoverse' 966177f 966177f 12 *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable* *CommonTypesTest.Nino*StringDictionary*
+# done (run 40637660170): cpu='7763|Neoverse' 966177f 9a3e294 12 *CommonTypesTest.Nino*StringDictionary* *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable*
+# done (run 40637660170): cpu='7763|Neoverse' 966177f 966177f 12 *BclTypesTest.NinoDeserializeImmutable* *CommonTypesTest.Nino*StringDictionary* *CollectionsTest.NinoDeserializeSorted*
+# done (run 40637660170): cpu='7763|Neoverse' 966177f 966177f 12 *CommonTypesTest.Nino*StringDictionary* *CollectionsTest.NinoDeserializeSorted* *BclTypesTest.NinoDeserializeImmutable*
