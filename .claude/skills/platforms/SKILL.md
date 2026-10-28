@@ -65,12 +65,22 @@ builds of Nino.Core, Mono).
   Under `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` only the two `BclTypeTests` culture tests fail (and
   `IssueTestTemplate`, an abstract class the runner cannot create). Print each class as it starts, so a slow one
   shows by name.
-- Gate every netstandard `Vector<T>` path on `NinoUnsafe.NumericVectors`, never on `Vector.IsHardwareAccelerated`
-  alone: Mono 6.8 on x64 reports it true with the System.Numerics.Vectors package Nino.Core brings (false with
-  Mono's own assembly), yet runs `Vector<T>` several times slower than scalar code (`Vector.Narrow` of 1,024 chars
-  5,478 ns against 2,838; `NinoMask` padding of 1,000 `Padded` structs 36 to 40 µs against 11 to 13 with ulongs).
-  The gate adds the runtime: `FrameworkDescription` starting with ".NET" (.NET Framework, .NET Core; Mono and
-  IL2CPP say "Mono").
+- Gate every netstandard `Vector<T>` path per operation, never on `Vector.IsHardwareAccelerated` alone: classic Mono's
+  JIT (mono/mono 6.x and Unity-Technologies/mono, `vector_t_intrinsics` in mono/mini/simd-intrinsics.c) accelerates
+  only `Vector<T>`'s own operators (`+ - * / & | ^`), constructors (`T`, `T[]`), `Equals`, signed comparisons,
+  `CopyTo`, `Zero`/`AllOnes`/`Count`, and only for the type in the System.Numerics.Vectors package (class-init.c marks
+  `Vector`1` a SIMD type only in an assembly of that name), on x86 and x64 only. Static `Vector` methods that do not
+  inline into those (`Narrow`, `Widen`, `ConditionalSelect`, `AndNot`, `~`) run the package's software form, and
+  `Vector<T>` from Mono's own mscorlib (Unity's too) is never accelerated, though `IsHardwareAccelerated` was true on
+  Unity 2022.3.47f1 and 6000.0.20f1 (UUM-77339; Unity reverted that change in its fork in February 2025). So the text
+  kernels (`Narrow`/`Widen`) take `NinoUnsafe.NumericVectors` (.NET Framework and .NET Core only) and the padding
+  masks (loads, stores, `&`) `NinoUnsafe.VectorMasks` (also classic Mono with the package). Evidence, Mono 6.8 on x64
+  (local): 1,024 chars narrowed in 5,400 ns with `Vector.Narrow` against 550 for the 8-byte loop, widened in 6,700
+  against 400; `Vector.EqualsAll` inlines to `Equals` and is fast (the check before Narrow in 120 ns); an array of
+  1,000 padded 16-byte structs serialized in 8.4 to 9.2 µs with `Vector<byte>` masks against 11.8 to 13.4 with ulongs
+  (36 to 40 with `Unsafe.ReadUnaligned` loads, see `optimize`). Test a new operation on Mono with
+  `MONO_VERBOSE_METHOD=<method> mono app.exe` (prints the IR, "SIMD intrinsic ..." per accelerated call, and the
+  machine code through objdump) before gating it on.
 
 Why the qemu flags:
 - Under qemu-arm (Arm32), set `DOTNET_EnableWriteXorExecute=0`: with W^X the runtime writes dynamic methods

@@ -102,6 +102,13 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   Each table register is a micro-op on Neoverse cores: give each lookup only the registers its bytes come from, and
   store only the bytes the values fill (`NinoBlock.WireTables64`); check each shape, as types that compile to the
   same code can differ by the data (`(byte, int)` took twice as long as `(short, int)`).
+- Load and store a `Vector<T>` in the netstandard builds with `Unsafe.As<byte, Vector<T>>(ref at)` (plain `ldobj`
+  / `stobj`), never `Unsafe.ReadUnaligned` / `WriteUnaligned`: classic Mono compiles the `unaligned.` prefix on a
+  struct wider than its inline-copy limit to a call to memcpy through a stack slot (`mini_emit_memory_load` in
+  mono/mini/memory-access.c), and plain ones to `movups`. RyuJIT never assumes a vector aligned, so its code is the
+  same. Evidence: `NinoMask.CopyVectors` on Mono 6.8 serialized 1,000 padded structs in 36 to 40 µs with
+  `ReadUnaligned`, 8.4 to 9.2 with `Unsafe.As` (11.8 to 13.4 with ulongs); its .NET 10 listings (netstandard2.0 and
+  net10.0 builds) were identical. Which `Vector<T>` operations Mono accelerates at all is `platforms`.
 - ARM64 is a load/store architecture: what x64 does in one instruction on memory is a load, an operation and a store
   there, and 64-bit constants and addresses take several instructions. Keep hot state in registers.
 
