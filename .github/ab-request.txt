@@ -1,3 +1,20 @@
+# rust mixed strings, experiment C (d8cc696), more samples for n>=12 on the AVX2-only 7763 (-4.3% at n=10).
+rust c13bbf7 d8cc696 s{1}trings-mixed-1000/serialize/nino$
+rust c13bbf7 d8cc696 st{1}rings-mixed-1000/serialize/nino$
+rust c13bbf7 d8cc696 str{1}ings-mixed-1000/serialize/nino$
+rust c13bbf7 d8cc696 stri{1}ngs-mixed-1000/serialize/nino$
+rust c13bbf7 d8cc696 strin{1}gs-mixed-1000/serialize/nino$
+rust c13bbf7 d8cc696 string{1}s-mixed-1000/serialize/nino$
+rust c13bbf7 d8cc696 strings{1}-mixed-1000/serialize/nino$
+rust c13bbf7 d8cc696 strings-m{1}ixed-1000/serialize/nino$
+rust c13bbf7 d8cc696 strings-mi{1}xed-1000/serialize/nino$
+rust c13bbf7 d8cc696 strings-mix{1}ed-1000/serialize/nino$
+rust c13bbf7 d8cc696 strings-mixe{1}d-1000/serialize/nino$
+rust c13bbf7 d8cc696 strings-mixed{1}-1000/serialize/nino$
+rust d8cc696 d8cc696 s{1}trings-mixed-1000/serialize/nino$
+rust d8cc696 d8cc696 st{1}rings-mixed-1000/serialize/nino$
+rust d8cc696 d8cc696 str{1}ings-mixed-1000/serialize/nino$
+rust d8cc696 d8cc696 stri{1}ngs-mixed-1000/serialize/nino$
 # rust prefetch round 2, push B: the same pairs, spelled differently.
 rust a8b72d0 8dc3b04 (scattered-1m|recor{1}ds-1000|strings-1000)/serialize/nino$
 rust a8b72d0 8dc3b04 (scattered-1m|record{1}s-1000|strings-1000)/serialize/nino$
