@@ -687,14 +687,34 @@ where
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = HashMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
         if entries_fixed_read::<K, V>() {
-            read_entries_fixed(r, count, |key, value| match map.entry(key) {
-                hash_map::Entry::Occupied(_) => Err(Error::of(ErrorKind::DuplicateKey)),
-                hash_map::Entry::Vacant(e) => {
-                    e.insert(value);
-                    Ok(())
+            // Every entry up to the first that fails to decode goes in through `extend`, which neither looks for the
+            // key first nor stops: a map shorter than the entries put in has a repeated key, found before any later
+            // decoding error, as reading the entries one by one would have.
+            let size = K::FIXED_SIZE.saturating_add(V::FIXED_SIZE);
+            let bytes = r.take(count.checked_mul(size).ok_or_else(Error::end)?)?;
+            let mut failed = None;
+            let mut put = 0usize;
+            map.extend(bytes.chunks_exact(size).map_while(|entry| {
+                // Never `None`: an entry is `K::FIXED_SIZE + V::FIXED_SIZE` bytes.
+                let (k, v) = entry.split_at_checked(K::FIXED_SIZE)?;
+                match K::decode_fixed(k).and_then(|key| Ok((key, V::decode_fixed(v)?))) {
+                    Ok(pair) => {
+                        put = put.wrapping_add(1); // At most `count`.
+                        Some(pair)
+                    }
+                    Err(e) => {
+                        failed = Some(e);
+                        None
+                    }
                 }
-            })?;
-            return Ok(Some(map));
+            }));
+            if map.len() != put {
+                return Err(Error::of(ErrorKind::DuplicateKey));
+            }
+            return match failed {
+                Some(e) => Err(e),
+                None => Ok(Some(map)),
+            };
         }
         for _ in 0..count {
             let key = read_key::<K>(r)?;
