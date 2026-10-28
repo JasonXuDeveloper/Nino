@@ -2,7 +2,7 @@
 
 use core::any::Any;
 use core::hash::{BuildHasher, Hash};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{hash_map, BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 use crate::defer::Step;
 use crate::error::{Error, ErrorKind, Result};
@@ -687,9 +687,12 @@ where
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = HashMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
         if entries_fixed_read::<K, V>() {
-            read_entries_fixed(r, count, |key, value| match map.insert(key, value) {
-                Some(_) => Err(Error::of(ErrorKind::DuplicateKey)),
-                None => Ok(()),
+            read_entries_fixed(r, count, |key, value| match map.entry(key) {
+                hash_map::Entry::Occupied(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+                hash_map::Entry::Vacant(e) => {
+                    e.insert(value);
+                    Ok(())
+                }
             })?;
             return Ok(Some(map));
         }
@@ -706,8 +709,11 @@ where
             } else {
                 V::read(r)?
             };
-            if map.insert(key, value).is_some() {
-                return Err(Error::of(ErrorKind::DuplicateKey));
+            match map.entry(key) {
+                hash_map::Entry::Occupied(_) => return Err(Error::of(ErrorKind::DuplicateKey)),
+                hash_map::Entry::Vacant(e) => {
+                    e.insert(value);
+                }
             }
         }
         Ok(Some(map))
