@@ -235,13 +235,39 @@ fn mixed_strings() -> Vec<String> {
 
 // ---------------------------------------------------------------------------------------------- the harness
 
+/// A read case's input, copied to the start of a 64-byte line in a buffer of its own: where the bytes sit then does
+/// not depend on how the writer that wrote them grew its buffer, so a change to a writer cannot move a read case.
+struct Input {
+    buf: Vec<u8>,
+    at: usize,
+    len: usize,
+}
+
+impl Input {
+    fn new(bytes: Vec<u8>) -> Self {
+        let len = bytes.len();
+        let mut buf = vec![0; len + 64];
+        let at = buf.as_ptr().align_offset(64).min(63);
+        buf[at..at + len].copy_from_slice(&bytes);
+        Self { buf, at, len }
+    }
+}
+
+impl std::ops::Deref for Input {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.buf[self.at..self.at + self.len]
+    }
+}
+
 /// Nino alone on `$value`: for a case whose bytes differ only in Nino from one `formats!` already measures (the
 /// other serializers write the same bytes for both), so the report shows it as its own row.
 macro_rules! nino_only {
     ($c:expr, $group:literal, $elements:expr, $value:expr, $t:ty) => {{
         let value: $t = $value;
         let mut g = $c.benchmark_group($group);
-        let nino_bytes = nino::serialize(&value).unwrap();
+        let nino_bytes = Input::new(nino::serialize(&value).unwrap());
         g.throughput(Throughput::Elements($elements));
         let mut out = Vec::with_capacity(nino_bytes.len());
         g.bench_function(BenchmarkId::new("serialize", "nino"), |b| {
@@ -270,7 +296,7 @@ macro_rules! formats {
         let value: $t = $value;
         let message: $p = $proto(&value);
         let mut g = $c.benchmark_group($group);
-        let nino_bytes = nino::serialize(&value).unwrap();
+        let nino_bytes = Input::new(nino::serialize(&value).unwrap());
         g.throughput(Throughput::Elements($elements));
 
         let mut out = Vec::with_capacity(nino_bytes.len());
@@ -313,11 +339,11 @@ macro_rules! formats {
             })
         });
 
-        let bincode_bytes = bincode::serde::encode_to_vec(&value, BINCODE).unwrap();
-        let postcard_bytes = postcard::to_allocvec(&value).unwrap();
-        let rmp_bytes = rmp_serde::to_vec(&value).unwrap();
-        let json_bytes = serde_json::to_vec(&value).unwrap();
-        let prost_bytes = prost::Message::encode_to_vec(&message);
+        let bincode_bytes = Input::new(bincode::serde::encode_to_vec(&value, BINCODE).unwrap());
+        let postcard_bytes = Input::new(postcard::to_allocvec(&value).unwrap());
+        let rmp_bytes = Input::new(rmp_serde::to_vec(&value).unwrap());
+        let json_bytes = Input::new(serde_json::to_vec(&value).unwrap());
+        let prost_bytes = Input::new(prost::Message::encode_to_vec(&message));
         assert_eq!(<$p as prost::Message>::decode(&prost_bytes[..]).unwrap(), message);
         assert_eq!(nino::deserialize::<$t>(&nino_bytes).unwrap(), value);
         eprintln!(

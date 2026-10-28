@@ -68,11 +68,37 @@ impl NinoWrite for Point {
     }
 }
 
+/// A read case's input, copied to the start of a 64-byte line in a buffer of its own: where the bytes sit then does
+/// not depend on how the writer that wrote them grew its buffer, so a change to a writer cannot move a read case.
+struct Input {
+    buf: Vec<u8>,
+    at: usize,
+    len: usize,
+}
+
+impl Input {
+    fn new(bytes: Vec<u8>) -> Self {
+        let len = bytes.len();
+        let mut buf = vec![0; len + 64];
+        let at = buf.as_ptr().align_offset(64).min(63);
+        buf[at..at + len].copy_from_slice(&bytes);
+        Self { buf, at, len }
+    }
+}
+
+impl std::ops::Deref for Input {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.buf[self.at..self.at + self.len]
+    }
+}
+
 fn case<T>(c: &mut Criterion, name: &str, value: T)
 where
     T: NinoRead + NinoWrite + PartialEq + std::fmt::Debug,
 {
-    let bytes = nino::serialize(&value).unwrap();
+    let bytes = Input::new(nino::serialize(&value).unwrap());
     assert_eq!(nino::deserialize::<T>(&bytes).unwrap(), value);
     let mut g = c.benchmark_group("blocks");
     g.throughput(Throughput::Bytes(bytes.len() as u64));
