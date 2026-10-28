@@ -101,9 +101,9 @@ public class StrictReadTests
             Invalid<StrictFlags>(Concat(new[] { b }, NinoSerializer.Serialize("a")));
             Invalid<(bool, string)>(Concat(new[] { b }, NinoSerializer.Serialize("a")));
             // Tuples and pairs of raw items read as blocks: the vector paths move the bytes without ReadBlock, so the
-            // bools are checked before them, wherever the bad one is.
+            // bools are checked before them, wherever the bad one is (every place in a step of eight, and the tail).
             foreach (int length in new[] { 1, 9, 33, 100 })
-            foreach (int at in new[] { 0, length / 2, length - 1 })
+            foreach (int at in new[] { 0, 1, 2, 3, 4, 5, 6, 7, length / 2, length - 1 }.Where(a => a < length).Distinct())
             {
                 var pairs = Enumerable.Range(0, length).Select(i => (i % 2 == 0, i)).ToArray();
                 Invalid<(bool, int)[]>(WithByte(NinoSerializer.Serialize(pairs), 4 + at * 5, b));
@@ -112,6 +112,8 @@ public class StrictReadTests
                 Invalid<(int, short, bool)[]>(WithByte(NinoSerializer.Serialize(swapped), 4 + at * 7 + 6, b));
                 var kvps = pairs.Select(p => new KeyValuePair<bool, int>(p.Item1, p.Item2)).ToArray();
                 Invalid<KeyValuePair<bool, int>[]>(WithByte(NinoSerializer.Serialize(kvps), 4 + at * 5, b));
+                var padded = pairs.Select(p => (1f, 2f, (p.Item2, (short)3), p.Item1)).ToArray();
+                Invalid<(float, float, (int, short), bool)[]>(WithByte(NinoSerializer.Serialize(padded), 4 + at * 15 + 14, b));
             }
 
             // bool?[]: [has value][value] each; the second value is the bad one.
