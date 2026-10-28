@@ -1,3 +1,29 @@
+# rust prefetch round 3, push B: more of the same pairs, and Vec<String> (text bench).
+rust a8b72d0 626e359 (scattered-1m|re{2}cords-1000|strings-1000)/serialize/nino$
+rust a8b72d0 626e359 (scattered-1m|rec{2}ords-1000|strings-1000)/serialize/nino$
+rust a8b72d0 626e359 (scattered-1m|reco{2}rds-1000|strings-1000)/serialize/nino$
+rust a8b72d0 626e359 (scattered-1m|recor{2}ds-1000|strings-1000)/serialize/nino$
+rust a8b72d0 626e359 (scattered-1m|record{2}s-1000|strings-1000)/serialize/nino$
+rust a8b72d0 626e359 (scattered-1m|records{2}-1000|strings-1000)/serialize/nino$
+rust a8b72d0 626e359 (scattered-1m|records-1{2}000|strings-1000)/serialize/nino$
+rust a8b72d0 626e359 (scattered-1m|records-10{2}00|strings-1000)/serialize/nino$
+rust a8b72d0 626e359 (scattered-1m|records-100{2}0|strings-1000)/serialize/nino$
+rust a8b72d0 626e359 (scattered-1m|records-1000{2}|strings-1000)/serialize/nino$
+rust a8b72d0 79d2c33 records-10{2}00/serialize/nino$
+rust a8b72d0 79d2c33 records-100{2}0/serialize/nino$
+rust a8b72d0 79d2c33 records-1000{2}/serialize/nino$
+rust a8b72d0 79d2c33 records-1000/s{2}erialize/nino$
+rust a8b72d0 79d2c33 records-1000/se{2}rialize/nino$
+rust a8b72d0 79d2c33 records-1000/ser{2}ialize/nino$
+rust a8b72d0 79d2c33 records-1000/seri{2}alize/nino$
+rust:text a8b72d0 626e359 w{2}rite/scattered-1m$
+rust:text a8b72d0 626e359 wr{2}ite/scattered-1m$
+rust:text a8b72d0 626e359 wri{2}te/scattered-1m$
+rust:text a8b72d0 626e359 writ{2}e/scattered-1m$
+rust:text a8b72d0 626e359 write{2}/scattered-1m$
+rust:text a8b72d0 626e359 write/s{2}cattered-1m$
+rust:text 626e359 626e359 w{2}rite/scattered-1m$
+rust:text 626e359 626e359 wr{2}ite/scattered-1m$
 # rust prefetch round 3 (aligned build), push A of two: 626e359 prefetches only lists whose estimated data outgrows
 # the last-level cache (sysfs; Go was slower on Xeon 6973P-C, whose L3 held the set); 79d2c33 is a placebo (the
 # out-of-line loop, never prefetching) to tell placement from prefetch on records-1000.
