@@ -281,6 +281,94 @@ func WritePrimitiveEntries[K, V Primitive](w *Writer, e []Entry[K, V]) {
 	copy(b, unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(e))), len(e)*size))
 }
 
+// ReadPrimitiveMap reads a dictionary of primitive keys and values into a map (nil for null): a key read twice
+// fails with CodeDuplicateKey, as [ReadMap]. The pairs are one block, checked against the bytes left once, and
+// each key and value is decoded at a constant offset in it (no call per pair); the map is presized as [ReadMap]
+// presizes it.
+func ReadPrimitiveMap[K, V Primitive](r *Reader) map[K]V {
+	var k K
+	var x V
+	ks, vs := int(unsafe.Sizeof(k)), int(unsafe.Sizeof(x))
+	wire := ks + vs
+	n := r.Length(wire)
+	if n < 0 {
+		return nil
+	}
+	m := make(map[K]V, capacity(n, wire+hashSlot, len(r.buf)))
+	b := r.Take(n * wire)
+	if len(b) != n*wire {
+		return nil
+	}
+	for i := 1; len(b) >= wire; i++ {
+		if m[loadPrimitive[K](b)] = loadPrimitive[V](b[ks:]); len(m) != i {
+			r.Fail(CodeDuplicateKey, "")
+			return nil
+		}
+		b = b[wire:]
+	}
+	return m
+}
+
+// WritePrimitiveMap writes a dictionary of primitive keys and values in Go's map order (nil is null): its pairs
+// as one block, each key and value stored at a constant offset in it.
+func WritePrimitiveMap[K, V Primitive](w *Writer, m map[K]V) {
+	if m == nil {
+		w.Null()
+		return
+	}
+	var k K
+	var x V
+	ks, vs := int(unsafe.Sizeof(k)), int(unsafe.Sizeof(x))
+	wire := ks + vs
+	w.Length(len(m))
+	b := w.Extend(len(m) * wire)
+	if len(b) != len(m)*wire {
+		return
+	}
+	for key, value := range m {
+		if len(b) < wire {
+			return // the map grew while written (a data race)
+		}
+		storePrimitive(b, key)
+		storePrimitive(b[ks:], value)
+		b = b[wire:]
+	}
+}
+
+// loadPrimitive decodes the primitive at the start of b (little-endian), whatever the host's byte order.
+func loadPrimitive[T Primitive](b []byte) T {
+	var v T
+	switch unsafe.Sizeof(v) {
+	case 1:
+		x := b[0]
+		v = *(*T)(unsafe.Pointer(&x))
+	case 2:
+		x := binary.LittleEndian.Uint16(b)
+		v = *(*T)(unsafe.Pointer(&x))
+	case 4:
+		x := binary.LittleEndian.Uint32(b)
+		v = *(*T)(unsafe.Pointer(&x))
+	case 8:
+		x := binary.LittleEndian.Uint64(b)
+		v = *(*T)(unsafe.Pointer(&x))
+	}
+	return v
+}
+
+// storePrimitive encodes v at the start of b (little-endian), whatever the host's byte order.
+func storePrimitive[T Primitive](b []byte, v T) {
+	switch unsafe.Sizeof(v) {
+	case 1:
+		b[0] = *(*uint8)(unsafe.Pointer(&v))
+	case 2:
+		binary.LittleEndian.PutUint16(b, *(*uint16)(unsafe.Pointer(&v)))
+	case 4:
+		binary.LittleEndian.PutUint32(b, *(*uint32)(unsafe.Pointer(&v)))
+	case 8:
+		binary.LittleEndian.PutUint64(b, *(*uint64)(unsafe.Pointer(&v)))
+	}
+}
+
 // readPrimitive reads one primitive in little-endian order.
 func readPrimitive[T Primitive](r *Reader) T {
 	var v [1]T
