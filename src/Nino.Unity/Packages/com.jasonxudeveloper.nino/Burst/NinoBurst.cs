@@ -48,6 +48,9 @@ namespace Nino.Burst
         public delegate void WidenFunction(byte* source, ushort* destination, int length);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void PrefetchFunction(void** references, int count);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate int IsaFunction();
 
         /// <summary>Values of <see cref="Isa"/>: the kernels' 16-byte x86 paths (SSSE3), AArch64 Neon, the 32-byte x86
@@ -103,10 +106,15 @@ namespace Nino.Burst
                         return false;
                     _kernels = new Kernels(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute).Invoke,
                         BurstCompiler.CompileFunctionPointer<NarrowFunction>(Narrow).Invoke,
-                        BurstCompiler.CompileFunctionPointer<WidenFunction>(Widen).Invoke);
+                        BurstCompiler.CompileFunctionPointer<WidenFunction>(Widen).Invoke,
+#if UNITY_BURST_EXPERIMENTAL_PREFETCH_INTRINSIC
+                        BurstCompiler.CompileFunctionPointer<PrefetchFunction>(Prefetch).Invoke);
+#else
+                        null);
+#endif
                     _kernels16 = _best == Avx2
                         ? new Kernels(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute16).Invoke,
-                            _kernels.NarrowPointer, _kernels.WidenPointer)
+                            _kernels.NarrowPointer, _kernels.WidenPointer, _kernels.PrefetchPointer)
                         : _kernels;
                 }
                 catch (Exception e)
@@ -144,16 +152,24 @@ namespace Nino.Burst
             private readonly PermuteFunction _permute;
             private readonly NarrowFunction _narrow;
             private readonly WidenFunction _widen;
+            private readonly PrefetchFunction _prefetch;
 
             public NarrowFunction NarrowPointer => _narrow;
             public WidenFunction WidenPointer => _widen;
+            public PrefetchFunction PrefetchPointer => _prefetch;
 
-            public Kernels(PermuteFunction permute, NarrowFunction narrow, WidenFunction widen)
+            public Kernels(PermuteFunction permute, NarrowFunction narrow, WidenFunction widen,
+                PrefetchFunction prefetch)
             {
                 _permute = permute;
                 _narrow = narrow;
                 _widen = widen;
+                _prefetch = prefetch;
             }
+
+            public override bool Prefetches => _prefetch != null;
+
+            public override void Prefetch(IntPtr* references, int count) => _prefetch((void**)references, count);
 
             public override void Permute(byte* source, int sourceStride, byte* destination, int destinationStride,
                 byte* table, int count) => _permute(source, sourceStride, destination, destinationStride, table, count);
@@ -164,6 +180,25 @@ namespace Nino.Burst
             public override void Widen(byte* source, char* destination, int length) =>
                 _widen(source, (ushort*)destination, length);
         }
+
+#if UNITY_BURST_EXPERIMENTAL_PREFETCH_INTRINSIC
+        /// <summary>
+        /// <see cref="NinoKernels.Prefetch"/>: a prefetch of each object (prefetcht0 on x86, prfm pldl1keep on
+        /// AArch64), which never faults; null references skipped. Burst's Common.Prefetch is experimental: it exists
+        /// only with the scripting define UNITY_BURST_EXPERIMENTAL_PREFETCH_INTRINSIC, and without it the kernels do
+        /// not prefetch (NinoKernels.Prefetches false).
+        /// </summary>
+        [BurstCompile(CompileSynchronously = true)]
+        [MonoPInvokeCallback(typeof(PrefetchFunction))]
+        public static void Prefetch(void** references, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                if (references[i] != null)
+                    Common.Prefetch(references[i], Common.ReadWrite.Read);
+            }
+        }
+#endif
 
         [BurstCompile(CompileSynchronously = true)]
         [MonoPInvokeCallback(typeof(IsaFunction))]
