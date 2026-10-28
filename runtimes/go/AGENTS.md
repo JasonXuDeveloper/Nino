@@ -100,7 +100,14 @@ requirements:
   `Take`/`Extend` and `binary.LittleEndian` at constant offsets; blocks of primitives are one copy (guarded for
   big-endian hosts). Keep rare paths (`Fail`, growth, deferral) in `//go:noinline` functions. Check
   `go build -gcflags=-d=ssa/check_bce/debug=1` and `-gcflags=-m` on what you change, and keep writing a value free
-  of allocations (`bench`, `-benchmem`).
+  of allocations (`bench`, `-benchmem`). A collection of fixed-size elements takes a block helper
+  (`ReadPrimitives`, `ReadPrimitiveEntries`, `ReadPrimitiveMap`), never the generic helpers that take element
+  functions: those are an indirect call per element (`(*Reader).I32` is never inlined through a func value) and a
+  bounds check per value. `ReadPrimitiveMap` read a 10-pair `map[int32]int32` 31 % faster than `ReadMap`, and
+  SimpleClass 4-7 % faster on runners (7ac8b46). Walk a block with a cursor (`for len(b) >= wire { ...; b =
+  b[wire:] }`): indexing `b[i*wire:]` kept a bounds check per pair. A runner A/B can move code you did not touch by
+  layout: the first map round left the untouched tag write 1.5-7.7 % slower on x64 only; make that path faster too
+  (it then measured 7-14 % faster) rather than land a loss.
 - Struct tags (`tagged.go`, `layout.go`, `marshal.go`) are the one place reflection is allowed: a plan built once
   per type, then walked. Anything the wire format cannot express is a `*TagError` naming the field when the plan
   is built, never a silent default; reads go through the same `Reader` calls as generated code, so the guarantees
