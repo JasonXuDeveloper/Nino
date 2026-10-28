@@ -1,19 +1,29 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+# phase10/rust round 13 (aligned build): d85ad0d = the map read as one block through extend (repeated keys from the length),
+# on 83950aa; round 12: one block + entry was 3-6% faster on x64 and 3.9% slower on Neoverse-N2.
+rust:blocks 83950aa d85ad0d blocks/read/map-i32-i32$
+rust:blocks 83950aa d85ad0d ^blocks/read/map-i32-i32$
+rust:blocks 83950aa d85ad0d blocks/read/(map-i32-i32)$
+rust:blocks 83950aa d85ad0d blocks/read/map-i32-i3(2)$
+rust:blocks d85ad0d d85ad0d blocks/read/map-i32-i32$
+rust:blocks d85ad0d d85ad0d ^blocks/read/map-i32-i32$
+rust:blocks 83950aa 83950aa blocks/read/map-i32-i3(2)$
+rust:blocks 83950aa 83950aa blocks/read/map-i32-i32$
 # phase10/rust round 12 (aligned build): the map read alone; d089ee4 = one block + entry, 318ea88 = entry by entry + insert,
 # both on 83950aa (merged here with -s ours, tree unchanged); 6bbd139 (one block + insert) was 5-9% slower on x64 in round 11.
-rust:blocks 83950aa d089ee4 blocks/read/map-i32-i32$
-rust:blocks 83950aa d089ee4 ^blocks/read/map-i32-i32$
-rust:blocks 83950aa d089ee4 blocks/read/(map-i32-i32)$
-rust:blocks 83950aa 318ea88 blocks/read/map-i32-i32$
-rust:blocks 83950aa 318ea88 ^blocks/read/map-i32-i32$
-rust:blocks 83950aa 318ea88 blocks/read/(map-i32-i32)$
-rust:blocks 83950aa 83950aa blocks/read/map-i32-i32$
-rust:blocks 83950aa 83950aa ^blocks/read/map-i32-i32$
-rust:blocks 83950aa 83950aa blocks/read/(map-i32-i32)$
-rust:blocks d089ee4 d089ee4 blocks/read/map-i32-i32$
-rust:blocks d089ee4 d089ee4 ^blocks/read/map-i32-i32$
-rust:blocks 318ea88 318ea88 blocks/read/map-i32-i32$
-rust:blocks 318ea88 318ea88 ^blocks/read/map-i32-i32$
+# done (run 40616878008): rust:blocks 83950aa d089ee4 blocks/read/map-i32-i32$
+# done (run 40616878008): rust:blocks 83950aa d089ee4 ^blocks/read/map-i32-i32$
+# done (run 40616878008): rust:blocks 83950aa d089ee4 blocks/read/(map-i32-i32)$
+# done (run 40616878008): rust:blocks 83950aa 318ea88 blocks/read/map-i32-i32$
+# done (run 40616878008): rust:blocks 83950aa 318ea88 ^blocks/read/map-i32-i32$
+# done (run 40616878008): rust:blocks 83950aa 318ea88 blocks/read/(map-i32-i32)$
+# done (run 40616878008): rust:blocks 83950aa 83950aa blocks/read/map-i32-i32$
+# done (run 40616878008): rust:blocks 83950aa 83950aa ^blocks/read/map-i32-i32$
+# done (run 40616878008): rust:blocks 83950aa 83950aa blocks/read/(map-i32-i32)$
+# done (run 40616878008): rust:blocks d089ee4 d089ee4 blocks/read/map-i32-i32$
+# done (run 40616878008): rust:blocks d089ee4 d089ee4 ^blocks/read/map-i32-i32$
+# done (run 40616878008): rust:blocks 318ea88 318ea88 blocks/read/map-i32-i32$
+# done (run 40616878008): rust:blocks 318ea88 318ea88 ^blocks/read/map-i32-i32$
 # phase10/rust round 11 (aligned build): 6bbd139 (maps read as one block, one probe an entry; the bench-input change dropped)
 # against 781d955 (blocks) and main 1622ddb (compare), and 83950aa, with floors.
 # done (run 40614537508): rust:blocks 781d955 6bbd139 blocks/{1}
