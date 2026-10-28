@@ -148,6 +148,54 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
+    /// Generated formatters of non-generic classes whose collections prefetch: an array or a list of their objects
+    /// larger than a quarter of the last-level cache (<see cref="PrefetchBytes"/> each), whose first objects are not
+    /// in allocation order, written by a top-level call or read into its existing objects by one
+    /// (<see cref="INinoPrefetchTopFormatter{T}"/>), is walked in runs of 16 elements, each run calling an out-of-line
+    /// helper that prefetches the objects of the runs ahead and the objects their members point to (x64 and Arm64 on
+    /// .NET 8 and later).
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoPrefetchFormatter
+    {
+        /// <summary>
+        /// The bytes an element brings into the cache (a constant): its object, and a line of each object its reference
+        /// members point to.
+        /// </summary>
+        int PrefetchBytes { get; }
+
+        /// <summary>
+        /// Prefetches the objects the reference members of the <paramref name="count"/> elements at
+        /// <paramref name="first"/> (null ones skipped) point to, through <see cref="NinoPrefetched.At"/>, and returns
+        /// the sum of what that returned. Called once the elements' own objects were prefetched.
+        /// </summary>
+        int PrefetchMembers(ref object first, int count);
+    }
+
+    /// <summary>
+    /// The formatters of arrays and lists, for the top-level calls generated code makes for collections of a class
+    /// whose formatter is an <see cref="INinoPrefetchFormatter"/> (<c>NinoDirect.SerializePrefetched</c> and
+    /// <c>DeserializePrefetched</c>): a long collection of scattered objects is written, or read into its existing
+    /// objects, with the objects ahead prefetched. The bytes are the same.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoPrefetchTopFormatter<T>
+    {
+        /// <summary>
+        /// Writes <paramref name="value"/> as a whole payload at the end of <paramref name="buffer"/>, with its objects
+        /// prefetched, and returns true; false (nothing written) for a collection that does not prefetch.
+        /// </summary>
+        bool TryWrite(T value, NinoArrayBufferWriter buffer);
+
+        /// <summary>
+        /// Reads the payload <paramref name="data"/> into <paramref name="value"/>'s existing objects, prefetched, and
+        /// returns true; false (nothing read) unless <paramref name="value"/> is a collection that prefetches and
+        /// <paramref name="data"/> holds as many elements.
+        /// </summary>
+        bool TryRead(ReadOnlySpan<byte> data, ref T value);
+    }
+
+    /// <summary>
     /// Marker for struct formatters whose output is exactly the in-memory bytes of the value
     /// (<c>Unsafe.SizeOf&lt;T&gt;()</c> bytes). The top-level APIs copy such values directly.
     /// </summary>

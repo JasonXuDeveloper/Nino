@@ -7,9 +7,21 @@ using Nino.Core.Internal;
 namespace Nino.Core
 {
     /// <summary><c>T[]</c>: length (-1 = null), then the elements. Reuses an existing array of the same length.</summary>
-    public struct ArrayFormatter<T, TFormatter> : INinoFormatter<T[]>, INinoSizedFormatter<T[]>
+    public struct ArrayFormatter<T, TFormatter> : INinoFormatter<T[]>, INinoSizedFormatter<T[]>,
+        INinoPrefetchTopFormatter<T[]>
         where TFormatter : struct, INinoFormatter<T>
     {
+        // A top-level call (NinoPrefetch): a compare against a constant inline, the rest out of line.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool INinoPrefetchTopFormatter<T[]>.TryWrite(T[] value, NinoArrayBufferWriter buffer) =>
+            value != null && NinoPrefetch.Long<TFormatter>(value.Length) &&
+            NinoPrefetch.Write<T, TFormatter>(value, buffer);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool INinoPrefetchTopFormatter<T[]>.TryRead(ReadOnlySpan<byte> data, ref T[] value) =>
+            value != null && NinoPrefetch.Long<TFormatter>(value.Length) &&
+            NinoPrefetch.Read<T, TFormatter>(data, value);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int INinoSizedFormatter<T[]>.Size(T[] value) =>
             NinoElements.SizedBytes<T, TFormatter>(value == null ? -1 : value.Length);

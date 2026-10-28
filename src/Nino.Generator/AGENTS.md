@@ -71,11 +71,14 @@ FormatterTraits.cs           flags of what a formatter is and how it reads and w
 SymbolTypeSystem.cs          ITypeSymbol for NinoFormatterBinding (the binding shared with the runtime)
 RawRules.cs                  which values are written as raw bytes, memoized per compilation
 RawLayout.cs                 whether a struct's memory is the same on every runtime (the canonical layout)
+PrefetchRules.cs             which classes' top-level arrays and lists prefetch their objects (INinoPrefetchFormatter):
+                             the object's estimated bytes for the cache budget, and which members' objects it prefetches
 LayoutTypes.cs               unmanaged structs whose layout the runtime measures ([DynamicDependency] for NativeAOT)
 WireEncoding.cs              a member's encoding as the published layout shows it ([NinoTypeLayout])
 TypeNames.cs                 type names as generated code and the runtime spell them, and the ids hashed from them
 Visibility.cs                what generated code in one assembly can name, read and assign
-Interceptors.cs              interceptors of top-level NinoSerializer / NinoDeserializer calls (Roslyn 4.8+ builds)
+Interceptors.cs              interceptors of top-level NinoSerializer / NinoDeserializer calls (Roslyn 4.8+ builds;
+                             arrays and lists of prefetching classes call NinoDirect's ...Prefetched methods)
 EmittedFormatters.cs         emitted SourceTexts reused by model value
 DiagnosticSink.cs            receives diagnostics while a model is built (the analyzer passes one; the generator none)
 ```

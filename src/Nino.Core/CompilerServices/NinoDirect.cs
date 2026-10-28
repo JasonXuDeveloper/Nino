@@ -120,6 +120,61 @@ namespace Nino.Core.CompilerServices
             writer.ReleaseReferences();
         }
 
+        /// <summary>
+        /// <see cref="Serialize{T,TFormatter}(in T)"/> of an array or a list of a class whose formatter prefetches
+        /// (<see cref="INinoPrefetchTopFormatter{T}"/>): a long one of scattered objects is written with the objects
+        /// ahead prefetched. The bytes are the same.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte[] SerializePrefetched<T, TFormatter>(in T value)
+            where TFormatter : struct, INinoFormatter<T>, INinoPrefetchTopFormatter<T> =>
+            NinoSized.Is<T, TFormatter>() && NinoSized.Serialize<T, TFormatter>(value) is { } sized
+                ? sized
+                : NinoScratch.ToArray(value, default(PrefetchWriter<T, TFormatter>));
+
+        /// <summary>
+        /// <see cref="Serialize{T,TFormatter}(in T, IBufferWriter{byte})"/> of an array or a list of a class whose
+        /// formatter prefetches (<see cref="SerializePrefetched{T,TFormatter}(in T)"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializePrefetched<T, TFormatter>(in T value, IBufferWriter<byte> bufferWriter)
+            where TFormatter : struct, INinoFormatter<T>, INinoPrefetchTopFormatter<T>
+        {
+            if (bufferWriter is NinoArrayBufferWriter nino)
+                WritePrefetched<T, TFormatter>(value, nino);
+            else
+                SerializeOther(value, bufferWriter);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WritePrefetched<T, TFormatter>(in T value, NinoArrayBufferWriter buffer)
+            where TFormatter : struct, INinoFormatter<T>, INinoPrefetchTopFormatter<T>
+        {
+            if (!default(TFormatter).TryWrite(value, buffer))
+                Write<T, TFormatter>(value, buffer);
+        }
+
+        /// <summary>Writes with <see cref="WritePrefetched{T,TFormatter}"/> (<see cref="NinoScratch"/>).</summary>
+        private readonly struct PrefetchWriter<T, TFormatter> : INinoScratchWriter<T>
+            where TFormatter : struct, INinoFormatter<T>, INinoPrefetchTopFormatter<T>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Write(T value, NinoArrayBufferWriter buffer) => WritePrefetched<T, TFormatter>(value, buffer);
+        }
+
+        /// <summary>
+        /// <see cref="Deserialize{T,TFormatter}(ReadOnlySpan{byte}, ref T)"/> into an array or a list of a class whose
+        /// formatter prefetches (<see cref="INinoPrefetchTopFormatter{T}"/>): into a long one of scattered objects, as long
+        /// as the data's, with the objects ahead prefetched.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializePrefetched<T, TFormatter>(ReadOnlySpan<byte> data, ref T value)
+            where TFormatter : struct, INinoFormatter<T>, INinoPrefetchTopFormatter<T>
+        {
+            if (NinoLimits.Untrusted || !default(TFormatter).TryRead(data, ref value))
+                Deserialize<T, TFormatter>(data, ref value);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T, TFormatter>(ReadOnlySpan<byte> data) where TFormatter : struct, INinoFormatter<T>
         {
