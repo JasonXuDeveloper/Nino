@@ -21,9 +21,11 @@ namespace Nino.Core
     /// returns what it deserializes never takes a lock; a full thread stack moves half of itself to the shared
     /// stack and an empty one takes half a stack back, one lock per batch.
     /// </summary>
-    public sealed class NinoPool<T> : NinoPoolLine where T : class, INinoPooled
+    public sealed class NinoPool<T> where T : class, INinoPooled
     {
         private const int ThreadCapacity = 64;
+
+        private NinoPoolLine _line;
 
         private readonly object _lock = new object();
         private T[] _items = new T[ThreadCapacity];
@@ -66,7 +68,7 @@ namespace Nino.Core
             {
                 Array.Clear(_items, 0, _count);
                 _count = 0;
-                Volatile.Write(ref Generation, Generation + 1);
+                Volatile.Write(ref _line.Generation, _line.Generation + 1);
             }
         }
 
@@ -75,15 +77,16 @@ namespace Nino.Core
         public sealed class PerThread
         {
             internal readonly T[] Items = new T[ThreadCapacity];
-            internal int Count;
-            internal int Generation;
+            // Written on every take and add by this thread only; padded so no other thread's object, which a
+            // compacting collection can move next to this one, shares their cache line.
+            internal NinoPoolThreadLine Line;
         }
 
         /// <summary>For generated code: true for the first caller only, which then runs the warmup.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool BeginWarmup() =>
-            Volatile.Read(ref WarmedUp) == 0 && Interlocked.Exchange(ref WarmedUp, 1) == 0;
+            Volatile.Read(ref _line.WarmedUp) == 0 && Interlocked.Exchange(ref _line.WarmedUp, 1) == 0;
 
         /// <summary>
         /// For generated code: false until an instance is first added, while every stack is empty; a take then answers
@@ -93,7 +96,7 @@ namespace Nino.Core
         public bool EverFilled
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => Filled != 0;
+            get => _line.Filled != 0;
         }
 
         /// <summary>For generated code: a pooled instance, or null when the pool is empty.</summary>
@@ -102,10 +105,10 @@ namespace Nino.Core
         public T TryTake(ref PerThread stack)
         {
             var s = stack;
-            if (s != null && s.Count != 0 && s.Generation == Generation)
+            if (s != null && s.Line.Count != 0 && s.Line.Generation == _line.Generation)
             {
                 // Count is within [0, ThreadCapacity], the length of Items: no bounds checks.
-                ref T item = ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(s.Items), --s.Count);
+                ref T item = ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(s.Items), --s.Line.Count);
                 var value = item;
                 item = null;
                 return value;
@@ -121,8 +124,8 @@ namespace Nino.Core
         public void Add(T value, ref PerThread stack)
         {
             var s = stack;
-            if (s != null && s.Count != ThreadCapacity && s.Generation == Generation)
-                Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(s.Items), s.Count++) = value;
+            if (s != null && s.Line.Count != ThreadCapacity && s.Line.Generation == _line.Generation)
+                Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(s.Items), s.Line.Count++) = value;
             else
                 AddSlow(value, ref stack);
         }
@@ -140,7 +143,7 @@ namespace Nino.Core
                 _count -= n;
                 Array.Copy(_items, _count, s.Items, 0, n);
                 Array.Clear(_items, _count, n);
-                s.Count = n - 1;
+                s.Line.Count = n - 1;
                 var value = s.Items[n - 1];
                 s.Items[n - 1] = null;
                 return value;
@@ -151,10 +154,10 @@ namespace Nino.Core
         private void AddSlow(T value, ref PerThread stack)
         {
             // The first add of each thread comes here (its stack is created here).
-            if (Filled == 0)
-                Volatile.Write(ref Filled, 1);
+            if (_line.Filled == 0)
+                Volatile.Write(ref _line.Filled, 1);
             var s = Current(ref stack);
-            if (s.Count == ThreadCapacity)
+            if (s.Line.Count == ThreadCapacity)
             {
                 // The older half goes to the shared stack (or to the garbage collector once that is full).
                 const int half = ThreadCapacity / 2;
@@ -169,22 +172,22 @@ namespace Nino.Core
 
                 Array.Copy(s.Items, half, s.Items, 0, half);
                 Array.Clear(s.Items, half, half);
-                s.Count = half;
+                s.Line.Count = half;
             }
 
-            s.Items[s.Count++] = value;
+            s.Items[s.Line.Count++] = value;
         }
 
         /// <summary>The calling thread's stack, created or emptied after a <see cref="Clear"/> as needed.</summary>
         private PerThread Current(ref PerThread stack)
         {
             var s = stack ??= new PerThread();
-            int generation = Volatile.Read(ref Generation);
-            if (s.Generation != generation)
+            int generation = Volatile.Read(ref _line.Generation);
+            if (s.Line.Generation != generation)
             {
-                Array.Clear(s.Items, 0, s.Count);
-                s.Count = 0;
-                s.Generation = generation;
+                Array.Clear(s.Items, 0, s.Line.Count);
+                s.Line.Count = 0;
+                s.Line.Generation = generation;
             }
 
             return s;
@@ -198,25 +201,30 @@ namespace Nino.Core
     }
 
     /// <summary>
-    /// For <see cref="NinoPool{T}"/>: the fields every take and add reads, on a 64-byte cache line of their own (56
-    /// bytes of padding before them, the object header included, and 56 after), away from the shared stack's count
-    /// and the lock that batch transfers write, and from neighbouring objects. A non-generic base class, because
-    /// generic classes cannot have an explicit layout.
+    /// For <see cref="NinoPool{T}"/>: the fields every take and add reads, with 64 bytes of padding on each side, so
+    /// no field that batch transfers write (the shared stack's count, the lock) and no neighbouring object can share
+    /// their cache line, wherever the runtime places this struct among the pool's fields. A struct field rather than a
+    /// base class: the runtime orders a class's fields as it likes (and a derived class's fields can follow the base's
+    /// last padding byte directly), while a struct's explicit layout, padding included, moves as one block.
     /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [StructLayout(LayoutKind.Explicit)]
-    public abstract class NinoPoolLine
+    [StructLayout(LayoutKind.Explicit, Size = 64 + 12 + 64)]
+    internal struct NinoPoolLine
     {
         // Bumped by Clear: thread stacks filled before it drop their instances.
-        [FieldOffset(56)] internal int Generation;
-        [FieldOffset(60)] internal int WarmedUp;
+        [FieldOffset(64)] internal int Generation;
+        [FieldOffset(68)] internal int WarmedUp;
         // Set by the first add: until then every stack is empty.
-        [FieldOffset(64)] internal int Filled;
-        [FieldOffset(120)] private int _end;
+        [FieldOffset(72)] internal int Filled;
+    }
 
-        private protected NinoPoolLine()
-        {
-            _end = 0;
-        }
+    /// <summary>
+    /// For <see cref="NinoPool{T}.PerThread"/>: one thread's count and generation, with 64 bytes of padding on each
+    /// side, as in <see cref="NinoPoolLine"/>.
+    /// </summary>
+    [StructLayout(LayoutKind.Explicit, Size = 64 + 8 + 64)]
+    internal struct NinoPoolThreadLine
+    {
+        [FieldOffset(64)] internal int Count;
+        [FieldOffset(68)] internal int Generation;
     }
 }

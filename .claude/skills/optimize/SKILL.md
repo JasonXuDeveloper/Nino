@@ -33,6 +33,15 @@ fix every method it lists.
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
   twice as long as SSSE3's. Look for such calls in the Tier1 listing of every ISA a path takes (`--asm`, with
   `DOTNET_EnableAVX512=0` and `DOTNET_EnableAVX2=0` too).
+- Keep a field that a hot path reads off the cache line of anything another thread writes by putting it in a
+  non-generic struct with `LayoutKind.Explicit`, 64 bytes of padding on each side (`Size = 64 + fields + 64`), held
+  as a field, never as an explicit-layout base class or padding fields of the class itself. The runtime orders a
+  class's fields as it likes and packs a derived class's fields right after the base's last byte, and objects are
+  only 8-byte aligned, while a struct moves as one block with its padding. `NinoPool<T>` had the base-class form:
+  CoreCLR put the derived `_count`, which batch transfers write, at offset 124, on `Filled`'s line whenever the
+  object started on a 64-byte boundary (field offsets read with `ldflda`); `NinoPoolLine` and
+  `NinoPoolThreadLine` are the struct form. Generic classes cannot take an explicit layout either; the struct
+  field works there.
 - A JIT-time check made of several helper calls is one `static readonly` field instead (`NinoElements.Traits`,
   `NinoBlock<T, TFormatter>.Size`): one load, nothing to inline.
 - Do not inline a generic method that needs a runtime lookup into shared code on a hot path.
