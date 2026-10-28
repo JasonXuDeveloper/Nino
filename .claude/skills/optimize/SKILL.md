@@ -169,6 +169,33 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
 - Timings on a shared machine vary by ±15 %: read the code before trusting a local difference, and take the decision
   from runners (`benchmark`). The wire format must not change unless that is the point: compare the bytes.
 
+## Strings outside .NET
+
+- Keep sizing the Rust AVX2 writer's UTF-16 units by the longest char in the whole 32-byte window: sizing each
+  16-byte half by its own longest char (test branch 907b0f7; a lane after a four-byte lead must then count for the
+  next half too, `(three >> 16) | (four >> 14)`, or `"xxxxxxxxxxxxxx𐀀"` breaks) made text mixed/16 and /24 5.5 and
+  6.6 % faster and strings-mixed-1000 2.3 % on EPYC 7763, but cyrillic/16 3.0 % slower (n=32, floor -0.3 %, runs
+  40753062510 and 40756504471): the second computation costs more than it saves when both halves are alike.
+- Hand the window a Latin-1 pass stopped at to the UTF-16 pass instead of loading it again. Rust AVX-512
+  (`wide_avx512`, 4e5465d): strings-mixed-1000 serialize 8.8 % faster on EPYC 9V45 (n=20), 8.9 % on Xeon 8573C
+  (n=14), 6.0 % on Xeon 8370C (n=9), 3.5 % on 9V74 (n=35); text of 16 chars 4-16 % faster, every class (runs
+  40753062510, 40756504471, 40761692830).
+- Rust Arm64 keeps scalar `short_wide_inline` for text up to 64 bytes: routing short non-ASCII text to `neon::wide`
+  (test branch 0fced91, dda2c89; run 40734299173, n=15 on Neoverse-N2) made strings-mixed-1000 50 % slower, text
+  mixed/16 112 %, cjk/16 75 %, cyrillic/16 18 % and latin1/16 9 %; only latin1/24 (-25 %) and cjk/24 (-12 %) gained.
+- Rust strings-mixed serialize trails rmp-serde on every CPU by design: the competitors copy UTF-8 with memcpy, and
+  Nino's wire format is Latin-1 or UTF-16, so mixed text is transcoded. Narrow it in the kernels; do not expect to
+  pass a copy.
+- TypeScript: a cache of decoded map-key strings (4,096 and 16,384 slots, keyed by a hash of the bytes) made Lookup
+  deserialize slower (0.90 to 1.12-1.14 ms locally): hashing bytes in JavaScript costs more than decoding them, and
+  the case has 5,000 distinct keys. On Chromium, decoding short strings through a windowed `TextDecoder('latin1')`
+  left ASCII unchanged and made mixed strings 30 times slower (0.045 to 1.34 ms). The bench's JSON leads on Lookup and
+  ASCII strings deserialize are an artifact of parsing the same text every iteration: V8's JSON.parse reuses
+  hidden-class transitions and internalized keys for repeated text (a Lookup-like text took 0.21 ms a parse repeated,
+  0.25 with two texts alternating, 7.8-8.4 ms with 200 in turn; string arrays 63 against 112 µs), while building Maps
+  from fresh key strings costs the same either way (0.65 against 0.67 ms). Vary the bench data before chasing those
+  cases.
+
 ## Prefetch
 
 - Decide whether a collection loop prefetches when the code is generated, never per element at run time (the owner's
