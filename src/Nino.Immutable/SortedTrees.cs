@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
 namespace Nino.Immutable
@@ -119,7 +120,9 @@ namespace Nino.Immutable
             var empty = ViewOf(ImmutableSortedDictionary<TKey, TValue>.Empty);
             var view = new View();
             ObjectTypes.Retype(view, ObjectTypes.TypeOf(ImmutableSortedDictionary<TKey, TValue>.Empty));
-            view._root = Make(pairs, 0, pairs.Length - 1, empty._root, ObjectTypes.TypeOf(empty._root));
+            // Every middle below is in the array: read without a bounds check.
+            view._root = Make(ref NinoUnsafe.GetArrayDataReference(pairs), 0, pairs.Length - 1, empty._root,
+                ObjectTypes.TypeOf(empty._root));
             view._count = pairs.Length;
             view._keyComparer = empty._keyComparer;
             view._valueComparer = empty._valueComparer;
@@ -143,18 +146,19 @@ namespace Nino.Immutable
             }
         }
 
-        private static Node Make(KeyValuePair<TKey, TValue>[] pairs, int low, int high, Node empty, IntPtr type)
+        private static Node Make(ref KeyValuePair<TKey, TValue> pairs, int low, int high, Node empty, IntPtr type)
         {
             if (low > high)
                 return empty;
             int middle = (low + high) >> 1;
             var node = new Node();
             ObjectTypes.Retype(node, type);
-            node._key = pairs[middle].Key;
-            node._value = pairs[middle].Value;
+            ref var pair = ref Unsafe.Add(ref pairs, middle);
+            node._key = pair.Key;
+            node._value = pair.Value;
             node._frozen = true;
-            node._left = Make(pairs, low, middle - 1, empty, type);
-            node._right = Make(pairs, middle + 1, high, empty, type);
+            node._left = Make(ref pairs, low, middle - 1, empty, type);
+            node._right = Make(ref pairs, middle + 1, high, empty, type);
             // Halves that differ by at most one item: heights that differ by at most one, as an AVL tree needs.
             node._height = (byte)(1 + Math.Max(node._left._height, node._right._height));
             return node;
@@ -199,7 +203,9 @@ namespace Nino.Immutable
             var empty = ViewOf(ImmutableSortedSet<T>.Empty);
             var view = new View();
             ObjectTypes.Retype(view, ObjectTypes.TypeOf(ImmutableSortedSet<T>.Empty));
-            view._root = Make(items, 0, items.Length - 1, empty._root, ObjectTypes.TypeOf(empty._root));
+            // Every middle below is in the array: read without a bounds check.
+            view._root = Make(ref NinoUnsafe.GetArrayDataReference(items), 0, items.Length - 1, empty._root,
+                ObjectTypes.TypeOf(empty._root));
             view._comparer = empty._comparer;
             return Unsafe.As<ImmutableSortedSet<T>>(view);
         }
@@ -220,17 +226,17 @@ namespace Nino.Immutable
             }
         }
 
-        private static Node Make(T[] items, int low, int high, Node empty, IntPtr type)
+        private static Node Make(ref T items, int low, int high, Node empty, IntPtr type)
         {
             if (low > high)
                 return empty;
             int middle = (low + high) >> 1;
             var node = new Node();
             ObjectTypes.Retype(node, type);
-            node._key = items[middle];
+            node._key = Unsafe.Add(ref items, middle);
             node._frozen = true;
-            node._left = Make(items, low, middle - 1, empty, type);
-            node._right = Make(items, middle + 1, high, empty, type);
+            node._left = Make(ref items, low, middle - 1, empty, type);
+            node._right = Make(ref items, middle + 1, high, empty, type);
             // As SortedDictionaryTree's; each node also counts the items under it (for the indexer).
             node._height = (byte)(1 + Math.Max(node._left._height, node._right._height));
             node._count = high - low + 1;

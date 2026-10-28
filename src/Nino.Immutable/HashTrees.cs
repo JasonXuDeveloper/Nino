@@ -197,10 +197,14 @@ namespace Nino.Immutable
         /// </summary>
         public static Node Build(TItem[] items, int[] hashes, Node empty, Type collection)
         {
+            if (hashes.Length != items.Length)
+                return null;
             Array.Sort(hashes, items);
             if (!HashTrees.CheckCollisions(hashes, collection))
                 return null;
-            return Make(items, hashes, 0, items.Length - 1, empty, ObjectTypes.TypeOf(empty));
+            // hashes is as long as items (checked above): every middle below is in both, read without bounds checks.
+            return Make(ref NinoUnsafe.GetArrayDataReference(items), ref NinoUnsafe.GetArrayDataReference(hashes), 0,
+                items.Length - 1, empty, ObjectTypes.TypeOf(empty));
         }
 
         /// <summary>
@@ -231,19 +235,19 @@ namespace Nino.Immutable
             return true;
         }
 
-        private static Node Make(TItem[] items, int[] hashes, int low, int high, Node empty, IntPtr type)
+        private static Node Make(ref TItem items, ref int hashes, int low, int high, Node empty, IntPtr type)
         {
             if (low > high)
                 return empty;
             int middle = (low + high) >> 1;
             var node = new Node();
             ObjectTypes.Retype(node, type);
-            node._key = hashes[middle];
-            node._value._firstValue = items[middle];
+            node._key = Unsafe.Add(ref hashes, middle);
+            node._value._firstValue = Unsafe.Add(ref items, middle);
             node._value._additionalElements = NoMore;
             node._frozen = true;
-            node._left = Make(items, hashes, low, middle - 1, empty, type);
-            node._right = Make(items, hashes, middle + 1, high, empty, type);
+            node._left = Make(ref items, ref hashes, low, middle - 1, empty, type);
+            node._right = Make(ref items, ref hashes, middle + 1, high, empty, type);
             // Halves that differ by at most one item: heights that differ by at most one, as an AVL tree needs.
             node._height = (byte)(1 + Math.Max(node._left._height, node._right._height));
             return node;
@@ -278,12 +282,14 @@ namespace Nino.Immutable
         {
             var comparer = EqualityComparer<TKey>.Default;
             var hashes = new int[pairs.Length];
+            // As long as pairs: written through a cursor, without a bounds check per pair.
+            ref int hash = ref NinoUnsafe.GetArrayDataReference(hashes);
             for (int i = 0; i < pairs.Length; i++)
             {
                 var key = pairs[i].Key;
                 if (key == null)
                     return null;
-                hashes[i] = comparer.GetHashCode(key);
+                Unsafe.Add(ref hash, i) = comparer.GetHashCode(key);
             }
 
             var empty = ViewOf(ImmutableDictionary<TKey, TValue>.Empty);
@@ -328,12 +334,14 @@ namespace Nino.Immutable
         {
             var comparer = EqualityComparer<T>.Default;
             var hashes = new int[items.Length];
+            // As long as items: written through a cursor, without a bounds check per item.
+            ref int hash = ref NinoUnsafe.GetArrayDataReference(hashes);
             for (int i = 0; i < items.Length; i++)
             {
                 var item = items[i];
                 if (item == null)
                     return null;
-                hashes[i] = comparer.GetHashCode(item);
+                Unsafe.Add(ref hash, i) = comparer.GetHashCode(item);
             }
 
             var empty = ViewOf(ImmutableHashSet<T>.Empty);
