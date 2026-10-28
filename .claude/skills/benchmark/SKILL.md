@@ -43,6 +43,12 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    line whose regex misses them ends its slots without measuring (the first land/cmod round got one EPYC job).
 2. Always request the floor too: the base against itself, on the same runners, over several jobs. A floor from one
    job underestimates the noise: the TimeZoneInfo floor jobs' own medians spanned 0.982 to 1.023 on one EPYC CPU.
+   Before blaming a 1–2 % move on a change that touches code the case does not run, also request a null change in
+   the same run: the base plus something that changes nothing (one more bench case), as its own line against the
+   base. The same-against-same floor builds one binary, so it misses the layout noise of two binaries: on Rust
+   records-1000 a null change (0635898 against a8b72d0, aligned build) moved +1.0 to +1.9 % on EPYC 7763, 9V45, 9V74
+   and Xeon 8573C (n=10 to 36) and -0.4 % on Neoverse-N2 (n=80), as large as the 1.7 to 2.6 % the write prefetch
+   (79d2c33) showed there.
 3. Judge per CPU (AMD EPYC 7763, EPYC 9V74 / Zen 4, EPYC 9V45 / Zen 5, Xeon Platinum / 6973P, Neoverse-N2 / V3):
    n >= 12 per side; faster only beyond that CPU's floor; no case slower beyond it. Go through benchstat, Rust through
    criterion's change estimate, .NET through the medians. A case that runs the same machine code as the base (an
