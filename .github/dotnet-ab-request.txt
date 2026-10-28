@@ -58,3 +58,9 @@
 # done (run 40649271865): cpu='EPYC|Neoverse' 43031cf 2a0cde6 12 *CollectionsTest.NinoDeserializeConcurrentDictionary* *CollectionsTest.NinoSerializeConcurrentDictionary*
 # done (run 40649271865): cpu='EPYC|Neoverse' 43031cf d9c6169 12 *CollectionsTest.NinoSerializeConcurrentDictionary* *CollectionsTest.NinoDeserializeConcurrentDictionary*
 # done (run 40649271865): cpu='EPYC|Neoverse' 43031cf 43031cf 12 *CollectionsTest.NinoDeserializeConcurrentDictionary* *CollectionsTest.NinoSerializeConcurrentDictionary*
+# land/prefetch: long arrays and lists of classes prefetch their objects and their members' objects. Base 5d474be (main
+# b2cd50c + the ScatteredTest case); cdd36a9 prefetches collections larger than the last-level cache (land/prefetch-llc),
+# 10c2f5b collections over a fixed 512 KiB budget (to see what the LLC gate gives up on Xeon); and the floor.
+cpu='EPYC|Xeon|Neoverse' 5d474be cdd36a9 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted*
+cpu='EPYC|Xeon|Neoverse' 5d474be 10c2f5b 12 *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted* *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize*
+cpu='EPYC|Xeon|Neoverse' 5d474be 5d474be 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutableSorted*
