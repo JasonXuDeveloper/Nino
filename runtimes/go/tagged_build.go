@@ -855,19 +855,21 @@ func init() {
 	primitiveFastMap[int64, int64]()
 }
 
-// primitiveFastMap makes the fast map of integer keys and values read its pairs as one block ([ReadPrimitiveMap]);
-// it is written as before, in key order.
+// primitiveFastMap makes the fast map of integer keys and values read its pairs as one block ([ReadPrimitiveMap])
+// and write them, in key order, as one block ([WritePrimitiveEntries]).
 func primitiveFastMap[K, V Primitive]() {
-	t := reflect.TypeFor[map[K]V]()
-	codecs := fastMaps[t].codecs
-	fastMaps[t] = fastMap{codecs: func(pairMin int) (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
-		_, write := codecs(pairMin)
-		return func(r *Reader, v reflect.Value) {
+	fastMaps[reflect.TypeFor[map[K]V]()] = fastMap{codecs: func(int) (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
+		read := func(r *Reader, v reflect.Value) {
 			m := ReadPrimitiveMap[K, V](r)
 			if r.err == nil {
 				v.Set(reflect.ValueOf(m))
 			}
-		}, write
+		}
+		write := func(w *Writer, v reflect.Value) {
+			var room [16]Entry[K, V]
+			WritePrimitiveEntries(w, sortedEntries(mapAt[K, V](v), room[:0]))
+		}
+		return read, write
 	}}
 }
 
@@ -887,29 +889,33 @@ func addFastMap[K cmp.Ordered, V any](rk func(*Reader) K, wk func(*Writer, K), r
 			}
 		}
 		write := func(w *Writer, v reflect.Value) {
-			p := v.UnsafePointer()
-			m := *(*map[K]V)(unsafe.Pointer(&p))
-			if m == nil {
-				w.Null()
-				return
-			}
-			w.Length(len(m))
 			var room [16]Entry[K, V]
-			e := room[:0]
-			if len(m) > len(room) {
-				e = make([]Entry[K, V], 0, len(m))
-			}
-			for k, x := range m {
-				e = append(e, Entry[K, V]{k, x})
-			}
-			slices.SortFunc(e, func(a, b Entry[K, V]) int { return cmp.Compare(a.Key, b.Key) })
-			for _, x := range e {
-				wk(w, x.Key)
-				wv(w, x.Value)
-			}
+			WriteEntries(w, sortedEntries(mapAt[K, V](v), room[:0]), wk, wv)
 		}
 		return read, write
 	}}
+}
+
+// mapAt returns the map v holds (a map[K]V), on the unsafe path.
+func mapAt[K comparable, V any](v reflect.Value) map[K]V {
+	p := v.UnsafePointer()
+	return *(*map[K]V)(unsafe.Pointer(&p))
+}
+
+// sortedEntries returns the pairs of m in key order (nil for a nil map), in room when they fit.
+func sortedEntries[K cmp.Ordered, V any](m map[K]V, room []Entry[K, V]) []Entry[K, V] {
+	if m == nil {
+		return nil
+	}
+	e := room[:0]
+	if len(m) > cap(room) {
+		e = make([]Entry[K, V], 0, len(m))
+	}
+	for k, x := range m {
+		e = append(e, Entry[K, V]{k, x})
+	}
+	slices.SortFunc(e, func(a, b Entry[K, V]) int { return cmp.Compare(a.Key, b.Key) })
+	return e
 }
 
 // keyOrder returns the indexes of keys (a slice) in key order when the keys have one (numbers, strings, bools),
