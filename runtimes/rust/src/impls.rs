@@ -2,7 +2,7 @@
 
 use core::any::Any;
 use core::hash::{BuildHasher, Hash};
-use std::collections::{hash_map, BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 use crate::defer::Step;
 use crate::error::{Error, ErrorKind, Result};
@@ -674,11 +674,8 @@ where
             } else {
                 V::read(r)?
             };
-            match map.entry(key) {
-                hash_map::Entry::Occupied(_) => return Err(Error::of(ErrorKind::DuplicateKey)),
-                hash_map::Entry::Vacant(e) => {
-                    e.insert(value);
-                }
+            if map.insert(key, value).is_some() {
+                return Err(Error::of(ErrorKind::DuplicateKey));
             }
         }
         Ok(Some(map))
