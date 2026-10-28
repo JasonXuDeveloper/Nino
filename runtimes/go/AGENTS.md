@@ -20,8 +20,12 @@ wire.go                      the wire constants (Nino.Core's NinoWire and NinoDe
 types.go                     .NET value types without a Go equivalent (Decimal, Guid, DateTime, TimeSpan, DateOnly,
                              TimeOnly, DateTimeOffset, Int128, Half, Version, BigInteger), read and written as .NET does
 raw.go                       blocks of primitives as one copy (ReadPrimitives / WritePrimitives), bools checked 0 or 1
+block.go                     ReadBlock / WriteBlock: lists of dates, Decimal, Guid and Int128 (BlockValue) as one block,
+                             each value checked as when read alone
 endian_little.go             littleEndian = true on little-endian architectures (blocks copied as memory)
 endian_other.go              littleEndian = false elsewhere (blocks converted element by element)
+unique.go                    duplicate keys of sets and maps read in data order: integer keys compared pairwise or
+                             sorted, no map
 collections.go               slices, maps, sets, entries, fixed-size runs, multidimensional shapes; counts checked
                              against the bytes left, unique keys
 depth.go                     class bodies (Class, ReadClass, WriteClass), regions, deferral past 128, the 512 limit
@@ -50,6 +54,9 @@ tagged_build.go              the builder: the codec of each Go type a plan reach
 tagged_codec.go              the codecs plans are made of
 tagged_cache.go              built codecs cached per reflect.Type (safe and unsafe field access)
 marshal.go                   Marshal / Unmarshal through the tag plans
+block_test.go                block sizes and ReadBlock / WriteBlock against element-by-element reads
+raw_test.go                  bool blocks, raw struct blocks and padded structs
+unique_test.go               duplicate keys: integer keys, large sets, primitive entries
 reader_test.go               the Reader and Writer against hand-written bytes
 race_test.go, norace_test.go  raceEnabled: allocation counts are checked without the race detector (sync.Pool drops)
 strings_test.go              strings against a plain char-by-char reference
