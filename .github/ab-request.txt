@@ -532,3 +532,8 @@ go#12 966177f cc4df16 ^Benchmark(Serialize|Deserialize)$/^simple-class
 go#12 966177f cc4df16 ^Benchmark(Deserialize|Serialize)$/^simple-class
 go#12 966177f 966177f ^Benchmark(Serialize|Deserialize)$/^simple-class/
 go#12 966177f 966177f ^Benchmark(Deserialize|Serialize)$/^simple-class/
+# go-prefetch 4e2099b: prefetch ahead while writing long slices of pointers and of structs with strings, against c44171f (main c13bbf7 with the scattered-1m case), with the floor
+go#12 c44171f 4e2099b ^Benchmark(Serialize|Deserialize)$/^scattered-1m/
+go#12 c44171f 4e2099b ^Benchmark(Serialize|Deserialize)$/^(simple|strings)/^(Nino|NinoTags)$
+go#12 c44171f c44171f ^Benchmark(Serialize|Deserialize)$/^scattered-1m/
+go#12 c44171f c44171f ^Benchmark(Serialize|Deserialize)$/^(simple|strings)/^(Nino|NinoTags)$
