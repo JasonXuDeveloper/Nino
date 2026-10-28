@@ -79,7 +79,8 @@ internal/
   generated/                 nino_types.go: the corpus's types as nino-gen writes them (do not edit) and its corpus test;
                              shapes/: tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it, round-tripped
 bench/                       module of its own: the runtime against Protocol Buffers (benchpb/, buf), MessagePack,
-                             encoding/json and encoding/gob on the .NET benchmark's SimpleClass and strings;
+                             encoding/json and encoding/gob on the .NET benchmark's SimpleClass, strings and a
+                             scattered list of 1,000,000 records (scattered.go);
                              tiers_amd64_test.go checks tier detection against golang.org/x/sys/cpu
 ```
 
