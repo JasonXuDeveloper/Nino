@@ -247,7 +247,9 @@ public sealed class BalanceChange
 - With `com.unity.burst` 1.8+ installed, Burst SIMD kernels register on their own (`Nino.Burst.NinoBurst`); include
   SSE4 and AVX2 in Burst AOT Settings for x64 players.
 - IL2CPP and Native AOT: no reflection at serialization time; types must appear in code the generator sees (a member
-  type or a `Serialize`/`Deserialize` type argument). HybridCLR: `Assembly.Load` is enough, no init call;
+  type or a `Serialize`/`Deserialize` type argument). Native AOT on x64 takes Nino's SSSE3 paths on CPUs that have
+  SSSE3; its AVX2 and AVX-512 paths need `<IlcInstructionSet>` (`x86-64-v3`, `x86-64-v4` or `native`), which makes the
+  app require those CPUs. HybridCLR: `Assembly.Load` is enough, no init call;
   `NinoRegistry.EnsureInitialized(asm)` / `EnsureAllInitialized()` only to pay the registry load on a loading screen.
 - Godot 4 .NET: a normal NuGet project; engine objects (`Node`, `Resource`) are not serialized, math structs are raw.
 

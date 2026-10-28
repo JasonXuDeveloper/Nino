@@ -921,6 +921,17 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   `(bool, int)[]` read as blocks accepted a bool byte of 2 on the vector paths and rejected it on the scalar ones.
   With `NinoSettings.Untrusted`, a block with values to check (`NinoLayout<T>.Checks`, a `DateTime` member) is read
   one value at a time through its formatter (`NinoBlock<T, TFormatter>.ReadSize` is -1), as raw structs are.
+* **Native AOT.** ILC compiles x64 code for its baseline (SSE2) and emits a later instruction set only inside that
+  set's `IsSupported` test, which it compiles to a check at run time for the sets it may use when present (SSSE3 and
+  SSE4.1 among them) and to false for the others (AVX and later), unless `IlcInstructionSet` raises the baseline. The plans of
+  `NinoBlock<T, TFormatter>` are chosen at run time from `Ssse3.IsSupported`, `Avx2.IsSupported` and so on, so every
+  instruction a plan leads to is written as that set's own intrinsic under its own test
+  (`NinoBlock<T, TFormatter>.Shuffle`: `Ssse3.Shuffle`, `AdvSimd.Arm64.VectorTableLookup`, `PackedSimd.Swizzle`),
+  never as a cross-platform API whose form ILC picks from the baseline: `Vector128.ShuffleNative` was compiled to its
+  software form while the plan said SSSE3. The JIT folds each test to a constant, so its code is the same either way.
+  `tests/Nino.AotTests` checks that the shuffle is `pshufb` under Native AOT. The AVX2 and AVX-512 paths run there
+  only with `IlcInstructionSet` (`x86-64-v3`, `x86-64-v4`, `native`); Arm64's baseline has AdvSimd, so Arm64 takes
+  every path.
 * **Kernels for the netstandard builds.** The netstandard builds have no hardware intrinsics, so on Unity (Mono,
   IL2CPP, HybridCLR) and .NET Framework the block paths above, the masked copy of raw structs with padding
   (`NinoMask.Copy`) and the narrowing and widening of Latin-1 text (`NinoStrings.NarrowWords`/`WidenWords`) are scalar.
