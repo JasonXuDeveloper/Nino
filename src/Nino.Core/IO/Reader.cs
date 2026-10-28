@@ -972,6 +972,48 @@ namespace Nino.Core
             return pos;
         }
 
+        /// <summary>
+        /// Reads <paramref name="count"/> pairs of strings into <paramref name="dictionary"/>: <see cref="ReadStrings"/>
+        /// for a <c>Dictionary&lt;string, string&gt;</c>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void ReadStringPairs(System.Collections.Generic.Dictionary<string, string> dictionary, int count) =>
+            Skip(Avail - ReadStringPairs(dictionary, ref Cur, Avail, count));
+
+        // The loop's state in a cursor and the bytes left, not a copy of the reader: on Arm64 the reader's six fields
+        // took six callee-saved registers across the loop and left each string's size and position on the stack
+        // (ReadPairs: 59 to 143 stack accesses once the reader stopped being address-taken). Returns the bytes left.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int ReadStringPairs(System.Collections.Generic.Dictionary<string, string> dictionary,
+            ref byte at, int left, int count)
+        {
+            // Added here where the dictionary is as expected, else by it and the key's bucket walked after (hash
+            // flooding, HashTables).
+            bool insert = Internal.HashTables.CanInsert(dictionary, count);
+            while (count-- > 0)
+            {
+                string key = NinoStrings.Read(ref at, left, null, out int size);
+                at = ref Unsafe.Add(ref at, size);
+                left -= size;
+                string value = NinoStrings.Read(ref at, left, null, out size);
+                at = ref Unsafe.Add(ref at, size);
+                left -= size;
+                if (key == null)
+                    NinoThrow.NullKey(dictionary);
+                if (insert)
+                {
+                    Internal.HashTables.Insert(dictionary, key, value);
+                }
+                else
+                {
+                    NinoCollections.AddUnique(dictionary, key, value);
+                    Internal.HashTables.Added(dictionary, key);
+                }
+            }
+
+            return left;
+        }
+
         /// <summary>Reads a UTF-8 string written by <see cref="Writer.WriteUtf8(string)"/>.</summary>
         // Inlined for a string of 1 to 126 chars and up to 127 bytes (both counts one byte), with the transcoding
         // out of line taking values: an instance call would take the reader's address, which keeps all its fields in

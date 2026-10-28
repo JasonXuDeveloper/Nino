@@ -348,6 +348,14 @@ namespace Nino.Core
                 return;
             }
 
+            if (typeof(TKeyFormatter) == typeof(StringFormatter) && typeof(TValueFormatter) == typeof(StringFormatter))
+            {
+                // Strings for both: the same, a null key invalid data.
+                if (length != 0)
+                    reader.ReadStringPairs(Unsafe.As<Dictionary<string, string>>(dictionary), length);
+                return;
+            }
+
             // Out of line, through a copy of the reader (see AddRaw); an empty dictionary skips both.
             if (length == 0)
                 return;
