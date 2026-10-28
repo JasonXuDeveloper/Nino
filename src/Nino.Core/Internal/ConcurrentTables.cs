@@ -6,7 +6,9 @@ using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Nino.Core.CompilerServices;
-#if !NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER
+using System.Runtime.Intrinsics.X86;
+#else
 using System.Runtime.InteropServices;
 #endif
 
@@ -268,6 +270,8 @@ namespace Nino.Core.Internal
             private readonly IEqualityComparer<TKey> _comparer;
             private readonly IntPtr _nodeType;
             private readonly uint _length;
+            private readonly ulong _lengthMultiplier;
+            private readonly ulong _countsMultiplier;
 
             public Builder(ConcurrentDictionary<TKey, TValue> dictionary, IntPtr nodeType)
             {
@@ -277,6 +281,26 @@ namespace Nino.Core.Internal
                 _comparer = Comparer<TKey>(dictionary);
                 _nodeType = nodeType;
                 _length = (uint)Unsafe.As<Array>(_buckets).Length;
+                if (FastMod)
+                {
+                    _lengthMultiplier = HashTables.FastModMultiplier(_length);
+                    _countsMultiplier = HashTables.FastModMultiplier((uint)_counts.Length);
+                }
+            }
+
+            /// <summary>
+            /// Whether the bucket and its lock are found by fast modulo (two divisions per key otherwise), as
+            /// HashTables fills HashSet and Dictionary, with the same remainders as the dictionary's own: on x64 only.
+            /// Constant-folded by the JIT. On Arm64 it made reads 1.1% slower (Neoverse-N2), its divisions being cheap.
+            /// </summary>
+            private static bool FastMod
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+                get => X86Base.X64.IsSupported;
+#else
+                get => false;
+#endif
             }
 
             /// <summary>Adds the pair; false when the dictionary holds the key already.</summary>
@@ -285,7 +309,9 @@ namespace Nino.Core.Internal
             {
                 var comparer = _comparer;
                 int hash = comparer == null ? EqualityComparer<TKey>.Default.GetHashCode(key) : comparer.GetHashCode(key);
-                uint bucket = (uint)(hash & Mask) % _length;
+                uint bucket = FastMod
+                    ? HashTables.Bucket((uint)(hash & Mask), _length, _lengthMultiplier)
+                    : (uint)(hash & Mask) % _length;
                 ref object head = ref Unsafe.Add(ref ObjectFields.At<object>(_buckets, ElementsAt), (int)bucket);
                 int count = 0;
                 for (object node = head; node != null; node = Unsafe.As<Node<TKey, TValue>>(node)._next)
@@ -303,7 +329,11 @@ namespace Nino.Core.Internal
                 var made = new Node<TKey, TValue> { _key = key, _value = value, _next = head, _hashcode = hash };
                 ObjectTypes.Retype(made, _nodeType);
                 head = made;
-                _counts[(int)(bucket % (uint)_counts.Length)]++;
+                if (FastMod)
+                    Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(_counts),
+                        (int)HashTables.Bucket(bucket, (uint)_counts.Length, _countsMultiplier))++;
+                else
+                    _counts[(int)(bucket % (uint)_counts.Length)]++;
                 return true;
             }
         }

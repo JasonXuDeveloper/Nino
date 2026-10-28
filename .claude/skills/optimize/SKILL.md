@@ -38,6 +38,18 @@ fix every method it lists.
 - Do not inline a generic method that needs a runtime lookup into shared code on a hot path.
 - Past the JIT's tracking limit, locals are zeroed in the prolog: rare paths out of line also keep the local count
   down.
+- A smaller listing is not a faster one: measure. Reading TimeZoneInfo's two strings through one out-of-line helper
+  with two `out` strings cut the listing but put both on the stack: 7.5 to 12.8 % slower on runners. A constant
+  parameter at each call site (`share: false`) let the inliner drop the dead branch per caller instead, with the
+  listing as before and the string classes 17 to 21 % faster.
+- Outside .NET the same budget exists: V8 inlines only functions under 460 bytes of bytecode, so a TypeScript read
+  helper that grows past it (`otherString` at 574 bytes) becomes a call on every use; split the rare path out. Rust:
+  when a shape helps one target and hurts another, put it behind `cfg(target_arch)` and keep the generic loop for
+  every other target (the map read taking one check per entry is x86/x86_64 only: on Arm64 it held the key/value pair
+  in a SIMD register across the hash call and Neoverse-N2 ran 3 to 4 % slower). Test both paths (`platforms`).
+- Replace `%` by the runtime's fast modulo (multiply-high, `HashTables.Bucket`) on x64 only: on Arm64 `udiv`/`msub`
+  is cheap and the multiply sequence lost. ConcurrentDictionary's build with fast modulo read 18-23 % faster on EPYC
+  7763, on par on Zen 4 (9V45, 9V74), and 1.1 % slower on Neoverse-N2 in two rounds (3d4baf2).
 
 ## Bounds checks
 
@@ -93,9 +105,36 @@ fix every method it lists.
 - Timings on a shared machine vary by ±15 %: read the code before trusting a local difference, and take the decision
   from runners (`benchmark`). The wire format must not change unless that is the point: compare the bytes.
 
+## Prefetch
+
+- Decide whether a collection loop prefetches when the code is generated, never per element at run time (the owner's
+  design). Eligible: elements of a reference type in a contiguous container (array, `List<T>`, a span of references),
+  since each object and each of its reference members (strings, children) is a separate cache miss. Not eligible:
+  structs, unmanaged and block elements (contiguous; the hardware prefetcher covers them) and linked containers
+  (LinkedList, trees, SortedSet nodes: the next address is known only after loading the node). The decision and a
+  per-type threshold, a cache budget divided by the element's estimated bytes (object size plus a cost per reference
+  member), are `static readonly` values the JIT folds: an ineligible type's listing stays identical to main, an
+  eligible one adds one length compare and an out-of-line loop that takes the reader or writer by value. Two stages
+  for elements with reference members: at element i prefetch element i+2D, at i+D prefetch its members' targets.
+  Why: a prefetch on every element cost 14-15 % on 1,000 cached objects, and a large-collection branch that needed a
+  runtime generic lookup spilled the caller (Shapes 1 to 7 stack accesses); shuffled 1M-object arrays serialized 1.2
+  to 2.3 times as fast locally with the prefetching loop. Platforms: .NET x64 `Sse.Prefetch0`; Unity through a
+  `NinoKernels` hook to Burst's `Common.Prefetch`; Rust `_mm_prefetch` on x86 and `asm!("prfm pldl1keep, ...")` on
+  aarch64, both in `src/simd.rs`; Go only through an assembly stub, one call per batch; .NET Arm64, wasm and
+  TypeScript have no prefetch instruction. Go, measured and not landed: a stub `prefetch8` (eight PREFETCHT0 / PRFM PLDL1KEEP a
+  call) in `WriteSlice` above a per-type threshold, objects 16 elements ahead and their strings 8 ahead, wrote
+  1,000,000 shuffled records 2.2-3.1 times as fast on EPYC 7763, 9V45 and 9V74 and 4-5.5 times on Neoverse-N2, but
+  13-38 % slower on Xeon 6973P-C, whose L3 holds the 100 MB set (its base was already 2-3 times as fast: nothing to
+  hide, only the extra loads and calls), and moved short-slice cases 1.5-4.7 % on x64 (test branch 4e2099b, 42ae966
+  against c44171f). Before trying it again, find a gate for data larger than the last-level cache. Keep only the
+  length compare inline: a plan lookup that does not inline (cost 147) in every `WriteSlice` cost 1-3.8 % on
+  SimpleClass.
+
 ## Owned elsewhere
 
 - `NinoSettings.Untrusted` tests stay a single `if` on a frozen field with the work out of line (`audit-security`).
-- Paths through a runtime's internals: `runtime-internals`. Platform matrix and emulators: `platforms`.
+- Paths through a runtime's internals: `runtime-internals`. Platform matrix and emulators: `platforms`; a vector
+  path chosen by `X.IsSupported` uses X's own intrinsics under that test, or NativeAOT runs it in software
+  (`platforms`).
 - The same rules for Go, Rust and TypeScript: `audit-runtimes` and `runtimes/*/AGENTS.md`.
 - Generated code's listings: `audit-generated-code`.

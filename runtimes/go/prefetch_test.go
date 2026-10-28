@@ -41,7 +41,42 @@ func checkPrefetched[T any](t *testing.T, v []T, write func(*Writer, T)) {
 	}
 }
 
+// withLastLevelCache makes the plans for a last-level cache of n bytes while f runs.
+func withLastLevelCache(n int, f func()) {
+	clearPlans := func() {
+		prefetchPlans.Range(func(k, _ any) bool {
+			prefetchPlans.Delete(k)
+			return true
+		})
+	}
+	saved := lastLevelCache
+	lastLevelCache = func() int { return n }
+	clearPlans()
+	defer func() {
+		lastLevelCache = saved
+		clearPlans()
+	}()
+	f()
+}
+
+func TestCacheSize(t *testing.T) {
+	for s, want := range map[string]int{"32768K": 32 << 20, "1M": 1 << 20, "2G": 2 << 30, "512": 512, "": 0, "x": 0} {
+		if got := parseCacheSize(s); got != want {
+			t.Errorf("parseCacheSize(%q) = %d, want %d", s, got, want)
+		}
+	}
+	t.Logf("last-level cache: %d bytes (read: %d)", lastLevelCache(), readLastLevelCache())
+	if lastLevelCache() <= 0 {
+		t.Fatal("no last-level cache size")
+	}
+}
+
 func TestPrefetchedWrites(t *testing.T) {
+	// A 1 MB cache: the thresholds are a few thousand elements.
+	withLastLevelCache(1<<20, func() { testPrefetchedWrites(t) })
+}
+
+func testPrefetchedWrites(t *testing.T) {
 	p := prefetchPlanOf(reflect.TypeFor[*prefetchItem]())
 	if p == nil || !p.pointer || len(p.members) != 2 || p.min < prefetchFloor {
 		t.Fatalf("plan of *prefetchItem: %+v", p)

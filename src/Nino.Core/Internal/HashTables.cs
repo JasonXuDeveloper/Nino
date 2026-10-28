@@ -463,12 +463,20 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// The bucket of a hash code: .NET's fast modulo where the table keeps a multiplier (64-bit .NET 5+), else the
-        /// remainder.
+        /// The bucket of a hash code: .NET's fast modulo where the table keeps a multiplier (64-bit .NET 5+), or one
+        /// from <see cref="FastModMultiplier"/>, else the remainder. Exact for every hash and a length up to
+        /// int.MaxValue.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static uint Bucket(uint hash, uint length, ulong multiplier) =>
+        internal static uint Bucket(uint hash, uint length, ulong multiplier) =>
             multiplier != 0 ? (uint)(((((multiplier * hash) >> 32) + 1) * length) >> 32) : hash % length;
+
+        /// <summary>
+        /// The multiplier of <see cref="Bucket"/> for <paramref name="length"/> (.NET's HashHelpers.GetFastModMultiplier)
+        /// in a 64-bit process, where the 64-bit multiplications are cheaper than a division; 0 (the remainder) in a
+        /// 32-bit one.
+        /// </summary>
+        internal static ulong FastModMultiplier(uint length) => NinoUnsafe.Is64Bit ? ulong.MaxValue / length + 1 : 0;
 
         // Hash codes that fill several buckets twice, negative ones (masked on the old implementations) and longs whose
         // halves cancel out.
