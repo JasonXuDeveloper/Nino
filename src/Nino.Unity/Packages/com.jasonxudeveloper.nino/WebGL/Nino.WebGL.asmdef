@@ -1,0 +1,16 @@
+{
+    "name": "Nino.WebGL",
+    "rootNamespace": "Nino.WebGL",
+    "references": [],
+    "includePlatforms": [
+        "WebGL"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

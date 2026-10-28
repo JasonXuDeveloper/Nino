@@ -10,7 +10,8 @@ name: Unity
 # built as a release build (Test.Editor.Burst.BenchmarkPlayerBuild) and runs the correctness tests and the Burst
 # benchmark (Test.Runtime.Burst.BurstBenchmark, measured with the Unity Performance Testing package), and its results
 # are uploaded per Unity version (artifacts unity-bench-<version>) for benchmarks/unity_report.py. A called run joins the same concurrency group, so
-# it waits for a running Unity job and is never cancelled while it runs.
+# it waits for a running Unity job and is never cancelled while it runs. The webgl job then builds a WebGL player per
+# version and runs it in headless Chrome (Nino.WebGL's kernels; timed too in the benchmark's run).
 
 on:
   push:
@@ -27,6 +28,7 @@ on:
       - 'global.json'
       - 'nuget.config'
       - '.github/workflows/unity.yml'
+      - '.github/scripts/webgl_run.mjs'
       - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
       - '!**/CLAUDE.md'
   pull_request:
@@ -267,3 +269,87 @@ jobs:
         run: |
           echo "::error::The IL2CPP player's results hold no performance test result (see its log in test-results-unity-${{ matrix.unity }})"
           exit 1
+
+  # Nino.WebGL's WebAssembly SIMD kernels (Packages/com.jasonxudeveloper.nino/WebGL) in a WebGL player run in headless
+  # Chrome: the kernels against Nino.Core's scalar references, and every case's bytes with and without them; the
+  # benchmark's run also times each case both ways (artifact webgl-<version>). Unity 6 builds with WebAssembly 2023
+  # (SIMD on); 2022.3, which has no such setting, with -msimd128 passed to the compiler, as a project that opts in would.
+  webgl:
+    name: WebGL (${{ matrix.unity }})
+    needs: unity-tests
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      # One version after the other, as unity-tests: the build activates the license.
+      max-parallel: 1
+      matrix:
+        include:
+          - unity: '2022.3.62f2'
+            il2cpp_args: '--compiler-flags=-msimd128'
+          - unity: '6000.3.27f1'
+            il2cpp_args: ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || '' }}
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build the DLLs Unity loads
+        run: |
+          dotnet build src/Nino.Core/Nino.Core.csproj -c Release -f netstandard2.1
+          dotnet build src/Nino.Generator/Nino.Generator.csproj -c Release
+          dotnet build src/Nino.UnityTypes/Nino.UnityTypes.csproj -c Release
+          cp ./src/Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
+          cp ./src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+          cp ./src/Nino.UnityTypes/bin/Release/netstandard2.1/Nino.UnityTypes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
+
+      - name: Set the IL2CPP arguments
+        if: matrix.il2cpp_args != ''
+        env:
+          ARGS: ${{ matrix.il2cpp_args }}
+        run: |
+          sed -i "s|^  additionalIl2CppArgs:.*|  additionalIl2CppArgs: $ARGS|" src/Nino.Unity/ProjectSettings/ProjectSettings.asset
+          grep -q "additionalIl2CppArgs: $ARGS" src/Nino.Unity/ProjectSettings/ProjectSettings.asset
+
+      - name: Build the WebGL player
+        uses: game-ci/unity-builder@4423ee75828dff56037d1d1cfdac6b68e3a6ba00 # v4.8.2
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ./src/Nino.Unity
+          targetPlatform: WebGL
+          unityVersion: ${{ matrix.unity }}
+          customImage: unityci/editor:ubuntu-${{ matrix.unity }}-webgl-3
+          buildMethod: Test.Editor.WebGL.WebGLBenchBuild.Build
+          customParameters: ${{ env.BENCHMARK == 'true' && '-ninoTiming' || '' }}
+          versioning: None
+          allowDirtyBuild: true
+
+      - name: Run the player in headless Chrome
+        run: |
+          sudo chmod -R a+rX src/Nino.Unity/Build
+          (cd src/Nino.Unity/Build/WebGL && python3 -m http.server 8123 > "$RUNNER_TEMP/http.log" 2>&1 &)
+          mkdir -p "$RUNNER_TEMP/pw"
+          (cd "$RUNNER_TEMP/pw" && npm init -y > /dev/null && npm install --no-audit --no-fund playwright-core@1.55.0 > /dev/null)
+          cp .github/scripts/webgl_run.mjs "$RUNNER_TEMP/pw/"
+          node "$RUNNER_TEMP/pw/webgl_run.mjs" http://localhost:8123/index.html 2400 | tee webgl.txt
+          # Both builds have SIMD: the kernels must be registered.
+          grep -q 'simd=True|registered=True' webgl.txt
+
+      - name: Upload the WebGL results
+        if: always() && env.BENCHMARK == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: webgl-${{ matrix.unity }}
+          path: webgl.txt
+          retention-days: 30
