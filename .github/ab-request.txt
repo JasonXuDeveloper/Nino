@@ -1,3 +1,29 @@
+# rust prefetch round 2, push B: the same pairs, spelled differently.
+rust a8b72d0 8dc3b04 (scattered-1m|recor{1}ds-1000|strings-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|record{1}s-1000|strings-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records{1}-1000|strings-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records-1{1}000|strings-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records-10{1}00|strings-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records-100{1}0|strings-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records-1000{1}|strings-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records-1000|s{1}trings-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records-1000|st{1}rings-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records-1000|str{1}ings-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records-1000|stri{1}ngs-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records-1000|strin{1}gs-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records-1000|string{1}s-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records-1000|strings{1}-1000)/serialize/nino$
+rust a8b72d0 8dc3b04 (scattered-1m|records-1000|strings-1{1}000)/serialize/nino$
+rust 8dc3b04 8dc3b04 (scattered-1m{1}|records-1000|strings-1000)/serialize/nino$
+rust 8dc3b04 8dc3b04 (scattered-1m|r{1}ecords-1000|strings-1000)/serialize/nino$
+rust 8dc3b04 8dc3b04 (scattered-1m|re{1}cords-1000|strings-1000)/serialize/nino$
+rust 8dc3b04 8dc3b04 (scattered-1m|rec{1}ords-1000|strings-1000)/serialize/nino$
+rust 8dc3b04 8dc3b04 (scattered-1m|reco{1}rds-1000|strings-1000)/serialize/nino$
+rust 8dc3b04 8dc3b04 (scattered-1m|recor{1}ds-1000|strings-1000)/serialize/nino$
+rust 8dc3b04 8dc3b04 (scattered-1m|record{1}s-1000|strings-1000)/serialize/nino$
+rust 8dc3b04 8dc3b04 (scattered-1m|records{1}-1000|strings-1000)/serialize/nino$
+rust 8dc3b04 8dc3b04 (scattered-1m|records-1{1}000|strings-1000)/serialize/nino$
+rust 8dc3b04 8dc3b04 (scattered-1m|records-10{1}00|strings-1000)/serialize/nino$
 # rust prefetch round 2 (aligned build), push A of two: 8dc3b04 = b93fe69 with eligible lists' loop out of line at a
 # 64-byte boundary (records-1000 was 1.5 to 3% slower inlined next to the test); floors pooled with round 1's a8b72d0.
 rust a8b72d0 8dc3b04 (s{1}cattered-1m|records-1000|strings-1000)/serialize/nino$
