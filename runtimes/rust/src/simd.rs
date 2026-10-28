@@ -1340,7 +1340,10 @@ fn strings_short(out: &mut Vec<u8>, values: &[String]) -> usize {
             return k;
         }
         if !ascii_short(out, v.as_bytes()) {
-            // Text of up to 32 bytes with a char above U+007F, which `short_wide` takes.
+            // Text of up to 32 bytes with a char above U+007F: the NEON one-pass writer on Arm64, else `short_wide`.
+            #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+            neon::wide(out, v);
+            #[cfg(not(all(target_arch = "aarch64", target_endian = "little")))]
             short_wide_inline(out, v);
         }
     }
