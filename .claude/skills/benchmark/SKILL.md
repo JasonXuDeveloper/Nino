@@ -38,7 +38,11 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    release or its base on one runner. Limits: a matrix holds 256 jobs, so at most 25 runtime lines per push
    (`[ab: new lines only]` in the commit message runs only the lines that push added); `.github/dotnet-ab-request.txt`
    takes at most 3 active lines across all workers, and Arm64 runs one job per line, so more Neoverse-N2 samples need
-   duplicate lines that differ in text (a filter or round count).
+   duplicate lines that differ in text (a filter or round count). To repeat a line on any runner, put `{1}` (or
+   `{1,1}`) after a different letter of its filter in each copy (`r{1}ecords-1000`, `re{1}cords-1000`): a regex
+   quantifier that changes nothing. Never `{2}` or more, which demands the letter twice: every job of such a line
+   matches no bench and fails (the first three-way prefetch round, 400 failed jobs). A line already measured needs new
+   text to run again, since a push measures only the lines its parent did not have.
    Match x64 runners with `cpu='EPYC|Neoverse'`, not `'7763|Neoverse'`: runners are also EPYC 9V45 and 9V74, and a
    line whose regex misses them ends its slots without measuring (the first land/cmod round got one EPYC job).
 2. Always request the floor too: the base against itself, on the same runners, over several jobs. A floor from one
