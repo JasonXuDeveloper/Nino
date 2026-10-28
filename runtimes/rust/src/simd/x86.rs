@@ -639,6 +639,9 @@ pub(crate) unsafe fn wide_avx512<const ONE: bool>(out: &mut Vec<u8>, text: &str)
     // SAFETY: as just said.
     let dst = unsafe { out.as_mut_ptr().add(at).add(room) };
     let (mut i, mut o) = (0usize, 0usize);
+    // The first 32 bytes and those from the second, when the Latin-1 pass stopped at the text's first window: the
+    // UTF-16 pass starts from them (text of up to 32 bytes is one window).
+    let mut stopped = None;
     'latin1: {
         while i < len {
             let rest = len.wrapping_sub(i);
@@ -651,6 +654,9 @@ pub(crate) unsafe fn wide_avx512<const ONE: bool>(out: &mut Vec<u8>, text: &str)
                 )
             };
             if _mm512_cmpge_epu8_mask(v, _mm512_set1_epi8(0xC4u8 as i8)) != 0 {
+                if i == 0 {
+                    stopped = Some((_mm512_castsi512_si256(v), _mm512_castsi512_si256(next)));
+                }
                 break 'latin1;
             }
             let starts = _mm512_cmpge_epi8_mask(v, _mm512_set1_epi8(-64));
@@ -684,7 +690,10 @@ pub(crate) unsafe fn wide_avx512<const ONE: bool>(out: &mut Vec<u8>, text: &str)
                     src.wrapping_add(i.wrapping_add(k)).cast(),
                 )
             };
-            (load(0), load(1), load(2))
+            match stopped.take() {
+                Some((v, n1)) => (v, n1, load(2)),
+                None => (load(0), load(1), load(2)),
+            }
         };
         let starts = _mm256_cmpge_epi8_mask(v, _mm256_set1_epi8(-64));
         // SAFETY: `rest = len - i`.
