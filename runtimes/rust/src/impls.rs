@@ -161,8 +161,8 @@ fn read_entries_fixed<K: NinoRead, V: NinoRead>(
     mut insert: impl FnMut(K, V) -> Result<()>,
 ) -> Result<()> {
     let size = K::FIXED_SIZE.saturating_add(V::FIXED_SIZE);
-    let bytes = r.take(count.checked_mul(size).ok_or_else(Error::end)?)?;
-    for entry in bytes.chunks_exact(size) {
+    for _ in 0..count {
+        let entry = r.take(size)?;
         // Never `None`: an entry is `K::FIXED_SIZE + V::FIXED_SIZE` bytes.
         let Some((k, v)) = entry.split_at_checked(K::FIXED_SIZE) else { break };
         insert(K::decode_fixed(k)?, V::decode_fixed(v)?)?;
