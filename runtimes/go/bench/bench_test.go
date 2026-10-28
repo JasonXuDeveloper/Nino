@@ -40,12 +40,12 @@ type codec struct {
 	same func(got any) bool
 }
 
-// A case: a value and every serializer compared on it, Nino first. The benchmarks are
+// A case: every serializer compared on its value, Nino first, made when the case runs (so that a large value is
+// not kept alive, and its heap scanned by the collector, while the other cases run). The benchmarks are
 // Benchmark{Serialize,Deserialize}/<case>/<serializer>.
 type benchCase struct {
 	name   string
-	value  any
-	codecs []codec
+	codecs func() []codec
 }
 
 // ninoCodec is the codec in the shape nino-gen generates.
@@ -133,47 +133,69 @@ func gobCodec[T any](v T) codec {
 		equals(v)}
 }
 
-func stringsCase(name string, v []string) benchCase {
-	return benchCase{name, v, []codec{
-		ninoCodec(v, WriteStrings, ReadStrings),
-		tagsCodec(v),
-		protoCodec(&benchpb.Strings{Values: v}, func() *benchpb.Strings { return &benchpb.Strings{} }),
-		msgpackCodec(v),
-		jsonCodec(v),
-		gobCodec(v),
+func stringsCase(name string, values func() []string) benchCase {
+	return benchCase{name, func() []codec {
+		v := values()
+		return []codec{
+			ninoCodec(v, WriteStrings, ReadStrings),
+			tagsCodec(v),
+			protoCodec(&benchpb.Strings{Values: v}, func() *benchpb.Strings { return &benchpb.Strings{} }),
+			msgpackCodec(v),
+			jsonCodec(v),
+			gobCodec(v),
+		}
 	}}
 }
 
 func cases() []benchCase {
-	v, vs, mixed := one(), list(), MixedStrings()
 	return []benchCase{
-		{"simple-class", v, []codec{
-			ninoCodec(v, WriteSimpleClass, ReadSimpleClass),
-			tagsCodec(v),
-			protoCodec(protoSimpleClass(v), func() *benchpb.SimpleClass { return &benchpb.SimpleClass{} }),
-			msgpackCodec(v),
-			jsonCodec(v),
-			gobCodec(v),
+		{"simple-class", func() []codec {
+			v := one()
+			return []codec{
+				ninoCodec(v, WriteSimpleClass, ReadSimpleClass),
+				tagsCodec(v),
+				protoCodec(protoSimpleClass(v), func() *benchpb.SimpleClass { return &benchpb.SimpleClass{} }),
+				msgpackCodec(v),
+				jsonCodec(v),
+				gobCodec(v),
+			}
 		}},
-		{"simple-class-100", vs, []codec{
-			ninoCodec(vs, WriteSimpleClasses, ReadSimpleClasses),
-			tagsCodec(vs),
-			protoCodec(protoSimpleClasses(vs), func() *benchpb.SimpleClasses { return &benchpb.SimpleClasses{} }),
-			msgpackCodec(vs),
-			jsonCodec(vs),
-			gobCodec(vs),
+		{"simple-class-100", func() []codec {
+			vs := list()
+			return []codec{
+				ninoCodec(vs, WriteSimpleClasses, ReadSimpleClasses),
+				tagsCodec(vs),
+				protoCodec(protoSimpleClasses(vs), func() *benchpb.SimpleClasses { return &benchpb.SimpleClasses{} }),
+				msgpackCodec(vs),
+				jsonCodec(vs),
+				gobCodec(vs),
+			}
 		}},
-		stringsCase("strings-1000", ASCIIStrings()),
-		stringsCase("strings-mixed-1000", mixed),
+		{"scattered-1m", func() []codec {
+			v := ScatteredRecords()
+			return []codec{
+				ninoCodec(v, WriteRecords, ReadRecords),
+				tagsCodec(v),
+				protoCodec(protoRecords(v), func() *benchpb.Records { return &benchpb.Records{} }),
+				msgpackCodec(v),
+				jsonCodec(v),
+				gobCodec(v),
+			}
+		}},
+		stringsCase("strings-1000", ASCIIStrings),
+		stringsCase("strings-mixed-1000", MixedStrings),
 		// The same strings as a [NinoUtf8] string[]: Nino only (the others write what they write above).
-		{"strings-mixed-utf8-1000", mixed, []codec{ninoCodec(mixed, WriteUtf8Strings, ReadUtf8Strings)}},
+		{"strings-mixed-utf8-1000", func() []codec {
+			mixed := MixedStrings()
+			return []codec{ninoCodec(mixed, WriteUtf8Strings, ReadUtf8Strings)}
+		}},
 	}
 }
 
 // TestRoundTrip checks that every serializer compared reads back what it wrote, and logs the sizes.
 func TestRoundTrip(t *testing.T) {
 	for _, c := range cases() {
-		for _, s := range c.codecs {
+		for _, s := range c.codecs() {
 			data, err := s.encode(nil)
 			if err != nil {
 				t.Fatalf("%s/%s: %v", c.name, s.name, err)
@@ -202,40 +224,44 @@ func TestRoundTrip(t *testing.T) {
 
 func BenchmarkSerialize(b *testing.B) {
 	for _, c := range cases() {
-		for _, s := range c.codecs {
-			b.Run(c.name+"/"+s.name, func(b *testing.B) {
-				buf, err := s.encode(nil)
-				if err != nil {
-					b.Fatal(err)
-				}
-				b.SetBytes(int64(len(buf)))
-				b.ReportAllocs()
-				for b.Loop() {
-					buf, _ = s.encode(buf[:0])
-				}
-				b.ReportMetric(float64(len(buf)), "wire-B")
-			})
-		}
+		b.Run(c.name, func(b *testing.B) {
+			for _, s := range c.codecs() {
+				b.Run(s.name, func(b *testing.B) {
+					buf, err := s.encode(nil)
+					if err != nil {
+						b.Fatal(err)
+					}
+					b.SetBytes(int64(len(buf)))
+					b.ReportAllocs()
+					for b.Loop() {
+						buf, _ = s.encode(buf[:0])
+					}
+					b.ReportMetric(float64(len(buf)), "wire-B")
+				})
+			}
+		})
 	}
 }
 
 func BenchmarkDeserialize(b *testing.B) {
 	for _, c := range cases() {
-		for _, s := range c.codecs {
-			b.Run(c.name+"/"+s.name, func(b *testing.B) {
-				data, err := s.encode(nil)
-				if err != nil {
-					b.Fatal(err)
-				}
-				b.SetBytes(int64(len(data)))
-				b.ReportAllocs()
-				for b.Loop() {
-					if _, err := s.decode(data); err != nil {
+		b.Run(c.name, func(b *testing.B) {
+			for _, s := range c.codecs() {
+				b.Run(s.name, func(b *testing.B) {
+					data, err := s.encode(nil)
+					if err != nil {
 						b.Fatal(err)
 					}
-				}
-				b.ReportMetric(float64(len(data)), "wire-B")
-			})
-		}
+					b.SetBytes(int64(len(data)))
+					b.ReportAllocs()
+					for b.Loop() {
+						if _, err := s.decode(data); err != nil {
+							b.Fatal(err)
+						}
+					}
+					b.ReportMetric(float64(len(data)), "wire-B")
+				})
+			}
+		})
 	}
 }
