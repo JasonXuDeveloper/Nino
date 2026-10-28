@@ -181,7 +181,7 @@ namespace Nino.Core.Internal
         private static class Traits<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
         {
             public static readonly bool CopiedWhole = RawFormatter.Is<T, TFormatter>() ||
-                NinoBlock.Size<T, TFormatter>() > 0 && NinoBlock<T, TFormatter>.IsMemory;
+                NinoBlock.Size<T, TFormatter>() > 0;
 
             public static readonly bool ReadOverwrites = RawFormatter.Is<T, TFormatter>() ||
                 typeof(TFormatter) == typeof(DateTimeOffsetFormatter) || NinoBlock.Size<T, TFormatter>() > 0;
