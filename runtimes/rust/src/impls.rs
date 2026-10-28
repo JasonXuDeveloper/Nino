@@ -164,9 +164,9 @@ fn read_entries_fixed<'d, K: NinoRead>(
     let size = K::FIXED_SIZE.saturating_add(value_size);
     for _ in 0..count {
         let entry = r.take(size)?;
-        // Never `None`: an entry is `K::FIXED_SIZE + value_size` bytes.
-        let Some((k, v)) = entry.split_at_checked(K::FIXED_SIZE) else { break };
-        insert(K::decode_fixed(k)?, v)?;
+        // `decode_fixed` reads the key from the front; the rest, never short (an entry is `K::FIXED_SIZE +
+        // value_size` bytes), is the value's.
+        insert(K::decode_fixed(entry)?, entry.get(K::FIXED_SIZE..).unwrap_or_default())?;
     }
     Ok(())
 }
