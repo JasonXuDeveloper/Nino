@@ -1,3 +1,12 @@
+# rust strings round 3 (aligned build): d8cc696 = the AVX2 writer starts UTF-16 from the window its Latin-1 pass
+# stopped at (12 instructions fewer a UTF-16 string); EPYC 7763. Floors with round 2's c13bbf7 lines.
+rust c13bbf7 d8cc696 strings-mixed-1000/ser{1}ialize/nino$
+rust c13bbf7 d8cc696 strings-mixed-1000/seri{1}alize/nino$
+rust c13bbf7 d8cc696 strings-mixed-1000/seria{1}lize/nino$
+rust c13bbf7 d8cc696 strings-mixed-1000/serial{1}ize/nino$
+rust c13bbf7 d8cc696 strings-mixed-1000/seriali{1}ze/nino$
+rust c13bbf7 c13bbf7 strings-mixed-1000/ser{1}ialize/nino$
+rust c13bbf7 c13bbf7 strings-mixed-1000/seri{1}alize/nino$
 # rust prefetch round 1, push B: the same pairs, spelled differently.
 rust a8b72d0 b93fe69 (scattered-1m{1}|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
 rust a8b72d0 b93fe69 (scattered-1m|r{1}ecords-1000|strings-1000|strings-mixed-1000)/serialize/nino$
