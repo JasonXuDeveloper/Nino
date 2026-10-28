@@ -391,7 +391,7 @@ namespace Nino.Core.Internal
 
     /// <summary>
     /// A byte mask (0xFF keeps a byte, 0 clears it) applied while copying values to the wire, in one pass:
-    /// SIMD where it is fast (<see cref="NinoUnsafe.NumericVectors"/>), 8-byte words otherwise.
+    /// SIMD where it is fast (<see cref="NinoUnsafe.VectorMasks"/>), 8-byte words otherwise.
     /// </summary>
     internal sealed class NinoMask
     {
@@ -452,7 +452,7 @@ namespace Nino.Core.Internal
             _words = new ulong[words.Length / 8];
             for (int i = 0; i < _words.Length; i++)
                 _words[i] = Unsafe.ReadUnaligned<ulong>(ref words[i * 8]);
-            if (NinoUnsafe.NumericVectors)
+            if (NinoUnsafe.VectorMasks)
                 _vectorMask = Repeat(mask, Vector<byte>.Count, Vector<byte>.Count, out _vectorPeriod);
 #if NET8_0_OR_GREATER
             if (Vector512.IsHardwareAccelerated)
@@ -656,13 +656,17 @@ namespace Nino.Core.Internal
         /// <summary><see cref="Vector{T}"/> of bytes, on every runtime where it is hardware accelerated.</summary>
         private readonly struct Vectors : IMaskVectors<Vector<byte>>
         {
+            // Plain ldobj / stobj (Unsafe.As), not Unsafe.ReadUnaligned / WriteUnaligned: classic Mono compiles their
+            // unaligned. prefix on a 16-byte struct to a call to memcpy through a stack slot (mini_emit_memory_load in
+            // mono/mini/memory-access.c), and plain ones to movups. RyuJIT never assumes a vector aligned: CopyVectors'
+            // machine code on .NET 10 is the same with either form (netstandard2.0 and net10.0 builds).
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public Vector<byte> Load(ref byte at, nuint offset) =>
-                Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref at, offset));
+                Unsafe.As<byte, Vector<byte>>(ref Unsafe.Add(ref at, offset));
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void Store(Vector<byte> value, ref byte at, nuint offset) =>
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref at, offset), value);
+                Unsafe.As<byte, Vector<byte>>(ref Unsafe.Add(ref at, offset)) = value;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public Vector<byte> And(Vector<byte> left, Vector<byte> right) => left & right;

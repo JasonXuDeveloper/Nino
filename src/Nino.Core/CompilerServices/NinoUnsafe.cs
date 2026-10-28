@@ -110,15 +110,17 @@ namespace Nino.Core.CompilerServices
         }
 
         /// <summary>
-        /// Whether <c>System.Numerics.Vector&lt;T&gt;</c> is worth using: the JIT accelerates it and, in the
-        /// netstandard builds, the runtime is .NET Framework or .NET (Core), whose descriptions start with ".NET".
-        /// Never on Mono or Unity, whatever <c>Vector.IsHardwareAccelerated</c> says: Mono 6.8 on x64 reports it true
-        /// with the System.Numerics.Vectors package Nino.Core brings, yet masked 1,024 bytes with
-        /// <c>Vector&lt;byte&gt;</c> in 2,628 ns against 410 with ulongs (an array of 1,000 padded structs serialized
-        /// in 36 to 40 µs with the vectors, 11 to 13 with ulongs) and ran <c>Vector.Narrow</c> of 1,024 chars in 5,478
-        /// ns against 2,838 for a scalar loop; Unity's runtimes (Mono, IL2CPP: "Mono ...") are not measured
-        /// and take their Burst kernels (<see cref="NinoKernels"/>) instead. Constant-folded by the JIT (the probe once
-        /// its class is initialized).
+        /// Whether <c>Vector.Narrow</c> and <c>Vector.Widen</c> (with <c>Vector.EqualsAll</c>, the text kernels) are
+        /// worth using: the JIT accelerates <c>Vector&lt;T&gt;</c> and, in the netstandard builds, the runtime is .NET
+        /// Framework or .NET (Core), whose descriptions start with ".NET". Never on Mono or Unity: classic Mono's JIT
+        /// (mono/mono 6.x, and Unity's fork) accelerates only <c>Vector&lt;T&gt;</c>'s own operators, constructors,
+        /// <c>Equals</c> and <c>CopyTo</c> (<c>vector_t_intrinsics</c> in mono/mini/simd-intrinsics.c), and runs
+        /// <c>Vector.Narrow</c> and <c>Widen</c> in the package's software form (element by element through a stack
+        /// buffer): with plain loads (see <see cref="VectorMasks"/>), Mono 6.8 on x64 narrowed 1,024 chars in 5,400
+        /// ns against 550 for the 8-byte loop and widened them in 6,700 against 400 (local), while the check before
+        /// Narrow (<c>|</c>, <c>&amp;</c>, <c>EqualsAll</c>) took 120. Unity's runtimes say "Mono ..." too and take
+        /// their Burst kernels (<see cref="NinoKernels"/>). Constant-folded by the JIT (the probe once its class is
+        /// initialized).
         /// </summary>
         internal static bool NumericVectors
         {
@@ -130,15 +132,42 @@ namespace Nino.Core.CompilerServices
 #endif
         }
 
+        /// <summary>
+        /// Whether loads, stores and <c>&amp;</c> of <c>Vector&lt;byte&gt;</c> (<see cref="NinoMask"/>) are worth
+        /// using: where <see cref="NumericVectors"/> is, and on classic Mono with the System.Numerics.Vectors package
+        /// Nino.Core brings, the one <c>Vector&lt;T&gt;</c> its JIT compiles to SSE registers (class-init.c marks
+        /// <c>Vector`1</c> a SIMD type only in an assembly of that name) as <c>movups</c> and <c>pand</c>. Mono 6.8 on
+        /// x64 serialized an array of 1,000 padded structs of 16 bytes in 8.4 to 9.2 µs against 11.8 to 13.4 with
+        /// ulongs, of 12 bytes in 6.6 to 7.7 against 8.2 to 8.7, 16 of them in 90 to 110 ns against 140 (local); with
+        /// <c>Unsafe.ReadUnaligned</c> loads, which Mono compiles to calls to memcpy, 36 to 40 µs (see
+        /// <see cref="NinoMask"/>). Not where <c>Vector&lt;T&gt;</c> is Mono's own (in mscorlib): no Mono JIT
+        /// accelerates it, and Unity 2022.3.47f1 and 6000.0.20f1 reported it accelerated all the same (UUM-77339;
+        /// Unity-Technologies/mono made <c>IsHardwareAccelerated</c> true for mscorlib's type in July 2024 and reverted
+        /// it in February 2025).
+        /// </summary>
+        internal static bool VectorMasks
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => System.Numerics.Vector.IsHardwareAccelerated;
+#else
+            get => NumericVectorProbe.Masks;
+#endif
+        }
+
 #if !NET8_0_OR_GREATER
         /// <summary>
-        /// <see cref="NumericVectors"/> in the netstandard builds (a class of its own, see <see cref="WideAccess"/>).
+        /// <see cref="NumericVectors"/> and <see cref="VectorMasks"/> in the netstandard builds (a class of its own,
+        /// see <see cref="WideAccess"/>).
         /// </summary>
         private static class NumericVectorProbe
         {
             internal static readonly bool Fast = System.Numerics.Vector.IsHardwareAccelerated &&
                                                  RuntimeInformation.FrameworkDescription.StartsWith(".NET",
                                                      StringComparison.Ordinal);
+
+            internal static readonly bool Masks = Fast || System.Numerics.Vector.IsHardwareAccelerated &&
+                typeof(System.Numerics.Vector<byte>).Assembly.GetName().Name == "System.Numerics.Vectors";
         }
 #endif
 
