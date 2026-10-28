@@ -1,3 +1,30 @@
+# rust prefetch round 1 (aligned build), push A of two: b93fe69 (prefetch ahead in long lists) against its bench
+# commit a8b72d0, with both floors; scattered-1m is the case, the others check that short lists stay as they were.
+rust a8b72d0 b93fe69 (s{1}cattered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 b93fe69 (sc{1}attered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 b93fe69 (sca{1}ttered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 b93fe69 (scat{1}tered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 b93fe69 (scatt{1}ered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 b93fe69 (scatte{1}red-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 b93fe69 (scatter{1}ed-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 b93fe69 (scattere{1}d-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 b93fe69 (scattered{1}-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 b93fe69 (scattered-1{1}m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 a8b72d0 (s{1}cattered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 a8b72d0 (sc{1}attered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 a8b72d0 (sca{1}ttered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 a8b72d0 (scat{1}tered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 a8b72d0 (scatt{1}ered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 a8b72d0 (scatte{1}red-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust a8b72d0 a8b72d0 (scatter{1}ed-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust b93fe69 b93fe69 (s{1}cattered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust b93fe69 b93fe69 (sc{1}attered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust b93fe69 b93fe69 (sca{1}ttered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust b93fe69 b93fe69 (scat{1}tered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust b93fe69 b93fe69 (scatt{1}ered-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust b93fe69 b93fe69 (scatte{1}red-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust b93fe69 b93fe69 (scatter{1}ed-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
+rust b93fe69 b93fe69 (scattere{1}d-1m|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$
 # rust strings round 2 (aligned build): mixed strings on Neoverse-N2. 63d1033 = short text decoded a char a word,
 # no branch on its class (2.7x the instructions on x86); 0f9d909 = short text through neon::wide in the list loop.
 rust c13bbf7 63d1033 strings-mixed-1000/serialize/nino$
