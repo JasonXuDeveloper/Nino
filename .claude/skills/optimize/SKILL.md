@@ -126,9 +126,14 @@ fix every method it lists.
   1,000,000 shuffled records 2.2-3.1 times as fast on EPYC 7763, 9V45 and 9V74 and 4-5.5 times on Neoverse-N2, but
   13-38 % slower on Xeon 6973P-C, whose L3 holds the 100 MB set (its base was already 2-3 times as fast: nothing to
   hide, only the extra loads and calls), and moved short-slice cases 1.5-4.7 % on x64 (test branch 4e2099b, 42ae966
-  against c44171f). Before trying it again, find a gate for data larger than the last-level cache. Keep only the
-  length compare inline: a plan lookup that does not inline (cost 147) in every `WriteSlice` cost 1-3.8 % on
-  SimpleClass.
+  against c44171f). Keep only the length compare inline: a plan lookup that does not inline (cost 147) in every
+  `WriteSlice` cost 1-3.8 % on SimpleClass. A third round gated it on the last-level cache (sysfs index*/size,
+  sysctl hw.l3cachesize, 32 MB default; on when length times the object plus 64 bytes a string exceeds it; the long
+  path a `//go:noinline` function behind one compare, inlining as main) and still did not land (test branch
+  dbd9b65 against 2958379): EPYC 0.32-0.46 and Neoverse-N2 0.18 on scattered-1m, but Xeon Platinum 8573C 1.29 with
+  a base of 57 ms (cache-resident speed: the gate did not turn it off, so the VM's sysfs size or the per-string
+  estimate is wrong there; log what sysfs reports on each runner before trying again), and
+  `Serialize/simple-class-100` 0.8 % slower on Neoverse-N2 (n=10, floor 0.998-1.003) for the one compare.
 
 ## Owned elsewhere
 
