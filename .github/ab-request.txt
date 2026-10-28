@@ -586,11 +586,17 @@ typescript 506720c223 506720c223
 # done (run 40647360754): go#12 966177f 966177f ^Benchmark(Serialize|Deserialize)$/^simple-class/
 # done (run 40647360754): go#12 966177f 966177f ^Benchmark(Deserialize|Serialize)$/^simple-class/
 # go-prefetch 4e2099b: prefetch ahead while writing long slices of pointers and of structs with strings, against c44171f (main c13bbf7 with the scattered-1m case), with the floor
-go#12 c44171f 4e2099b ^Benchmark(Serialize|Deserialize)$/^scattered-1m/
-go#12 c44171f 4e2099b ^Benchmark(Serialize|Deserialize)$/^(simple|strings)/^(Nino|NinoTags)$
-go#12 c44171f c44171f ^Benchmark(Serialize|Deserialize)$/^scattered-1m/
-go#12 c44171f c44171f ^Benchmark(Serialize|Deserialize)$/^(simple|strings)/^(Nino|NinoTags)$
+# done (run 40652387825): go#12 c44171f 4e2099b ^Benchmark(Serialize|Deserialize)$/^scattered-1m/
+# done (run 40652387825): go#12 c44171f 4e2099b ^Benchmark(Serialize|Deserialize)$/^(simple|strings)/^(Nino|NinoTags)$
+# done (run 40652387825): go#12 c44171f c44171f ^Benchmark(Serialize|Deserialize)$/^scattered-1m/
+# done (run 40652387825): go#12 c44171f c44171f ^Benchmark(Serialize|Deserialize)$/^(simple|strings)/^(Nino|NinoTags)$
 # go-dict cc4df16 (round 3): more x64 jobs (EPYC 9V74), Nino and NinoTags only
-go#12 966177f cc4df16 ^Benchmark(Serialize|Deserialize)$/^simple-class/^(Nino|NinoTags)$
-go#12 966177f cc4df16 ^Benchmark(Deserialize|Serialize)$/^simple-class/^(NinoTags|Nino)$
-go#12 966177f 966177f ^Benchmark(Serialize|Deserialize)$/^simple-class/^(Nino|NinoTags)$
+# done (run 40652799586): go#12 966177f cc4df16 ^Benchmark(Serialize|Deserialize)$/^simple-class/^(Nino|NinoTags)$
+# done (run 40652799586): go#12 966177f cc4df16 ^Benchmark(Deserialize|Serialize)$/^simple-class/^(NinoTags|Nino)$
+# done (run 40652799586): go#12 966177f 966177f ^Benchmark(Serialize|Deserialize)$/^simple-class/^(Nino|NinoTags)$
+# go-prefetch 42ae966 (round 2): only the length check inline in WriteSlice (round 1's 4e2099b called the plan lookup on every WriteSlice: simple-class serialize 1-3.8 % slower on x64); scattered 2.2-2.4x as fast on EPYC 7763/9V74, 5x on Neoverse-N2
+go#12 c44171f 42ae966 ^Benchmark(Serialize|Deserialize)$/^(simple|strings)/^(Nino|NinoTags)$
+go#12 c44171f 42ae966 ^Benchmark(Deserialize|Serialize)$/^(simple|strings)/^(NinoTags|Nino)$
+go#12 c44171f 42ae966 ^Benchmark(Serialize|Deserialize)$/^scattered-1m/^(Nino|NinoTags|Protobuf)$
+go#12 c44171f c44171f ^Benchmark(Deserialize|Serialize)$/^(simple|strings)/^(NinoTags|Nino)$
+go#12 c44171f c44171f ^Benchmark(Serialize|Deserialize)$/^scattered-1m/^(Nino|NinoTags|Protobuf)$
