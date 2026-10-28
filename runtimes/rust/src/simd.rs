@@ -1294,6 +1294,75 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
     wide_short(out, text)
 }
 
+/// The size of the last-level cache in bytes, read once: the largest `size` under
+/// `/sys/devices/system/cpu/cpu0/cache` on Linux (the cache one core shares with its neighbors, an L3 slice on
+/// EPYC), 32 MiB on other systems, under Miri and when the files cannot be read. A list whose data fits in it is
+/// written without prefetching: on a CPU whose L3 held a 100 MB set (Xeon 6973P-C), prefetching ahead made the Go
+/// runtime 13 to 38% slower, since nothing waited on memory and the extra loads still cost.
+#[inline]
+pub(crate) fn last_level_cache() -> usize {
+    static SIZE: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *SIZE.get_or_init(|| read_last_level_cache().unwrap_or(32 << 20))
+}
+
+#[cfg(all(not(miri), target_os = "linux"))]
+fn read_last_level_cache() -> Option<usize> {
+    let mut largest = None;
+    for entry in std::fs::read_dir("/sys/devices/system/cpu/cpu0/cache").ok()?.flatten() {
+        let Ok(text) = std::fs::read_to_string(entry.path().join("size")) else { continue };
+        let text = text.trim();
+        let (digits, unit) = match text.char_indices().find(|(_, c)| !c.is_ascii_digit()) {
+            Some((at, _)) => text.split_at(at),
+            None => (text, ""),
+        };
+        let Ok(n) = digits.parse::<usize>() else { continue };
+        let scale = match unit {
+            "" => 1,
+            "K" => 1 << 10,
+            "M" => 1 << 20,
+            "G" => 1 << 30,
+            _ => continue,
+        };
+        let size = n.saturating_mul(scale);
+        largest = Some(largest.map_or(size, |l: usize| l.max(size)));
+    }
+    largest
+}
+
+#[cfg(not(all(not(miri), target_os = "linux")))]
+fn read_last_level_cache() -> Option<usize> {
+    None
+}
+
+/// Asks the CPU to bring the cache line at `p` into the cache closest to the core, without waiting for it: x86 and
+/// x86_64 `prefetcht0` (SSE), Arm64 `prfm pldl1keep`; nothing on other targets and under Miri. A prefetch never
+/// faults, whatever the address (a dangling pointer of an empty `String` included), and changes nothing the program
+/// can observe.
+#[inline(always)]
+pub(crate) fn prefetch<T: ?Sized>(p: *const T) {
+    #[cfg(all(not(miri), target_arch = "x86_64"))]
+    // SAFETY: SSE is part of every x86_64 target; a prefetch reads nothing and never faults.
+    unsafe {
+        core::arch::x86_64::_mm_prefetch::<{ core::arch::x86_64::_MM_HINT_T0 }>(p.cast::<i8>());
+    }
+    #[cfg(all(not(miri), target_arch = "x86", target_feature = "sse"))]
+    // SAFETY: the target has SSE (the cfg); a prefetch reads nothing and never faults.
+    unsafe {
+        core::arch::x86::_mm_prefetch::<{ core::arch::x86::_MM_HINT_T0 }>(p.cast::<i8>());
+    }
+    #[cfg(all(not(miri), target_arch = "aarch64"))]
+    // SAFETY: a hint that touches no register but its address and never faults; no memory is read or written as
+    // far as the program can tell, no stack, no flags.
+    unsafe {
+        core::arch::asm!("prfm pldl1keep, [{0}]", in(reg) p.cast::<u8>(), options(nostack, readonly, preserves_flags));
+    }
+    #[cfg(any(
+        miri,
+        not(any(target_arch = "x86_64", all(target_arch = "x86", target_feature = "sse"), target_arch = "aarch64"))
+    ))]
+    let _ = p;
+}
+
 /// Pads the code to the next multiple of 64 bytes (and aligns the function's section to 64), so that what follows
 /// sits where it does whatever code comes before it: the loops over a list of strings took up to 18% longer,
 /// depending on the CPU, from where the linker happened to place them (functions are aligned to 16 bytes only),

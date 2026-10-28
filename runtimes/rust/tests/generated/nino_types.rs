@@ -730,6 +730,26 @@ impl NinoRead for BagHolder {
 }
 
 impl NinoWrite for BagHolder {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<TolerantBag>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<KeyedBag>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<PointSet>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Option<BagRef>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.tolerant.prefetch();
+        self.keyed.prefetch();
+        self.set.prefetch();
+        self.bags.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.tolerant.prefetch_members();
+        self.keyed.prefetch_members();
+        self.set.prefetch_members();
+        self.bags.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -979,6 +999,17 @@ impl NinoRead for BoolArray {
 }
 
 impl NinoWrite for BoolArray {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<bool>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.values.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.values.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -1102,6 +1133,17 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for BoxType<T> {
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for BoxType<T> {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<T as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.value.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.value.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -1160,6 +1202,17 @@ impl NinoRead for ByteArray {
 }
 
 impl NinoWrite for ByteArray {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<u8>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.values.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.values.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -1226,6 +1279,23 @@ impl NinoRead for Bytes {
 }
 
 impl NinoWrite for Bytes {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<u8>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<u8>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<i8>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.array.prefetch();
+        self.list.prefetch();
+        self.signed.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.array.prefetch_members();
+        self.list.prefetch_members();
+        self.signed.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -1352,6 +1422,17 @@ impl NinoRead for Chain {
 }
 
 impl NinoWrite for Chain {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<Chain>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.next.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.next.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -1505,6 +1586,53 @@ impl NinoRead for Collections {
 }
 
 impl NinoWrite for Collections {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<i32>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<i32>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<indexmap::IndexSet<i32>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<i64>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<f64>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<bool>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<u16>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Option<nino::WideString>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<indexmap::IndexSet<nino::WideString>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Option<Box<Point>>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Option<Box<Point>>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Option<Vec<i32>>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Option<Vec<i32>>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.ints.prefetch();
+        self.int_list.prefetch();
+        self.int_set.prefetch();
+        self.longs.prefetch();
+        self.doubles.prefetch();
+        self.bools.prefetch();
+        self.chars.prefetch();
+        self.strings.prefetch();
+        self.string_set.prefetch();
+        self.points.prefetch();
+        self.point_list.prefetch();
+        self.nested.prefetch();
+        self.jagged.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.ints.prefetch_members();
+        self.int_list.prefetch_members();
+        self.int_set.prefetch_members();
+        self.longs.prefetch_members();
+        self.doubles.prefetch_members();
+        self.bools.prefetch_members();
+        self.chars.prefetch_members();
+        self.strings.prefetch_members();
+        self.string_set.prefetch_members();
+        self.points.prefetch_members();
+        self.point_list.prefetch_members();
+        self.nested.prefetch_members();
+        self.jagged.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -1764,6 +1892,23 @@ impl NinoRead for Empties {
 }
 
 impl NinoWrite for Empties {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<Empty>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<EmptyStruct>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Option<Box<Empty>>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.class.prefetch();
+        self.structs.prefetch();
+        self.classes.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.class.prefetch_members();
+        self.structs.prefetch_members();
+        self.classes.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -1912,6 +2057,17 @@ impl NinoRead for Enums {
 }
 
 impl NinoWrite for Enums {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<i32>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.array.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.array.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -2053,6 +2209,17 @@ impl NinoRead for GenericSlots {
 }
 
 impl NinoWrite for GenericSlots {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<Option<ShelfInt32Ref>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.shelves.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.shelves.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -2176,6 +2343,17 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for Holder<T> {
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Holder<T> {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<T as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.held.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.held.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -2240,6 +2418,17 @@ impl NinoRead for Inner {
 }
 
 impl NinoWrite for Inner {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<Point>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.point.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.point.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -2300,6 +2489,17 @@ impl NinoRead for IntArray {
 }
 
 impl NinoWrite for IntArray {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<i32>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.values.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.values.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -2420,6 +2620,17 @@ impl NinoRead for IntSet {
 }
 
 impl NinoWrite for IntSet {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<indexmap::IndexSet<i32>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.values.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.values.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -2652,6 +2863,17 @@ impl NinoRead for KeyedBag {
 }
 
 impl NinoWrite for KeyedBag {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<indexmap::IndexMap<nino::WideString, i32> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.elements.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.elements.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -2736,6 +2958,17 @@ impl NinoRead for KeyedChain {
 }
 
 impl NinoWrite for KeyedChain {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<KeyedChain>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.next.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.next.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -2802,6 +3035,23 @@ impl NinoRead for KeyedHolder {
 }
 
 impl NinoWrite for KeyedHolder {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<KeyedV1>> as NinoWrite>::PREFETCH)
+        .saturating_add(<KeyedStruct as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Option<Box<KeyedV1>>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.keyed.prefetch();
+        self.r#struct.prefetch();
+        self.array.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.keyed.prefetch_members();
+        self.r#struct.prefetch_members();
+        self.array.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -2970,6 +3220,17 @@ impl NinoRead for KeyedV1 {
 }
 
 impl NinoWrite for KeyedV1 {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<i32>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.items.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.items.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -3180,6 +3441,17 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for LabeledCrate<T> {
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for LabeledCrate<T> {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<T as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.content.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.content.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -3241,6 +3513,20 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for ListShelf<T> {
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for ListShelf<T> {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<T as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<T>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.item.prefetch();
+        self.more.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.item.prefetch_members();
+        self.more.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -3299,6 +3585,17 @@ impl NinoRead for LongList {
 }
 
 impl NinoWrite for LongList {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<i64>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.values.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.values.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -3359,6 +3656,17 @@ impl NinoRead for MaybeInt {
 }
 
 impl NinoWrite for MaybeInt {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<i32> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.value.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.value.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -3419,6 +3727,17 @@ impl NinoRead for MaybeIntArray {
 }
 
 impl NinoWrite for MaybeIntArray {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<nino::RawNullables<i32>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.values.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.values.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -3485,6 +3804,23 @@ impl NinoRead for Middle {
 }
 
 impl NinoWrite for Middle {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<Point>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<Point>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<Inner>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.first.prefetch();
+        self.second.prefetch();
+        self.inner.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.first.prefetch_members();
+        self.second.prefetch_members();
+        self.inner.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -3581,6 +3917,50 @@ impl NinoRead for Nullables {
 }
 
 impl NinoWrite for Nullables {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<i32> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<i64> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<f64> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<bool> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<nino::Guid> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<i16> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec2> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Padded> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Label> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<nino::RawNullables<i32>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<nino::RawNullables<i64>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<nino::RawNullables<Padded>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.int.prefetch();
+        self.long.prefetch();
+        self.double.prefetch();
+        self.bool.prefetch();
+        self.guid.prefetch();
+        self.r#enum.prefetch();
+        self.vec.prefetch();
+        self.padded.prefetch();
+        self.label.prefetch();
+        self.int_array.prefetch();
+        self.long_list.prefetch();
+        self.padded_array.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.int.prefetch_members();
+        self.long.prefetch_members();
+        self.double.prefetch_members();
+        self.bool.prefetch_members();
+        self.guid.prefetch_members();
+        self.r#enum.prefetch_members();
+        self.vec.prefetch_members();
+        self.padded.prefetch_members();
+        self.label.prefetch_members();
+        self.int_array.prefetch_members();
+        self.long_list.prefetch_members();
+        self.padded_array.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -3707,6 +4087,20 @@ impl NinoRead for Outer {
 }
 
 impl NinoWrite for Outer {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<Point>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<Middle>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.point.prefetch();
+        self.middle.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.point.prefetch_members();
+        self.middle.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -3767,6 +4161,17 @@ impl NinoRead for PaddedArray {
 }
 
 impl NinoWrite for PaddedArray {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<Padded>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.values.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.values.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -3920,6 +4325,17 @@ impl NinoRead for PointList {
 }
 
 impl NinoWrite for PointList {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<Option<Box<Point>>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.values.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.values.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -3984,6 +4400,20 @@ impl NinoRead for PointSet {
 }
 
 impl NinoWrite for PointSet {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<indexmap::IndexSet<i32> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<Point>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.elements.prefetch();
+        self.origin.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.elements.prefetch_members();
+        self.origin.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -4117,6 +4547,17 @@ impl NinoRead for RecordChain {
 }
 
 impl NinoWrite for RecordChain {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<RecordChain>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.next.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.next.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -4513,6 +4954,20 @@ impl NinoRead for StringCollections {
 }
 
 impl NinoWrite for StringCollections {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<Option<nino::WideString>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Option<nino::WideString>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.array.prefetch();
+        self.list.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.array.prefetch_members();
+        self.list.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -4573,6 +5028,17 @@ impl NinoRead for StringList {
 }
 
 impl NinoWrite for StringList {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<Option<nino::WideString>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.values.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.values.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -4693,6 +5159,17 @@ impl NinoRead for StringSet {
 }
 
 impl NinoWrite for StringSet {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<indexmap::IndexSet<nino::WideString>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.values.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.values.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -4855,6 +5332,29 @@ impl NinoRead for Structs {
 }
 
 impl NinoWrite for Structs {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Label as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Vec2>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Padded>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Mixed>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Label>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.label.prefetch();
+        self.vec_array.prefetch();
+        self.padded_list.prefetch();
+        self.mixed_array.prefetch();
+        self.labels.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.label.prefetch_members();
+        self.vec_array.prefetch_members();
+        self.padded_list.prefetch_members();
+        self.mixed_array.prefetch_members();
+        self.labels.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -4985,6 +5485,17 @@ impl NinoRead for TolerantBag {
 }
 
 impl NinoWrite for TolerantBag {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Vec<Option<nino::WideString>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.elements.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.elements.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -5092,6 +5603,17 @@ impl NinoRead for TolerantChain {
 }
 
 impl NinoWrite for TolerantChain {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<TolerantChain>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.next.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.next.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -5221,6 +5743,20 @@ impl NinoRead for TolerantHolder {
 }
 
 impl NinoWrite for TolerantHolder {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<TolerantV1>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<TolerantEmpty>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.first.prefetch();
+        self.empty.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.first.prefetch_members();
+        self.empty.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -5368,6 +5904,17 @@ impl NinoRead for TolerantRoot {
 }
 
 impl NinoWrite for TolerantRoot {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<Chain>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.chain.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.chain.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -5520,6 +6067,17 @@ impl NinoRead for TolerantV2 {
 }
 
 impl NinoWrite for TolerantV2 {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<i32>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.d.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.d.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -5625,6 +6183,17 @@ impl NinoRead for TrackedHolder {
 }
 
 impl NinoWrite for TrackedHolder {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<Option<TrackedRef>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.all.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.all.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -5739,6 +6308,17 @@ impl NinoRead for TrackedMix {
 }
 
 impl NinoWrite for TrackedMix {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<Option<nino::Shared<TrackedNode>>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.nodes.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.nodes.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -5876,6 +6456,17 @@ impl NinoRead for TreeHolder {
 }
 
 impl NinoWrite for TreeHolder {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<Option<Tree>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.tree.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.tree.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -5939,6 +6530,17 @@ impl NinoRead for TreeNode {
 }
 
 impl NinoWrite for TreeNode {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<Option<Box<TreeNode>>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.children.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.children.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -6119,6 +6721,17 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for Wrap<T> {
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Wrap<T> {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<T as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.value.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.value.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -6195,6 +6808,35 @@ impl NinoRead for WrappedArgs {
 }
 
 impl NinoWrite for WrappedArgs {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Box<Wrap<Option<nino::RawNullables<i32>>>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<Wrap<Option<nino::RawNullables<i32>>>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<Wrap<Option<indexmap::IndexSet<Option<i32>>>>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<Wrap<Option<nino::RawNullables<Vec2>>>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<Wrap<Option<indexmap::IndexMap<i32, Option<f64>>>>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<Wrap<Option<Vec<(i32, Option<nino::WideString>)>>>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Box<Wrap<Option<Vec<(Option<nino::WideString>, Option<i32>)>>>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.nullable_array.prefetch();
+        self.nullable_list.prefetch();
+        self.nullable_set.prefetch();
+        self.nullable_structs.prefetch();
+        self.nullable_values.prefetch();
+        self.pairs.prefetch();
+        self.pair_array.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.nullable_array.prefetch_members();
+        self.nullable_list.prefetch_members();
+        self.nullable_set.prefetch_members();
+        self.nullable_structs.prefetch_members();
+        self.nullable_values.prefetch_members();
+        self.pairs.prefetch_members();
+        self.pair_array.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }
@@ -6279,6 +6921,23 @@ impl NinoRead for Zoo {
 }
 
 impl NinoWrite for Zoo {
+    const PREFETCH: usize = 0usize
+        .saturating_add(<Option<Vec<Option<AnimalRef>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Option<AnimalRef>>> as NinoWrite>::PREFETCH)
+        .saturating_add(<Option<Vec<Option<IShapeRef>>> as NinoWrite>::PREFETCH);
+
+    fn prefetch(&self) {
+        self.animals.prefetch();
+        self.cages.prefetch();
+        self.shapes.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.animals.prefetch_members();
+        self.cages.prefetch_members();
+        self.shapes.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write_sealed(Some(self))
     }

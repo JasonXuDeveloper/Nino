@@ -188,6 +188,26 @@ pub(crate) fn write_strings(w: &mut Writer<'_>, values: &[String]) -> Result<()>
     write_each(w, rest)
 }
 
+/// [`write_strings`] for a long list (`String::write_many`, [`crate::impls::prefetches`]): the same bytes, a batch
+/// of eight strings at a time, each batch's text asked for two batches before it is written. Out of line, so that
+/// shorter lists take [`write_strings`] as before.
+#[inline(never)]
+pub(crate) fn write_strings_prefetched(w: &mut Writer<'_>, values: &[String]) -> Result<()> {
+    const BATCH: usize = 8;
+    for v in values.iter().take(2 * BATCH) {
+        crate::simd::prefetch(v.as_ptr());
+    }
+    for (k, batch) in values.chunks(BATCH).enumerate() {
+        // `k * BATCH < values.len()`: the sums cannot wrap.
+        let ahead = k.wrapping_add(2).wrapping_mul(BATCH);
+        for v in values.iter().skip(ahead).take(BATCH) {
+            crate::simd::prefetch(v.as_ptr());
+        }
+        write_strings(w, batch)?;
+    }
+    Ok(())
+}
+
 /// Writes each of `values`, the rest of a list of strings after its run of short ASCII: as many as the CPU's list loop
 /// ([`crate::simd::strings`]) takes, then the one it stops at through [`write`], and so on. Out of line so the loop
 /// compiles as it does on its own (inlined after the run, a list of mixed text wrote 7% slower on x86_64 with AVX2).
