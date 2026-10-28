@@ -151,6 +151,22 @@ fn record(i: i32) -> Record {
     }
 }
 
+/// 1,000,000 records made in order and listed in a shuffled order (a fixed seed): each record, its name and its tags
+/// are then somewhere else in memory than the one before, as in a long-lived heap, so writing the list waits on cache
+/// misses (what Nino's prefetching takes on). The Go benchmark's `scattered-1m` lists the same.
+fn scattered_records() -> Vec<Option<Box<Record>>> {
+    let mut values: Vec<Option<Box<Record>>> = (0..1_000_000).map(|i| Some(Box::new(record(i)))).collect();
+    // Fisher-Yates with xorshift64.
+    let mut state = 0x9E37_79B9_7F4A_7C15u64;
+    for i in (1..values.len()).rev() {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        values.swap(i, (state % (i as u64 + 1)) as usize);
+    }
+    values
+}
+
 // ---------------------------------------------------------------------------------------------- protobuf
 
 /// The values as Protocol Buffers messages, field for field (as a `.proto` would declare them):
@@ -270,6 +286,10 @@ macro_rules! formats {
         let value: $t = $value;
         let message: $p = $proto(&value);
         let mut g = $c.benchmark_group($group);
+        if $elements >= 100_000 {
+            // A run of a large case takes milliseconds: ten samples, not a hundred.
+            g.sample_size(10);
+        }
         let nino_bytes = nino::serialize(&value).unwrap();
         g.throughput(Throughput::Elements($elements));
 
@@ -369,6 +389,7 @@ fn benches(c: &mut Criterion) {
         many,
         proto::Records
     );
+    formats!(c, "scattered-1m", 1_000_000, scattered_records(), Vec<Option<Box<Record>>>, many, proto::Records);
     let i32s = |v: &Vec<i32>| proto::I32s { values: v.clone() };
     formats!(c, "i32-10000", 10_000, (0..10_000).map(|i| i * 7919).collect(), Vec<i32>, i32s, proto::I32s);
     let f64s = |v: &Vec<f64>| proto::F64s { values: v.clone() };
