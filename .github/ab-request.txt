@@ -1,26 +1,49 @@
 # <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]   (see .github/workflows/runtime-ab.yml)
+# phase10/rust round 10 (aligned build): the bench reads each input from a buffer of its own (ad4af02 on 717f4bb,
+# 9b50221 on 83950aa): the map read against its floors, and 9b50221 against main (blocks: 781d955) on the full suites.
+rust:blocks ad4af02 9b50221 blocks/read/map-i32-i32$
+rust:blocks ad4af02 9b50221 ^blocks/read/map-i32-i32$
+rust:blocks ad4af02 9b50221 blocks/read/map-i32-i32
+rust:blocks ad4af02 9b50221 blocks/read/(map-i32-i32)$
+rust:blocks ad4af02 9b50221 ^blocks/read/map-i32-i32
+rust:blocks ad4af02 ad4af02 blocks/read/map-i32-i32$
+rust:blocks ad4af02 ad4af02 ^blocks/read/map-i32-i32$
+rust:blocks ad4af02 ad4af02 blocks/read/map-i32-i32
+rust:blocks ad4af02 ad4af02 blocks/read/(map-i32-i32)$
+rust:blocks 9b50221 9b50221 blocks/read/map-i32-i32$
+rust:blocks 9b50221 9b50221 ^blocks/read/map-i32-i32$
+rust:blocks 9b50221 9b50221 blocks/read/map-i32-i32
+rust:blocks 9b50221 9b50221 blocks/read/(map-i32-i32)$
+rust:blocks 781d955 9b50221 blocks/
+rust:blocks 781d955 9b50221 ^blocks/
+rust:blocks 9b50221 9b50221 blocks/
+rust:blocks 781d955 781d955 blocks/
+rust 1622ddb 9b50221 /nino$
+rust 1622ddb 9b50221 .*/nino$
+rust 9b50221 9b50221 /nino$
+rust 1622ddb 1622ddb /nino$
 # phase10/rust round 9 (aligned build): the cells round 8 left near or beyond their floors, with more samples a CPU.
-rust:blocks 717f4bb 83950aa blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
-rust:blocks 717f4bb 83950aa ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
-rust:blocks 717f4bb 83950aa blocks/read/(u64|i8|map-i32-i32|point|tuple-i32-i32)$
-rust:blocks 717f4bb 83950aa blocks/read/(point|tuple-i32-i32|i8|u64|map-i32-i32)$
-rust:blocks 781d955 83950aa blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
-rust:blocks 781d955 83950aa ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
-rust:blocks 83950aa 83950aa blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
-rust:blocks 83950aa 83950aa ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
-rust:blocks 83950aa 83950aa blocks/read/(u64|i8|map-i32-i32|point|tuple-i32-i32)$
-rust:blocks 717f4bb 717f4bb blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
-rust:blocks 717f4bb 717f4bb ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
-rust:blocks 717f4bb 717f4bb blocks/read/(u64|i8|map-i32-i32|point|tuple-i32-i32)$
-rust:blocks 781d955 781d955 blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
-rust:blocks 781d955 781d955 ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
-rust 1622ddb 83950aa ^(f64-10000|i32-10000|strings-1000)/(serialize|deserialize)/nino$
-rust 1622ddb 83950aa ^(i32-10000|f64-10000|strings-1000)/(serialize|deserialize)/nino$
-rust 1622ddb 83950aa ^(strings-1000|f64-10000|i32-10000)/(serialize|deserialize)/nino$
-rust 83950aa 83950aa ^(f64-10000|i32-10000|strings-1000)/(serialize|deserialize)/nino$
-rust 83950aa 83950aa ^(i32-10000|f64-10000|strings-1000)/(serialize|deserialize)/nino$
-rust 1622ddb 1622ddb ^(f64-10000|i32-10000|strings-1000)/(serialize|deserialize)/nino$
-rust 1622ddb 1622ddb ^(i32-10000|f64-10000|strings-1000)/(serialize|deserialize)/nino$
+# done (run 40605364090): rust:blocks 717f4bb 83950aa blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust:blocks 717f4bb 83950aa ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust:blocks 717f4bb 83950aa blocks/read/(u64|i8|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust:blocks 717f4bb 83950aa blocks/read/(point|tuple-i32-i32|i8|u64|map-i32-i32)$
+# done (run 40605364090): rust:blocks 781d955 83950aa blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust:blocks 781d955 83950aa ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust:blocks 83950aa 83950aa blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust:blocks 83950aa 83950aa ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust:blocks 83950aa 83950aa blocks/read/(u64|i8|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust:blocks 717f4bb 717f4bb blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust:blocks 717f4bb 717f4bb ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust:blocks 717f4bb 717f4bb blocks/read/(u64|i8|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust:blocks 781d955 781d955 blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust:blocks 781d955 781d955 ^blocks/read/(i8|u64|map-i32-i32|point|tuple-i32-i32)$
+# done (run 40605364090): rust 1622ddb 83950aa ^(f64-10000|i32-10000|strings-1000)/(serialize|deserialize)/nino$
+# done (run 40605364090): rust 1622ddb 83950aa ^(i32-10000|f64-10000|strings-1000)/(serialize|deserialize)/nino$
+# done (run 40605364090): rust 1622ddb 83950aa ^(strings-1000|f64-10000|i32-10000)/(serialize|deserialize)/nino$
+# done (run 40605364090): rust 83950aa 83950aa ^(f64-10000|i32-10000|strings-1000)/(serialize|deserialize)/nino$
+# done (run 40605364090): rust 83950aa 83950aa ^(i32-10000|f64-10000|strings-1000)/(serialize|deserialize)/nino$
+# done (run 40605364090): rust 1622ddb 1622ddb ^(f64-10000|i32-10000|strings-1000)/(serialize|deserialize)/nino$
+# done (run 40605364090): rust 1622ddb 1622ddb ^(i32-10000|f64-10000|strings-1000)/(serialize|deserialize)/nino$
 # phase10/rust round 8: both sides built with every function at a 64-byte boundary (the default for rust lines now),
 # (the first push, 26 lines, made a matrix over 256 jobs and ran nothing: 24 lines, spelled anew)
 # 83950aa against 717f4bb, 781d955 (blocks) and main 1622ddb (compare), with floors; text-different filters for more samples a CPU.
