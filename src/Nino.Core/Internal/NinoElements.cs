@@ -2,6 +2,10 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
+#if NET8_0_OR_GREATER
+using System.Runtime.Intrinsics.Arm;
+using System.Runtime.Intrinsics.X86;
+#endif
 
 namespace Nino.Core.Internal
 {
@@ -260,10 +264,33 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            // By reference, as in WriteOnLocal.
+            // By reference, as in WriteOnLocal. Elements of a formatter whose long collections prefetch
+            // (NinoPrefetch): every NinoPrefetch.Run elements of such a collection, the objects ahead are prefetched out
+            // of line, the writer kept here; one more compare per element for the others of that formatter. The
+            // platform and the type test fold while the JIT imports the method: for other elements the loop is
+            // compiled as it was without them (an inlined call returning the test, or a helper taking the loop's
+            // locals by reference, folded later and moved the code of loops that never prefetch).
             ref T item = ref MemoryMarshal.GetReference(values);
-            for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
+            int left = values.Length;
+#if NET8_0_OR_GREATER
+            // Where Ahead is next called: never (0) unless the collection prefetches.
+            int ahead = 0;
+            if ((Sse.IsSupported || AdvSimd.Arm64.IsSupported) && !typeof(TFormatter).IsGenericType &&
+                default(TFormatter) is INinoPrefetchFormatter && NinoPrefetch.Takes<TFormatter>(ref Unsafe.As<T, object>(ref item), left))
+                ahead = left;
+#endif
+            for (; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
+            {
+#if NET8_0_OR_GREATER
+                if ((Sse.IsSupported || AdvSimd.Arm64.IsSupported) && !typeof(TFormatter).IsGenericType &&
+                    default(TFormatter) is INinoPrefetchFormatter && left == ahead)
+                {
+                    NinoPrefetch.Ahead<TFormatter>(ref Unsafe.As<T, object>(ref item), left);
+                    ahead = left - NinoPrefetch.Run;
+                }
+#endif
                 default(TFormatter).Serialize(item, ref writer);
+            }
         }
 
         /// <summary>
@@ -390,10 +417,30 @@ namespace Nino.Core.Internal
             where TFormatter : struct, INinoFormatter<T>
         {
             // The reader a local, its cursor in registers, where through a reference every element would store it and
-            // load it back (List<(int, long)>: 2x faster).
-            ref T item = ref MemoryMarshal.GetReference(values); // by reference, see WriteOnLocal
-            for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
+            // load it back (List<(int, long)>: 2x faster). By reference, see WriteOnLocal. The existing objects of a
+            // long collection prefetched, as in Write (a new array's null slots are not).
+            ref T item = ref MemoryMarshal.GetReference(values);
+            int left = values.Length;
+#if NET8_0_OR_GREATER
+            // Where Ahead is next called: never (0) unless the collection prefetches.
+            int ahead = 0;
+            if ((Sse.IsSupported || AdvSimd.Arm64.IsSupported) && !typeof(TFormatter).IsGenericType &&
+                default(TFormatter) is INinoPrefetchFormatter && NinoPrefetch.Takes<TFormatter>(ref Unsafe.As<T, object>(ref item), left))
+                ahead = left;
+#endif
+            for (; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
+            {
+#if NET8_0_OR_GREATER
+                if ((Sse.IsSupported || AdvSimd.Arm64.IsSupported) && !typeof(TFormatter).IsGenericType &&
+                    default(TFormatter) is INinoPrefetchFormatter && left == ahead)
+                {
+                    NinoPrefetch.Ahead<TFormatter>(ref Unsafe.As<T, object>(ref item), left);
+                    ahead = left - NinoPrefetch.Run;
+                }
+#endif
                 default(TFormatter).Deserialize(ref item, ref reader);
+            }
+
             return reader;
         }
 
