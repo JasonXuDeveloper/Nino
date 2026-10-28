@@ -138,14 +138,43 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   (LinkedList, trees, SortedSet nodes: the next address is known only after loading the node). The decision and a
   per-type threshold, a cache budget divided by the element's estimated bytes (object size plus a cost per reference
   member), are `static readonly` values the JIT folds: an ineligible type's listing stays identical to main, an
-  eligible one adds one length compare and an out-of-line loop that takes the reader or writer by value. Two stages
-  for elements with reference members: at element i prefetch element i+2D, at i+D prefetch its members' targets.
-  Why: a prefetch on every element cost 14-15 % on 1,000 cached objects, and a large-collection branch that needed a
-  runtime generic lookup spilled the caller (Shapes 1 to 7 stack accesses); shuffled 1M-object arrays serialized 1.2
-  to 2.3 times as fast locally with the prefetching loop. Platforms: .NET x64 `Sse.Prefetch0`; Unity through a
-  `NinoKernels` hook to Burst's `Common.Prefetch`; Rust `_mm_prefetch` on x86 and `asm!("prfm pldl1keep, ...")` on
-  aarch64, both in `src/simd.rs`; Go only through an assembly stub, one call per batch; .NET Arm64, wasm and
-  TypeScript have no prefetch instruction. Go, measured and not landed: a stub `prefetch8` (eight PREFETCHT0 / PRFM PLDL1KEEP a
+  eligible one adds one length compare (`cmp r14d, <const>; jg`) and a cold call. Enter the long loop through the
+  formatter type (the generated forwarder calls `NinoPrefetched.Write<T, Self>`), never through a method keyed on the
+  element type: with T = __Canon that is a runtime generic lookup in every caller. Two stages for elements with
+  reference members: at element i prefetch element i+2D, at i+D prefetch its members' targets. Why: a prefetch on
+  every element cost 14-15 % on 1,000 cached objects, and a large-collection branch that needed a runtime generic
+  lookup spilled the caller (Shapes 1 to 7 stack accesses). Platforms: .NET x64 `Sse.Prefetch0`; .NET Arm64 has no
+  scalar prefetch (only SVE's), a load of the object's first byte summed into a sink stands in; Unity through a
+  `NinoKernels` hook to Burst's `Common.Prefetch`, which exists only with the scripting define
+  `UNITY_BURST_EXPERIMENTAL_PREFETCH_INTRINSIC`; Rust `_mm_prefetch` on x86 and `asm!("prfm pldl1keep, ...")` on
+  aarch64, both in `src/simd.rs`; Go only through an assembly stub, one call per batch; wasm and TypeScript have
+  none. .NET, measured and not landed (land/prefetch 10c2f5b, land/prefetch-llc cdd36a9 and 9e28b7d against
+  5d474be, `ScatteredTest`; test branch runs 40666897058 and 40691513998): how the long loop takes the writer or
+  reader decides the cost for every caller, and none of the three ways was free. By reference, the address of the
+  caller's writer is taken where `NinoElements.Write` is inlined, so the caller's whole loop keeps it in memory
+  (FixedClasses 6 to 66 stack accesses). By value and returned, x64 copies it into the outgoing argument area of the
+  cold block (+125 bytes, +5 stack accesses, hot loop unchanged; fixed-size classes, whose bodies inline with every
+  writer field in a register, spilled the element pointer, so they were excluded at generation time), but where
+  nothing folds (Debug, Tier0) the argument and the result are two more writers in every collection loop's frame: a
+  read of 400 nested `SelfArrays` needed 1,459 KB of stack instead of 1,219 KB, and
+  `SelfNestingCollectionTests.EveryCollectionKindThrowsPastTheLimit` threw on Windows' 1 MB stack. Through a copy
+  passed by reference (the copy's address taken, not the caller's), Debug needed 541-758 KB, but the copy holds GC
+  references and is zeroed in the prolog of every caller: CommonTypes `NinoSerializeTree` (short child lists, one
+  Write per node) 3-4 % slower on EPYC 7763, 9V45 and 9V74 and Neoverse-N2 (floors 0.99-1.015). A `default(TFormatter)
+  is INinoPrefetchFormatter` test in the loop's own IL changed what the JIT inlined into polymorphic arrays
+  (`NinoSerializePolymorphicClassArray` 20-28 % slower on EPYC 7763 and 9V45); `Takes` inlined folds it as well. The
+  gate at the whole last-level cache (sysfs index*/size, GetLogicalProcessorInformationEx, 32 MB default) left 1M
+  shapes of 24 bytes out on EPYC (32 MB L3) and Neoverse-N2, which a fixed budget made 1.9-2.4 times as fast; at a
+  quarter of the cache: 1M shuffled `ScatteredItem`s serialized 3.0-3.3 times as fast on EPYC (7763, 9V45, 9V74),
+  2.0 on Xeon 8573C (one job) and 2.4 on Neoverse-N2 (the Arm64 load), read into existing objects 2.6-5.4 times on
+  EPYC and 1.18 on Xeon, unchanged on N2; scattered shapes 1.8-2.4 times on EPYC, +10 % on N2, 6.5 % slower on Xeon
+  8573C (one job, no floor on that CPU; CommonTypes Shapes, which does not prefetch, moved 7 % there too). But the
+  same shapes in allocation order (where the hardware prefetcher already works) were 8 % slower on EPYC 9V74 (15 %
+  faster on 7763), and Players and PolymorphicClassArray 2 % slower on 7763. Next design to try: pass neither: a
+  `NoInlining` helper keyed on the formatter (no lookup) prefetches the next run of 16 objects and their members'
+  targets, called once per 16 elements from a chunked copy of the plain loop, so the writer and reader stay in
+  registers and no frame grows; and find why EPYC 9V74 loses on objects in allocation order before landing it.
+  Go, measured and not landed: a stub `prefetch8` (eight PREFETCHT0 / PRFM PLDL1KEEP a
   call) in `WriteSlice` above a per-type threshold, objects 16 elements ahead and their strings 8 ahead, wrote
   1,000,000 shuffled records 2.2-3.1 times as fast on EPYC 7763, 9V45 and 9V74 and 4-5.5 times on Neoverse-N2, but
   13-38 % slower on Xeon 6973P-C, whose L3 holds the 100 MB set (its base was already 2-3 times as fast: nothing to
