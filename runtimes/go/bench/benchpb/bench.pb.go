@@ -1,5 +1,6 @@
-// The Go benchmark's values as Protocol Buffers messages, field for field (simple.go, strings.go): SimpleClass, a list of them
-// and a list of strings. A DateTime is its 8 bytes as .NET writes them (ticks and kind), a Guid its 16 bytes.
+// The Go benchmark's values as Protocol Buffers messages, field for field (simple.go, scattered.go, strings.go): SimpleClass, a
+// list of them, a list of records and a list of strings. A DateTime is its 8 bytes as .NET writes them (ticks and kind), a Guid
+// its 16 bytes.
 //
 // Regenerate bench.pb.go (in runtimes/go/bench, with protoc-gen-go v1.36.12 on PATH):
 //   go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
@@ -189,6 +190,119 @@ func (x *SimpleClasses) GetValues() []*SimpleClass {
 	return nil
 }
 
+// The scattered case's records (scattered.go).
+type Record struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int32                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Score         float64                `protobuf:"fixed64,2,opt,name=score,proto3" json:"score,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Email         string                 `protobuf:"bytes,4,opt,name=email,proto3" json:"email,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Record) Reset() {
+	*x = Record{}
+	mi := &file_benchpb_bench_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Record) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Record) ProtoMessage() {}
+
+func (x *Record) ProtoReflect() protoreflect.Message {
+	mi := &file_benchpb_bench_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Record.ProtoReflect.Descriptor instead.
+func (*Record) Descriptor() ([]byte, []int) {
+	return file_benchpb_bench_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Record) GetId() int32 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *Record) GetScore() float64 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *Record) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Record) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+type Records struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []*Record              `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Records) Reset() {
+	*x = Records{}
+	mi := &file_benchpb_bench_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Records) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Records) ProtoMessage() {}
+
+func (x *Records) ProtoReflect() protoreflect.Message {
+	mi := &file_benchpb_bench_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Records.ProtoReflect.Descriptor instead.
+func (*Records) Descriptor() ([]byte, []int) {
+	return file_benchpb_bench_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Records) GetValues() []*Record {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
 type Strings struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Values        []string               `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
@@ -198,7 +312,7 @@ type Strings struct {
 
 func (x *Strings) Reset() {
 	*x = Strings{}
-	mi := &file_benchpb_bench_proto_msgTypes[2]
+	mi := &file_benchpb_bench_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -210,7 +324,7 @@ func (x *Strings) String() string {
 func (*Strings) ProtoMessage() {}
 
 func (x *Strings) ProtoReflect() protoreflect.Message {
-	mi := &file_benchpb_bench_proto_msgTypes[2]
+	mi := &file_benchpb_bench_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -223,7 +337,7 @@ func (x *Strings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Strings.ProtoReflect.Descriptor instead.
 func (*Strings) Descriptor() ([]byte, []int) {
-	return file_benchpb_bench_proto_rawDescGZIP(), []int{2}
+	return file_benchpb_bench_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Strings) GetValues() []string {
@@ -259,7 +373,14 @@ const file_benchpb_bench_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"@\n" +
 	"\rSimpleClasses\x12/\n" +
-	"\x06values\x18\x01 \x03(\v2\x17.nino.bench.SimpleClassR\x06values\"!\n" +
+	"\x06values\x18\x01 \x03(\v2\x17.nino.bench.SimpleClassR\x06values\"X\n" +
+	"\x06Record\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x14\n" +
+	"\x05score\x18\x02 \x01(\x01R\x05score\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x14\n" +
+	"\x05email\x18\x04 \x01(\tR\x05email\"5\n" +
+	"\aRecords\x12*\n" +
+	"\x06values\x18\x01 \x03(\v2\x12.nino.bench.RecordR\x06values\"!\n" +
 	"\aStrings\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\tR\x06valuesB<Z:github.com/JasonXuDeveloper/Nino/runtimes/go/bench/benchpbb\x06proto3"
 
@@ -275,23 +396,26 @@ func file_benchpb_bench_proto_rawDescGZIP() []byte {
 	return file_benchpb_bench_proto_rawDescData
 }
 
-var file_benchpb_bench_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_benchpb_bench_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_benchpb_bench_proto_goTypes = []any{
 	(*SimpleClass)(nil),   // 0: nino.bench.SimpleClass
 	(*SimpleClasses)(nil), // 1: nino.bench.SimpleClasses
-	(*Strings)(nil),       // 2: nino.bench.Strings
-	nil,                   // 3: nino.bench.SimpleClass.Map1Entry
-	nil,                   // 4: nino.bench.SimpleClass.Map2Entry
+	(*Record)(nil),        // 2: nino.bench.Record
+	(*Records)(nil),       // 3: nino.bench.Records
+	(*Strings)(nil),       // 4: nino.bench.Strings
+	nil,                   // 5: nino.bench.SimpleClass.Map1Entry
+	nil,                   // 6: nino.bench.SimpleClass.Map2Entry
 }
 var file_benchpb_bench_proto_depIdxs = []int32{
-	3, // 0: nino.bench.SimpleClass.map1:type_name -> nino.bench.SimpleClass.Map1Entry
-	4, // 1: nino.bench.SimpleClass.map2:type_name -> nino.bench.SimpleClass.Map2Entry
+	5, // 0: nino.bench.SimpleClass.map1:type_name -> nino.bench.SimpleClass.Map1Entry
+	6, // 1: nino.bench.SimpleClass.map2:type_name -> nino.bench.SimpleClass.Map2Entry
 	0, // 2: nino.bench.SimpleClasses.values:type_name -> nino.bench.SimpleClass
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	2, // 3: nino.bench.Records.values:type_name -> nino.bench.Record
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_benchpb_bench_proto_init() }
@@ -305,7 +429,7 @@ func file_benchpb_bench_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_benchpb_bench_proto_rawDesc), len(file_benchpb_bench_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
