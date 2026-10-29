@@ -434,16 +434,17 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   (*Reader).String)` took 0.74 of the time on EPYC 7763, 0.80 on 9V74, 0.82 on Xeon 8573C, 0.86 on 8370C, 0.91 on
   Neoverse-N2; mixed and [NinoUtf8] strings 0.95-0.97; 1M records read 0.92 on EPYC 7763; SimpleClass serialize
   0.94-0.97 on every CPU but EPYC 7763 (1.015, n=12, where the unchanged machine code of `WriteStrings` moved 1.008
-  in the same jobs). One case moved by layout alone: 1M records serialize took 1.20 of the time on Xeon 8573C (n=4 jobs, 1.19-1.25,
-  floor 0.975-0.996), but main with only the records loop written out took 0.955 (bcbbcbe, n=1) and the change with
-  that loop put back to `WriteSlice` 1.02 (31b8e79): the cost came from the strings and SimpleClass code that case
-  never runs, so run such controls (each piece alone on main, the change without it) before blaming a loop. Rust needs nothing of the kind (generics are monomorphized; `dyn` only on the
+  in the same jobs). One case held past its floor: 1M records serialize took 1.20 of the time on Xeon 8573C (4 jobs of 12 rounds,
+  1.19-1.25, floor 0.975-0.996) while main with only the records loop written out took 0.955 (bcbbcbe, one job) and
+  the change without it 1.02 (31b8e79); calling the class body directly removed it (below). A loss that holds is
+  fixed, not filed as layout, however the controls point. Rust needs nothing of the kind (generics are monomorphized; `dyn` only on the
   deferral path past depth 128), nor does nino-gen's TypeScript (a function per collection shape, subtypes by a
-  `switch` on the id or the constructor). Still dispatched, by design or pending the owner: the Go class body
-  (`Class[T].Read`, one indirect call an object: direct calls through a `BeginBody`/`EndBody` pair read 1M records
-  in 0.93-0.95 of the time on every CPU, other cases on par, 479f92e, not landed: public API), Go
-  `ReadUnique`/`ReadUniqueEntries` (their integer-key check is internal), generic type arguments (Go `NinoArg`,
-  TypeScript codec objects) and the struct-tag path (a plan of closures by design).
+  `switch` on the id or the constructor). Class bodies and dictionary key checks went the same way (414a0a28): `Reader`/`Writer.EnterBody` and `ExitBody` open a
+  body in place and fall back to `ReadClassInto`/`WriteClass` from 128 open bodies, and `nino.UniqueEntries` checks
+  the pairs once; 1M records then read in 0.93-0.96 of the time on EPYC 7763, 9V45, 9V74 and Neoverse-N2, and the
+  Xeon 8573C loss above went to 0.947 of the old base (one job of 12 rounds). Still dispatched by design: sets
+  (`ReadUnique`), tracked classes, generic type arguments (Go `NinoArg`, TypeScript codec objects) and the struct-tag
+  path (a plan of closures).
 
 ## Checking blocks in Go
 
