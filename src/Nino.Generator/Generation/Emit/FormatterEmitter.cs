@@ -14,6 +14,7 @@ internal static class FormatterEmitter
         var names = new FormatterNames(m);
         var w = new CodeWriter(4096, indent: 1);
         EmitFormatter(w, m, names);
+        AccessorEmitter.EmitGenericUnsafeAccessors(w, m);
         // The type's own name, which most lines of a formatter repeat, through an alias: not a generic type's, whose
         // name has the formatter's type parameters.
         var aliases = new List<string>();
@@ -40,7 +41,7 @@ internal static class FormatterEmitter
             iface += $", {CoreCompilerServices}INinoBlockFormatter<{t}>";
         iface += Prefetch(m);
 
-        w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.Constraints}");
+        w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.FormatterConstraints}");
         var body = new BodyEmitter(m, w, names);
 
         // TypeId, Traits and Create are a few bytes of IL, which every runtime inlines without being told to. The
@@ -152,7 +153,8 @@ internal static class FormatterEmitter
         }
 
         EmitPrefetch(w, m, names);
-        AccessorEmitter.EmitUnsafeAccessors(w, m);
+        if (!m.IsGeneric)
+            AccessorEmitter.EmitUnsafeAccessors(w, m);
 
         w.Close();
     }

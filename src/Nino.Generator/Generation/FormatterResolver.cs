@@ -64,14 +64,24 @@ internal sealed class FormatterResolver
     private static ResolvedFormatter CachedFormatter(ITypeSymbol type) =>
         new(Cached(type), false, WireEncoding.Type(type), Traits: FormatterTraitsOf.Of("CachedFormatter"));
 
-    public static FormatterRef GeneratedFormatter(INamedTypeSymbol type) =>
-        FormatterRef.Generic(TypeNames.Gen + TypeNames.FormatterName(type.OriginalDefinition),
-            TypeNames.AllTypeArguments(type).Select(FormatterRef.Of), generated: true);
+    /// <summary>
+    /// The generated formatter of <paramref name="type"/>: for a generic type, its type arguments and then the
+    /// formatter of each (<see cref="TypeNames.FormatterParameter"/>), resolved here as for a member of that type, or
+    /// <c>CachedFormatter&lt;T&gt;</c> where there is none (the runtime reports it when a value is written).
+    /// </summary>
+    public FormatterRef GeneratedFormatter(INamedTypeSymbol type)
+    {
+        var arguments = TypeNames.AllTypeArguments(type);
+        return FormatterRef.Generic(TypeNames.Gen + TypeNames.FormatterName(type.OriginalDefinition),
+            arguments.Select(FormatterRef.Of)
+                .Concat(arguments.Select(a => Resolve(a, false)?.Code ?? Cached(a))), generated: true);
+    }
 
     /// <summary>
     /// Returns the formatter for <paramref name="type"/>, or null if Nino cannot serialize it at all.
-    /// Type parameters (and <c>[NinoType]</c>s generated elsewhere) are resolved at runtime through
-    /// <c>CachedFormatter&lt;T&gt;</c>.
+    /// A type's type parameters are the formatter parameters its generated formatter declares
+    /// (<see cref="TypeNames.FormatterParameter"/>); a method's (and <c>[NinoType]</c>s generated elsewhere) are
+    /// resolved at runtime through <c>CachedFormatter&lt;T&gt;</c>.
     /// </summary>
     public ResolvedFormatter? Resolve(ITypeSymbol type, bool utf8)
     {
@@ -110,8 +120,15 @@ internal sealed class FormatterResolver
     {
         switch (type)
         {
-            case ITypeParameterSymbol:
-                return CachedFormatter(type);
+            // The formatter the generated formatter in scope takes for it; a method's type parameter at run time.
+            case ITypeParameterSymbol p:
+                return TypeNames.HasFormatterParameter(p)
+                    ? CachedFormatter(type) with
+                    {
+                        Code = new FormatterRef(TypeNames.FormatterParameter(p.Name),
+                            EquatableArray<FormatterRef>.Empty, false, true),
+                    }
+                    : CachedFormatter(type);
             case IArrayTypeSymbol array:
                 return FirstMatch(_rules.ForArray(array.IsSZArray ? 1 : -array.Rank), type, utf8);
             case INamedTypeSymbol named:

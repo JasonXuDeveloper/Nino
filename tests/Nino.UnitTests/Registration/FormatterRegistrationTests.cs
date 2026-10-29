@@ -81,7 +81,10 @@ public sealed class RingHolder
     public List<Ring<int>> Nested;
 }
 
-/// <summary>A generic holder: its member is formatted by the runtime resolver (CachedFormatter&lt;T&gt;).</summary>
+/// <summary>
+/// A generic holder: its member is formatted by the formatter its closed type names, which the runtime resolver
+/// chooses for instances the generator did not see.
+/// </summary>
 [NinoType]
 public sealed class RuntimeBox<T>
 {
