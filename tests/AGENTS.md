@@ -43,7 +43,8 @@ Serialization/               round trips of the public API: primitives, strings 
                              reference tracking, threads, issue regressions (IssueTests); GoldenBytesTests pins the
                              wire format for every Nino.Core build (and seeds the fuzzer)
 Collections/                 arrays, BCL and user collections, empty ones, Stack/Queue through their arrays, the
-                             HashTables fill, the collection fast paths
+                             HashTables fill, the collection fast paths, the prefetch of long top-level arrays and lists
+                             of scattered objects and the interceptors that route them there (PrefetchTests)
 Layout/                      raw structs, padding, the portable (canonical) layout, block structs, fixed-size types,
                              the unmanaged constraint, top-level fast paths
 Polymorphism/                inheritance, dispatch, the registry, generic polymorphic bases, cross-assembly subtypes

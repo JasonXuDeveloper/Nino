@@ -19,7 +19,8 @@ Generator.Build.props        what the three builds share (set NinoRoslynVersion 
                              sources the newer builds link, the Nino.Core files compiled in (NINO_GENERATOR)
 Roslyn.Build.props           what every Roslyn component shares (generator builds and code fixes): netstandard2.0,
                              analyzer rules, the AnalyzerReleases files
-build/Nino.Generator.props   adds NinoGen to InterceptorsNamespaces / InterceptorsPreviewNamespaces in consumers
+build/Nino.Generator.props   adds NinoGen to InterceptorsNamespaces / InterceptorsPreviewNamespaces in consumers; makes
+                             the NinoPrefetchLargeCollections property visible to the generator
 AnalyzerReleases.Shipped.md  diagnostics of released versions (Roslyn release tracking)
 AnalyzerReleases.Unshipped.md  diagnostics added since the last release
 Properties/launchSettings.json  debug profile: runs the generator on tests/Nino.UnitTests
@@ -71,11 +72,15 @@ FormatterTraits.cs           flags of what a formatter is and how it reads and w
 SymbolTypeSystem.cs          ITypeSymbol for NinoFormatterBinding (the binding shared with the runtime)
 RawRules.cs                  which values are written as raw bytes, memoized per compilation
 RawLayout.cs                 whether a struct's memory is the same on every runtime (the canonical layout)
+PrefetchRules.cs             which classes' top-level arrays and lists prefetch their objects (INinoPrefetchFormatter):
+                             the object's estimated bytes for the cache budget, and which members' objects it prefetches
 LayoutTypes.cs               unmanaged structs whose layout the runtime measures ([DynamicDependency] for NativeAOT)
 WireEncoding.cs              a member's encoding as the published layout shows it ([NinoTypeLayout])
 TypeNames.cs                 type names as generated code and the runtime spell them, and the ids hashed from them
 Visibility.cs                what generated code in one assembly can name, read and assign
-Interceptors.cs              interceptors of top-level NinoSerializer / NinoDeserializer calls (Roslyn 4.8+ builds)
+Interceptors.cs              interceptors of top-level NinoSerializer / NinoDeserializer calls (Roslyn 4.8+ builds;
+                             arrays and lists of prefetching classes call NinoDirect's ...Prefetched methods, in a
+                             project built with NinoPrefetchLargeCollections)
 EmittedFormatters.cs         emitted SourceTexts reused by model value
 DiagnosticSink.cs            receives diagnostics while a model is built (the analyzer passes one; the generator none)
 ```

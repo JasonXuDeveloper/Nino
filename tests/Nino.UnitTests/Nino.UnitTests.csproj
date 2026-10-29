@@ -37,6 +37,12 @@
       <DefineConstants>$(DefineConstants);WEAK_VERSION_TOLERANCE</DefineConstants>
     </PropertyGroup>
 
+    <!-- The intercepted top-level calls of long arrays and lists of classes prefetch (PrefetchTests): the bytes are
+         the same, so every test here runs them too. Nino.UnitTests.Subset is built without it. -->
+    <PropertyGroup>
+      <NinoPrefetchLargeCollections>true</NinoPrefetchLargeCollections>
+    </PropertyGroup>
+
     <!-- The netstandard builds of Nino.Core have no PriorityQueue formatter (netstandard has no PriorityQueue). -->
     <PropertyGroup Condition="'$(NinoCoreTfm)' != ''">
       <DefineConstants>$(DefineConstants);NINO_CORE_NETSTANDARD</DefineConstants>
