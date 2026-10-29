@@ -33,6 +33,12 @@ func checkUnique[K comparable](t *testing.T, keys []K, writeKey func(*Writer, K)
 	if repeated != duplicate(r.Err()) || repeated != (got == nil) || !repeated && (r.Err() != nil || !slices.Equal(got, keys)) {
 		t.Fatalf("set of %d keys (repeated %v): got %v, %v", len(keys), repeated, got, r.Err())
 	}
+	// UniqueValues alone, as generated code calls it after reading the elements itself.
+	r = NewReader(nil)
+	values := UniqueValues(r, slices.Clone(keys))
+	if repeated != duplicate(r.Err()) || repeated != (values == nil) || !repeated && !slices.Equal(values, keys) {
+		t.Fatalf("UniqueValues of %d keys (repeated %v): got %v, %v", len(keys), repeated, values, r.Err())
+	}
 
 	entries := make([]Entry[K, int32], len(keys))
 	for i, k := range keys {
@@ -54,16 +60,22 @@ func checkUnique[K comparable](t *testing.T, keys []K, writeKey func(*Writer, K)
 	}
 }
 
-// TestUniqueEntriesNilAndFailed: nil stays nil without failing, and a reader that already failed gets nil and keeps
+// TestUniqueNilAndFailed: nil stays nil without failing, and a reader that already failed gets nil and keeps
 // its first error.
-func TestUniqueEntriesNilAndFailed(t *testing.T) {
+func TestUniqueNilAndFailed(t *testing.T) {
 	r := NewReader(nil)
+	if UniqueValues[int32](r, nil) != nil || r.Err() != nil {
+		t.Fatalf("nil set: %v", r.Err())
+	}
 	if UniqueEntries[int32, int32](r, nil) != nil || r.Err() != nil {
 		t.Fatalf("nil: %v", r.Err())
 	}
 	r.Fail(CodeEndOfData, "")
 	if UniqueEntries(r, []Entry[string, int32]{{"a", 1}}) != nil {
 		t.Fatal("a failed reader returned the pairs")
+	}
+	if UniqueValues(r, []string{"a"}) != nil || UniqueValues(r, []int64{1}) != nil {
+		t.Fatal("a failed reader returned the elements")
 	}
 	var e *Error
 	if !errors.As(r.Err(), &e) || e.Code != CodeEndOfData {

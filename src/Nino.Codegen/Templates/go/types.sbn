@@ -182,7 +182,8 @@ func helper_body(h)
     # A sequence.
     case $s.mode
     when "unique"
-      ret $o + "\treturn nino.ReadUnique(r, " + compact($s.element.min) + ", " + rfn($s.element) + ")\n}\n"
+      # Elements read twice fail, checked once over the elements.
+      ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn nino.UniqueValues(r, v)\n}\n"
     when "stringset"
       # A set of strings in the order of the data: a string (or null) read twice fails.
       $o = $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element))

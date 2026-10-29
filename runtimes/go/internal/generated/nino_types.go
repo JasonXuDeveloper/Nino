@@ -8799,7 +8799,20 @@ func writeV19(w *nino.Writer, v []*Bag) {
 }
 
 func readV20(r *nino.Reader) []int32 {
-	return nino.ReadUnique(r, 4, (*nino.Reader).I32)
+	n := r.Length(4)
+	if n < 0 {
+		return nil
+	}
+	var e int32
+	v := make([]int32, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		e = r.I32()
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.UniqueValues(r, v)
 }
 
 func readV21(r *nino.Reader) []*string {

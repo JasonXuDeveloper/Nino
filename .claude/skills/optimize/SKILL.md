@@ -442,8 +442,8 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   `switch` on the id or the constructor). Class bodies and dictionary key checks went the same way (414a0a28): `Reader`/`Writer.EnterBody` and `ExitBody` open a
   body in place and fall back to `ReadClassInto`/`WriteClass` from 128 open bodies, and `nino.UniqueEntries` checks
   the pairs once; 1M records then read in 0.93-0.96 of the time on EPYC 7763, 9V45, 9V74 and Neoverse-N2, and the
-  Xeon 8573C loss above went to 0.947 of the old base (one job of 12 rounds). Still dispatched by design: sets
-  (`ReadUnique`), tracked classes, generic type arguments (Go `NinoArg`, TypeScript codec objects) and the struct-tag
+  Xeon 8573C loss above went to 0.947 of the old base (one job of 12 rounds). Sets followed with `nino.UniqueValues` (no bench case
+  holds a set, so no runner number). Still dispatched by design: tracked classes, generic type arguments (Go `NinoArg`, TypeScript codec objects) and the struct-tag
   path (a plan of closures).
 
 ## Checking blocks in Go

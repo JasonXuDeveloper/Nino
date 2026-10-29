@@ -407,37 +407,31 @@ func (w *Writer) WriteShape(dims ...int) {
 // CodeDuplicateKey, as .NET's HashSet and SortedSet do when filled from empty. Unlike [ReadSet], writing the slice
 // back gives the same bytes.
 func ReadUnique[T comparable](r *Reader, minSize int, read func(*Reader) T) []T {
-	n := r.Length(minSize)
-	if n < 0 {
+	return UniqueValues(r, ReadSlice(r, minSize, read))
+}
+
+// UniqueValues returns v, the elements of a set read in the order of the data, unless two of them are equal: then
+// it fails r with CodeDuplicateKey (as .NET's HashSet and SortedSet do when filled from empty) and returns nil. It
+// returns nil for nil and after r failed. Generated code reads the elements with direct calls, then checks them
+// once here, as [UniqueEntries] does for a dictionary's keys. Integers (of any integer type, named or not) are
+// compared without a map (see repeatedKey); other values go through one.
+func UniqueValues[T comparable](r *Reader, v []T) []T {
+	if v == nil || r.err != nil {
 		return nil
 	}
-	var zero T
-	size := int(unsafe.Sizeof(zero))
-	keySize := intKeySize[T]()
-	v := make([]T, r.SliceCap(n, size))
-	var seen map[T]struct{}
-	if keySize == 0 {
-		seen = make(map[T]struct{}, capacity(n, size+hashSlot, len(r.buf)))
-	}
-	for i := 0; i < n; i++ {
-		if i == len(v) {
-			v = growSlice(v, n)
-		}
-		e := read(r)
-		if r.err != nil {
+	if size := intKeySize[T](); size != 0 {
+		if repeatedKey(unsafe.Pointer(unsafe.SliceData(v)), len(v), size, size) {
+			r.Fail(CodeDuplicateKey, "")
 			return nil
 		}
-		if keySize == 0 {
-			if seen[e] = struct{}{}; len(seen) != i+1 {
-				r.Fail(CodeDuplicateKey, "")
-				return nil
-			}
-		}
-		v[i] = e
+		return v
 	}
-	if keySize != 0 && repeatedKey(unsafe.Pointer(unsafe.SliceData(v)), n, size, keySize) {
-		r.Fail(CodeDuplicateKey, "")
-		return nil
+	seen := make(map[T]struct{}, len(v))
+	for i := range v {
+		if seen[v[i]] = struct{}{}; len(seen) != i+1 {
+			r.Fail(CodeDuplicateKey, "")
+			return nil
+		}
 	}
 	return v
 }
