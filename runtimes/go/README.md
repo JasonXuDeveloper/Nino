@@ -53,11 +53,18 @@ buf, err = nino.Append(buf[:0], p, WritePoint)     // no allocation when buf has
 w.Reset(); WritePoint(w, p); out := w.Bytes()      // a reused *nino.Writer: no allocation once it is large enough
 p, err := nino.Deserialize(data, ReadPoint)        // bytes after the value are ignored, as in .NET
 p, err := nino.DeserializeExact(data, ReadPoint)   // ... or rejected
+err = nino.DeserializeInto(data, &p, ReadPointInto) // into p, reusing what it holds
 ```
 
 `Append` and a reused `Writer` are what `NinoSerializer.Serialize(value, bufferWriter)` and
 `NinoArrayBufferWriter` are in .NET: memory the caller owns, reused across values. A `Writer` keeps its buffer, its
 error and its reference numbers until `Reset`, so reset it between values; check `w.Err()` before using the bytes.
+
+`DeserializeInto` with a generated `ReadXInto` is `NinoDeserializer.Deserialize(data, ref value)`: the objects the
+value holds are read into (their members in place), slices keep their storage and read their elements into the old
+ones by index (a map's entries are read anew into its storage; slices of fixed-size values and sets are read anew), a member
+declared as an interface or a class with subtypes is read into only when the data holds the type it holds, and
+tracked objects are read new. On a failure the value holds what was read before it and zero values from there on.
 
 ### The API in brief
 

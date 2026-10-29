@@ -148,7 +148,7 @@ namespace Nino.Codegen.Tests
             var (text, _) = Run("go", "nino_types.go", "--package", "shapes");
             StringAssert.Contains(text, "type NinoGridType struct {");
             StringAssert.Contains(text, "type ShapesLeftItem struct {");
-            StringAssert.Contains(text, "func ReadRecursive(r *nino.Reader) (v Recursive) {\n\tif !r.EnterStruct() {");
+            StringAssert.Contains(text, "func ReadRecursiveInto(r *nino.Reader, v *Recursive) {\n\tif !r.EnterStruct() {");
             StringAssert.Contains(text, "\tcase ThingStruct:\n\t\tw.TypeID(");
         }
 

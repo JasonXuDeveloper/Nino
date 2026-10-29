@@ -152,6 +152,24 @@ type Codec struct {
 	Read func(data []byte, exact bool) (any, error)
 	// Write writes v, a value Read returned.
 	Write func(v any) ([]byte, error)
+	// ReadInto, if set, reads all of data into target, a value Read returned (nino.DeserializeInto), and returns
+	// the value read.
+	ReadInto func(data []byte, target any) (any, error)
+}
+
+// FuncsInto is [Funcs] with readInto, the function nino.DeserializeInto takes, as ReadInto.
+func FuncsInto(read func(*nino.Reader) any, readInto func(*nino.Reader, any) any, write func(*nino.Writer, any)) Codec {
+	c := Funcs(read, write)
+	c.ReadInto = func(data []byte, target any) (any, error) {
+		err := nino.DeserializeInto(data, &target, func(r *nino.Reader, v *any) {
+			*v = readInto(r, *v)
+			if !r.Failed() && r.More() {
+				r.Fail(nino.CodeInvalidData, "bytes after the value")
+			}
+		})
+		return target, err
+	}
+	return c
 }
 
 // Funcs is the Codec of a read and a write function, as nino.Deserialize and nino.Serialize take them.
@@ -215,6 +233,8 @@ func (s Suite) codec(t *testing.T, typeName, optional string) Codec {
 func (s Suite) Valid(t *testing.T) {
 	dir := Require(t)
 	ix := LoadIndex(t, dir)
+	// The bytes of the last valid case of each type: with ReadInto, each case is also read into its value.
+	previous := map[string][]byte{}
 	for _, name := range ix.Valid {
 		t.Run(name, func(t *testing.T) {
 			var c ValidCase
@@ -239,6 +259,27 @@ func (s Suite) Valid(t *testing.T) {
 				g, _ := json.Marshal(got)
 				w, _ := json.Marshal(want)
 				t.Fatalf("value\n got %.2000s\nwant %.2000s", g, w)
+			}
+			if k.ReadInto != nil {
+				// Into the value of the type's previous case (or its own): the same value.
+				before := previous[c.Type]
+				if before == nil {
+					before = data
+				}
+				previous[c.Type] = data
+				target, err := k.Read(before, true)
+				if err != nil {
+					t.Fatal(err)
+				}
+				into, err := k.ReadInto(data, target)
+				if err != nil {
+					t.Fatalf("read into a value: %v", err)
+				}
+				if got := Render(into); !reflect.DeepEqual(got, want) {
+					g, _ := json.Marshal(got)
+					w, _ := json.Marshal(want)
+					t.Fatalf("value read into a value\n got %.2000s\nwant %.2000s", g, w)
+				}
 			}
 			if s.Check != nil {
 				s.Check(t, c.Type, data, v)
@@ -279,11 +320,44 @@ func allocated(f func()) uint64 {
 // a few times its bytes, collections presized within 16 times the bytes left) plus a fixed amount.
 func allocationBound(n int) uint64 { return 64*uint64(n) + 1<<20 }
 
+// hostileInto reads data into the value of valid (bytes of the type) when the codec can: it must fail when a fresh
+// read failed (failed), succeed when it succeeded, and leave a value that writes without a panic.
+func hostileInto(t *testing.T, k Codec, data, valid []byte, failed bool) {
+	t.Helper()
+	if k.ReadInto == nil || valid == nil {
+		return
+	}
+	target, err := k.Read(valid, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := k.ReadInto(data, target)
+	if (err != nil) != failed {
+		t.Fatalf("read into a valid value: %v (a fresh read failed: %v)", err, failed)
+	}
+	// Written without a panic: an error only for what any value can fail with (nested too deep to write).
+	if _, err := k.Write(v); err != nil {
+		var e *nino.Error
+		if !errors.As(err, &e) {
+			t.Fatalf("writing the value read into: %v", err)
+		}
+	}
+}
+
 // Malicious reads each malicious case, which must fail with an *nino.Error (or, where the case allows, return a
 // value) within allocationBound.
 func (s Suite) Malicious(t *testing.T) {
 	dir := Require(t)
 	ix := LoadIndex(t, dir)
+	// A valid case of each type, to read the malicious ones into.
+	valid := map[string][]byte{}
+	for _, name := range ix.Valid {
+		var c ValidCase
+		ReadJSON(t, filepath.Join(dir, "valid", name+".json"), &c)
+		if valid[c.Type] == nil {
+			valid[c.Type] = readFile(t, filepath.Join(dir, "valid", name+".bin"))
+		}
+	}
 	for _, name := range ix.Malicious {
 		t.Run(name, func(t *testing.T) {
 			var c maliciousCase
@@ -311,6 +385,7 @@ func (s Suite) Malicious(t *testing.T) {
 				}
 				t.Log(err)
 			}
+			hostileInto(t, k, data, valid[c.Type], err != nil)
 		})
 	}
 }
@@ -334,6 +409,7 @@ func (s Suite) Truncations(t *testing.T) {
 				if _, err := k.Read(prefix, false); err == nil {
 					t.Fatalf("a prefix of %d bytes (of %d) read without an error", n, len(data))
 				}
+				hostileInto(t, k, prefix, data, true)
 			}
 		})
 	}
