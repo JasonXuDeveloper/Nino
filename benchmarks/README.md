@@ -235,7 +235,8 @@ serializer (Nino first), and the encoded sizes. Local numbers are for comparing 
 
 The string cases are the same in all three: 1,000 short ASCII strings (`"string 0"` to `"string 999"`), and 1,000
 strings of ASCII, Latin-1 (`"crème brûlée i"`, one byte a char in Nino) and other text (`"строка 字符串 🎉 i"`,
-UTF-16 in Nino, with a char outside the BMP) in turn.
+UTF-16 in Nino, with a char outside the BMP) in turn. TypeScript rotates these through 63 more variants of the
+same lengths and scripts (below).
 
 ### TypeScript
 
@@ -253,7 +254,15 @@ NINO_BENCH_TIME=300 runtimes/typescript/bench/run.sh strings   # 300 ms per task
 `Program.cs` declares the types and writes each scenario's values, serialized by Nino in .NET, to
 `bench/out/data`; `nino-gen --lang ts` generates their TypeScript into `bench/gen`. Before a scenario is timed, every
 value is read and written back in TypeScript and must give exactly the bytes .NET wrote, and every protobuf message
-must read back equal. A task is one pass over all of a scenario's values. MessagePack (standard maps, no msgpackr
+must read back equal. A task is one pass over all of a scenario's values.
+
+Inputs rotate: `Program.cs` writes each scenario in 64 variants (the first is the original data; the others have their
+own random seed and scramble the fixed text letter for letter within its script, so shapes, lengths and encodings stay
+the same), every serializer gets all 64 ready before the timing, and each pass of every task, serialize and
+deserialize, takes the next variant in turn. Repeating one input lets V8 reuse work: a repeated JSON text parses along
+the hidden-class transitions and internalized keys of the previous parse (a Lookup-like text took 0.21 ms a parse
+repeated, 7.8 to 8.4 ms with 200 different texts in turn), which made `JSON.parse` look several times faster than it
+is. The sizes are a variant's mean. Holding every variant takes about 1.3 GB in Node. MessagePack (standard maps, no msgpackr
 records) gets the values Nino read, as they are (classes and `Map`s as maps, `bigint`s as 64-bit integers, read back
 as `bigint`); JSON gets them as plain JSON (64-bit integers as strings, maps as objects) and is not converted back to
 `bigint` or `Map`, so it does less work than Nino. Neither carries the type of a polymorphic value (`Zoo`, `Player.Pet`),

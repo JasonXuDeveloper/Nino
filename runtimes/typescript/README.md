@@ -98,5 +98,6 @@ Node 22.18 or later, which runs their TypeScript as it is (type stripping).
 `bench/run.sh [scenario]` compares the generated code with Protocol Buffers (protobuf-es), MessagePack (msgpackr) and
 `JSON` in Node and in headless Chromium, timed by tinybench, on data written by Nino in .NET (it needs the .NET 10 SDK
 and, for Chromium, Playwright; the bench's own dependencies come from `bench/package-lock.json`, never this package's).
-See benchmarks/README.md ("Runtimes outside .NET"). Compare before and after a change on one machine; do not publish
+Each pass takes the next of 64 variants of a scenario's data, since V8 reuses work on an input it has just read (a
+repeated JSON text parses many times faster). See benchmarks/README.md ("Runtimes outside .NET"). Compare before and after a change on one machine; do not publish
 the numbers.

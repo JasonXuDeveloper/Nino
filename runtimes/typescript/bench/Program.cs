@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using Nino.Core;
 
 namespace Bench
@@ -52,35 +53,54 @@ namespace Bench
     /// <summary>Text only: the string cases of the Go and Rust benchmarks.</summary>
     [NinoType] public sealed class Strings { public string[] Values; }
 
-    /// <summary>Writes each scenario's values, serialized by Nino, to &lt;dir&gt;/&lt;name&gt;.bin.</summary>
+    /// <summary>
+    /// Writes each scenario's values, serialized by Nino, to &lt;dir&gt;/&lt;name&gt;.bin, in <see cref="Variants"/>
+    /// variants: the same shapes and sizes with other content. bench.ts times each pass on the next variant in turn,
+    /// because V8 reuses work when it reads the same JSON text again (hidden-class transitions, internalized keys): a
+    /// Lookup-like text took 0.21 ms a parse repeated, 7.8 to 8.4 ms with 200 different texts in turn.
+    /// </summary>
     public static class Program
     {
+        /// <summary>Enough that no pass finds the previous passes' work cached; few enough to set up quickly.</summary>
+        public const int Variants = 64;
+
         public static void Main(string[] args)
         {
-            var rng = new Random(42);
             string dir = args[0];
             Directory.CreateDirectory(dir);
+            // Variant 0 is the data from before the rotation (seed 42, text as written); every other variant has its
+            // own seed and scrambles the fixed text, letter for letter in the same script, so every string keeps its
+            // length and its encoding in Nino and in UTF-8.
+            for (int variant = 0; variant < Variants; variant++)
+                WriteVariant(dir, variant);
+        }
+
+        private static void WriteVariant(string dir, int variant)
+        {
+            var rng = new Random(42 + variant);
+            string T(string text) => variant == 0 ? text : Scramble(text, rng);
+            void Write<TValue>(string name, IEnumerable<TValue> values) => Append(dir, name, variant, values);
             string Word(int n) => new string(Enumerable.Range(0, n).Select(_ => (char)('a' + rng.Next(26))).ToArray());
             string Sentence(int words) => string.Join(" ", Enumerable.Range(0, words).Select(_ => Word(rng.Next(2, 10))));
             Vec3 V() => new() { X = (float)rng.NextDouble(), Y = (float)rng.NextDouble(), Z = (float)rng.NextDouble() };
             Animal Pet(int i) => (i % 3) switch
             {
-                0 => new Dog { Name = "pet" + i, Bones = i },
-                1 => new Cat { Name = "pet" + i, Lives = 9 },
-                _ => new Puppy { Name = "pet" + i, Bones = i, Sleepy = i % 2 == 0 },
+                0 => new Dog { Name = T("pet" + i), Bones = i },
+                1 => new Cat { Name = T("pet" + i), Lives = 9 },
+                _ => new Puppy { Name = T("pet" + i), Bones = i, Sleepy = i % 2 == 0 },
             };
 
-            Write(dir, "player", Enumerable.Range(0, 1000).Select(i => new Player
+            Write("player", Enumerable.Range(0, 1000).Select(i => new Player
             {
-                Id = 1_000_000_000L + i, Name = "Player " + i, Level = rng.Next(100), Score = rng.NextDouble() * 1e4,
+                Id = 1_000_000_000L + i, Name = T("Player " + i), Level = rng.Next(100), Score = rng.NextDouble() * 1e4,
                 Online = i % 2 == 0, Position = V(), Unlocked = Enumerable.Range(0, 8).Select(_ => rng.Next(1000)).ToArray(),
                 Inventory = new Dictionary<string, int> { ["sword"] = rng.Next(5), ["shield"] = rng.Next(5) }, Pet = Pet(i),
             }));
-            Write(dir, "zoo", Enumerable.Range(0, 50).Select(i => new Zoo
+            Write("zoo", Enumerable.Range(0, 50).Select(i => new Zoo
             {
                 Animals = Enumerable.Range(0, 100).Select(k => Pet(i + k)).ToList(),
             }));
-            Write(dir, "orders", Enumerable.Range(0, 100).Select(b => new OrderBook
+            Write("orders", Enumerable.Range(0, 100).Select(b => new OrderBook
             {
                 Orders = Enumerable.Range(0, 50).Select(i => new Order
                 {
@@ -89,31 +109,33 @@ namespace Bench
                     Status = (byte)rng.Next(4),
                 }).ToList(),
             }));
-            Write(dir, "articles", Enumerable.Range(0, 200).Select(i => new Article
+            Write("articles", Enumerable.Range(0, 200).Select(i => new Article
             {
                 Title = Sentence(8), Author = Word(5) + " " + Word(7), Body = Sentence(300),
-                Summary = i % 2 == 0 ? "数据序列化的性能测试，包含中文文本。" + Sentence(5) : "Café crème — résumé naïve " + Sentence(10),
+                Summary = i % 2 == 0
+                    ? T("数据序列化的性能测试，包含中文文本。") + Sentence(5)
+                    : T("Café crème — résumé naïve ") + Sentence(10),
                 Tags = Enumerable.Range(0, 5).Select(_ => Word(6)).ToList(), Views = rng.Next(),
             }));
-            Write(dir, "mesh", Enumerable.Range(0, 20).Select(i => new Mesh
+            Write("mesh", Enumerable.Range(0, 20).Select(i => new Mesh
             {
-                Name = "mesh" + i,
+                Name = T("mesh" + i),
                 Vertices = Enumerable.Range(0, 500).Select(_ => V()).ToArray(),
                 Normals = Enumerable.Range(0, 500).Select(_ => V()).ToArray(),
                 Indices = Enumerable.Range(0, 1500).Select(_ => rng.Next(500)).ToArray(),
             }));
-            Write(dir, "samples", Enumerable.Range(0, 20).Select(_ => new Samples
+            Write("samples", Enumerable.Range(0, 20).Select(_ => new Samples
             {
                 Values = Enumerable.Range(0, 1000).Select(_ => rng.NextDouble() * 1e6).ToArray(),
                 Counts = Enumerable.Range(0, 1000).Select(_ => rng.Next(-1000000, 1000000)).ToArray(),
                 Weights = Enumerable.Range(0, 1000).Select(_ => (float)rng.NextDouble()).ToArray(),
             }));
-            Write(dir, "lookup", Enumerable.Range(0, 50).Select(_ => new Lookup
+            Write("lookup", Enumerable.Range(0, 50).Select(_ => new Lookup
             {
                 Counts = Enumerable.Range(0, 100).ToDictionary(i => "key_" + Word(6) + i, _ => rng.Next(100000)),
                 Names = Enumerable.Range(0, 100).ToDictionary(i => i * 7, _ => Word(10)),
             }));
-            Write(dir, "events", Enumerable.Range(0, 1000).Select(i => new Event
+            Write("events", Enumerable.Range(0, 1000).Select(i => new Event
             {
                 At = 1760790645123L * 10000 + i, UserId = rng.NextInt64(1L << 40), Kind = rng.Next(10),
                 Refs = Enumerable.Range(0, 4).Select(_ => rng.NextInt64()).ToArray(),
@@ -121,26 +143,32 @@ namespace Bench
 
             // The Go and Rust benchmarks' strings: 1,000 short ASCII strings, and 1,000 of ASCII, Latin-1 (one byte a
             // char in Nino) and other text (UTF-16 in Nino: Cyrillic, CJK and a char outside the BMP) in turn.
-            Write(dir, "strings", new[] { new Strings { Values = Enumerable.Range(0, 1000).Select(i => "string " + i).ToArray() } });
-            Write(dir, "strings-mixed", new[]
+            Write("strings", new[] { new Strings { Values = Enumerable.Range(0, 1000).Select(i => T("string " + i)).ToArray() } });
+            Write("strings-mixed", new[]
             {
                 new Strings
                 {
                     Values = Enumerable.Range(0, 1000).Select(i => (i % 3) switch
                     {
-                        0 => "string " + i,
-                        1 => "crème brûlée " + i,
-                        _ => "строка 字符串 🎉 " + i,
+                        0 => T("string " + i),
+                        1 => T("crème brûlée " + i),
+                        _ => T("строка 字符串 🎉 " + i),
                     }).ToArray(),
                 },
             });
         }
 
-        /// <summary>The count, then each value's length and bytes.</summary>
-        private static void Write<T>(string dir, string name, IEnumerable<T> values)
+        /// <summary>
+        /// Appends a variant to the scenario's file: first -<see cref="Variants"/> (the file of a commit before the
+        /// rotation starts with its one variant's count instead), then per variant the count, then each value's length
+        /// and bytes.
+        /// </summary>
+        private static void Append<T>(string dir, string name, int variant, IEnumerable<T> values)
         {
             var list = values.ToList();
-            using var w = new BinaryWriter(File.Create(Path.Combine(dir, name + ".bin")));
+            using var w = new BinaryWriter(new FileStream(Path.Combine(dir, name + ".bin"),
+                variant == 0 ? FileMode.Create : FileMode.Append));
+            if (variant == 0) w.Write(-Variants);
             w.Write(list.Count);
             foreach (var v in list)
             {
@@ -148,6 +176,32 @@ namespace Bench
                 w.Write(bytes.Length);
                 w.Write(bytes);
             }
+        }
+
+        /// <summary>
+        /// The text with each letter replaced by a random one of the same kind (ASCII lower or upper case, Latin-1
+        /// lower case, Cyrillic, CJK, emoji); digits, spaces and punctuation stay.
+        /// </summary>
+        private static string Scramble(string text, Random rng)
+        {
+            var sb = new StringBuilder(text.Length);
+            foreach (Rune r in text.EnumerateRunes())
+            {
+                int c = r.Value;
+                int Pick(int first, int last) => rng.Next(first, last + 1);
+                c = c switch
+                {
+                    >= 'a' and <= 'z' => Pick('a', 'z'),
+                    >= 'A' and <= 'Z' => Pick('A', 'Z'),
+                    >= 0xE0 and <= 0xFF and not 0xF7 => Pick(0xE0, 0xF6), // à to ö: never ÷
+                    >= 0x430 and <= 0x44F => Pick(0x430, 0x44F),
+                    >= 0x4E00 and <= 0x9FFF => Pick(0x4E00, 0x9FFF),
+                    >= 0x1F300 and <= 0x1FAFF => Pick(0x1F600, 0x1F64F),
+                    _ => c,
+                };
+                sb.Append(new Rune(c).ToString());
+            }
+            return sb.ToString();
         }
     }
 }
