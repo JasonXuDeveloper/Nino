@@ -304,9 +304,17 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   to 0xE5; the JIT does not align loops that make calls), and on EPYC 7763 `NinoSerializeNonGenericBase` was 2.0-6.6 %
   slower in 6 of 6 jobs and `PolymorphicClassArray` 0.6-5.8 % (floor 0.987-1.021), `HotShapes` (8,192 shapes, never
   prefetched) on EPYC 9V45 -0.5 to +13 % (floor 1.009-1.013), while the same cases were on par or up to 3 % faster on 9V45 and N2:
-  the cost is where the code lands, not the work. Any test in the top-level path moves the loop of every eligible
-  type's top-level call; next, ask the owner whether prefetching may be an explicit choice (a setting or method a
-  caller of very large collections opts into), which leaves every default path's bytes as main's.
+  the cost is where the code lands, not the work. Controls in one run against main 7d4d6b0 (test branch run
+  40829244512, floor runs 40798121552 and 40829186191) proved it: a placebo with variant 2's exact code but a run-time
+  threshold no collection reaches and an empty `Ahead` (case sizes identical, 1,001 and 1,001; HotShapes 1,386 and
+  1,381) was as slow as variant 2 on EPYC 7763, NonGenericBase 0.98-1.07 (median 1.04) against 1.04-1.08,
+  PolymorphicClassArray 1.03-1.07 against 0.97-1.04, while a null change (one more benchmark case, so other generated
+  code moves) stayed in the floor: 0.98-1.01 and 0.98-1.00 (floor 0.98-1.01 and 0.99-1.02, 10 jobs). So it is not
+  random placement: the length test's bytes before the loop cost those cases 3-7 % on 7763 every time, the scattered
+  gains held in the same run (items 0.50-0.51, read into 0.47-0.51, shapes 0.63-0.66 on 7763; items 0.21 on N2), and
+  it did not land. Any test in the top-level path costs this; next, ask the owner whether prefetching may be an
+  explicit choice (a setting or method a caller of very large collections opts into), which leaves every default
+  path's bytes as main's.
   Go, measured and not landed: a stub `prefetch8` (eight PREFETCHT0 / PRFM PLDL1KEEP a
   call) in `WriteSlice` above a per-type threshold, objects 16 elements ahead and their strings 8 ahead, wrote
   1,000,000 shuffled records 2.2-3.1 times as fast on EPYC 7763, 9V45 and 9V74 and 4-5.5 times on Neoverse-N2, but
