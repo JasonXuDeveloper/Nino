@@ -288,6 +288,27 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   records-1000 stayed within a null change's spread measured in the same run (`benchmark`). Putting the eligible
   loop out of line at a 64-byte boundary (8dc3b04) did not help: +2.7 % on 7763 and N2.
 
+## Checking blocks in Go
+
+- Check a block of range-limited 8- or 16-byte values four a step with one compare each (`w[0].Valid() && ... &&
+  w[3].Valid()`, then the failing step value by value), each `Valid` a single compare (a signed range from 0 as
+  unsigned; a Decimal's flags without the sign, rotated by 16 bits, `<= 28`). Writing 1000 values (runtime A/B runs
+  40822228516, 40864042296, 40868383597; floors within 3 %): DateTime 29-38 % faster on every CPU, Decimal 2-24 %,
+  TimeOnly up to 26 % (ae414a0). Branch-free forms were slower than the branchy loop on a local Xeon and were not
+  kept: `x | (max - x)` sign tests in four accumulators (+5 to +25 %), `max()` through CMOV (+10 %), an OR of all
+  values compared once (exact only when the values share a range; twice the time on random dates). Keep 4-byte
+  values (DateOnly) one at a time: four compare-branches a step wrote 19 % slower on Xeon 8370C (two rounds, 21 %
+  faster on Neoverse-N2), and two words of two lanes with one branch (top bit, or the rest plus `2^31-1-Max` reaching
+  it) 8-19 % slower on Xeon 8370C, EPYC 7763 and 9V74.
+- Read a byte at a fixed offset of each element (the bools of raw structs, `rawBools`) four elements a step into four
+  accumulators through `unsafe.Add` on the slice's pointer, adding only in-range offsets (a pointer past the end
+  fails `-race`'s checkptr): raw structs of 8 bytes with a bool 26-38 % faster writing and 4-14 % reading. A mask of
+  eight elements ANDed a word at a time (as `clearPads`) was 2-6 times slower locally for one or three bools.
+- Copy UTF-16 units as memory on little-endian hosts (`Reader.UTF16`, `Writer.UTF16`): wide text 60-63 % faster to
+  read and 92-96 % to write; narrowing Latin-1 four units a word 40-64 % faster to write. Widening Latin-1 four bytes
+  a word on read (`load32`, `widen`, `store64` into a fresh slice) was slower than the byte loop: +86 % on EPYC 7763,
+  +56 % on Xeon 6973P, +10 % on Neoverse-N2 (run 40822228516); the byte loop stays.
+
 ## Owned elsewhere
 
 - `NinoSettings.Untrusted` tests stay a single `if` on a frozen field with the work out of line (`audit-security`).

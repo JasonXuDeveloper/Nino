@@ -110,6 +110,8 @@ requirements:
   b[wire:] }`): indexing `b[i*wire:]` kept a bounds check per pair. A runner A/B can move code you did not touch by
   layout: the first map round left the untouched tag write 1.5-7.7 % slower on x64 only; make that path faster too
   (it then measured 7-14 % faster) rather than land a loss.
+- Checks over a block (ranges of dates and decimals, the bools of raw structs) and UTF-16 copies: what measured
+  faster and slower is in the `optimize` skill, "Checking blocks in Go"; time them with BenchmarkBlocks and BenchmarkUTF16.
 - Struct tags (`tagged.go`, `layout.go`, `marshal.go`) are the one place reflection is allowed: a plan built once
   per type, then walked. Anything the wire format cannot express is a `*TagError` naming the field when the plan
   is built, never a silent default; reads go through the same `Reader` calls as generated code, so the guarantees
