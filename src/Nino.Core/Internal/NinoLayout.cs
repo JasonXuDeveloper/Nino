@@ -183,16 +183,6 @@ namespace Nino.Core.Internal
             return info;
         }
 
-        // Kinds of ValueChecks.
-        private const int CheckBool = 1, CheckDateTime = 2, CheckDecimal = 3, CheckDateOnly = 4, CheckTimeOnly = 5;
-
-        // DateTime: the ticks of its 64 bits (the top two are its kind), at most DateTime.MaxValue's. DateOnly: day
-        // numbers up to DateOnly.MaxValue's. TimeOnly: ticks below one day.
-        private const ulong DateTimeTicksMask = 0x3FFF_FFFF_FFFF_FFFF;
-        private const long MaxDateTimeTicks = 3155378975999999999;
-        private const int MaxDayNumber = 3652058;
-        private const long TicksPerDay = 864000000000;
-
         /// <summary>
         /// The fields of <paramref name="type"/> (an unmanaged struct, or one of the types below itself) that can
         /// hold bytes no constructor makes, as pairs of their offset in memory on this runtime and kind: <c>bool</c>,
@@ -201,12 +191,12 @@ namespace Nino.Core.Internal
         /// none, or when the fields cannot be read (then nothing is checked, as nothing is converted: see
         /// <see cref="Create"/>).
         /// </summary>
-        internal static int[] ValueChecks(Type type)
+        internal static NinoValueChecks ValueChecks(Type type)
         {
             try
             {
                 var checks = new List<int>();
-                return AddChecks(type, 0, checks) && checks.Count != 0 ? checks.ToArray() : null;
+                return AddChecks(type, 0, checks) && checks.Count != 0 ? new NinoValueChecks(checks.ToArray()) : null;
             }
             catch
             {
@@ -245,16 +235,16 @@ namespace Nino.Core.Internal
         private static int CheckOf(Type type)
         {
             if (type == typeof(bool))
-                return CheckBool;
+                return NinoValueChecks.Bool;
             if (type == typeof(DateTime))
-                return CheckDateTime;
+                return NinoValueChecks.DateTime;
             if (type == typeof(decimal))
-                return CheckDecimal;
+                return NinoValueChecks.Decimal;
             // By name: netstandard has neither.
             if (type.FullName == "System.DateOnly" && type.Assembly == typeof(object).Assembly)
-                return CheckDateOnly;
+                return NinoValueChecks.DateOnly;
             if (type.FullName == "System.TimeOnly" && type.Assembly == typeof(object).Assembly)
-                return CheckTimeOnly;
+                return NinoValueChecks.TimeOnly;
             return 0;
         }
 
@@ -265,44 +255,8 @@ namespace Nino.Core.Internal
         /// <see cref="NinoDataException"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static void Check(int[] checks, ref byte first, int count, int stride, Type type)
-        {
-            ref byte value = ref first;
-            for (int n = 0; n < count; n++, value = ref Unsafe.Add(ref value, stride))
-            {
-                for (int i = 0; i < checks.Length; i += 2)
-                {
-                    ref byte field = ref Unsafe.Add(ref value, checks[i]);
-                    bool valid;
-                    switch (checks[i + 1])
-                    {
-                        case CheckBool:
-                            valid = field <= 1;
-                            break;
-                        case CheckDateTime:
-                            valid = (long)(Unsafe.ReadUnaligned<ulong>(ref field) & DateTimeTicksMask) <= MaxDateTimeTicks;
-                            break;
-                        case CheckDecimal:
-                        {
-                            // Flags first in every runtime's decimal: the sign (bit 31), the scale (bits 16 to 23,
-                            // at most 28), nothing else.
-                            uint flags = Unsafe.ReadUnaligned<uint>(ref field);
-                            valid = (flags & 0x7F00_FFFF) == 0 && (flags >> 16 & 0xFF) <= 28;
-                            break;
-                        }
-                        case CheckDateOnly:
-                            valid = (uint)Unsafe.ReadUnaligned<int>(ref field) <= MaxDayNumber;
-                            break;
-                        default:
-                            valid = Unsafe.ReadUnaligned<ulong>(ref field) < TicksPerDay;
-                            break;
-                    }
-
-                    if (!valid)
-                        NinoThrow.InvalidValue(type, checks[i]);
-                }
-            }
-        }
+        internal static void Check(NinoValueChecks checks, ref byte first, int count, int stride, Type type) =>
+            checks.Check(ref first, count, stride, type);
 
         /// <summary>Copies a value between its memory layout and its wire layout using <see cref="Info.Map"/>.</summary>
         internal static void Convert(Info info, ref byte memory, ref byte wire, bool toWire)
@@ -775,7 +729,7 @@ namespace Nino.Core.Internal
         /// (<see cref="NinoLayout.ValueChecks"/>: offset and kind pairs in the wire layout); null otherwise, and for a
         /// type without such fields. Declared before <see cref="CopiesAsIs"/>, which reads it.
         /// </summary>
-        internal static readonly int[] Checks = NinoLimits.Untrusted && typeof(T) != typeof(bool) &&
+        internal static readonly NinoValueChecks Checks = NinoLimits.Untrusted && typeof(T) != typeof(bool) &&
                                                 !NinoUnsafe.IsReferenceOrContainsReferences<T>()
             ? NinoLayout.ValueChecks(typeof(T))
             : null;
