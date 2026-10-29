@@ -17,6 +17,13 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
 - Stricter than .NET is allowed, looser never; each stricter check is listed in the runtime's README.
 - A C# feature users can declare is supported by each runtime and by nino-gen's templates, or reported as NINOGEN002
   naming the type, never generated code that reads differently.
+- Each runtime offers .NET's API shapes in its own idiom, under the same concept names: a new value
+  (`Serialize`), memory the caller owns and reuses (`Serialize(value, bufferWriter)` with a `NinoArrayBufferWriter`:
+  TypeScript `serializeInto` with a `NinoWriter` and `reset`, or a `Uint8Array`; Go `Append` and `Writer.Reset`; Rust
+  `serialize_into`), and `Exact` reads. Why: the owner wants them "the same as C#" in every runtime, and in Node a new
+  `ArrayBuffer` per value adds up to full GCs (`benchmark`, "Keep only the running serializer's data live").
+  Reading into an existing value (`Deserialize(data, ref value)`) is .NET only so far: it needs a read-into function
+  per generated type in all three templates.
 
 ## Safety
 
