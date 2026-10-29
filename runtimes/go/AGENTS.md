@@ -54,12 +54,13 @@ tagged_build.go              the builder: the codec of each Go type a plan reach
 tagged_codec.go              the codecs plans are made of
 tagged_cache.go              built codecs cached per reflect.Type (safe and unsafe field access)
 marshal.go                   Marshal / Unmarshal through the tag plans
-block_test.go                block sizes and ReadBlock / WriteBlock against element-by-element reads
+block_test.go                block sizes and ReadBlock / WriteBlock against element-by-element reads; BenchmarkBlocks
+                             (checked blocks: dates, decimals, bools, raw structs with a bool; Guids as the copy alone)
 raw_test.go                  bool blocks, raw struct blocks and padded structs
 unique_test.go               duplicate keys: integer keys, large sets, primitive entries
 reader_test.go               the Reader and Writer against hand-written bytes
 race_test.go, norace_test.go  raceEnabled: allocation counts are checked without the race detector (sync.Pool drops)
-strings_test.go              strings against a plain char-by-char reference
+strings_test.go              strings against a plain char-by-char reference; BenchmarkWriteString, BenchmarkUTF16
 strings_utf8_test.go         the [NinoUtf8] paths against the plain ones
 strings_wire_test.go         each vector tier against the Go loops, byte for byte
 strings_wire_amd64_test.go   tier detection (NINO_WANT_TIERS) and darwin

@@ -415,3 +415,49 @@ func TestReadStrings(t *testing.T) {
 		}
 	}
 }
+
+// BenchmarkUTF16 reads and writes strings of 1000 UTF-16 code units through Reader.UTF16 and Writer.UTF16: Latin-1
+// (written a byte a unit) and wider text (two bytes a unit), 16 variants of each in turn.
+func BenchmarkUTF16(b *testing.B) {
+	const variants = 16
+	for _, c := range []struct {
+		name string
+		unit func(rnd *rand.Rand) uint16
+	}{
+		{"latin1", func(rnd *rand.Rand) uint16 { return uint16(0x20 + rnd.Intn(0xE0)) }},
+		{"wide", func(rnd *rand.Rand) uint16 { return uint16(0x400 + rnd.Intn(0x5000)) }},
+	} {
+		rnd := rand.New(rand.NewSource(3))
+		texts := make([][]uint16, variants)
+		data := make([][]byte, variants)
+		for k := range texts {
+			texts[k] = make([]uint16, 1000)
+			for i := range texts[k] {
+				texts[k][i] = c.unit(rnd)
+			}
+			w := NewWriter(0)
+			w.UTF16(texts[k])
+			data[k] = w.Bytes()
+		}
+		b.Run(c.name+"/read", func(b *testing.B) {
+			r := NewReader(nil)
+			b.SetBytes(int64(len(data[0])))
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				r.Reset(data[i%variants])
+				if len(r.UTF16()) != 1000 {
+					b.Fatal(r.Err())
+				}
+			}
+		})
+		b.Run(c.name+"/write", func(b *testing.B) {
+			w := NewWriter(len(data[0]))
+			b.SetBytes(int64(len(data[0])))
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				w.Reset()
+				w.UTF16(texts[i%variants])
+			}
+		})
+	}
+}

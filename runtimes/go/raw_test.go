@@ -179,6 +179,14 @@ func encodeRawWide(b []byte, v rawWide) {
 	b[36] = boolByte(v.F)
 }
 
+func decodeRawWide(r *Reader, b []byte) rawWide {
+	_ = b[39]
+	return rawWide{
+		A: b[0], B: int64(binary.LittleEndian.Uint64(b[8:])), C: b[16], D: int64(binary.LittleEndian.Uint64(b[24:])),
+		E: int32(binary.LittleEndian.Uint32(b[32:])), F: r.BoolAt(b[36]),
+	}
+}
+
 // checkPadded writes v with its padding bytes set to garbage (through unsafe) with WriteRaw and checks the bytes are
 // WriteFixed's, padding written as zeros.
 func checkPadded[T any](t *testing.T, v []T, size int, asIs bool, bools, pads []int, enc func([]byte, T)) {
