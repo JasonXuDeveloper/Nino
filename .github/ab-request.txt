@@ -1033,3 +1033,12 @@ typescript 7927f28 7927f28 # serializeInto 1
 typescript 7927f28 7927f28 # serializeInto 2
 typescript 7c30927 7927f28 # serializeInto vs main 1
 typescript 7c30927 7927f28 # serializeInto vs main 2
+# go dispatch: Xeon 8573C showed Serialize/scattered-1m 1.22 (n=2, no floor on that CPU): more samples of 4225c20 against main, and main's floor.
+go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch 3
+go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch 4
+go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch 5
+go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch 6
+go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 3
+go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 4
+go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 5
+go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 6
