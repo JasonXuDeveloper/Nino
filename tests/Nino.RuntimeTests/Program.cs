@@ -275,6 +275,17 @@ public static class Program
             Case("Waypoint[" + n + "]", Enumerable.Range(0, n).Select(i => new Waypoint { X = i / 3f, Stamp = (i * 5, (short)-i), Visited = i % 3 == 0 }).ToArray());
             Case("List<Keyed>[" + n + "]", Enumerable.Range(0, n).Select(i => new Keyed { K = new KeyValuePair<int, short>(i, (short)i), On = i % 2 == 0 }).ToList());
             Case("(byte,short)[" + n + "]", Enumerable.Range(0, n).Select(i => ((byte)i, (short)(i * 3))).ToArray());
+            // Written from their entries, several at a time by the vector permutes where the CPU has them.
+            Case("Dictionary<int,int>[" + n + "]", Enumerable.Range(0, n).ToDictionary(i => i * 7919 % 1000 - 500, i => -i));
+            Case("HashSet<int>[" + n + "]", new HashSet<int>(Enumerable.Range(0, n).Select(i => i * 31 - 100)));
+        }
+        foreach (int n in new[] { 1, 3, 7, 33, 100 })
+        {
+            Case("Dictionary<long,short>[" + n + "]", Enumerable.Range(0, n).ToDictionary(i => (long)i << 33, i => (short)i));
+            Case("Dictionary<short,long>[" + n + "]", Enumerable.Range(0, n).ToDictionary(i => (short)-i, i => (long)i << 40));
+            Case("Dictionary<int,Padded>[" + n + "]", Enumerable.Range(0, n).ToDictionary(i => i, i => padded[i]));
+            Case("HashSet<Guid>[" + n + "]", new HashSet<Guid>(Enumerable.Range(0, n).Select(i => new Guid(i, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10))));
+            Case("HashSet<short>[" + n + "]", new HashSet<short>(Enumerable.Range(0, n).Select(i => (short)(i * 3))));
         }
         Case("(int,int)[]", ints.Select(i => (i, i * 3)).ToArray());
         Case("List<(int,long)>", ints.Select(i => (i, (long)i << 40)).ToList());
