@@ -237,10 +237,35 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   EPYC and 1.18 on Xeon, unchanged on N2; scattered shapes 1.8-2.4 times on EPYC, +10 % on N2, 6.5 % slower on Xeon
   8573C (one job, no floor on that CPU; CommonTypes Shapes, which does not prefetch, moved 7 % there too). But the
   same shapes in allocation order (where the hardware prefetcher already works) were 8 % slower on EPYC 9V74 (15 %
-  faster on 7763), and Players and PolymorphicClassArray 2 % slower on 7763. Next design to try: pass neither: a
-  `NoInlining` helper keyed on the formatter (no lookup) prefetches the next run of 16 objects and their members'
-  targets, called once per 16 elements from a chunked copy of the plain loop, so the writer and reader stay in
-  registers and no frame grows; and find why EPYC 9V74 loses on objects in allocation order before landing it.
+  faster on 7763), and Players and PolymorphicClassArray 2 % slower on 7763. A second attempt (land/prefetch2 against
+  4beee30, `ScatteredTest` plus every class with arrays or lists of classes; test branch runs 40717864662,
+  40738931705, 40765079561, per-job medians against main-against-itself floors) passed neither the writer nor the
+  reader: a `NoInlining` helper keyed on the formatter, `Ahead<TFormatter>(ref object, int)`, prefetched objects 32-47
+  ahead and the reference members of the next 16 (`INinoPrefetchFormatter.PrefetchMembers`, emitted for non-generic
+  classes of varying size), called once per 16 elements; the gate, a quarter of the last-level cache over
+  `PrefetchBytes`, and the platform test fold into one `static readonly` threshold, and a sample of the first 17
+  addresses (8 or more of the 16 deltas in (0, 1024]) leaves objects in allocation order alone. That fixed EPYC 9V74
+  (shapes in allocation order 0.996-1.005, from 0.92) and kept the gains: 1M shuffled `ScatteredItem`s serialized in
+  0.49-0.50 of the time on EPYC 7763, 0.39-0.40 on 9V45, 0.44-0.48 on 9V74 and 0.21 on Neoverse-N2, read into existing
+  objects in 0.44-0.47, 0.38-0.41, 0.25-0.32 and 0.30, scattered shapes 0.55-0.66 on EPYC (N2 on par); Xeon 6973P-C,
+  whose cache holds the set, on par. It did not land. In the shared loops (`NinoElements.Write`/`ReadEach`, a length
+  test before a second, chunked loop), every short nested collection paid: Orders 3.3-6.5 % slower on EPYC 7763, 9V45,
+  9V74 and Xeon 8573C and 6973P-C, Tree 1.3-2.2 %, Shapes 5 % on Xeon 8573C, and in Debug, where nothing folds, each nesting
+  level's frame grew 144 bytes (the deep-nesting test's stack 1,471 KB instead of 1,351; `Type.IsAssignableFrom`
+  instead of `is` was worse, 1,516 KB). A separate copy of the loop behind the test only moved the cost. So the second
+  variant prefetched only top-level calls: the interceptors send `Serialize`/`Deserialize(data, ref value)` of an
+  array or `List<T>` of an eligible class to `NinoDirect.SerializePrefetched`/`DeserializePrefetched`, whose formatter
+  (`INinoPrefetchTopFormatter<T>`) tests `value != null && length > threshold` inline and calls the out-of-line loop
+  only past it; nested collections, `NinoRegularCalls` and every other method compile exactly as main (`asm.py
+  compare`, Debug frames identical). Inlining more than that test into the top-level call cost the JIT's budget
+  elsewhere (PooledGraph `LeavesInPlace` 20 to 36 stack accesses). Still not landed: the 33-80 bytes the test adds
+  before the loop (sizes 940 to 1,001, 1,316 to 1,386, 1,955 to 2,019; stack accesses unchanged) moved the loop (0xC4
+  to 0xE5; the JIT does not align loops that make calls), and on EPYC 7763 `NinoSerializeNonGenericBase` was 2.0-6.6 %
+  slower in 6 of 6 jobs and `PolymorphicClassArray` 0.6-5.8 % (floor 0.987-1.021), `HotShapes` (8,192 shapes, never
+  prefetched) on EPYC 9V45 -0.5 to +13 % (floor 1.009-1.013), while the same cases were on par or up to 3 % faster on 9V45 and N2:
+  the cost is where the code lands, not the work. Any test in the top-level path moves the loop of every eligible
+  type's top-level call; next, ask the owner whether prefetching may be an explicit choice (a setting or method a
+  caller of very large collections opts into), which leaves every default path's bytes as main's.
   Go, measured and not landed: a stub `prefetch8` (eight PREFETCHT0 / PRFM PLDL1KEEP a
   call) in `WriteSlice` above a per-type threshold, objects 16 elements ahead and their strings 8 ahead, wrote
   1,000,000 shuffled records 2.2-3.1 times as fast on EPYC 7763, 9V45 and 9V74 and 4-5.5 times on Neoverse-N2, but
