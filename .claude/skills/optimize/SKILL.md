@@ -139,7 +139,9 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
 
 - Bump `ref` cursors and count down (`at = ref Unsafe.Add(ref at, step)`, `while (--n != 0)`), never
   `(nuint)i * size` per iteration; take everything that does not change per iteration (masks, indices) out of the
-  loop into locals.
+  loop into locals. Scalar tails too: `NinoBlock.WriteEach`'s per-value loop with an index scaled twice per
+  value wrote 1,000 dictionary entries in 658 ns without hardware intrinsics, with cursors 393 (main's per-entry
+  loop: 399).
 - On Arm64 (and anywhere without AVX-512) `Vector512<T>` and `Vector256<T>` are structs of 16-byte vectors: passed
   into an inlined loop body they are copied through the stack every iteration. Take their `Vector128` parts out once,
   before the loop, and pass those.
@@ -163,6 +165,23 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   1,000 `Waypoint`s (a bool at offset 14 of 15) deserialized in 0.81 to 0.93 times the time on every CPU (EPYC 7763,
   9V45, 9V74, Xeon 8573C and 8370C, Neoverse-N2). Rejected: a vector check with a periodic mask of the bool
   positions, 211 ns with 64-byte vectors and 325 with 32-byte ones against the scalar 155.
+- Check ranges of values in a run (Untrusted mode's bool, DateTime, decimal, DateOnly and TimeOnly fields,
+  `NinoValueChecks`) with a subtract and an OR, never with compares: per stride, tables of masks and bounds repeat over
+  lcm(stride, vector width), each vector ORs `bound - (v & mask)` into an accumulator (bytes: `v & 0xFE`) and only its
+  sign bits are tested at the end. Use the vectors only when they cost less than the branch-free scalar loop
+  (`2 * passes * stride <= fields * width`). Evidence (local Xeon, AVX-512, 1,000 values): unsigned `GreaterThan`
+  compares were slower than scalar (a bool/DateTime/int/double struct 1,616 ns against 1,526; a 48-byte struct of
+  every kind 9,849 against 5,658); subtract and OR with the cost rule took 1,535 and 5,644 against main's 3,806 and
+  12,040 (main branched per field), DateTime[] 382 against 1,914; on runners the Untrusted list case (1,000 structs
+  with a DateTime and a bool) took 0.47-0.69 times main's time on every CPU.
+- Write a runtime's strided entries (a `HashSet<T>`'s or `Dictionary<K, V>`'s entry array) through the block path
+  (`SetEntryBlock`, `MapEntryBlock`: a block map of the key and value at their offsets in the entry), never one
+  `Write` per entry: the permutes pack them like any padded struct. Evidence (GitHub runners, runs 40842440261 and
+  40865180098, n=12-48 a CPU, floors 0.99-1.01): 1,000-entry `HashSet<int>` serialize 0.34-0.49 times the time,
+  `Dictionary<int, int>` 0.29-0.56, the polymorphic class array holding both 0.69-0.84.
+- Compare bytes with chars eight at a time where no vectors are (netstandard `NinoStrings.SameBytes`): widen a
+  ulong of bytes to two ulongs of chars (`x = (x | x << 16) & 0x0000FFFF0000FFFF; x = (x | x << 8) &
+  0x00FF00FF00FF00FF`) on little-endian machines, with an overlapping last step, instead of one char a step.
 - Gate an instruction choice per CPU where the runners disagree, by CPUID at startup in a `static readonly` (the JIT
   folds it), never by a `Vector512.IsHardwareAccelerated`-style ISA flag alone: AVX-512 VBMI is on Ice Lake, Sapphire
   Rapids and Zen 4/5 alike. `NinoBlock.WritePairs` (four 24-byte values per `vpermt2b` of 128 bytes of memory into 64

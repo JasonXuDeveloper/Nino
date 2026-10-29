@@ -86,6 +86,13 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 
 - .NET: a class in `benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
   MessagePack, protobuf-net), a `Verify.cs` entry, the class in `shards.json` (the report and A/B shards).
+- A case that needs a process-wide setting frozen on first use (`NinoSettings.Untrusted`, `UntrustedTest`) sets it in
+  its class's static constructor inside `try`/`catch (InvalidOperationException)` and never throws from
+  `[GlobalSetup]` when it is already frozen: BenchmarkDotNet times each case in a process of its own, but
+  `--verify` and asm.py's jitwarm hook run every class's setup in one process (a throwing guard aborted
+  `asm.py compare`).
+- Read a joined BenchmarkDotNet summary with `grep '\| Nino'`, not `'^\| *Nino'`: with several classes it starts each
+  row with a Type column.
 - Go, Rust, TypeScript: the same data in each `bench` against that language's competitors.
 - Rotate the inputs of any microbenchmark that parses (deserialize, `JSON.parse`, decoders): prepare K variants of the
   same shape and size with different content (K=64 in `runtimes/typescript/bench`), give every serializer all of them
