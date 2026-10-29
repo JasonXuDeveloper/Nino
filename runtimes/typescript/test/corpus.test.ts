@@ -51,6 +51,26 @@ function deserialized(codec: NinoCodec<unknown>, data: Uint8Array): unknown {
   return deserializeExact(codec, data);
 }
 
+/**
+ * `deserializeInto` that also rejects bytes after the value: `data` read into `target`, a value of the same type
+ * (`NinoCodec.readInto`), which it returns.
+ */
+function readInto(codec: NinoCodec<unknown>, data: Uint8Array, target: unknown): unknown {
+  return deserializeExact({ read: (r) => r.into(codec, target), write: codec.write }, data);
+}
+
+/** Reads hostile bytes into a valid value: it must fail as a fresh read does, and leave a value that can be written. */
+function hostileInto(codec: NinoCodec<unknown>, data: Uint8Array, valid: Uint8Array, mayRead: boolean): void {
+  const target = read(codec, valid);
+  try {
+    readInto(codec, data, target);
+    assert.ok(mayRead, "read into a valid value");
+  } catch (e) {
+    assert.ok(e instanceof NinoError, String(e));
+  }
+  serialize(codec, target);
+}
+
 /** The cases of a group of the corpus, with their descriptions. */
 function cases(group: "valid" | "malicious"): { name: string; c: any }[] {
   if (!present) return [];
@@ -71,6 +91,8 @@ function skipReason(codecs: Codecs, c: any): string | null {
 for (const [label, module] of [["generated code", generated], ["generated code with typed arrays", typedArrays]] as const) {
   const codecs = module as unknown as Codecs;
   describe(`conformance corpus over ${label}`, { skip: present ? false : "no corpus (set NINO_CORPUS)" }, () => {
+    /** The bytes of the last valid case of each type: each case is also read into its value. */
+    const previous = new Map<string, Uint8Array>();
     describe("valid", () => {
       for (const { name, c } of cases("valid")) {
         it(name, (t) => {
@@ -82,6 +104,10 @@ for (const [label, module] of [["generated code", generated], ["generated code w
           const expected = c.roundTrip ? Buffer.from(data).toString("hex") : c.reencoded;
           assert.deepEqual(Buffer.from(serialize(codec, read(codec, data))).toString("hex"), expected);
           assert.deepEqual(Buffer.from(serialize(codec, deserialized(codec, data))).toString("hex"), expected);
+          // Read into the value of the type's previous case (or its own): the same value.
+          const into = readInto(codec, data, read(codec, previous.get(c.type) ?? data));
+          assert.deepEqual(Buffer.from(serialize(codec, into)).toString("hex"), expected, "read into a value");
+          previous.set(c.type, data);
         });
       }
     });
@@ -94,6 +120,8 @@ for (const [label, module] of [["generated code", generated], ["generated code w
           const codec = codecOf(codecs, c.type);
           assert.ok(codec, `no generated codec for ${c.type}`);
           const data = new Uint8Array(readFileSync(join(corpus, "malicious", name + ".bin")));
+          const valid = previous.get(c.type);
+          if (valid) hostileInto(codec, data, valid, c.expected === "error-or-value");
           if (c.expected === "error-or-value") {
             for (const f of [read, deserialized]) {
               try {
@@ -123,6 +151,7 @@ for (const [label, module] of [["generated code", generated], ["generated code w
             // The reader deserialize reuses still holds the whole value past the prefix: it must not read it.
             deserialized(codec, data);
             assert.throws(() => deserialized(codec, data.subarray(0, n)), NinoError, `a prefix of ${n} bytes was deserialized`);
+            hostileInto(codec, data.subarray(0, n), data, false);
           }
         });
       }

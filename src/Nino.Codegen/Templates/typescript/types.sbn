@@ -48,12 +48,13 @@ func body(c)
   # A tracked class records the object as soon as it exists: its members may refer back to it.
   $track = c.tracked ? "  r.track(v);\n" : ""
   if c.is_class_body
-    $o = $o + "function read" + $n + $tp + "(r: NinoReader" + c.codecs + "): " + $t + " {\n"
+    # One body for a new object and for one read into (`deserializeInto`): the object is a parameter.
+    $o = $o + "function read" + $n + $tp + "(r: NinoReader" + c.codecs + ", v: " + $t + " = new " + $new + "()): " + $t + " {\n"
     if c.nests
-      $o = $o + "  const v = new " + $new + "(), depth = r.depth;\n" + $track + "  if (depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
+      $o = $o + "  const depth = r.depth;\n" + $track + "  if (depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
       $o = $o + "  r.depth = depth + 1;\n  readBody$" + $n + "(r, v" + $ca + ");\n  r.exit(depth);\n"
     else
-      $o = $o + "  const v = new " + $new + "();\n" + $track + "  if (r.depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
+      $o = $o + $track + "  if (r.depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
       $o = $o + "  readBody$" + $n + "(r, v" + $ca + ");\n"
     end
     $o = $o + "  return v;\n}\n\n"
@@ -67,15 +68,14 @@ func body(c)
     $o = $o + "}\n\n"
     $o = $o + "function readBody$" + $n + $tp + "(" + $r + ": NinoReader, " + $v + ": " + $t + $cs + "): void {\n"
   else
-    $o = $o + "function read" + $n + $tp + "(" + $r + ": NinoReader" + $cs + "): " + $t + " {\n"
+    $o = $o + "function read" + $n + $tp + "(" + $r + ": NinoReader" + $cs + ", v: " + $t + " = new " + $new + "()): " + $t + " {\n"
     if c.counted
       $o = $o + "  r.enterStruct();\n"
     end
-    $o = $o + "  const v = new " + $new + "();\n"
   end
 
   # A [NinoType] collection: its elements first (inside a keyed body's region, outside a version tolerant one's).
-  $elements = c.elements ? "  v.$elements = r.elements(" + read(c.elements) + ");\n" : ""
+  $elements = c.elements ? "  v.$elements = r.elements(" + read_into(c.elements, "v.$elements") + ");\n" : ""
   if c.format == "keyed"
     # Members by key, in any order; a known member's value fills its entry exactly, a key this version does not know
     # is skipped.
@@ -84,14 +84,14 @@ func body(c)
       for $key in $m.model.all_keys
         $o = $o + "      case " + $key + ":\n"
       end
-      $o = $o + "        v." + $m.name + " = " + read($m.shape) + ";\n        r.endMember(member);\n        continue;\n"
+      $o = $o + "        v." + $m.name + " = " + read_into($m.shape, "v." + $m.name) + ";\n        r.endMember(member);\n        continue;\n"
     end
     $o = $o + "    }\n    r.endRegion(member);\n  }\n  r.endRegion(end);\n"
   else if c.format == "tolerant"
     # Members written by an older version end early; those of a newer one are skipped.
     $o = $o + $elements + "  const end = r.region();\n"
     for $m in c.members
-      $o = $o + "  if (r.pos < end) v." + $m.name + " = " + read($m.shape) + ";\n"
+      $o = $o + "  if (r.pos < end) v." + $m.name + " = " + read_into($m.shape, "v." + $m.name) + ";\n"
     end
     $o = $o + "  r.endRegion(end);\n"
   else
@@ -100,7 +100,7 @@ func body(c)
     $decl = c.at_declaration
     for $run in c.runs
       if $run.items.size == 1
-        $o = $o + "  v." + $run.items[0].member.name + " = " + read($run.items[0].member.shape) + ";\n"
+        $o = $o + "  v." + $run.items[0].member.name + " = " + read_into($run.items[0].member.shape, "v." + $run.items[0].member.name) + ";\n"
       else
         $o = $o + "  " + $decl + " = r.take(" + $run.size + ");\n"
         $decl = "at"
@@ -212,7 +212,30 @@ func typeid_codec(assignable, closed, backref)
   for $k in closed
     $o = $o + "      case " + $k.name + ":\n        w.i32(" + $k.id + ");\n        write" + name($k.shape.type) + "(w, v as " + $k.name + ", " + $k.codecs + ");\n        return;\n"
   end
-  ret $o + "    }\n    throw types.unwritable(v);\n  },\n};\n"
+  $o = $o + "    }\n    throw types.unwritable(v);\n  },\n"
+  # Untracked: reading into `cur` (`deserializeInto`), an object of the same class read into, any other replaced.
+  # Tracked objects are always read new. A switch of its own: the read above measured slower through it.
+  $into = false
+  for $t in assignable
+    if !$tracked && !$t.raw_shape && !$t.tracked
+      $into = true
+    end
+  end
+  if $into
+    $o = $o + "  readInto: (r, cur) => {\n    const id = r.i32();\n    switch (id) {\n      case 0:\n        return null;\n"
+    for $t in assignable
+      $body = read_body($t, true)
+      if !$t.raw_shape && !$t.tracked
+        $body = "read" + $t.name + "(r, cur?.constructor === " + $t.name + " ? (cur as " + $t.name + ") : undefined)"
+      end
+      $o = $o + "      case " + $t.model.type_id + ":\n        return " + $body + ";\n"
+    end
+    for $k in closed
+      $o = $o + "      case " + $k.id + ":\n        return read" + name($k.shape.type) + "(r, " + $k.codecs + ");\n"
+    end
+    $o = $o + "    }\n    throw types.unreadable(id);\n  },\n"
+  end
+  ret $o + "};\n"
 end
 
 # A function shared by every value of one shape.
@@ -220,6 +243,37 @@ func helper_body(h)
   $s = h.shape
   $n = h.name
   $o = ""
+  if h.mode == "readinto"
+    # Into `cur` (`deserializeInto`), never null here (a null one is read new): an array keeps its storage and reads
+    # each element into the one at its index, then drops the rest (so a read that throws leaves no holes); a set or
+    # map is cleared and refilled.
+    if $s.kind == "seq"
+      $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + ", cur: " + seq_ts($s) + "): " + seq_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const values = cur;\n"
+      if $s.set
+        $o = $o + "  values.clear();\n"
+        if $s.element.fixed
+          $o = $o + "  for (let i = 0, at = r.take(length * " + $s.element.size + "); i < length; i++, at += " + $s.element.size + ") values.add(" + read_at($s.element, 0) + ");\n"
+        else
+          $o = $o + "  for (let i = 0; i < length; i++) values.add(" + read($s.element) + ");\n"
+        end
+        ret $o + "  if (values.size !== length) throw r.duplicateKey();\n  return values;\n}\n"
+      end
+      if $s.element.fixed
+        $o = $o + "  for (let i = 0, at = r.take(length * " + $s.element.size + "); i < length; i++, at += " + $s.element.size + ") values[i] = " + read_at($s.element, 0) + ";\n"
+      else
+        $o = $o + "  for (let i = 0; i < length; i++) values[i] = " + read_into($s.element, "values[i]") + ";\n"
+      end
+      ret $o + "  if (values.length !== length) values.length = length;\n  return values;\n}\n"
+    end
+    $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + ", cur: " + map_ts($s) + "): " + map_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const map = cur;\n  map.clear();\n"
+    if $s.key.fixed && $s.value.fixed
+      $size = $s.key.size + $s.value.size
+      $o = $o + "  for (let i = 0, at = r.take(length * " + $size + "); i < length; i++, at += " + $size + ") map.set(" + read_at($s.key, 0) + ", " + read_at($s.value, $s.key.size) + ");\n"
+    else
+      $o = $o + "  for (let i = 0; i < length; i++) {\n    const key = " + read($s.key) + ";\n    map.set(key, " + read($s.value) + ");\n  }\n"
+    end
+    ret $o + "  if (map.size !== length) throw r.duplicateKey();\n  return map;\n}\n"
+  end
   if h.mode == "read"
     if $s.kind == "seq"
       $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + "): " + seq_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n"
@@ -431,9 +485,9 @@ for c in codecs
   if c.header == "none" && c.raw_shape
     "> = {\n  read: (r) => " + read(c.raw_shape) + ",\n  write: (w, v) => " + write(c.raw_shape, "v") + ",\n};\n"
   else if c.header == "none"
-    "> = { read: read" + c.name + ", write: write" + c.name + " };\n"
+    "> = { read: (r) => read" + c.name + "(r), write: write" + c.name + ", readInto: read" + c.name + " };\n"
   else if c.header == "null"
-    " | null> = {\n  read: (r) => " + read(c.header_shape) + ",\n  write: (w, v) => {\n    " + stmt(write(c.header_shape, "v")) + "\n  },\n};\n"
+    " | null> = {\n  read: (r) => " + read(c.header_shape) + ",\n  write: (w, v) => {\n    " + stmt(write(c.header_shape, "v")) + "\n  },\n" + (read_into(c.header_shape, "v") == read(c.header_shape) ? "" : "  readInto: (r, v) => " + read_into(c.header_shape, "v") + ",\n") + "};\n"
   else
     # Any type assignable to it, by the type id in front of its body: by its class when written.
     $backref = null
@@ -500,9 +554,9 @@ for c in generics
   end
   "  const c = { " + (array.join $names ", ") + " } as " + c.name + "$Codecs" + c.type_params + ";\n"
   if c.header == "null"
-    "  c.self = {\n    read: (r) => (r.notNull() ? read" + c.name + "(r, c) : null),\n    write: (w, v) => {\n      if (v === null || v === undefined) w.u8(0);\n      else {\n        w.u8(1);\n        write" + c.name + "(w, v, c);\n      }\n    },\n  };\n"
+    "  c.self = {\n    read: (r) => (r.notNull() ? read" + c.name + "(r, c) : null),\n    readInto: (r, v) => (r.notNull() ? read" + c.name + "(r, c, v ?? undefined) : null),\n    write: (w, v) => {\n      if (v === null || v === undefined) w.u8(0);\n      else {\n        w.u8(1);\n        write" + c.name + "(w, v, c);\n      }\n    },\n  };\n"
   else
-    "  c.self = { read: (r) => read" + c.name + "(r, c), write: (w, v) => write" + c.name + "(w, v, c) };\n"
+    "  c.self = { read: (r) => read" + c.name + "(r, c), readInto: (r, v) => read" + c.name + "(r, c, v), write: (w, v) => write" + c.name + "(w, v, c) };\n"
   end
   for $d in c.derived
     if c.lazy
