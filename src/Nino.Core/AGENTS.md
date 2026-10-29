@@ -137,6 +137,8 @@ NinoThrow.cs                 throw helpers, out of line (NinoDataException for t
 NinoLimits.cs                the settings read paths check, frozen as static readonly fields
 NinoUntrusted.cs             the top-level reads in NinoSettings.Untrusted mode (trailing bytes, value checks)
 NinoChecks.cs                checks of values Nino never writes (bools other than 0 or 1) where each costs least
+NinoValueChecks.cs           the fields of a raw type Untrusted mode checks (bool, DateTime, decimal, DateOnly, TimeOnly),
+                             checked a field at a time over a run of values, as vectors with periodic masks on .NET 8+
 NinoSeededHash.cs            SipHash-1-3 comparers for the tables Nino creates in Untrusted mode
 HashTables.cs                fills new HashSet / Dictionary entries and buckets directly, counting collisions
                              against MaxHashCollisions (Plan, TryFill, Insert, Added, Walk)
