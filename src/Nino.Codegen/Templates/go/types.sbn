@@ -70,14 +70,14 @@ func read_members(c)
         $keys = array.add $keys ("" + $k)
       end
       $seen = c.seen_words == 1 ? "&seen, " + for.index : "&seen[" + (for.index // 64) + "], " + (for.index % 64)
-      $o = $o + "\t\tcase " + (array.join $keys ", ") + ":\n\t\t\tif r.KeyedSeen(" + $seen + ") {\n\t\t\t\tv." + $m.name + " = " + read($m.shape) + "\n\t\t\t}\n"
+      $o = $o + "\t\tcase " + (array.join $keys ", ") + ":\n\t\t\tif r.KeyedSeen(" + $seen + ") {\n\t\t\t\t" + read_into($m.shape, "v." + $m.name) + "\n\t\t\t}\n"
     end
     $o = $o + "\t\tdefault:\n\t\t\tr.SkipEntry(e)\n\t\t\tcontinue\n\t\t}\n\t\tr.EndEntry(e)\n\t}\n\tr.EndRegion(g)\n"
   else if c.format == "tolerant"
     # Members written by an older version end early; those of a newer one are skipped.
     $o = $o + $elements + "\tg := r.BeginRegion()\n"
     for $m in c.members
-      $o = $o + "\tif r.More() {\n\t\tv." + $m.name + " = " + read($m.shape) + "\n\t}\n"
+      $o = $o + "\tif r.More() {\n\t\t" + read_into($m.shape, "v." + $m.name) + "\n\t}\n"
     end
     $o = $o + "\tr.EndRegion(g)\n"
   else
@@ -85,7 +85,7 @@ func read_members(c)
     # Each run of fixed-size members takes its bytes with one bounds check.
     for $run in c.runs
       if $run.items.size == 1
-        $o = $o + "\tv." + $run.items[0].member.name + " = " + read($run.items[0].member.shape) + "\n"
+        $o = $o + "\t" + read_into($run.items[0].member.shape, "v." + $run.items[0].member.name) + "\n"
       else
         $o = $o + "\tif b := r.Take(" + $run.size + "); len(b) == " + $run.size + " {\n"
         for $item in $run.items
@@ -155,6 +155,19 @@ func helper_body(h)
       $o = $o + lines(encode($i, $s.offsets[for.index], "v." + item($s, for.index)), "\t")
     end
     ret $o + "}\n"
+  else if h.mode == "readinto"
+    # Into *p: its storage reused when large enough, each element read into the one at its index (a map's entries
+    # read new: a value is never reused for another key).
+    $o = "func " + $n + "(r *nino.Reader, p *" + $t + ") {\n"
+    if $s.kind == "map"
+      $e = "nino.Entry[" + gotype($s.key) + ", " + gotype($s.value) + "]"
+      ret $o + read_into_loop($e, plus($s.key, $s.value), "k := " + read($s.key) + "\n\t\te = " + $e + "{Key: k, Value: " + read($s.value) + "}", false) + "}\n"
+    end
+    $each = read_into($s.element, "e")
+    ret $o + read_into_loop(gotype($s.element), $s.element.min, $each, $each != "e = " + read($s.element)) + "}\n"
+  else if h.mode == "read" && reads_into($s)
+    # The loop of the into form (a nil slice: a new one).
+    ret "func " + $n + "(r *nino.Reader) (v " + $t + ") {\n\t" + helper($s, "readinto") + "(r, &v)\n\treturn v\n}\n"
   else if h.mode == "read"
     $o = "func " + $n + "(r *nino.Reader) " + $t + " {\n"
     case $s.kind
@@ -249,6 +262,19 @@ func read_loop(t, min, each)
   ret $o + "\tfor range n {\n\t\t" + each + "\n\t\tif r.Failed() {\n\t\t\treturn nil\n\t\t}\n\t\tv = append(v, e)\n\t}\n"
 end
 
+# The loop of a sequence's readinto helper: as read_loop, into *p, whose storage is reused when it holds n elements
+# (a nil one never: nil is null) and whose element i is what `each` reads into `e`. nil for null and on a failure.
+func read_into_loop(t, min, each, reuse)
+  $o = "\tn := r.Length(" + min + ")\n\tif n < 0 {\n\t\t*p = nil\n\t\treturn\n\t}\n\told := *p\n\tv := old[:0]\n"
+  $o = $o + "\tif old == nil || cap(old) < n {\n\t\tvar z " + t + "\n\t\tv = make([]" + t + ", 0, r.SliceCap(n, int(unsafe.Sizeof(z))))\n\t}\n"
+  if reuse
+    $o = $o + "\tfor i := range n {\n\t\tvar e " + t + "\n\t\tif i < len(old) {\n\t\t\te = old[i]\n\t\t}\n"
+  else
+    $o = $o + "\tvar e " + t + "\n\tfor range n {\n"
+  end
+  ret $o + "\t\t" + each + "\n\t\tif r.Failed() {\n\t\t\t*p = nil\n\t\t\treturn\n\t\t}\n\t\tv = append(v, e)\n\t}\n\t*p = v\n"
+end
+
 # `e`, and `v`, an empty []t with the capacity Reader.SliceCap allows for n elements.
 func make_slice(t)
   ret "\tvar e " + t + "\n\tv := make([]" + t + ", 0, r.SliceCap(n, int(unsafe.Sizeof(e))))\n"
@@ -264,34 +290,56 @@ end
 # `own`, whose id is `id`), `tracked` whether the declared type tracks references: its reference header comes first,
 # then (for a new object) the type id. A tracked type in a slot that does not track has its header after its id.
 func dispatch(read, write, slot, allowed, allowed_closed, iface, tracked, own, id)
-  $o = "func " + read + "(r *nino.Reader) " + slot + " {\n"
   if tracked
+    $o = "func " + read + "(r *nino.Reader) " + slot + " {\n"
     $o = $o + "\th := r.Ref()\n\tif h == 0 {\n\t\treturn nil\n\t}\n\tif h > 0 {\n\t\treturn nino.Back[" + slot + "](r, h)\n\t}\n"
     $o = $o + "\tswitch id := r.TypeID(); id {\n"
+    for $t in allowed
+      $o = $o + "\tcase " + $t.id + ":\n"
+      if $t.kind == "raw" || $t.kind == "struct"
+        $o = $o + "\t\treturn Read" + $t.name + "(r)\n"
+      else
+        $o = $o + "\t\treturn nino.ReadTrackedNew(r, &" + lower($t.name) + "Class)\n"
+      end
+    end
+    for $k in allowed_closed
+      $o = $o + "\tcase " + $k.id + ":\n"
+      if $k.is_struct
+        $o = $o + "\t\treturn " + $k.name + ".read(r)\n"
+      else
+        $o = $o + "\t\treturn nino.ReadClass(r, &" + $k.name + ".class)\n"
+      end
+    end
+    $o = $o + "\tdefault:\n\t\tr.UnknownType(id)\n\t\treturn nil\n\t}\n}\n\n"
+    # Tracked objects are read new.
+    $o = $o + "func " + read + "Into(r *nino.Reader, v *" + slot + ") {\n\t*v = " + read + "(r)\n}\n\n"
   else
-    $o = $o + "\tswitch id := r.TypeID(); id {\n\tcase nino.NullTypeID:\n\t\treturn nil\n"
-  end
-  for $t in allowed
-    $o = $o + "\tcase " + $t.id + ":\n"
-    if $t.kind == "raw" || $t.kind == "struct"
-      $o = $o + "\t\treturn Read" + $t.name + "(r)\n"
-    else if tracked
-      $o = $o + "\t\treturn nino.ReadTrackedNew(r, &" + lower($t.name) + "Class)\n"
-    else if $t.tracked
-      $o = $o + "\t\treturn nino.ReadTrackedClass(r, &" + lower($t.name) + "Class)\n"
-    else
-      $o = $o + "\t\treturn nino.ReadClass(r, &" + lower($t.name) + "Class)\n"
+    # One switch for a new value and for one read into (DeserializeInto): the object *v holds is read into when the
+    # data holds its type, else replaced.
+    $o = "func " + read + "(r *nino.Reader) (v " + slot + ") {\n\t" + read + "Into(r, &v)\n\treturn v\n}\n\n"
+    $o = $o + "func " + read + "Into(r *nino.Reader, v *" + slot + ") {\n\tswitch id := r.TypeID(); id {\n\tcase nino.NullTypeID:\n\t\t*v = nil\n"
+    for $t in allowed
+      $o = $o + "\tcase " + $t.id + ":\n"
+      if $t.kind == "raw" || $t.kind == "struct"
+        $o = $o + "\t\t*v = Read" + $t.name + "(r)\n"
+      else if $t.tracked
+        $o = $o + "\t\t*v = nino.ReadTrackedClass(r, &" + lower($t.name) + "Class)\n"
+      else if iface
+        $o = $o + "\t\tif p, ok := (*v).(*" + $t.name + "); ok && p != nil {\n\t\t\tnino.ReadClassInto(r, p, &" + lower($t.name) + "Class)\n\t\t} else {\n\t\t\t*v = nino.ReadClass(r, &" + lower($t.name) + "Class)\n\t\t}\n"
+      else
+        $o = $o + "\t\tif *v != nil {\n\t\t\tnino.ReadClassInto(r, *v, &" + lower($t.name) + "Class)\n\t\t} else {\n\t\t\t*v = nino.ReadClass(r, &" + lower($t.name) + "Class)\n\t\t}\n"
+      end
     end
-  end
-  for $k in allowed_closed
-    $o = $o + "\tcase " + $k.id + ":\n"
-    if $k.is_struct
-      $o = $o + "\t\treturn " + $k.name + ".read(r)\n"
-    else
-      $o = $o + "\t\treturn nino.ReadClass(r, &" + $k.name + ".class)\n"
+    for $k in allowed_closed
+      $o = $o + "\tcase " + $k.id + ":\n"
+      if $k.is_struct
+        $o = $o + "\t\t*v = " + $k.name + ".read(r)\n"
+      else
+        $o = $o + "\t\t*v = nino.ReadClass(r, &" + $k.name + ".class)\n"
+      end
     end
+    $o = $o + "\tdefault:\n\t\tr.UnknownType(id)\n\t\t*v = nil\n\t}\n}\n\n"
   end
-  $o = $o + "\tdefault:\n\t\tr.UnknownType(id)\n\t\treturn nil\n\t}\n}\n\n"
   if !iface
     # A class without subtypes: a *T, nil or the class itself.
     if tracked
@@ -682,20 +730,22 @@ for c in types
   markers(c, receiver(c))
   if c.kind == "raw"
     "func Read" + c.name + "(r *nino.Reader) " + c.name + " {\n\treturn " + read(c.raw_shape) + "\n}\n\n"
+    "// Read" + c.name + "Into reads a value into *v (DeserializeInto): a raw value is read whole.\nfunc Read" + c.name + "Into(r *nino.Reader, v *" + c.name + ") {\n\t*v = Read" + c.name + "(r)\n}\n\n"
     "func Write" + c.name + "(w *nino.Writer, v " + c.name + ") {\n\t" + write(c.raw_shape, "v") + "\n}\n"
     continue
   end
   if c.kind == "struct"
     # A struct: no header, and no class body (it does not count toward the depth).
-    "func Read" + c.name + "(r *nino.Reader) (v " + c.name + ") {\n"
+    "func Read" + c.name + "(r *nino.Reader) (v " + c.name + ") {\n\tRead" + c.name + "Into(r, &v)\n\treturn v\n}\n\n"
+    "// Read" + c.name + "Into reads a value into *v, its members into what they hold (DeserializeInto).\nfunc Read" + c.name + "Into(r *nino.Reader, v *" + c.name + ") {\n"
     if c.counted
-      "\tif !r.EnterStruct() {\n\t\treturn v\n\t}\n"
+      "\tif !r.EnterStruct() {\n\t\treturn\n\t}\n"
     end
     read_members(c)
     if c.counted
       "\tr.ExitStruct()\n"
     end
-    "\treturn v\n}\n\n"
+    "}\n\n"
     "func Write" + c.name + "(w *nino.Writer, v " + c.name + ") {\n"
     if c.counted
       "\tif !w.EnterStruct() {\n\t\treturn\n\t}\n"
@@ -710,9 +760,11 @@ for c in types
   if c.kind == "class" && c.tracked
     # Its reference header, then its body for an object not written before.
     "func Read" + c.name + "(r *nino.Reader) *" + c.name + " {\n\treturn nino.ReadTracked(r, &" + lower(c.name) + "Class)\n}\n\n"
+    "// Read" + c.name + "Into reads a value into *v (DeserializeInto): a tracked object is read new.\nfunc Read" + c.name + "Into(r *nino.Reader, v **" + c.name + ") {\n\t*v = Read" + c.name + "(r)\n}\n\n"
     "func Write" + c.name + "(w *nino.Writer, v *" + c.name + ") {\n\tnino.WriteTracked(w, v, &" + lower(c.name) + "Class)\n}\n\n"
   else if c.kind == "class"
     "func Read" + c.name + "(r *nino.Reader) *" + c.name + " {\n\treturn nino.ReadSealed(r, &" + lower(c.name) + "Class)\n}\n\n"
+    "// Read" + c.name + "Into reads a value into *v, the object it points to read in place (DeserializeInto).\nfunc Read" + c.name + "Into(r *nino.Reader, v **" + c.name + ") {\n\tnino.ReadSealedInto(r, v, &" + lower(c.name) + "Class)\n}\n\n"
     "func Write" + c.name + "(w *nino.Writer, v *" + c.name + ") {\n\tnino.WriteSealed(w, v, &" + lower(c.name) + "Class)\n}\n\n"
   else
     if c.interface_slot
@@ -843,12 +895,19 @@ type NinoArg[T any] struct {
 type NinoCodec struct {
 	Read  func(*nino.Reader) any
 	Write func(*nino.Writer, any)
+	// ReadInto reads a value into v, a value of the type (DeserializeInto), and returns it.
+	ReadInto func(r *nino.Reader, v any) any
 }
 
-func codecOf[T any](read func(*nino.Reader) T, write func(*nino.Writer, T)) NinoCodec {
+func codecOf[T any](read func(*nino.Reader) T, readInto func(*nino.Reader, *T), write func(*nino.Writer, T)) NinoCodec {
 	return NinoCodec{
 		Read: func(r *nino.Reader) any {
 			return read(r)
+		},
+		ReadInto: func(r *nino.Reader, v any) any {
+			x, _ := v.(T)
+			readInto(r, &x)
+			return x
 		},
 		Write: func(w *nino.Writer, v any) {
 			x, _ := v.(T)
@@ -868,9 +927,10 @@ for c in types
   end
   "\tcase " + go_string(c.runtime_name) + ":\n"
   if c.kind == "typeid"
-    "\t\treturn codecOf(Read" + c.slot_functions + ", Write" + c.slot_functions + "), true\n"
+    "\t\treturn codecOf(Read" + c.slot_functions + ", Read" + c.slot_functions + "Into, Write" + c.slot_functions + "), true\n"
   else
-    "\t\treturn codecOf(Read" + (c.is_abstract ? c.slot_functions : c.name) + ", Write" + (c.is_abstract ? c.slot_functions : c.name) + "), true\n"
+    $f = c.is_abstract ? c.slot_functions : c.name
+    "\t\treturn codecOf(Read" + $f + ", Read" + $f + "Into, Write" + $f + "), true\n"
   end
 end
 ~}}

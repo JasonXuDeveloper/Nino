@@ -24,6 +24,22 @@ func Deserialize[T any](data []byte, read func(*Reader) T) (T, error) {
 	return v, nil
 }
 
+// DeserializeInto reads one value into *v with read, the value's generated ReadXInto function, as
+// NinoDeserializer.Deserialize(data, ref value) does in .NET: the objects *v holds are read into (their members in
+// place), slices keep their storage and read their elements into the old ones by index, a polymorphic member is read
+// into only when the data holds the type it holds, and tracked objects are read new. Bytes after the value are
+// ignored. On a failure it returns an *Error, and *v holds what was read before it, with zero values from there on
+// (the Reader's reads return zeros after the first failure), but no partial object of a different type.
+func DeserializeInto[T any](data []byte, v *T, read func(*Reader, *T)) error {
+	r := readers.Get().(*Reader)
+	r.Reset(data)
+	read(r, v)
+	err := r.Err()
+	r.Reset(nil)
+	readers.Put(r)
+	return err
+}
+
 // DeserializeExact is [Deserialize] that also fails (CodeInvalidData) when bytes follow the value.
 func DeserializeExact[T any](data []byte, read func(*Reader) T) (T, error) {
 	r := readers.Get().(*Reader)
