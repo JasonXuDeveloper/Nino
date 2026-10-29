@@ -104,7 +104,9 @@ requirements:
   of allocations (`bench`, `-benchmem`). A collection of fixed-size elements takes a block helper
   (`ReadPrimitives`, `ReadPrimitiveEntries`, `ReadPrimitiveMap`), never the generic helpers that take element
   functions: those are an indirect call per element (`(*Reader).I32` is never inlined through a func value) and a
-  bounds check per value. `ReadPrimitiveMap` read a 10-pair `map[int32]int32` 31 % faster than `ReadMap`, and
+  bounds check per value. Any other collection loop in generated code is written out with the element's call made directly
+  (nino-gen's `read_loop` / `write_loop`), never `ReadSlice`/`WriteSlice` with a func value (`optimize`, "Dispatch
+  outside .NET"). `ReadPrimitiveMap` read a 10-pair `map[int32]int32` 31 % faster than `ReadMap`, and
   SimpleClass 4-7 % faster on runners (7ac8b46). Walk a block with a cursor (`for len(b) >= wire { ...; b =
   b[wire:] }`): indexing `b[i*wire:]` kept a bounds check per pair. A runner A/B can move code you did not touch by
   layout: the first map round left the untouched tag write 1.5-7.7 % slower on x64 only; make that path faster too

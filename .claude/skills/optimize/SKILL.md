@@ -1,6 +1,6 @@
 ---
 name: optimize
-description: "Nino's optimization techniques, measured and kept - what made read and write paths faster or slower in .NET (the JIT's inlining budget, keeping the reader and writer in registers, out-of-line rare paths, static readonly checks, bounds-check elimination with a ref to the first element and Unsafe.Add, vector loops on x64 AVX-512/AVX2/SSSE3 and Arm64 tbl/ldp/stp) and the same ideas in Go, Rust and TypeScript, plus reading the machine code (asm.py, JitDisasm, check_bce). Use when writing or reviewing a hot path in any runtime, before committing a change to a read or write path, when a case got slower, or when a new trick is found (record it here). Triggers: optimize, faster, hot path, inlining, AggressiveInlining, NoInlining, bounds check, RNGCHKFAIL, Unsafe.Add, GetReference, GetArrayDataReference, check_bce, panic_bounds_check, Vector128/256/512, Avx2, AdvSimd, SIMD, tbl, shuffle, permute, spills, asm.py, JitDisasm, Tier1, 优化, 优化技巧, 性能优化, 边界检查, 机器码, 汇编, 内联, 向量化."
+description: "Nino's optimization techniques, measured and kept - what made read and write paths faster or slower in .NET (the JIT's inlining budget, keeping the reader and writer in registers, out-of-line rare paths, static readonly checks, bounds-check elimination with a ref to the first element and Unsafe.Add, vector loops on x64 AVX-512/AVX2/SSSE3 and Arm64 tbl/ldp/stp) and the same ideas in Go, Rust and TypeScript, plus reading the machine code (asm.py, JitDisasm, check_bce). Use when writing or reviewing a hot path in any runtime, before committing a change to a read or write path, when a case got slower, or when a new trick is found (record it here). Triggers: optimize, faster, hot path, inlining, AggressiveInlining, NoInlining, bounds check, RNGCHKFAIL, Unsafe.Add, GetReference, GetArrayDataReference, check_bce, panic_bounds_check, Vector128/256/512, Avx2, AdvSimd, SIMD, tbl, shuffle, permute, spills, asm.py, JitDisasm, Tier1, virtual dispatch, indirect call, func value, megamorphic, dyn Trait, 虚调用, 优化, 优化技巧, 性能优化, 边界检查, 机器码, 汇编, 内联, 向量化."
 metadata:
   internal: true
 ---
@@ -409,6 +409,30 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   list over 1 MiB (b93fe69) had the same gains but moved cached records-1000 1.5-3 % on EPYC and Neoverse-N2; gated,
   records-1000 stayed within a null change's spread measured in the same run (`benchmark`). Putting the eligible
   loop out of line at a 64-byte boundary (8dc3b04) did not help: +2.7 % on 7763 and N2.
+
+## Dispatch outside .NET
+
+- Call the element's code directly in every collection loop, never through a func value, an interface method or a
+  shared helper given a closure (the owner's rule: no virtual dispatch on a serialize or deserialize path). Go: a
+  generic helper that takes `read func(*Reader) T` is not inlined, and GC-shape stenciling would pass a dictionary
+  anyway, so each element is an indirect call the compiler can neither inline nor see through; a type parameter with
+  methods does not help either (types of one shape share the dictionary's indirect call). nino-gen's Go helpers
+  write their loops (`read_loop`, `write_loop` in `Templates/go/types.sbn`; `go tool objdump` shows `CALL ...ReadBag`
+  where it was `CALL CX`). Runners (4225c20 against main 78ceaa1, go#12, 12 rounds a job, medians of jobs against
+  main-vs-main floors within 0.98-1.02): a `string[]` read through `nino.ReadStrings` instead of `ReadSlice(r, 1,
+  (*Reader).String)` took 0.74 of the time on EPYC 7763, 0.80 on 9V74, 0.82 on Xeon 8573C, 0.86 on 8370C, 0.91 on
+  Neoverse-N2; mixed and [NinoUtf8] strings 0.95-0.97; 1M records read 0.92 on EPYC 7763; SimpleClass serialize
+  0.94-0.97 on every CPU but EPYC 7763 (1.015, n=12, where the unchanged machine code of `WriteStrings` moved 1.008
+  in the same jobs). One case moved by layout alone: 1M records serialize took 1.20 of the time on Xeon 8573C (n=4 jobs, 1.19-1.25,
+  floor 0.975-0.996), but main with only the records loop written out took 0.955 (bcbbcbe, n=1) and the change with
+  that loop put back to `WriteSlice` 1.02 (31b8e79): the cost came from the strings and SimpleClass code that case
+  never runs, so run such controls (each piece alone on main, the change without it) before blaming a loop. Rust needs nothing of the kind (generics are monomorphized; `dyn` only on the
+  deferral path past depth 128), nor does nino-gen's TypeScript (a function per collection shape, subtypes by a
+  `switch` on the id or the constructor). Still dispatched, by design or pending the owner: the Go class body
+  (`Class[T].Read`, one indirect call an object: direct calls through a `BeginBody`/`EndBody` pair read 1M records
+  in 0.93-0.95 of the time on every CPU, other cases on par, 479f92e, not landed: public API), Go
+  `ReadUnique`/`ReadUniqueEntries` (their integer-key check is internal), generic type arguments (Go `NinoArg`,
+  TypeScript codec objects) and the struct-tag path (a plan of closures by design).
 
 ## Owned elsewhere
 
