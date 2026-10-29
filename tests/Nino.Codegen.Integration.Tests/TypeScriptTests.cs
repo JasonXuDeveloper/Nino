@@ -282,9 +282,9 @@ namespace Nino.Codegen.Integration.Tests
             // A closed generic type a slot holds: a subclass the slots' writers tell apart by its constructor.
             StringAssert.Contains(types, "export class CrateInt32 extends Crate<number> {}");
             StringAssert.Contains(types, "export class BoxInt32Array extends Box<Int32Array | null> {}");
-            // An array or list of fixed-size numbers: a typed array, read and written in one block.
+            // An array or list of fixed-size numbers: a typed array, read and written in one block past 64 bytes.
             StringAssert.Contains(types, "levels: Int32Array | null = null;");
-            StringAssert.Contains(types, "r.numbers(Int32Array)");
+            StringAssert.Contains(types, "if (length > 16) return r.numbers(Int32Array, length);");
             // Enums keep their constants' type.
             StringAssert.Contains(types, "ranks: Rank[] | null = null;");
         }

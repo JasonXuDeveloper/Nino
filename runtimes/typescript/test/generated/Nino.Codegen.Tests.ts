@@ -1350,7 +1350,7 @@ const codec$8 = BoxCodec<Pair<string | null, Gappy>>(codec$7);
 const codec$9 = BagCodec<Box<bigint> | null>(codec$1);
 const codec$10 = NodeCodec<string | null>({ read: (r) => r.string(), write: (w, v) => { w.string(v); } });
 const codec$11 = BoxCodec<IThing | null>({ read: (r) => IThingCodec.read(r), write: (w, v) => { IThingCodec.write(w, v); } });
-const codec$12 = BoxCodec<Int32Array | null>({ read: (r) => r.numbers(Int32Array), write: (w, v) => { w.numbers(v); } });
+const codec$12 = BoxCodec<Int32Array | null>({ read: (r) => read$28(r), write: (w, v) => { write$29(w, v); } });
 const codec$13 = PairCodec<Box<number> | null, Map<number, string | null> | null>(codec$3, { read: (r) => read$10(r), write: (w, v) => { write$14(w, v); } });
 const codec$14 = PairCodec<number, number>({ read: (r) => r.i32(), write: (w, v) => { w.i32(v); } }, { read: (r) => r.i32(), write: (w, v) => { w.i32(v); } });
 const codec$15 = RawPairCodec<number>({ read: (r) => r.i32(), write: (w, v) => { w.i32(v); } });
@@ -1672,5 +1672,32 @@ function write$27(w: NinoWriter, values: readonly Recursive[] | null): void {
   for (let i = 0; i < values.length; i++) {
     const value = values[i];
     writeRecursive(w, value);
+  }
+}
+
+function read$28(r: NinoReader): Int32Array | null {
+  const length = r.length();
+  if (length < 0) return null;
+  if (length > 16) return r.numbers(Int32Array, length);
+  const values = new Int32Array(length);
+  for (let i = 0, at = r.take(length * 4); i < length; i++, at += 4) values[i] = r.view.getInt32(at, true);
+  return values;
+}
+
+function write$29(w: NinoWriter, values: Int32Array | null): void {
+  if (values === null || values === undefined) {
+    w.i32(-1);
+    return;
+  }
+  if (values.length > 16) {
+    w.numbers(values);
+    return;
+  }
+  w.i32(values.length);
+  let at = w.reserve(values.length * 4);
+  for (let i = 0; i < values.length; i++) {
+    const value = values[i];
+    w.view.setInt32(at, value, true);
+    at += 4;
   }
 }

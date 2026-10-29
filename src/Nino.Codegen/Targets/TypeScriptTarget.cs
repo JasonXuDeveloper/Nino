@@ -486,14 +486,17 @@ namespace Nino.Codegen.Targets
                     var element = Shape(value.Element!);
                     bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
                                CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
-                    if (!set && element.Kind == "prim" && NumberArrays.TryGetValue(element.Primitive!, out var array))
+                    string? array = null;
+                    if (!set && element.Kind == "prim" && NumberArrays.TryGetValue(element.Primitive!, out array) &&
+                        array == "Uint8Array")
+                        return new TsShape("bytes");
+                    // Other fixed-size numbers: a typed array, read and written one by one while it fits V8's heap
+                    // (64 bytes), else copied in one block.
+                    return InContext(value, Holding(new TsShape("seq")
                     {
-                        // Bytes as a Uint8Array copy; other fixed-size numbers as a typed array, copied in one block.
-                        return array == "Uint8Array"
-                            ? new TsShape("bytes")
-                            : new TsShape("numbers") { Element = element, ArrayType = array };
-                    }
-                    return InContext(value, Holding(new TsShape("seq") { Element = element, Set = set }, element));
+                        Element = element, Set = set, ArrayType = array,
+                        InlineLength = array == null ? 0 : 64 / element.Size,
+                    }, element));
                 }
                 case ValueKind.Map:
                 {
@@ -903,7 +906,7 @@ namespace Nino.Codegen.Targets
     /// <summary>
     /// How a value is written in TypeScript (<see cref="Kind"/>: <c>prim</c>, <c>enum</c>, <c>rawstruct</c>,
     /// <c>rawnullable</c>, <c>fixedtuple</c>, <c>tuple</c>, <c>string</c>, <c>utf8</c>, <c>object</c>,
-    /// <c>nullable</c>, <c>bytes</c>, <c>numbers</c>: a typed array, <c>seq</c>, <c>map</c>, <c>type</c>, <c>param</c>: a type parameter,
+    /// <c>nullable</c>, <c>bytes</c>, <c>seq</c>, <c>map</c>, <c>type</c>, <c>param</c>: a type parameter,
     /// <c>generic</c>: a generic type with its arguments in <see cref="Items"/>): the template turns it into a type, a
     /// default, and code reading and writing it, alone or at an offset.
     /// </summary>
@@ -959,8 +962,14 @@ namespace Nino.Codegen.Targets
         /// <summary>A set (<c>Set</c>) rather than an array.</summary>
         public bool Set { get; internal set; }
 
-        /// <summary>The typed array of <c>numbers</c> (<c>Int32Array</c>...).</summary>
+        /// <summary>The typed array a sequence of fixed-size numbers is (<c>Int32Array</c>...), else null.</summary>
         public string? ArrayType { get; internal set; }
+
+        /// <summary>
+        /// The most elements of a typed array read and written one by one (those that fit in 64 bytes, which V8
+        /// keeps on its heap); longer ones are copied in one block (<c>NinoReader.numbers</c>, <c>NinoWriter.numbers</c>).
+        /// </summary>
+        public int InlineLength { get; internal set; }
 
         public TsShape? Key { get; internal set; }
 
@@ -1000,6 +1009,7 @@ namespace Nino.Codegen.Targets
             yield return Type?.FullName ?? "";
             yield return Header ?? "";
             yield return Set ? "set" : "";
+            yield return ArrayType ?? "";
             yield return FlagOffset + "/" + ValueOffset;
             yield return string.Join("/", Offsets);
             foreach (var child in new[] { Inner, Element, Key, Value }.Concat(Items))
