@@ -132,7 +132,7 @@ let numbersPos = numbersSlab;
 
 /** A new typed array of `length` elements (`bytes` in all) to read into: in the shared buffer when it is small. */
 function newNumbers<T extends NinoNumbers>(type: NinoNumbersType<T>, length: number, bytes: number): T {
-  if (bytes <= 64 || bytes > numbersPooled) return new type(length);
+  if (bytes >= 0) return new type(length);
   let at = numbersPos;
   if (bytes > numbersSlab - at) {
     numbersBuffer = new ArrayBuffer(numbersSlab);
