@@ -28,7 +28,11 @@ Every number that counts comes from a GitHub runner. Local runs only choose betw
 In the Unity player, time small cases without allocation: `NinoSerializer.Serialize` to a new array made the
 6000.3 player's string rows bimodal (the same case 1.0x or 1.3x from run to run); `SerializeTo` a reused
 `NinoArrayBufferWriter`, `GC.Collect` before each sample group and groups in the order A B B A, keeping the lower of
-each pair, kept most rows within 10 % between the two runs of a group (unity.yml run 40735278928). A WebGL player times in a coroutine (`platforms`).
+each pair, kept most rows within 10 % between the two runs of a group (unity.yml run 40735278928). A WebGL player times in a coroutine (`platforms`). Compare two
+commits in Unity only within one CPU: each unity.yml job takes whatever runner it gets (`ProcessorType` in the
+player's `results.xml`), and of two base/head pairs (runs 40818519412, 40822269653, 40838031821) none put the same
+Unity version on the same CPU (AMD EPYC 7763, 9V74, 9V45), with untouched cases 13 to 34 % apart between them. Judge a
+Unity change by the with/without ratio inside one run, or put both variants in one player.
 
 Both .NET modes run v3 3.3.13 (NuGet, `NINO_BENCH_V3=true`) once, directly before v4, on the same machine; MemoryPack
 runs in both, so its two results show how much the machine moved. Heavy runs go through

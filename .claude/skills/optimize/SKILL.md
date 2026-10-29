@@ -163,10 +163,22 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
 
 ## Unity kernels and IL2CPP
 
-- Call Burst kernels through `delegate* unmanaged[Cdecl]` from `FunctionPointer<T>.Value`, with `.Invoke` delegates as
-  the fallback where the pointer call fails (`NinoBurst.PointersWork`): per call 0.3 to 0.6 ns faster (Narrow16 5.99
-  against 6.29 ns, Widen16 4.12 against 4.73, Permute1 16.2 against 17.2 on 2022.3; the same on 6000.3, unity.yml run
-  40717516438), on par in whole Serialize and Deserialize calls.
+- Hold native kernels as function pointers in static fields, never behind a virtual base: `NinoKernels` is a table of
+  `delegate* unmanaged[Cdecl]` that `Register` copies into `NinoKernelHook`'s static fields, a missing pointer leaves
+  its threshold at `int.MaxValue`, so a call site is one static load, a compare and a `calli` (IL2CPP: a C function
+  pointer call), with no object, null check or vtable slot. The abstract class it replaced cost, in IL2CPP's C++ of
+  `NarrowWords`, a load of the registered object, a `NullCheck` and `VirtualFuncInvoker3<...>::Invoke(7, ...)` into
+  a `PointerKernels_Narrow` that then called the pointer (unity.yml run 40818519412, artifact `il2cpp-cpp-*`).
+  Burst gives the pointers (`FunctionPointer<T>.Value`); per call they were 0.3 to 0.6 ns faster than `.Invoke`
+  delegates (Narrow16 5.99 against 6.29 ns, Permute1 16.2 against 17.2 on 2022.3, run 40717516438), and the delegate
+  fallback is gone: a table only `calli` can call holds nothing else. With the table registered, cases under every
+  threshold were on par with no kernels (Latin-1 8 chars, one tuple, 15-char `[NinoUtf8]` text: within 2 %, IL2CPP
+  x64, unity.yml run 40822269653).
+- Put every `calli` in its own `NoInlining` helper (`NinoKernelHook.TryNarrow`, `NarrowAsciiPrefix`, ...) and keep the
+  threshold compare in the caller: classic Mono never inlines a method that contains a `calli`, so a pointer call
+  written into `NinoStrings.NarrowWords` stopped it inlining into `WriteLong` and every Latin-1 write paid a call with
+  no kernel registered (Mono 6.8 local, 1000 chars 469 against 564 ns; on par once the call moved out, the listing of
+  `WriteLong` showing `NarrowWords` inlined again with `MONO_VERBOSE_METHOD`).
 - Set each kernel threshold from a sweep that forces the kernels from 1 value or 16 chars, per call site, with
   allocation kept out (`SerializeTo` into a reused writer, `GC.Collect` before each group, groups A B B A, the lower of
   each pair: `benchmark`). The sweep of unity.yml run 40735278928 (IL2CPP x64 players, 2022.3 and 6000.3): blocks of
