@@ -1,7 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System;
 using System.Runtime.CompilerServices;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
 {
@@ -30,6 +32,68 @@ namespace Nino.Core.Internal
             public TKey Key;
             public TValue Value;
 #pragma warning restore CS0649
+        }
+
+        /// <summary>
+        /// The raw value of a <see cref="SetEntry{T}"/> as a block (<see cref="INinoBlockFormatter{T}"/>), so that a
+        /// set's entries are written by <see cref="NinoBlock.WriteAll{T, TFormatter}"/>: several entries at a time,
+        /// their values packed out of the strided entries by vector permutes (or the registered kernels in the
+        /// netstandard builds), one at a time where there are none or the value has padding. Writes only.
+        /// </summary>
+        internal struct SetEntryBlock<T> : INinoFormatter<SetEntry<T>>, INinoBlockFormatter<SetEntry<T>>
+        {
+            public int BlockSize => Unsafe.SizeOf<T>();
+
+            public NinoBlockMap BlockMap()
+            {
+                var entry = default(SetEntry<T>);
+                return new NinoBlockMap().Raw<T>(NinoBlocks.Offset(ref entry, ref entry.Value), 0);
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void WriteBlock(ref byte destination, in SetEntry<T> value)
+            {
+                NinoUnsafe.Write(ref destination, value.Value);
+                NinoLayout<T>.ClearPadding(ref destination);
+            }
+
+            public void ReadBlock(ref byte source, ref SetEntry<T> value) => throw new NotSupportedException();
+            public void Serialize(SetEntry<T> value, ref Writer writer) => throw new NotSupportedException();
+            public void Deserialize(ref SetEntry<T> value, ref Reader reader) => throw new NotSupportedException();
+        }
+
+        /// <summary>
+        /// The raw key and value of a <see cref="MapEntry{TKey,TValue}"/> as one block, as
+        /// <see cref="SetEntryBlock{T}"/> for a set's entries.
+        /// </summary>
+        internal struct MapEntryBlock<TKey, TValue> : INinoFormatter<MapEntry<TKey, TValue>>,
+            INinoBlockFormatter<MapEntry<TKey, TValue>>
+        {
+            public int BlockSize => Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>();
+
+            public NinoBlockMap BlockMap()
+            {
+                var entry = default(MapEntry<TKey, TValue>);
+                return new NinoBlockMap().Raw<TKey>(NinoBlocks.Offset(ref entry, ref entry.Key), 0)
+                    .Raw<TValue>(NinoBlocks.Offset(ref entry, ref entry.Value), Unsafe.SizeOf<TKey>());
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void WriteBlock(ref byte destination, in MapEntry<TKey, TValue> value)
+            {
+                NinoUnsafe.Write(ref destination, 0, value.Key);
+                NinoUnsafe.Write(ref destination, Unsafe.SizeOf<TKey>(), value.Value);
+                NinoLayout<TKey>.ClearPadding(ref destination);
+                NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref destination, Unsafe.SizeOf<TKey>()));
+            }
+
+            public void ReadBlock(ref byte source, ref MapEntry<TKey, TValue> value) =>
+                throw new NotSupportedException();
+
+            public void Serialize(MapEntry<TKey, TValue> value, ref Writer writer) => throw new NotSupportedException();
+
+            public void Deserialize(ref MapEntry<TKey, TValue> value, ref Reader reader) =>
+                throw new NotSupportedException();
         }
 
         /// <summary>

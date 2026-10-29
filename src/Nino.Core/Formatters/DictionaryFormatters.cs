@@ -108,19 +108,10 @@ namespace Nino.Core
                 return;
             }
 
-            if (count == 0)
-                return;
-            ref var entry = ref entries[0];
-            int left = count;
-            do
-            {
-                NinoUnsafe.Write(ref pairs, 0, entry.Key);
-                NinoUnsafe.Write(ref pairs, keySize, entry.Value);
-                NinoLayout<TKey>.ClearPadding(ref pairs);
-                NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref pairs, keySize));
-                entry = ref Unsafe.Add(ref entry, 1);
-                pairs = ref Unsafe.Add(ref pairs, pairSize);
-            } while (--left != 0);
+            // Several entries at a time where the CPU permutes vectors, each key and value packed out of its entry.
+            if (count != 0)
+                NinoBlock.WriteAll<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryBlock<TKey, TValue>>(
+                    ref pairs, ref entries[0], count, pairSize);
         }
 
         /// <summary>The <paramref name="count"/> raw pairs of a dictionary with free entries, in enumeration order.</summary>

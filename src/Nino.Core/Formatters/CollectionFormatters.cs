@@ -76,22 +76,11 @@ namespace Nino.Core
                 // state does not take registers or inlining budget here.
                 var entries = CollectionViews.HashSet ? CollectionFields.Entries(value, count) : null;
                 if (entries != null && count != 0 && count <= entries.Length)
-                {
-                    // Cursors rather than an int index, which every load and store would scale and sign-extend.
-                    ref var entry = ref entries[0];
-                    ref byte at = ref elements;
-                    int left = count;
-                    do
-                    {
-                        NinoUnsafe.Write(ref at, entry.Value);
-                        entry = ref Unsafe.Add(ref entry, 1);
-                        at = ref Unsafe.Add(ref at, size);
-                    } while (--left != 0);
-                }
+                    // Several entries at a time where the CPU permutes vectors, each value packed out of its entry.
+                    NinoBlock.WriteAll<CollectionFields.SetEntry<T>, CollectionFields.SetEntryBlock<T>>(ref elements,
+                        ref entries[0], count, size);
                 else if (count != 0)
                     WriteEnumerated(value, ref elements, count);
-
-                NinoLayout<T>.ClearPadding(ref elements, count);
                 return;
             }
 
@@ -112,10 +101,11 @@ namespace Nino.Core
 
         /// <summary>The <paramref name="count"/> raw elements of a set with free entries, in enumeration order.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteEnumerated(TSet value, ref byte next, int count)
+        private static void WriteEnumerated(TSet value, ref byte elements, int count)
         {
             int size = Unsafe.SizeOf<T>();
             int written = 0;
+            ref byte next = ref elements;
             foreach (var item in value)
             {
                 if (++written > count)
@@ -123,6 +113,8 @@ namespace Nino.Core
                 NinoUnsafe.Write(ref next, item);
                 next = ref Unsafe.Add(ref next, size);
             }
+
+            NinoLayout<T>.ClearPadding(ref elements, count);
         }
 
         /// <summary>
