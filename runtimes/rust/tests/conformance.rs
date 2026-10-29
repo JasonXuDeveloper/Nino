@@ -76,14 +76,31 @@ fn allowance(size: usize) -> usize {
 
 // ---------------------------------------------------------------------------------------------- visitors
 
-struct Valid<'a>(&'a [u8]);
+/// A valid case's bytes, and the bytes of a case of the same type to read them into (`deserialize_into`): the
+/// value read into must equal the value read fresh.
+struct Valid<'a> {
+    bytes: &'a [u8],
+    target: &'a [u8],
+}
 
-impl Visit<Result<(Value, Vec<u8>), nino::Error>> for Valid<'_> {
-    fn visit<T: NinoRead + NinoWrite + J + 'static>(self) -> Result<(Value, Vec<u8>), nino::Error> {
-        let value: T = nino::deserialize_exact(self.0)?;
+impl Visit<Result<(Value, Vec<u8>, Value), nino::Error>> for Valid<'_> {
+    fn visit<T: NinoRead + NinoWrite + J + 'static>(self) -> Result<(Value, Vec<u8>, Value), nino::Error> {
+        let value: T = nino::deserialize_exact(self.bytes)?;
         let json = value.j();
         let bytes = nino::serialize(&value)?;
-        Ok((json, bytes))
+        let mut target: T = nino::deserialize_exact(self.target)?;
+        into_exact(self.bytes, &mut target)?;
+        Ok((json, bytes, target.j()))
+    }
+}
+
+/// [`nino::deserialize_into`], failing when bytes are left after the value (as `deserialize_exact`).
+fn into_exact<T: NinoRead>(data: &[u8], value: &mut T) -> Result<(), nino::Error> {
+    let mut r = nino::Reader::new(data);
+    value.read_into(&mut r)?;
+    match r.remaining() {
+        0 => Ok(()),
+        n => Err(nino::Error::new(nino::ErrorKind::TrailingData, n as i32)),
     }
 }
 
@@ -93,6 +110,29 @@ impl Visit<Result<(), nino::Error>> for Decode<'_> {
     fn visit<T: NinoRead + NinoWrite + J + 'static>(self) -> Result<(), nino::Error> {
         nino::deserialize_exact::<T>(self.0).map(drop)
     }
+}
+
+/// Hostile bytes read into the value of `target` (bytes of the same type), which must then still be a value that
+/// can be written. `None` when `target` is not valid itself (a fuzz seed from the malicious cases).
+struct DecodeInto<'a> {
+    bytes: &'a [u8],
+    target: &'a [u8],
+}
+
+impl Visit<Option<Result<(), nino::Error>>> for DecodeInto<'_> {
+    fn visit<T: NinoRead + NinoWrite + J + 'static>(self) -> Option<Result<(), nino::Error>> {
+        let mut value: T = nino::deserialize_exact(self.target).ok()?;
+        let into = into_exact(self.bytes, &mut value);
+        let _ = nino::serialize(&value);
+        Some(into)
+    }
+}
+
+/// Reads hostile bytes into the value of a valid case: it must fail where a fresh read fails, and accept where it
+/// accepts.
+fn check_into(ty: &str, bytes: &[u8], target: &[u8], fresh_ok: bool) -> Option<String> {
+    let into = types::with_type(ty, DecodeInto { bytes, target })??;
+    (into.is_ok() != fresh_ok).then(|| format!("read into a valid value: {into:?}, read fresh: ok={fresh_ok}"))
 }
 
 // ---------------------------------------------------------------------------------------------- the corpus
@@ -156,7 +196,8 @@ fn run() {
     let mut failures = Vec::new();
     let (mut passed, mut skipped) = (0, Vec::new());
 
-    // Valid: read, compare, write back.
+    // Valid: read, compare, write back; read into the value of the type's previous case.
+    let mut targets: std::collections::HashMap<String, Vec<u8>> = std::collections::HashMap::new();
     for name in index["valid"].as_array().unwrap() {
         let name = name.as_str().unwrap();
         let case = read_json(&dir.join(format!("valid/{name}.json")));
@@ -170,17 +211,23 @@ fn run() {
             skipped.push(format!("{name} (in tests/generated.rs)"));
             continue;
         }
-        let Some(result) = types::with_type(ty, Valid(&bytes)) else {
+        let target = targets.get(ty).cloned().unwrap_or_else(|| bytes.clone());
+        let Some(result) = types::with_type(ty, Valid { bytes: &bytes, target: &target }) else {
             failures.push(format!("{name}: no codec for {ty}"));
             continue;
         };
         match result {
             Err(e) => failures.push(format!("{name}: read failed: {e:?}")),
-            Ok((json, written)) => {
+            Ok((json, written, into)) => {
                 if let Some(d) = diff("$", &json, &case["value"]) {
                     failures.push(format!("{name}: {d}"));
                     continue;
                 }
+                if let Some(d) = diff("$", &into, &case["value"]) {
+                    failures.push(format!("{name}: read into the previous {ty}: {d}"));
+                    continue;
+                }
+                targets.insert(ty.to_string(), bytes.clone());
                 let expected =
                     if case["roundTrip"] == true { bytes.clone() } else { unhex(case["reencoded"].as_str().unwrap()) };
                 if written != expected {
@@ -229,6 +276,10 @@ fn run() {
             failures.push(format!("{name}: allocated {peak} bytes for {} bytes of input", bytes.len()));
             continue;
         }
+        if let Some(e) = targets.get(ty).and_then(|t| check_into(ty, &bytes, t, result.is_ok())) {
+            failures.push(format!("{name}: {e}"));
+            continue;
+        }
         passed += 1;
     }
 
@@ -263,7 +314,13 @@ fn run() {
                     failures.push(format!("{name}: prefix of {n} bytes allocated {peak} bytes"));
                     break;
                 }
-                Some(Err(_)) => prefixes += 1,
+                Some(Err(_)) => {
+                    if let Some(e) = check_into(ty, prefix, &bytes, false) {
+                        failures.push(format!("{name}: prefix of {n} bytes: {e}"));
+                        break;
+                    }
+                    prefixes += 1;
+                }
             }
         }
     }
@@ -390,15 +447,21 @@ fn fuzz() {
             for _ in 0..1 + rng.below(4) {
                 mutate(&mut rng, &mut data);
             }
-            let outcome = std::panic::catch_unwind(|| measured(|| types::with_type(ty, Decode(&data))));
+            let outcome = std::panic::catch_unwind(|| {
+                let (result, peak) = measured(|| types::with_type(ty, Decode(&data)));
+                // Read into the seed's value too: the same verdict, no panic.
+                let into = result.as_ref().and_then(|r| check_into(ty, &data, seed, r.is_ok()));
+                (result, peak, into)
+            });
             match outcome {
                 Err(_) => {
                     failures.push(format!("{name} iteration {iteration}: panicked on {}", hex(&data)));
                 }
-                Ok((_, peak)) if peak > allowance(data.len()) => {
+                Ok((_, _, Some(e))) => failures.push(format!("{name} iteration {iteration}: {e} on {}", hex(&data))),
+                Ok((_, peak, None)) if peak > allowance(data.len()) => {
                     failures.push(format!("{name} iteration {iteration}: allocated {peak} bytes for {}", data.len()));
                 }
-                Ok((Some(Ok(())), _)) => accepted += 1,
+                Ok((Some(Ok(())), _, None)) => accepted += 1,
                 Ok(_) => rejected += 1,
             }
             if failures.len() > 20 {

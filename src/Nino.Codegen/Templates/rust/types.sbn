@@ -110,12 +110,13 @@ func fixed_size(t, trait)
   ret "    const FIXED_SIZE: usize = nino::fixed_size(&[" + (array.join $sizes ", ") + "]);"
 end
 
-# Reading a member into `self`: through read_in when a class body inside may be deferred.
+# Reading a member into its current value in `self` (NinoRead::read_into): through read_into_in when a class body
+# inside may be deferred.
 func read(m)
   if m.shape.may_defer
-    ret "r.read_in(nino::field!(Self, " + m.name + "))?"
+    ret "r.read_into_in(&mut self." + m.name + ", nino::field!(Self, " + m.name + "))?"
   end
-  ret "r.read()?"
+  ret "r.read_into(&mut self." + m.name + ")?"
 end
 
 # A variant of a slot's enum: a tracked class is shared, any other type boxed.
@@ -129,7 +130,7 @@ end
 # The statement reading a [NinoType] collection's elements: never null (the collection is the object itself).
 func read_elements(t)
   if t.elements_member
-    ret "        self." + t.elements_member.name + " = " + read(t.elements_member) + ";\n"
+    ret "        " + read(t.elements_member) + ";\n"
   end
   ret ""
 end
@@ -372,7 +373,7 @@ impl{{ t.impl_generics }} NinoReadBody for {{ t.name }}{{ t.generics }} {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
 {{~ if t.format == "positional" ~}}
 {{ read_elements(t) }}{{~ for m in t.members ~}}
-        self.{{ m.name }} = {{ read(m) }};
+        {{ read(m) }};
 {{~ end ~}}
 {{~ if t.members.size == 0 && !t.elements_member ~}}
         let _ = r;
@@ -381,7 +382,7 @@ impl{{ t.impl_generics }} NinoReadBody for {{ t.name }}{{ t.generics }} {
 {{ read_elements(t) }}        let body = r.begin_region()?;
 {{~ for m in t.members ~}}
         if r.has_more() {
-            self.{{ m.name }} = {{ read(m) }};
+            {{ read(m) }};
         }
 {{~ end ~}}
         r.end_region(body, self)?;
@@ -392,7 +393,7 @@ impl{{ t.impl_generics }} NinoReadBody for {{ t.name }}{{ t.generics }} {
             let member = r.begin_region()?;
             match key as u32 {
 {{~ for m in t.members ~}}
-                {{ m.keys }} => self.{{ m.name }} = {{ read(m) }},
+                {{ m.keys }} => {{ read(m) }},
 {{~ end ~}}
                 _ => {
                     r.end_region(member, self)?;
@@ -461,16 +462,20 @@ impl{{ t.impl_generics }} NinoRead for {{ t.name }}{{ t.generics }} {
 {{~ end ~}}
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
         let mut v = Self::default();
+        v.read_into(r)?;
+        Ok(v)
+    }
+
+    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
 {{~ if t.counted ~}}
         // It can hold itself through no class body: each level counts toward the depth limit.
         r.enter_struct()?;
-        let body = v.read_body(r);
+        let body = self.read_body(r);
         r.exit_struct();
-        body?;
+        body
 {{~ else ~}}
-        v.read_body(r)?;
+        self.read_body(r)
 {{~ end ~}}
-        Ok(v)
     }
 }
 
@@ -508,6 +513,18 @@ impl{{ t.impl_generics }} NinoRead for {{ t.name }}{{ t.generics }} {
 
     fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -563,18 +580,27 @@ impl NinoRead for {{ x.name }} {
     }
 
     fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    // The object the slot holds is read into when the data holds its type (and it is not tracked), else replaced.
+    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
 {{~ if x.tracked ~}}
         // Its reference header first: an object read before, by number, of a type the slot allows.
         let header = r.ref_header()?;
         if header == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
         if header > 0 {
             let any = r.back_ref(header)?;
 {{~ for a in x.allowed ~}}
 {{~ if a.shared ~}}
             if let Some(v) = nino::Shared::<{{ variant_type(a) }}>::downcast(&any) {
-                return Ok(Some(Self::{{ a.name }}(v)));
+                *slot = Some(Self::{{ a.name }}(v));
+                return Ok(());
             }
 {{~ end ~}}
 {{~ end ~}}
@@ -584,26 +610,56 @@ impl NinoRead for {{ x.name }} {
 {{~ else ~}}
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
 {{~ end ~}}
         let mark = r.mark();
-        let value = match id {
+{{~ reusable = false ~}}
+{{~ for a in x.allowed ~}}
+{{~ if a.is_value_type || !a.shared ~}}
+{{~ reusable = true ~}}
+{{~ end ~}}
+{{~ end ~}}
+{{~ if reusable ~}}
+        let reused = match slot {
 {{~ for a in x.allowed ~}}
 {{~ if a.is_value_type ~}}
-            {{ a.id }} => Self::{{ a.name }}(Box::new(r.read()?)),
-{{~ else if a.shared && x.tracked ~}}
-            {{ a.id }} => Self::{{ a.name }}(r.read_shared_new()?),
-{{~ else if a.shared ~}}
-            {{ a.id }} => Self::{{ a.name }}(r.read_shared_after_id()?),
-{{~ else ~}}
-            {{ a.id }} => Self::{{ a.name }}(Box::new(r.read_class()?)),
+            Some(Self::{{ a.name }}(v)) if id == {{ a.id }} => {
+                r.read_into(&mut **v)?;
+                true
+            }
+{{~ else if !a.shared ~}}
+            Some(Self::{{ a.name }}(v)) if id == {{ a.id }} => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
 {{~ end ~}}
 {{~ end ~}}
-            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+            _ => false,
         };
+{{~ else ~}}
+        // Tracked objects are shared: each slot gets the one the data names.
+        let reused = false;
+{{~ end ~}}
+        if !reused {
+            *slot = Some(match id {
+{{~ for a in x.allowed ~}}
+{{~ if a.is_value_type ~}}
+                {{ a.id }} => Self::{{ a.name }}(Box::new(r.read()?)),
+{{~ else if a.shared && x.tracked ~}}
+                {{ a.id }} => Self::{{ a.name }}(r.read_shared_new()?),
+{{~ else if a.shared ~}}
+                {{ a.id }} => Self::{{ a.name }}(r.read_shared_after_id()?),
+{{~ else ~}}
+                {{ a.id }} => Self::{{ a.name }}(Box::new(r.read_class()?)),
+{{~ end ~}}
+{{~ end ~}}
+                _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+            });
+        }
         r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<{{ x.name }}>()?.body())));
-        Ok(Some(value))
+        Ok(())
     }
 }
 
