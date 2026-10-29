@@ -63,7 +63,7 @@ internal static class DispatchEmitter
                 string name = $"__NinoDispatch{closedCount++}";
                 classes.Add(name);
                 w.Open($"static class {name}");
-                EmitBase(w, c, Subtypes(subtypesOf, c, 0));
+                EmitBase(w, c, Subtypes(subtypesOf, c, 0), closedGeneric: true);
                 w.Close();
                 w.Line();
             }
@@ -126,7 +126,7 @@ internal static class DispatchEmitter
     }
 
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
-    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry> subtypes)
+    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry> subtypes, bool closedGeneric = false)
     {
         w.Block($"internal static void __WriteSubtype({t} value, ref {Core}Writer writer)", () =>
         {
@@ -140,6 +140,12 @@ internal static class DispatchEmitter
             w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.Serialize(value, ref writer);");
         });
         w.Line();
+        // A closed generic base's switch out of line: the generic formatter selects it by comparing types, a lookup in
+        // its generic context where a type argument is a class, and the JIT inlined the switch next to those lookups
+        // in that shared code once the formatter took its arguments' formatters (Deserialize of a box of (class, int)
+        // 237 to 559 bytes, 3.6% slower on Xeon 8573C); where the arguments are value types it is a tail call either way.
+        if (closedGeneric)
+            w.Line(GeneratedCode.NoInline);
         w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref {Core}Reader reader)", () =>
         {
             if (subtypes.Count != 0)
