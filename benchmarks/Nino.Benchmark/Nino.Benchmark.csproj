@@ -7,6 +7,8 @@
         <Nullable>enable</Nullable>
         <Optimize>true</Optimize>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <!-- A/B only: the intercepted calls of long collections prefetch. -->
+        <NinoPrefetchLargeCollections>true</NinoPrefetchLargeCollections>
         <!-- -p:NinoBenchLegacy=true leaves out the benchmarks an older release's generator cannot compile (A/B runs). -->
         <DefineConstants Condition="'$(NinoBenchLegacy)' == 'true'">$(DefineConstants);NINO_BENCH_LEGACY</DefineConstants>
     </PropertyGroup>
