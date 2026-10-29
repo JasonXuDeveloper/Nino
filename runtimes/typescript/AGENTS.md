@@ -26,6 +26,7 @@ test/
   nesting.test.ts            deferral past 128 bodies, the 512 limit, cycles
   malicious.test.ts          truncations, forged lengths, bad presence bytes, unknown ids, fast-check mutations
   wasm.test.ts               the kernels against the JavaScript paths; text.wat matches what nino.ts embeds
+  into.test.ts               deserializeInto: objects read in place, arrays, maps, polymorphic members, failed reads
   corpus.test.ts             the conformance corpus (conformance/corpus or NINO_CORPUS) over generated/Nino.Conformance.ts
   codecs.ts                  codecs written as nino-gen generates them, for the runtime's tests
   runtime.ts                 --import hook: NINO_TEST_RUNTIME=browser (no Buffer), NINO_WASM=0 (no kernels)

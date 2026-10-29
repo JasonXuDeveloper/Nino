@@ -873,7 +873,8 @@ namespace Nino.Codegen.Targets
                     break;
             }
 
-            helper = new TsHelper((mode == "read" ? "read$" : "write$") + _helpers.Count, mode, shape);
+            helper = new TsHelper((mode == "read" ? "read$" : mode == "readinto" ? "readInto$" : "write$") + _helpers.Count, mode,
+                shape);
             if (shape.Context is { } context)
             {
                 // The code of a value holding a type parameter takes the codecs of the type's arguments.
