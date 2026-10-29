@@ -380,6 +380,21 @@ fn serialize_into_appends_and_restores() {
     std::mem::forget(too_deep);
 }
 
+#[test]
+fn serialize_into_reuses_the_vec() {
+    let value: Vec<String> = (0..100).map(|i| format!("value {i}")).collect();
+    let expected = serialize(&value).unwrap();
+    let mut out = Vec::new();
+    serialize_into(&value, &mut out).unwrap();
+    let memory = out.as_ptr();
+    for _ in 0..10 {
+        out.clear();
+        serialize_into(&value, &mut out).unwrap();
+        assert_eq!(out, expected);
+        assert_eq!(out.as_ptr(), memory);
+    }
+}
+
 /// A non-deferrable recursive class, to make writing fail.
 #[derive(Default, Debug)]
 struct Deep {

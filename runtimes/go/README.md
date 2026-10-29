@@ -50,9 +50,14 @@ Then:
 ```go
 data, err := nino.Serialize(p, WritePoint)        // a new slice
 buf, err = nino.Append(buf[:0], p, WritePoint)     // no allocation when buf has room
+w.Reset(); WritePoint(w, p); out := w.Bytes()      // a reused *nino.Writer: no allocation once it is large enough
 p, err := nino.Deserialize(data, ReadPoint)        // bytes after the value are ignored, as in .NET
 p, err := nino.DeserializeExact(data, ReadPoint)   // ... or rejected
 ```
+
+`Append` and a reused `Writer` are what `NinoSerializer.Serialize(value, bufferWriter)` and
+`NinoArrayBufferWriter` are in .NET: memory the caller owns, reused across values. A `Writer` keeps its buffer, its
+error and its reference numbers until `Reset`, so reset it between values; check `w.Err()` before using the bytes.
 
 ### The API in brief
 
