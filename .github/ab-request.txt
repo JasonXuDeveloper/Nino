@@ -1002,3 +1002,19 @@ go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 1
 go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 2
 go a309ab3 b3459bf .*/.*/Nino # blocks bench module 1
 go a309ab3 a309ab3 .*/.*/Nino # blocks bench module floor 1
+# Rust plain structs of fixed-size members as blocks (4a59096) against 6af5111: blocks bench, and compare for the tuple/bool helpers
+rust:blocks 6af5111 4a59096 # rsblk 1
+rust:blocks 6af5111 4a59096 # rsblk 2
+rust:blocks 6af5111 4a59096 # rsblk 3
+rust:blocks 6af5111 4a59096 # rsblk 4
+rust:blocks 6af5111 4a59096 # rsblk 5
+rust:blocks 6af5111 4a59096 # rsblk 6
+rust:blocks 6af5111 6af5111 # rsblk floor 1
+rust:blocks 6af5111 6af5111 # rsblk floor 2
+rust:blocks 6af5111 6af5111 # rsblk floor 3
+rust:blocks 6af5111 6af5111 # rsblk floor 4
+rust 6af5111 4a59096 # rsblk compare 1
+rust 6af5111 4a59096 # rsblk compare 2
+rust 6af5111 4a59096 # rsblk compare 3
+rust 6af5111 6af5111 # rsblk compare floor 1
+rust 6af5111 6af5111 # rsblk compare floor 2
