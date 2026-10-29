@@ -413,6 +413,36 @@ fn generic_shapes_round_trip() {
     assert_eq!(back.as_deref(), Some(&uses));
 }
 
+/// Lists of a generated struct of fixed-size members: one block, the bytes each element writes on its own, and a bad
+/// `bool` or a truncation inside any element rejected.
+#[test]
+fn fixed_size_shapes_as_blocks() {
+    use shapes::{Pair, RawPair};
+    assert_eq!(<Pair<i64, bool> as NinoRead>::FIXED_SIZE, 9);
+    assert_eq!(<RawPair<i32> as NinoWrite>::FIXED_SIZE, 8);
+    assert_eq!(<Pair<i32, Option<String>> as NinoRead>::FIXED_SIZE, 0);
+    let list: Vec<Pair<i64, bool>> = (0..40).map(|i| Pair { key: i * -977, value: i % 3 == 0 }).collect();
+    let bytes = nino::serialize(&list).unwrap();
+    let mut each = 40i32.to_le_bytes().to_vec();
+    for v in &list {
+        each.extend(nino::serialize(v).unwrap());
+    }
+    assert_eq!(bytes, each);
+    assert_eq!(nino::deserialize_exact::<Vec<Pair<i64, bool>>>(&bytes).unwrap(), list);
+    for cut in 0..bytes.len() {
+        assert!(nino::deserialize::<Vec<Pair<i64, bool>>>(&bytes[..cut]).is_err(), "cut at {cut}");
+    }
+    for at in [4 + 8, 4 + 9 * 39 + 8] {
+        let mut bad = bytes.clone();
+        bad[at] = 2;
+        assert_eq!(nino::deserialize::<Vec<Pair<i64, bool>>>(&bad).unwrap_err().kind(), nino::ErrorKind::InvalidBool);
+    }
+    let raw: Vec<RawPair<i32>> = (0..17).map(|i| RawPair { a: i, b: -i }).collect();
+    let bytes = nino::serialize(&raw).unwrap();
+    assert_eq!(bytes.len(), 4 + 8 * 17);
+    assert_eq!(nino::deserialize_exact::<Vec<RawPair<i32>>>(&bytes).unwrap(), raw);
+}
+
 #[test]
 fn generated_fuzz() {
     on_large_stack(fuzz);

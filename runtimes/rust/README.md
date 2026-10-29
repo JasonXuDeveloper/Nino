@@ -25,6 +25,7 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 | `NinoRead`, `NinoWrite` | A type's whole encoding. Implemented here for the types in the table below, and by generated or derived code for each `[NinoType]`. |
 | `NinoReadBody`, `NinoWriteBody` | A class's body, behind its presence byte or type id. They carry `TYPE_ID` (0 when it has none) and `DEFERRABLE` (whether .NET may defer it, spec §10.5). |
 | `Reader`, `Writer` | What the codecs call: primitives, lengths, the three string encodings, classes (`read_sealed`, `read_sealed_boxed`, `read_class`, `write_sealed`, `write_class`), structs (`enter_struct`/`exit_struct`), version-tolerant and keyed regions (`begin_region`, `end_region`, `end_member`), and deferral (`mark`, `trail`, `Step`, `field!`). |
+| `fixed_size`, `decode_next`, `encode_next` | What a struct of fixed-size members (generated or derived) states its `FIXED_SIZE` with, and reads or writes each member from its bytes with, so that a list of it is one block. |
 | `type_id(name)` | The type id of a .NET full name: FNV-1a over its UTF-16 code units, as a `const fn`. |
 | `Error`, `ErrorKind` | Every failure. `ErrorKind` is `#[non_exhaustive]`. |
 
@@ -278,6 +279,8 @@ cargo test --workspace --all-features
   a short fuzz.
 - **Derive** (`tests/derive.rs`, features `derive` and `indexmap`):
   - The corpus's types are declared through the derive with their published layouts, and run against the corpus.
+  - Plain structs of fixed-size members are read and written as blocks: the bytes each element writes on its own,
+    every truncation and a bad `bool` or `Rune` in any element rejected.
   - `tests/compile_fail.rs` (trybuild) checks every rejection and its message. After a deliberate change to a message,
     `TRYBUILD=overwrite cargo test --features derive --test compile_fail` rewrites the expected messages.
 

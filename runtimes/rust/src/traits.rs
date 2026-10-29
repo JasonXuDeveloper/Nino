@@ -1,6 +1,6 @@
 //! The traits generated code implements and calls.
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::reader::Reader;
 use crate::writer::Writer;
 
@@ -154,6 +154,40 @@ pub trait NinoWrite {
         }
         w.length(values.len())?;
         Self::write_many(values, w)
+    }
+}
+
+/// The [`NinoRead::FIXED_SIZE`] (or [`NinoWrite::FIXED_SIZE`]) of a value made of items of these sizes one after
+/// another, a tuple or a plain struct: their sum, or 0 (not of fixed size) when one of them is 0 or there are none.
+/// Generated and derived code states a plain struct's size with it.
+pub const fn fixed_size(mut sizes: &[usize]) -> usize {
+    let mut sum = 0usize;
+    while let [size, rest @ ..] = sizes {
+        if *size == 0 {
+            return 0;
+        }
+        sum = sum.saturating_add(*size);
+        sizes = rest;
+    }
+    sum
+}
+
+/// Decodes the next item of a fixed-size value ([`NinoRead::decode_fixed`] on its first [`NinoRead::FIXED_SIZE`]
+/// bytes) and moves `bytes` past it: how generated and derived code reads a plain struct's members from its bytes.
+#[inline]
+pub fn decode_next<T: NinoRead>(bytes: &mut &[u8]) -> Result<T> {
+    let (item, rest) = bytes.split_at_checked(T::FIXED_SIZE).ok_or_else(Error::end)?;
+    *bytes = rest;
+    T::decode_fixed(item)
+}
+
+/// Encodes the next item of a fixed-size value ([`NinoWrite::encode_fixed`] into the first [`NinoWrite::FIXED_SIZE`]
+/// bytes of `out`) and moves `out` past it: how generated and derived code writes a plain struct's members.
+#[inline]
+pub fn encode_next<T: NinoWrite + ?Sized>(value: &T, out: &mut &mut [u8]) {
+    if let Some((item, rest)) = core::mem::take(out).split_at_mut_checked(T::FIXED_SIZE) {
+        value.encode_fixed(item);
+        *out = rest;
     }
 }
 

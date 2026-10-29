@@ -299,7 +299,9 @@ each type) rather than `#[derive(NinoRead, NinoWrite)]` attributes. The reasons:
   directly.
 - The shape is the one `tests/conformance/gen.py` proved on the whole corpus (and which the derive generates), so the
   performance and safety rules of runtimes/rust hold: one bounds check per run of fixed-size members, collections
-  reserve through `r.capacity`, structs count depth through `enter_struct`/`exit_struct`, raw structs check padding.
+  reserve through `r.capacity`, structs count depth through `enter_struct`/`exit_struct`, raw structs check padding,
+  and a struct whose members are all of fixed size has a `FIXED_SIZE` (`nino::fixed_size` of theirs), so a list of it
+  is one block, one length check and each element from its own bytes.
 
 Each type gets `TYPE_ID`, `NINO_TYPE_NAME` and `NINO_LAYOUT` constants. A slot holding several types is an enum
 `<Base>Ref` with a boxed variant per allowed subtype; an `object` slot is `AnyObject`. Enums are integers with a unit

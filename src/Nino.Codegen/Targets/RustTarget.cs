@@ -973,6 +973,12 @@ namespace Nino.Codegen.Targets
         /// </summary>
         public bool Counted => Model.IsValueType && !Model.Raw && (Model.IsGenericDefinition || _target.HoldsItself(Model));
 
+        /// <summary>
+        /// A struct whose members are all of fixed size (<see cref="TypeModel.FixedSize"/>): its <c>FIXED_SIZE</c> is
+        /// their sizes added up (0 when a type argument is not of fixed size), so a list of it is one block.
+        /// </summary>
+        public bool Fixed => Model.FixedSize;
+
         /// <summary>Whether reading a member may defer a class body.</summary>
         public bool MayDefer => Members.Any(m => m.Shape.MayDefer) || ElementsMember?.Shape.MayDefer == true;
 

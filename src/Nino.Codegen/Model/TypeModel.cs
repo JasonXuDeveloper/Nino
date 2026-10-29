@@ -111,6 +111,15 @@ namespace Nino.Codegen.Model
         /// <summary>The members in the order they are written.</summary>
         public List<MemberModel> Members { get; } = new();
 
+        /// <summary>
+        /// Whether every value takes the same number of bytes, so that a list of it is one block: a struct that is not
+        /// raw, positional and not a collection, whose members are all of fixed size (<see cref="ValueModel.IsFixed"/>),
+        /// such structs, or type parameters (in a generic definition: of fixed size when their arguments are).
+        /// </summary>
+        public bool FixedSize => IsValueType && !Raw && Format == BodyFormat.Positional && Elements == null &&
+            Members.Count != 0 && Members.All(m => m.Value.IsFixed || m.Value.Kind == ValueKind.Parameter ||
+                m.Value is { Kind: ValueKind.Type, Type: { } t } && t != this && t.FixedSize);
+
         /// <summary>The value of a <see cref="Raw"/> type.</summary>
         public ValueModel? RawValue { get; internal set; }
 

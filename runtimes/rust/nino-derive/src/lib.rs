@@ -707,6 +707,7 @@ fn expand_struct(
             }
         },
         (Side::Read, _) => {
+            let fixed = if format == Format::Plain { fixed_items(&members, krate, side) } else { quote!() };
             let tys: Vec<&Type> = members.iter().filter(|m| m.opts.utf8.is_none()).map(|m| m.ty).collect();
             let min = if format == Format::Plain {
                 let parts = members.iter().map(|m| match m.opts.utf8 {
@@ -733,6 +734,7 @@ fn expand_struct(
                 impl #impl_g #krate::NinoRead for #name #ty_g #where_clause {
                     const MAY_DEFER: bool = false #(|| <#tys as #krate::NinoRead>::MAY_DEFER)*;
                     const MIN_SIZE: usize = #min;
+                    #fixed
                     /// A struct: its members, no header. Counted towards the depth limit, as it may hold itself.
                     #[inline]
                     fn read(r: &mut #krate::Reader<'_>) -> #krate::Result<Self> {
@@ -745,7 +747,9 @@ fn expand_struct(
                 }
             }
         }
-        (Side::Write, _) => quote! {
+        (Side::Write, _) => {
+            let fixed = if format == Format::Plain { fixed_items(&members, krate, side) } else { quote!() };
+            quote! {
             impl #impl_g #krate::NinoWriteBody for #name #ty_g #where_clause {
                 const TYPE_ID: i32 = #type_id;
                 #[inline]
@@ -756,12 +760,14 @@ fn expand_struct(
             }
             impl #impl_g #krate::NinoWrite for #name #ty_g #where_clause {
                 #prefetch
+                #fixed
                 #[inline]
                 fn write<'a>(&'a self, w: &mut #krate::Writer<'a>) -> #krate::Result<()> {
                     #krate::NinoWriteBody::write_body(self, w)
                 }
             }
-        },
+            }
+        }
     };
     // Layout checks once, on the read side (or the write side when only it is derived, both is harmless).
     Ok(quote! {
@@ -790,6 +796,38 @@ fn prefetch_items(members: &[Member], krate: &syn::Path) -> Tokens {
         fn prefetch_members(&self) {
             #(#krate::NinoWrite::prefetch_members(&self.#fields);)*
         }
+    }
+}
+
+/// `FIXED_SIZE` and its codec for a plain struct whose members are all fixed-size on the wire (numbers, `bool`,
+/// dates, raw structs, tuples of these): their sizes added up ([`nino::fixed_size`]), else 0, as a tuple's. A list of
+/// it is then one block: one length check, each element decoded or encoded from its own bytes. The templates write
+/// the same for the structs .NET finds of fixed size. Members written as UTF-8 make it variable-size: nothing is
+/// emitted.
+fn fixed_items(members: &[Member], krate: &syn::Path, side: Side) -> Tokens {
+    if members.is_empty() || members.iter().any(|m| m.opts.utf8.is_some()) {
+        return quote!();
+    }
+    let tys: Vec<&Type> = members.iter().map(|m| m.ty).collect();
+    let fields: Vec<&syn::Ident> = members.iter().map(|m| m.ident).collect();
+    match side {
+        Side::Read => quote! {
+            const FIXED_SIZE: usize = #krate::fixed_size(&[#(<#tys as #krate::NinoRead>::FIXED_SIZE),*]);
+            #[allow(clippy::field_reassign_with_default)]
+            #[inline]
+            fn decode_fixed(mut b: &[u8]) -> #krate::Result<Self> {
+                let mut v = <Self as ::core::default::Default>::default();
+                #(v.#fields = #krate::decode_next(&mut b)?;)*
+                ::core::result::Result::Ok(v)
+            }
+        },
+        Side::Write => quote! {
+            const FIXED_SIZE: usize = #krate::fixed_size(&[#(<#tys as #krate::NinoWrite>::FIXED_SIZE),*]);
+            #[inline]
+            fn encode_fixed(&self, mut out: &mut [u8]) {
+                #(#krate::encode_next(&self.#fields, &mut out);)*
+            }
+        },
     }
 }
 

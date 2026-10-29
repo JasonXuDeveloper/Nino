@@ -771,6 +771,27 @@ fn serde_names() {
     assert!(serde_json::to_string(&s).unwrap().contains(r#""utf8A":"x""#));
 }
 
+/// A plain struct whose members are all fixed-size: a list of it is one block.
+#[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "struct")]
+pub struct FixedPlain {
+    pub id: i64,
+    pub flag: bool,
+    pub rune: nino::Rune,
+    pub pair: (i16, bool),
+    pub vec: Vec2,
+}
+
+/// Generic, with a skipped field (left at its default on read).
+#[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "struct")]
+pub struct FixedGeneric<T: Default> {
+    pub value: T,
+    #[nino(skip)]
+    pub note: String,
+    pub count: u8,
+}
+
 /// A plain struct with a member written as UTF-8.
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
 #[nino(kind = "struct")]
@@ -778,6 +799,85 @@ pub struct VariablePlain {
     pub id: i32,
     #[nino(utf8)]
     pub name: String,
+}
+
+/// Fixed-size members, but version-tolerant: its body has a size header, so it is not fixed-size.
+#[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "struct", format = "tolerant")]
+pub struct TolerantFixed {
+    pub id: i32,
+}
+
+#[test]
+fn plain_fixed_structs() {
+    // 8 + 1 + 4 + (2 + 1) + 8 (a raw struct) bytes.
+    assert_eq!(<FixedPlain as NinoRead>::FIXED_SIZE, 24);
+    assert_eq!(<FixedPlain as NinoWrite>::FIXED_SIZE, 24);
+    assert_eq!(<FixedGeneric<i32> as NinoRead>::FIXED_SIZE, 5);
+    assert_eq!(<FixedGeneric<String> as NinoRead>::FIXED_SIZE, 0);
+    assert_eq!(<VariablePlain as NinoRead>::FIXED_SIZE, 0);
+    assert_eq!(<VariablePlain as NinoWrite>::FIXED_SIZE, 0);
+    assert_eq!(<TolerantFixed as NinoRead>::FIXED_SIZE, 0);
+    assert_eq!(<TolerantFixed as NinoWrite>::FIXED_SIZE, 0);
+
+    let value = |i: i32| FixedPlain {
+        id: i64::from(i) * -7919,
+        flag: i % 3 == 0,
+        rune: nino::Rune(char::from_u32(0x1F600 + i as u32).unwrap()),
+        pair: (i as i16, i % 2 == 0),
+        vec: Vec2 { x: i as f32, y: -0.5 },
+    };
+    for n in [0, 1, 2, 7, 33, 300] {
+        let list: Vec<FixedPlain> = (0..n).map(value).collect();
+        let bytes = nino::serialize(&list).unwrap();
+        // The block writes what each element writes on its own, after the length.
+        let mut each = n.to_le_bytes().to_vec();
+        for v in &list {
+            each.extend(nino::serialize(v).unwrap());
+        }
+        assert_eq!(bytes, each, "{n}");
+        assert_eq!(bytes.len(), 4 + 24 * n as usize);
+        assert_eq!(nino::deserialize_exact::<Vec<FixedPlain>>(&bytes).unwrap(), list, "{n}");
+        // Every truncation fails.
+        for cut in 0..bytes.len() {
+            assert!(nino::deserialize::<Vec<FixedPlain>>(&bytes[..cut]).is_err(), "{n} cut at {cut}");
+        }
+        if n == 0 {
+            continue;
+        }
+        // A bad bool (the struct's own and the tuple's) or rune in the last element.
+        let last = 4 + 24 * (n as usize - 1);
+        for (at, bad, kind) in [
+            (8, 2u8, nino::ErrorKind::InvalidBool),
+            (15, 0xFF, nino::ErrorKind::InvalidBool),
+            (12, 0x11, nino::ErrorKind::InvalidChar),
+        ] {
+            let mut b = bytes.clone();
+            b[last + at] = bad;
+            let e = nino::deserialize::<Vec<FixedPlain>>(&b).unwrap_err();
+            assert_eq!(e.kind(), kind, "{n} byte {at}");
+        }
+    }
+    // A surrogate is not a rune.
+    let mut b = nino::serialize(&vec![value(1)]).unwrap();
+    b[4 + 9..4 + 13].copy_from_slice(&0xD800u32.to_le_bytes());
+    assert_eq!(nino::deserialize::<Vec<FixedPlain>>(&b).unwrap_err().kind(), nino::ErrorKind::InvalidChar);
+    // A count past the bytes left is rejected before anything is allocated.
+    let mut b = i32::MAX.to_le_bytes().to_vec();
+    b.extend([0u8; 24]);
+    assert!(nino::deserialize::<Vec<FixedPlain>>(&b).is_err());
+
+    // The skipped field stays at its default; the generic one round-trips.
+    let g = vec![FixedGeneric { value: -5i32, note: "skipped".into(), count: 9 }; 3];
+    let bytes = nino::serialize(&g).unwrap();
+    assert_eq!(bytes.len(), 4 + 5 * 3);
+    let back = nino::deserialize_exact::<Vec<FixedGeneric<i32>>>(&bytes).unwrap();
+    assert!(back.iter().all(|v| *v == FixedGeneric { value: -5, note: String::new(), count: 9 }));
+    // A map of fixed-size keys and values takes the same path.
+    let map: std::collections::HashMap<i32, FixedGeneric<i32>> =
+        (0..50).map(|i| (i, FixedGeneric { value: i * 3, note: String::new(), count: i as u8 })).collect();
+    let bytes = nino::serialize(&map).unwrap();
+    assert_eq!(nino::deserialize_exact::<std::collections::HashMap<i32, FixedGeneric<i32>>>(&bytes).unwrap(), map);
 }
 
 #[test]

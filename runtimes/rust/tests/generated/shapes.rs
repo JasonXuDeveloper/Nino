@@ -1313,6 +1313,16 @@ impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrit
 impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrite + Default + 'static> NinoRead for Pair<TKey, TValue> {
     const MAY_DEFER: bool = <TKey as NinoRead>::MAY_DEFER || <TValue as NinoRead>::MAY_DEFER;
 
+    const FIXED_SIZE: usize = nino::fixed_size(&[<TKey as NinoRead>::FIXED_SIZE, <TValue as NinoRead>::FIXED_SIZE]);
+
+    #[allow(clippy::field_reassign_with_default)]
+    fn decode_fixed(mut b: &[u8]) -> nino::Result<Self> {
+        let mut v = Self::default();
+        v.key = nino::decode_next(&mut b)?;
+        v.value = nino::decode_next(&mut b)?;
+        Ok(v)
+    }
+
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
         let mut v = Self::default();
         // It can hold itself through no class body: each level counts toward the depth limit.
@@ -1337,6 +1347,13 @@ impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrit
     fn prefetch_members(&self) {
         self.key.prefetch_members();
         self.value.prefetch_members();
+    }
+
+    const FIXED_SIZE: usize = nino::fixed_size(&[<TKey as NinoWrite>::FIXED_SIZE, <TValue as NinoWrite>::FIXED_SIZE]);
+
+    fn encode_fixed(&self, mut out: &mut [u8]) {
+        nino::encode_next(&self.key, &mut out);
+        nino::encode_next(&self.value, &mut out);
     }
 
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
@@ -1382,6 +1399,16 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for RawPair<T> {
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for RawPair<T> {
     const MAY_DEFER: bool = <T as NinoRead>::MAY_DEFER;
 
+    const FIXED_SIZE: usize = nino::fixed_size(&[<T as NinoRead>::FIXED_SIZE, <T as NinoRead>::FIXED_SIZE]);
+
+    #[allow(clippy::field_reassign_with_default)]
+    fn decode_fixed(mut b: &[u8]) -> nino::Result<Self> {
+        let mut v = Self::default();
+        v.a = nino::decode_next(&mut b)?;
+        v.b = nino::decode_next(&mut b)?;
+        Ok(v)
+    }
+
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
         let mut v = Self::default();
         // It can hold itself through no class body: each level counts toward the depth limit.
@@ -1406,6 +1433,13 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for RawPair<T> {
     fn prefetch_members(&self) {
         self.a.prefetch_members();
         self.b.prefetch_members();
+    }
+
+    const FIXED_SIZE: usize = nino::fixed_size(&[<T as NinoWrite>::FIXED_SIZE, <T as NinoWrite>::FIXED_SIZE]);
+
+    fn encode_fixed(&self, mut out: &mut [u8]) {
+        nino::encode_next(&self.a, &mut out);
+        nino::encode_next(&self.b, &mut out);
     }
 
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
