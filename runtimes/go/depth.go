@@ -651,3 +651,32 @@ func (r *Reader) KeyedSeen(seen *uint64, i uint) bool {
 	*seen |= bit
 	return true
 }
+
+// BeginBody opens the body of a class read in place by generated code, which then reads the members with a direct
+// call and closes it with [Reader.EndBody]. ok is false from InlineDepth open bodies on: the caller then reads the
+// body through [ReadClassInto], which defers it as .NET does.
+func (r *Reader) BeginBody() (d int32, ok bool) {
+	d = r.depth
+	if d >= InlineDepth {
+		return d, false
+	}
+	r.depth = d + 1
+	return d, true
+}
+
+// EndBody closes a body opened by [Reader.BeginBody] at depth d.
+func (r *Reader) EndBody(d int32) { r.exitBody(d) }
+
+// BeginBody is [Reader.BeginBody] for the writer: false from InlineDepth on, where the caller writes the body
+// through [WriteClass].
+func (w *Writer) BeginBody() (d int32, ok bool) {
+	d = w.depth
+	if d >= InlineDepth {
+		return d, false
+	}
+	w.depth = d + 1
+	return d, true
+}
+
+// EndBody closes a body opened by [Writer.BeginBody] at depth d.
+func (w *Writer) EndBody(d int32) { w.exitBody(d) }

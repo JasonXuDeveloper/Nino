@@ -33,8 +33,32 @@ func init() {
 	record = nino.Class[Record]{Read: readRecordBody, Write: writeRecordBody, Deferrable: true}
 }
 
-func ReadRecord(r *nino.Reader) *Record     { return nino.ReadSealed(r, &record) }
-func WriteRecord(w *nino.Writer, v *Record) { nino.WriteSealed(w, v, &record) }
+func ReadRecord(r *nino.Reader) *Record {
+	if !r.Present() {
+		return nil
+	}
+	v := new(Record)
+	if d, ok := r.BeginBody(); ok {
+		readRecordBody(r, v)
+		r.EndBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &record)
+	}
+	return v
+}
+func WriteRecord(w *nino.Writer, v *Record) {
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.BeginBody(); ok {
+		writeRecordBody(w, v)
+		w.EndBody(d)
+	} else {
+		nino.WriteClass(w, v, &record)
+	}
+}
 
 func readRecordBody(r *nino.Reader, v *Record) {
 	b := r.Take(12)
