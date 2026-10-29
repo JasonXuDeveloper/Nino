@@ -1152,3 +1152,6 @@ go#12 78ceaa1 ffa2829c ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch wor
 go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch worker 8573C floor
 go 97c75ff2 ae46b36d # go read-into (agent a0f34ddb0aa4462cf): ReadX through ReadXInto, lists through readinto, must be on par; make ae46b36d reachable with merge -s ours (ref origin/ab/go-read-into)
 go 97c75ff2 97c75ff2 # go read-into floor (agent a0f34ddb0aa4462cf)
+typescript e5e92702 c37701a7 # ts read-into, fresh reads without the into branches (agent a0f34ddb0aa4462cf); make c37701a7 reachable with merge -s ours (ref origin/ab/ts-read-into-2)
+typescript e5e92702 c37701a7 # ts read-into 2 copy 2 (agent a0f34ddb0aa4462cf)
+typescript e5e92702 e5e92702 # ts read-into 2 floor (agent a0f34ddb0aa4462cf)
