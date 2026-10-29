@@ -770,3 +770,23 @@ fn serde_names() {
     let s = StringCollections { utf8_a: Some("x".into()), ..Default::default() };
     assert!(serde_json::to_string(&s).unwrap().contains(r#""utf8A":"x""#));
 }
+
+/// A plain struct with a member written as UTF-8.
+#[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "struct")]
+pub struct VariablePlain {
+    pub id: i32,
+    #[nino(utf8)]
+    pub name: String,
+}
+
+#[test]
+fn utf8_members_take_one_byte_at_least() {
+    // A string written as UTF-8 may be its header alone, or two bytes and its text: 7 bytes an element here, so a
+    // minimum of 4 bytes for the string rejected the list's length.
+    assert_eq!(<VariablePlain as NinoRead>::MIN_SIZE, 5);
+    let v = vec![VariablePlain { id: 1, name: "a".into() }, VariablePlain { id: 2, name: String::new() }];
+    let bytes = nino::serialize(&v).unwrap();
+    assert_eq!(bytes.len(), 4 + 7 + 5);
+    assert_eq!(nino::deserialize_exact::<Vec<VariablePlain>>(&bytes).unwrap(), v);
+}
