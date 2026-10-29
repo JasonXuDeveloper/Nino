@@ -51,8 +51,9 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   read and write bodies keep rare paths (deferral, pooling, growth, polymorphic fallback) in calls out of line and
   the common path inline; a run of fixed-size members is one bounds check and one block copy where the layout allows.
 - No indirect call in a generated read or write path where a direct one exists (`optimize`, the owner's rule): a
-  member's formatter is named directly, `CachedFormatter<T>` only for a type parameter, a `[NinoType]` generated in
-  another assembly or a type that holds itself; look for `call [rax+0x..]`, `call [r11]` and `call rax` in the Tier1
+  member's formatter is named directly (a generic type's formatter takes its arguments' formatters), and
+  `CachedFormatter<T>` only for a method's type parameter, a `[NinoType]` generated in another assembly or a type
+  that holds itself; read the IL2CPP C++ as well as the Tier1 listing (`optimize`, Unity kernels and IL2CPP); look for `call [rax+0x..]`, `call [r11]` and `call rax` in the Tier1
   listing and explain each.
 - Check the Tier1 listing of generated serializers for the benchmark types on each ISA (`benchmarks/asm.py`), and
   compare with the hand-written equivalent where one exists: generated code is not slower than what a user would

@@ -91,8 +91,9 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   `new`), BCL internals (`ArrayPool`, string comparers inside `Dictionary`), calls through a shared generic's
   dictionary (`T` a class: `CORINFO_HELP_RUNTIMEHANDLE_METHOD` then `call rax`), and the enumerator of a collection
   declared as an interface whose object is neither a list nor an array. IL2CPP, Mono and NativeAOT do not devirtualize
-  `static readonly` fields: there `CachedFormatter<T>` and the top-level calls without interceptors (Unity's Roslyn
-  4.3) stay one virtual call per value of that type.
+  `static readonly` fields: there `CachedFormatter<T>` (a method's type parameter, another assembly's `[NinoType]`, a
+  type that holds itself) and the top-level calls without interceptors (Unity's Roslyn 4.3) stay one virtual call
+  per value of that type; generic `[NinoType]`s do not use it (next section).
 - Do not inline a generic method that needs a runtime lookup into shared code on a hot path.
 - Past the JIT's tracking limit, locals are zeroed in the prolog: rare paths out of line also keep the local count
   down.
@@ -231,6 +232,23 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   +11 %, run 40829803604); with both kept, tuples were on par.
 
 ## Unity kernels and IL2CPP
+
+- Give a generic formatter the formatter of each type parameter as a type parameter of its own (`Box_1Formatter<T,
+  __F_T> where __F_T : struct, INinoFormatter<T>`), never `CachedFormatter<T>`: a closed type names its arguments'
+  formatters, so a `T` member is `default(__F_T).Serialize`, a direct call IL2CPP specializes for the value-type
+  formatter argument, where `CachedFormatter<T>` is a `VirtualActionInvoker` per value on IL2CPP (its C++ in
+  `CachedFormatter_1_Deserialize`, unity.yml run 40818519412) and on Mono and NativeAOT, which do not devirtualize
+  `static readonly` fields. `[UnsafeAccessor]` externs then move to a class of their own with exactly the type's
+  type parameters (the runtime rejects a declaring class with more: "Generic type constraints do not match").
+- Never cast `default(TFormatter)` to an interface on a path IL2CPP (or Mono) runs per value: IL2CPP compiles
+  `((IFoo)default(TFormatter)).M()` as a GC `Box()` and an `InterfaceFuncInvoker` on every call, where RyuJIT removes
+  the box and inlines the struct's method. In the netstandard builds take a boxed instance cached once in a
+  `static readonly` field (`NinoBlock<T, TFormatter>.Formatter`, `NinoSized.Of<T, TFormatter>`), and keep the cast
+  under `#if NET8_0_OR_GREATER`. Evidence (IL2CPP C++, unity.yml run 40818519412, artifact `il2cpp-cpp-6000.3.27f1`):
+  `NinoBlock.WriteEach<(int, long), ...>` boxed the formatter and made an interface call per element whenever no Burst
+  kernel ran, and `NinoSized.Is`/`Serialize` boxed one to three times per top-level `Serialize` (87 and 174 `Box()`
+  sites). The cached instance still makes one interface call per value; no call at all needs the loop inside the
+  formatter (a public `INinoBlockFormatter` member, the owner's decision).
 
 - Hold native kernels as function pointers in static fields, never behind a virtual base: `NinoKernels` is a table of
   `delegate* unmanaged[Cdecl]` that `Register` copies into `NinoKernelHook`'s static fields, a missing pointer leaves
