@@ -108,6 +108,15 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   because its task met more of the GC pauses. Loading element i+8's `x` to start its miss early measured 0.49-0.55
   against 0.49-0.51 ms. Reading the same graph without writing took only 0.11-0.17 ms. Gains there come from fewer
   objects and less GC, not from the loop.
+- Count a typed array's backing store as an allocation in V8: give each typed array over 64 bytes one of its own only
+  when it must outlive the call, and never touch `.buffer` of one of 64 bytes or less. Those V8 keeps on its heap, and
+  `.buffer` moves it off-heap: copying 4 int64s through it read Event 9-32 times slower than an element loop (test
+  branch 97deeca, run 40817550027). Above 64 bytes a fresh `ArrayBuffer` per array cost more than the copy: views of a
+  shared 64 KB slab (as Node pools small `Buffer`s) read Samples 0.31-0.78x the time of an own buffer each (f85f4e7),
+  and locally `slice()`, `set()` into `new Float64Array(n)` and a DataView loop into one were all 2x the slab in
+  Chromium and 4-5x in Node. Even with the slab, Chromium read 3 x 1,000 numbers 2.0-3.3 times slower into typed arrays
+  than into `number[]` (Node 0.55-0.85x; run 40865735513, d07506b), so typed arrays are nino-gen's opt-in
+  `--numeric-arrays typed`, not its default: serialize was faster in both engines (Samples 0.35-0.77x).
 - Replace `%` by the runtime's fast modulo (multiply-high, `HashTables.Bucket`) on x64 only: on Arm64 `udiv`/`msub`
   is cheap and the multiply sequence lost. ConcurrentDictionary's build with fast modulo read 18-23 % faster on EPYC
   7763, on par on Zen 4 (9V45, 9V74), and 1.1 % slower on Neoverse-N2 in two rounds (3d4baf2).
