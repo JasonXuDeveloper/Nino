@@ -29,7 +29,8 @@ to a read path.
 
 - Each runtime leads every case of its `bench` against its competitors, on x64 and Arm64, judged per CPU on runners
   against the main-vs-main floor (`benchmark`). A bench that times one input over and over is not a fair lead: its
-  parse cases must rotate their inputs (`benchmark`, "Adding a case").
+  parse cases must rotate their inputs, and each serializer runs with only its own data live (`benchmark`, "Adding a
+  case").
 - SIMD beyond strings where it measures faster (primitive blocks, bool validation, fixed-size records, transcoding),
   with the portable path kept and tested (Go `purego`, Rust without the features, TypeScript without WebAssembly).
 - Hot paths: one bounds check per run of fixed-size members and per loop (the idioms per language are in

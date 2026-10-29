@@ -74,6 +74,17 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   when a shape helps one target and hurts another, put it behind `cfg(target_arch)` and keep the generic loop for
   every other target (the map read taking one check per entry is x86/x86_64 only: on Arm64 it held the key/value pair
   in a SIMD register across the hash call and Neoverse-N2 ran 3 to 4 % slower). Test both paths (`platforms`).
+- TypeScript output is the bytes it writes: a slower serialize in a large heap is often GC, not the loop. Before changing
+  a write loop for a case that got slower, run it with `--trace-gc` and read whose pauses land in its task. Every new
+  `ArrayBuffer` counts as external memory, and Node 24 starts a full GC for each 64 MB of them that no scavenge
+  freed (`benchmark`, "Keep only the running serializer's data live"). Its cost grows with the live heap, and no
+  code in `nino.ts` avoids it while each result is new memory. Two Mesh write loops measured no faster on runners
+  (test branch ef4917d, run 40815167424, against Nino's own loop in the same job):
+  writing each `Vec3` into a `Float32Array` scratch, then one `set` into the output, measured 0.455-0.53 against
+  0.49-0.51 ms in Chromium (a wash within the 0.93-1.03 floor), and in Node 1.1-1.3 ms against 0.50-0.62 ms
+  because its task met more of the GC pauses. Loading element i+8's `x` to start its miss early measured 0.49-0.55
+  against 0.49-0.51 ms. Reading the same graph without writing took only 0.11-0.17 ms. Gains there come from fewer
+  objects and less GC, not from the loop.
 - Replace `%` by the runtime's fast modulo (multiply-high, `HashTables.Bucket`) on x64 only: on Arm64 `udiv`/`msub`
   is cheap and the multiply sequence lost. ConcurrentDictionary's build with fast modulo read 18-23 % faster on EPYC
   7763, on par on Zen 4 (9V45, 9V74), and 1.1 % slower on Neoverse-N2 in two rounds (3d4baf2).
