@@ -62,6 +62,29 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   `TryTake` and `Add` (one `add` and one load more per call); with the local the listing is main's, one `add` fewer.
 - A JIT-time check made of several helper calls is one `static readonly` field instead (`NinoElements.Traits`,
   `NinoBlock<T, TFormatter>.Size`): one load, nothing to inline.
+- Call a formatter known only at run time through a `static readonly` field read directly, never through
+  `field ?? fallback` or a local that merges two sources: Tier1 knows the exact class of an initialized class's
+  `static readonly` object and calls (and inlines) its overrides, but a merge loses it, and the JIT then loads the
+  field, compares its method table and keeps a virtual call behind the compare. Keep such a field never null (a
+  stand-in object whose calls report the error, `NinoMissingFormatter<T>`) instead of checking it. Evidence:
+  `NinoTopFormatter<T>.Get` was `Formatter ?? NinoFormatterCache<T>.Instance`; every `CachedFormatter<T>` call (24
+  sites in the benchmark, the `ProbeBox<T>` subtypes) was such a guard and virtual call, none after (6d711cb:
+  GenericUnmanagedTupleBase deserializes in 0.86-0.94 of the time on EPYC 7763, 9V45, 9V74 and Neoverse-N2, floor
+  0.99-1.01); a
+  scratch program shows the same for any `static readonly` base-class field read with `??`. Find them with
+  `call [rax+0x..]Nino...:Serialize` after a `cmp qword ptr [rdi], <method table>` in a Tier1 listing.
+- No virtual dispatch on a serialize or deserialize path where a direct form exists (the owner's rule): formatters
+  are structs passed as constrained type arguments, generated code names them directly, collections test their
+  concrete types (`List<T>`, `T[]`) before their interfaces, and the one indirect call a polymorphic or
+  user-extensible point needs (an unknown subtype through `NinoSubtypeHandler`, a recycler or `[NinoFactory]`
+  delegate, a user collection's enumerator) sits behind the generated exact-type checks, out of line. What is left
+  in the Tier1 listings and why is the inventory of the 6d711cb round: subtype handlers after the exact-type
+  dispatch (cold), `NinoActivator<T>` delegates for user-derived collection types only (BCL types are created with
+  `new`), BCL internals (`ArrayPool`, string comparers inside `Dictionary`), calls through a shared generic's
+  dictionary (`T` a class: `CORINFO_HELP_RUNTIMEHANDLE_METHOD` then `call rax`), and the enumerator of a collection
+  declared as an interface whose object is neither a list nor an array. IL2CPP, Mono and NativeAOT do not devirtualize
+  `static readonly` fields: there `CachedFormatter<T>` and the top-level calls without interceptors (Unity's Roslyn
+  4.3) stay one virtual call per value of that type.
 - Do not inline a generic method that needs a runtime lookup into shared code on a hot path.
 - Past the JIT's tracking limit, locals are zeroed in the prolog: rare paths out of line also keep the local count
   down.
