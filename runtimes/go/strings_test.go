@@ -461,3 +461,51 @@ func BenchmarkUTF16(b *testing.B) {
 		})
 	}
 }
+
+// TestUTF16Words checks Reader.UTF16 and Writer.UTF16, which take four units a word, against a unit at a time: every
+// length to 40, Latin-1 units (every byte value) and wider ones, with one wide unit at each position.
+func TestUTF16Words(t *testing.T) {
+	// payload is the bytes after the header: a byte a unit when all are Latin-1, else two.
+	payload := func(units []uint16) []byte {
+		var b []byte
+		for _, u := range units {
+			if u > 0xFF {
+				b = nil
+				for _, u := range units {
+					b = binary.LittleEndian.AppendUint16(b, u)
+				}
+				return b
+			}
+			b = append(b, byte(u))
+		}
+		return b
+	}
+	for n := 1; n <= 40; n++ {
+		latin := make([]uint16, n)
+		for i := range latin {
+			latin[i] = uint16((i*97 + n) & 0xFF)
+		}
+		cases := [][]uint16{latin}
+		for at := 0; at < n; at++ {
+			v := append([]uint16(nil), latin...)
+			v[at] = 0x100 + uint16(at)*0x3F1
+			cases = append(cases, v)
+		}
+		for _, v := range cases {
+			want := payload(v)
+			data := encode(t, func(w *Writer) { w.UTF16(v) })
+			if len(data) != headerSize(uint32(2*n))+len(want) || !bytes.HasSuffix(data, want) {
+				t.Fatalf("n=%d %x: wrote %x, want the payload %x", n, v, data, want)
+			}
+			back := NewReader(data).UTF16()
+			if len(back) != n {
+				t.Fatalf("n=%d: read %x, want %x", n, back, v)
+			}
+			for i := range v {
+				if back[i] != v[i] {
+					t.Fatalf("n=%d: read %x, want %x", n, back, v)
+				}
+			}
+		}
+	}
+}
