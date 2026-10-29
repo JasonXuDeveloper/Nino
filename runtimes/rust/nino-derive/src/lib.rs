@@ -615,6 +615,24 @@ fn expand_struct(
                 ) -> #krate::Result<::core::option::Option<::std::boxed::Box<Self>>> {
                     r.read_sealed_boxed()
                 }
+                #[inline]
+                fn read_into(&mut self, r: &mut #krate::Reader<'_>) -> #krate::Result<()> {
+                    r.read_sealed_into(self)
+                }
+                #[inline]
+                fn read_option_into(
+                    slot: &mut ::core::option::Option<Self>,
+                    r: &mut #krate::Reader<'_>,
+                ) -> #krate::Result<()> {
+                    r.read_sealed_option_into(slot)
+                }
+                #[inline]
+                fn read_boxed_option_into(
+                    slot: &mut ::core::option::Option<::std::boxed::Box<Self>>,
+                    r: &mut #krate::Reader<'_>,
+                ) -> #krate::Result<()> {
+                    r.read_sealed_boxed_option_into(slot)
+                }
             }
         },
         (Side::Write, Kind::Class) => quote! {
@@ -670,6 +688,28 @@ fn expand_struct(
                         return ::core::result::Result::Err(#krate::Error::new(#krate::ErrorKind::UnknownTypeId, id));
                     }
                     r.read_class().map(::core::option::Option::Some)
+                }
+                /// An object the slot holds is read into, `None` gets a new one.
+                #[inline]
+                fn read_option_into(
+                    slot: &mut ::core::option::Option<Self>,
+                    r: &mut #krate::Reader<'_>,
+                ) -> #krate::Result<()> {
+                    let id = r.i32()?;
+                    if id == 0 {
+                        *slot = ::core::option::Option::None;
+                        return ::core::result::Result::Ok(());
+                    }
+                    if id != <Self as #krate::NinoReadBody>::TYPE_ID {
+                        return ::core::result::Result::Err(#krate::Error::new(#krate::ErrorKind::UnknownTypeId, id));
+                    }
+                    match slot {
+                        ::core::option::Option::Some(value) => r.read_class_into(value),
+                        ::core::option::Option::None => {
+                            *slot = ::core::option::Option::Some(r.read_class()?);
+                            ::core::result::Result::Ok(())
+                        }
+                    }
                 }
             }
             const _: () = assert!(#type_id != 0, "kind = \"open\" needs a type id: #[nino(id = ...)] or a layout");
@@ -735,11 +775,17 @@ fn expand_struct(
                     /// A struct: its members, no header. Counted towards the depth limit, as it may hold itself.
                     #[inline]
                     fn read(r: &mut #krate::Reader<'_>) -> #krate::Result<Self> {
-                        r.enter_struct()?;
                         let mut value = <Self as ::core::default::Default>::default();
-                        let result = #krate::NinoReadBody::read_body(&mut value, r);
+                        #krate::NinoRead::read_into(&mut value, r)?;
+                        ::core::result::Result::Ok(value)
+                    }
+                    /// Each member read into its current value.
+                    #[inline]
+                    fn read_into(&mut self, r: &mut #krate::Reader<'_>) -> #krate::Result<()> {
+                        r.enter_struct()?;
+                        let result = #krate::NinoReadBody::read_body(self, r);
                         r.exit_struct();
-                        result.map(|()| value)
+                        result
                     }
                 }
             }
@@ -800,22 +846,22 @@ fn mentions_param(t: proc_macro2::TokenTree, params: &[String]) -> bool {
     }
 }
 
-/// The expression reading member `m` (into `self`).
+/// The statement reading member `m` into its current value in `self` ([`NinoRead::read_into`]).
 fn read_member(m: &Member, krate: &syn::Path) -> Tokens {
     let field = m.ident;
     let ty = m.ty;
     if m.opts.utf8.is_some() {
         let optional = matches!(segment(ty), Some((s, _)) if s == "Option");
         return if optional {
-            quote!(r.utf8()?)
+            quote!(self.#field = r.utf8()?;)
         } else {
-            quote!(r.utf8()?.ok_or_else(|| #krate::Error::of(#krate::ErrorKind::UnexpectedNull))?)
+            quote!(self.#field = r.utf8()?.ok_or_else(|| #krate::Error::of(#krate::ErrorKind::UnexpectedNull))?;)
         };
     }
     quote_spanned! {ty.span()=>
-        r.read_in::<#ty>(|p: &mut dyn ::core::any::Any| -> ::core::option::Option<&mut dyn ::core::any::Any> {
+        r.read_into_in::<#ty>(&mut self.#field, |p: &mut dyn ::core::any::Any| -> ::core::option::Option<&mut dyn ::core::any::Any> {
             ::core::option::Option::Some(&mut p.downcast_mut::<Self>()?.#field as &mut dyn ::core::any::Any)
-        })?
+        })?;
     }
 }
 
@@ -836,18 +882,13 @@ fn write_member(m: &Member) -> Tokens {
 fn read_body(members: &[Member], keys: &[(i32, Vec<i32>)], format: Format, krate: &syn::Path) -> Tokens {
     match format {
         Format::Plain => {
-            let reads = members.iter().map(|m| {
-                let f = m.ident;
-                let e = read_member(m, krate);
-                quote!(self.#f = #e;)
-            });
+            let reads = members.iter().map(|m| read_member(m, krate));
             quote!(let _ = &r; #(#reads)*)
         }
         Format::Tolerant => {
             let reads = members.iter().map(|m| {
-                let f = m.ident;
                 let e = read_member(m, krate);
-                quote!(if r.has_more() { self.#f = #e; })
+                quote!(if r.has_more() { #e })
             });
             quote! {
                 let body = r.begin_region()?;
@@ -857,11 +898,10 @@ fn read_body(members: &[Member], keys: &[(i32, Vec<i32>)], format: Format, krate
         }
         Format::Keyed => {
             let arms = members.iter().zip(keys).map(|(m, (key, former))| {
-                let f = m.ident;
                 let e = read_member(m, krate);
                 quote! {
                     if key == #key #(|| key == #former)* {
-                        self.#f = #e;
+                        #e
                         r.end_member(member, self)?;
                         continue;
                     }
@@ -1229,6 +1269,15 @@ fn expand_enum(
                     quote!(Self::#v(x) => x as &mut dyn ::core::any::Any,)
                 }
             });
+            let reuses = variants.iter().zip(&boxed).zip(&ids).map(|((v, b), id)| {
+                let x = if *b { quote!(&mut **x) } else { quote!(x) };
+                quote! {
+                    ::core::option::Option::Some(Self::#v(x)) if id == #id => {
+                        r.read_class_into(#x)?;
+                        true
+                    }
+                }
+            });
             quote! {
                 impl #krate::NinoRead for #name {
                     const MAY_DEFER: bool = true;
@@ -1238,19 +1287,35 @@ fn expand_enum(
                     }
                     /// The type id (0 = null), then the body of that type: only the types of this enum.
                     fn read_option(r: &mut #krate::Reader<'_>) -> #krate::Result<::core::option::Option<Self>> {
+                        let mut slot = ::core::option::Option::None;
+                        Self::read_option_into(&mut slot, r)?;
+                        ::core::result::Result::Ok(slot)
+                    }
+                    /// The object the slot holds is read into when the data holds its type, else replaced.
+                    fn read_option_into(
+                        slot: &mut ::core::option::Option<Self>,
+                        r: &mut #krate::Reader<'_>,
+                    ) -> #krate::Result<()> {
                         let id = r.i32()?;
                         if id == 0 {
-                            return ::core::result::Result::Ok(::core::option::Option::None);
+                            *slot = ::core::option::Option::None;
+                            return ::core::result::Result::Ok(());
                         }
                         let mark = r.mark();
-                        let value = #(#reads)* {
-                            return ::core::result::Result::Err(#krate::Error::new(#krate::ErrorKind::UnknownTypeId, id));
+                        let reused = match slot {
+                            #(#reuses)*
+                            _ => false,
                         };
+                        if !reused {
+                            *slot = ::core::option::Option::Some(#(#reads)* {
+                                return ::core::result::Result::Err(#krate::Error::new(#krate::ErrorKind::UnknownTypeId, id));
+                            });
+                        }
                         r.trail(mark, #krate::Step::Field(|p| {
                             let v = p.downcast_mut::<Self>()?;
                             ::core::option::Option::Some(match v { #(#bodies)* })
                         }));
-                        ::core::result::Result::Ok(::core::option::Option::Some(value))
+                        ::core::result::Result::Ok(())
                     }
                 }
             }

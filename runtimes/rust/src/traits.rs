@@ -56,6 +56,49 @@ pub trait NinoRead: Sized + 'static {
         Ok(Self::read_option(r)?.map(Box::new))
     }
 
+    /// Reads a value into `self`, reusing what it holds where it can: the members of a struct or class (each read
+    /// into its own current value), the elements and the buffer of a `Vec` (by index), the buffers of maps and sets
+    /// (cleared, then refilled), and the body of a polymorphic slot's value when the data holds the same type. What
+    /// `NinoDeserializer.Deserialize(data, ref value)` does in .NET. Anything else (numbers, strings, tracked
+    /// objects, a body deferred past 128 class bodies) is replaced, as this default does. On an error, `self` is a
+    /// valid value holding what was read before it: read into it again, or drop it.
+    #[inline]
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        *self = Self::read(r)?;
+        Ok(())
+    }
+
+    /// [`NinoRead::read_into`] for a value that may be null ([`NinoRead::read_option`]): an existing value is read
+    /// into when the data holds one, created when the slot holds `None`.
+    #[inline]
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        *slot = Self::read_option(r)?;
+        Ok(())
+    }
+
+    /// [`NinoRead::read_into`] for a `Box` (by default, into its content).
+    #[inline]
+    fn read_boxed_into(value: &mut Box<Self>, r: &mut Reader<'_>) -> Result<()> {
+        (**value).read_into(r)
+    }
+
+    /// [`NinoRead::read_option_into`] for a `Box`.
+    #[inline]
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        *slot = Self::read_boxed_option(r)?;
+        Ok(())
+    }
+
+    /// Reads `count` values into `values`, reusing its buffer and its first elements (each read into, by index); the
+    /// rest are read new, and elements past `count` dropped.
+    #[inline]
+    fn read_many_into(r: &mut Reader<'_>, count: usize, values: &mut Vec<Self>) -> Result<()> {
+        if Self::FIXED_SIZE != 0 {
+            return crate::impls::read_fixed_into(r, count, values);
+        }
+        crate::impls::read_each_into(r, count, values)
+    }
+
     /// Reads `count` values (the length was checked against [`NinoRead::MIN_SIZE`]). Fixed-size types read them
     /// all with one length check.
     #[inline]

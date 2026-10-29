@@ -44,6 +44,52 @@ pub(crate) fn read_each<T: NinoRead>(r: &mut Reader<'_>, count: usize) -> Result
     read_into_vec(r, count, vec_item::<T>)
 }
 
+/// [`NinoRead::read_many_into`]'s default: the first elements read into, by index, the rest read new.
+#[inline]
+pub(crate) fn read_each_into<T: NinoRead>(r: &mut Reader<'_>, count: usize, values: &mut Vec<T>) -> Result<()> {
+    if values.is_empty() {
+        // Nothing to read into: the plain read, its allocation budget included.
+        *values = T::read_many(r, count)?;
+        return Ok(());
+    }
+    values.truncate(count);
+    for (i, v) in values.iter_mut().enumerate() {
+        if T::MAY_DEFER {
+            let mark = r.mark();
+            v.read_into(r)?;
+            r.trail(mark, Step::Index(vec_item::<T>, i));
+        } else {
+            v.read_into(r)?;
+        }
+    }
+    let have = values.len();
+    // `have <= count`: no wrap.
+    values.reserve(r.capacity::<T>(count.wrapping_sub(have)));
+    for i in have..count {
+        if T::MAY_DEFER {
+            let mark = r.mark();
+            values.push(T::read(r)?);
+            r.trail(mark, Step::Index(vec_item::<T>, i));
+        } else {
+            values.push(T::read(r)?);
+        }
+    }
+    Ok(())
+}
+
+/// [`NinoRead::read_many_into`]'s default for a fixed-size type: [`read_fixed`] into the `Vec`'s buffer.
+#[inline]
+pub(crate) fn read_fixed_into<T: NinoRead>(r: &mut Reader<'_>, count: usize, values: &mut Vec<T>) -> Result<()> {
+    if values.capacity() < count {
+        // Not enough room: the plain read, its allocation budget included.
+        *values = read_fixed(r, count)?;
+        return Ok(());
+    }
+    let size = count.checked_mul(T::FIXED_SIZE).ok_or_else(Error::too_large)?;
+    let bytes = r.take(size)?;
+    crate::simd::decode_block_into(values, bytes.chunks_exact(T::FIXED_SIZE), T::decode_fixed)
+}
+
 /// [`NinoRead::read_many`]'s default for a fixed-size type: the elements' bytes with one length check, then
 /// [`NinoRead::decode_fixed`] on each.
 #[inline]
@@ -263,6 +309,15 @@ macro_rules! number {
                 let bytes = r.take(size)?;
                 Ok(bytes.as_chunks::<$n>().0.iter().map(|c| <$t>::from_le_bytes(*c)).collect())
             }
+
+            #[inline]
+            fn read_many_into(r: &mut Reader<'_>, count: usize, values: &mut Vec<Self>) -> Result<()> {
+                let size = count.checked_mul($n).ok_or_else(Error::too_large)?;
+                let bytes = r.take(size)?;
+                values.clear();
+                values.extend(bytes.as_chunks::<$n>().0.iter().map(|c| <$t>::from_le_bytes(*c)));
+                Ok(())
+            }
         }
 
         impl NinoWrite for $t {
@@ -327,6 +382,14 @@ impl NinoRead for u8 {
     fn read_many(r: &mut Reader<'_>, count: usize) -> Result<Vec<Self>> {
         r.take(count).map(<[u8]>::to_vec)
     }
+
+    #[inline]
+    fn read_many_into(r: &mut Reader<'_>, count: usize, values: &mut Vec<Self>) -> Result<()> {
+        let bytes = r.take(count)?;
+        values.clear();
+        values.extend_from_slice(bytes);
+        Ok(())
+    }
 }
 
 impl NinoWrite for u8 {
@@ -369,6 +432,14 @@ impl NinoRead for i8 {
     #[inline]
     fn read_many(r: &mut Reader<'_>, count: usize) -> Result<Vec<Self>> {
         Ok(r.take(count)?.iter().map(|&b| b as i8).collect())
+    }
+
+    #[inline]
+    fn read_many_into(r: &mut Reader<'_>, count: usize, values: &mut Vec<Self>) -> Result<()> {
+        let bytes = r.take(count)?;
+        values.clear();
+        values.extend(bytes.iter().map(|&b| b as i8));
+        Ok(())
     }
 }
 
@@ -429,6 +500,17 @@ impl NinoRead for bool {
         }
         Ok(bytes.iter().map(|&b| b != 0).collect())
     }
+
+    #[inline]
+    fn read_many_into(r: &mut Reader<'_>, count: usize, values: &mut Vec<Self>) -> Result<()> {
+        let bytes = r.take(count)?;
+        if bytes.iter().fold(0u8, |a, &b| a | b) > 1 {
+            return Err(invalid_bool(bytes));
+        }
+        values.clear();
+        values.extend(bytes.iter().map(|&b| b != 0));
+        Ok(())
+    }
 }
 
 /// The error for the first byte of `bytes` that is not 0 or 1.
@@ -485,6 +567,17 @@ impl NinoRead for String {
     #[inline]
     fn read_many(r: &mut Reader<'_>, count: usize) -> Result<Vec<Self>> {
         r.strings(count)
+    }
+
+    /// Strings are read new (a list of them by the batched reader when the `Vec` is empty); the `Vec`'s buffer is
+    /// kept.
+    #[inline]
+    fn read_many_into(r: &mut Reader<'_>, count: usize, values: &mut Vec<Self>) -> Result<()> {
+        if values.capacity() < count {
+            *values = r.strings(count)?;
+            return Ok(());
+        }
+        crate::impls::read_each_into(r, count, values)
     }
 }
 
@@ -547,6 +640,17 @@ impl<T: NinoRead> NinoRead for Option<T> {
         r.trail(mark, Step::Field(option_inner::<T>));
         Ok(value)
     }
+
+    #[inline]
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        if !T::MAY_DEFER {
+            return T::read_option_into(self, r);
+        }
+        let mark = r.mark();
+        T::read_option_into(self, r)?;
+        r.trail(mark, Step::Field(option_inner::<T>));
+        Ok(())
+    }
 }
 
 impl<T: NinoWrite> NinoWrite for Option<T> {
@@ -597,6 +701,28 @@ impl<T: NinoRead> NinoRead for Box<T> {
         let value = T::read_boxed_option(r)?;
         r.trail(mark, Step::Field(box_inner::<T>));
         Ok(value)
+    }
+
+    #[inline]
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        if !T::MAY_DEFER {
+            return T::read_boxed_into(self, r);
+        }
+        let mark = r.mark();
+        T::read_boxed_into(self, r)?;
+        r.trail(mark, Step::Field(box_inner::<T>));
+        Ok(())
+    }
+
+    #[inline]
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        if !T::MAY_DEFER {
+            return T::read_boxed_option_into(slot, r);
+        }
+        let mark = r.mark();
+        T::read_boxed_option_into(slot, r)?;
+        r.trail(mark, Step::Field(box_inner::<T>));
+        Ok(())
     }
 }
 
@@ -658,6 +784,22 @@ impl<T: NinoRead> NinoRead for Vec<T> {
             Some(count) => T::read_many(r, count).map(Some),
         }
     }
+
+    #[inline]
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        let count = r.length_not_null(T::MIN_SIZE)?;
+        T::read_many_into(r, count, self)
+    }
+
+    #[inline]
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        match (r.length(T::MIN_SIZE)?, slot) {
+            (None, slot) => *slot = None,
+            (Some(count), Some(values)) => T::read_many_into(r, count, values)?,
+            (Some(count), slot) => *slot = Some(T::read_many(r, count)?),
+        }
+        Ok(())
+    }
 }
 
 impl<T: NinoWrite> NinoWrite for Vec<T> {
@@ -707,6 +849,42 @@ impl<T: NinoRead> NinoRead for VecDeque<T> {
             Some(count) => T::read_many(r, count).map(|v| Some(v.into())),
         }
     }
+
+    /// Cleared and refilled, keeping its buffer.
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        let count = r.length_not_null(T::MIN_SIZE)?;
+        refill_deque(self, r, count)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        let Some(queue) = slot else {
+            *slot = Self::read_option(r)?;
+            return Ok(());
+        };
+        match r.length(T::MIN_SIZE)? {
+            None => *slot = None,
+            Some(count) => refill_deque(queue, r, count)?,
+        }
+        Ok(())
+    }
+}
+
+/// Empties `queue` and reads `count` elements into it, keeping its buffer when it has room.
+fn refill_deque<T: NinoRead>(queue: &mut VecDeque<T>, r: &mut Reader<'_>, count: usize) -> Result<()> {
+    queue.clear();
+    if queue.capacity() < count {
+        queue.reserve(r.capacity::<T>(count));
+    }
+    for i in 0..count {
+        if T::MAY_DEFER {
+            let mark = r.mark();
+            queue.push_back(T::read(r)?);
+            r.trail(mark, Step::Index(deque_item::<T>, i));
+        } else {
+            queue.push_back(T::read(r)?);
+        }
+    }
+    Ok(())
 }
 
 impl<T: NinoWrite> NinoWrite for VecDeque<T> {
@@ -741,12 +919,41 @@ macro_rules! set {
             fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
                 let Some(count) = r.length(T::MIN_SIZE)? else { return Ok(None) };
                 let mut set = set!(@new $set, r.capacity::<T>(count));
-                for _ in 0..count {
-                    if !set.insert(read_key::<T>(r)?) {
-                        return Err(Error::of(ErrorKind::DuplicateKey));
+                fill_set(&mut set, r, count)?;
+                Ok(Some(set))
+            }
+
+            /// Cleared and refilled, keeping its buffer.
+            fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+                let count = r.length_not_null(T::MIN_SIZE)?;
+                self.clear();
+                set!(@reserve $set, self, r, count);
+                fill_set(self, r, count)
+            }
+
+            fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+                match slot {
+                    Some(set) => {
+                        let Some(count) = r.length(T::MIN_SIZE)? else {
+                            *slot = None;
+                            return Ok(());
+                        };
+                        set.clear();
+                        set!(@reserve $set, set, r, count);
+                        fill_set(set, r, count)
+                    }
+                    None => {
+                        *slot = Self::read_option(r)?;
+                        Ok(())
                     }
                 }
-                Ok(Some(set))
+            }
+        }
+
+        impl<T: NinoRead + $($bound)*> FillSet<T> for $set<T> {
+            #[inline]
+            fn insert_new(&mut self, value: T) -> bool {
+                self.insert(value)
             }
         }
 
@@ -772,6 +979,31 @@ macro_rules! set {
     };
     (@new HashSet, $n:expr) => { HashSet::with_capacity($n) };
     (@new BTreeSet, $n:expr) => { { let _ = $n; BTreeSet::new() } };
+    // Room for `count` elements when the set has less (within the read's allocation budget).
+    (@reserve HashSet, $set:expr, $r:expr, $count:expr) => {
+        if $set.capacity() < $count {
+            $set.reserve($r.capacity::<T>($count));
+        }
+    };
+    (@reserve BTreeSet, $set:expr, $r:expr, $count:expr) => {
+        let _ = $count;
+    };
+}
+
+/// A set read into ([`fill_set`]): inserts, saying whether the value was new.
+pub(crate) trait FillSet<T> {
+    fn insert_new(&mut self, value: T) -> bool;
+}
+
+/// Reads `count` elements into `set` (empty); an element read twice is an error.
+#[inline]
+pub(crate) fn fill_set<T: NinoRead, S: FillSet<T>>(set: &mut S, r: &mut Reader<'_>, count: usize) -> Result<()> {
+    for _ in 0..count {
+        if !set.insert_new(read_key::<T>(r)?) {
+            return Err(Error::of(ErrorKind::DuplicateKey));
+        }
+    }
+    Ok(())
 }
 
 set!(HashSet, Eq + Hash);
@@ -794,47 +1026,93 @@ where
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = HashMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
-        if entries_fixed_read::<K, V>() {
-            if ENTRY_SLICES {
-                read_entries_fixed(r, count, |key, value| match map.entry(key) {
-                    hash_map::Entry::Occupied(_) => Err(Error::of(ErrorKind::DuplicateKey)),
-                    hash_map::Entry::Vacant(e) => {
-                        e.insert(value);
-                        Ok(())
-                    }
-                })?;
-            } else {
-                // A plain insert, as measured on Neoverse-N2. The map is dropped on the error, so a repeated key's
-                // replaced value is never seen.
-                read_entries_fixed(r, count, |key, value| match map.insert(key, value) {
-                    Some(_) => Err(Error::of(ErrorKind::DuplicateKey)),
-                    None => Ok(()),
-                })?;
-            }
-            return Ok(Some(map));
-        }
-        for _ in 0..count {
-            let key = read_key::<K>(r)?;
-            let value = if V::MAY_DEFER {
-                let mark = r.mark();
-                let value = V::read(r)?;
-                if r.mark() != mark {
-                    let at = key.clone();
-                    r.trail(mark, dyn_step(move |m| Some(m.downcast_mut::<Self>()?.get_mut(&at)? as &mut dyn Any)));
-                }
-                value
-            } else {
-                V::read(r)?
-            };
-            match map.entry(key) {
-                hash_map::Entry::Occupied(_) => return Err(Error::of(ErrorKind::DuplicateKey)),
-                hash_map::Entry::Vacant(e) => {
-                    e.insert(value);
-                }
-            }
-        }
+        fill_hash_map(&mut map, r, count)?;
         Ok(Some(map))
     }
+
+    /// Cleared and refilled, keeping its buffer.
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        let count = r.length_not_null(K::MIN_SIZE.saturating_add(V::MIN_SIZE))?;
+        refill_hash_map(self, r, count)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        let Some(map) = slot else {
+            *slot = Self::read_option(r)?;
+            return Ok(());
+        };
+        match r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? {
+            None => *slot = None,
+            Some(count) => refill_hash_map(map, r, count)?,
+        }
+        Ok(())
+    }
+}
+
+/// Empties `map` and reads `count` entries into it, keeping its buffer when it has room.
+fn refill_hash_map<K, V, S>(map: &mut HashMap<K, V, S>, r: &mut Reader<'_>, count: usize) -> Result<()>
+where
+    K: NinoRead + Eq + Hash + Clone,
+    V: NinoRead,
+    S: BuildHasher + Default + 'static,
+{
+    map.clear();
+    if map.capacity() < count {
+        map.reserve(r.capacity::<(K, V)>(count));
+    }
+    fill_hash_map(map, r, count)
+}
+
+/// Reads `count` entries into `map` (empty); a key read twice is an error.
+#[inline]
+fn fill_hash_map<K, V, S>(map: &mut HashMap<K, V, S>, r: &mut Reader<'_>, count: usize) -> Result<()>
+where
+    K: NinoRead + Eq + Hash + Clone,
+    V: NinoRead,
+    S: BuildHasher + Default + 'static,
+{
+    if entries_fixed_read::<K, V>() {
+        if ENTRY_SLICES {
+            read_entries_fixed(r, count, |key, value| match map.entry(key) {
+                hash_map::Entry::Occupied(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+                hash_map::Entry::Vacant(e) => {
+                    e.insert(value);
+                    Ok(())
+                }
+            })?;
+        } else {
+            // A plain insert, as measured on Neoverse-N2. On the error, a repeated key holds its second value.
+            read_entries_fixed(r, count, |key, value| match map.insert(key, value) {
+                Some(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+                None => Ok(()),
+            })?;
+        }
+        return Ok(());
+    }
+    for _ in 0..count {
+        let key = read_key::<K>(r)?;
+        let value = if V::MAY_DEFER {
+            let mark = r.mark();
+            let value = V::read(r)?;
+            if r.mark() != mark {
+                let at = key.clone();
+                r.trail(
+                    mark,
+                    dyn_step(move |m| Some(m.downcast_mut::<HashMap<K, V, S>>()?.get_mut(&at)? as &mut dyn Any)),
+                );
+            }
+            value
+        } else {
+            V::read(r)?
+        };
+        match map.entry(key) {
+            hash_map::Entry::Occupied(_) => return Err(Error::of(ErrorKind::DuplicateKey)),
+            hash_map::Entry::Vacant(e) => {
+                e.insert(value);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// A sorted dictionary: its length, then each key and value. A repeated key is rejected.
@@ -853,32 +1131,67 @@ where
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
         let mut map = BTreeMap::new();
-        if entries_fixed_read::<K, V>() {
-            read_entries_fixed(r, count, |key, value| match map.insert(key, value) {
-                Some(_) => Err(Error::of(ErrorKind::DuplicateKey)),
-                None => Ok(()),
-            })?;
-            return Ok(Some(map));
-        }
-        for _ in 0..count {
-            let key = read_key::<K>(r)?;
-            let value = if V::MAY_DEFER {
-                let mark = r.mark();
-                let value = V::read(r)?;
-                if r.mark() != mark {
-                    let at = key.clone();
-                    r.trail(mark, dyn_step(move |m| Some(m.downcast_mut::<Self>()?.get_mut(&at)? as &mut dyn Any)));
-                }
-                value
-            } else {
-                V::read(r)?
-            };
-            if map.insert(key, value).is_some() {
-                return Err(Error::of(ErrorKind::DuplicateKey));
-            }
-        }
+        fill_btree_map(&mut map, r, count)?;
         Ok(Some(map))
     }
+
+    /// Cleared and refilled.
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        let count = r.length_not_null(K::MIN_SIZE.saturating_add(V::MIN_SIZE))?;
+        self.clear();
+        fill_btree_map(self, r, count)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        let Some(map) = slot else {
+            *slot = Self::read_option(r)?;
+            return Ok(());
+        };
+        match r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? {
+            None => *slot = None,
+            Some(count) => {
+                map.clear();
+                fill_btree_map(map, r, count)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Reads `count` entries into `map` (empty); a key read twice is an error.
+#[inline]
+fn fill_btree_map<K, V>(map: &mut BTreeMap<K, V>, r: &mut Reader<'_>, count: usize) -> Result<()>
+where
+    K: NinoRead + Ord + Clone,
+    V: NinoRead,
+{
+    if entries_fixed_read::<K, V>() {
+        return read_entries_fixed(r, count, |key, value| match map.insert(key, value) {
+            Some(_) => Err(Error::of(ErrorKind::DuplicateKey)),
+            None => Ok(()),
+        });
+    }
+    for _ in 0..count {
+        let key = read_key::<K>(r)?;
+        let value = if V::MAY_DEFER {
+            let mark = r.mark();
+            let value = V::read(r)?;
+            if r.mark() != mark {
+                let at = key.clone();
+                r.trail(
+                    mark,
+                    dyn_step(move |m| Some(m.downcast_mut::<BTreeMap<K, V>>()?.get_mut(&at)? as &mut dyn Any)),
+                );
+            }
+            value
+        } else {
+            V::read(r)?
+        };
+        if map.insert(key, value).is_some() {
+            return Err(Error::of(ErrorKind::DuplicateKey));
+        }
+    }
+    Ok(())
 }
 
 impl<K: NinoWrite, V: NinoWrite, S> NinoWrite for HashMap<K, V, S> {

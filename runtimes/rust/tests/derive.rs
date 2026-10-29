@@ -758,6 +758,111 @@ fn derived_values() {
     std::mem::forget(chain);
 }
 
+#[test]
+fn derived_read_into() {
+    fn addr<T>(b: &Option<Box<T>>) -> *const T {
+        &**b.as_ref().unwrap()
+    }
+    // Nested objects are read into in place; a null in the data clears the slot, an object where the slot is empty
+    // is created.
+    let mut outer = Outer {
+        name: Some("old".into()),
+        point: Some(Box::new(Point { x: 9, y: 9 })),
+        middle: Some(Box::new(Middle { first: None, second: Some(Box::new(Point { x: 5, y: 5 })), inner: None })),
+    };
+    let (point, middle) = (addr(&outer.point), addr(&outer.middle));
+    let data = Outer {
+        name: Some("new".into()),
+        point: Some(Box::new(Point { x: 1, y: 2 })),
+        middle: Some(Box::new(Middle {
+            first: Some(Box::new(Point { x: 3, y: 4 })),
+            second: None,
+            inner: Some(Box::new(Inner { value: 7, text: None, point: None })),
+        })),
+    };
+    let bytes = nino::serialize(&data).unwrap();
+    nino::deserialize_into(&bytes, &mut outer).unwrap();
+    assert_eq!(outer, data);
+    assert_eq!(addr(&outer.point), point);
+    assert_eq!(addr(&outer.middle), middle);
+
+    // A Vec's elements are read into by index and its buffer kept; extra elements are dropped.
+    let list = |n: i32| PointList { values: Some((0..n).map(|i| Some(Box::new(Point { x: i, y: -i }))).collect()) };
+    let mut target = list(8);
+    let (buffer, first) = (target.values.as_ref().unwrap().as_ptr(), addr(&target.values.as_ref().unwrap()[0]));
+    nino::deserialize_into(&nino::serialize(&list(3)).unwrap(), &mut target).unwrap();
+    assert_eq!(target, list(3));
+    assert_eq!(target.values.as_ref().unwrap().as_ptr(), buffer);
+    assert_eq!(addr(&target.values.as_ref().unwrap()[0]), first);
+    let mut ints = IntArray { values: Some(Vec::with_capacity(64)) };
+    let buffer = ints.values.as_ref().unwrap().as_ptr();
+    nino::deserialize_into(&nino::serialize(&IntArray { values: Some(vec![1, 2, 3]) }).unwrap(), &mut ints).unwrap();
+    assert_eq!(ints.values.as_deref(), Some(&[1, 2, 3][..]));
+    assert_eq!(ints.values.as_ref().unwrap().as_ptr(), buffer);
+
+    // A map is cleared, then filled: no entry of the old value survives.
+    let mut map = IntMap { values: Some([(1, 1), (2, 2), (3, 3)].into_iter().collect()) };
+    let data = IntMap { values: Some([(4, 40), (2, 20)].into_iter().collect()) };
+    nino::deserialize_into(&nino::serialize(&data).unwrap(), &mut map).unwrap();
+    assert_eq!(map, data);
+
+    // A polymorphic slot is read into only when the data holds the same type; another type replaces it.
+    let mut link = RedLink { value: 0, next: Some(LinkRef::Red(Box::new(RedLink { value: 1, next: None }))) };
+    let red = match &link.next {
+        Some(LinkRef::Red(r)) => &**r as *const RedLink,
+        _ => unreachable!(),
+    };
+    let same = RedLink { value: 2, next: Some(LinkRef::Red(Box::new(RedLink { value: 3, next: None }))) };
+    nino::deserialize_into(&nino::serialize(&same).unwrap(), &mut link).unwrap();
+    assert_eq!(link, same);
+    assert!(matches!(&link.next, Some(LinkRef::Red(r)) if std::ptr::eq(&**r, red)));
+    let other = RedLink {
+        value: 4,
+        next: Some(LinkRef::Blue(Box::new(BlueLink { value: 5, next: None, note: Some("b".into()) }))),
+    };
+    nino::deserialize_into(&nino::serialize(&other).unwrap(), &mut link).unwrap();
+    assert_eq!(link, other);
+
+    // Hostile input: an error, and the target is still a value (the members read before the error are the new ones,
+    // the rest as they were) that can be written and read into again.
+    let good = nino::serialize(&data_outer()).unwrap();
+    for n in 0..good.len() {
+        let mut target = data_outer();
+        target.name = Some("x".into());
+        assert!(nino::deserialize_into(&good[..n], &mut target).is_err(), "prefix {n}");
+        nino::serialize(&target).unwrap();
+        nino::deserialize_into(&good, &mut target).unwrap();
+        assert_eq!(target, data_outer());
+    }
+
+    // Deep chains: bodies past the inline depth are deferred and replace what the target held there.
+    let chain = |n: i32, base: i32| {
+        let mut c = None;
+        for v in (1..=n).rev() {
+            c = Some(Box::new(TolerantChain { value: v + base, next: c }));
+        }
+        c
+    };
+    let data = chain(400, 0);
+    let mut target = chain(300, 1000);
+    nino::deserialize_into(&nino::serialize(&data).unwrap(), &mut target).unwrap();
+    assert_eq!(nino::serialize(&target).unwrap(), nino::serialize(&data).unwrap());
+    std::mem::forget(target);
+    std::mem::forget(data);
+}
+
+fn data_outer() -> Outer {
+    Outer {
+        name: Some("name".into()),
+        point: Some(Box::new(Point { x: 1, y: 2 })),
+        middle: Some(Box::new(Middle {
+            first: Some(Box::new(Point { x: 3, y: 4 })),
+            second: None,
+            inner: Some(Box::new(Inner { value: 7, text: Some("t".into()), point: None })),
+        })),
+    }
+}
+
 #[cfg(feature = "serde")]
 #[test]
 fn serde_names() {

@@ -427,8 +427,31 @@ where
     I: ExactSizeIterator<Item = C>,
     F: Fn(C) -> crate::error::Result<T>,
 {
-    let len = chunks.len();
-    let mut out = Vec::with_capacity(len);
+    let mut out = Vec::with_capacity(chunks.len());
+    fill_block(&mut out, chunks, decode)?;
+    Ok(out)
+}
+
+/// [`decode_block`] into `out` (reading into an existing `Vec`): emptied, then filled, keeping its allocation when it
+/// has room for every value. On an error `out` holds the values decoded before it.
+#[inline(always)]
+pub(crate) fn decode_block_into<C, T, I, F>(out: &mut Vec<T>, chunks: I, decode: F) -> crate::error::Result<()>
+where
+    I: ExactSizeIterator<Item = C>,
+    F: Fn(C) -> crate::error::Result<T>,
+{
+    out.clear();
+    out.reserve_exact(chunks.len());
+    fill_block(out, chunks, decode)
+}
+
+/// Decodes `chunks` into the spare capacity of `out`, which is empty with room for all of them.
+#[inline(always)]
+fn fill_block<C, T, I, F>(out: &mut Vec<T>, chunks: I, decode: F) -> crate::error::Result<()>
+where
+    I: ExactSizeIterator<Item = C>,
+    F: Fn(C) -> crate::error::Result<T>,
+{
     let room = out.spare_capacity_mut();
     let mut done = 0usize;
     for (slot, bytes) in room.iter_mut().zip(chunks) {
@@ -439,15 +462,16 @@ where
                 done = done.wrapping_add(1);
             }
             Err(e) => {
-                // SAFETY: the first `done` slots are written.
+                // SAFETY: `out` was empty, and the first `done` slots are written.
                 unsafe { out.set_len(done) };
                 return Err(e);
             }
         }
     }
-    // SAFETY: the capacity is at least `len` and `zip` wrote a slot for each of the `len` chunks: `done == len`.
+    // SAFETY: `out` was empty with room for every chunk, and `zip` wrote a slot for each (it stops at the shorter of
+    // the spare capacity and the chunks, and the capacity is at least their count): the first `done` are written.
     unsafe { out.set_len(done) };
-    Ok(out)
+    Ok(())
 }
 
 /// The most strings [`ascii_strings`] writes with one reservation.
