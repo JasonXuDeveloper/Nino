@@ -409,7 +409,9 @@ namespace Nino.Core.Internal
             if (NinoUnsafe.VectorMasks)
                 _vectorMask = Repeat(mask, Vector<byte>.Count, Vector<byte>.Count, out _vectorPeriod);
 #if NET8_0_OR_GREATER
-            if (Vector512.IsHardwareAccelerated)
+            // Not on Ice Lake (NinoUnsafe.Wide512): GitHub's Xeon Platinum 8370C wrote 1,000 8-byte structs with a
+            // padding byte in 116 ns with 64-byte vectors, 83 with 32-byte ones (MemoryPack's copy 88).
+            if (Vector512.IsHardwareAccelerated && NinoUnsafe.Wide512)
                 _mask512 = Repeat(mask, Vector512<byte>.Count, Vector512<byte>.Count, out _period512);
 #endif
         }

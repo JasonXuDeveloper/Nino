@@ -532,14 +532,20 @@ namespace Nino.Core.CompilerServices
         }
 
         /// <summary>
-        /// An x64 CPU with AVX-512 VBMI whose two-source 64-byte byte permute (vpermt2b) writes values of more than 16
-        /// bytes faster than lane groups of 32-byte vectors (<see cref="NinoBlock"/>.WritePairs): AMD's (Zen 4 and
-        /// later) and Intel's with AVX512-FP16 (Sapphire Rapids and later), not Ice Lake. Measured on GitHub's runners,
-        /// 1,000 values of 24 bytes as 15-byte blocks (.NET 10): Xeon Platinum 8573C 0.65 and EPYC 9V45 0.76 times the
-        /// time of lane groups, Xeon Platinum 8370C (Ice Lake) 1.44 times. Two CPUIDs at startup.
+        /// An x64 CPU whose 64-byte vector work beats 32-byte vectors where the two disagree: AMD's (Zen 4 and later) and
+        /// Intel's with AVX512-FP16 (Sapphire Rapids and later), not Ice Lake, where both kernels below lost. Two
+        /// CPUIDs at startup.
         /// </summary>
-        internal static readonly bool PairPermutes = Avx512Vbmi.IsSupported &&
-                                                     (IsAmd() || (X86Base.CpuId(7, 0).Edx & (1 << 23)) != 0);
+        internal static readonly bool Wide512 = X86Base.IsSupported &&
+                                                (IsAmd() || (X86Base.CpuId(7, 0).Edx & (1 << 23)) != 0);
+
+        /// <summary>
+        /// An x64 CPU with AVX-512 VBMI whose two-source 64-byte byte permute (vpermt2b) writes values of more than 16
+        /// bytes faster than lane groups of 32-byte vectors (<see cref="NinoBlock"/>.WritePairs), <see cref="Wide512"/>.
+        /// Measured on GitHub's runners, 1,000 values of 24 bytes as 15-byte blocks (.NET 10): Xeon Platinum 8573C 0.65
+        /// and EPYC 9V45 0.76 times the time of lane groups, Xeon Platinum 8370C (Ice Lake) 1.44 times.
+        /// </summary>
+        internal static readonly bool PairPermutes = Avx512Vbmi.IsSupported && Wide512;
 
 #endif
         /// <summary>
