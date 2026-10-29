@@ -474,15 +474,15 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Values written per two-source 64-byte byte permute (<see cref="NinoBlock"/>.WritePairs), 0 when they are not:
-        /// with AVX-512 VBMI, values of more than 16 bytes (which neither <see cref="Shuffles"/> nor
-        /// <see cref="Permutes"/> takes) whose blocks are not written in <see cref="Groups"/>, as many as 128 bytes of
-        /// their memory and 64 of their blocks hold, at least three. Each step is two loads, one permute and one store
-        /// (1,000 24-byte values, 15-byte blocks, four a step: on GitHub's Xeon Platinum 8573C runners they took 425 ns
-        /// in lane groups of two, MemoryPack's copy of their memory 249 ns).
+        /// where AVX-512 VBMI's pays off (<see cref="NinoUnsafe.PairPermutes"/>), values of more than 16 bytes (which
+        /// neither <see cref="Shuffles"/> nor <see cref="Permutes"/> takes) whose blocks are not written in
+        /// <see cref="Groups"/>, as many as 128 bytes of their memory and 64 of their blocks hold, at least three. Each
+        /// step is two loads, one permute and one store (1,000 24-byte values, 15-byte blocks, four a step: on GitHub's
+        /// Xeon Platinum 8573C runners 445 ns in lane groups of two, 283 ns in steps, MemoryPack's copy 251 ns).
         /// </summary>
         public static readonly int PerPair = Map != null && !IsMemory && !Groups && !Shuffles &&
                                              NinoBlock.Size<T, TFormatter>() < Unsafe.SizeOf<T>() &&
-                                             Avx512Vbmi.IsSupported &&
+                                             NinoUnsafe.PairPermutes &&
                                              Math.Min(128 / Unsafe.SizeOf<T>(), 64 / NinoBlock.Size<T, TFormatter>()) is
                                                  var pair && pair >= 3
             ? pair

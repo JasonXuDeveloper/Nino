@@ -339,8 +339,8 @@ namespace Nino.Core.CompilerServices
         /// moves); more out of line (<see cref="CopyOver64"/>, as every size in a 32-bit process, where up to 64 bytes
         /// are copied the same way on x86 and where <see cref="UnalignedWide32"/>), 65 to 128 as four 32-byte vectors
         /// where they are accelerated: a block copy of a size that is not a constant calls Memmove. Beyond, up to 32 KB
-        /// with 64-byte vectors where they are accelerated, and from there (else from 256 bytes) to 1 MB with 32-byte
-        /// ones (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an AVX-512 Xeon (.NET 10, source and
+        /// with 64-byte vectors where they are accelerated, and from there on Intel (else from 256 bytes) to 1 MB with
+        /// 32-byte ones (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an AVX-512 Xeon (.NET 10, source and
         /// destination of different alignments), with AVX-512 on or off: 33 to 64 bytes in 4.0 to 4.5 ns instead of 4.7
         /// to 5.4 (Memmove), 65 to 128 in about 4.2 ns instead of 5.4 to 6.6. A loop of 16-byte vectors (WebAssembly,
         /// SSE only) is slower than Memmove from 2 KB, so those CPUs call Memmove from 65 bytes; Arm64 copies up to
@@ -474,10 +474,14 @@ namespace Nino.Core.CompilerServices
                         return;
                     }
                 }
-                else if (Vector512.IsHardwareAccelerated ? size <= MaxVector256Copy : size - 256 <= MaxVector256Copy - 256)
+                else if (Vector512.IsHardwareAccelerated
+                             ? size <= (AmdCopy ? MaxVectorCopy : MaxVector256Copy)
+                             : size - 256 <= MaxVector256Copy - 256)
                 {
-                    // With 64-byte vectors up to MaxVectorCopy, then 32-byte ones up to MaxVector256Copy: beyond 32 KB
-                    // the 64-byte loop lost to Memmove, the 32-byte one still beats it.
+                    // With 64-byte vectors up to MaxVectorCopy, then on Intel 32-byte ones up to MaxVector256Copy: beyond
+                    // 32 KB the 64-byte loop lost to Memmove, the 32-byte one still beats it there (GitHub's Xeon
+                    // Platinum 8370C, 160,000 bytes into a new zeroed array: 3.18 us instead of 3.51); on AMD's Zen 5
+                    // Memmove beats it into such an array (EPYC 9V45: 1.81 us against 1.67). CopyToNew is the other way.
                     if (Vector512.IsHardwareAccelerated && size <= MaxVectorCopy)
                         CopyVectors<Vector512<byte>>(ref destination, ref source, size);
                     else
@@ -526,6 +530,16 @@ namespace Nino.Core.CompilerServices
             return ebx == 0x68747541 && edx == 0x69746E65 && ecx == 0x444D4163;
         }
 
+        /// <summary>
+        /// An x64 CPU with AVX-512 VBMI whose two-source 64-byte byte permute (vpermt2b) writes values of more than 16
+        /// bytes faster than lane groups of 32-byte vectors (<see cref="NinoBlock"/>.WritePairs): AMD's (Zen 4 and later)
+        /// and Intel's with AVX512-FP16 (Sapphire Rapids and later), not Ice Lake. Measured on GitHub's runners, 1,000
+        /// values of 24 bytes as 15-byte blocks (.NET 10): Xeon Platinum 8573C 0.64 and EPYC 9V45 0.74 times the time
+        /// of lane groups, Xeon Platinum 8370C (Ice Lake) 1.44 times. Two CPUIDs at startup.
+        /// </summary>
+        internal static readonly bool PairPermutes = Avx512Vbmi.IsSupported &&
+                                                     (IsAmd() || (X86Base.CpuId(7, 0).Edx & (1 << 23)) != 0);
+
 #endif
         /// <summary>
         /// <see cref="Copy"/> into memory that may have just been allocated (a read into a new array): Memmove from
@@ -544,6 +558,15 @@ namespace Nino.Core.CompilerServices
             if (size >= MinUninitializedArrayBytes && !AmdCopy)
             {
                 Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
+                return;
+            }
+
+            // On AMD with 64-byte vectors, 32-byte ones beyond 32 KB too, where Copy calls Memmove: into a new
+            // uninitialized array they beat it (GitHub's EPYC 9V45 and 9V74, 160,000 bytes: 0.93 to 0.95 times the time).
+            if (AmdCopy && Vector512.IsHardwareAccelerated &&
+                size - (MaxVectorCopy + 1) <= MaxVector256Copy - (MaxVectorCopy + 1))
+            {
+                CopyVectors<Vector256<byte>>(ref destination, ref source, size);
                 return;
             }
 #endif
