@@ -101,6 +101,15 @@ func rtype(s)
   end
 end
 
+# FIXED_SIZE of a struct of fixed size (`trait` NinoRead or NinoWrite): its members' sizes added up.
+func fixed_size(t, trait)
+  $sizes = []
+  for $m in t.members
+    $sizes = array.add $sizes ("<" + rtype($m.shape) + " as " + trait + ">::FIXED_SIZE")
+  end
+  ret "    const FIXED_SIZE: usize = nino::fixed_size(&[" + (array.join $sizes ", ") + "]);"
+end
+
 # Reading a member into `self`: through read_in when a class body inside may be deferred.
 func read(m)
   if m.shape.may_defer
@@ -437,6 +446,19 @@ impl{{ t.impl_generics }} NinoRead for {{ t.name }}{{ t.generics }} {
     const MAY_DEFER: bool = {{ may_defer(t) }};
 
 {{~ end ~}}
+{{~ if t.fixed ~}}
+{{ fixed_size(t, "NinoRead") }}
+
+    #[allow(clippy::field_reassign_with_default)]
+    fn decode_fixed(mut b: &[u8]) -> nino::Result<Self> {
+        let mut v = Self::default();
+{{~ for m in t.members ~}}
+        v.{{ m.name }} = nino::decode_next(&mut b)?;
+{{~ end ~}}
+        Ok(v)
+    }
+
+{{~ end ~}}
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
         let mut v = Self::default();
 {{~ if t.counted ~}}
@@ -453,7 +475,17 @@ impl{{ t.impl_generics }} NinoRead for {{ t.name }}{{ t.generics }} {
 }
 
 impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
-{{ prefetch(t) }}    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+{{ prefetch(t) }}{{~ if t.fixed ~}}
+{{ fixed_size(t, "NinoWrite") }}
+
+    fn encode_fixed(&self, mut out: &mut [u8]) {
+{{~ for m in t.members ~}}
+        nino::encode_next(&self.{{ m.name }}, &mut out);
+{{~ end ~}}
+    }
+
+{{~ end ~}}
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         self.write_body(w)
     }
 }
