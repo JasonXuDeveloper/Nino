@@ -1,5 +1,5 @@
 //! Nino's reader and writer on blocks of fixed-size elements other than numbers: `bool`, dates, decimals, GUIDs, a raw
-//! struct as nino-gen generates it, tuples, nullable values and a dictionary, 10,000 of each (1,000 entries for the
+//! struct as nino-gen generates it, plain structs as `#[derive]` writes them, tuples, nullable values and a dictionary, 10,000 of each (1,000 entries for the
 //! dictionary). For comparing changes to the block paths back to back on one machine; not part of the published
 //! comparison (`compare.rs`).
 //!
@@ -68,6 +68,23 @@ impl NinoWrite for Point {
     }
 }
 
+/// A plain (not raw) struct whose members are all fixed-size, derived: its wire bytes are its memory.
+#[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "struct")]
+pub struct Plain {
+    pub x: i32,
+    pub y: f32,
+}
+
+/// A plain struct whose wire bytes are not its memory (13 bytes, no padding; a `bool` checked on read), derived.
+#[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "struct")]
+pub struct PlainMixed {
+    pub id: i64,
+    pub flag: bool,
+    pub score: i32,
+}
+
 fn case<T>(c: &mut Criterion, name: &str, value: T)
 where
     T: NinoRead + NinoWrite + PartialEq + std::fmt::Debug,
@@ -107,6 +124,9 @@ fn benches(c: &mut Criterion) {
     );
     case(c, "guid", (0..N).map(|i| Guid((i as u128 * 0x9E37_79B9_7F4A_7C15).to_le_bytes())).collect::<Vec<_>>());
     case(c, "point", (0..N).map(|i| Point { x: i, y: -i }).collect::<Vec<_>>());
+    case(c, "struct-i32-f32", (0..N).map(|i| Plain { x: i, y: i as f32 * 0.5 }).collect::<Vec<_>>());
+    let mixed = |i: i32| PlainMixed { id: i64::from(i) * 7919, flag: i % 3 == 0, score: -i };
+    case(c, "struct-i64-bool-i32", (0..N).map(mixed).collect::<Vec<_>>());
     case(c, "tuple-i32-i32", (0..N).map(|i| (i, -i)).collect::<Vec<(i32, i32)>>());
     case(c, "tuple-i64-bool", (0..N).map(|i| (i64::from(i), i % 2 == 0)).collect::<Vec<(i64, bool)>>());
     case(c, "option-i32", (0..N).map(|i| (i % 4 != 0).then_some(i)).collect::<Vec<Option<i32>>>());
