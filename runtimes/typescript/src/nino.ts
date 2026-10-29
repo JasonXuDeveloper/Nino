@@ -53,7 +53,7 @@ let scratchWriter: NinoWriter | null = null;
  *
  * Not for a writer that is writing a value (from a custom codec): references and depth are counted per call.
  */
-export function serializeInto<T>(codec: NinoCodec<T>, value: T, target: NinoWriter | Uint8Array): number {
+function serializeInto_<T>(codec: NinoCodec<T>, value: T, target: NinoWriter | Uint8Array): number {
   if (target instanceof NinoWriter) {
     const start = target.pos;
     target["begin"]();
