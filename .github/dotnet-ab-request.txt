@@ -100,6 +100,11 @@
 # done (run 40829244512): cpu='EPYC|Neoverse' 7d4d6b0 de535f1 12 *GenericPolymorphicTest.NinoSerializeNonGenericBase* *PolymorphicTest.NinoSerializePolymorphicClassArray* *ScatteredTest.Nino* *CommonTypesTest.NinoSerializePlayers* *CommonTypesTest.NinoSerializeOrders* *CommonTypesTest.NinoSerializeTree* # pf-null
 # dict-simd 5c7dad2 (raw Dictionary/HashSet entries as blocks, Untrusted value checks with vectors, netstandard
 # SWAR string compare) against its base 0c47f87 (main 671f360 plus the IntDictionary and Untrusted cases), and the floor.
-cpu='EPYC|Xeon|Neoverse' 0c47f87 5c7dad2 12 *CollectionsTest.Nino*HashSet* *CollectionsTest.Nino*IntDictionary* *UntrustedTest.Nino* *PolymorphicTest.NinoSerialize* *TupleList* *KeyValuePairs* # dict-simd
-cpu='EPYC|Xeon|Neoverse' 0c47f87 0c47f87 12 *CollectionsTest.Nino*HashSet* *CollectionsTest.Nino*IntDictionary* *UntrustedTest.Nino* *PolymorphicTest.NinoSerialize* *TupleList* *KeyValuePairs* # dict-simd floor
-cpu='EPYC|Xeon|Neoverse' 671f360 b215e4c 12 *GenericPolymorphicTest.Nino* # devirt: never-null NinoTopFormatter (CachedFormatter<T> direct)
+# done (run 40842440261, x64 jobs of lines 1-2 cancelled by the owner at 10:19): cpu='EPYC|Xeon|Neoverse' 0c47f87 5c7dad2 12 *CollectionsTest.Nino*HashSet* *CollectionsTest.Nino*IntDictionary* *UntrustedTest.Nino* *PolymorphicTest.NinoSerialize* *TupleList* *KeyValuePairs* # dict-simd
+# done (run 40842440261, x64 jobs of lines 1-2 cancelled by the owner at 10:19): cpu='EPYC|Xeon|Neoverse' 0c47f87 0c47f87 12 *CollectionsTest.Nino*HashSet* *CollectionsTest.Nino*IntDictionary* *UntrustedTest.Nino* *PolymorphicTest.NinoSerialize* *TupleList* *KeyValuePairs* # dict-simd floor
+# done (run 40842440261): cpu='EPYC|Xeon|Neoverse' 671f360 b215e4c 12 *GenericPolymorphicTest.Nino* # devirt: never-null NinoTopFormatter (CachedFormatter<T> direct)
+# dict-simd copy 2 with its floor, serialize cases only: Xeon 8573C/8370C and EPYC 9V45 had no floor in run 40842440261
+# (TupleList 1.03-1.04 there; its loop is main's, only the per-value tail moved). Then devirt's floor.
+cpu='EPYC|Xeon|Neoverse' 0c47f87 5c7dad2 12 *CollectionsTest.NinoSerializeTupleList* *CollectionsTest.NinoSerializeKeyValuePairs* *CollectionsTest.NinoSerializeHashSet* *CollectionsTest.NinoSerializeIntDictionary* *UntrustedTest.Nino* *PolymorphicTest.NinoSerializePolymorphicClass* *GenericPolymorphicTest.NinoSerialize* # dict-simd copy 2
+cpu='EPYC|Xeon|Neoverse' 0c47f87 0c47f87 12 *CollectionsTest.NinoSerializeTupleList* *CollectionsTest.NinoSerializeKeyValuePairs* *CollectionsTest.NinoSerializeHashSet* *CollectionsTest.NinoSerializeIntDictionary* *UntrustedTest.Nino* *PolymorphicTest.NinoSerializePolymorphicClass* *GenericPolymorphicTest.NinoSerialize* # dict-simd floor copy 2
+cpu='EPYC|Xeon|Neoverse' 671f360 671f360 12 *GenericPolymorphicTest.Nino* # devirt floor
