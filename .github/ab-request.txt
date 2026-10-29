@@ -993,15 +993,15 @@ go#12 4225c20 479f92e ^Benchmark(Serialize|Deserialize)$/./^Nino$ # body 1
 go#12 4225c20 479f92e ^Benchmark(Serialize|Deserialize)$/./^Nino$ # body 2
 go#12 4225c20 4225c20 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # body floor 1
 # Go block checks four a step (d2512f3) and UTF-16 copies (b3459bf) on the BenchmarkBlocks / BenchmarkUTF16 bench (a309ab3)
-go:. a309ab3 d2512f3 Blocks # blocks 1
-go:. a309ab3 d2512f3 Blocks # blocks 2
-go:. a309ab3 d2512f3 Blocks # blocks 3
-go:. d2512f3 b3459bf UTF16 # utf16 1
-go:. d2512f3 b3459bf UTF16 # utf16 2
-go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 1
-go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 2
-go a309ab3 b3459bf .*/.*/Nino # blocks bench module 1
-go a309ab3 a309ab3 .*/.*/Nino # blocks bench module floor 1
+# done (run 40822228516): go:. a309ab3 d2512f3 Blocks # blocks 1
+# done (run 40822228516): go:. a309ab3 d2512f3 Blocks # blocks 2
+# done (run 40822228516): go:. a309ab3 d2512f3 Blocks # blocks 3
+# done (run 40822228516): go:. d2512f3 b3459bf UTF16 # utf16 1
+# done (run 40822228516): go:. d2512f3 b3459bf UTF16 # utf16 2
+# done (run 40822228516): go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 1
+# done (run 40822228516): go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 2
+# done (run 40822228516): go a309ab3 b3459bf .*/.*/Nino # blocks bench module 1
+# done (run 40822228516): go a309ab3 a309ab3 .*/.*/Nino # blocks bench module floor 1
 # Rust plain structs of fixed-size members as blocks (4a59096) against 6af5111: blocks bench, and compare for the tuple/bool helpers
 rust:blocks 6af5111 4a59096 # rsblk 1
 rust:blocks 6af5111 4a59096 # rsblk 2
@@ -1048,3 +1048,13 @@ typescript 7c30927 d07506b # short inline 2
 typescript 7c30927 d07506b # short inline 3
 typescript 30eb091 d07506b # short inline vs block 1
 typescript 30eb091 d07506b # short inline vs block 2
+# Round 1 (run 40822228516): block checks 7-38 % faster writing on every CPU but Xeon 8370C dateonly/write +20.5 % (one job);
+# Latin-1 widening on read +86 % on EPYC 7763: dropped (7101288). Round 2: more samples of the blocks line, UTF-16 without it.
+go:. a309ab3 d2512f3 Blocks # blocks 4
+go:. a309ab3 d2512f3 Blocks # blocks 5
+go:. a309ab3 d2512f3 Blocks # blocks 6
+go:. a309ab3 d2512f3 Blocks # blocks 7
+go:. d2512f3 7101288 UTF16 # utf16 3
+go:. d2512f3 7101288 UTF16 # utf16 4
+go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 3
+go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 4
