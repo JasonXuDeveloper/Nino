@@ -48,6 +48,7 @@ public class ScatteredTest
     private static readonly Shape[] InOrderShapes = new Shape[Count];
     private static readonly Shape[] ScatteredShapes;
     private static readonly Shape[] HotShapes;
+    private static readonly Shape[] NullChangeShapes;
     private static readonly ScatteredItem[] Items = new ScatteredItem[Count];
 
     private static readonly byte[] NinoItems;
@@ -70,6 +71,7 @@ public class ScatteredTest
         ScatteredShapes = (Shape[])InOrderShapes.Clone();
         random.Shuffle(ScatteredShapes);
         HotShapes = InOrderShapes.AsSpan(0, HotCount).ToArray();
+        NullChangeShapes = InOrderShapes.AsSpan(0, 64).ToArray();
         for (int i = 0; i < Count; i++)
             Items[i] = new ScatteredItem { Id = i, Value = i * 7L };
         // The names allocated in another order than the items, as members assigned after their object was created.
@@ -185,6 +187,14 @@ public class ScatteredTest
         _protobufStream.SetLength(0);
         Serializer.Serialize(_protobufStream, InOrderShapes);
         return (int)_protobufStream.Length;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullChangeSerialize")]
+    public int NinoSerializeNullChange()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(NullChangeShapes, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("HotShapesSerialize")]
