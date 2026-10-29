@@ -90,7 +90,8 @@ def typescript(path, tag):
             f"{time(r['mean'] * 1e6)}{spread(r['rme'])} ({hz})"
         if r["op"] == "serialize":
             cells.setdefault((r["scenario"], "size"), {})[r["serializer"]] = size(r["bytes"])
-    scenarios, ops = list(dict.fromkeys(c for c, _ in cells)), ["serialize", "deserialize", "size"]
+    # serializeInto: Nino's serialize into one NinoWriter reset per value (bench.ts, operations).
+    scenarios, ops = list(dict.fromkeys(c for c, _ in cells)), ["serialize", "serializeInto", "deserialize", "size"]
     cells = {k: cells[k] for k in sorted(cells, key=lambda k: (scenarios.index(k[0]), ops.index(k[1])))}
     who = pivot(cells, ["Nino", "Protobuf", "MessagePack", "JSON"])
     # Benches since the rotation take a different variant of the values on each pass (bench.ts, "Inputs rotate").

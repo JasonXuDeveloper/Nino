@@ -13,19 +13,26 @@
 import { equals, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { Packr } from "msgpackr";
 import { Bench } from "tinybench";
-import { deserialize, serialize, type NinoCodec } from "./gen/nino.ts";
+import * as nino from "./gen/nino.ts";
+import { deserialize, NinoWriter, serialize, type NinoCodec } from "./gen/nino.ts";
 import * as b from "./gen/Bench.ts";
 import { protobuf } from "./protobuf.ts";
 
 /** The serializers, in the order of the tables. */
 export const serializers = ["Nino", "Protobuf", "MessagePack", "JSON"] as const;
 export type Serializer = (typeof serializers)[number];
+/**
+ * The operations, in the order of the tables. `serializeInto` is Nino's serialize into one `NinoWriter` reset for each
+ * value: no new `ArrayBuffer` per value (see `make`). A runtime-ab side whose nino.ts predates it has no such row.
+ */
+export const operations = ["serialize", "serializeInto", "deserialize"] as const;
+export type Operation = (typeof operations)[number];
 
 /** One task's result: a pass over all of a scenario's values (one variant) with one serializer, in one direction. */
 export interface Row {
   scenario: string;
   serializer: Serializer;
-  op: "serialize" | "deserialize";
+  op: Operation;
   /** Mean milliseconds per pass, and its relative margin of error (%, 95% confidence). */
   mean: number;
   rme: number;
@@ -106,7 +113,7 @@ const size = (variants: { length: number }[][]) =>
   Math.round(variants.reduce((n, list) => list.reduce((m, x) => m + x.length, n), 0) / variants.length);
 
 /** A serializer's two tasks on its own data: what each pass runs, and the mean encoded size of a variant. */
-type Tasks = { serialize: () => void; deserialize: () => void; bytes: number };
+type Tasks = { serialize: () => void; serializeInto?: () => void; deserialize: () => void; bytes: number };
 
 async function scenario<T>(name: string, file: string, data: Uint8Array, codec: NinoCodec<T>, options: Options):
   Promise<Row[]> {
@@ -128,8 +135,12 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
   const make: Record<Serializer, () => Tasks> = {
     Nino: () => {
       const lists = values();
+      // An application that writes each value out (to a socket, a file) before the next one, into one writer: once
+      // the writer is large enough it allocates nothing, so no ArrayBuffers pile up toward V8's full GC (see above).
+      const into = nino.serializeInto as typeof nino.serializeInto | undefined, writer = new NinoWriter();
       return {
         serialize: rotate(lists, (l) => { for (const v of l) serialize(codec, v); }),
+        serializeInto: into && rotate(lists, (l) => { for (const v of l) { writer.reset(); into(codec, v, writer); } }),
         deserialize: rotate(bytes, (l) => { for (const x of l) deserialize(codec, x); }), bytes: size(bytes),
       };
     },
@@ -171,9 +182,10 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
   for (const serializer of serializers) {
     const tasks = make[serializer]();
     const bench = new Bench({ name, time: options.time ?? 1000, warmupTime: options.warmupTime ?? 250 });
-    for (const op of ["serialize", "deserialize"] as const) bench.add(op, tasks[op]);
+    const ops = operations.filter((op) => tasks[op] !== undefined);
+    for (const op of ops) bench.add(op, tasks[op]!);
     await bench.run();
-    for (const op of ["serialize", "deserialize"] as const) {
+    for (const op of ops) {
       const result = bench.getTask(op)!.result;
       if (result.state !== "completed") throw new Error(`${name}: ${op} ${serializer} ${result.state}`);
       const l = result.latency;
@@ -222,8 +234,8 @@ export function table(rows: Row[]): string {
   ];
   for (const name of [...new Set(rows.map((r) => r.scenario))]) {
     const find = (op: string, s: string) => rows.find((r) => r.scenario === name && r.op === op && r.serializer === s);
-    for (const op of ["serialize", "deserialize"])
-      lines.push(`| ${name} | ${op} | ${serializers.map((s) => ms(find(op, s))).join(" | ")} |`);
+    for (const op of operations)
+      if (rows.some((r) => r.scenario === name && r.op === op)) lines.push(`| ${name} | ${op} | ${serializers.map((s) => ms(find(op, s))).join(" | ")} |`);
     lines.push(`| ${name} | size (KiB) | ${serializers.map((s) => ((find("serialize", s)?.bytes ?? 0) / 1024).toFixed(1)).join(" | ")} |`);
   }
   return lines.join("\n");
