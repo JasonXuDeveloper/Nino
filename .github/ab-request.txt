@@ -992,3 +992,13 @@ go#12 78ceaa1 78ceaa1 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # dispatch flo
 go#12 4225c20 479f92e ^Benchmark(Serialize|Deserialize)$/./^Nino$ # body 1
 go#12 4225c20 479f92e ^Benchmark(Serialize|Deserialize)$/./^Nino$ # body 2
 go#12 4225c20 4225c20 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # body floor 1
+# Go block checks four a step (d2512f3) and UTF-16 copies (b3459bf) on the BenchmarkBlocks / BenchmarkUTF16 bench (a309ab3)
+go:. a309ab3 d2512f3 Blocks # blocks 1
+go:. a309ab3 d2512f3 Blocks # blocks 2
+go:. a309ab3 d2512f3 Blocks # blocks 3
+go:. d2512f3 b3459bf UTF16 # utf16 1
+go:. d2512f3 b3459bf UTF16 # utf16 2
+go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 1
+go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 2
+go a309ab3 b3459bf .*/.*/Nino # blocks bench module 1
+go a309ab3 a309ab3 .*/.*/Nino # blocks bench module floor 1
