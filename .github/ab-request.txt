@@ -1082,3 +1082,9 @@ go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^(simple-class|strings-mixed-1000)$/^
 go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^(simple-class|strings-mixed-1000)$/^Nino$ # dispatch 7763 floor 1
 go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^(simple-class|strings-mixed-1000)$/^Nino$ # dispatch 7763 floor 2
 go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^(simple-class|strings-mixed-1000)$/^Nino$ # dispatch 7763 floor 3
+# TS serializeInto rebased (78774c3 on 341f9f2); 971bacb/2dbf0a6's runs were cancelled
+typescript 78774c3 78774c3 # serializeInto rebased 1
+typescript 78774c3 78774c3 # serializeInto rebased 2
+typescript 341f9f2 78774c3 # serializeInto vs main rebased 1
+typescript 341f9f2 78774c3 # serializeInto vs main rebased 2
+typescript 341f9f2 341f9f2 # serializeInto main floor 1
