@@ -122,8 +122,12 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   serialize 0.64x on EPYC 7763 in Node, msgpackr Lookup and Strings 0.4-0.5x in Chromium); JSON within 0.85 to 1.08x.
 - Read a runtime API newer than the bench off the module namespace (`nino.serializeInto` from `import * as nino`),
   and skip its task when it is undefined: runtime-ab runs the head's `bench.ts` against each side's own `nino.ts`, so
-  a named import of a new export fails esbuild on every line whose base predates it. The `serializeInto` task (23d9dea)
-  does this; its own numbers come from a line with the same commit on both sides.
+  a named import of a new export fails esbuild on every line whose base predates it. The `serializeInto` task (fed673be)
+  does this; its own numbers come from a line with the same commit on both sides. Such a line also measures the other
+  tasks with and without the new one running between them: judge it against a null line (the head with the export
+  hidden, against the head), never against the base alone. With identical `serialize` code, running `serializeInto`
+  made the next `serialize` timings slower on every CPU (Zoo +5 to +15 %, Samples and Mesh up to +10 % in run
+  40864160156 against main, the same in the null line 0b46472 of run 40925188020).
 - A new section or heading in the release body changes with its parser in Nino.Docs (`scripts/sync-benchmarks.ts`)
   and the components that show it (`audit-docs`).
 
