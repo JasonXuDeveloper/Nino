@@ -958,3 +958,13 @@ typescript 506720c223 506720c223
 # done (run 40792547994): typescript 19801e3 19801e3 # ts-rotate floor 1
 # done (run 40792547994): typescript 19801e3 19801e3 # ts-rotate floor 2
 # TS rotation (run 40792547994): landed as 81d0700 (main). Lookup JSON deserialize 0.72x -> 8.97x Nino's time (Node, EPYC 7763).
+# TS cold serialize diagnostics (ef4917d: Touch/Gather/Ahead columns) on 1 variant (18c7bbd) against 64 (ef4917d)
+typescript 18c7bbd ef4917d mesh # cold-diag 1
+typescript 18c7bbd ef4917d mesh # cold-diag 2
+typescript 18c7bbd ef4917d mesh # cold-diag 3
+typescript 18c7bbd ef4917d player # cold-diag 1
+typescript 18c7bbd ef4917d player # cold-diag 2
+typescript 18c7bbd ef4917d orders # cold-diag 1
+typescript 18c7bbd ef4917d orders # cold-diag 2
+typescript ef4917d ef4917d mesh # cold-diag floor 1
+typescript ef4917d ef4917d mesh # cold-diag floor 2
