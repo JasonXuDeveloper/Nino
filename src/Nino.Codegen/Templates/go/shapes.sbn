@@ -157,7 +157,12 @@ func read(s)
       ret "r.ByteArray()"
     end
   end
-  ret rfn(s) + "(r)"
+  $f = rfn(s)
+  if string.starts_with $f "(*nino.Reader)."
+    # A method value: called as a method.
+    ret "r." + (string.slice $f 15) + "()"
+  end
+  ret $f + "(r)"
 end
 
 # A function value writing a value: func(*nino.Writer, T).
@@ -227,7 +232,11 @@ func write(s, x)
       ret "w.ByteArray(" + x + ")"
     end
   end
-  ret wfn(s) + "(w, " + x + ")"
+  $f = wfn(s)
+  if string.starts_with $f "(*nino.Writer)."
+    ret "w." + (string.slice $f 15) + "(" + x + ")"
+  end
+  ret $f + "(w, " + x + ")"
 end
 
 # A function value decoding a raw value from exactly its bytes: func(*nino.Reader, []byte) T.
