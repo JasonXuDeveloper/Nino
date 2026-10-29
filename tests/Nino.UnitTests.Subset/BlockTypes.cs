@@ -44,6 +44,17 @@ namespace Nino.UnitTests.Subset.Blocks
         public (short, bool) P { get; set; }
     }
 
+    // The benchmarks' Waypoint: 4 + 4 + 6 + 1 = 15 bytes, 24 in memory (9 of padding, two runs of it): AVX-512's read
+    // groups of eight (three memory vectors), VBMI's pairs of vectors for writes and Arm64's partial lane groups.
+    [NinoType]
+    public struct BlockWaypoint
+    {
+        public float X;
+        public float Y;
+        public (int Tick, short Zone) Stamp;
+        public bool Visited;
+    }
+
     // Another block struct inside: 17 + 1 = 18 bytes.
     [NinoType]
     public struct BlockNested

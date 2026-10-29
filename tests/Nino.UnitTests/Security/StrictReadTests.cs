@@ -112,6 +112,7 @@ public class StrictReadTests
                 Invalid<(int, short, bool)[]>(WithByte(NinoSerializer.Serialize(swapped), 4 + at * 7 + 6, b));
                 var kvps = pairs.Select(p => new KeyValuePair<bool, int>(p.Item1, p.Item2)).ToArray();
                 Invalid<KeyValuePair<bool, int>[]>(WithByte(NinoSerializer.Serialize(kvps), 4 + at * 5, b));
+                // Not a block (a tuple item is not raw): read a value at a time.
                 var padded = pairs.Select(p => (1f, 2f, (p.Item2, (short)3), p.Item1)).ToArray();
                 Invalid<(float, float, (int, short), bool)[]>(WithByte(NinoSerializer.Serialize(padded), 4 + at * 15 + 14, b));
             }
