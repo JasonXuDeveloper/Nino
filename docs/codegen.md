@@ -118,8 +118,9 @@ reference, and declare the item its properties described:
 | `NinoTypeScriptTargetFramework` | `NinoCodegenTargetFramework` |
 | `NinoTypeScriptEnabled` | `NinoCodegenEnabled` |
 
-The output is the same, except that the header comment names `nino-gen` rather than `Nino.TypeScript`; the `.nino-ts`
-manifest is taken over (and deleted) by the first run. Until the item is declared, the `NinoTypeScript*` properties
+The output is the same, except that the header comment names `nino-gen` rather than `Nino.TypeScript` and that arrays
+and lists of fixed-size numbers are typed arrays (`Int32Array` where it wrote `number[]`, see [TypeScript](#typescript));
+the `.nino-ts` manifest is taken over (and deleted) by the first run. Until the item is declared, the `NinoTypeScript*` properties
 still work: without a `<NinoCodegen>` item they stand for `<NinoCodegen Include="typescript" ... />` (with `ts/` as
 before when `NinoTypeScriptOutput` is not set), with warning NINOGEN003. The diagnostics `NINOTS001` and `NINOTS002`
 are now `NINOGEN001` and `NINOGEN002`.
@@ -267,6 +268,12 @@ types without members (`readBody$Empty`, `writeBody$Empty` and the version-toler
 in browsers and Deno; where WebAssembly is unavailable or blocked (a Content Security Policy without
 `'wasm-unsafe-eval'`), the runtime keeps its JavaScript paths, which write the same bytes (runtimes/typescript/README.md,
 "Text in browsers: WebAssembly").
+
+An array, list or other sequence (not a set) of a fixed-size number is a typed array (`TypeScriptTarget.NumberArrays`:
+`Int8Array` to `Float64Array`, `BigInt64Array` and `BigUint64Array` for 64-bit integers, `Uint8Array` for bytes), read
+by `NinoReader.numbers` and written by `NinoWriter.numbers` as one block copy, since the wire bytes are the typed
+array's on a little-endian engine; `bool` (checked 0 or 1), `char`, `decimal`, `TimeSpan` and enum sequences stay
+arrays (runtimes/typescript/README.md, "Typed arrays").
 
 A `Date` has no kind: the reader takes the ticks of every `DateTime` as UTC, so one written with
 `DateTimeKind.Unspecified` (or `Local`) reads as the UTC time with the same clock reading, and is written back with
