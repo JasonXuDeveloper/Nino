@@ -130,7 +130,7 @@ namespace Nino.Core.Internal
             // The netstandard builds (Unity, .NET Framework): the registered kernels (NinoKernels), for runs long
             // enough to pay for the call; without any, one load and a compare that fails.
             if (NinoBlock<T, TFormatter>.Kernel && count >= NinoKernelHook.MinBlocks &&
-                NinoKernelHook.Permute(ref Unsafe.As<T, byte>(ref first), Unsafe.SizeOf<T>(), ref destination, size,
+                NinoKernelHook.TryPermute(ref Unsafe.As<T, byte>(ref first), Unsafe.SizeOf<T>(), ref destination, size,
                     NinoBlock<T, TFormatter>.KernelTables.ToWire, count))
                 return;
 #endif
@@ -361,14 +361,14 @@ namespace Nino.Core.Internal
         private static bool ReadKernel<T, TFormatter>(ref byte source, ref T first, int count)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (NinoKernelHook.Kernels == null)
+            if (!NinoKernelHook.HasPermute)
                 return false;
             int size = NinoBlock<T, TFormatter>.Size;
             var bools = NinoBlock<T, TFormatter>.KernelTables.Bools;
             if (bools != null)
                 foreach (int at in bools)
                     NinoChecks.Bools(ref Unsafe.Add(ref source, at), count, size);
-            return NinoKernelHook.Permute(ref source, size, ref Unsafe.As<T, byte>(ref first), Unsafe.SizeOf<T>(),
+            return NinoKernelHook.TryPermute(ref source, size, ref Unsafe.As<T, byte>(ref first), Unsafe.SizeOf<T>(),
                 NinoBlock<T, TFormatter>.KernelTables.ToMemory, count);
         }
 

@@ -1184,15 +1184,28 @@ namespace Nino.Core
             fixed (byte* p = &src)
             fixed (char* d = value)
             {
+                // The registered kernel widens the leading ASCII bytes (each its own char, always valid), the strict
+                // decoder the rest from the first other byte, which a valid string starts a char with: what the
+                // decoder accepts and rejects is what it does alone. At most length bytes are widened (size >= length).
+                int ascii = length >= NinoKernelHook.MinWidenAscii ? NinoKernelHook.WidenAsciiPrefix(p, d, length) : 0;
+
                 int written;
-                try
+                if (ascii == length)
                 {
-                    // Strict: invalid bytes, or more chars than the string holds, throw ArgumentException.
-                    written = StrictUtf8.GetChars(p, size, d, length);
+                    // Every char written: any byte left over decodes to more chars than the string holds.
+                    written = size == length ? length : -1;
                 }
-                catch (ArgumentException)
+                else
                 {
-                    written = -1;
+                    try
+                    {
+                        // Strict: invalid bytes, or more chars than the string holds, throw ArgumentException.
+                        written = ascii + StrictUtf8.GetChars(p + ascii, size - ascii, d + ascii, length - ascii);
+                    }
+                    catch (ArgumentException)
+                    {
+                        written = -1;
+                    }
                 }
 
                 if (written != length)

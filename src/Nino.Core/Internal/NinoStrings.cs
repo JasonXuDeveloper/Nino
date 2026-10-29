@@ -429,11 +429,11 @@ namespace Nino.Core.Internal
 #if !NET8_0_OR_GREATER
             // The netstandard builds (Unity, .NET Framework): the registered kernels (NinoKernels), for long text; else
             // Vector<T> where it is fast (TextVectors).
-            if (n >= (uint)NinoKernelHook.MinChars && NinoKernelHook.Kernels is { } kernels)
+            if (n >= (uint)NinoKernelHook.MinNarrow)
             {
-                fixed (char* from = &source)
-                fixed (byte* to = &destination)
-                    return kernels.Narrow(from, to, (int)n);
+                int narrowed = NinoKernelHook.TryNarrow(ref source, ref destination, (int)n);
+                if (narrowed >= 0)
+                    return narrowed != 0;
             }
 
             if (NinoUnsafe.NumericVectors && n >= (uint)(2 * Vector<ushort>.Count))
@@ -699,13 +699,8 @@ namespace Nino.Core.Internal
         {
 #if !NET8_0_OR_GREATER
             // As in NarrowWords.
-            if (n >= (uint)NinoKernelHook.MinChars && NinoKernelHook.Kernels is { } kernels)
-            {
-                fixed (byte* from = &source)
-                fixed (ushort* to = &destination)
-                    kernels.Widen(from, (char*)to, (int)n);
+            if (n >= (uint)NinoKernelHook.MinWiden && NinoKernelHook.TryWiden(ref source, ref destination, (int)n))
                 return;
-            }
 
             if (NinoUnsafe.NumericVectors && n >= (uint)Vector<byte>.Count)
             {

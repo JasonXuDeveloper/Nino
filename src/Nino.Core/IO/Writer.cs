@@ -829,7 +829,19 @@ namespace Nino.Core
             fixed (char* src = value)
             fixed (byte* dst = &destination)
             {
-                return Encoding.UTF8.GetBytes(src, value.Length, dst, capacity);
+                int length = value.Length, ascii = 0;
+#if !NET8_0_OR_GREATER
+                // The netstandard builds (Unity, .NET Framework): the registered kernel writes the leading ASCII chars
+                // (a byte each, their UTF-8), the encoder the rest from the first other char, which is the start of a
+                // char's bytes: the same bytes as the encoder's alone.
+                if (length >= NinoKernelHook.MinNarrowAscii && capacity >= length)
+                {
+                    ascii = NinoKernelHook.NarrowAsciiPrefix(src, dst, length);
+                    if (ascii == length)
+                        return length;
+                }
+#endif
+                return ascii + Encoding.UTF8.GetBytes(src + ascii, length - ascii, dst + ascii, capacity - ascii);
             }
         }
     }

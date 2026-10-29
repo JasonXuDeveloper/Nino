@@ -486,7 +486,7 @@ namespace Nino.Core.Internal
 #if !NET8_0_OR_GREATER
             // The netstandard builds (Unity, .NET Framework): the registered kernels, for runs long enough.
             if (count >= NinoKernelHook.MinCopies && _kernelTable != IntPtr.Zero &&
-                NinoKernelHook.Permute(ref source, _mask.Length, ref destination, _mask.Length, _kernelTable, count))
+                NinoKernelHook.TryPermute(ref source, _mask.Length, ref destination, _mask.Length, _kernelTable, count))
                 return;
 #endif
 #if NET8_0_OR_GREATER
