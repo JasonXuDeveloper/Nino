@@ -339,12 +339,12 @@ namespace Nino.Core.CompilerServices
         /// moves); more out of line (<see cref="CopyOver64"/>, as every size in a 32-bit process, where up to 64 bytes
         /// are copied the same way on x86 and where <see cref="UnalignedWide32"/>), 65 to 128 as four 32-byte vectors
         /// where they are accelerated: a block copy of a size that is not a constant calls Memmove. Beyond, up to 32 KB
-        /// with 64-byte vectors where they are accelerated, else from 256 bytes to 16 KB with 32-byte ones
-        /// (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an AVX-512 Xeon (.NET 10, source and
-        /// destination of different alignments), with AVX-512 on or off: 33 to 64 bytes in 4.0 to 4.5 ns instead of 4.7
-        /// to 5.4 (Memmove), 65 to 128 in about 4.2 ns instead of 5.4 to 6.6. A loop of 16-byte vectors (WebAssembly,
-        /// SSE only) is slower than Memmove from 2 KB, so those CPUs call Memmove from 65 bytes; Arm64 copies up to
-        /// 64 KB with <see cref="CopyPairs"/>, out of line.
+        /// with 64-byte vectors where they are accelerated, and from there on Intel (else from 256 bytes) to 1 MB with
+        /// 32-byte ones (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an AVX-512 Xeon (.NET 10,
+        /// source and destination of different alignments), with AVX-512 on or off: 33 to 64 bytes in 4.0 to 4.5 ns
+        /// instead of 4.7 to 5.4 (Memmove), 65 to 128 in about 4.2 ns instead of 5.4 to 6.6. A loop of 16-byte vectors
+        /// (WebAssembly, SSE only) is slower than Memmove from 2 KB, so those CPUs call Memmove from 65 bytes; Arm64
+        /// copies up to 64 KB with <see cref="CopyPairs"/>, out of line.
         /// </summary>
         // In parts, each AggressiveInlining: the JIT checks an inline against the caller's inlining budget by the
         // callee's whole IL, before the branches the sizes and the CPU decide fold away. Copy in one method (662 bytes
@@ -474,9 +474,16 @@ namespace Nino.Core.CompilerServices
                         return;
                     }
                 }
-                else if (Vector512.IsHardwareAccelerated ? size <= MaxVectorCopy : size - 256 <= MaxVector256Copy - 256)
+                else if (Vector512.IsHardwareAccelerated
+                             ? size <= (AmdCopy ? MaxVectorCopy : MaxVector256Copy)
+                             : size - 256 <= MaxVector256Copy - 256)
                 {
-                    if (Vector512.IsHardwareAccelerated)
+                    // With 64-byte vectors up to MaxVectorCopy, then on Intel 32-byte ones up to MaxVector256Copy:
+                    // beyond 32 KB the 64-byte loop lost to Memmove, the 32-byte one still beats it there (GitHub's
+                    // Xeon Platinum 8370C, 160,000 bytes into a new zeroed array: 3.18 µs instead of 3.51); on AMD's
+                    // Zen 5 Memmove beats it into such an array (EPYC 9V45: 1.81 µs against 1.67). CopyToNew is the
+                    // other way round.
+                    if (Vector512.IsHardwareAccelerated && size <= MaxVectorCopy)
                         CopyVectors<Vector512<byte>>(ref destination, ref source, size);
                     else
                         CopyVectors<Vector256<byte>>(ref destination, ref source, size);
@@ -542,6 +549,16 @@ namespace Nino.Core.CompilerServices
             if (size >= MinUninitializedArrayBytes && !AmdCopy)
             {
                 Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
+                return;
+            }
+
+            // On AMD with 64-byte vectors, 32-byte ones beyond 32 KB too, where Copy calls Memmove: into a new
+            // uninitialized array they beat it (GitHub's EPYC 9V45 and 9V74, 160,000 bytes: 0.92 to 0.96 times the
+            // time).
+            if (AmdCopy && Vector512.IsHardwareAccelerated &&
+                size - (MaxVectorCopy + 1) <= MaxVector256Copy - (MaxVectorCopy + 1))
+            {
+                CopyVectors<Vector256<byte>>(ref destination, ref source, size);
                 return;
             }
 #endif
