@@ -65,6 +65,11 @@ mod protocol;
 - Polymorphic slots: TypeScript classes switched on by constructor, Go interfaces, Rust enums `<Base>Ref` (`AnyObject`
   for `object`). A type id the slot does not allow is rejected.
 - Reference tracking: TypeScript returns the same object, Go the same pointer, Rust `nino::Shared<T>`.
+- TypeScript: arrays and lists of fixed-size numbers are `number[]` (`bigint[]` for 64-bit integers); `byte` sequences
+  are `Uint8Array`. With `--numeric-arrays typed` (`NumericArrays="typed"`) they are typed arrays (`int[]` is
+  `Int32Array`, `long[]` `BigInt64Array`, `double[]` `Float64Array`), copied in one block: assign `Int32Array.of(...)`,
+  not `[...]`, and `slice()` one read before transferring its `.buffer` (they share a 64 KB buffer). Faster to
+  serialize everywhere and to deserialize in Node; Chromium deserializes them 2-3x slower than arrays.
 - Go: a C# `string` member is `*string` (null stays null); a TypeScript `Date` reads every `DateTime` as UTC.
 - `deserialize` leaves trailing bytes unread; the `Exact` variants reject them.
 - Every reader takes hostile input with the .NET checks (bounds before allocating, depth counted as .NET does, strict
