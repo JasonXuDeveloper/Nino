@@ -9,6 +9,12 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    # All package updates in one pull request: each pull request runs CI, Runtimes, Fuzz and CodeQL on its own branch,
+    # so the per-ref concurrency groups never cancel one another's runs.
+    groups:
+      nuget:
+        patterns:
+          - "*"
     ignore:
       # Pinned on purpose: the generator builds against Roslyn 4.3 (Unity), 4.8 and 4.12 (interceptors), the oldest
       # compiler each build supports.
