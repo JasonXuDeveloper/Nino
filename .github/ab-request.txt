@@ -1003,21 +1003,21 @@ go#12 4225c20 4225c20 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # body floor 1
 # done (run 40822228516): go a309ab3 b3459bf .*/.*/Nino # blocks bench module 1
 # done (run 40822228516): go a309ab3 a309ab3 .*/.*/Nino # blocks bench module floor 1
 # Rust plain structs of fixed-size members as blocks (4a59096) against 6af5111: blocks bench, and compare for the tuple/bool helpers
-rust:blocks 6af5111 4a59096 # rsblk 1
-rust:blocks 6af5111 4a59096 # rsblk 2
-rust:blocks 6af5111 4a59096 # rsblk 3
-rust:blocks 6af5111 4a59096 # rsblk 4
-rust:blocks 6af5111 4a59096 # rsblk 5
-rust:blocks 6af5111 4a59096 # rsblk 6
-rust:blocks 6af5111 6af5111 # rsblk floor 1
-rust:blocks 6af5111 6af5111 # rsblk floor 2
-rust:blocks 6af5111 6af5111 # rsblk floor 3
-rust:blocks 6af5111 6af5111 # rsblk floor 4
-rust 6af5111 4a59096 # rsblk compare 1
-rust 6af5111 4a59096 # rsblk compare 2
-rust 6af5111 4a59096 # rsblk compare 3
-rust 6af5111 6af5111 # rsblk compare floor 1
-rust 6af5111 6af5111 # rsblk compare floor 2
+# done: rust:blocks 6af5111 4a59096 # rsblk 1
+# done: rust:blocks 6af5111 4a59096 # rsblk 2
+# done: rust:blocks 6af5111 4a59096 # rsblk 3
+# done: rust:blocks 6af5111 4a59096 # rsblk 4
+# done: rust:blocks 6af5111 4a59096 # rsblk 5
+# done: rust:blocks 6af5111 4a59096 # rsblk 6
+# done: rust:blocks 6af5111 6af5111 # rsblk floor 1
+# done: rust:blocks 6af5111 6af5111 # rsblk floor 2
+# done: rust:blocks 6af5111 6af5111 # rsblk floor 3
+# done: rust:blocks 6af5111 6af5111 # rsblk floor 4
+# done: rust 6af5111 4a59096 # rsblk compare 1
+# done: rust 6af5111 4a59096 # rsblk compare 2
+# done: rust 6af5111 4a59096 # rsblk compare 3
+# done: rust 6af5111 6af5111 # rsblk compare floor 1
+# done: rust 6af5111 6af5111 # rsblk compare floor 2
 # TS cold serialize (runs 40815167424, 40816601617): cause is Node 24 full GCs on external memory over a heap of every
 # serializer's data; landed 0c5ad99 (bench keeps only the running serializer's data). Gather/Ahead loops: no gain.
 # TS typed arrays rebased (30eb091) against main with the own-data bench (7c30927); without the shared buffer (f85f4e7)
@@ -1088,3 +1088,15 @@ typescript 78774c3 78774c3 # serializeInto rebased 2
 typescript 341f9f2 78774c3 # serializeInto vs main rebased 1
 typescript 341f9f2 78774c3 # serializeInto vs main rebased 2
 typescript 341f9f2 341f9f2 # serializeInto main floor 1
+# Rust plain-struct blocks, round 2 (02e51df: tuples and bool back to main's code) against 6af5111
+rust:blocks 6af5111 02e51df # rsblk2 1
+rust:blocks 6af5111 02e51df # rsblk2 2
+rust:blocks 6af5111 02e51df # rsblk2 3
+rust:blocks 6af5111 02e51df # rsblk2 4
+rust:blocks 6af5111 02e51df # rsblk2 5
+rust:blocks 6af5111 02e51df # rsblk2 6
+rust 6af5111 02e51df # rsblk2 compare 1
+rust 6af5111 02e51df # rsblk2 compare 2
+rust 6af5111 02e51df # rsblk2 compare 3
+rust:blocks 6af5111 6af5111 # rsblk2 floor 1
+rust:blocks 6af5111 6af5111 # rsblk2 floor 2
