@@ -37,6 +37,48 @@ export function serialize<T>(codec: NinoCodec<T>, value: T): Uint8Array<ArrayBuf
   }
 }
 
+/** The writer `serializeInto` writes a `Uint8Array`'s value with: null while it is in use, or before the first call. */
+let scratchWriter: NinoWriter | null = null;
+
+/**
+ * Serializes `value` with `codec` into memory the caller owns, and returns the value's size in bytes:
+ *
+ * - into a `NinoWriter`, after what it holds (what `NinoSerializer.Serialize(value, bufferWriter)` does in .NET),
+ *   growing it as needed; `written()` views the bytes until the writer writes again. A writer reused with `reset` keeps
+ *   its buffer, so once it is large enough writing allocates no memory at all: no new `ArrayBuffer` per value, which
+ *   V8 counts toward a full garbage collection (about every 64 MB of them in Node 24) until a scavenge frees them. If
+ *   `codec` throws, the writer is left as it was before the call.
+ * - into a `Uint8Array`, from its start, when the value fits. A size larger than `target.length` means it did not:
+ *   `target` is then unchanged, and a call with that many bytes succeeds.
+ *
+ * Not for a writer that is writing a value (from a custom codec): references and depth are counted per call.
+ */
+export function serializeInto<T>(codec: NinoCodec<T>, value: T, target: NinoWriter | Uint8Array): number {
+  if (target instanceof NinoWriter) {
+    const start = target.pos;
+    target["begin"]();
+    try {
+      codec.write(target, value);
+    } catch (e) {
+      target.pos = start;
+      throw e;
+    }
+    return target.pos - start;
+  }
+  // A codec that serializes (a custom one) while this runs gets a writer of its own.
+  const writer = scratchWriter ?? new NinoWriter();
+  scratchWriter = null;
+  try {
+    writer.reset();
+    codec.write(writer, value);
+    const size = writer.pos;
+    if (size <= target.length) target.set(writer.written());
+    return size;
+  } finally {
+    if (writer.capacity <= 1 << 20) scratchWriter = writer;
+  }
+}
+
 /**
  * Deserializes one value written by `NinoSerializer.Serialize<T>` (or `serialize`). Nothing it returns refers to
  * `data`, which it does not change. Bytes after the value are not read (see `deserializeExact`).
@@ -1133,7 +1175,20 @@ export class NinoWriter {
       at = 0;
     }
     this.start = this.pos = at;
-    // A value that failed may have left bodies open.
+    this.begin();
+  }
+
+  /**
+   * Empties the writer, keeping its buffer: the next value is written from offset 0, and allocates nothing while it
+   * fits (see `serializeInto`).
+   */
+  reset(): void {
+    this.start = this.pos = 0;
+    this.begin();
+  }
+
+  /** Starts a value: closes what a value that failed may have left open, and forgets the last value's references. */
+  private begin(): void {
     this.depth = this.regions = this.structs = 0;
     this.deferrals = null;
     this.refs = null;

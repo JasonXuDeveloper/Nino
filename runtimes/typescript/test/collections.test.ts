@@ -1,8 +1,9 @@
-// Arrays, sets, maps, nullables, byte arrays, the type id registry, and `serialize`'s shared buffers.
+// Arrays, sets, maps, nullables, byte arrays, the type id registry, `serialize`'s shared buffers, and `serializeInto`
+// into a reused writer or a caller's array.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deserialize, NinoError, NinoReader, NinoRegistry, NinoWriter, serialize, type NinoCodec } from "../src/nino.ts";
-import { hex, int32, toHex, strHeader } from "./codecs.ts";
+import { deserialize, NinoError, NinoReader, NinoRegistry, NinoWriter, serialize, serializeInto, type NinoCodec } from "../src/nino.ts";
+import { chain, ChainCodec, hex, int32, toHex, strHeader, values } from "./codecs.ts";
 
 const i32: NinoCodec<number> = { read: (r) => r.i32(), write: (w, v) => w.i32(v) };
 const text: NinoCodec<string | null> = { read: (r) => r.string(), write: (w, v) => w.string(v) };
@@ -174,5 +175,73 @@ describe("serialize", () => {
   it("keeps working after a value that fails to write", () => {
     assert.throws(() => serialize(i32, 1n as unknown as number), TypeError);
     assert.equal(toHex(serialize(i32, 7)), "07000000");
+  });
+});
+
+describe("serializeInto", () => {
+  const list: NinoCodec<number[]> = { read: (r) => r.array(i32.read)!, write: (w, v) => w.array(v, i32.write) };
+  // A tracked object: its reference header, then its value when new.
+  const box = { n: 5 };
+  const tracked: NinoCodec<{ n: number }> = {
+    read: () => { throw new Error("not read"); },
+    write: (w, v) => { if (w.ref(v)) w.i32(v.n); },
+  };
+
+  it("appends to a writer the bytes serialize returns, and returns their size", () => {
+    const w = new NinoWriter();
+    const deep = chain(300); // past 128 bodies: deferred
+    assert.equal(serializeInto(text, "first", w), 6);
+    const at = w.pos;
+    const size = serializeInto(ChainCodec, deep, w);
+    assert.equal(size, w.pos - at);
+    assert.deepEqual(w.written().subarray(0, 6), serialize(text, "first"));
+    assert.deepEqual(w.written().subarray(at), serialize(ChainCodec, deep));
+    assert.deepEqual(values(deserialize(ChainCodec, w.written().subarray(at))), values(deep));
+  });
+
+  it("counts references per value, as each .NET call does", () => {
+    const w = new NinoWriter();
+    serializeInto(tracked, box, w);
+    serializeInto(tracked, box, w);
+    assert.equal(toHex(w.written()), "ffffffff05000000" + "ffffffff05000000");
+  });
+
+  it("reuses a reset writer's buffer: no new memory once it is large enough", () => {
+    const w = new NinoWriter();
+    const big = Array.from({ length: 10000 }, (_, i) => i);
+    serializeInto(list, big, w);
+    const buffer = w.view.buffer;
+    for (let i = 0; i < 100; i++) {
+      w.reset();
+      assert.equal(serializeInto(list, big.slice(0, i * 100), w), 4 + 400 * i);
+      assert.deepEqual(w.written(), serialize(list, big.slice(0, i * 100)));
+      assert.equal(w.view.buffer, buffer);
+    }
+  });
+
+  it("leaves a writer as it was when the value fails to write", () => {
+    const w = new NinoWriter();
+    serializeInto(i32, 7, w);
+    assert.throws(() => serializeInto(i32, 1n as unknown as number, w), TypeError);
+    assert.equal(toHex(w.written()), "07000000");
+    serializeInto(i32, 8, w);
+    assert.equal(toHex(w.written()), "0700000008000000");
+  });
+
+  it("writes into an array that fits, at any offset, and reports the size needed when it does not", () => {
+    const expected = serialize(text, "array");
+    for (let offset = 0; offset < 9; offset++) {
+      const buffer = new Uint8Array(expected.length + offset + 3).fill(0xaa);
+      const target = buffer.subarray(offset);
+      assert.equal(serializeInto(text, "array", target), expected.length);
+      assert.deepEqual(target.subarray(0, expected.length), expected);
+      assert.equal(target[expected.length], 0xaa);
+    }
+    const small = new Uint8Array(3).fill(0xaa);
+    assert.equal(serializeInto(text, "array", small), expected.length);
+    assert.deepEqual(small, new Uint8Array(3).fill(0xaa));
+    assert.equal(serializeInto(text, "array", new Uint8Array(expected.length)), expected.length);
+    assert.throws(() => serializeInto(i32, 1n as unknown as number, small), TypeError);
+    assert.equal(serializeInto(i32, 7, small.subarray(0, 0)), 4);
   });
 });
