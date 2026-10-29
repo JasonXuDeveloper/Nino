@@ -19,6 +19,16 @@ namespace Nino.Core.Internal
     /// </summary>
     internal static class NinoBlock<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
     {
+#if !NET8_0_OR_GREATER
+        /// <summary>
+        /// The formatter boxed once, for the calls of one value at a time: IL2CPP (its C++ shows it) and runtimes
+        /// without RyuJIT's box removal box <c>default(TFormatter)</c> at every cast to an interface, a GC allocation
+        /// per value, where RyuJIT calls the struct directly. One interface call per value remains; the vector and
+        /// kernel paths take runs of values without it.
+        /// </summary>
+        public static readonly INinoBlockFormatter<T> Formatter = default(TFormatter) as INinoBlockFormatter<T>;
+
+#endif
         /// <summary>
         /// <see cref="NinoBlock.Size{T, TFormatter}"/>, read from a field: one load where the type test and the size
         /// were each an inlined call, which the JIT counts against what else it inlines into the method.
