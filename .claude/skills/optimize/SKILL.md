@@ -28,7 +28,15 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   goes in the out-of-line part, never in the inline one. Evidence: `Is64Bit || IsX86 || UnalignedWide32` written in
   `NinoUnsafe.Copy` changed the x64 code of an ImmutableSortedDictionary write (`NinoBlock.WriteAll` inlined, `Copy`
   left a call) in an `asm.py` dump with `DOTNET_TieredCompilation=0`; moved into `CopyOver64`, all 990 methods were
-  identical to main (`CopyBlock` keeps Arm64's branch out of `Copy` for the same reason).
+  identical to main (`CopyBlock` keeps Arm64's branch out of `Copy` for the same reason). The root's own IL counts
+  the other way: the JIT sizes a method's whole inlining budget from its IL size (estimate 60 + 3 per IL byte, times
+  10), dead branches included, so a folded test in a root that is otherwise one call (an interceptor) raises the budget
+  and changes what is inlined under it. Never add an option to the default path as a run-time branch, not even a
+  `static readonly` one: decide it at generation time (an MSBuild property the generator reads, `NinoRegularCalls`,
+  `NinoPrefetchLargeCollections`). Evidence: an interceptor `NinoPrefetched.Enabled ? SerializePrefetched(...) :
+  Serialize(...)`, folded at Tier1, made PolymorphicClassArray's `Serialize(in PolymorphicClassBase[],
+  IBufferWriter)` 1,060 bytes instead of main's 770 (single-block inlinees 142 to 155; `DOTNET_TieredPGO=0` dumps),
+  while NonGenericBase's 1,112 methods stayed identical.
 - Never pass `ref reader` or `ref writer` to a method that is not inlined, even in a dead branch: the address keeps
   the struct in memory for the whole method. Pass it by value and return it (`reader = ReadEach(values, reader)`).
   An instance method of `Reader` or `Writer` left out of line passes `this` the same way: `Reader.ReadString(current)`
@@ -385,9 +393,12 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   code moves) stayed in the floor: 0.98-1.01 and 0.98-1.00 (floor 0.98-1.01 and 0.99-1.02, 10 jobs). So it is not
   random placement: the length test's bytes before the loop cost those cases 3-7 % on 7763 every time, the scattered
   gains held in the same run (items 0.50-0.51, read into 0.47-0.51, shapes 0.63-0.66 on 7763; items 0.21 on N2), and
-  it did not land. Any test in the top-level path costs this; next, ask the owner whether prefetching may be an
-  explicit choice (a setting or method a caller of very large collections opts into), which leaves every default
-  path's bytes as main's.
+  it did not land. Any test in the top-level path costs this, so it landed as the owner's opt-in, the MSBuild
+  property `NinoPrefetchLargeCollections` (unset, the generated code is main's byte for byte; a run-time setting
+  could not do that, see "What has gone wrong before" on the root's inlining budget). Test branch run 40916374747
+  against main 9d71c04, per-job medians: unset 0.98-1.03 on EPYC 7763, 9V74 and N2, as the floor (0.97-1.03); set,
+  items written 2.0x (7763), 2.1-2.6x (9V74, 9V45), 4.8x (N2), read into 2.0-3.6x, shapes 1.5-1.75x (N2 1.02), with
+  NonGenericBase 0.94-0.95 on 7763 and 9V74, the cost the property's docs name.
   Go, measured and not landed: a stub `prefetch8` (eight PREFETCHT0 / PRFM PLDL1KEEP a
   call) in `WriteSlice` above a per-type threshold, objects 16 elements ahead and their strings 8 ahead, wrote
   1,000,000 shuffled records 2.2-3.1 times as fast on EPYC 7763, 9V45 and 9V74 and 4-5.5 times on Neoverse-N2, but

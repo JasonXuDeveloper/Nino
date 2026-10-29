@@ -304,6 +304,9 @@ data is silently dropped or an attribute does nothing: never suppress NINO006 or
   `ResetWrittenCount()`.
 - A recycler or `ReturnToPool()` on instances still referenced elsewhere: the pool hands them out again.
 - If the project sets `InterceptorsNamespaces` itself, append (`$(InterceptorsNamespaces);Mine`), don't replace.
+- Arrays or `List<T>` of classes much larger than the CPU cache, whose objects were replaced, shuffled or sorted:
+  `<NinoPrefetchLargeCollections>true</NinoPrefetchLargeCollections>` in the calling project makes their top-level
+  calls prefetch (same bytes; .NET 8+ through the interceptors, nothing in Unity). Short collections get a few % slower.
 - v3 code: `Serializer.Serialize` / `Deserializer.Deserialize(data, out v)` are now `NinoSerializer.Serialize` /
   `NinoDeserializer.Deserialize<T>(data)`; `[NinoExplicitOrder]` is gone (`[NinoType(false)]` + `[NinoMember]`). v4
   cannot read v3 data. Beta names: `[NinoRefDeserialization]` is `[NinoFactory]`, `DeserializeRef` is
