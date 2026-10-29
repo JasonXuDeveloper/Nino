@@ -182,3 +182,46 @@ func BenchmarkBlocks(b *testing.B) {
 	}, func(w *Writer, v []rawWide) { WriteRaw(w, v, 40, rawWideAsIs, wide, widePads, encodeRawWide) },
 		func(r *Reader) []rawWide { return ReadRaw(r, 40, rawWideAsIs, wide, decodeRawWide) })
 }
+
+// TestValid checks the one-compare Valid methods against their ranges written out: every Decimal flags word with the
+// low 16 bits from a set of patterns, and the edges of DateOnly and TimeOnly.
+func TestValid(t *testing.T) {
+	for hi := uint32(0); hi <= 0xFFFF; hi++ {
+		for _, lo := range []uint32{0, 1, 0x8000, 0xFFFF} {
+			d := Decimal{Flags: hi<<16 | lo}
+			want := d.Flags&0x7F00FFFF == 0 && d.Flags>>16&0xFF <= 28
+			if d.Valid() != want {
+				t.Fatalf("decimal flags %08X: Valid %v", d.Flags, d.Valid())
+			}
+		}
+	}
+	for _, d := range []DateOnly{-1 << 31, -1, 0, 1, MaxDateOnly, MaxDateOnly + 1, 1<<31 - 1} {
+		if want := d >= 0 && d <= MaxDateOnly; d.Valid() != want {
+			t.Fatalf("DateOnly %d: Valid %v", d, d.Valid())
+		}
+	}
+	for _, v := range []TimeOnly{-1 << 63, -1, 0, 1, MaxTimeOnly, MaxTimeOnly + 1, 1<<63 - 1} {
+		if want := v >= 0 && v <= MaxTimeOnly; v.Valid() != want {
+			t.Fatalf("TimeOnly %d: Valid %v", v, v.Valid())
+		}
+	}
+}
+
+// TestDateOnlyLanes checks dateOnlyLanesBad against DateOnly.Valid for every pair of values from a set of edges, in
+// each of the four lanes.
+func TestDateOnlyLanes(t *testing.T) {
+	edges := []DateOnly{0, 1, MaxDateOnly - 1, MaxDateOnly, MaxDateOnly + 1, 1 << 22, 1<<31 - 1, -1, -1 << 31, -MaxDateOnly}
+	word := func(lo, hi DateOnly) uint64 { return uint64(uint32(lo)) | uint64(uint32(hi))<<32 }
+	for _, a := range edges {
+		for _, b := range edges {
+			want := !a.Valid() || !b.Valid()
+			for _, c := range []struct{ x, y uint64 }{
+				{word(a, b), word(0, 0)}, {word(0, 0), word(a, b)}, {word(b, 0), word(a, 0)}, {word(0, b), word(0, a)},
+			} {
+				if got := dateOnlyLanesBad(c.x, c.y) != 0; got != want {
+					t.Fatalf("%d, %d (%016X %016X): bad %v, want %v", a, b, c.x, c.y, got, want)
+				}
+			}
+		}
+	}
+}

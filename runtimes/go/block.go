@@ -66,35 +66,70 @@ func WriteBlock[T BlockValue](w *Writer, v []T) {
 	}
 }
 
-// invalidAt returns the index of the first value of v that is not valid and the type's name, or -1.
+// invalidAt returns the index of the first value of v that is not valid and the type's name, or -1. Four values are
+// tested per step, one compare each (the Valid methods), so the loop's own branches are a quarter as many; DateOnly
+// tests its four as two words of two lanes (dateOnlyLanesBad) with one branch. The step that fails is searched value
+// by value.
 func invalidAt[T BlockValue](v []T) (int, string) {
 	switch v := any(v).(type) {
 	case []DateTime:
-		for i, d := range v {
+		w := v
+		for len(w) >= 4 && w[0].Valid() && w[1].Valid() && w[2].Valid() && w[3].Valid() {
+			w = w[4:]
+		}
+		for i, d := range w {
 			if !d.Valid() {
-				return i, "DateTime"
+				return len(v) - len(w) + i, "DateTime"
 			}
 		}
 	case []DateOnly:
-		for i, d := range v {
+		// Four compares and branches in 16 bytes of values ran 19 % slower on Xeon 8370C than one at a time.
+		b := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), 4*len(v))
+		for len(b) >= 16 && dateOnlyLanesBad(binary.LittleEndian.Uint64(b), binary.LittleEndian.Uint64(b[8:16])) == 0 {
+			b = b[16:]
+		}
+		w := v[len(v)-len(b)/4:]
+		for i, d := range w {
 			if !d.Valid() {
-				return i, "DateOnly"
+				return len(v) - len(w) + i, "DateOnly"
 			}
 		}
 	case []TimeOnly:
-		for i, t := range v {
+		w := v
+		for len(w) >= 4 && w[0].Valid() && w[1].Valid() && w[2].Valid() && w[3].Valid() {
+			w = w[4:]
+		}
+		for i, t := range w {
 			if !t.Valid() {
-				return i, "TimeOnly"
+				return len(v) - len(w) + i, "TimeOnly"
 			}
 		}
 	case []Decimal:
-		for i, d := range v {
+		w := v
+		for len(w) >= 4 && w[0].Valid() && w[1].Valid() && w[2].Valid() && w[3].Valid() {
+			w = w[4:]
+		}
+		for i, d := range w {
 			if !d.Valid() {
-				return i, "decimal"
+				return len(v) - len(w) + i, "decimal"
 			}
 		}
 	}
 	return -1, ""
+}
+
+// dateOnlyLanes are the lanes' top bits of a word of two DateOnly values, and dateOnlyCarry the addend that carries
+// into a lane's top bit exactly when the rest of the lane is above MaxDateOnly.
+const (
+	dateOnlyLanes = 0x8000_0000_8000_0000
+	dateOnlyCarry = (1<<31 - 1 - uint64(MaxDateOnly)) * 0x1_0000_0001
+)
+
+// dateOnlyLanesBad returns, for two words of two DateOnly values each (in either byte order: the lanes are whole), a
+// value that is not 0 when a lane is not valid: its top bit set (a negative value), or the rest above MaxDateOnly (the
+// sum with dateOnlyCarry reaches the top bit; it stays below 2^32, so lanes never carry into each other).
+func dateOnlyLanesBad(x, y uint64) uint64 {
+	return ((x&^dateOnlyLanes + dateOnlyCarry) | x | (y&^dateOnlyLanes + dateOnlyCarry) | y) & dateOnlyLanes
 }
 
 // writeEachBlock writes v element by element: the writer's checks fail where they would for each value alone.

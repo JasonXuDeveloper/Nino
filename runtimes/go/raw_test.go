@@ -219,3 +219,48 @@ func TestRawPadded(t *testing.T) {
 			encodeRawWide)
 	}
 }
+
+// TestRawBools checks rawBools against a byte at a time: elements of 1 to 40 bytes, one to three bool offsets, every
+// count to 13 (the steps of four and the rest), and a byte other than 0 or 1 at each bool of each element.
+func TestRawBools(t *testing.T) {
+	want := func(b []byte, size int, bools []int) bool {
+		for e := 0; e+size <= len(b); e += size {
+			for _, o := range bools {
+				if b[e+o] > 1 {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	for size := 1; size <= 40; size++ {
+		for _, bools := range [][]int{{0}, {size - 1}, {0, size / 2, size - 1}} {
+			for n := 0; n <= 13; n++ {
+				b := make([]byte, n*size)
+				for i := range b {
+					b[i] = byte(i * 37) // the bytes that are not bools are anything
+				}
+				for e := 0; e < n; e++ {
+					for _, o := range bools {
+						b[e*size+o] = byte(e & 1)
+					}
+				}
+				if !rawBools(b, size, bools) {
+					t.Fatalf("size %d bools %v n %d: valid rejected", size, bools, n)
+				}
+				for e := 0; e < n; e++ {
+					for _, o := range bools {
+						for _, bad := range []byte{2, 0x80, 0xFF} {
+							old := b[e*size+o]
+							b[e*size+o] = bad
+							if got := rawBools(b, size, bools); got != want(b, size, bools) || got {
+								t.Fatalf("size %d bools %v n %d: byte %d of element %d is %d, accepted", size, bools, n, o, e, bad)
+							}
+							b[e*size+o] = old
+						}
+					}
+				}
+			}
+		}
+	}
+}
