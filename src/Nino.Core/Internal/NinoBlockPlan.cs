@@ -250,6 +250,13 @@ namespace Nino.Core.Internal
             /// <summary>Whether it moves whole 4-byte words (vpermt2d), else bytes (VBMI).</summary>
             public static readonly bool Words = Plan.Words;
 
+            /// <summary>
+            /// Values per group: as many as fill whole vectors of blocks (<see cref="NinoBlock{T, TFormatter}.Group"/>),
+            /// or, for values over 16 bytes where those would take more than four vectors of memory, as many as fill
+            /// whole vectors of memory (8 24-byte values, 15 bytes each on the wire, in three).
+            /// </summary>
+            public static readonly int Group = Plan.Group;
+
             /// <summary>Memory vectors per group (<see cref="Group"/> values), and vectors of blocks loaded for them.</summary>
             public static readonly int Vectors = Plan.Vectors, Loads = Plan.Loads;
 
@@ -259,6 +266,31 @@ namespace Nino.Core.Internal
 
             /// <summary>The permute indices of memory vector k (one int per word for <see cref="Words"/>).</summary>
             public static readonly Vector512<byte>[] Masks = { Plan.Mask(0), Plan.Mask(1), Plan.Mask(2), Plan.Mask(3) };
+
+            /// <summary>
+            /// Whether a memory vector holds padding, which a permute fills with some byte of the blocks (it reads
+            /// only an index's low bits): then each is masked by <see cref="Keeps"/> (0 at padding), so that a read
+            /// writes every byte of the values, padding as 0, and an array of them can be allocated uninitialized.
+            /// </summary>
+            public static readonly bool Pads = Plan.Pads;
+
+            /// <summary>The masks of <see cref="Pads"/>, one per memory vector.</summary>
+            public static readonly Vector512<byte>[] Keeps = { Plan.Keep(0), Plan.Keep(1), Plan.Keep(2), Plan.Keep(3) };
+
+            /// <summary>
+            /// Whether the groups check the bools of the blocks they load (<see cref="Bools"/>) in the same pass, in
+            /// place of the strided pass before them: values over 16 bytes, whose values after the groups are read one
+            /// at a time, through ReadBlock, which checks them.
+            /// </summary>
+            public static readonly bool Checks = Plan.Masks != null && Bools != null && Unsafe.SizeOf<T>() > 16;
+
+            /// <summary>
+            /// For each vector of blocks loaded, 0xFE at the bools of the blocks in it (any block: those past the group
+            /// are in the data too), whose bits other than the lowest must all be clear.
+            /// </summary>
+            public static readonly Vector512<byte>[] BoolMasks = Checks
+                ? new[] { Plan.Bools(0), Plan.Bools(1), Plan.Bools(2), Plan.Bools(3), Plan.Bools(4) }
+                : new Vector512<byte>[5];
 
             /// <summary>
             /// The last of <paramref name="count"/> values a group may start at: its loads stay inside the blocks,
@@ -276,7 +308,7 @@ namespace Nino.Core.Internal
             public readonly byte[] Masks;
             public readonly int[] Bases = new int[4];
             public readonly bool Words;
-            public readonly int Vectors, Loads;
+            public readonly int Vectors, Loads, Group;
 
             public GroupReads(int phase)
             {
@@ -284,6 +316,12 @@ namespace Nino.Core.Internal
                 if (Map == null || IsMemory || size >= memorySize || !Avx512F.IsSupported)
                     return;
                 int group = 64 / NinoLanes.Gcd(size, 64), vectors = group * memorySize / 64;
+                if ((group * memorySize % 64 != 0 || vectors > 4) && memorySize > 16)
+                {
+                    group = 64 / NinoLanes.Gcd(memorySize, 64);
+                    vectors = group * memorySize / 64;
+                }
+
                 // A phase only where values can start that far past a boundary (8-byte aligned arrays).
                 if (group * memorySize % 64 != 0 || vectors > 4 || phase >= NinoLanes.Gcd(memorySize, 64))
                     return;
@@ -327,14 +365,39 @@ namespace Nino.Core.Internal
                                         masks[w + 2] == masks[w] + 2 && masks[w + 3] == masks[w] + 3);
                 }
 
-                if (!words && !Avx512Vbmi.IsSupported)
+                if (!words && !Avx512Vbmi.IsSupported || Loads > 5)
                     return;
+                Group = group;
                 Masks = masks;
                 Words = words;
                 Vectors = vectors;
             }
 
             public int Base(int k) => Masks != null && k < Vectors ? Bases[k] : 0;
+
+            public bool Pads => Masks != null && Array.IndexOf(Masks, (byte)0xFF) >= 0;
+
+            public Vector512<byte> Keep(int k)
+            {
+                if (Masks == null || k >= Vectors)
+                    return default;
+                var keep = new byte[64];
+                for (int b = 0; b < 64; b++)
+                    keep[b] = Masks[k * 64 + b] == 0xFF ? (byte)0 : (byte)0xFF;
+                return Vector512.Create(keep);
+            }
+
+            public Vector512<byte> Bools(int load)
+            {
+                if (load >= Loads)
+                    return default;
+                int size = NinoBlock.Size<T, TFormatter>();
+                var bools = new byte[64];
+                for (int b = 0; b < 64; b++)
+                    if (Array.IndexOf(NinoBlock<T, TFormatter>.Bools, (load * 64 + b) % size) >= 0)
+                        bools[b] = 0xFE;
+                return Vector512.Create(bools);
+            }
 
             public Vector512<byte> Mask(int k)
             {
@@ -509,6 +572,25 @@ namespace Nino.Core.Internal
 
         /// <summary><see cref="ToMemory"/> for <see cref="PerVector"/> values, as <see cref="ToWire64"/>.</summary>
         public static readonly Vector512<byte> ToMemory64 = Mask64(toWire: false);
+
+        /// <summary>
+        /// With AVX-512 VBMI, whose permute fills a padding byte of <see cref="ToMemory64"/> with some byte of the
+        /// blocks: whether its values have padding, then cleared by <see cref="KeepMemory64"/> (0 at padding), so that
+        /// a read writes every byte of the values. Arm64's lookups write 0 there by themselves.
+        /// </summary>
+        public static readonly bool PermutePads = Permutes && Avx512Vbmi.IsSupported &&
+                                                  Array.IndexOf(Indices64(toWire: false), (byte)0x80) >= 0;
+
+        /// <inheritdoc cref="PermutePads"/>
+        public static readonly Vector512<byte> KeepMemory64 = PermutePads ? Keep64() : default;
+
+        private static Vector512<byte> Keep64()
+        {
+            var keep = Indices64(toWire: false);
+            for (int b = 0; b < 64; b++)
+                keep[b] = keep[b] == 0x80 ? (byte)0 : (byte)0xFF;
+            return Vector512.Create(keep);
+        }
 
         /// <summary>
         /// Arm64's lookups for <see cref="ToWire64"/> (<see cref="NinoBlock"/>.Permute64): for each 16 bytes written,

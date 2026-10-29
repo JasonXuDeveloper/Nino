@@ -398,10 +398,12 @@ public class CollectionFastPathTests
         ReadsAtEveryAlignment(i => ((short)i, (double)i / 3));
         // 20 bytes in memory: no group of whole vectors fits in four, so groups that end inside a vector.
         ReadsAtEveryAlignment(i => ((byte)i, i, i * 3, i * 5, i * 7));
-        ReadsAtEveryAlignment(i => (i * 1f, i * 2f, (i, (short)i), i % 2 == 0));
+        // Not a block (a tuple item is not raw): read a field at a time, its padding left as it was, and a new array
+        // of it allocated zeroed.
+        ReadsAtEveryAlignment(i => (i * 1f, i * 2f, (i, (short)i), i % 2 == 0), block: false);
     }
 
-    private static void ReadsAtEveryAlignment<T>(Func<int, T> make) where T : unmanaged
+    private static void ReadsAtEveryAlignment<T>(Func<int, T> make, bool block = true) where T : unmanaged
     {
         var seen = new HashSet<long>();
         var keep = new List<object>();
@@ -420,12 +422,33 @@ public class CollectionFastPathTests
                 pin.Free();
                 NinoDeserializer.Deserialize(bytes, ref read);
                 CollectionAssert.AreEqual(values, read, $"{typeof(T)} n={n} shift={shift}");
+                // Every byte written, padding as zero, whatever the memory held: new arrays read as blocks are
+                // allocated uninitialized (NinoElements.CopiedWhole), and stale bytes must not show through. The
+                // values were built in zeroed memory, so their padding is zero.
+                if (block)
+                    AssertSameBytes(values, read, $"{typeof(T)} n={n} shift={shift}");
             }
+
+            // A new array, allocated uninitialized, after memory of the same size was filled with 0xCC and dropped.
+            var garbage = new T[n];
+            System.Runtime.InteropServices.MemoryMarshal.AsBytes(garbage.AsSpan()).Fill(0xCC);
+            garbage = null;
+            GC.Collect(0);
+            AssertSameBytes(values, NinoDeserializer.Deserialize<T[]>(bytes), $"{typeof(T)} n={n} new array");
         }
 
         GC.KeepAlive(keep);
         if (System.Runtime.CompilerServices.Unsafe.SizeOf<T>() % 16 == 0)
             Assert.IsTrue(seen.Contains(0) && seen.Contains(8), $"{typeof(T)}: both alignments read ({string.Join(",", seen)})");
+    }
+
+    private static void AssertSameBytes<T>(T[] expected, T[] actual, string message) where T : unmanaged
+    {
+        var want = System.Runtime.InteropServices.MemoryMarshal.AsBytes(expected.AsSpan());
+        var got = System.Runtime.InteropServices.MemoryMarshal.AsBytes(actual.AsSpan());
+        int at = got.CommonPrefixLength(want);
+        if (at < want.Length || got.Length != want.Length)
+            Assert.Fail($"{message}: byte {at} is {(at < got.Length ? got[at] : -1):X2}, not {(at < want.Length ? want[at] : -1):X2}");
     }
 
     [TestMethod]
@@ -443,8 +466,8 @@ public class CollectionFastPathTests
         WritesAsEachValue(i => (i, (short)i, i * 9L));
         WritesAsEachValue(i => ((double)i, i, (byte)i));
         WritesAsEachValue(i => ((byte)i, i, i * 3, i * 5, i * 7));
-        // Padded values over 8 bytes with a bool (24 in memory, 15 on the wire): AVX-512 VBMI's pairs of vectors and
-        // Arm64's partial lane groups.
+        // Not a block (a tuple item is not raw), written a value at a time; BlockStructTests has the block of this
+        // shape (BlockWaypoint).
         WritesAsEachValue(i => (i * 1f, i * 2f, (i, (short)i), i % 2 == 0));
     }
 

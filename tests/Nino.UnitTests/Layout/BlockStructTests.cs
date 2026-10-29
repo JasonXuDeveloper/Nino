@@ -29,6 +29,9 @@ public class BlockStructTests
 
     private static BlockProps Props(int i) => new BlockProps { X = i ^ 0x5A5A, Flag = i % 5 == 0, P = ((short)(i * 3), i % 2 == 0) };
 
+    private static BlockWaypoint Waypoint(int i) =>
+        new BlockWaypoint { X = i * 1.5f, Y = -i, Stamp = (i * 7, (short)(i % 300)), Visited = i % 3 == 1 };
+
     private static BlockNested Nested(int i) => new BlockNested { Inner = Tuple(i), Tag = (byte)(255 - i) };
 
     private static BlockDated Dated(int i) =>
@@ -79,6 +82,56 @@ public class BlockStructTests
     public void NestedBlockStruct() => RoundTrips(Nested, 18);
 
     [TestMethod]
+    public void PaddedOverSixteenBytes() => RoundTrips(Waypoint, 15);
+
+    /// <summary>
+    /// Every byte of a new array read as blocks is written, padding as zero: below 6 KB the array is zeroed, so a
+    /// path that fills padding with other bytes shows; from 6 KB it is allocated uninitialized
+    /// (NinoElements.CopiedWhole), after memory of its size was filled with 0xCC and dropped, so a byte left unwritten
+    /// shows. Every count up to a few vectors, and long ones. (An existing array may be read a value at a time, through
+    /// a formatter that leaves its padding as it was.)
+    /// </summary>
+    [TestMethod]
+    public void ReadsWriteEveryByte()
+    {
+        WritesEveryByte(Tuple);
+        WritesEveryByte(Auto);
+        WritesEveryByte(Pair);
+        WritesEveryByte(Props);
+        WritesEveryByte(Waypoint);
+        WritesEveryByte(Nested);
+        WritesEveryByte(Dated);
+    }
+
+    private static void WritesEveryByte<T>(Func<int, T> create) where T : unmanaged
+    {
+        foreach (int length in Enumerable.Range(0, 70).Concat(new[] { 300, 1000, 1001 }))
+        {
+            // Built in zeroed memory: their padding is zero.
+            var values = new T[length];
+            for (int i = 0; i < length; i++)
+                values[i] = create(i);
+            var data = NinoSerializer.Serialize(values);
+            string what = $"{typeof(T).Name}[{length}]";
+            var garbage = new T[length];
+            System.Runtime.InteropServices.MemoryMarshal.AsBytes(garbage.AsSpan()).Fill(0xCC);
+            garbage = null;
+            GC.Collect(0);
+            SameBytes(values, NinoDeserializer.Deserialize<T[]>(data), "new " + what);
+            SameBytes(values, NinoDeserializer.Deserialize<List<T>>(data).ToArray(), "List of " + what);
+        }
+    }
+
+    private static void SameBytes<T>(T[] expected, T[] actual, string what) where T : unmanaged
+    {
+        var want = System.Runtime.InteropServices.MemoryMarshal.AsBytes(expected.AsSpan());
+        var got = System.Runtime.InteropServices.MemoryMarshal.AsBytes(actual.AsSpan());
+        int at = got.CommonPrefixLength(want);
+        if (at < want.Length || got.Length != want.Length)
+            Assert.Fail($"{what}: byte {at} is {(at < got.Length ? got[at] : -1):X2}, not {(at < want.Length ? want[at] : -1):X2}");
+    }
+
+    [TestMethod]
     public void CheckedValues() => RoundTrips(Dated, 15);
 
     [TestMethod]
@@ -127,7 +180,8 @@ public class BlockStructTests
         foreach (int length in new[] { 1, 9, 33, 100 })
         {
             var data = NinoSerializer.Serialize(Enumerable.Range(0, length).Select(create).ToArray());
-            foreach (int at in new[] { 0, length / 2, length - 1 })
+            // Every place in a step of eight (the strided check), a middle and the last.
+            foreach (int at in new[] { 0, 1, 2, 3, 4, 5, 6, 7, length / 2, length - 1 }.Where(a => a < length).Distinct())
             foreach (int offset in bools)
             foreach (byte b in new byte[] { 2, 0x80, 0xFF })
             {
@@ -147,6 +201,7 @@ public class BlockStructTests
         RejectsBools(Auto, 12, 11);
         RejectsBools(Props, 8, 4, 7);
         RejectsBools(Nested, 18, 16);
+        RejectsBools(Waypoint, 15, 14);
         RejectsBools(Dated, 15, 14);
     }
 

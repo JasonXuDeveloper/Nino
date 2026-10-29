@@ -180,8 +180,10 @@ namespace Nino.Core.Internal
         // out, and kept its reader in memory).
         private static class Traits<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
         {
+            // Block reads write every byte of a value, padding as 0 (NinoBlock.ReadEach); values read a field at a
+            // time (ReadSize -1, Untrusted mode) leave their padding as it was.
             public static readonly bool CopiedWhole = RawFormatter.Is<T, TFormatter>() ||
-                NinoBlock.Size<T, TFormatter>() > 0 && NinoBlock<T, TFormatter>.IsMemory;
+                NinoBlock.ReadSize<T, TFormatter>() > 0;
 
             public static readonly bool ReadOverwrites = RawFormatter.Is<T, TFormatter>() ||
                 typeof(TFormatter) == typeof(DateTimeOffsetFormatter) || NinoBlock.Size<T, TFormatter>() > 0;
