@@ -326,15 +326,16 @@ internal static class ModelBuilder
         if (baseSymbols.Count > symbols.Count ||
             !baseSymbols.Select((x, i) => SymbolEqualityComparer.Default.Equals(x, symbols[i])).All(x => x))
             return 0;
-        baseFormatter = FormatterResolver.GeneratedFormatter(baseType).ToString();
+        baseFormatter = facts.Resolver.GeneratedFormatter(baseType).ToString();
         return baseSymbols.Count;
     }
 
     /// <summary>
     /// Whether a closed generic base runs the runtime's shared code: a type argument (of it or of a containing type)
     /// is a reference type, or a generic struct over one, such as <c>Box&lt;(Item, int)&gt;</c>. Its
-    /// <c>WriteMembers</c>/<c>ReadMembers</c> then look each <c>T</c> member's formatter up at run time and call it
-    /// virtually, so a subtype that is not generic itself writes and reads those members with their concrete types.
+    /// <c>WriteMembers</c>/<c>ReadMembers</c> are then the runtime's shared code, which looks up what depends on
+    /// <c>T</c> in its generic context, so a subtype that is not generic itself writes and reads those members with
+    /// their concrete types.
     /// A base over a subtype's own type parameters is shared either way, and stays reused.
     /// </summary>
     private static bool SharedInstance(INamedTypeSymbol type)

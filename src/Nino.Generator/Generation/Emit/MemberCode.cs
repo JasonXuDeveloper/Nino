@@ -12,6 +12,9 @@ internal static class MemberCode
 
     private static string Accessor(TypeModel m) => $"{m.TypeName}.{AccessorClass(m)}";
 
+    /// <summary>The class holding a generic type's <c>[UnsafeAccessor]</c> externs, next to its formatter.</summary>
+    public static string UnsafeAccessorClass(TypeModel m) => "__NinoUnsafe_" + m.FormatterName;
+
     private static bool IsReadonlyField(MemberModel member) => !member.IsProperty && member.ConstructionOnly;
 
     private static string Instance(MemberModel member, string v) => member.DeclaringTypeIsValueType ? "ref " + v : v;
@@ -40,7 +43,9 @@ internal static class MemberCode
     /// <summary>A call of the accessor <paramref name="accessor"/> on <paramref name="v"/>.</summary>
     private static string Call(TypeModel m, MemberModel member, string accessor, string v, string more = "") =>
         member.Access == MemberAccess.UnsafeAccessor
-            ? $"{accessor}({Instance(member, v)}{more})"
+            ? m.IsGeneric
+                ? $"{UnsafeAccessorClass(m)}{m.TypeArgumentList}.{accessor}({Instance(member, v)}{more})"
+                : $"{accessor}({Instance(member, v)}{more})"
             : $"{Accessor(m)}.{accessor}({Instance(member, v)}{more})";
 
     /// <summary>Expression reading the member of <paramref name="v"/>.</summary>

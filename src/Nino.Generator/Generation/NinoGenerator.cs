@@ -355,7 +355,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
     }
 
     private static RegistryEntry ToEntry(TypeModel model) =>
-        new(model.FormatterName, model.TypeParameters.Length, RegistryEmitter.Registration(model));
+        new(model.FormatterName, model.FormatterArity, RegistryEmitter.Registration(model));
 
     /// <summary>
     /// Emits the formatter of <paramref name="model"/>; <paramref name="clashes"/>: another formatter's name differs
