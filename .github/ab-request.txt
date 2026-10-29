@@ -1075,3 +1075,10 @@ go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floo
 go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 4 rerun
 go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 5 rerun
 go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 6 rerun
+# go dispatch: EPYC 7763 showed Serialize/simple-class 1.012 and the unchanged strings-mixed-1000 1.012 (n=5): more samples with main's floor.
+go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^(simple-class|strings-mixed-1000)$/^Nino$ # dispatch 7763 1
+go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^(simple-class|strings-mixed-1000)$/^Nino$ # dispatch 7763 2
+go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^(simple-class|strings-mixed-1000)$/^Nino$ # dispatch 7763 3
+go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^(simple-class|strings-mixed-1000)$/^Nino$ # dispatch 7763 floor 1
+go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^(simple-class|strings-mixed-1000)$/^Nino$ # dispatch 7763 floor 2
+go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^(simple-class|strings-mixed-1000)$/^Nino$ # dispatch 7763 floor 3
