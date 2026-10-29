@@ -2,13 +2,14 @@
 // (NINO_BURST, set by the asmdef's versionDefines); without it Nino keeps its scalar paths.
 //
 // Unity loads the netstandard2.1 build of Nino.Core, which has no hardware intrinsics: on Mono, IL2CPP and HybridCLR it
-// moves blocks of tuples and structs a field at a time and narrows or widens Latin-1 text a word at a time. The kernels
-// here do that work with AVX2 or SSSE3 (x86 and x64) or AArch64 Neon, called through Burst function pointers.
+// moves blocks of tuples and structs a field at a time, narrows or widens Latin-1 text a word at a time and transcodes
+// [NinoUtf8] strings with UTF8Encoding. The kernels here do that work with AVX2 or SSSE3 (x86 and x64) or AArch64 Neon
+// (for UTF-8, the leading ASCII text; the encoder does the rest).
 //
-// Calls: through C# 9 function pointers (delegate* unmanaged[Cdecl]; Unity's compiler rejects only the extensible
-// calling conventions), which Mono and IL2CPP compile to a direct call of the native code, instead of
-// FunctionPointer<T>.Invoke, a delegate over it. Register checks the call form once (InstructionSet through the pointer
-// must return what its delegate returns) and keeps the delegates where it does not hold.
+// Calls: Nino.Core keeps each kernel's Burst function pointer (FunctionPointer<T>.Value) in a static field and calls it
+// as a C# 9 function pointer (delegate* unmanaged[Cdecl]), which Mono and IL2CPP compile to a direct call of the native
+// code: no delegate, no object, no virtual call. Register checks that call form once (InstructionSet through the
+// pointer must return what its delegate returns) and registers nothing where it does not hold.
 //
 // x64 players: Burst AOT compiles each function pointer once per CPU target of the Burst AOT Settings (Burst 1.8.29's
 // default for x64 desktop players: SSE2 and AVX2; SSE4 can be added) and picks the variant the CPU runs at load time.
@@ -23,7 +24,8 @@
 // - HybridCLR: hot-update code calls the AOT Nino.Core, which calls these kernels; nothing here is interpreted.
 // - Armv7 (32-bit Android) and x86 targets without SSSE3: Burst's Neon intrinsics are AArch64 only, so the kernels
 //   would take their scalar branch; Register sees that (Isa returns 0) and leaves Nino's own scalar paths in place.
-// - WebGL and any player where Burst does not run (BurstCompiler.IsEnabled false): nothing is registered.
+// - WebGL and any player where Burst does not run (BurstCompiler.IsEnabled false): nothing is registered (WebGL players
+//   built with SIMD take Nino.WebGL's kernels instead).
 #if NINO_BURST
 using System;
 using System.Runtime.CompilerServices;
@@ -56,6 +58,9 @@ namespace Nino.Burst
         public delegate void WidenFunction(byte* source, ushort* destination, int length);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate int WidenAsciiFunction(byte* source, ushort* destination, int length);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate int IsaFunction();
 
         /// <summary>Values of <see cref="Isa"/>: the kernels' 16-byte x86 paths (SSSE3), AArch64 Neon, the 32-byte x86
@@ -73,7 +78,8 @@ namespace Nino.Burst
         private static int _best;
 
         /// <summary>Whether Nino.Core uses these kernels.</summary>
-        public static bool Registered => NinoKernels.Current is Kernels;
+        public static bool Registered => NinoKernels.Current != null &&
+                                         (NinoKernels.Current == _kernels || NinoKernels.Current == _kernels16);
 
         /// <summary>The instruction set name of <see cref="Isa"/>, for logs.</summary>
         public static string IsaName => Isa switch
@@ -85,14 +91,11 @@ namespace Nino.Burst
         };
 
         // The kernels with every path the CPU has, and with the 16-byte ones only (on AVX2 CPUs, for measuring).
-        private static Kernels _kernels, _kernels16;
-
-        /// <summary>Whether the kernels are called through C# function pointers (false: through delegates).</summary>
-        internal static bool CallsThroughPointers => NinoKernels.Current is PointerKernels;
+        private static NinoKernels _kernels, _kernels16;
 
         /// <summary>
         /// Compiles the kernels (once) and registers them with Nino.Core: false, with Nino's scalar paths kept, where
-        /// Burst is off or the target has no SSSE3 or AArch64 Neon.
+        /// Burst is off, the target has no SSSE3 or AArch64 Neon, or the runtime cannot call Burst's function pointers.
         /// </summary>
         public static bool Register() => Register(Avx2);
 
@@ -112,20 +115,41 @@ namespace Nino.Burst
                     _best = isa.Invoke();
                     if (_best == 0)
                         return false;
-                    var permute = BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute);
-                    var narrow = BurstCompiler.CompileFunctionPointer<NarrowFunction>(Narrow);
-                    var widen = BurstCompiler.CompileFunctionPointer<WidenFunction>(Widen);
-                    bool pointers = PointersWork(isa);
-                    Kernels Make(FunctionPointer<PermuteFunction> p) => pointers
-                        ? new PointerKernels(p.Value, narrow.Value, widen.Value)
-                        : new DelegateKernels(p.Invoke, narrow.Invoke, widen.Invoke);
+                    if (!PointersWork(isa))
+                    {
+                        // Nino.Core calls kernels only through function pointers: a runtime that cannot keeps its own
+                        // paths (no Unity the package supports).
+                        Debug.LogWarning("Nino: Burst function pointers cannot be called, using the scalar paths.");
+                        return false;
+                    }
+
+                    var permute = BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute).Value;
+                    var narrow = BurstCompiler.CompileFunctionPointer<NarrowFunction>(Narrow).Value;
+                    var widen = BurstCompiler.CompileFunctionPointer<WidenFunction>(Widen).Value;
+                    var narrowAscii = BurstCompiler.CompileFunctionPointer<NarrowFunction>(NarrowAscii).Value;
+                    var widenAscii = BurstCompiler.CompileFunctionPointer<WidenAsciiFunction>(WidenAscii).Value;
+                    NinoKernels Make(IntPtr p) => new NinoKernels
+                    {
+                        // The thresholds from a sweep in unity.yml run 40735278928 (IL2CPP players, Linux x64, 2022.3
+                        // and 6000.3): blocks of tuples were faster through the kernels from 2 values (1.09-1.30x;
+                        // 0.99-1.14x at 1), strings of Latin-1 text from 16 chars (1.24-1.55x); text above U+00FF
+                        // costs the same few percent at any length.
+                        MinBlocks = 2,
+                        MinChars = 16,
+                        Permute = (delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void>)p,
+                        Narrow = (delegate* unmanaged[Cdecl]<ushort*, byte*, int, int>)narrow,
+                        Widen = (delegate* unmanaged[Cdecl]<byte*, ushort*, int, void>)widen,
+                        NarrowAscii = (delegate* unmanaged[Cdecl]<ushort*, byte*, int, int>)narrowAscii,
+                        WidenAscii = (delegate* unmanaged[Cdecl]<byte*, ushort*, int, int>)widenAscii,
+                    };
                     _kernels = Make(permute);
                     _kernels16 = _best == Avx2
-                        ? Make(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute16))
+                        ? Make(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute16).Value)
                         : _kernels;
                 }
                 catch (Exception e)
                 {
+                    _kernels = null;
                     Debug.LogWarning($"Nino: Burst kernels not available, using the scalar paths ({e.Message}).");
                     return false;
                 }
@@ -165,64 +189,6 @@ namespace Nino.Burst
         [UnityEditor.InitializeOnLoadMethod]
         private static void RegisterInEditor() => UnityEditor.EditorApplication.delayCall += () => Register();
 #endif
-
-        /// <summary>The kernels as Nino.Core calls them, and the shortest runs it calls them for.</summary>
-        // The thresholds from a sweep in unity.yml run 40735278928 (IL2CPP players, Linux x64, 2022.3 and 6000.3): blocks of
-        // tuples were faster through the kernels from 2 values (1.09-1.30x; 0.99-1.14x at 1), strings of Latin-1 text
-        // from 16 chars (1.24-1.55x); text above U+00FF costs the same few percent at any length.
-        private abstract class Kernels : NinoKernels
-        {
-            public override int MinBlocks => 2;
-            public override int MinChars => 16;
-        }
-
-        /// <summary>Each kernel a call through its Burst function pointer, as a C# function pointer.</summary>
-        private sealed class PointerKernels : Kernels
-        {
-            private readonly delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void> _permute;
-            private readonly delegate* unmanaged[Cdecl]<ushort*, byte*, int, int> _narrow;
-            private readonly delegate* unmanaged[Cdecl]<byte*, ushort*, int, void> _widen;
-
-            public PointerKernels(IntPtr permute, IntPtr narrow, IntPtr widen)
-            {
-                _permute = (delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void>)permute;
-                _narrow = (delegate* unmanaged[Cdecl]<ushort*, byte*, int, int>)narrow;
-                _widen = (delegate* unmanaged[Cdecl]<byte*, ushort*, int, void>)widen;
-            }
-
-            public override void Permute(byte* source, int sourceStride, byte* destination, int destinationStride,
-                byte* table, int count) => _permute(source, sourceStride, destination, destinationStride, table, count);
-
-            public override bool Narrow(char* source, byte* destination, int length) =>
-                _narrow((ushort*)source, destination, length) != 0;
-
-            public override void Widen(byte* source, char* destination, int length) =>
-                _widen(source, (ushort*)destination, length);
-        }
-
-        /// <summary>The fallback: each kernel a call through the delegate of FunctionPointer.Invoke.</summary>
-        private sealed class DelegateKernels : Kernels
-        {
-            private readonly PermuteFunction _permute;
-            private readonly NarrowFunction _narrow;
-            private readonly WidenFunction _widen;
-
-            public DelegateKernels(PermuteFunction permute, NarrowFunction narrow, WidenFunction widen)
-            {
-                _permute = permute;
-                _narrow = narrow;
-                _widen = widen;
-            }
-
-            public override void Permute(byte* source, int sourceStride, byte* destination, int destinationStride,
-                byte* table, int count) => _permute(source, sourceStride, destination, destinationStride, table, count);
-
-            public override bool Narrow(char* source, byte* destination, int length) =>
-                _narrow((ushort*)source, destination, length) != 0;
-
-            public override void Widen(byte* source, char* destination, int length) =>
-                _widen(source, (ushort*)destination, length);
-        }
 
         [BurstCompile(CompileSynchronously = true)]
         [MonoPInvokeCallback(typeof(IsaFunction))]
@@ -484,6 +450,63 @@ namespace Nino.Burst
                 destination[i] = source[i];
         }
 
+        /// <summary>
+        /// <see cref="NinoKernels.NarrowAscii"/>, 16 chars at a time (the last 16 again, overlapping): the count of
+        /// leading ASCII chars, each written as its byte; from the first 16 with another char, one at a time.
+        /// </summary>
+        [BurstCompile(CompileSynchronously = true)]
+        [MonoPInvokeCallback(typeof(NarrowFunction))]
+        public static int NarrowAscii(ushort* source, byte* destination, int length)
+        {
+            int i = 0;
+            if ((Arm.Neon.IsNeonSupported || X86.Sse2.IsSse2Supported) && length >= 16)
+            {
+                while (true)
+                {
+                    v128 a = Load((byte*)(source + i)), b = Load((byte*)(source + i + 8));
+                    if (AboveAscii(a, b))
+                        break;
+                    Store(destination + i, Pack(a, b));
+                    if (i + 16 == length)
+                        return length;
+                    i = i + 32 <= length ? i + 16 : length - 16;
+                }
+            }
+
+            for (; i < length && source[i] < 0x80; i++)
+                destination[i] = (byte)source[i];
+            return i;
+        }
+
+        /// <summary>
+        /// <see cref="NinoKernels.WidenAscii"/>, 16 bytes at a time (the last 16 again, overlapping): the count of
+        /// leading ASCII bytes, each written as its char; from the first 16 with another byte, one at a time.
+        /// </summary>
+        [BurstCompile(CompileSynchronously = true)]
+        [MonoPInvokeCallback(typeof(WidenAsciiFunction))]
+        public static int WidenAscii(byte* source, ushort* destination, int length)
+        {
+            int i = 0;
+            if ((Arm.Neon.IsNeonSupported || X86.Sse2.IsSse2Supported) && length >= 16)
+            {
+                while (true)
+                {
+                    v128 v = Load(source + i);
+                    if (AnyAboveAscii(v))
+                        break;
+                    Store((byte*)(destination + i), Low(v));
+                    Store((byte*)(destination + i + 8), High(v));
+                    if (i + 16 == length)
+                        return length;
+                    i = i + 32 <= length ? i + 16 : length - 16;
+                }
+            }
+
+            for (; i < length && source[i] < 0x80; i++)
+                destination[i] = source[i];
+            return i;
+        }
+
         // The vector operations, one instruction each on both instruction sets. Only called where one of them is
         // supported. Burst requires each instruction to sit under a test of its own IsXxxSupported in the same
         // method: a player is compiled ahead of time for a baseline (SSE2 on x64, none on Armv7 or WebGL) and
@@ -537,6 +560,30 @@ namespace Nino.Burst
                 return X86.Sse2.movemask_epi8(X86.Sse2.cmpeq_epi8(high, X86.Sse2.setzero_si128())) != 0xFFFF;
             }
 
+            return true;
+        }
+
+        // Whether a char of a or b (eight UTF-16 chars each) is above U+007F.
+        private static bool AboveAscii(v128 a, v128 b)
+        {
+            if (Arm.Neon.IsNeonSupported)
+                return Arm.Neon.vmaxvq_u16(Arm.Neon.vorrq_u8(a, b)) > 0x7F;
+            if (X86.Sse2.IsSse2Supported)
+            {
+                v128 high = X86.Sse2.and_si128(X86.Sse2.or_si128(a, b), X86.Sse2.set1_epi16(unchecked((short)0xFF80)));
+                return X86.Sse2.movemask_epi8(X86.Sse2.cmpeq_epi8(high, X86.Sse2.setzero_si128())) != 0xFFFF;
+            }
+
+            return true;
+        }
+
+        // Whether a byte of value is above 0x7F.
+        private static bool AnyAboveAscii(v128 value)
+        {
+            if (Arm.Neon.IsNeonSupported)
+                return Arm.Neon.vmaxvq_u8(value) > 0x7F;
+            if (X86.Sse2.IsSse2Supported)
+                return X86.Sse2.movemask_epi8(value) != 0;
             return true;
         }
 

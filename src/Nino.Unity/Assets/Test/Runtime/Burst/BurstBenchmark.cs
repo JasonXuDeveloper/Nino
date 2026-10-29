@@ -89,6 +89,17 @@ namespace Test.Runtime.Burst
             cases.Add(One("SimpleClass", BenchClass.Create(random)));
             cases.Add(Values("SimpleClass[100]",
                 Enumerable.Range(0, 100).Select(_ => BenchClass.Create(random)).ToArray()));
+            // [NinoUtf8] text: ASCII, whose UTF-8 the kernels write and read, and CJK, where the kernels stop at the first
+            // char and .NET's encoder and decoder do it all.
+            foreach (int n in Lengths)
+                cases.Add(One($"[NinoUtf8] ASCII string ({n} chars)", new Utf8Text
+                {
+                    Text = new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(32, 127)).ToArray()),
+                }));
+            cases.Add(One("[NinoUtf8] UTF-8 string (1000 CJK chars)", new Utf8Text
+            {
+                Text = new string(Enumerable.Range(0, 1000).Select(_ => (char)random.Next(0x4E00, 0x9FA6)).ToArray()),
+            }));
             return cases;
         }
 

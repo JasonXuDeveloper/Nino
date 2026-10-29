@@ -1,10 +1,15 @@
-// Nino.Core's NinoKernels (Permute, Narrow, Widen) in WebAssembly SIMD128, for WebGL players: Burst does not target the
-// web, so this source plugin is compiled by Unity's Emscripten into the player's wasm module. It uses SIMD only when the
-// player is built with SIMD (Unity 6's "Target WebAssembly 2023", which compiles everything with -msimd128, or the
-// compiler flag passed in Unity 2022.3's Additional IL2CPP Arguments); otherwise
-// nino_wasm_simd returns 0, nothing here holds a SIMD instruction, and NinoWasm registers nothing. Each kernel writes
-// exactly the bytes of Nino.Core's scalar reference (NinoKernels.PermuteScalar, NarrowScalar, WidenScalar).
+// Nino.Core's NinoKernels (Permute, Narrow, Widen, NarrowAscii, WidenAscii) in WebAssembly SIMD128, for WebGL players:
+// Burst does not target the web, so this source plugin is compiled by Unity's Emscripten into the player's wasm module.
+// It uses SIMD only when the player is built with SIMD (Unity 6's "Target WebAssembly 2023", which compiles everything
+// with -msimd128, or the compiler flag passed in Unity 2022.3's Additional IL2CPP Arguments); otherwise
+// nino_wasm_kernels returns 0, nothing here holds a SIMD instruction, and NinoWasm registers nothing. Each kernel writes
+// exactly the bytes of Nino.Core's scalar reference (NinoKernels.PermuteScalar, NarrowScalar, WidenScalar,
+// NarrowAsciiScalar, WidenAsciiScalar). Nino.Core calls them through the function pointers nino_wasm_kernels hands out
+// (call_indirect), not through DllImport.
 #include <stdint.h>
+
+// The kernels are reached only through nino_wasm_kernels' table (unused, and so not compiled in, without SIMD).
+#define NINO_KERNEL static __attribute__((unused))
 
 // Clang's vector extensions and one wasm builtin, not <wasm_simd128.h>: Unity 2022.3's Emscripten (3.1.8) ships a
 // wrapper of that header whose #include_next finds nothing in Unity's LLVM, so including it fails the build.
@@ -20,16 +25,7 @@ typedef uint8_t u8x8 __attribute__((vector_size(8)));
 #define SWIZZLE(x, m) ((u8x16)__builtin_wasm_swizzle_i8x16((i8x16)(x), (i8x16)(m)))
 #endif
 
-int nino_wasm_simd(void)
-{
-#ifdef NINO_SIMD
-    return 1;
-#else
-    return 0;
-#endif
-}
-
-void nino_wasm_permute(const uint8_t* source, int sourceStride, uint8_t* destination, int destinationStride,
+NINO_KERNEL void nino_wasm_permute(const uint8_t* source, int sourceStride, uint8_t* destination, int destinationStride,
     const uint8_t* table, int count)
 {
     int i = 0;
@@ -108,7 +104,7 @@ void nino_wasm_permute(const uint8_t* source, int sourceStride, uint8_t* destina
 }
 
 // 1 when all length chars are Latin-1 (written a byte each), 0 at the first 16 with a char above U+00FF.
-int nino_wasm_narrow(const uint16_t* source, uint8_t* destination, int length)
+NINO_KERNEL int nino_wasm_narrow(const uint16_t* source, uint8_t* destination, int length)
 {
 #ifdef NINO_SIMD
     if (length >= 16)
@@ -138,7 +134,7 @@ int nino_wasm_narrow(const uint16_t* source, uint8_t* destination, int length)
     return 1;
 }
 
-void nino_wasm_widen(const uint8_t* source, uint16_t* destination, int length)
+NINO_KERNEL void nino_wasm_widen(const uint8_t* source, uint16_t* destination, int length)
 {
 #ifdef NINO_SIMD
     if (length >= 16)
@@ -159,4 +155,76 @@ void nino_wasm_widen(const uint8_t* source, uint16_t* destination, int length)
 #endif
     for (int i = 0; i < length; i++)
         destination[i] = source[i];
+}
+
+// The number of leading ASCII chars (below U+0080), each written as its byte; from the first 16 with another char, one
+// at a time.
+NINO_KERNEL int nino_wasm_narrow_ascii(const uint16_t* source, uint8_t* destination, int length)
+{
+    int i = 0;
+#ifdef NINO_SIMD
+    if (length >= 16)
+    {
+        for (;;)
+        {
+            u8x16 a = LOAD(source + i), b = LOAD(source + i + 8);
+            u64x2 high = (u64x2)((u16x8)(a | b) & (uint16_t)0xFF80);
+            if (high[0] | high[1])
+                break;
+            STORE(destination + i, __builtin_shufflevector(a, b, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30));
+            if (i + 16 == length)
+                return length;
+            i = i + 32 <= length ? i + 16 : length - 16;
+        }
+    }
+#endif
+    for (; i < length && source[i] < 0x80; i++)
+        destination[i] = (uint8_t)source[i];
+    return i;
+}
+
+// The number of leading ASCII bytes (below 0x80), each written as its char; from the first 16 with another byte, one
+// at a time.
+NINO_KERNEL int nino_wasm_widen_ascii(const uint8_t* source, uint16_t* destination, int length)
+{
+    int i = 0;
+#ifdef NINO_SIMD
+    if (length >= 16)
+    {
+        for (;;)
+        {
+            u8x16 v = LOAD(source + i);
+            u64x2 high = (u64x2)(v & (uint8_t)0x80);
+            if (high[0] | high[1])
+                break;
+            STORE(destination + i, (u8x16)__builtin_convertvector(
+                (u8x8)__builtin_shufflevector(v, v, 0, 1, 2, 3, 4, 5, 6, 7), u16x8));
+            STORE(destination + i + 8, (u8x16)__builtin_convertvector(
+                (u8x8)__builtin_shufflevector(v, v, 8, 9, 10, 11, 12, 13, 14, 15), u16x8));
+            if (i + 16 == length)
+                return length;
+            i = i + 32 <= length ? i + 16 : length - 16;
+        }
+    }
+#endif
+    for (; i < length && source[i] < 0x80; i++)
+        destination[i] = source[i];
+    return i;
+}
+
+// The kernels, in NinoWasm's order (Permute, Narrow, Widen, NarrowAscii, WidenAscii): 1 with the five written to
+// table, 0 (nothing written) in a player built without SIMD, where Nino keeps its own paths.
+int nino_wasm_kernels(void** table)
+{
+#ifdef NINO_SIMD
+    table[0] = (void*)nino_wasm_permute;
+    table[1] = (void*)nino_wasm_narrow;
+    table[2] = (void*)nino_wasm_widen;
+    table[3] = (void*)nino_wasm_narrow_ascii;
+    table[4] = (void*)nino_wasm_widen_ascii;
+    return 1;
+#else
+    (void)table;
+    return 0;
+#endif
 }

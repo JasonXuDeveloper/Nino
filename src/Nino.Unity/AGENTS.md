@@ -20,13 +20,15 @@ Packages/
     Runtime/                 Nino.Core.dll (netstandard2.1), Nino.Generator.dll (Roslyn 4.3), Nino.Generator.CodeFixes.dll,
                              Nino.UnityTypes.dll; ThirdParty/: System.Buffers, System.Memory,
                              System.Runtime.CompilerServices.Unsafe
-    Burst/                   Nino.Burst: NinoBurst.cs registers Burst-compiled NinoKernels (Permute, Narrow, Widen;
-                             AVX2 / SSSE3 / AArch64 Neon with scalar branches) at startup; compiled only with
-                             com.unity.burst 1.8+ (NINO_BURST, versionDefines); called through C# function pointers
-                             (delegate* unmanaged), delegates where those fail
+    Burst/                   Nino.Burst: NinoBurst.cs registers Burst-compiled NinoKernels (Permute, Narrow, Widen,
+                             NarrowAscii, WidenAscii; AVX2 / SSSE3 / AArch64 Neon with scalar branches) at startup;
+                             compiled only with com.unity.burst 1.8+ (NINO_BURST, versionDefines); Nino.Core calls
+                             Burst's function pointers directly (delegate* unmanaged), none registered where that fails
     WebGL/                   Nino.WebGL (WebGL players only): nino_wasm.c (the kernels in WebAssembly SIMD, a source
-                             plugin Emscripten compiles into the player) and NinoWasm.cs, which registers them when the
-                             player has SIMD (Unity 6's WebAssembly 2023, or -msimd128 on 2022.3)
+                             plugin Emscripten compiles into the player; nino_wasm_kernels hands out their pointers) and
+                             NinoWasm.cs, which registers them when the player has SIMD (Unity 6's WebAssembly 2023, or
+                             -msimd128 on 2022.3). WebGL only: IL2CPP and Mono players without Burst keep the scalar
+                             paths (the owner's call: users install Burst)
 Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.Tests, Runtime.Tests, Burst.Tests,
                              Burst.Editor.Tests, WebGL.Bench, WebGL.Bench.Editor)
   Data.cs                    the shared [NinoType]s (Test assembly)

@@ -16,6 +16,16 @@ namespace Test.Runtime.Burst
         public long B;
     }
 
+    /// <summary>A <c>[NinoUtf8]</c> string, which the UTF-8 kernels (NarrowAscii, WidenAscii) serve.</summary>
+    [NinoType]
+    public partial class Utf8Text
+    {
+        [NinoUtf8] public string Text;
+
+        public override bool Equals(object obj) => obj is Utf8Text other && other.Text == Text;
+        public override int GetHashCode() => Text?.GetHashCode() ?? 0;
+    }
+
     /// <summary>
     /// The Burst kernels (Nino.Burst) against Nino.Core's scalar paths: the same bytes with the kernels registered and
     /// without, for every kernel kind and lengths around each threshold. Run in play mode and in an IL2CPP player
@@ -33,8 +43,11 @@ namespace Test.Runtime.Burst
             Assert.IsTrue(NinoBurst.Register(), "the kernels did not register");
             // SSSE3, AVX2 or AArch64 Neon; 0 would be the scalar branch (or managed code, not Burst's).
             Assert.AreNotEqual(0, NinoBurst.Isa);
-            // Every Unity the package supports calls them through C# function pointers, not the delegate fallback.
-            Assert.IsTrue(NinoBurst.CallsThroughPointers, "the kernels are called through delegates");
+            // Nino.Core calls each kernel through its function pointer.
+            Assert.IsTrue(NinoBurst.Registered);
+            Assert.IsTrue(NinoKernels.Current.Permute != null && NinoKernels.Current.Narrow != null &&
+                          NinoKernels.Current.Widen != null && NinoKernels.Current.NarrowAscii != null &&
+                          NinoKernels.Current.WidenAscii != null, "a kernel is missing");
             Debug.Log($"Nino Burst kernels: instruction set {NinoBurst.IsaName}");
         }
 
@@ -117,7 +130,7 @@ namespace Test.Runtime.Burst
                 fixed (char* c = chars)
                 fixed (byte* b = burst, s = scalar)
                 {
-                    narrowed = kernels.Narrow(c, b, n);
+                    narrowed = kernels.Narrow((ushort*)c, b, n) != 0;
                     expected = NinoKernels.NarrowScalar(c, s, n);
                 }
 
@@ -135,11 +148,98 @@ namespace Test.Runtime.Burst
                 fixed (byte* p = bytes)
                 fixed (char* b = burst, s = scalar)
                 {
-                    kernels.Widen(p, b, n);
+                    kernels.Widen(p, (ushort*)b, n);
                     NinoKernels.WidenScalar(p, s, n);
                 }
 
                 CollectionAssert.AreEqual(scalar, burst, $"{tier}: widen {n}");
+            }
+        }
+
+        [Test]
+        public void AsciiKernelsMatchTheScalarReference()
+        {
+            foreach (int tier in Tiers)
+                Ascii(Use(tier), NinoBurst.IsaName);
+        }
+
+        private static void Ascii(NinoKernels kernels, string tier)
+        {
+            var random = new Random(4);
+            for (int n = 0; n < 600; n++)
+            for (int bad = -1; bad < n; bad += Math.Max(1, n / 5))
+            {
+                // Chars from U+0080 (the first not ASCII) up, and bytes from 0x80: where each kernel must stop.
+                var chars = new char[n];
+                var bytes = new byte[n];
+                for (int j = 0; j < n; j++)
+                {
+                    chars[j] = (char)random.Next(128);
+                    bytes[j] = (byte)random.Next(128);
+                }
+
+                if (bad >= 0)
+                {
+                    chars[bad] = (char)(bad % 2 == 0 ? 0x80 : random.Next(0x80, 0x10000));
+                    bytes[bad] = (byte)(bad % 2 == 0 ? 0x80 : random.Next(0x80, 0x100));
+                }
+
+                var burst = new byte[n + 16];
+                var scalar = new byte[n + 16];
+                var burstChars = new char[n + 8];
+                var scalarChars = new char[n + 8];
+                int narrowed, expected, widened, expectedWidened;
+                fixed (char* c = chars, bc = burstChars, sc = scalarChars)
+                fixed (byte* p = bytes, b = burst, s = scalar)
+                {
+                    narrowed = kernels.NarrowAscii((ushort*)c, b, n);
+                    expected = NinoKernels.NarrowAsciiScalar(c, s, n);
+                    widened = kernels.WidenAscii(p, (ushort*)bc, n);
+                    expectedWidened = NinoKernels.WidenAsciiScalar(p, sc, n);
+                }
+
+                Assert.AreEqual(expected, narrowed, $"{tier}: narrow ASCII {n}, bad at {bad}");
+                CollectionAssert.AreEqual(scalar.Take(expected).ToArray(), burst.Take(expected).ToArray(),
+                    $"{tier}: narrow ASCII {n}");
+                Assert.IsTrue(burst.Skip(n).All(x => x == 0), $"{tier}: narrow ASCII {n} wrote past the chars");
+                Assert.AreEqual(expectedWidened, widened, $"{tier}: widen ASCII {n}, bad at {bad}");
+                CollectionAssert.AreEqual(scalarChars.Take(expectedWidened).ToArray(),
+                    burstChars.Take(expectedWidened).ToArray(), $"{tier}: widen ASCII {n}");
+                Assert.IsTrue(burstChars.Skip(n).All(x => x == 0), $"{tier}: widen ASCII {n} wrote past the bytes");
+            }
+        }
+
+        [Test]
+        public void InvalidUtf8IsRejectedWithTheKernels()
+        {
+            // 40 ASCII chars: the char count plus one, the byte count, then the bytes (at the end of the type's bytes).
+            const int n = 40;
+            byte[] valid = NinoSerializer.Serialize(new Utf8Text { Text = new string('a', n) });
+            int at = valid.Length - n;
+            foreach (int k in new[] { 0, 15, 16, 17, 31, 32, 39 })
+            foreach (byte bad in new byte[] { 0x80, 0xC0, 0xE4, 0xFF })
+            {
+                var bytes = (byte[])valid.Clone();
+                bytes[at + k] = bad;
+                foreach (int tier in Tiers)
+                {
+                    Use(tier);
+                    Assert.Throws<NinoDataException>(() => NinoDeserializer.Deserialize<Utf8Text>(bytes),
+                        $"{NinoBurst.IsaName}: 0x{bad:X2} at {k}");
+                }
+
+                NinoBurst.Unregister();
+                Assert.Throws<NinoDataException>(() => NinoDeserializer.Deserialize<Utf8Text>(bytes), $"0x{bad:X2} at {k}");
+                Assert.IsTrue(NinoBurst.Register());
+            }
+
+            // One char fewer than the ASCII bytes: the last byte is left over.
+            var shorter = (byte[])valid.Clone();
+            shorter[at - 2] = n;
+            foreach (int tier in Tiers)
+            {
+                Use(tier);
+                Assert.Throws<NinoDataException>(() => NinoDeserializer.Deserialize<Utf8Text>(shorter), NinoBurst.IsaName);
             }
         }
 
@@ -184,6 +284,11 @@ namespace Test.Runtime.Burst
                 string latin1 = new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(1, 256)).ToArray());
                 Same(latin1, $"Latin-1 x {n}");
                 Same(latin1 + "中", $"UTF-16 x {n}");
+                string ascii = new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(0, 128)).ToArray());
+                Same(new Utf8Text { Text = ascii }, $"[NinoUtf8] ASCII x {n}");
+                Same(new Utf8Text { Text = ascii + "é中\U0001F600" + ascii }, $"[NinoUtf8] mixed x {n}");
+                // An unpaired surrogate is written as U+FFFD with the kernels too.
+                Same(new Utf8Text { Text = ascii + "\uD800" + ascii }, $"[NinoUtf8] unpaired surrogate x {n}");
             }
         }
 

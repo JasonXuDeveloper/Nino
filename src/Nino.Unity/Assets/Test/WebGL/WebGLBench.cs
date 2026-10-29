@@ -21,6 +21,13 @@ namespace Test.WebGL
         public long B;
     }
 
+    /// <summary>A <c>[NinoUtf8]</c> string, which the UTF-8 kernels (NarrowAscii, WidenAscii) serve.</summary>
+    [NinoType]
+    public partial class Utf8Text
+    {
+        [NinoUtf8] public string Text;
+    }
+
     // The WebGL player collects garbage only between frames: the benchmark is a coroutine that yields after each
     // timed round, or the heap fills within one frame.
     public sealed class WebGLBench : MonoBehaviour
@@ -113,7 +120,7 @@ namespace Test.WebGL
                 fixed (char* c = chars)
                 fixed (byte* x = a, y = b)
                 {
-                    ra = k.Narrow(c, x, len);
+                    ra = k.Narrow((ushort*)c, x, len) != 0;
                     rb = NinoKernels.NarrowScalar(c, y, len);
                 }
 
@@ -126,12 +133,35 @@ namespace Test.WebGL
                 fixed (byte* s = bytes)
                 fixed (char* x = wa, y = wb)
                 {
-                    k.Widen(s, x, len);
+                    k.Widen(s, (ushort*)x, len);
                     NinoKernels.WidenScalar(s, y, len);
                 }
 
                 if (!wa.SequenceEqual(wb))
                     Fail($"widen {len}");
+
+                // The ASCII kernels: the same count, and the same chars or bytes up to it.
+                var text = Enumerable.Range(0, len).Select(_ => (char)random.Next(128)).ToArray();
+                if (len > 0 && len % 2 == 0)
+                    text[random.Next(len)] = (char)random.Next(0x80, 0x800);
+                var raw = Enumerable.Range(0, len).Select(_ => (byte)random.Next(128)).ToArray();
+                if (len > 0 && len % 2 == 0)
+                    raw[random.Next(len)] = (byte)random.Next(0x80, 0x100);
+                int na, nb, wka, wkb;
+                fixed (char* c = text)
+                fixed (byte* x = a, y = b, r = raw)
+                fixed (char* u = wa, v = wb)
+                {
+                    na = k.NarrowAscii((ushort*)c, x, len);
+                    nb = NinoKernels.NarrowAsciiScalar(c, y, len);
+                    wka = k.WidenAscii(r, (ushort*)u, len);
+                    wkb = NinoKernels.WidenAsciiScalar(r, v, len);
+                }
+
+                if (na != nb || !a.Take(nb).SequenceEqual(b.Take(nb)))
+                    Fail($"narrow ASCII {len}");
+                if (wka != wkb || !wa.Take(wkb).SequenceEqual(wb.Take(wkb)))
+                    Fail($"widen ASCII {len}");
             }
 
             Log("NINO_WEBGL|kernels checked");
@@ -143,6 +173,7 @@ namespace Test.WebGL
             public Func<byte[]> Serialize;
             public Action<NinoArrayBufferWriter> SerializeTo;
             public Action Deserialize;
+            public Func<bool> ReadsBack;
         }
 
         private static Case Values<T>(string name, T[] values)
@@ -168,6 +199,19 @@ namespace Test.WebGL
             };
         }
 
+        private static Case Utf8(string name, string value)
+        {
+            var text = new Utf8Text { Text = value };
+            var bytes = NinoSerializer.Serialize(text);
+            return new Case
+            {
+                Name = name, Serialize = () => NinoSerializer.Serialize(text),
+                SerializeTo = w => NinoSerializer.Serialize(text, w),
+                Deserialize = () => NinoDeserializer.Deserialize<Utf8Text>(bytes),
+                ReadsBack = () => NinoDeserializer.Deserialize<Utf8Text>(bytes).Text == value,
+            };
+        }
+
         private static IEnumerator Bench()
         {
             var random = new Random(5);
@@ -188,7 +232,18 @@ namespace Test.WebGL
                     new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(32, 127)).ToArray())));
                 cases.Add(Text($"CJK ({n})",
                     new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(0x4E00, 0x9FA6)).ToArray())));
+                cases.Add(Utf8($"[NinoUtf8] ASCII ({n})",
+                    new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(32, 127)).ToArray())));
             }
+
+            // Below the threshold, and ASCII text with one other char in the middle (the kernel's prefix, then the
+            // encoder): neither may get slower.
+            cases.Add(Utf8("[NinoUtf8] ASCII (15)",
+                new string(Enumerable.Range(0, 15).Select(_ => (char)random.Next(32, 127)).ToArray())));
+            cases.Add(Utf8("[NinoUtf8] ASCII + é (1000)",
+                new string(Enumerable.Range(0, 1000).Select(i => i == 500 ? '\u00E9' : (char)random.Next(32, 127)).ToArray())));
+            cases.Add(Utf8("[NinoUtf8] CJK (1000)",
+                new string(Enumerable.Range(0, 1000).Select(_ => (char)random.Next(0x4E00, 0x9FA6)).ToArray())));
 
             bool simd = NinoWasm.Simd;
             foreach (var c in cases)
@@ -200,6 +255,8 @@ namespace Test.WebGL
                     NinoWasm.Register();
                     if (!c.Serialize().SequenceEqual(expected))
                         Fail("bytes " + c.Name);
+                    if (c.ReadsBack != null && !c.ReadsBack())
+                        Fail("read back " + c.Name);
                 }
 
 #if NINO_WEBGL_TIMING
