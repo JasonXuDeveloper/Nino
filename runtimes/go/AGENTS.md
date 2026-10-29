@@ -77,7 +77,8 @@ internal/
   sample/                    the corpus's types (conformance/Nino.Conformance/Types.cs) with hand-written codecs in the
                              style a generator emits (codec_*.go), their ids, layouts and tags; conformance, deep,
                              registry and tagged tests; FuzzDecode, FuzzTaggedDecode
-  generated/                 nino_types.go: the corpus's types as nino-gen writes them (do not edit) and its corpus test;
+  generated/                 nino_types.go: the corpus's types as nino-gen writes them (do not edit), its corpus test and
+                             into_test.go (DeserializeInto: objects, slices, slots, failures, deferral);
                              shapes/: tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it, round-tripped
 bench/                       module of its own: the runtime against Protocol Buffers (benchpb/, buf), MessagePack,
                              encoding/json and encoding/gob on the .NET benchmark's SimpleClass, strings and a

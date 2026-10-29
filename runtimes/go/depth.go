@@ -645,6 +645,20 @@ func (w *Writer) BeginEntry(key int32) int {
 // EndEntry ends the entry whose length is at pos.
 func (w *Writer) EndEntry(pos int) { w.patchLength(pos) }
 
+// ReadSealedInto is [ReadSealed] into *v: the object it points to is read into (its members in place), a nil one is
+// replaced by a new object, and null sets it to nil. What deserializing into an existing value reads a sealed class
+// with ([DeserializeInto]).
+func ReadSealedInto[T any](r *Reader, v **T, c *Class[T]) {
+	switch {
+	case !r.Present():
+		*v = nil
+	case *v == nil:
+		*v = ReadClass(r, c)
+	default:
+		ReadClassInto(r, *v, c)
+	}
+}
+
 // ReadSealed reads a sealed class: its presence byte, then (when present) its body. nil for null.
 func ReadSealed[T any](r *Reader, c *Class[T]) *T {
 	if !r.Present() {

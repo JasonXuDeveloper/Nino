@@ -11,7 +11,7 @@ import (
 var corpus = corpustest.Suite{
 	Codec: func(name string) (corpustest.Codec, bool) {
 		c, ok := NinoCodecOf(name)
-		return corpustest.Funcs(c.Read, c.Write), ok
+		return corpustest.FuncsInto(c.Read, c.ReadInto, c.Write), ok
 	},
 	Unsupported: unsupported,
 	Expected:    sameGoType,
