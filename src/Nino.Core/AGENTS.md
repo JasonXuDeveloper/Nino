@@ -73,7 +73,8 @@ NinoFormatter.cs             INinoFormatter<T>; NinoFormatter<T> and its struct 
                              FixedStructFormatter, TopStructFormatter, NestingFormatter), RawFormatter,
                              INinoSizedFormatter / NinoSized, CachedFormatter<T>
 NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (registered by generated code, else resolved);
-                             NinoRaw<T>, NinoTopFormatter<T>, NinoRawArray<T> as static readonly fields
+                             NinoRaw<T>, NinoTopFormatter<T>, NinoRawArray<T> as static readonly fields;
+                             NinoMissingFormatter<T> (the never-null stand-in of a type without one)
 NinoFormatterResolver.cs     builds formatter types by reflection for unregistered types, applying the
                              [NinoFormatter] registrations with the generator's rules
 BuiltInFormatters.cs         the [assembly: NinoFormatter] table of the BCL formatters below (generator and resolver read it)

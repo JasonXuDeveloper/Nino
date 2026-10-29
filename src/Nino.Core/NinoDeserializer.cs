@@ -39,7 +39,7 @@ namespace Nino.Core
         // than a generic dictionary lookup (T a reference type makes this method shared code).
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         // The formatter creates the reader (NinoFormatter.Read): a reader created here would reach its call by address.
-        private static T DeserializeFormatted<T>(ReadOnlySpan<byte> data) => NinoTopFormatter<T>.Get.Read(data);
+        private static T DeserializeFormatted<T>(ReadOnlySpan<byte> data) => NinoTopFormatter<T>.Formatter.Read(data);
 
         /// <summary>
         /// Deserializes into <paramref name="value"/>, reusing the existing instance (and nested instances) where
@@ -68,7 +68,7 @@ namespace Nino.Core
             }
 
             var reader = new Reader(data);
-            NinoTopFormatter<T>.Get.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
             reader.ReleaseReferences();
         }
 
@@ -90,7 +90,7 @@ namespace Nino.Core
                 return;
             }
 
-            NinoTopFormatter<T>.Get.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
         }
 
         /// <summary>Deserializes a new value with an existing reader.</summary>
@@ -101,7 +101,7 @@ namespace Nino.Core
                 return reader.UnsafeRead<T>();
 
             T value = default;
-            NinoTopFormatter<T>.Get.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
             return value;
         }
 

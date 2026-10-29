@@ -641,6 +641,29 @@ public class UserCollectionCornerCaseTests
     }
 
     [TestMethod]
+    public void TypesWithoutFormatterFailEveryCall()
+    {
+        // The top-level formatter of a type without one is a stand-in that asks for the formatter again on every
+        // call (NinoMissingFormatter): each API reports the error, every time, and nothing caches a result.
+        for (int i = 0; i < 2; i++)
+        {
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(new LegacyList()));
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                NinoSerializer.Serialize(new LegacyList(), new NinoArrayBufferWriter()));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.GetFixedSize<LegacyList>());
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                NinoDeserializer.Deserialize<LegacyList>(new byte[] { 0, 0, 0, 0 }));
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+            {
+                var buffer = new NinoArrayBufferWriter();
+                var writer = new Writer(buffer);
+                default(CachedFormatter<LegacyList>).Serialize(new LegacyList(), ref writer);
+            });
+            Assert.IsFalse(NinoSerializer.IsSupported(typeof(LegacyList)));
+        }
+    }
+
+    [TestMethod]
     public async Task UncreatableTypesAreReportedAsNINO007()
     {
         var code = @"
