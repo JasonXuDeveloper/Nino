@@ -66,31 +66,47 @@ func WriteBlock[T BlockValue](w *Writer, v []T) {
 	}
 }
 
-// invalidAt returns the index of the first value of v that is not valid and the type's name, or -1.
+// invalidAt returns the index of the first value of v that is not valid and the type's name, or -1. Four values are
+// tested per step, one compare each (the Valid methods), so the loop's own branches are a quarter as many (DateOnly
+// excepted); the step that fails is searched value by value.
 func invalidAt[T BlockValue](v []T) (int, string) {
 	switch v := any(v).(type) {
 	case []DateTime:
-		for i, d := range v {
+		w := v
+		for len(w) >= 4 && w[0].Valid() && w[1].Valid() && w[2].Valid() && w[3].Valid() {
+			w = w[4:]
+		}
+		for i, d := range w {
 			if !d.Valid() {
-				return i, "DateTime"
+				return len(v) - len(w) + i, "DateTime"
 			}
 		}
 	case []DateOnly:
+		// One at a time: four a step (compare-branches, or two words of two lanes) ran 8-19 % slower writing on
+		// Xeon 8370C and EPYC 7763 and 9V74.
 		for i, d := range v {
 			if !d.Valid() {
 				return i, "DateOnly"
 			}
 		}
 	case []TimeOnly:
-		for i, t := range v {
+		w := v
+		for len(w) >= 4 && w[0].Valid() && w[1].Valid() && w[2].Valid() && w[3].Valid() {
+			w = w[4:]
+		}
+		for i, t := range w {
 			if !t.Valid() {
-				return i, "TimeOnly"
+				return len(v) - len(w) + i, "TimeOnly"
 			}
 		}
 	case []Decimal:
-		for i, d := range v {
+		w := v
+		for len(w) >= 4 && w[0].Valid() && w[1].Valid() && w[2].Valid() && w[3].Valid() {
+			w = w[4:]
+		}
+		for i, d := range w {
 			if !d.Valid() {
-				return i, "decimal"
+				return len(v) - len(w) + i, "decimal"
 			}
 		}
 	}
