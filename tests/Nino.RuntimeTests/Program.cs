@@ -287,6 +287,34 @@ public static class Program
             Case("HashSet<Guid>[" + n + "]", new HashSet<Guid>(Enumerable.Range(0, n).Select(i => new Guid(i, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10))));
             Case("HashSet<short>[" + n + "]", new HashSet<short>(Enumerable.Range(0, n).Select(i => (short)(i * 3))));
         }
+        // A string read into an instance that holds one of the same length is compared with it (and kept when equal,
+        // ASCII text on every runtime): a difference at any position must give the new string.
+        {
+            bool kept = true;
+            for (int length = 1; length <= 80; length++)
+            {
+                bool ascii = length % 2 == 0;
+                string name = new string(Enumerable.Range(0, length)
+                    .Select(i => (char)(!ascii && i % 3 == 0 ? 0xE9 : 'a' + i % 26)).ToArray());
+                byte[] bytes = NinoSerializer.Serialize(new Item { Name = name });
+                for (int at = 0; at < length; at++)
+                {
+                    var chars = name.ToCharArray();
+                    chars[at] = chars[at] == 'z' ? 'y' : chars[at] == (char)0xE9 ? (char)0x1E9 : 'z';
+                    var into = new Item { Name = new string(chars) };
+                    NinoDeserializer.Deserialize(bytes, ref into);
+                    kept &= into.Name == name;
+                }
+
+                var same = new Item { Name = new string(name.ToCharArray()) };
+                string before = same.Name;
+                NinoDeserializer.Deserialize(bytes, ref same);
+                kept &= same.Name == name && (!ascii || ReferenceEquals(same.Name, before));
+            }
+
+            if (!kept) _failed++;
+            Console.WriteLine($"Latin-1 strings reused {(kept ? "ok" : "WRONG")}");
+        }
         Case("(int,int)[]", ints.Select(i => (i, i * 3)).ToArray());
         Case("List<(int,long)>", ints.Select(i => (i, (long)i << 40)).ToList());
         Case("List<(long,long,int)>", ints.Select(i => ((long)i, (long)i * 2, i)).ToList());
