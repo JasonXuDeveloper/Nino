@@ -34,8 +34,9 @@ func init() {
 	simpleClass = nino.Class[SimpleClass]{Read: readSimpleClassBody, Write: writeSimpleClassBody, Deferrable: true}
 }
 
-func ReadSimpleClass(r *nino.Reader) *SimpleClass     { return nino.ReadSealed(r, &simpleClass) }
-func WriteSimpleClass(w *nino.Writer, v *SimpleClass) { nino.WriteSealed(w, v, &simpleClass) }
+func ReadSimpleClass(r *nino.Reader) *SimpleClass         { return nino.ReadSealed(r, &simpleClass) }
+func ReadSimpleClassInto(r *nino.Reader, v **SimpleClass) { nino.ReadSealedInto(r, v, &simpleClass) }
+func WriteSimpleClass(w *nino.Writer, v *SimpleClass)     { nino.WriteSealed(w, v, &simpleClass) }
 
 func readSimpleClassBody(r *nino.Reader, v *SimpleClass) {
 	b := r.Take(21)
@@ -75,21 +76,38 @@ func writeSimpleClassBody(w *nino.Writer, v *SimpleClass) {
 }
 
 // ReadSimpleClasses and WriteSimpleClasses are a List<SimpleClass>.
-func ReadSimpleClasses(r *nino.Reader) []*SimpleClass {
+func ReadSimpleClasses(r *nino.Reader) (v []*SimpleClass) {
+	ReadSimpleClassesInto(r, &v)
+	return v
+}
+
+// ReadSimpleClassesInto reads into *p as nino-gen's readinto helpers do: its storage kept when it holds n elements, each
+// element read into the old one at its index.
+func ReadSimpleClassesInto(r *nino.Reader, p *[]*SimpleClass) {
 	n := r.Length(1)
 	if n < 0 {
-		return nil
+		*p = nil
+		return
 	}
-	var e *SimpleClass
-	v := make([]*SimpleClass, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
-	for range n {
-		e = ReadSimpleClass(r)
+	old := *p
+	v := old[:0]
+	if old == nil || cap(old) < n {
+		var z *SimpleClass
+		v = make([]*SimpleClass, 0, r.SliceCap(n, int(unsafe.Sizeof(z))))
+	}
+	for i := range n {
+		var e *SimpleClass
+		if i < len(old) {
+			e = old[i]
+		}
+		ReadSimpleClassInto(r, &e)
 		if r.Failed() {
-			return nil
+			*p = nil
+			return
 		}
 		v = append(v, e)
 	}
-	return v
+	*p = v
 }
 
 func WriteSimpleClasses(w *nino.Writer, v []*SimpleClass) {
