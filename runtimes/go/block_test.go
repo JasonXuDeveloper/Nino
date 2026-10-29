@@ -106,3 +106,79 @@ func sameError(a, b error) bool {
 	}
 	return x.Code == y.Code && x.Offset == y.Offset && x.Detail == y.Detail
 }
+
+// blockVariants is how many inputs of the same shape and size each block benchmark takes in turn (the benchmark
+// skill: a microbenchmark that reads rotates its inputs).
+const blockVariants = 16
+
+// blockBench times reading and writing a 1000-element block, one variant per iteration in turn: read decodes the
+// bytes write wrote.
+func blockBench[T any](b *testing.B, name string, make1 func(rnd *rand.Rand) T, write func(*Writer, []T), read func(*Reader) []T) {
+	rnd := rand.New(rand.NewSource(7))
+	values := make([][]T, blockVariants)
+	data := make([][]byte, blockVariants)
+	for k := range values {
+		values[k] = make([]T, 1000)
+		for i := range values[k] {
+			values[k][i] = make1(rnd)
+		}
+		w := NewWriter(0)
+		write(w, values[k])
+		if w.Err() != nil {
+			b.Fatal(w.Err())
+		}
+		data[k] = w.Bytes()
+	}
+	b.Run(name+"/read", func(b *testing.B) {
+		r := NewReader(nil)
+		b.SetBytes(int64(len(data[0])))
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			r.Reset(data[i%blockVariants])
+			if read(r); r.Err() != nil {
+				b.Fatal(r.Err())
+			}
+		}
+	})
+	b.Run(name+"/write", func(b *testing.B) {
+		w := NewWriter(len(data[0]))
+		b.SetBytes(int64(len(data[0])))
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			w.Reset()
+			if write(w, values[i%blockVariants]); w.Err() != nil {
+				b.Fatal(w.Err())
+			}
+		}
+	})
+}
+
+// BenchmarkBlocks reads and writes blocks of 1000 values whose bytes are checked (dates, times, decimals, bools,
+// raw structs with a bool), and Guids, which are copied unchecked, as the copy's own cost.
+func BenchmarkBlocks(b *testing.B) {
+	blockBench(b, "datetime", func(rnd *rand.Rand) DateTime { return DateTime(rnd.Uint64() % (MaxTicks + 1)) },
+		WriteBlock[DateTime], ReadBlock[DateTime])
+	blockBench(b, "dateonly", func(rnd *rand.Rand) DateOnly { return DateOnly(rnd.Int63n(int64(MaxDateOnly) + 1)) },
+		WriteBlock[DateOnly], ReadBlock[DateOnly])
+	blockBench(b, "timeonly", func(rnd *rand.Rand) TimeOnly { return TimeOnly(rnd.Int63n(int64(MaxTimeOnly) + 1)) },
+		WriteBlock[TimeOnly], ReadBlock[TimeOnly])
+	blockBench(b, "decimal", func(rnd *rand.Rand) Decimal {
+		return Decimal{Flags: uint32(rnd.Intn(29))<<16 | uint32(rnd.Intn(2))<<31, Hi: rnd.Uint32(), Lo: rnd.Uint64()}
+	}, WriteBlock[Decimal], ReadBlock[Decimal])
+	blockBench(b, "guid", func(rnd *rand.Rand) Guid {
+		var g Guid
+		rnd.Read(g[:])
+		return g
+	}, WriteBlock[Guid], ReadBlock[Guid])
+	blockBench(b, "bools", func(rnd *rand.Rand) bool { return rnd.Intn(2) == 1 }, WriteBools, ReadBools)
+	point := []int{4}
+	blockBench(b, "raw-bool-8", func(rnd *rand.Rand) rawPoint {
+		return rawPoint{X: rnd.Float32(), Flag: rnd.Intn(2) == 1, Kind: int8(rnd.Intn(8)), Y: int16(rnd.Intn(1000))}
+	}, func(w *Writer, v []rawPoint) { WriteRaw(w, v, 8, rawPointAsIs, point, nil, encodeRawPoint) },
+		func(r *Reader) []rawPoint { return ReadRaw(r, 8, rawPointAsIs, point, decodeRawPoint) })
+	wide, widePads := []int{36}, []int{1, 2, 3, 4, 5, 6, 7, 17, 18, 19, 20, 21, 22, 23, 37, 38, 39}
+	blockBench(b, "raw-bool-40", func(rnd *rand.Rand) rawWide {
+		return rawWide{A: uint8(rnd.Intn(256)), B: rnd.Int63(), C: 1, D: rnd.Int63(), E: rnd.Int31(), F: rnd.Intn(2) == 1}
+	}, func(w *Writer, v []rawWide) { WriteRaw(w, v, 40, rawWideAsIs, wide, widePads, encodeRawWide) },
+		func(r *Reader) []rawWide { return ReadRaw(r, 40, rawWideAsIs, wide, decodeRawWide) })
+}
