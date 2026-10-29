@@ -5,7 +5,6 @@ import (
 	"math"
 	"math/rand"
 	"strconv"
-	"unsafe"
 
 	"github.com/JasonXuDeveloper/Nino/runtimes/go/bench/benchpb"
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
@@ -59,33 +58,9 @@ func writeRecordBody(w *nino.Writer, v *Record) {
 }
 
 // ReadRecords and WriteRecords are a List<Record>.
-func ReadRecords(r *nino.Reader) []*Record {
-	n := r.Length(1)
-	if n < 0 {
-		return nil
-	}
-	var e *Record
-	v := make([]*Record, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
-	for range n {
-		e = ReadRecord(r)
-		if r.Failed() {
-			return nil
-		}
-		v = append(v, e)
-	}
-	return v
-}
+func ReadRecords(r *nino.Reader) []*Record { return nino.ReadSlice(r, 1, ReadRecord) }
 
-func WriteRecords(w *nino.Writer, v []*Record) {
-	if v == nil {
-		w.Null()
-		return
-	}
-	w.Length(len(v))
-	for _, e := range v {
-		WriteRecord(w, e)
-	}
-}
+func WriteRecords(w *nino.Writer, v []*Record) { nino.WriteSlice(w, v, WriteRecord) }
 
 // scatteredOrder returns the order the records are listed in: a seeded shuffle.
 func scatteredOrder() []int {
