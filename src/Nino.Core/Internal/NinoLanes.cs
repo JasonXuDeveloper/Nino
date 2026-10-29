@@ -54,7 +54,7 @@ namespace Nino.Core.Internal
             // SSSE3, twelve values a group of four 16-byte vectors: 161 ns, three a group of one: 253 ns).
             if (group * target / width > 4)
             {
-                if (tables || !partial)
+                if (!partial)
                     return null;
                 NinoLanes best = null;
                 for (int vectors = 1; vectors <= 4; vectors++)

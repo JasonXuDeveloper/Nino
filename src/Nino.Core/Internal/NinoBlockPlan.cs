@@ -448,10 +448,12 @@ namespace Nino.Core.Internal
                 bool writes = typeof(TDirection) == typeof(NinoWrites);
                 // Partial groups where nothing else moves several values at a time: without AVX-512 VBMI, and with it
                 // for values its group and 64-byte permutes do not take (more than 16 bytes in memory: 1,000 values of
-                // 24 bytes, 15-byte blocks, took 1.7 us written one at a time on an AVX-512 Xeon, 0.43 us in groups).
+                // 24 bytes, 15-byte blocks, took 1.7 us written one at a time on an AVX-512 Xeon, 0.43 us in groups);
+                // on Arm64 for values its 64-byte permutes do not take (more than 8 bytes in memory: the same 1,000
+                // values took 1.44 us written one at a time on GitHub's Neoverse-N2 runners, MemoryPack 0.39 us).
                 bool others = Permutes || (writes ? Groups : ReadPlan<NinoPhase0>.Enabled);
                 var plan = NinoLanes.Solve(width, Bytes, writes, AdvSimd.Arm64.IsSupported,
-                    !Avx512Vbmi.IsSupported || !others);
+                    AdvSimd.Arm64.IsSupported ? !others : !Avx512Vbmi.IsSupported || !others);
                 // A value a group is what Shuffles does already, without the group loop around it.
                 return plan is { Group: 1 } && Shuffles ? null : plan;
             }
