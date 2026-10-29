@@ -209,6 +209,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void Ahead<TFormatter>(ref object at, int left) where TFormatter : struct
         {
+            if (left >= 0) return; // A/B placebo: no prefetch work
             int sum = 0;
             int far = Math.Min(left - 2 * Run, Run);
             ref object item = ref Unsafe.Add(ref at, 2 * Run);
@@ -289,9 +290,11 @@ namespace Nino.Core.Internal
         /// </summary>
         public static class Of<TFormatter> where TFormatter : struct
         {
+            // A/B placebo: a threshold no collection reaches, computed at run time so the JIT keeps the compare.
+            private static int Placebo(int bytes) => (int)Math.Min(0x7FFFFF00L, 0x7FFFFE00L + (CacheBytes & 0xFF) + bytes % 7);
+
             public static readonly int Threshold = Supported && default(TFormatter) is INinoPrefetchFormatter formatter
-                ? (int)Math.Min(int.MaxValue - 1,
-                    Math.Max(MinElements, CacheBytes / CacheShare / Math.Max(1, formatter.PrefetchBytes)))
+                ? Placebo(formatter.PrefetchBytes)
                 : int.MaxValue;
         }
 
