@@ -128,8 +128,8 @@ function swapBytes(bytes: Uint8Array, at: number, end: number, size: number): vo
  * such an array's bytes (`.buffer`) allocates outside memory for it, which made reading 4 int64s 5 times slower than
  * reading them into an array (test branch 97deeca).
  */
-const numbersPooled = 8192;
-const numbersSlab = 64 * 1024;
+const numbersPooled = 65536;
+const numbersSlab = 1024 * 1024;
 let numbersBuffer = new ArrayBuffer(0);
 let numbersBytes = new Uint8Array(0);
 let numbersPos = 0;
