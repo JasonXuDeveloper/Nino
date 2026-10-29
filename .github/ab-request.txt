@@ -951,9 +951,10 @@ typescript 506720c223 506720c223
 # done (run 40761692830): rust 4beee30 4beee30 ^(record|records-1000|strings-1000|strings-mixed-1000)/serialize/nino$ # floor 10
 # Round 5 (run 40761692830): landed as 4e5465d (main). 907b0f7 (AVX2 per half) rejected: text cyrillic/16 +3.0 % on EPYC 7763.
 # TypeScript bench, inputs rotated through 64 variants (19801e3) against main's bench (one input repeated)
-typescript 18c7bbd 19801e3 # ts-rotate 1
-typescript 18c7bbd 19801e3 # ts-rotate 2
-typescript 18c7bbd 19801e3 # ts-rotate 3
-typescript 18c7bbd 19801e3 # ts-rotate 4
-typescript 19801e3 19801e3 # ts-rotate floor 1
-typescript 19801e3 19801e3 # ts-rotate floor 2
+# done (run 40792547994): typescript 18c7bbd 19801e3 # ts-rotate 1
+# done (run 40792547994): typescript 18c7bbd 19801e3 # ts-rotate 2
+# done (run 40792547994): typescript 18c7bbd 19801e3 # ts-rotate 3
+# done (run 40792547994): typescript 18c7bbd 19801e3 # ts-rotate 4
+# done (run 40792547994): typescript 19801e3 19801e3 # ts-rotate floor 1
+# done (run 40792547994): typescript 19801e3 19801e3 # ts-rotate floor 2
+# TS rotation (run 40792547994): landed as 81d0700 (main). Lookup JSON deserialize 0.72x -> 8.97x Nino's time (Node, EPYC 7763).
