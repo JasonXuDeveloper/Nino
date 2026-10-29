@@ -250,6 +250,34 @@ func read(s)
   end
 end
 
+# An expression reading the value into `cur` (an expression of its current value, read once; undefined or null for
+# none): the objects, arrays, maps and sets it holds are reused where they can be (`deserializeInto`), else a new value.
+func read_into(s, cur)
+  case s.kind
+  when "seq", "map"
+    if s.array_type
+      ret read(s)
+    end
+    ret helper(s, "read") + "(r" + s.codecs_argument + ", " + cur + ")"
+  when "nullable"
+    $inner = read_into(s.inner, cur + " ?? undefined")
+    if $inner == read(s.inner)
+      ret read(s)
+    end
+    ret "(r.notNull() ? " + $inner + " : null)"
+  when "type"
+    if s.header == "typeid"
+      ret "r.into(" + name(s.type) + "Codec, " + cur + ")"
+    else if s.header == "ref"
+      ret read(s)
+    end
+    ret "read" + name(s.type) + "(r, " + cur + ")"
+  when "param", "generic"
+    ret "r.into(" + s.field + ", " + cur + ")"
+  end
+  ret read(s)
+end
+
 # A statement (maybe without its `;`) writing the value `v` (an expression it may evaluate more than once).
 func write(s, v)
   case s.kind

@@ -48,12 +48,13 @@ func body(c)
   # A tracked class records the object as soon as it exists: its members may refer back to it.
   $track = c.tracked ? "  r.track(v);\n" : ""
   if c.is_class_body
-    $o = $o + "function read" + $n + $tp + "(r: NinoReader" + c.codecs + "): " + $t + " {\n"
+    # One body for a new object and for one read into (`deserializeInto`): the object is a parameter.
+    $o = $o + "function read" + $n + $tp + "(r: NinoReader" + c.codecs + ", v: " + $t + " = new " + $new + "()): " + $t + " {\n"
     if c.nests
-      $o = $o + "  const v = new " + $new + "(), depth = r.depth;\n" + $track + "  if (depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
+      $o = $o + "  const depth = r.depth;\n" + $track + "  if (depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
       $o = $o + "  r.depth = depth + 1;\n  readBody$" + $n + "(r, v" + $ca + ");\n  r.exit(depth);\n"
     else
-      $o = $o + "  const v = new " + $new + "();\n" + $track + "  if (r.depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
+      $o = $o + $track + "  if (r.depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
       $o = $o + "  readBody$" + $n + "(r, v" + $ca + ");\n"
     end
     $o = $o + "  return v;\n}\n\n"
@@ -67,15 +68,14 @@ func body(c)
     $o = $o + "}\n\n"
     $o = $o + "function readBody$" + $n + $tp + "(" + $r + ": NinoReader, " + $v + ": " + $t + $cs + "): void {\n"
   else
-    $o = $o + "function read" + $n + $tp + "(" + $r + ": NinoReader" + $cs + "): " + $t + " {\n"
+    $o = $o + "function read" + $n + $tp + "(" + $r + ": NinoReader" + $cs + ", v: " + $t + " = new " + $new + "()): " + $t + " {\n"
     if c.counted
       $o = $o + "  r.enterStruct();\n"
     end
-    $o = $o + "  const v = new " + $new + "();\n"
   end
 
   # A [NinoType] collection: its elements first (inside a keyed body's region, outside a version tolerant one's).
-  $elements = c.elements ? "  v.$elements = r.elements(" + read(c.elements) + ");\n" : ""
+  $elements = c.elements ? "  v.$elements = r.elements(" + read_into(c.elements, "v.$elements") + ");\n" : ""
   if c.format == "keyed"
     # Members by key, in any order; a known member's value fills its entry exactly, a key this version does not know
     # is skipped.
@@ -84,14 +84,14 @@ func body(c)
       for $key in $m.model.all_keys
         $o = $o + "      case " + $key + ":\n"
       end
-      $o = $o + "        v." + $m.name + " = " + read($m.shape) + ";\n        r.endMember(member);\n        continue;\n"
+      $o = $o + "        v." + $m.name + " = " + read_into($m.shape, "v." + $m.name) + ";\n        r.endMember(member);\n        continue;\n"
     end
     $o = $o + "    }\n    r.endRegion(member);\n  }\n  r.endRegion(end);\n"
   else if c.format == "tolerant"
     # Members written by an older version end early; those of a newer one are skipped.
     $o = $o + $elements + "  const end = r.region();\n"
     for $m in c.members
-      $o = $o + "  if (r.pos < end) v." + $m.name + " = " + read($m.shape) + ";\n"
+      $o = $o + "  if (r.pos < end) v." + $m.name + " = " + read_into($m.shape, "v." + $m.name) + ";\n"
     end
     $o = $o + "  r.endRegion(end);\n"
   else
@@ -100,7 +100,7 @@ func body(c)
     $decl = c.at_declaration
     for $run in c.runs
       if $run.items.size == 1
-        $o = $o + "  v." + $run.items[0].member.name + " = " + read($run.items[0].member.shape) + ";\n"
+        $o = $o + "  v." + $run.items[0].member.name + " = " + read_into($run.items[0].member.shape, "v." + $run.items[0].member.name) + ";\n"
       else
         $o = $o + "  " + $decl + " = r.take(" + $run.size + ");\n"
         $decl = "at"
@@ -184,9 +184,17 @@ end
 # The codec of a slot (after `NinoCodec<T | null> = `): the type id, then the body of one of the types it allows, by
 # its class when written. `backref`: for a declared type that tracks references, the expression of the object a back
 # reference names; its reference header comes first then, and the bodies follow the id without one.
-func typeid_codec(assignable, closed, backref)
+func typeid_codec(self, assignable, closed, backref)
   $tracked = backref != null
-  $o = "{\n  read: (r) => {\n"
+  $into = false
+  for $t in assignable
+    if !$tracked && !$t.raw_shape && !$t.tracked
+      $into = true
+    end
+  end
+  # Untracked: one switch for a new value and for reading into `cur` (`deserializeInto`), an object of the same class
+  # read into, any other replaced. Tracked objects are always read new.
+  $o = !$into ? "{\n  read: (r) => {\n" : "{\n  read: (r) => " + self + ".readInto!(r, null),\n  readInto: (r, cur) => {\n"
   if $tracked
     $o = $o + "    const h = r.ref();\n    if (h === 0) return null;\n    if (h > 0) return " + backref + ";\n"
     $o = $o + "    const id = r.i32();\n    switch (id) {\n"
@@ -194,7 +202,11 @@ func typeid_codec(assignable, closed, backref)
     $o = $o + "    const id = r.i32();\n    switch (id) {\n      case 0:\n        return null;\n"
   end
   for $t in assignable
-    $o = $o + "      case " + $t.model.type_id + ":\n        return " + read_body($t, !$tracked) + ";\n"
+    $body = read_body($t, !$tracked)
+    if $into && !$t.raw_shape && !$t.tracked
+      $body = "read" + $t.name + "(r, cur?.constructor === " + $t.name + " ? (cur as " + $t.name + ") : undefined)"
+    end
+    $o = $o + "      case " + $t.model.type_id + ":\n        return " + $body + ";\n"
   end
   for $k in closed
     $o = $o + "      case " + $k.id + ":\n        return read" + name($k.shape.type) + "(r, " + $k.codecs + ");\n"
@@ -222,9 +234,12 @@ func helper_body(h)
   $o = ""
   if h.mode == "read"
     if $s.kind == "seq"
-      $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + "): " + seq_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n"
+      # `cur`: the value read into (`deserializeInto`): an array keeps its storage, a set is cleared. A typed array is
+      # read new.
+      $cur = $s.array_type ? "" : ", cur?: " + seq_ts($s) + " | null"
+      $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + $cur + "): " + seq_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n"
       if $s.set
-        $o = $o + "  const values = new Set<" + ts($s.element) + ">();\n"
+        $o = $o + "  const values = cur == null ? new Set<" + ts($s.element) + ">() : (cur.clear(), cur);\n"
         $add = "values.add("
         $close = ")"
       else if $s.array_type
@@ -233,14 +248,22 @@ func helper_body(h)
         $add = "values[i] = "
         $close = ""
       else
-        $o = $o + "  const values = new Array<" + ts($s.element) + ">(length);\n"
+        $o = $o + "  const values = cur == null ? new Array<" + ts($s.element) + ">(length) : cur;\n"
         $add = "values[i] = "
         $close = ""
       end
       if $s.element.fixed
         $o = $o + "  for (let i = 0, at = r.take(length * " + $s.element.size + "); i < length; i++, at += " + $s.element.size + ") " + $add + read_at($s.element, 0) + $close + ";\n"
+      else if !$s.set && !$s.array_type && read_into($s.element, "values[i]") != read($s.element)
+        # Into an array: each element into the one at its index.
+        $o = $o + "  if (cur == null) for (let i = 0; i < length; i++) values[i] = " + read($s.element) + ";\n"
+        $o = $o + "  else for (let i = 0; i < length; i++) values[i] = " + read_into($s.element, "values[i]") + ";\n"
       else
         $o = $o + "  for (let i = 0; i < length; i++) " + $add + read($s.element) + $close + ";\n"
+      end
+      if !$s.set && !$s.array_type
+        # Read into: its extra elements dropped after the read, so a read that fails leaves no holes.
+        $o = $o + "  if (values.length !== length) values.length = length;\n"
       end
       if $s.set
         # An element read twice (the set holds fewer than were read) is invalid data, as in .NET.
@@ -248,7 +271,7 @@ func helper_body(h)
       end
       ret $o + "  return values;\n}\n"
     else if $s.kind == "map"
-      $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + "): " + map_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const map = new " + map_ts($s) + "();\n"
+      $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + ", cur?: " + map_ts($s) + " | null): " + map_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const map = cur == null ? new " + map_ts($s) + "() : (cur.clear(), cur);\n"
       if $s.key.fixed && $s.value.fixed
         $size = $s.key.size + $s.value.size
         $o = $o + "  for (let i = 0, at = r.take(length * " + $size + "); i < length; i++, at += " + $size + ") map.set(" + read_at($s.key, 0) + ", " + read_at($s.value, $s.key.size) + ");\n"
@@ -431,16 +454,16 @@ for c in codecs
   if c.header == "none" && c.raw_shape
     "> = {\n  read: (r) => " + read(c.raw_shape) + ",\n  write: (w, v) => " + write(c.raw_shape, "v") + ",\n};\n"
   else if c.header == "none"
-    "> = { read: read" + c.name + ", write: write" + c.name + " };\n"
+    "> = { read: (r) => read" + c.name + "(r), write: write" + c.name + ", readInto: read" + c.name + " };\n"
   else if c.header == "null"
-    " | null> = {\n  read: (r) => " + read(c.header_shape) + ",\n  write: (w, v) => {\n    " + stmt(write(c.header_shape, "v")) + "\n  },\n};\n"
+    " | null> = {\n  read: (r) => " + read(c.header_shape) + ",\n  write: (w, v) => {\n    " + stmt(write(c.header_shape, "v")) + "\n  },\n" + (read_into(c.header_shape, "v") == read(c.header_shape) ? "" : "  readInto: (r, v) => " + read_into(c.header_shape, "v") + ",\n") + "};\n"
   else
     # Any type assignable to it, by the type id in front of its body: by its class when written.
     $backref = null
     if c.tracked
       $backref = c.model.is_interface ? "r.backRefOf<" + c.name + ">(h, [" + (array.join (c.assignable | array.map "name") ", ") + "])" : "r.backRef(h, " + c.name + ")"
     end
-    " | null> = " + typeid_codec(c.assignable, c.assignable_closed, $backref)
+    " | null> = " + typeid_codec(c.name + "Codec", c.assignable, c.assignable_closed, $backref)
   end
 end
 
@@ -500,9 +523,9 @@ for c in generics
   end
   "  const c = { " + (array.join $names ", ") + " } as " + c.name + "$Codecs" + c.type_params + ";\n"
   if c.header == "null"
-    "  c.self = {\n    read: (r) => (r.notNull() ? read" + c.name + "(r, c) : null),\n    write: (w, v) => {\n      if (v === null || v === undefined) w.u8(0);\n      else {\n        w.u8(1);\n        write" + c.name + "(w, v, c);\n      }\n    },\n  };\n"
+    "  c.self = {\n    read: (r) => (r.notNull() ? read" + c.name + "(r, c) : null),\n    readInto: (r, v) => (r.notNull() ? read" + c.name + "(r, c, v ?? undefined) : null),\n    write: (w, v) => {\n      if (v === null || v === undefined) w.u8(0);\n      else {\n        w.u8(1);\n        write" + c.name + "(w, v, c);\n      }\n    },\n  };\n"
   else
-    "  c.self = { read: (r) => read" + c.name + "(r, c), write: (w, v) => write" + c.name + "(w, v, c) };\n"
+    "  c.self = { read: (r) => read" + c.name + "(r, c), readInto: (r, v) => read" + c.name + "(r, c, v), write: (w, v) => write" + c.name + "(w, v, c) };\n"
   end
   for $d in c.derived
     if c.lazy
@@ -519,7 +542,7 @@ end
 
 # The slots of closed generic types written behind type ids: a type id, then the body of a type assignable to it.
 for $sl in slots
-  "/** The slot of `" + $sl.runtime_name + "`. */\nconst " + $sl.name + ": NinoCodec<" + ts($sl.shape) + "> = " + typeid_codec($sl.assignable, $sl.closed, null) + "\n"
+  "/** The slot of `" + $sl.runtime_name + "`. */\nconst " + $sl.name + ": NinoCodec<" + ts($sl.shape) + "> = " + typeid_codec($sl.name, $sl.assignable, $sl.closed, null) + "\n"
 end
 
 # The codecs of the generic types the types above hold with their arguments, arguments first.
