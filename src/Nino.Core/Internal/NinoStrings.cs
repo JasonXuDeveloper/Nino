@@ -790,13 +790,7 @@ namespace Nino.Core.Internal
             // ASCII text compared vectorized; other Latin-1 text is read again.
             return SameAscii(ref source, value);
 #else
-            for (int i = 0; i < value.Length; i++)
-            {
-                if (Unsafe.Add(ref source, i) != value[i])
-                    return false;
-            }
-
-            return true;
+            return SameBytes(ref source, value, 0);
 #endif
         }
 
@@ -809,16 +803,57 @@ namespace Nino.Core.Internal
 #if NET8_0_OR_GREATER
             return System.Text.Ascii.Equals(MemoryMarshal.CreateReadOnlySpan(ref source, value.Length), value.AsSpan());
 #else
-            for (int i = 0; i < value.Length; i++)
+            return SameBytes(ref source, value, 0x8080_8080_8080_8080);
+#endif
+        }
+
+#if !NET8_0_OR_GREATER
+        /// <summary>
+        /// Whether the bytes at <paramref name="source"/> are the chars of <paramref name="value"/> (as long), none
+        /// with a bit of <paramref name="high"/> set (0x80 in each byte: ASCII only; 0: any Latin-1). Eight at a time
+        /// (SWAR): each half of eight bytes widened to four chars in a ulong by two shifts and masks, compared with
+        /// the chars as two ulongs; the last eight again, overlapping, rather than one at a time. Byte by byte on a
+        /// big-endian CPU and for strings under eight chars.
+        /// </summary>
+        private static bool SameBytes(ref byte source, string value, ulong high)
+        {
+            int length = value.Length;
+            ref byte chars = ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(value.AsSpan()));
+            if (BitConverter.IsLittleEndian && length >= 8)
+            {
+                int i = 0;
+                while (true)
+                {
+                    ulong bytes = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, i));
+                    ref byte at = ref Unsafe.Add(ref chars, i * 2);
+                    if (((bytes & high) | (Widen((uint)bytes) ^ Unsafe.ReadUnaligned<ulong>(ref at)) |
+                         (Widen((uint)(bytes >> 32)) ^ Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref at, 8)))) != 0)
+                        return false;
+                    if (i == length - 8)
+                        return true;
+                    i = i + 16 <= length ? i + 8 : length - 8;
+                }
+            }
+
+            for (int i = 0; i < length; i++)
             {
                 byte b = Unsafe.Add(ref source, i);
-                if (b >= 0x80 || b != value[i])
+                if ((b & (byte)high) != 0 || b != value[i])
                     return false;
             }
 
             return true;
-#endif
         }
+
+        /// <summary>Four bytes as the four chars they are in Latin-1 (little-endian).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ulong Widen(uint bytes)
+        {
+            ulong x = bytes;
+            x = (x | x << 16) & 0x0000_FFFF_0000_FFFF;
+            return (x | x << 8) & 0x00FF_00FF_00FF_00FF;
+        }
+#endif
 
         /// <summary>Whether the UTF-16 chars at <paramref name="source"/> are those of <paramref name="value"/> (as long).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
