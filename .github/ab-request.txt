@@ -988,3 +988,7 @@ go#12 78ceaa1 4225c20 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # dispatch 1
 go#12 78ceaa1 4225c20 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # dispatch 2
 go#12 78ceaa1 78ceaa1 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # dispatch floor 1
 go#12 78ceaa1 78ceaa1 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # dispatch floor 2
+# go dispatch proposal (owner's decision, not for landing): class bodies called directly through Reader/Writer.BeginBody (479f92e) against 4225c20.
+go#12 4225c20 479f92e ^Benchmark(Serialize|Deserialize)$/./^Nino$ # body 1
+go#12 4225c20 479f92e ^Benchmark(Serialize|Deserialize)$/./^Nino$ # body 2
+go#12 4225c20 4225c20 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # body floor 1
