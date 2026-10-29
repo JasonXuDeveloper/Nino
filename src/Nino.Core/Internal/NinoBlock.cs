@@ -383,6 +383,27 @@ namespace Nino.Core.Internal
         }
 
 #endif
+
+        /// <summary>Writes one value as its block (<see cref="INinoBlockFormatter{T}.WriteBlock"/>).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteValue<T, TFormatter>(ref byte destination, in T value)
+            where TFormatter : struct, INinoFormatter<T> =>
+#if NET8_0_OR_GREATER
+            ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(ref destination, in value);
+#else
+            NinoBlock<T, TFormatter>.Formatter.WriteBlock(ref destination, in value);
+#endif
+
+        /// <summary>Reads one value from its block (<see cref="INinoBlockFormatter{T}.ReadBlock"/>).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ReadValue<T, TFormatter>(ref byte source, ref T value)
+            where TFormatter : struct, INinoFormatter<T> =>
+#if NET8_0_OR_GREATER
+            ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(ref source, ref value);
+#else
+            NinoBlock<T, TFormatter>.Formatter.ReadBlock(ref source, ref value);
+#endif
+
 #if NET8_0_OR_GREATER
         /// <summary>
         /// The read groups of <see cref="ReadAll{T, TFormatter}"/>, two or more: returns the values read. Not inlined,
@@ -655,26 +676,6 @@ namespace Nino.Core.Internal
 
             return i;
         }
-
-        /// <summary>Writes one value as its block (<see cref="INinoBlockFormatter{T}.WriteBlock"/>).</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteValue<T, TFormatter>(ref byte destination, in T value)
-            where TFormatter : struct, INinoFormatter<T> =>
-#if NET8_0_OR_GREATER
-            ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(ref destination, in value);
-#else
-            NinoBlock<T, TFormatter>.Formatter.WriteBlock(ref destination, in value);
-#endif
-
-        /// <summary>Reads one value from its block (<see cref="INinoBlockFormatter{T}.ReadBlock"/>).</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void ReadValue<T, TFormatter>(ref byte source, ref T value)
-            where TFormatter : struct, INinoFormatter<T> =>
-#if NET8_0_OR_GREATER
-            ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(ref source, ref value);
-#else
-            NinoBlock<T, TFormatter>.Formatter.ReadBlock(ref source, ref value);
-#endif
 
         /// <summary>Value <paramref name="i"/> moved alone, in the direction of <typeparamref name="TDirection"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

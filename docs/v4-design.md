@@ -424,8 +424,9 @@ deserialization.
 * **Generated formatters** are structs in `<Assembly>.NinoGen`, one per `[NinoType]`. Members call
   their formatter as `default(TFormatter).Serialize(...)`, which is a direct, inlinable call.
 * **`CachedFormatter<T>`** is a struct that forwards to the formatter `NinoFormatterCache<T>` holds (an internal
-  `NinoFormatter<T>` class wrapping the struct formatter). It is used for type parameters of generic `[NinoType]`s,
-  for types from other assemblies, and for types resolved at runtime. It costs one virtual call.
+  `NinoFormatter<T>` class wrapping the struct formatter). It is used for type parameters of generic methods, for
+  `[NinoType]`s from other assemblies, for types that hold themselves, and for types resolved at runtime. It costs
+  one virtual call.
 * **Custom formatters**: `[NinoCustomFormatter(typeof(F))]`, where `F` is a struct implementing `INinoFormatter<T>`
   for exactly the member type (NINO008 otherwise), called as `default(F)` and inlined. Every formatter a user
   writes is a struct: `NinoFormatter<T>` is only the runtime dispatch carrier and is internal. There is no
@@ -1065,10 +1066,15 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
 ### Generated code per type
 
 * `struct <Name>Formatter : INinoFormatter<T>` with `Serialize`, `Deserialize`, `WriteBody`, `ReadBody`.
-* Generic `[NinoType]`s produce generic formatters (one per definition, not one per closed type).
-  Type-parameter members use `CachedFormatter<T>`.
+* Generic `[NinoType]`s produce generic formatters (one per definition, not one per closed type) that take the
+  formatter of each type parameter too: `Box<T>`'s is `Box_1Formatter<T, __F_T> where __F_T : struct,
+  INinoFormatter<T>`, and a member of type `T` calls `default(__F_T)`. A closed type names its arguments' formatters
+  (`Box_1Formatter<int, UnmanagedFormatter<int>>`), chosen as for a member of that type, so every member is a direct
+  call on every runtime (`CachedFormatter<T>` is a virtual call that only RyuJIT devirtualizes); the runtime resolver
+  binds them the same way for closed types the generator did not see.
 * Private members use `[UnsafeAccessor]` when the compilation targets .NET 8+ (generic types: .NET 9+, declared
-  in the generic formatter, whose type parameters are the type's; a member of a generic base qualifies when the
+  in a class next to the generic formatter, `__NinoUnsafe_<Formatter><T...>`, whose type parameters are exactly
+  the type's, as the runtime requires; a member of a generic base qualifies when the
   base's type arguments are the type's first type parameters in order), and generated `partial` accessors
   otherwise. The form is chosen from the compilation's preprocessor symbols (`NET8_0_OR_GREATER`,
   `NET9_0_OR_GREATER`); the output has no `#if`.
