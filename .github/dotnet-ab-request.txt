@@ -90,3 +90,7 @@
 # moved to a later round to free a slot (floor from run 40738931705): cpu='EPYC|Xeon|Neoverse' 4beee30 4beee30 12 *ScatteredTest.Nino* *CommonTypesTest.NinoSerialize* *PolymorphicTest.Nino*Array* *SimpleTest.Nino*SimpleClasses* *BclTypesTest.NinoSerializeImmutable* *CollectionsTest.NinoSerialize* *PooledGraphTest.Nino* *GenericPolymorphicTest.Nino* # floor 2
 cpu='EPYC|Xeon|Neoverse' 4beee30 479270d 12 *Waypoints* *TupleList* *KeyValuePairs* *SimpleTest*Vectors* *FixedClasses* *Inventory* *SimpleStruct* # mp-gaps A+B+D+E
 cpu='EPYC|Xeon|Neoverse' 4beee30 ae468de 12 *Waypoints* *TupleList* *KeyValuePairs* *SimpleTest*Vectors* *FixedClasses* *Inventory* *SimpleStruct* # mp-gaps A+B+D+E plus C (uninitialized arrays for block reads)
+# Prefetch null-change controls (owner's request): main 7d4d6b0 against itself (floor), then variant 2 0bfddcb,
+# its placebo 2b7291d (same code shape, the threshold never met, Ahead empty) and a null change de535f1 (one more
+# benchmark case) against main, in one run once three slots are free.
+cpu='EPYC|Neoverse' 7d4d6b0 7d4d6b0 12 *GenericPolymorphicTest.NinoSerializeNonGenericBase* *PolymorphicTest.NinoSerializePolymorphicClassArray* *ScatteredTest.Nino* *CommonTypesTest.NinoSerializePlayers* *CommonTypesTest.NinoSerializeOrders* *CommonTypesTest.NinoSerializeTree* # pf-floor
