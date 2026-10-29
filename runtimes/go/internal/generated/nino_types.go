@@ -756,11 +756,11 @@ func ReadAnimal(r *nino.Reader) Animal {
 	case nino.NullTypeID:
 		return nil
 	case -1384569984:
-		return nino.ReadClass(r, &catClass)
+		return readCatClass(r)
 	case 1772922506:
-		return nino.ReadClass(r, &dogClass)
+		return readDogClass(r)
 	case -1808724502:
-		return nino.ReadClass(r, &puppyClass)
+		return readPuppyClass(r)
 	case -1580784064:
 		return nino.ReadClass(r, &typeV0.class)
 	case -1116656767:
@@ -780,11 +780,26 @@ func WriteAnimal(w *nino.Writer, v Animal) {
 	case nil:
 		w.TypeID(nino.NullTypeID)
 	case *Cat:
-		nino.WriteTyped(w, -1384569984, v, &catClass)
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(-1384569984)
+			writeCatClass(w, v)
+		}
 	case *Dog:
-		nino.WriteTyped(w, 1772922506, v, &dogClass)
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(1772922506)
+			writeDogClass(w, v)
+		}
 	case *Puppy:
-		nino.WriteTyped(w, -1808724502, v, &puppyClass)
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(-1808724502)
+			writePuppyClass(w, v)
+		}
 	case *Box[Vec2]:
 		nino.WriteTyped(w, -1580784064, v, &typeV0.class)
 	case *Box[[]*Point]:
@@ -816,11 +831,53 @@ func (*AnimalSlot) NinoTypeID() int32 {
 }
 
 func ReadAnimalSlot(r *nino.Reader) *AnimalSlot {
-	return nino.ReadSealed(r, &animalSlotClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(AnimalSlot)
+	if d, ok := r.EnterBody(); ok {
+		readAnimalSlotBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &animalSlotClass)
+	}
+	return v
 }
 
 func WriteAnimalSlot(w *nino.Writer, v *AnimalSlot) {
-	nino.WriteSealed(w, v, &animalSlotClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeAnimalSlotBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &animalSlotClass)
+	}
+}
+
+// readAnimalSlotClass reads the body of a AnimalSlot (after its type id) into a new instance.
+func readAnimalSlotClass(r *nino.Reader) *AnimalSlot {
+	v := new(AnimalSlot)
+	if d, ok := r.EnterBody(); ok {
+		readAnimalSlotBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &animalSlotClass)
+	}
+	return v
+}
+
+// writeAnimalSlotClass writes the body of v (not nil, after its type id).
+func writeAnimalSlotClass(w *nino.Writer, v *AnimalSlot) {
+	if d, ok := w.EnterBody(); ok {
+		writeAnimalSlotBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &animalSlotClass)
+	}
 }
 
 func readAnimalSlotBody(r *nino.Reader, v *AnimalSlot) {
@@ -856,7 +913,7 @@ func ReadBag(r *nino.Reader) *Bag {
 	case nino.NullTypeID:
 		return nil
 	case -862583198:
-		return nino.ReadClass(r, &bagClass)
+		return readBagClass(r)
 	default:
 		r.UnknownType(id)
 		return nil
@@ -864,7 +921,34 @@ func ReadBag(r *nino.Reader) *Bag {
 }
 
 func WriteBag(w *nino.Writer, v *Bag) {
-	nino.WriteTyped(w, -862583198, v, &bagClass)
+	if v == nil {
+		w.TypeID(nino.NullTypeID)
+	} else {
+		w.TypeID(-862583198)
+		writeBagClass(w, v)
+	}
+}
+
+// readBagClass reads the body of a Bag (after its type id) into a new instance.
+func readBagClass(r *nino.Reader) *Bag {
+	v := new(Bag)
+	if d, ok := r.EnterBody(); ok {
+		readBagBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &bagClass)
+	}
+	return v
+}
+
+// writeBagClass writes the body of v (not nil, after its type id).
+func writeBagClass(w *nino.Writer, v *Bag) {
+	if d, ok := w.EnterBody(); ok {
+		writeBagBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &bagClass)
+	}
 }
 
 func readBagBody(r *nino.Reader, v *Bag) {
@@ -899,11 +983,53 @@ func (*BagHolder) NinoTypeID() int32 {
 }
 
 func ReadBagHolder(r *nino.Reader) *BagHolder {
-	return nino.ReadSealed(r, &bagHolderClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(BagHolder)
+	if d, ok := r.EnterBody(); ok {
+		readBagHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &bagHolderClass)
+	}
+	return v
 }
 
 func WriteBagHolder(w *nino.Writer, v *BagHolder) {
-	nino.WriteSealed(w, v, &bagHolderClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeBagHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &bagHolderClass)
+	}
+}
+
+// readBagHolderClass reads the body of a BagHolder (after its type id) into a new instance.
+func readBagHolderClass(r *nino.Reader) *BagHolder {
+	v := new(BagHolder)
+	if d, ok := r.EnterBody(); ok {
+		readBagHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &bagHolderClass)
+	}
+	return v
+}
+
+// writeBagHolderClass writes the body of v (not nil, after its type id).
+func writeBagHolderClass(w *nino.Writer, v *BagHolder) {
+	if d, ok := w.EnterBody(); ok {
+		writeBagHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &bagHolderClass)
+	}
 }
 
 func readBagHolderBody(r *nino.Reader, v *BagHolder) {
@@ -940,11 +1066,53 @@ func (*BigSlot) NinoTypeID() int32 {
 }
 
 func ReadBigSlot(r *nino.Reader) *BigSlot {
-	return nino.ReadSealed(r, &bigSlotClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(BigSlot)
+	if d, ok := r.EnterBody(); ok {
+		readBigSlotBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &bigSlotClass)
+	}
+	return v
 }
 
 func WriteBigSlot(w *nino.Writer, v *BigSlot) {
-	nino.WriteSealed(w, v, &bigSlotClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeBigSlotBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &bigSlotClass)
+	}
+}
+
+// readBigSlotClass reads the body of a BigSlot (after its type id) into a new instance.
+func readBigSlotClass(r *nino.Reader) *BigSlot {
+	v := new(BigSlot)
+	if d, ok := r.EnterBody(); ok {
+		readBigSlotBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &bigSlotClass)
+	}
+	return v
+}
+
+// writeBigSlotClass writes the body of v (not nil, after its type id).
+func writeBigSlotClass(w *nino.Writer, v *BigSlot) {
+	if d, ok := w.EnterBody(); ok {
+		writeBigSlotBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &bigSlotClass)
+	}
 }
 
 func readBigSlotBody(r *nino.Reader, v *BigSlot) {
@@ -974,11 +1142,53 @@ func (*BigValues) NinoTypeID() int32 {
 }
 
 func ReadBigValues(r *nino.Reader) *BigValues {
-	return nino.ReadSealed(r, &bigValuesClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(BigValues)
+	if d, ok := r.EnterBody(); ok {
+		readBigValuesBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &bigValuesClass)
+	}
+	return v
 }
 
 func WriteBigValues(w *nino.Writer, v *BigValues) {
-	nino.WriteSealed(w, v, &bigValuesClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeBigValuesBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &bigValuesClass)
+	}
+}
+
+// readBigValuesClass reads the body of a BigValues (after its type id) into a new instance.
+func readBigValuesClass(r *nino.Reader) *BigValues {
+	v := new(BigValues)
+	if d, ok := r.EnterBody(); ok {
+		readBigValuesBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &bigValuesClass)
+	}
+	return v
+}
+
+// writeBigValuesClass writes the body of v (not nil, after its type id).
+func writeBigValuesClass(w *nino.Writer, v *BigValues) {
+	if d, ok := w.EnterBody(); ok {
+		writeBigValuesBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &bigValuesClass)
+	}
 }
 
 func readBigValuesBody(r *nino.Reader, v *BigValues) {
@@ -1014,11 +1224,53 @@ func (*BlueLink) isLink() {
 }
 
 func ReadBlueLink(r *nino.Reader) *BlueLink {
-	return nino.ReadSealed(r, &blueLinkClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(BlueLink)
+	if d, ok := r.EnterBody(); ok {
+		readBlueLinkBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &blueLinkClass)
+	}
+	return v
 }
 
 func WriteBlueLink(w *nino.Writer, v *BlueLink) {
-	nino.WriteSealed(w, v, &blueLinkClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeBlueLinkBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &blueLinkClass)
+	}
+}
+
+// readBlueLinkClass reads the body of a BlueLink (after its type id) into a new instance.
+func readBlueLinkClass(r *nino.Reader) *BlueLink {
+	v := new(BlueLink)
+	if d, ok := r.EnterBody(); ok {
+		readBlueLinkBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &blueLinkClass)
+	}
+	return v
+}
+
+// writeBlueLinkClass writes the body of v (not nil, after its type id).
+func writeBlueLinkClass(w *nino.Writer, v *BlueLink) {
+	if d, ok := w.EnterBody(); ok {
+		writeBlueLinkBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &blueLinkClass)
+	}
 }
 
 func readBlueLinkBody(r *nino.Reader, v *BlueLink) {
@@ -1051,11 +1303,53 @@ func (*BoolArray) NinoTypeID() int32 {
 }
 
 func ReadBoolArray(r *nino.Reader) *BoolArray {
-	return nino.ReadSealed(r, &boolArrayClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(BoolArray)
+	if d, ok := r.EnterBody(); ok {
+		readBoolArrayBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &boolArrayClass)
+	}
+	return v
 }
 
 func WriteBoolArray(w *nino.Writer, v *BoolArray) {
-	nino.WriteSealed(w, v, &boolArrayClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeBoolArrayBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &boolArrayClass)
+	}
+}
+
+// readBoolArrayClass reads the body of a BoolArray (after its type id) into a new instance.
+func readBoolArrayClass(r *nino.Reader) *BoolArray {
+	v := new(BoolArray)
+	if d, ok := r.EnterBody(); ok {
+		readBoolArrayBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &boolArrayClass)
+	}
+	return v
+}
+
+// writeBoolArrayClass writes the body of v (not nil, after its type id).
+func writeBoolArrayClass(w *nino.Writer, v *BoolArray) {
+	if d, ok := w.EnterBody(); ok {
+		writeBoolArrayBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &boolArrayClass)
+	}
 }
 
 func readBoolArrayBody(r *nino.Reader, v *BoolArray) {
@@ -1084,11 +1378,53 @@ func (*BoolValue) NinoTypeID() int32 {
 }
 
 func ReadBoolValue(r *nino.Reader) *BoolValue {
-	return nino.ReadSealed(r, &boolValueClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(BoolValue)
+	if d, ok := r.EnterBody(); ok {
+		readBoolValueBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &boolValueClass)
+	}
+	return v
 }
 
 func WriteBoolValue(w *nino.Writer, v *BoolValue) {
-	nino.WriteSealed(w, v, &boolValueClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeBoolValueBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &boolValueClass)
+	}
+}
+
+// readBoolValueClass reads the body of a BoolValue (after its type id) into a new instance.
+func readBoolValueClass(r *nino.Reader) *BoolValue {
+	v := new(BoolValue)
+	if d, ok := r.EnterBody(); ok {
+		readBoolValueBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &boolValueClass)
+	}
+	return v
+}
+
+// writeBoolValueClass writes the body of v (not nil, after its type id).
+func writeBoolValueClass(w *nino.Writer, v *BoolValue) {
+	if d, ok := w.EnterBody(); ok {
+		writeBoolValueBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &boolValueClass)
+	}
 }
 
 func readBoolValueBody(r *nino.Reader, v *BoolValue) {
@@ -1197,11 +1533,53 @@ func (*ByteArray) NinoTypeID() int32 {
 }
 
 func ReadByteArray(r *nino.Reader) *ByteArray {
-	return nino.ReadSealed(r, &byteArrayClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(ByteArray)
+	if d, ok := r.EnterBody(); ok {
+		readByteArrayBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &byteArrayClass)
+	}
+	return v
 }
 
 func WriteByteArray(w *nino.Writer, v *ByteArray) {
-	nino.WriteSealed(w, v, &byteArrayClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeByteArrayBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &byteArrayClass)
+	}
+}
+
+// readByteArrayClass reads the body of a ByteArray (after its type id) into a new instance.
+func readByteArrayClass(r *nino.Reader) *ByteArray {
+	v := new(ByteArray)
+	if d, ok := r.EnterBody(); ok {
+		readByteArrayBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &byteArrayClass)
+	}
+	return v
+}
+
+// writeByteArrayClass writes the body of v (not nil, after its type id).
+func writeByteArrayClass(w *nino.Writer, v *ByteArray) {
+	if d, ok := w.EnterBody(); ok {
+		writeByteArrayBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &byteArrayClass)
+	}
 }
 
 func readByteArrayBody(r *nino.Reader, v *ByteArray) {
@@ -1232,11 +1610,53 @@ func (*Bytes) NinoTypeID() int32 {
 }
 
 func ReadBytes(r *nino.Reader) *Bytes {
-	return nino.ReadSealed(r, &bytesClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Bytes)
+	if d, ok := r.EnterBody(); ok {
+		readBytesBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &bytesClass)
+	}
+	return v
 }
 
 func WriteBytes(w *nino.Writer, v *Bytes) {
-	nino.WriteSealed(w, v, &bytesClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeBytesBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &bytesClass)
+	}
+}
+
+// readBytesClass reads the body of a Bytes (after its type id) into a new instance.
+func readBytesClass(r *nino.Reader) *Bytes {
+	v := new(Bytes)
+	if d, ok := r.EnterBody(); ok {
+		readBytesBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &bytesClass)
+	}
+	return v
+}
+
+// writeBytesClass writes the body of v (not nil, after its type id).
+func writeBytesClass(w *nino.Writer, v *Bytes) {
+	if d, ok := w.EnterBody(); ok {
+		writeBytesBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &bytesClass)
+	}
 }
 
 func readBytesBody(r *nino.Reader, v *Bytes) {
@@ -1273,11 +1693,53 @@ func (*Cat) isAnimal() {
 }
 
 func ReadCat(r *nino.Reader) *Cat {
-	return nino.ReadSealed(r, &catClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Cat)
+	if d, ok := r.EnterBody(); ok {
+		readCatBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &catClass)
+	}
+	return v
 }
 
 func WriteCat(w *nino.Writer, v *Cat) {
-	nino.WriteSealed(w, v, &catClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeCatBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &catClass)
+	}
+}
+
+// readCatClass reads the body of a Cat (after its type id) into a new instance.
+func readCatClass(r *nino.Reader) *Cat {
+	v := new(Cat)
+	if d, ok := r.EnterBody(); ok {
+		readCatBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &catClass)
+	}
+	return v
+}
+
+// writeCatClass writes the body of v (not nil, after its type id).
+func writeCatClass(w *nino.Writer, v *Cat) {
+	if d, ok := w.EnterBody(); ok {
+		writeCatBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &catClass)
+	}
 }
 
 func readCatBody(r *nino.Reader, v *Cat) {
@@ -1309,11 +1771,53 @@ func (*Chain) NinoTypeID() int32 {
 }
 
 func ReadChain(r *nino.Reader) *Chain {
-	return nino.ReadSealed(r, &chainClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Chain)
+	if d, ok := r.EnterBody(); ok {
+		readChainBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &chainClass)
+	}
+	return v
 }
 
 func WriteChain(w *nino.Writer, v *Chain) {
-	nino.WriteSealed(w, v, &chainClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeChainBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &chainClass)
+	}
+}
+
+// readChainClass reads the body of a Chain (after its type id) into a new instance.
+func readChainClass(r *nino.Reader) *Chain {
+	v := new(Chain)
+	if d, ok := r.EnterBody(); ok {
+		readChainBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &chainClass)
+	}
+	return v
+}
+
+// writeChainClass writes the body of v (not nil, after its type id).
+func writeChainClass(w *nino.Writer, v *Chain) {
+	if d, ok := w.EnterBody(); ok {
+		writeChainBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &chainClass)
+	}
 }
 
 func readChainBody(r *nino.Reader, v *Chain) {
@@ -1354,7 +1858,7 @@ func ReadCircle(r *nino.Reader) *Circle {
 	case nino.NullTypeID:
 		return nil
 	case -794369036:
-		return nino.ReadClass(r, &circleClass)
+		return readCircleClass(r)
 	default:
 		r.UnknownType(id)
 		return nil
@@ -1362,7 +1866,34 @@ func ReadCircle(r *nino.Reader) *Circle {
 }
 
 func WriteCircle(w *nino.Writer, v *Circle) {
-	nino.WriteTyped(w, -794369036, v, &circleClass)
+	if v == nil {
+		w.TypeID(nino.NullTypeID)
+	} else {
+		w.TypeID(-794369036)
+		writeCircleClass(w, v)
+	}
+}
+
+// readCircleClass reads the body of a Circle (after its type id) into a new instance.
+func readCircleClass(r *nino.Reader) *Circle {
+	v := new(Circle)
+	if d, ok := r.EnterBody(); ok {
+		readCircleBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &circleClass)
+	}
+	return v
+}
+
+// writeCircleClass writes the body of v (not nil, after its type id).
+func writeCircleClass(w *nino.Writer, v *Circle) {
+	if d, ok := w.EnterBody(); ok {
+		writeCircleBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &circleClass)
+	}
 }
 
 func readCircleBody(r *nino.Reader, v *Circle) {
@@ -1417,11 +1948,53 @@ func (*Collections) NinoTypeID() int32 {
 }
 
 func ReadCollections(r *nino.Reader) *Collections {
-	return nino.ReadSealed(r, &collectionsClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Collections)
+	if d, ok := r.EnterBody(); ok {
+		readCollectionsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &collectionsClass)
+	}
+	return v
 }
 
 func WriteCollections(w *nino.Writer, v *Collections) {
-	nino.WriteSealed(w, v, &collectionsClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeCollectionsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &collectionsClass)
+	}
+}
+
+// readCollectionsClass reads the body of a Collections (after its type id) into a new instance.
+func readCollectionsClass(r *nino.Reader) *Collections {
+	v := new(Collections)
+	if d, ok := r.EnterBody(); ok {
+		readCollectionsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &collectionsClass)
+	}
+	return v
+}
+
+// writeCollectionsClass writes the body of v (not nil, after its type id).
+func writeCollectionsClass(w *nino.Writer, v *Collections) {
+	if d, ok := w.EnterBody(); ok {
+		writeCollectionsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &collectionsClass)
+	}
 }
 
 func readCollectionsBody(r *nino.Reader, v *Collections) {
@@ -1554,11 +2127,53 @@ func (*Dates) NinoTypeID() int32 {
 }
 
 func ReadDates(r *nino.Reader) *Dates {
-	return nino.ReadSealed(r, &datesClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Dates)
+	if d, ok := r.EnterBody(); ok {
+		readDatesBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &datesClass)
+	}
+	return v
 }
 
 func WriteDates(w *nino.Writer, v *Dates) {
-	nino.WriteSealed(w, v, &datesClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeDatesBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &datesClass)
+	}
+}
+
+// readDatesClass reads the body of a Dates (after its type id) into a new instance.
+func readDatesClass(r *nino.Reader) *Dates {
+	v := new(Dates)
+	if d, ok := r.EnterBody(); ok {
+		readDatesBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &datesClass)
+	}
+	return v
+}
+
+// writeDatesClass writes the body of v (not nil, after its type id).
+func writeDatesClass(w *nino.Writer, v *Dates) {
+	if d, ok := w.EnterBody(); ok {
+		writeDatesBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &datesClass)
+	}
 }
 
 func readDatesBody(r *nino.Reader, v *Dates) {
@@ -1612,9 +2227,9 @@ func ReadDogType(r *nino.Reader) DogType {
 	case nino.NullTypeID:
 		return nil
 	case 1772922506:
-		return nino.ReadClass(r, &dogClass)
+		return readDogClass(r)
 	case -1808724502:
-		return nino.ReadClass(r, &puppyClass)
+		return readPuppyClass(r)
 	default:
 		r.UnknownType(id)
 		return nil
@@ -1626,11 +2241,43 @@ func WriteDogType(w *nino.Writer, v DogType) {
 	case nil:
 		w.TypeID(nino.NullTypeID)
 	case *Dog:
-		nino.WriteTyped(w, 1772922506, v, &dogClass)
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(1772922506)
+			writeDogClass(w, v)
+		}
 	case *Puppy:
-		nino.WriteTyped(w, -1808724502, v, &puppyClass)
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(-1808724502)
+			writePuppyClass(w, v)
+		}
 	default:
 		w.Fail(nino.CodeUnknownType, "not a type the slot allows")
+	}
+}
+
+// readDogClass reads the body of a Dog (after its type id) into a new instance.
+func readDogClass(r *nino.Reader) *Dog {
+	v := new(Dog)
+	if d, ok := r.EnterBody(); ok {
+		readDogBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &dogClass)
+	}
+	return v
+}
+
+// writeDogClass writes the body of v (not nil, after its type id).
+func writeDogClass(w *nino.Writer, v *Dog) {
+	if d, ok := w.EnterBody(); ok {
+		writeDogBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &dogClass)
 	}
 }
 
@@ -1662,11 +2309,53 @@ func (*DogSlot) NinoTypeID() int32 {
 }
 
 func ReadDogSlot(r *nino.Reader) *DogSlot {
-	return nino.ReadSealed(r, &dogSlotClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(DogSlot)
+	if d, ok := r.EnterBody(); ok {
+		readDogSlotBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &dogSlotClass)
+	}
+	return v
 }
 
 func WriteDogSlot(w *nino.Writer, v *DogSlot) {
-	nino.WriteSealed(w, v, &dogSlotClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeDogSlotBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &dogSlotClass)
+	}
+}
+
+// readDogSlotClass reads the body of a DogSlot (after its type id) into a new instance.
+func readDogSlotClass(r *nino.Reader) *DogSlot {
+	v := new(DogSlot)
+	if d, ok := r.EnterBody(); ok {
+		readDogSlotBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &dogSlotClass)
+	}
+	return v
+}
+
+// writeDogSlotClass writes the body of v (not nil, after its type id).
+func writeDogSlotClass(w *nino.Writer, v *DogSlot) {
+	if d, ok := w.EnterBody(); ok {
+		writeDogSlotBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &dogSlotClass)
+	}
 }
 
 func readDogSlotBody(r *nino.Reader, v *DogSlot) {
@@ -1698,11 +2387,53 @@ func (*Empties) NinoTypeID() int32 {
 }
 
 func ReadEmpties(r *nino.Reader) *Empties {
-	return nino.ReadSealed(r, &emptiesClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Empties)
+	if d, ok := r.EnterBody(); ok {
+		readEmptiesBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &emptiesClass)
+	}
+	return v
 }
 
 func WriteEmpties(w *nino.Writer, v *Empties) {
-	nino.WriteSealed(w, v, &emptiesClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeEmptiesBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &emptiesClass)
+	}
+}
+
+// readEmptiesClass reads the body of a Empties (after its type id) into a new instance.
+func readEmptiesClass(r *nino.Reader) *Empties {
+	v := new(Empties)
+	if d, ok := r.EnterBody(); ok {
+		readEmptiesBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &emptiesClass)
+	}
+	return v
+}
+
+// writeEmptiesClass writes the body of v (not nil, after its type id).
+func writeEmptiesClass(w *nino.Writer, v *Empties) {
+	if d, ok := w.EnterBody(); ok {
+		writeEmptiesBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &emptiesClass)
+	}
 }
 
 func readEmptiesBody(r *nino.Reader, v *Empties) {
@@ -1735,11 +2466,53 @@ func (*Empty) NinoTypeID() int32 {
 }
 
 func ReadEmpty(r *nino.Reader) *Empty {
-	return nino.ReadSealed(r, &emptyClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Empty)
+	if d, ok := r.EnterBody(); ok {
+		readEmptyBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &emptyClass)
+	}
+	return v
 }
 
 func WriteEmpty(w *nino.Writer, v *Empty) {
-	nino.WriteSealed(w, v, &emptyClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeEmptyBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &emptyClass)
+	}
+}
+
+// readEmptyClass reads the body of a Empty (after its type id) into a new instance.
+func readEmptyClass(r *nino.Reader) *Empty {
+	v := new(Empty)
+	if d, ok := r.EnterBody(); ok {
+		readEmptyBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &emptyClass)
+	}
+	return v
+}
+
+// writeEmptyClass writes the body of v (not nil, after its type id).
+func writeEmptyClass(w *nino.Writer, v *Empty) {
+	if d, ok := w.EnterBody(); ok {
+		writeEmptyBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &emptyClass)
+	}
 }
 
 func readEmptyBody(r *nino.Reader, v *Empty) {
@@ -1796,11 +2569,53 @@ func (*Enums) NinoTypeID() int32 {
 }
 
 func ReadEnums(r *nino.Reader) *Enums {
-	return nino.ReadSealed(r, &enumsClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Enums)
+	if d, ok := r.EnterBody(); ok {
+		readEnumsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &enumsClass)
+	}
+	return v
 }
 
 func WriteEnums(w *nino.Writer, v *Enums) {
-	nino.WriteSealed(w, v, &enumsClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeEnumsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &enumsClass)
+	}
+}
+
+// readEnumsClass reads the body of a Enums (after its type id) into a new instance.
+func readEnumsClass(r *nino.Reader) *Enums {
+	v := new(Enums)
+	if d, ok := r.EnterBody(); ok {
+		readEnumsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &enumsClass)
+	}
+	return v
+}
+
+// writeEnumsClass writes the body of v (not nil, after its type id).
+func writeEnumsClass(w *nino.Writer, v *Enums) {
+	if d, ok := w.EnterBody(); ok {
+		writeEnumsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &enumsClass)
+	}
 }
 
 func readEnumsBody(r *nino.Reader, v *Enums) {
@@ -1855,11 +2670,53 @@ func (*Floats) NinoTypeID() int32 {
 }
 
 func ReadFloats(r *nino.Reader) *Floats {
-	return nino.ReadSealed(r, &floatsClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Floats)
+	if d, ok := r.EnterBody(); ok {
+		readFloatsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &floatsClass)
+	}
+	return v
 }
 
 func WriteFloats(w *nino.Writer, v *Floats) {
-	nino.WriteSealed(w, v, &floatsClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeFloatsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &floatsClass)
+	}
+}
+
+// readFloatsClass reads the body of a Floats (after its type id) into a new instance.
+func readFloatsClass(r *nino.Reader) *Floats {
+	v := new(Floats)
+	if d, ok := r.EnterBody(); ok {
+		readFloatsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &floatsClass)
+	}
+	return v
+}
+
+// writeFloatsClass writes the body of v (not nil, after its type id).
+func writeFloatsClass(w *nino.Writer, v *Floats) {
+	if d, ok := w.EnterBody(); ok {
+		writeFloatsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &floatsClass)
+	}
 }
 
 func readFloatsBody(r *nino.Reader, v *Floats) {
@@ -1901,11 +2758,53 @@ func (*GenericSlots) NinoTypeID() int32 {
 }
 
 func ReadGenericSlots(r *nino.Reader) *GenericSlots {
-	return nino.ReadSealed(r, &genericSlotsClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(GenericSlots)
+	if d, ok := r.EnterBody(); ok {
+		readGenericSlotsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &genericSlotsClass)
+	}
+	return v
 }
 
 func WriteGenericSlots(w *nino.Writer, v *GenericSlots) {
-	nino.WriteSealed(w, v, &genericSlotsClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeGenericSlotsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &genericSlotsClass)
+	}
+}
+
+// readGenericSlotsClass reads the body of a GenericSlots (after its type id) into a new instance.
+func readGenericSlotsClass(r *nino.Reader) *GenericSlots {
+	v := new(GenericSlots)
+	if d, ok := r.EnterBody(); ok {
+		readGenericSlotsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &genericSlotsClass)
+	}
+	return v
+}
+
+// writeGenericSlotsClass writes the body of v (not nil, after its type id).
+func writeGenericSlotsClass(w *nino.Writer, v *GenericSlots) {
+	if d, ok := w.EnterBody(); ok {
+		writeGenericSlotsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &genericSlotsClass)
+	}
 }
 
 func readGenericSlotsBody(r *nino.Reader, v *GenericSlots) {
@@ -1944,11 +2843,53 @@ func (*Grid) NinoTypeID() int32 {
 }
 
 func ReadGrid(r *nino.Reader) *Grid {
-	return nino.ReadSealed(r, &gridClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Grid)
+	if d, ok := r.EnterBody(); ok {
+		readGridBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &gridClass)
+	}
+	return v
 }
 
 func WriteGrid(w *nino.Writer, v *Grid) {
-	nino.WriteSealed(w, v, &gridClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeGridBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &gridClass)
+	}
+}
+
+// readGridClass reads the body of a Grid (after its type id) into a new instance.
+func readGridClass(r *nino.Reader) *Grid {
+	v := new(Grid)
+	if d, ok := r.EnterBody(); ok {
+		readGridBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &gridClass)
+	}
+	return v
+}
+
+// writeGridClass writes the body of v (not nil, after its type id).
+func writeGridClass(w *nino.Writer, v *Grid) {
+	if d, ok := w.EnterBody(); ok {
+		writeGridBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &gridClass)
+	}
 }
 
 func readGridBody(r *nino.Reader, v *Grid) {
@@ -2046,9 +2987,9 @@ func ReadIShape(r *nino.Reader) IShape {
 	case nino.NullTypeID:
 		return nil
 	case -794369036:
-		return nino.ReadClass(r, &circleClass)
+		return readCircleClass(r)
 	case -2075505753:
-		return nino.ReadClass(r, &squareClass)
+		return readSquareClass(r)
 	default:
 		r.UnknownType(id)
 		return nil
@@ -2060,9 +3001,19 @@ func WriteIShape(w *nino.Writer, v IShape) {
 	case nil:
 		w.TypeID(nino.NullTypeID)
 	case *Circle:
-		nino.WriteTyped(w, -794369036, v, &circleClass)
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(-794369036)
+			writeCircleClass(w, v)
+		}
 	case *Square:
-		nino.WriteTyped(w, -2075505753, v, &squareClass)
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(-2075505753)
+			writeSquareClass(w, v)
+		}
 	default:
 		w.Fail(nino.CodeUnknownType, "not a type the slot allows")
 	}
@@ -2088,11 +3039,53 @@ func (*Inner) NinoTypeID() int32 {
 }
 
 func ReadInner(r *nino.Reader) *Inner {
-	return nino.ReadSealed(r, &innerClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Inner)
+	if d, ok := r.EnterBody(); ok {
+		readInnerBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &innerClass)
+	}
+	return v
 }
 
 func WriteInner(w *nino.Writer, v *Inner) {
-	nino.WriteSealed(w, v, &innerClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeInnerBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &innerClass)
+	}
+}
+
+// readInnerClass reads the body of a Inner (after its type id) into a new instance.
+func readInnerClass(r *nino.Reader) *Inner {
+	v := new(Inner)
+	if d, ok := r.EnterBody(); ok {
+		readInnerBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &innerClass)
+	}
+	return v
+}
+
+// writeInnerClass writes the body of v (not nil, after its type id).
+func writeInnerClass(w *nino.Writer, v *Inner) {
+	if d, ok := w.EnterBody(); ok {
+		writeInnerBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &innerClass)
+	}
 }
 
 func readInnerBody(r *nino.Reader, v *Inner) {
@@ -2125,11 +3118,53 @@ func (*IntArray) NinoTypeID() int32 {
 }
 
 func ReadIntArray(r *nino.Reader) *IntArray {
-	return nino.ReadSealed(r, &intArrayClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(IntArray)
+	if d, ok := r.EnterBody(); ok {
+		readIntArrayBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &intArrayClass)
+	}
+	return v
 }
 
 func WriteIntArray(w *nino.Writer, v *IntArray) {
-	nino.WriteSealed(w, v, &intArrayClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeIntArrayBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &intArrayClass)
+	}
+}
+
+// readIntArrayClass reads the body of a IntArray (after its type id) into a new instance.
+func readIntArrayClass(r *nino.Reader) *IntArray {
+	v := new(IntArray)
+	if d, ok := r.EnterBody(); ok {
+		readIntArrayBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &intArrayClass)
+	}
+	return v
+}
+
+// writeIntArrayClass writes the body of v (not nil, after its type id).
+func writeIntArrayClass(w *nino.Writer, v *IntArray) {
+	if d, ok := w.EnterBody(); ok {
+		writeIntArrayBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &intArrayClass)
+	}
 }
 
 func readIntArrayBody(r *nino.Reader, v *IntArray) {
@@ -2158,11 +3193,53 @@ func (*IntMap) NinoTypeID() int32 {
 }
 
 func ReadIntMap(r *nino.Reader) *IntMap {
-	return nino.ReadSealed(r, &intMapClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(IntMap)
+	if d, ok := r.EnterBody(); ok {
+		readIntMapBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &intMapClass)
+	}
+	return v
 }
 
 func WriteIntMap(w *nino.Writer, v *IntMap) {
-	nino.WriteSealed(w, v, &intMapClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeIntMapBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &intMapClass)
+	}
+}
+
+// readIntMapClass reads the body of a IntMap (after its type id) into a new instance.
+func readIntMapClass(r *nino.Reader) *IntMap {
+	v := new(IntMap)
+	if d, ok := r.EnterBody(); ok {
+		readIntMapBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &intMapClass)
+	}
+	return v
+}
+
+// writeIntMapClass writes the body of v (not nil, after its type id).
+func writeIntMapClass(w *nino.Writer, v *IntMap) {
+	if d, ok := w.EnterBody(); ok {
+		writeIntMapBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &intMapClass)
+	}
 }
 
 func readIntMapBody(r *nino.Reader, v *IntMap) {
@@ -2191,11 +3268,53 @@ func (*IntSet) NinoTypeID() int32 {
 }
 
 func ReadIntSet(r *nino.Reader) *IntSet {
-	return nino.ReadSealed(r, &intSetClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(IntSet)
+	if d, ok := r.EnterBody(); ok {
+		readIntSetBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &intSetClass)
+	}
+	return v
 }
 
 func WriteIntSet(w *nino.Writer, v *IntSet) {
-	nino.WriteSealed(w, v, &intSetClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeIntSetBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &intSetClass)
+	}
+}
+
+// readIntSetClass reads the body of a IntSet (after its type id) into a new instance.
+func readIntSetClass(r *nino.Reader) *IntSet {
+	v := new(IntSet)
+	if d, ok := r.EnterBody(); ok {
+		readIntSetBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &intSetClass)
+	}
+	return v
+}
+
+// writeIntSetClass writes the body of v (not nil, after its type id).
+func writeIntSetClass(w *nino.Writer, v *IntSet) {
+	if d, ok := w.EnterBody(); ok {
+		writeIntSetBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &intSetClass)
+	}
 }
 
 func readIntSetBody(r *nino.Reader, v *IntSet) {
@@ -2228,11 +3347,53 @@ func (*IntShelf) isShelf(int32) {
 }
 
 func ReadIntShelf(r *nino.Reader) *IntShelf {
-	return nino.ReadSealed(r, &intShelfClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(IntShelf)
+	if d, ok := r.EnterBody(); ok {
+		readIntShelfBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &intShelfClass)
+	}
+	return v
 }
 
 func WriteIntShelf(w *nino.Writer, v *IntShelf) {
-	nino.WriteSealed(w, v, &intShelfClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeIntShelfBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &intShelfClass)
+	}
+}
+
+// readIntShelfClass reads the body of a IntShelf (after its type id) into a new instance.
+func readIntShelfClass(r *nino.Reader) *IntShelf {
+	v := new(IntShelf)
+	if d, ok := r.EnterBody(); ok {
+		readIntShelfBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &intShelfClass)
+	}
+	return v
+}
+
+// writeIntShelfClass writes the body of v (not nil, after its type id).
+func writeIntShelfClass(w *nino.Writer, v *IntShelf) {
+	if d, ok := w.EnterBody(); ok {
+		writeIntShelfBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &intShelfClass)
+	}
 }
 
 func readIntShelfBody(r *nino.Reader, v *IntShelf) {
@@ -2276,11 +3437,53 @@ func (*Integers) NinoTypeID() int32 {
 }
 
 func ReadIntegers(r *nino.Reader) *Integers {
-	return nino.ReadSealed(r, &integersClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Integers)
+	if d, ok := r.EnterBody(); ok {
+		readIntegersBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &integersClass)
+	}
+	return v
 }
 
 func WriteIntegers(w *nino.Writer, v *Integers) {
-	nino.WriteSealed(w, v, &integersClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeIntegersBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &integersClass)
+	}
+}
+
+// readIntegersClass reads the body of a Integers (after its type id) into a new instance.
+func readIntegersClass(r *nino.Reader) *Integers {
+	v := new(Integers)
+	if d, ok := r.EnterBody(); ok {
+		readIntegersBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &integersClass)
+	}
+	return v
+}
+
+// writeIntegersClass writes the body of v (not nil, after its type id).
+func writeIntegersClass(w *nino.Writer, v *Integers) {
+	if d, ok := w.EnterBody(); ok {
+		writeIntegersBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &integersClass)
+	}
 }
 
 func readIntegersBody(r *nino.Reader, v *Integers) {
@@ -2334,11 +3537,53 @@ func (*KeyedBag) NinoTypeID() int32 {
 }
 
 func ReadKeyedBag(r *nino.Reader) *KeyedBag {
-	return nino.ReadSealed(r, &keyedBagClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(KeyedBag)
+	if d, ok := r.EnterBody(); ok {
+		readKeyedBagBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &keyedBagClass)
+	}
+	return v
 }
 
 func WriteKeyedBag(w *nino.Writer, v *KeyedBag) {
-	nino.WriteSealed(w, v, &keyedBagClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeKeyedBagBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &keyedBagClass)
+	}
+}
+
+// readKeyedBagClass reads the body of a KeyedBag (after its type id) into a new instance.
+func readKeyedBagClass(r *nino.Reader) *KeyedBag {
+	v := new(KeyedBag)
+	if d, ok := r.EnterBody(); ok {
+		readKeyedBagBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &keyedBagClass)
+	}
+	return v
+}
+
+// writeKeyedBagClass writes the body of v (not nil, after its type id).
+func writeKeyedBagClass(w *nino.Writer, v *KeyedBag) {
+	if d, ok := w.EnterBody(); ok {
+		writeKeyedBagBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &keyedBagClass)
+	}
 }
 
 func readKeyedBagBody(r *nino.Reader, v *KeyedBag) {
@@ -2390,11 +3635,53 @@ func (*KeyedChain) NinoTypeID() int32 {
 }
 
 func ReadKeyedChain(r *nino.Reader) *KeyedChain {
-	return nino.ReadSealed(r, &keyedChainClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(KeyedChain)
+	if d, ok := r.EnterBody(); ok {
+		readKeyedChainBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &keyedChainClass)
+	}
+	return v
 }
 
 func WriteKeyedChain(w *nino.Writer, v *KeyedChain) {
-	nino.WriteSealed(w, v, &keyedChainClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeKeyedChainBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &keyedChainClass)
+	}
+}
+
+// readKeyedChainClass reads the body of a KeyedChain (after its type id) into a new instance.
+func readKeyedChainClass(r *nino.Reader) *KeyedChain {
+	v := new(KeyedChain)
+	if d, ok := r.EnterBody(); ok {
+		readKeyedChainBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &keyedChainClass)
+	}
+	return v
+}
+
+// writeKeyedChainClass writes the body of v (not nil, after its type id).
+func writeKeyedChainClass(w *nino.Writer, v *KeyedChain) {
+	if d, ok := w.EnterBody(); ok {
+		writeKeyedChainBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &keyedChainClass)
+	}
 }
 
 func readKeyedChainBody(r *nino.Reader, v *KeyedChain) {
@@ -2452,11 +3739,53 @@ func (*KeyedHolder) NinoTypeID() int32 {
 }
 
 func ReadKeyedHolder(r *nino.Reader) *KeyedHolder {
-	return nino.ReadSealed(r, &keyedHolderClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(KeyedHolder)
+	if d, ok := r.EnterBody(); ok {
+		readKeyedHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &keyedHolderClass)
+	}
+	return v
 }
 
 func WriteKeyedHolder(w *nino.Writer, v *KeyedHolder) {
-	nino.WriteSealed(w, v, &keyedHolderClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeKeyedHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &keyedHolderClass)
+	}
+}
+
+// readKeyedHolderClass reads the body of a KeyedHolder (after its type id) into a new instance.
+func readKeyedHolderClass(r *nino.Reader) *KeyedHolder {
+	v := new(KeyedHolder)
+	if d, ok := r.EnterBody(); ok {
+		readKeyedHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &keyedHolderClass)
+	}
+	return v
+}
+
+// writeKeyedHolderClass writes the body of v (not nil, after its type id).
+func writeKeyedHolderClass(w *nino.Writer, v *KeyedHolder) {
+	if d, ok := w.EnterBody(); ok {
+		writeKeyedHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &keyedHolderClass)
+	}
 }
 
 func readKeyedHolderBody(r *nino.Reader, v *KeyedHolder) {
@@ -2546,11 +3875,53 @@ func (*KeyedV1) NinoTypeID() int32 {
 }
 
 func ReadKeyedV1(r *nino.Reader) *KeyedV1 {
-	return nino.ReadSealed(r, &keyedV1Class)
+	if !r.Present() {
+		return nil
+	}
+	v := new(KeyedV1)
+	if d, ok := r.EnterBody(); ok {
+		readKeyedV1Body(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &keyedV1Class)
+	}
+	return v
 }
 
 func WriteKeyedV1(w *nino.Writer, v *KeyedV1) {
-	nino.WriteSealed(w, v, &keyedV1Class)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeKeyedV1Body(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &keyedV1Class)
+	}
+}
+
+// readKeyedV1Class reads the body of a KeyedV1 (after its type id) into a new instance.
+func readKeyedV1Class(r *nino.Reader) *KeyedV1 {
+	v := new(KeyedV1)
+	if d, ok := r.EnterBody(); ok {
+		readKeyedV1Body(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &keyedV1Class)
+	}
+	return v
+}
+
+// writeKeyedV1Class writes the body of v (not nil, after its type id).
+func writeKeyedV1Class(w *nino.Writer, v *KeyedV1) {
+	if d, ok := w.EnterBody(); ok {
+		writeKeyedV1Body(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &keyedV1Class)
+	}
 }
 
 func readKeyedV1Body(r *nino.Reader, v *KeyedV1) {
@@ -2623,11 +3994,53 @@ func (*KeyedV2) NinoTypeID() int32 {
 }
 
 func ReadKeyedV2(r *nino.Reader) *KeyedV2 {
-	return nino.ReadSealed(r, &keyedV2Class)
+	if !r.Present() {
+		return nil
+	}
+	v := new(KeyedV2)
+	if d, ok := r.EnterBody(); ok {
+		readKeyedV2Body(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &keyedV2Class)
+	}
+	return v
 }
 
 func WriteKeyedV2(w *nino.Writer, v *KeyedV2) {
-	nino.WriteSealed(w, v, &keyedV2Class)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeKeyedV2Body(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &keyedV2Class)
+	}
+}
+
+// readKeyedV2Class reads the body of a KeyedV2 (after its type id) into a new instance.
+func readKeyedV2Class(r *nino.Reader) *KeyedV2 {
+	v := new(KeyedV2)
+	if d, ok := r.EnterBody(); ok {
+		readKeyedV2Body(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &keyedV2Class)
+	}
+	return v
+}
+
+// writeKeyedV2Class writes the body of v (not nil, after its type id).
+func writeKeyedV2Class(w *nino.Writer, v *KeyedV2) {
+	if d, ok := w.EnterBody(); ok {
+		writeKeyedV2Body(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &keyedV2Class)
+	}
 }
 
 func readKeyedV2Body(r *nino.Reader, v *KeyedV2) {
@@ -2793,9 +4206,9 @@ func ReadLink(r *nino.Reader) Link {
 	case nino.NullTypeID:
 		return nil
 	case -1446673464:
-		return nino.ReadClass(r, &blueLinkClass)
+		return readBlueLinkClass(r)
 	case -1617946819:
-		return nino.ReadClass(r, &redLinkClass)
+		return readRedLinkClass(r)
 	default:
 		r.UnknownType(id)
 		return nil
@@ -2807,9 +4220,19 @@ func WriteLink(w *nino.Writer, v Link) {
 	case nil:
 		w.TypeID(nino.NullTypeID)
 	case *BlueLink:
-		nino.WriteTyped(w, -1446673464, v, &blueLinkClass)
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(-1446673464)
+			writeBlueLinkClass(w, v)
+		}
 	case *RedLink:
-		nino.WriteTyped(w, -1617946819, v, &redLinkClass)
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(-1617946819)
+			writeRedLinkClass(w, v)
+		}
 	default:
 		w.Fail(nino.CodeUnknownType, "not a type the slot allows")
 	}
@@ -2935,11 +4358,53 @@ func (*LongList) NinoTypeID() int32 {
 }
 
 func ReadLongList(r *nino.Reader) *LongList {
-	return nino.ReadSealed(r, &longListClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(LongList)
+	if d, ok := r.EnterBody(); ok {
+		readLongListBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &longListClass)
+	}
+	return v
 }
 
 func WriteLongList(w *nino.Writer, v *LongList) {
-	nino.WriteSealed(w, v, &longListClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeLongListBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &longListClass)
+	}
+}
+
+// readLongListClass reads the body of a LongList (after its type id) into a new instance.
+func readLongListClass(r *nino.Reader) *LongList {
+	v := new(LongList)
+	if d, ok := r.EnterBody(); ok {
+		readLongListBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &longListClass)
+	}
+	return v
+}
+
+// writeLongListClass writes the body of v (not nil, after its type id).
+func writeLongListClass(w *nino.Writer, v *LongList) {
+	if d, ok := w.EnterBody(); ok {
+		writeLongListBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &longListClass)
+	}
 }
 
 func readLongListBody(r *nino.Reader, v *LongList) {
@@ -2968,11 +4433,53 @@ func (*MaybeInt) NinoTypeID() int32 {
 }
 
 func ReadMaybeInt(r *nino.Reader) *MaybeInt {
-	return nino.ReadSealed(r, &maybeIntClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(MaybeInt)
+	if d, ok := r.EnterBody(); ok {
+		readMaybeIntBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &maybeIntClass)
+	}
+	return v
 }
 
 func WriteMaybeInt(w *nino.Writer, v *MaybeInt) {
-	nino.WriteSealed(w, v, &maybeIntClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeMaybeIntBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &maybeIntClass)
+	}
+}
+
+// readMaybeIntClass reads the body of a MaybeInt (after its type id) into a new instance.
+func readMaybeIntClass(r *nino.Reader) *MaybeInt {
+	v := new(MaybeInt)
+	if d, ok := r.EnterBody(); ok {
+		readMaybeIntBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &maybeIntClass)
+	}
+	return v
+}
+
+// writeMaybeIntClass writes the body of v (not nil, after its type id).
+func writeMaybeIntClass(w *nino.Writer, v *MaybeInt) {
+	if d, ok := w.EnterBody(); ok {
+		writeMaybeIntBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &maybeIntClass)
+	}
 }
 
 func readMaybeIntBody(r *nino.Reader, v *MaybeInt) {
@@ -3001,11 +4508,53 @@ func (*MaybeIntArray) NinoTypeID() int32 {
 }
 
 func ReadMaybeIntArray(r *nino.Reader) *MaybeIntArray {
-	return nino.ReadSealed(r, &maybeIntArrayClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(MaybeIntArray)
+	if d, ok := r.EnterBody(); ok {
+		readMaybeIntArrayBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &maybeIntArrayClass)
+	}
+	return v
 }
 
 func WriteMaybeIntArray(w *nino.Writer, v *MaybeIntArray) {
-	nino.WriteSealed(w, v, &maybeIntArrayClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeMaybeIntArrayBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &maybeIntArrayClass)
+	}
+}
+
+// readMaybeIntArrayClass reads the body of a MaybeIntArray (after its type id) into a new instance.
+func readMaybeIntArrayClass(r *nino.Reader) *MaybeIntArray {
+	v := new(MaybeIntArray)
+	if d, ok := r.EnterBody(); ok {
+		readMaybeIntArrayBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &maybeIntArrayClass)
+	}
+	return v
+}
+
+// writeMaybeIntArrayClass writes the body of v (not nil, after its type id).
+func writeMaybeIntArrayClass(w *nino.Writer, v *MaybeIntArray) {
+	if d, ok := w.EnterBody(); ok {
+		writeMaybeIntArrayBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &maybeIntArrayClass)
+	}
 }
 
 func readMaybeIntArrayBody(r *nino.Reader, v *MaybeIntArray) {
@@ -3036,11 +4585,53 @@ func (*Middle) NinoTypeID() int32 {
 }
 
 func ReadMiddle(r *nino.Reader) *Middle {
-	return nino.ReadSealed(r, &middleClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Middle)
+	if d, ok := r.EnterBody(); ok {
+		readMiddleBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &middleClass)
+	}
+	return v
 }
 
 func WriteMiddle(w *nino.Writer, v *Middle) {
-	nino.WriteSealed(w, v, &middleClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeMiddleBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &middleClass)
+	}
+}
+
+// readMiddleClass reads the body of a Middle (after its type id) into a new instance.
+func readMiddleClass(r *nino.Reader) *Middle {
+	v := new(Middle)
+	if d, ok := r.EnterBody(); ok {
+		readMiddleBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &middleClass)
+	}
+	return v
+}
+
+// writeMiddleClass writes the body of v (not nil, after its type id).
+func writeMiddleClass(w *nino.Writer, v *Middle) {
+	if d, ok := w.EnterBody(); ok {
+		writeMiddleBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &middleClass)
+	}
 }
 
 func readMiddleBody(r *nino.Reader, v *Middle) {
@@ -3125,11 +4716,53 @@ func (*Nullables) NinoTypeID() int32 {
 }
 
 func ReadNullables(r *nino.Reader) *Nullables {
-	return nino.ReadSealed(r, &nullablesClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Nullables)
+	if d, ok := r.EnterBody(); ok {
+		readNullablesBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &nullablesClass)
+	}
+	return v
 }
 
 func WriteNullables(w *nino.Writer, v *Nullables) {
-	nino.WriteSealed(w, v, &nullablesClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeNullablesBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &nullablesClass)
+	}
+}
+
+// readNullablesClass reads the body of a Nullables (after its type id) into a new instance.
+func readNullablesClass(r *nino.Reader) *Nullables {
+	v := new(Nullables)
+	if d, ok := r.EnterBody(); ok {
+		readNullablesBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &nullablesClass)
+	}
+	return v
+}
+
+// writeNullablesClass writes the body of v (not nil, after its type id).
+func writeNullablesClass(w *nino.Writer, v *Nullables) {
+	if d, ok := w.EnterBody(); ok {
+		writeNullablesBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &nullablesClass)
+	}
 }
 
 func readNullablesBody(r *nino.Reader, v *Nullables) {
@@ -3182,11 +4815,53 @@ func (*ObjectSlot) NinoTypeID() int32 {
 }
 
 func ReadObjectSlot(r *nino.Reader) *ObjectSlot {
-	return nino.ReadSealed(r, &objectSlotClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(ObjectSlot)
+	if d, ok := r.EnterBody(); ok {
+		readObjectSlotBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &objectSlotClass)
+	}
+	return v
 }
 
 func WriteObjectSlot(w *nino.Writer, v *ObjectSlot) {
-	nino.WriteSealed(w, v, &objectSlotClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeObjectSlotBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &objectSlotClass)
+	}
+}
+
+// readObjectSlotClass reads the body of a ObjectSlot (after its type id) into a new instance.
+func readObjectSlotClass(r *nino.Reader) *ObjectSlot {
+	v := new(ObjectSlot)
+	if d, ok := r.EnterBody(); ok {
+		readObjectSlotBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &objectSlotClass)
+	}
+	return v
+}
+
+// writeObjectSlotClass writes the body of v (not nil, after its type id).
+func writeObjectSlotClass(w *nino.Writer, v *ObjectSlot) {
+	if d, ok := w.EnterBody(); ok {
+		writeObjectSlotBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &objectSlotClass)
+	}
 }
 
 func readObjectSlotBody(r *nino.Reader, v *ObjectSlot) {
@@ -3217,11 +4892,53 @@ func (*Outer) NinoTypeID() int32 {
 }
 
 func ReadOuter(r *nino.Reader) *Outer {
-	return nino.ReadSealed(r, &outerClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Outer)
+	if d, ok := r.EnterBody(); ok {
+		readOuterBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &outerClass)
+	}
+	return v
 }
 
 func WriteOuter(w *nino.Writer, v *Outer) {
-	nino.WriteSealed(w, v, &outerClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeOuterBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &outerClass)
+	}
+}
+
+// readOuterClass reads the body of a Outer (after its type id) into a new instance.
+func readOuterClass(r *nino.Reader) *Outer {
+	v := new(Outer)
+	if d, ok := r.EnterBody(); ok {
+		readOuterBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &outerClass)
+	}
+	return v
+}
+
+// writeOuterClass writes the body of v (not nil, after its type id).
+func writeOuterClass(w *nino.Writer, v *Outer) {
+	if d, ok := w.EnterBody(); ok {
+		writeOuterBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &outerClass)
+	}
 }
 
 func readOuterBody(r *nino.Reader, v *Outer) {
@@ -3294,11 +5011,53 @@ func (*PaddedArray) NinoTypeID() int32 {
 }
 
 func ReadPaddedArray(r *nino.Reader) *PaddedArray {
-	return nino.ReadSealed(r, &paddedArrayClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(PaddedArray)
+	if d, ok := r.EnterBody(); ok {
+		readPaddedArrayBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &paddedArrayClass)
+	}
+	return v
 }
 
 func WritePaddedArray(w *nino.Writer, v *PaddedArray) {
-	nino.WriteSealed(w, v, &paddedArrayClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writePaddedArrayBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &paddedArrayClass)
+	}
+}
+
+// readPaddedArrayClass reads the body of a PaddedArray (after its type id) into a new instance.
+func readPaddedArrayClass(r *nino.Reader) *PaddedArray {
+	v := new(PaddedArray)
+	if d, ok := r.EnterBody(); ok {
+		readPaddedArrayBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &paddedArrayClass)
+	}
+	return v
+}
+
+// writePaddedArrayClass writes the body of v (not nil, after its type id).
+func writePaddedArrayClass(w *nino.Writer, v *PaddedArray) {
+	if d, ok := w.EnterBody(); ok {
+		writePaddedArrayBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &paddedArrayClass)
+	}
 }
 
 func readPaddedArrayBody(r *nino.Reader, v *PaddedArray) {
@@ -3333,7 +5092,7 @@ func ReadPlain(r *nino.Reader) *Plain {
 	case nino.NullTypeID:
 		return nil
 	case 824449116:
-		return nino.ReadClass(r, &plainClass)
+		return readPlainClass(r)
 	default:
 		r.UnknownType(id)
 		return nil
@@ -3341,7 +5100,34 @@ func ReadPlain(r *nino.Reader) *Plain {
 }
 
 func WritePlain(w *nino.Writer, v *Plain) {
-	nino.WriteTyped(w, 824449116, v, &plainClass)
+	if v == nil {
+		w.TypeID(nino.NullTypeID)
+	} else {
+		w.TypeID(824449116)
+		writePlainClass(w, v)
+	}
+}
+
+// readPlainClass reads the body of a Plain (after its type id) into a new instance.
+func readPlainClass(r *nino.Reader) *Plain {
+	v := new(Plain)
+	if d, ok := r.EnterBody(); ok {
+		readPlainBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &plainClass)
+	}
+	return v
+}
+
+// writePlainClass writes the body of v (not nil, after its type id).
+func writePlainClass(w *nino.Writer, v *Plain) {
+	if d, ok := w.EnterBody(); ok {
+		writePlainBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &plainClass)
+	}
 }
 
 func readPlainBody(r *nino.Reader, v *Plain) {
@@ -3371,11 +5157,53 @@ func (*Point) NinoTypeID() int32 {
 }
 
 func ReadPoint(r *nino.Reader) *Point {
-	return nino.ReadSealed(r, &pointClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Point)
+	if d, ok := r.EnterBody(); ok {
+		readPointBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &pointClass)
+	}
+	return v
 }
 
 func WritePoint(w *nino.Writer, v *Point) {
-	nino.WriteSealed(w, v, &pointClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writePointBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &pointClass)
+	}
+}
+
+// readPointClass reads the body of a Point (after its type id) into a new instance.
+func readPointClass(r *nino.Reader) *Point {
+	v := new(Point)
+	if d, ok := r.EnterBody(); ok {
+		readPointBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &pointClass)
+	}
+	return v
+}
+
+// writePointClass writes the body of v (not nil, after its type id).
+func writePointClass(w *nino.Writer, v *Point) {
+	if d, ok := w.EnterBody(); ok {
+		writePointBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &pointClass)
+	}
 }
 
 func readPointBody(r *nino.Reader, v *Point) {
@@ -3410,11 +5238,53 @@ func (*PointList) NinoTypeID() int32 {
 }
 
 func ReadPointList(r *nino.Reader) *PointList {
-	return nino.ReadSealed(r, &pointListClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(PointList)
+	if d, ok := r.EnterBody(); ok {
+		readPointListBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &pointListClass)
+	}
+	return v
 }
 
 func WritePointList(w *nino.Writer, v *PointList) {
-	nino.WriteSealed(w, v, &pointListClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writePointListBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &pointListClass)
+	}
+}
+
+// readPointListClass reads the body of a PointList (after its type id) into a new instance.
+func readPointListClass(r *nino.Reader) *PointList {
+	v := new(PointList)
+	if d, ok := r.EnterBody(); ok {
+		readPointListBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &pointListClass)
+	}
+	return v
+}
+
+// writePointListClass writes the body of v (not nil, after its type id).
+func writePointListClass(w *nino.Writer, v *PointList) {
+	if d, ok := w.EnterBody(); ok {
+		writePointListBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &pointListClass)
+	}
 }
 
 func readPointListBody(r *nino.Reader, v *PointList) {
@@ -3444,11 +5314,53 @@ func (*PointSet) NinoTypeID() int32 {
 }
 
 func ReadPointSet(r *nino.Reader) *PointSet {
-	return nino.ReadSealed(r, &pointSetClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(PointSet)
+	if d, ok := r.EnterBody(); ok {
+		readPointSetBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &pointSetClass)
+	}
+	return v
 }
 
 func WritePointSet(w *nino.Writer, v *PointSet) {
-	nino.WriteSealed(w, v, &pointSetClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writePointSetBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &pointSetClass)
+	}
+}
+
+// readPointSetClass reads the body of a PointSet (after its type id) into a new instance.
+func readPointSetClass(r *nino.Reader) *PointSet {
+	v := new(PointSet)
+	if d, ok := r.EnterBody(); ok {
+		readPointSetBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &pointSetClass)
+	}
+	return v
+}
+
+// writePointSetClass writes the body of v (not nil, after its type id).
+func writePointSetClass(w *nino.Writer, v *PointSet) {
+	if d, ok := w.EnterBody(); ok {
+		writePointSetBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &pointSetClass)
+	}
 }
 
 func readPointSetBody(r *nino.Reader, v *PointSet) {
@@ -3487,11 +5399,53 @@ func (*Puppy) isDogType() {
 }
 
 func ReadPuppy(r *nino.Reader) *Puppy {
-	return nino.ReadSealed(r, &puppyClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Puppy)
+	if d, ok := r.EnterBody(); ok {
+		readPuppyBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &puppyClass)
+	}
+	return v
 }
 
 func WritePuppy(w *nino.Writer, v *Puppy) {
-	nino.WriteSealed(w, v, &puppyClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writePuppyBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &puppyClass)
+	}
+}
+
+// readPuppyClass reads the body of a Puppy (after its type id) into a new instance.
+func readPuppyClass(r *nino.Reader) *Puppy {
+	v := new(Puppy)
+	if d, ok := r.EnterBody(); ok {
+		readPuppyBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &puppyClass)
+	}
+	return v
+}
+
+// writePuppyClass writes the body of v (not nil, after its type id).
+func writePuppyClass(w *nino.Writer, v *Puppy) {
+	if d, ok := w.EnterBody(); ok {
+		writePuppyBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &puppyClass)
+	}
 }
 
 func readPuppyBody(r *nino.Reader, v *Puppy) {
@@ -3525,11 +5479,53 @@ func (*RecordChain) NinoTypeID() int32 {
 }
 
 func ReadRecordChain(r *nino.Reader) *RecordChain {
-	return nino.ReadSealed(r, &recordChainClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(RecordChain)
+	if d, ok := r.EnterBody(); ok {
+		readRecordChainBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &recordChainClass)
+	}
+	return v
 }
 
 func WriteRecordChain(w *nino.Writer, v *RecordChain) {
-	nino.WriteSealed(w, v, &recordChainClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeRecordChainBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &recordChainClass)
+	}
+}
+
+// readRecordChainClass reads the body of a RecordChain (after its type id) into a new instance.
+func readRecordChainClass(r *nino.Reader) *RecordChain {
+	v := new(RecordChain)
+	if d, ok := r.EnterBody(); ok {
+		readRecordChainBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &recordChainClass)
+	}
+	return v
+}
+
+// writeRecordChainClass writes the body of v (not nil, after its type id).
+func writeRecordChainClass(w *nino.Writer, v *RecordChain) {
+	if d, ok := w.EnterBody(); ok {
+		writeRecordChainBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &recordChainClass)
+	}
 }
 
 func readRecordChainBody(r *nino.Reader, v *RecordChain) {
@@ -3564,11 +5560,53 @@ func (*RedLink) isLink() {
 }
 
 func ReadRedLink(r *nino.Reader) *RedLink {
-	return nino.ReadSealed(r, &redLinkClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(RedLink)
+	if d, ok := r.EnterBody(); ok {
+		readRedLinkBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &redLinkClass)
+	}
+	return v
 }
 
 func WriteRedLink(w *nino.Writer, v *RedLink) {
-	nino.WriteSealed(w, v, &redLinkClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeRedLinkBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &redLinkClass)
+	}
+}
+
+// readRedLinkClass reads the body of a RedLink (after its type id) into a new instance.
+func readRedLinkClass(r *nino.Reader) *RedLink {
+	v := new(RedLink)
+	if d, ok := r.EnterBody(); ok {
+		readRedLinkBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &redLinkClass)
+	}
+	return v
+}
+
+// writeRedLinkClass writes the body of v (not nil, after its type id).
+func writeRedLinkClass(w *nino.Writer, v *RedLink) {
+	if d, ok := w.EnterBody(); ok {
+		writeRedLinkBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &redLinkClass)
+	}
 }
 
 func readRedLinkBody(r *nino.Reader, v *RedLink) {
@@ -3605,11 +5643,53 @@ func (*Scalars) NinoTypeID() int32 {
 }
 
 func ReadScalars(r *nino.Reader) *Scalars {
-	return nino.ReadSealed(r, &scalarsClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Scalars)
+	if d, ok := r.EnterBody(); ok {
+		readScalarsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &scalarsClass)
+	}
+	return v
 }
 
 func WriteScalars(w *nino.Writer, v *Scalars) {
-	nino.WriteSealed(w, v, &scalarsClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeScalarsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &scalarsClass)
+	}
+}
+
+// readScalarsClass reads the body of a Scalars (after its type id) into a new instance.
+func readScalarsClass(r *nino.Reader) *Scalars {
+	v := new(Scalars)
+	if d, ok := r.EnterBody(); ok {
+		readScalarsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &scalarsClass)
+	}
+	return v
+}
+
+// writeScalarsClass writes the body of v (not nil, after its type id).
+func writeScalarsClass(w *nino.Writer, v *Scalars) {
+	if d, ok := w.EnterBody(); ok {
+		writeScalarsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &scalarsClass)
+	}
 }
 
 func readScalarsBody(r *nino.Reader, v *Scalars) {
@@ -3654,11 +5734,53 @@ func (*ShapeSlot) NinoTypeID() int32 {
 }
 
 func ReadShapeSlot(r *nino.Reader) *ShapeSlot {
-	return nino.ReadSealed(r, &shapeSlotClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(ShapeSlot)
+	if d, ok := r.EnterBody(); ok {
+		readShapeSlotBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &shapeSlotClass)
+	}
+	return v
 }
 
 func WriteShapeSlot(w *nino.Writer, v *ShapeSlot) {
-	nino.WriteSealed(w, v, &shapeSlotClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeShapeSlotBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &shapeSlotClass)
+	}
+}
+
+// readShapeSlotClass reads the body of a ShapeSlot (after its type id) into a new instance.
+func readShapeSlotClass(r *nino.Reader) *ShapeSlot {
+	v := new(ShapeSlot)
+	if d, ok := r.EnterBody(); ok {
+		readShapeSlotBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &shapeSlotClass)
+	}
+	return v
+}
+
+// writeShapeSlotClass writes the body of v (not nil, after its type id).
+func writeShapeSlotClass(w *nino.Writer, v *ShapeSlot) {
+	if d, ok := w.EnterBody(); ok {
+		writeShapeSlotBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &shapeSlotClass)
+	}
 }
 
 func readShapeSlotBody(r *nino.Reader, v *ShapeSlot) {
@@ -3713,11 +5835,53 @@ func (*SortedMap) NinoTypeID() int32 {
 }
 
 func ReadSortedMap(r *nino.Reader) *SortedMap {
-	return nino.ReadSealed(r, &sortedMapClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(SortedMap)
+	if d, ok := r.EnterBody(); ok {
+		readSortedMapBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &sortedMapClass)
+	}
+	return v
 }
 
 func WriteSortedMap(w *nino.Writer, v *SortedMap) {
-	nino.WriteSealed(w, v, &sortedMapClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeSortedMapBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &sortedMapClass)
+	}
+}
+
+// readSortedMapClass reads the body of a SortedMap (after its type id) into a new instance.
+func readSortedMapClass(r *nino.Reader) *SortedMap {
+	v := new(SortedMap)
+	if d, ok := r.EnterBody(); ok {
+		readSortedMapBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &sortedMapClass)
+	}
+	return v
+}
+
+// writeSortedMapClass writes the body of v (not nil, after its type id).
+func writeSortedMapClass(w *nino.Writer, v *SortedMap) {
+	if d, ok := w.EnterBody(); ok {
+		writeSortedMapBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &sortedMapClass)
+	}
 }
 
 func readSortedMapBody(r *nino.Reader, v *SortedMap) {
@@ -3750,11 +5914,53 @@ func (*Square) isIShape() {
 }
 
 func ReadSquare(r *nino.Reader) *Square {
-	return nino.ReadSealed(r, &squareClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Square)
+	if d, ok := r.EnterBody(); ok {
+		readSquareBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &squareClass)
+	}
+	return v
 }
 
 func WriteSquare(w *nino.Writer, v *Square) {
-	nino.WriteSealed(w, v, &squareClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeSquareBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &squareClass)
+	}
+}
+
+// readSquareClass reads the body of a Square (after its type id) into a new instance.
+func readSquareClass(r *nino.Reader) *Square {
+	v := new(Square)
+	if d, ok := r.EnterBody(); ok {
+		readSquareBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &squareClass)
+	}
+	return v
+}
+
+// writeSquareClass writes the body of v (not nil, after its type id).
+func writeSquareClass(w *nino.Writer, v *Square) {
+	if d, ok := w.EnterBody(); ok {
+		writeSquareBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &squareClass)
+	}
 }
 
 func readSquareBody(r *nino.Reader, v *Square) {
@@ -3793,11 +5999,53 @@ func (*StringCollections) NinoTypeID() int32 {
 }
 
 func ReadStringCollections(r *nino.Reader) *StringCollections {
-	return nino.ReadSealed(r, &stringCollectionsClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(StringCollections)
+	if d, ok := r.EnterBody(); ok {
+		readStringCollectionsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &stringCollectionsClass)
+	}
+	return v
 }
 
 func WriteStringCollections(w *nino.Writer, v *StringCollections) {
-	nino.WriteSealed(w, v, &stringCollectionsClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeStringCollectionsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &stringCollectionsClass)
+	}
+}
+
+// readStringCollectionsClass reads the body of a StringCollections (after its type id) into a new instance.
+func readStringCollectionsClass(r *nino.Reader) *StringCollections {
+	v := new(StringCollections)
+	if d, ok := r.EnterBody(); ok {
+		readStringCollectionsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &stringCollectionsClass)
+	}
+	return v
+}
+
+// writeStringCollectionsClass writes the body of v (not nil, after its type id).
+func writeStringCollectionsClass(w *nino.Writer, v *StringCollections) {
+	if d, ok := w.EnterBody(); ok {
+		writeStringCollectionsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &stringCollectionsClass)
+	}
 }
 
 func readStringCollectionsBody(r *nino.Reader, v *StringCollections) {
@@ -3834,11 +6082,53 @@ func (*StringList) NinoTypeID() int32 {
 }
 
 func ReadStringList(r *nino.Reader) *StringList {
-	return nino.ReadSealed(r, &stringListClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(StringList)
+	if d, ok := r.EnterBody(); ok {
+		readStringListBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &stringListClass)
+	}
+	return v
 }
 
 func WriteStringList(w *nino.Writer, v *StringList) {
-	nino.WriteSealed(w, v, &stringListClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeStringListBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &stringListClass)
+	}
+}
+
+// readStringListClass reads the body of a StringList (after its type id) into a new instance.
+func readStringListClass(r *nino.Reader) *StringList {
+	v := new(StringList)
+	if d, ok := r.EnterBody(); ok {
+		readStringListBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &stringListClass)
+	}
+	return v
+}
+
+// writeStringListClass writes the body of v (not nil, after its type id).
+func writeStringListClass(w *nino.Writer, v *StringList) {
+	if d, ok := w.EnterBody(); ok {
+		writeStringListBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &stringListClass)
+	}
 }
 
 func readStringListBody(r *nino.Reader, v *StringList) {
@@ -3867,11 +6157,53 @@ func (*StringMap) NinoTypeID() int32 {
 }
 
 func ReadStringMap(r *nino.Reader) *StringMap {
-	return nino.ReadSealed(r, &stringMapClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(StringMap)
+	if d, ok := r.EnterBody(); ok {
+		readStringMapBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &stringMapClass)
+	}
+	return v
 }
 
 func WriteStringMap(w *nino.Writer, v *StringMap) {
-	nino.WriteSealed(w, v, &stringMapClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeStringMapBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &stringMapClass)
+	}
+}
+
+// readStringMapClass reads the body of a StringMap (after its type id) into a new instance.
+func readStringMapClass(r *nino.Reader) *StringMap {
+	v := new(StringMap)
+	if d, ok := r.EnterBody(); ok {
+		readStringMapBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &stringMapClass)
+	}
+	return v
+}
+
+// writeStringMapClass writes the body of v (not nil, after its type id).
+func writeStringMapClass(w *nino.Writer, v *StringMap) {
+	if d, ok := w.EnterBody(); ok {
+		writeStringMapBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &stringMapClass)
+	}
 }
 
 func readStringMapBody(r *nino.Reader, v *StringMap) {
@@ -3900,11 +6232,53 @@ func (*StringSet) NinoTypeID() int32 {
 }
 
 func ReadStringSet(r *nino.Reader) *StringSet {
-	return nino.ReadSealed(r, &stringSetClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(StringSet)
+	if d, ok := r.EnterBody(); ok {
+		readStringSetBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &stringSetClass)
+	}
+	return v
 }
 
 func WriteStringSet(w *nino.Writer, v *StringSet) {
-	nino.WriteSealed(w, v, &stringSetClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeStringSetBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &stringSetClass)
+	}
+}
+
+// readStringSetClass reads the body of a StringSet (after its type id) into a new instance.
+func readStringSetClass(r *nino.Reader) *StringSet {
+	v := new(StringSet)
+	if d, ok := r.EnterBody(); ok {
+		readStringSetBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &stringSetClass)
+	}
+	return v
+}
+
+// writeStringSetClass writes the body of v (not nil, after its type id).
+func writeStringSetClass(w *nino.Writer, v *StringSet) {
+	if d, ok := w.EnterBody(); ok {
+		writeStringSetBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &stringSetClass)
+	}
 }
 
 func readStringSetBody(r *nino.Reader, v *StringSet) {
@@ -3934,11 +6308,53 @@ func (*Strings) NinoTypeID() int32 {
 }
 
 func ReadStrings(r *nino.Reader) *Strings {
-	return nino.ReadSealed(r, &stringsClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Strings)
+	if d, ok := r.EnterBody(); ok {
+		readStringsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &stringsClass)
+	}
+	return v
 }
 
 func WriteStrings(w *nino.Writer, v *Strings) {
-	nino.WriteSealed(w, v, &stringsClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeStringsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &stringsClass)
+	}
+}
+
+// readStringsClass reads the body of a Strings (after its type id) into a new instance.
+func readStringsClass(r *nino.Reader) *Strings {
+	v := new(Strings)
+	if d, ok := r.EnterBody(); ok {
+		readStringsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &stringsClass)
+	}
+	return v
+}
+
+// writeStringsClass writes the body of v (not nil, after its type id).
+func writeStringsClass(w *nino.Writer, v *Strings) {
+	if d, ok := w.EnterBody(); ok {
+		writeStringsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &stringsClass)
+	}
 }
 
 func readStringsBody(r *nino.Reader, v *Strings) {
@@ -3982,11 +6398,53 @@ func (*Structs) NinoTypeID() int32 {
 }
 
 func ReadStructs(r *nino.Reader) *Structs {
-	return nino.ReadSealed(r, &structsClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Structs)
+	if d, ok := r.EnterBody(); ok {
+		readStructsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &structsClass)
+	}
+	return v
 }
 
 func WriteStructs(w *nino.Writer, v *Structs) {
-	nino.WriteSealed(w, v, &structsClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeStructsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &structsClass)
+	}
+}
+
+// readStructsClass reads the body of a Structs (after its type id) into a new instance.
+func readStructsClass(r *nino.Reader) *Structs {
+	v := new(Structs)
+	if d, ok := r.EnterBody(); ok {
+		readStructsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &structsClass)
+	}
+	return v
+}
+
+// writeStructsClass writes the body of v (not nil, after its type id).
+func writeStructsClass(w *nino.Writer, v *Structs) {
+	if d, ok := w.EnterBody(); ok {
+		writeStructsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &structsClass)
+	}
 }
 
 func readStructsBody(r *nino.Reader, v *Structs) {
@@ -4041,11 +6499,53 @@ func (*TextValue) NinoTypeID() int32 {
 }
 
 func ReadTextValue(r *nino.Reader) *TextValue {
-	return nino.ReadSealed(r, &textValueClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TextValue)
+	if d, ok := r.EnterBody(); ok {
+		readTextValueBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &textValueClass)
+	}
+	return v
 }
 
 func WriteTextValue(w *nino.Writer, v *TextValue) {
-	nino.WriteSealed(w, v, &textValueClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTextValueBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &textValueClass)
+	}
+}
+
+// readTextValueClass reads the body of a TextValue (after its type id) into a new instance.
+func readTextValueClass(r *nino.Reader) *TextValue {
+	v := new(TextValue)
+	if d, ok := r.EnterBody(); ok {
+		readTextValueBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &textValueClass)
+	}
+	return v
+}
+
+// writeTextValueClass writes the body of v (not nil, after its type id).
+func writeTextValueClass(w *nino.Writer, v *TextValue) {
+	if d, ok := w.EnterBody(); ok {
+		writeTextValueBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &textValueClass)
+	}
 }
 
 func readTextValueBody(r *nino.Reader, v *TextValue) {
@@ -4075,11 +6575,53 @@ func (*TolerantBag) NinoTypeID() int32 {
 }
 
 func ReadTolerantBag(r *nino.Reader) *TolerantBag {
-	return nino.ReadSealed(r, &tolerantBagClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TolerantBag)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantBagBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantBagClass)
+	}
+	return v
 }
 
 func WriteTolerantBag(w *nino.Writer, v *TolerantBag) {
-	nino.WriteSealed(w, v, &tolerantBagClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantBagBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantBagClass)
+	}
+}
+
+// readTolerantBagClass reads the body of a TolerantBag (after its type id) into a new instance.
+func readTolerantBagClass(r *nino.Reader) *TolerantBag {
+	v := new(TolerantBag)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantBagBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantBagClass)
+	}
+	return v
+}
+
+// writeTolerantBagClass writes the body of v (not nil, after its type id).
+func writeTolerantBagClass(w *nino.Writer, v *TolerantBag) {
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantBagBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantBagClass)
+	}
 }
 
 func readTolerantBagBody(r *nino.Reader, v *TolerantBag) {
@@ -4131,9 +6673,9 @@ func ReadTolerantBaseType(r *nino.Reader) TolerantBaseType {
 	case nino.NullTypeID:
 		return nil
 	case -1791558008:
-		return nino.ReadClass(r, &tolerantBaseClass)
+		return readTolerantBaseClass(r)
 	case 1803752715:
-		return nino.ReadClass(r, &tolerantLeafClass)
+		return readTolerantLeafClass(r)
 	default:
 		r.UnknownType(id)
 		return nil
@@ -4145,11 +6687,43 @@ func WriteTolerantBaseType(w *nino.Writer, v TolerantBaseType) {
 	case nil:
 		w.TypeID(nino.NullTypeID)
 	case *TolerantBase:
-		nino.WriteTyped(w, -1791558008, v, &tolerantBaseClass)
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(-1791558008)
+			writeTolerantBaseClass(w, v)
+		}
 	case *TolerantLeaf:
-		nino.WriteTyped(w, 1803752715, v, &tolerantLeafClass)
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(1803752715)
+			writeTolerantLeafClass(w, v)
+		}
 	default:
 		w.Fail(nino.CodeUnknownType, "not a type the slot allows")
+	}
+}
+
+// readTolerantBaseClass reads the body of a TolerantBase (after its type id) into a new instance.
+func readTolerantBaseClass(r *nino.Reader) *TolerantBase {
+	v := new(TolerantBase)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantBaseBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantBaseClass)
+	}
+	return v
+}
+
+// writeTolerantBaseClass writes the body of v (not nil, after its type id).
+func writeTolerantBaseClass(w *nino.Writer, v *TolerantBase) {
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantBaseBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantBaseClass)
 	}
 }
 
@@ -4186,11 +6760,53 @@ func (*TolerantChain) NinoTypeID() int32 {
 }
 
 func ReadTolerantChain(r *nino.Reader) *TolerantChain {
-	return nino.ReadSealed(r, &tolerantChainClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TolerantChain)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantChainBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantChainClass)
+	}
+	return v
 }
 
 func WriteTolerantChain(w *nino.Writer, v *TolerantChain) {
-	nino.WriteSealed(w, v, &tolerantChainClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantChainBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantChainClass)
+	}
+}
+
+// readTolerantChainClass reads the body of a TolerantChain (after its type id) into a new instance.
+func readTolerantChainClass(r *nino.Reader) *TolerantChain {
+	v := new(TolerantChain)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantChainBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantChainClass)
+	}
+	return v
+}
+
+// writeTolerantChainClass writes the body of v (not nil, after its type id).
+func writeTolerantChainClass(w *nino.Writer, v *TolerantChain) {
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantChainBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantChainClass)
+	}
 }
 
 func readTolerantChainBody(r *nino.Reader, v *TolerantChain) {
@@ -4227,11 +6843,53 @@ func (*TolerantEmpty) NinoTypeID() int32 {
 }
 
 func ReadTolerantEmpty(r *nino.Reader) *TolerantEmpty {
-	return nino.ReadSealed(r, &tolerantEmptyClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TolerantEmpty)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantEmptyBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantEmptyClass)
+	}
+	return v
 }
 
 func WriteTolerantEmpty(w *nino.Writer, v *TolerantEmpty) {
-	nino.WriteSealed(w, v, &tolerantEmptyClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantEmptyBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantEmptyClass)
+	}
+}
+
+// readTolerantEmptyClass reads the body of a TolerantEmpty (after its type id) into a new instance.
+func readTolerantEmptyClass(r *nino.Reader) *TolerantEmpty {
+	v := new(TolerantEmpty)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantEmptyBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantEmptyClass)
+	}
+	return v
+}
+
+// writeTolerantEmptyClass writes the body of v (not nil, after its type id).
+func writeTolerantEmptyClass(w *nino.Writer, v *TolerantEmpty) {
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantEmptyBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantEmptyClass)
+	}
 }
 
 func readTolerantEmptyBody(r *nino.Reader, v *TolerantEmpty) {
@@ -4265,11 +6923,53 @@ func (*TolerantHolder) NinoTypeID() int32 {
 }
 
 func ReadTolerantHolder(r *nino.Reader) *TolerantHolder {
-	return nino.ReadSealed(r, &tolerantHolderClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TolerantHolder)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantHolderClass)
+	}
+	return v
 }
 
 func WriteTolerantHolder(w *nino.Writer, v *TolerantHolder) {
-	nino.WriteSealed(w, v, &tolerantHolderClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantHolderClass)
+	}
+}
+
+// readTolerantHolderClass reads the body of a TolerantHolder (after its type id) into a new instance.
+func readTolerantHolderClass(r *nino.Reader) *TolerantHolder {
+	v := new(TolerantHolder)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantHolderClass)
+	}
+	return v
+}
+
+// writeTolerantHolderClass writes the body of v (not nil, after its type id).
+func writeTolerantHolderClass(w *nino.Writer, v *TolerantHolder) {
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantHolderClass)
+	}
 }
 
 func readTolerantHolderBody(r *nino.Reader, v *TolerantHolder) {
@@ -4308,11 +7008,53 @@ func (*TolerantLeaf) isTolerantBaseType() {
 }
 
 func ReadTolerantLeaf(r *nino.Reader) *TolerantLeaf {
-	return nino.ReadSealed(r, &tolerantLeafClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TolerantLeaf)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantLeafBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantLeafClass)
+	}
+	return v
 }
 
 func WriteTolerantLeaf(w *nino.Writer, v *TolerantLeaf) {
-	nino.WriteSealed(w, v, &tolerantLeafClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantLeafBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantLeafClass)
+	}
+}
+
+// readTolerantLeafClass reads the body of a TolerantLeaf (after its type id) into a new instance.
+func readTolerantLeafClass(r *nino.Reader) *TolerantLeaf {
+	v := new(TolerantLeaf)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantLeafBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantLeafClass)
+	}
+	return v
+}
+
+// writeTolerantLeafClass writes the body of v (not nil, after its type id).
+func writeTolerantLeafClass(w *nino.Writer, v *TolerantLeaf) {
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantLeafBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantLeafClass)
+	}
 }
 
 func readTolerantLeafBody(r *nino.Reader, v *TolerantLeaf) {
@@ -4353,11 +7095,53 @@ func (*TolerantRoot) NinoTypeID() int32 {
 }
 
 func ReadTolerantRoot(r *nino.Reader) *TolerantRoot {
-	return nino.ReadSealed(r, &tolerantRootClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TolerantRoot)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantRootBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantRootClass)
+	}
+	return v
 }
 
 func WriteTolerantRoot(w *nino.Writer, v *TolerantRoot) {
-	nino.WriteSealed(w, v, &tolerantRootClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantRootBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantRootClass)
+	}
+}
+
+// readTolerantRootClass reads the body of a TolerantRoot (after its type id) into a new instance.
+func readTolerantRootClass(r *nino.Reader) *TolerantRoot {
+	v := new(TolerantRoot)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantRootBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantRootClass)
+	}
+	return v
+}
+
+// writeTolerantRootClass writes the body of v (not nil, after its type id).
+func writeTolerantRootClass(w *nino.Writer, v *TolerantRoot) {
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantRootBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantRootClass)
+	}
 }
 
 func readTolerantRootBody(r *nino.Reader, v *TolerantRoot) {
@@ -4401,11 +7185,53 @@ func (*TolerantV1) NinoTypeID() int32 {
 }
 
 func ReadTolerantV1(r *nino.Reader) *TolerantV1 {
-	return nino.ReadSealed(r, &tolerantV1Class)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TolerantV1)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantV1Body(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantV1Class)
+	}
+	return v
 }
 
 func WriteTolerantV1(w *nino.Writer, v *TolerantV1) {
-	nino.WriteSealed(w, v, &tolerantV1Class)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantV1Body(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantV1Class)
+	}
+}
+
+// readTolerantV1Class reads the body of a TolerantV1 (after its type id) into a new instance.
+func readTolerantV1Class(r *nino.Reader) *TolerantV1 {
+	v := new(TolerantV1)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantV1Body(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantV1Class)
+	}
+	return v
+}
+
+// writeTolerantV1Class writes the body of v (not nil, after its type id).
+func writeTolerantV1Class(w *nino.Writer, v *TolerantV1) {
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantV1Body(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantV1Class)
+	}
 }
 
 func readTolerantV1Body(r *nino.Reader, v *TolerantV1) {
@@ -4447,11 +7273,53 @@ func (*TolerantV2) NinoTypeID() int32 {
 }
 
 func ReadTolerantV2(r *nino.Reader) *TolerantV2 {
-	return nino.ReadSealed(r, &tolerantV2Class)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TolerantV2)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantV2Body(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantV2Class)
+	}
+	return v
 }
 
 func WriteTolerantV2(w *nino.Writer, v *TolerantV2) {
-	nino.WriteSealed(w, v, &tolerantV2Class)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantV2Body(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantV2Class)
+	}
+}
+
+// readTolerantV2Class reads the body of a TolerantV2 (after its type id) into a new instance.
+func readTolerantV2Class(r *nino.Reader) *TolerantV2 {
+	v := new(TolerantV2)
+	if d, ok := r.EnterBody(); ok {
+		readTolerantV2Body(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &tolerantV2Class)
+	}
+	return v
+}
+
+// writeTolerantV2Class writes the body of v (not nil, after its type id).
+func writeTolerantV2Class(w *nino.Writer, v *TolerantV2) {
+	if d, ok := w.EnterBody(); ok {
+		writeTolerantV2Body(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &tolerantV2Class)
+	}
 }
 
 func readTolerantV2Body(r *nino.Reader, v *TolerantV2) {
@@ -4585,11 +7453,53 @@ func (*TrackedHolder) NinoTypeID() int32 {
 }
 
 func ReadTrackedHolder(r *nino.Reader) *TrackedHolder {
-	return nino.ReadSealed(r, &trackedHolderClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TrackedHolder)
+	if d, ok := r.EnterBody(); ok {
+		readTrackedHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &trackedHolderClass)
+	}
+	return v
 }
 
 func WriteTrackedHolder(w *nino.Writer, v *TrackedHolder) {
-	nino.WriteSealed(w, v, &trackedHolderClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTrackedHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &trackedHolderClass)
+	}
+}
+
+// readTrackedHolderClass reads the body of a TrackedHolder (after its type id) into a new instance.
+func readTrackedHolderClass(r *nino.Reader) *TrackedHolder {
+	v := new(TrackedHolder)
+	if d, ok := r.EnterBody(); ok {
+		readTrackedHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &trackedHolderClass)
+	}
+	return v
+}
+
+// writeTrackedHolderClass writes the body of v (not nil, after its type id).
+func writeTrackedHolderClass(w *nino.Writer, v *TrackedHolder) {
+	if d, ok := w.EnterBody(); ok {
+		writeTrackedHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &trackedHolderClass)
+	}
 }
 
 func readTrackedHolderBody(r *nino.Reader, v *TrackedHolder) {
@@ -4674,11 +7584,53 @@ func (*TrackedMix) NinoTypeID() int32 {
 }
 
 func ReadTrackedMix(r *nino.Reader) *TrackedMix {
-	return nino.ReadSealed(r, &trackedMixClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TrackedMix)
+	if d, ok := r.EnterBody(); ok {
+		readTrackedMixBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &trackedMixClass)
+	}
+	return v
 }
 
 func WriteTrackedMix(w *nino.Writer, v *TrackedMix) {
-	nino.WriteSealed(w, v, &trackedMixClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTrackedMixBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &trackedMixClass)
+	}
+}
+
+// readTrackedMixClass reads the body of a TrackedMix (after its type id) into a new instance.
+func readTrackedMixClass(r *nino.Reader) *TrackedMix {
+	v := new(TrackedMix)
+	if d, ok := r.EnterBody(); ok {
+		readTrackedMixBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &trackedMixClass)
+	}
+	return v
+}
+
+// writeTrackedMixClass writes the body of v (not nil, after its type id).
+func writeTrackedMixClass(w *nino.Writer, v *TrackedMix) {
+	if d, ok := w.EnterBody(); ok {
+		writeTrackedMixBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &trackedMixClass)
+	}
 }
 
 func readTrackedMixBody(r *nino.Reader, v *TrackedMix) {
@@ -4798,11 +7750,53 @@ func (*TreeHolder) NinoTypeID() int32 {
 }
 
 func ReadTreeHolder(r *nino.Reader) *TreeHolder {
-	return nino.ReadSealed(r, &treeHolderClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TreeHolder)
+	if d, ok := r.EnterBody(); ok {
+		readTreeHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &treeHolderClass)
+	}
+	return v
 }
 
 func WriteTreeHolder(w *nino.Writer, v *TreeHolder) {
-	nino.WriteSealed(w, v, &treeHolderClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTreeHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &treeHolderClass)
+	}
+}
+
+// readTreeHolderClass reads the body of a TreeHolder (after its type id) into a new instance.
+func readTreeHolderClass(r *nino.Reader) *TreeHolder {
+	v := new(TreeHolder)
+	if d, ok := r.EnterBody(); ok {
+		readTreeHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &treeHolderClass)
+	}
+	return v
+}
+
+// writeTreeHolderClass writes the body of v (not nil, after its type id).
+func writeTreeHolderClass(w *nino.Writer, v *TreeHolder) {
+	if d, ok := w.EnterBody(); ok {
+		writeTreeHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &treeHolderClass)
+	}
 }
 
 func readTreeHolderBody(r *nino.Reader, v *TreeHolder) {
@@ -4834,11 +7828,53 @@ func (*TreeNode) NinoTypeID() int32 {
 }
 
 func ReadTreeNode(r *nino.Reader) *TreeNode {
-	return nino.ReadSealed(r, &treeNodeClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(TreeNode)
+	if d, ok := r.EnterBody(); ok {
+		readTreeNodeBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &treeNodeClass)
+	}
+	return v
 }
 
 func WriteTreeNode(w *nino.Writer, v *TreeNode) {
-	nino.WriteSealed(w, v, &treeNodeClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTreeNodeBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &treeNodeClass)
+	}
+}
+
+// readTreeNodeClass reads the body of a TreeNode (after its type id) into a new instance.
+func readTreeNodeClass(r *nino.Reader) *TreeNode {
+	v := new(TreeNode)
+	if d, ok := r.EnterBody(); ok {
+		readTreeNodeBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &treeNodeClass)
+	}
+	return v
+}
+
+// writeTreeNodeClass writes the body of v (not nil, after its type id).
+func writeTreeNodeClass(w *nino.Writer, v *TreeNode) {
+	if d, ok := w.EnterBody(); ok {
+		writeTreeNodeBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &treeNodeClass)
+	}
 }
 
 func readTreeNodeBody(r *nino.Reader, v *TreeNode) {
@@ -4869,11 +7905,53 @@ func (*Utf8Value) NinoTypeID() int32 {
 }
 
 func ReadUtf8Value(r *nino.Reader) *Utf8Value {
-	return nino.ReadSealed(r, &utf8ValueClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Utf8Value)
+	if d, ok := r.EnterBody(); ok {
+		readUtf8ValueBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &utf8ValueClass)
+	}
+	return v
 }
 
 func WriteUtf8Value(w *nino.Writer, v *Utf8Value) {
-	nino.WriteSealed(w, v, &utf8ValueClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeUtf8ValueBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &utf8ValueClass)
+	}
+}
+
+// readUtf8ValueClass reads the body of a Utf8Value (after its type id) into a new instance.
+func readUtf8ValueClass(r *nino.Reader) *Utf8Value {
+	v := new(Utf8Value)
+	if d, ok := r.EnterBody(); ok {
+		readUtf8ValueBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &utf8ValueClass)
+	}
+	return v
+}
+
+// writeUtf8ValueClass writes the body of v (not nil, after its type id).
+func writeUtf8ValueClass(w *nino.Writer, v *Utf8Value) {
+	if d, ok := w.EnterBody(); ok {
+		writeUtf8ValueBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &utf8ValueClass)
+	}
 }
 
 func readUtf8ValueBody(r *nino.Reader, v *Utf8Value) {
@@ -4922,11 +8000,53 @@ func (*VersionSlot) NinoTypeID() int32 {
 }
 
 func ReadVersionSlot(r *nino.Reader) *VersionSlot {
-	return nino.ReadSealed(r, &versionSlotClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(VersionSlot)
+	if d, ok := r.EnterBody(); ok {
+		readVersionSlotBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &versionSlotClass)
+	}
+	return v
 }
 
 func WriteVersionSlot(w *nino.Writer, v *VersionSlot) {
-	nino.WriteSealed(w, v, &versionSlotClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeVersionSlotBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &versionSlotClass)
+	}
+}
+
+// readVersionSlotClass reads the body of a VersionSlot (after its type id) into a new instance.
+func readVersionSlotClass(r *nino.Reader) *VersionSlot {
+	v := new(VersionSlot)
+	if d, ok := r.EnterBody(); ok {
+		readVersionSlotBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &versionSlotClass)
+	}
+	return v
+}
+
+// writeVersionSlotClass writes the body of v (not nil, after its type id).
+func writeVersionSlotClass(w *nino.Writer, v *VersionSlot) {
+	if d, ok := w.EnterBody(); ok {
+		writeVersionSlotBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &versionSlotClass)
+	}
 }
 
 func readVersionSlotBody(r *nino.Reader, v *VersionSlot) {
@@ -5039,11 +8159,53 @@ func (*WrappedArgs) NinoTypeID() int32 {
 }
 
 func ReadWrappedArgs(r *nino.Reader) *WrappedArgs {
-	return nino.ReadSealed(r, &wrappedArgsClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(WrappedArgs)
+	if d, ok := r.EnterBody(); ok {
+		readWrappedArgsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &wrappedArgsClass)
+	}
+	return v
 }
 
 func WriteWrappedArgs(w *nino.Writer, v *WrappedArgs) {
-	nino.WriteSealed(w, v, &wrappedArgsClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeWrappedArgsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &wrappedArgsClass)
+	}
+}
+
+// readWrappedArgsClass reads the body of a WrappedArgs (after its type id) into a new instance.
+func readWrappedArgsClass(r *nino.Reader) *WrappedArgs {
+	v := new(WrappedArgs)
+	if d, ok := r.EnterBody(); ok {
+		readWrappedArgsBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &wrappedArgsClass)
+	}
+	return v
+}
+
+// writeWrappedArgsClass writes the body of v (not nil, after its type id).
+func writeWrappedArgsClass(w *nino.Writer, v *WrappedArgs) {
+	if d, ok := w.EnterBody(); ok {
+		writeWrappedArgsBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &wrappedArgsClass)
+	}
 }
 
 func readWrappedArgsBody(r *nino.Reader, v *WrappedArgs) {
@@ -5092,11 +8254,53 @@ func (*Zoo) NinoTypeID() int32 {
 }
 
 func ReadZoo(r *nino.Reader) *Zoo {
-	return nino.ReadSealed(r, &zooClass)
+	if !r.Present() {
+		return nil
+	}
+	v := new(Zoo)
+	if d, ok := r.EnterBody(); ok {
+		readZooBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &zooClass)
+	}
+	return v
 }
 
 func WriteZoo(w *nino.Writer, v *Zoo) {
-	nino.WriteSealed(w, v, &zooClass)
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeZooBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &zooClass)
+	}
+}
+
+// readZooClass reads the body of a Zoo (after its type id) into a new instance.
+func readZooClass(r *nino.Reader) *Zoo {
+	v := new(Zoo)
+	if d, ok := r.EnterBody(); ok {
+		readZooBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &zooClass)
+	}
+	return v
+}
+
+// writeZooClass writes the body of v (not nil, after its type id).
+func writeZooClass(w *nino.Writer, v *Zoo) {
+	if d, ok := w.EnterBody(); ok {
+		writeZooBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &zooClass)
+	}
 }
 
 func readZooBody(r *nino.Reader, v *Zoo) {
@@ -5139,7 +8343,7 @@ func readSlot0(r *nino.Reader) Shelf[int32] {
 	case nino.NullTypeID:
 		return nil
 	case 1668345001:
-		return nino.ReadClass(r, &intShelfClass)
+		return readIntShelfClass(r)
 	case 2091348491:
 		return nino.ReadClass(r, &typeV9.class)
 	default:
@@ -5153,7 +8357,12 @@ func writeSlot0(w *nino.Writer, v Shelf[int32]) {
 	case nil:
 		w.TypeID(nino.NullTypeID)
 	case *IntShelf:
-		nino.WriteTyped(w, 1668345001, v, &intShelfClass)
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(1668345001)
+			writeIntShelfClass(w, v)
+		}
 	case *ListShelf[int32]:
 		nino.WriteTyped(w, 2091348491, v, &typeV9.class)
 	default:
@@ -5286,7 +8495,21 @@ func ninoNonNil[T any](v []T) []T {
 }
 
 func readV0(r *nino.Reader) []nino.Entry[string, DictTree] {
-	return nino.ReadUniqueEntries(r, 5, keyString, readDictTree)
+	n := r.Length(5)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[string, DictTree]
+	v := make([]nino.Entry[string, DictTree], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		k := keyString(r)
+		e = nino.Entry[string, DictTree]{Key: k, Value: readDictTree(r)}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.UniqueEntries(r, v)
 }
 
 func writeV1(w *nino.Writer, v []nino.Entry[string, DictTree]) {
@@ -5434,7 +8657,21 @@ func writeV9(w *nino.Writer, v []*Vec2) {
 }
 
 func readV10(r *nino.Reader) []nino.Entry[int32, *float64] {
-	return nino.ReadUniqueEntries(r, 5, (*nino.Reader).I32, readV53)
+	n := r.Length(5)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[int32, *float64]
+	v := make([]nino.Entry[int32, *float64], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		k := r.I32()
+		e = nino.Entry[int32, *float64]{Key: k, Value: readV53(r)}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.UniqueEntries(r, v)
 }
 
 func writeV11(w *nino.Writer, v []nino.Entry[int32, *float64]) {
@@ -5614,23 +8851,93 @@ func readV22(r *nino.Reader) []*string {
 }
 
 func readV23(r *nino.Reader) []nino.Entry[string, *string] {
-	return nino.ReadUniqueEntries(r, 2, keyString, (*nino.Reader).StringPtr)
+	n := r.Length(2)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[string, *string]
+	v := make([]nino.Entry[string, *string], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		k := keyString(r)
+		e = nino.Entry[string, *string]{Key: k, Value: r.StringPtr()}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.UniqueEntries(r, v)
 }
 
 func readV24(r *nino.Reader) []nino.Entry[string, *Point] {
-	return nino.ReadUniqueEntries(r, 2, keyString, ReadPoint)
+	n := r.Length(2)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[string, *Point]
+	v := make([]nino.Entry[string, *Point], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		k := keyString(r)
+		e = nino.Entry[string, *Point]{Key: k, Value: ReadPoint(r)}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.UniqueEntries(r, v)
 }
 
 func readV25(r *nino.Reader) []nino.Entry[int32, []*string] {
-	return nino.ReadUniqueEntries(r, 8, (*nino.Reader).I32, readV21)
+	n := r.Length(8)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[int32, []*string]
+	v := make([]nino.Entry[int32, []*string], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		k := r.I32()
+		e = nino.Entry[int32, []*string]{Key: k, Value: readV21(r)}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.UniqueEntries(r, v)
 }
 
 func readV26(r *nino.Reader) []nino.Entry[int32, *string] {
-	return nino.ReadUniqueEntries(r, 5, (*nino.Reader).I32, (*nino.Reader).StringPtr)
+	n := r.Length(5)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[int32, *string]
+	v := make([]nino.Entry[int32, *string], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		k := r.I32()
+		e = nino.Entry[int32, *string]{Key: k, Value: r.StringPtr()}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.UniqueEntries(r, v)
 }
 
 func readV27(r *nino.Reader) []nino.Entry[string, int32] {
-	return nino.ReadUniqueEntries(r, 5, keyString, (*nino.Reader).I32)
+	n := r.Length(5)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[string, int32]
+	v := make([]nino.Entry[string, int32], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		k := keyString(r)
+		e = nino.Entry[string, int32]{Key: k, Value: r.I32()}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.UniqueEntries(r, v)
 }
 
 func readV28(r *nino.Reader) [][]int32 {
@@ -6015,7 +9322,21 @@ func readV61(r *nino.Reader) []*Padded {
 }
 
 func readV62(r *nino.Reader) []nino.Entry[int32, *int32] {
-	return nino.ReadUniqueEntries(r, 5, (*nino.Reader).I32, readV50)
+	n := r.Length(5)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[int32, *int32]
+	v := make([]nino.Entry[int32, *int32], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		k := r.I32()
+		e = nino.Entry[int32, *int32]{Key: k, Value: readV50(r)}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.UniqueEntries(r, v)
 }
 
 func writeV63(w *nino.Writer, v *int64) {
@@ -6252,7 +9573,21 @@ func readV90(r *nino.Reader) []*TrackedNode {
 }
 
 func readV91(r *nino.Reader) []nino.Entry[int32, *TrackedNode] {
-	return nino.ReadUniqueEntries(r, 8, (*nino.Reader).I32, ReadTrackedNode)
+	n := r.Length(8)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[int32, *TrackedNode]
+	v := make([]nino.Entry[int32, *TrackedNode], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		k := r.I32()
+		e = nino.Entry[int32, *TrackedNode]{Key: k, Value: ReadTrackedNode(r)}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.UniqueEntries(r, v)
 }
 
 func writeV92(w *nino.Writer, v []*TrackedNode) {
@@ -6341,7 +9676,21 @@ func readV97(r *nino.Reader) []IShape {
 }
 
 func readV98(r *nino.Reader) []nino.Entry[string, Animal] {
-	return nino.ReadUniqueEntries(r, 5, keyString, ReadAnimal)
+	n := r.Length(5)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[string, Animal]
+	v := make([]nino.Entry[string, Animal], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		k := keyString(r)
+		e = nino.Entry[string, Animal]{Key: k, Value: ReadAnimal(r)}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.UniqueEntries(r, v)
 }
 
 func writeV99(w *nino.Writer, v []Animal) {

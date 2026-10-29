@@ -845,3 +845,34 @@ func expectOK(t *testing.T, data []byte, f func(r *Reader)) {
 		t.Fatal(r.Err())
 	}
 }
+
+// TestEnterBody: bodies open in place below InlineDepth and not from it on, on both sides, and ExitBody restores
+// the depth EnterBody returned.
+func TestEnterBody(t *testing.T) {
+	r, w := NewReader(nil), NewWriter(0)
+	var rd, wd []int32
+	for i := int32(0); i < InlineDepth; i++ {
+		d, ok := r.EnterBody()
+		e, wok := w.EnterBody()
+		if !ok || !wok || d != i || e != i {
+			t.Fatalf("depth %d: reader %d %v, writer %d %v", i, d, ok, e, wok)
+		}
+		rd, wd = append(rd, d), append(wd, e)
+	}
+	if d, ok := r.EnterBody(); ok || d != InlineDepth {
+		t.Fatalf("reader past InlineDepth: %d %v", d, ok)
+	}
+	if d, ok := w.EnterBody(); ok || d != InlineDepth {
+		t.Fatalf("writer past InlineDepth: %d %v", d, ok)
+	}
+	for i := len(rd) - 1; i >= 0; i-- {
+		r.ExitBody(rd[i])
+		w.ExitBody(wd[i])
+	}
+	if d, ok := r.EnterBody(); !ok || d != 0 || r.Err() != nil {
+		t.Fatalf("reader after closing every body: %d %v %v", d, ok, r.Err())
+	}
+	if d, ok := w.EnterBody(); !ok || d != 0 || w.Err() != nil {
+		t.Fatalf("writer after closing every body: %d %v %v", d, ok, w.Err())
+	}
+}
