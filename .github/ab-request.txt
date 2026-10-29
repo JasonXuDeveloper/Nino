@@ -968,3 +968,10 @@ typescript 18c7bbd ef4917d orders # cold-diag 1
 typescript 18c7bbd ef4917d orders # cold-diag 2
 typescript ef4917d ef4917d mesh # cold-diag floor 1
 typescript ef4917d ef4917d mesh # cold-diag floor 2
+# TS bench: each serializer with only its own data live (0c5ad99) against main's bench (78ceaa1, all data live), floors
+typescript 0c5ad99 0c5ad99 # own-data 1
+typescript 0c5ad99 0c5ad99 # own-data 2
+typescript 0c5ad99 0c5ad99 # own-data 3
+typescript 78ceaa1 78ceaa1 # all-data 1
+typescript 78ceaa1 78ceaa1 # all-data 2
+typescript 78ceaa1 78ceaa1 # all-data 3
