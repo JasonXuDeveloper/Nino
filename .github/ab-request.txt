@@ -1140,3 +1140,15 @@ typescript 9a3287d 9a3287d # ts floor on main 9a3287d (aa6215930cf014838)
 # Go block checks out of line (c532513), run 40925188020 had DateOnly +6.8 % on Neoverse-N2 from layout
 go:. a309ab3 c532513 Blocks # go blocks, per-type checks out of line (Go block worker); ref origin/ab/go-blocks-3
 go:. a309ab3 c532513 Blocks # go blocks out of line copy 2 (Go block worker); ref origin/ab/go-blocks-3
+# batch: ts read-into, go body + UniqueEntries with 8573C re-check, go read-into (queue taken by the dispatch worker)
+typescript 3be95efd 97c75ff2 # ts read-into (agent a0f34ddb0aa4462cf): readX(r, v = new X()) and members read into, must be on par; make 97c75ff2 reachable with merge -s ours (ref origin/ab/ts-read-into)
+typescript 3be95efd 97c75ff2 # ts read-into (agent a0f34ddb0aa4462cf) copy 2
+typescript 3be95efd 3be95efd # ts read-into floor (agent a0f34ddb0aa4462cf); shares a 3be95efd floor
+go#12 46b461ad ffa2829c ^Benchmark(Serialize|Deserialize)$/./^Nino$ # go class bodies direct + UniqueEntries (agent dispatch worker); make ffa2829c reachable with merge -s ours (ref origin/ab/go-body)
+go#12 46b461ad ffa2829c ^Benchmark(Serialize|Deserialize)$/./^Nino$ # go body (dispatch worker) copy 2
+go#12 46b461ad 46b461ad ^Benchmark(Serialize|Deserialize)$/./^Nino$ # go floor on 46b461ad (dispatch worker); shares a 46b461ad floor
+go#12 78ceaa1 ffa2829c ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # go body vs old base, Xeon 8573C scattered-1m serialize re-check (dispatch worker) 1
+go#12 78ceaa1 ffa2829c ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch worker 8573C re-check 2
+go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch worker 8573C floor
+go 97c75ff2 ae46b36d # go read-into (agent a0f34ddb0aa4462cf): ReadX through ReadXInto, lists through readinto, must be on par; make ae46b36d reachable with merge -s ours (ref origin/ab/go-read-into)
+go 97c75ff2 97c75ff2 # go read-into floor (agent a0f34ddb0aa4462cf)
