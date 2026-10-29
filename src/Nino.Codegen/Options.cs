@@ -74,7 +74,7 @@ namespace Nino.Codegen
             new CodegenOption("import-extension", "ImportExtension", CodegenLanguage.TypeScript,
                 "<.js|.ts|.mjs|.mts>", "", new[] { "", ".js", ".ts", ".mjs", ".mts" }),
             new CodegenOption("runtime", "Runtime", CodegenLanguage.TypeScript, "<module>", ""),
-            new CodegenOption("numeric-arrays", "NumericArrays", CodegenLanguage.TypeScript, "array|typed", "array",
+            new CodegenOption("numeric-arrays", "NumericArrays", CodegenLanguage.TypeScript, "array|typed", "typed",
                 new[] { "array", "typed" }),
             new CodegenOption("package", "Package", CodegenLanguage.Go, "<name>", null),
             new CodegenOption("tags", "Tags", CodegenLanguage.Go, "json,yaml", "json,yaml"),
