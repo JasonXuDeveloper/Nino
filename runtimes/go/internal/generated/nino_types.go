@@ -5651,11 +5651,31 @@ func readV28(r *nino.Reader) [][]int32 {
 }
 
 func readV29(r *nino.Reader) *NinoGrid[int32] {
-	return readGrid(r, 2, 4, (*nino.Reader).I32)
+	g := readGrid[int32](r, 2, 4)
+	if g == nil {
+		return nil
+	}
+	for i := range g.Items {
+		g.Items[i] = r.I32()
+		if r.Failed() {
+			return nil
+		}
+	}
+	return g
 }
 
 func readV30(r *nino.Reader) *NinoGrid[*string] {
-	return readGrid(r, 2, 1, (*nino.Reader).StringPtr)
+	g := readGrid[*string](r, 2, 1)
+	if g == nil {
+		return nil
+	}
+	for i := range g.Items {
+		g.Items[i] = r.StringPtr()
+		if r.Failed() {
+			return nil
+		}
+	}
+	return g
 }
 
 func writeV31(w *nino.Writer, v []int32) {
@@ -5742,11 +5762,21 @@ func writeV39(w *nino.Writer, v [][]int32) {
 }
 
 func writeV40(w *nino.Writer, v *NinoGrid[int32]) {
-	writeGrid(w, v, 2, (*nino.Writer).I32)
+	if !writeGrid(w, v, 2) {
+		return
+	}
+	for _, e := range v.Items {
+		w.I32(e)
+	}
 }
 
 func writeV41(w *nino.Writer, v *NinoGrid[*string]) {
-	writeGrid(w, v, 2, (*nino.Writer).StringPtr)
+	if !writeGrid(w, v, 2) {
+		return
+	}
+	for _, e := range v.Items {
+		w.StringPtr(e)
+	}
 }
 
 func readV42(r *nino.Reader) []EmptyStruct {
@@ -6464,26 +6494,21 @@ type NinoGrid[T any] struct {
 	Items   []T
 }
 
-func readGrid[T any](r *nino.Reader, rank, minSize int, read func(*nino.Reader) T) *NinoGrid[T] {
+// readGrid reads a grid's shape and makes its items, which the caller reads: nil for null and on a failure.
+func readGrid[T any](r *nino.Reader, rank, minSize int) *NinoGrid[T] {
 	s, ok := r.ReadShape(rank, minSize)
 	if !ok {
 		return nil
 	}
 	// ReadShape checked the element count against the bytes left.
-	g := &NinoGrid[T]{Lengths: append([]int(nil), s.Dims[:rank]...), Items: make([]T, s.Total)}
-	for i := range g.Items {
-		g.Items[i] = read(r)
-		if r.Failed() {
-			return nil
-		}
-	}
-	return g
+	return &NinoGrid[T]{Lengths: append([]int(nil), s.Dims[:rank]...), Items: make([]T, s.Total)}
 }
 
-func writeGrid[T any](w *nino.Writer, g *NinoGrid[T], rank int, write func(*nino.Writer, T)) {
+// writeGrid writes a grid's shape (null for nil): whether the caller writes its items next.
+func writeGrid[T any](w *nino.Writer, g *NinoGrid[T], rank int) bool {
 	if g == nil {
 		w.Null()
-		return
+		return false
 	}
 	total := 1
 	for _, n := range g.Lengths {
@@ -6495,12 +6520,10 @@ func writeGrid[T any](w *nino.Writer, g *NinoGrid[T], rank int, write func(*nino
 	}
 	if len(g.Lengths) != rank || total != len(g.Items) {
 		w.Fail(nino.CodeInvalidValue, "grid lengths do not match its items")
-		return
+		return false
 	}
 	w.WriteShape(g.Lengths...)
-	for _, e := range g.Items {
-		write(w, e)
-	}
+	return true
 }
 
 // keyString reads a string dictionary key: null is invalid (.NET's dictionaries reject a null key).

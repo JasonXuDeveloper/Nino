@@ -171,7 +171,8 @@ func helper_body(h)
       end
       ret $o + "\treturn v\n}\n"
     when "grid"
-      ret $o + "\treturn readGrid(r, " + $s.rank + ", " + compact($s.element.min) + ", " + rfn($s.element) + ")\n}\n"
+      $o = $o + "\tg := readGrid[" + gotype($s.element) + "](r, " + $s.rank + ", " + compact($s.element.min) + ")\n\tif g == nil {\n\t\treturn nil\n\t}\n"
+      ret $o + "\tfor i := range g.Items {\n\t\tg.Items[i] = " + read($s.element) + "\n\t\tif r.Failed() {\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn g\n}\n"
     when "map"
       if $s.mode == "unique"
         ret $o + "\treturn nino.ReadUniqueEntries(r, " + compact(plus($s.key, $s.value)) + ", " + rfn($s.key) + ", " + rfn($s.value) + ")\n}\n"
@@ -217,7 +218,7 @@ func helper_body(h)
     end
     ret $o + "}\n"
   when "grid"
-    ret $o + "\twriteGrid(w, v, " + $s.rank + ", " + wfn($s.element) + ")\n}\n"
+    ret $o + "\tif !writeGrid(w, v, " + $s.rank + ") {\n\t\treturn\n\t}\n\tfor _, e := range v.Items {\n\t\t" + write($s.element, "e") + "\n\t}\n}\n"
   when "map"
     ret $o + write_loop(write($s.key, "e.Key") + "\n\t\t" + write($s.value, "e.Value"))
   end
@@ -761,13 +762,14 @@ end
 
 if uses_grid
   "\n// NinoGrid is a multi-dimensional array: its lengths and its items in row-major order.\ntype NinoGrid[T any] struct {\n\tLengths []int\n\tItems   []T\n}\n"
-  "\nfunc readGrid[T any](r *nino.Reader, rank, minSize int, read func(*nino.Reader) T) *NinoGrid[T] {\n\ts, ok := r.ReadShape(rank, minSize)\n\tif !ok {\n\t\treturn nil\n\t}\n"
-  "\t// ReadShape checked the element count against the bytes left.\n\tg := &NinoGrid[T]{Lengths: append([]int(nil), s.Dims[:rank]...), Items: make([]T, s.Total)}\n"
-  "\tfor i := range g.Items {\n\t\tg.Items[i] = read(r)\n\t\tif r.Failed() {\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn g\n}\n"
-  "\nfunc writeGrid[T any](w *nino.Writer, g *NinoGrid[T], rank int, write func(*nino.Writer, T)) {\n\tif g == nil {\n\t\tw.Null()\n\t\treturn\n\t}\n"
+  "\n// readGrid reads a grid's shape and makes its items, which the caller reads: nil for null and on a failure.\n"
+  "func readGrid[T any](r *nino.Reader, rank, minSize int) *NinoGrid[T] {\n\ts, ok := r.ReadShape(rank, minSize)\n\tif !ok {\n\t\treturn nil\n\t}\n"
+  "\t// ReadShape checked the element count against the bytes left.\n\treturn &NinoGrid[T]{Lengths: append([]int(nil), s.Dims[:rank]...), Items: make([]T, s.Total)}\n}\n"
+  "\n// writeGrid writes a grid's shape (null for nil): whether the caller writes its items next.\n"
+  "func writeGrid[T any](w *nino.Writer, g *NinoGrid[T], rank int) bool {\n\tif g == nil {\n\t\tw.Null()\n\t\treturn false\n\t}\n"
   "\ttotal := 1\n\tfor _, n := range g.Lengths {\n\t\tif n < 0 {\n\t\t\ttotal = -1\n\t\t\tbreak\n\t\t}\n\t\ttotal *= n\n\t}\n"
-  "\tif len(g.Lengths) != rank || total != len(g.Items) {\n\t\tw.Fail(nino.CodeInvalidValue, \"grid lengths do not match its items\")\n\t\treturn\n\t}\n"
-  "\tw.WriteShape(g.Lengths...)\n\tfor _, e := range g.Items {\n\t\twrite(w, e)\n\t}\n}\n"
+  "\tif len(g.Lengths) != rank || total != len(g.Items) {\n\t\tw.Fail(nino.CodeInvalidValue, \"grid lengths do not match its items\")\n\t\treturn false\n\t}\n"
+  "\tw.WriteShape(g.Lengths...)\n\treturn true\n}\n"
 end
 ~}}
 
