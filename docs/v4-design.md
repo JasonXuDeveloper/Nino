@@ -945,17 +945,24 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   stores and `&` of `Vector<byte>` there and also on classic Mono with the System.Numerics.Vectors package
   (`NinoUnsafe.VectorMasks`), where that `Vector<T>` is compiled to SSE; never where `Vector<T>` is Mono's own (in
   mscorlib, Unity included), which no Mono JIT accelerates.
-  `NinoKernels` (public, netstandard builds only) lets a host register native kernels for them: `Permute` (a byte
-  table per value, 0xFF for a zero byte; strides 1 to 64), `Narrow`, `Widen`. Nino calls them for runs of at least
-  `MinBlocks` values or `MinChars` chars, from the paths that are already out of line, after one static load and
-  compare (`NinoKernelHook`), and checks bools before a kernel reads blocks. The tables are built once per type, in
+  `NinoKernels` (public, netstandard builds only) lets a host register native kernels for them, as a table of
+  `delegate* unmanaged[Cdecl]` function pointers with two thresholds: `Permute` (a byte table per value, 0xFF for a
+  zero byte; strides 1 to 64), `Narrow`, `Widen`, and for `[NinoUtf8]` strings `NarrowAscii` and `WidenAscii`, which
+  move the leading ASCII text and return how much there was (the encoder and the strict decoder do the rest from the
+  first other char or byte, which starts a char, so what is accepted and rejected does not change). `Register` copies
+  each pointer into a static field of `NinoKernelHook` and sets its threshold (`MinBlocks` values or `MinChars`
+  chars; int.MaxValue for a null pointer, which is never called): a call site tests one static int, then loads the
+  pointer, tests it for null and calls it (`calli`), with no object and no virtual call. Nino calls them from the paths
+  that are already out of line and checks bools before a kernel reads blocks. The tables are built once per type, in
   unmanaged memory. A kernel must write the bytes of its scalar reference (`PermuteScalar`, `NarrowScalar`,
-  `WidenScalar`); `KernelHookTests` registers those references through the hook. The Unity package registers
-  Burst-compiled kernels (`Nino.Burst`, compiled only with `com.unity.burst` installed): SSSE3 on x86 and x64, Neon
-  on AArch64, called through Burst function pointers; Armv7, WebGL and players where Burst does not run register none.
-  A player's kernels are compiled ahead of time for the CPU targets in Burst's AOT settings (on x64 by default SSE2
-  and SSE4, chosen at startup), so each intrinsic sits under its own `IsXxxSupported` test (Burst error BC1200
-  otherwise); a CPU without SSSE3 registers none.
+  `WidenScalar`, `NarrowAsciiScalar`, `WidenAsciiScalar`); `KernelHookTests` registers those references through the
+  hook ([UnmanagedCallersOnly]). The Unity package registers Burst-compiled kernels (`Nino.Burst`, compiled only with
+  `com.unity.burst` installed): SSSE3 on x86 and x64, Neon on AArch64, Burst's function pointers handed over as they
+  are; WebGL players built with SIMD register the same kernels in C (`Nino.WebGL`, `nino_wasm.c`, whose
+  `nino_wasm_kernels` hands out their pointers once). Armv7 and IL2CPP or Mono players without Burst register none
+  and keep the scalar paths. A player's kernels are compiled ahead of time for the CPU targets in Burst's AOT settings
+  (on x64 by default SSE2 and SSE4, chosen at startup), so each intrinsic sits under its own `IsXxxSupported` test
+  (Burst error BC1200 otherwise); a CPU without SSSE3 registers none.
   The .NET 8 and 10 builds have no hook (`#if !NET8_0_OR_GREATER`).
 * A sealed class with a small body that opens no class body (at most eight members, one or two of which call
   formatters) also gets a `__Top` twin of its formatter, whose body is inlined into the caller, so the reader or writer

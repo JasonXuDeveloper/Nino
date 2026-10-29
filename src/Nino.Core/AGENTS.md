@@ -20,8 +20,9 @@ NinoDeserializer.cs          the public Deserialize<T> (a new value, or into an 
 NinoSettings.cs              every process-wide setting (MaxDepth, MaxCollectionLength, MaxHashCollisions, Untrusted,
                              pool sizes, SetRecycler<T>), plain fields frozen on first use (NinoLimits)
 NinoDataException.cs         the exception every check of the data throws (an InvalidOperationException)
-NinoKernels.cs               NinoKernels: native Permute / Narrow / Widen kernels the netstandard builds call when one is
-                             registered (Unity's Burst kernels), with their scalar forms; NinoKernelHook holds them
+NinoKernels.cs               NinoKernels: the function pointers of native Permute / Narrow / Widen / NarrowAscii /
+                             WidenAscii kernels the netstandard builds call when registered (Unity's Burst and WebGL
+                             kernels), with their scalar forms; NinoKernelHook holds them in static fields
 Properties.cs                [module: SkipLocalsInit]
 ```
 

@@ -244,8 +244,10 @@ public sealed class BalanceChange
 - Unity compiles against .NET Standard: no `[UnsafeAccessor]`, so private members and `[NinoPooled]` need `partial`
   (NINO002); no interceptors (same bytes). Assembly definitions need `Nino.Core.dll` (Auto Referenced, or listed under
   Override References; also `Nino.UnityTypes.dll` for the Unity classes).
-- With `com.unity.burst` 1.8+ installed, Burst SIMD kernels register on their own (`Nino.Burst.NinoBurst`); include
-  SSE4 and AVX2 in Burst AOT Settings for x64 players.
+- Install `com.unity.burst` 1.8+ for speed: Burst SIMD kernels then register on their own (`Nino.Burst.NinoBurst`) for
+  tuples, padded structs, Latin-1 strings and the ASCII text of `[NinoUtf8]` strings; include SSE4 and AVX2 in Burst
+  AOT Settings for x64 players. Without Burst, IL2CPP and Mono players take Nino's scalar paths (the same bytes);
+  WebGL players built with WebAssembly SIMD get the same kernels from `Nino.WebGL` with no setup.
 - IL2CPP and Native AOT: no reflection at serialization time; types must appear in code the generator sees (a member
   type or a `Serialize`/`Deserialize` type argument). Native AOT on x64 takes Nino's SSSE3 paths on CPUs that have
   SSSE3; its AVX2 and AVX-512 paths need `<IlcInstructionSet>` (`x86-64-v3`, `x86-64-v4` or `native`), which makes the
