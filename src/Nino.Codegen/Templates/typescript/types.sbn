@@ -227,6 +227,11 @@ func helper_body(h)
         $o = $o + "  const values = new Set<" + ts($s.element) + ">();\n"
         $add = "values.add("
         $close = ")"
+      else if $s.array_type
+        # A typed array: longer ones in one block, shorter ones one by one on V8's heap.
+        $o = $o + "  if (length > " + $s.inline_length + ") return r.numbers(" + $s.array_type + ", length);\n  const values = new " + $s.array_type + "(length);\n"
+        $add = "values[i] = "
+        $close = ""
       else
         $o = $o + "  const values = new Array<" + ts($s.element) + ">(length);\n"
         $add = "values[i] = "
@@ -268,7 +273,15 @@ func helper_body(h)
       $length = "values.length"
       $loop = "  for (let i = 0; i < values.length; i++) {\n    const value = values[i];\n"
     end
-    $o = "function " + $n + h.type_params + "(w: NinoWriter, values: " + $input + " | null" + h.codecs + "): void {\n  if (values === null || values === undefined) {\n    w.i32(-1);\n    return;\n  }\n  w.i32(" + $length + ");\n"
+    if $s.array_type
+      $input = $s.array_type
+    end
+    $o = "function " + $n + h.type_params + "(w: NinoWriter, values: " + $input + " | null" + h.codecs + "): void {\n  if (values === null || values === undefined) {\n    w.i32(-1);\n    return;\n  }\n"
+    if $s.array_type
+      # A typed array: longer ones in one block, shorter ones one by one.
+      $o = $o + "  if (values.length > " + $s.inline_length + ") {\n    w.numbers(values);\n    return;\n  }\n"
+    end
+    $o = $o + "  w.i32(" + $length + ");\n"
     if $s.element.fixed
       $o = $o + "  let at = " + reserve($length + " * " + $s.element.size, $s.element.zeroed) + ";\n" + $loop + "    " + stmt(write_at($s.element, 0, "value")) + "\n    at += " + $s.element.size + ";\n  }\n"
     else

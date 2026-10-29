@@ -26,7 +26,7 @@ function record<K extends string | number, V, W = V>(m: Map<K | null, V> | null,
 const converters = {
   player: [pb.PlayerSchema, (p: b.Player) => create(pb.PlayerSchema, {
     id: p.id, name: p.name ?? "", level: p.level, score: p.score, online: p.online, position: vec3(p.position),
-    unlocked: p.unlocked ?? [], inventory: record(p.inventory), pet: animal(p.pet),
+    unlocked: Array.from(p.unlocked ?? []), inventory: record(p.inventory), pet: animal(p.pet),
   })],
   zoo: [pb.ZooSchema, (z: b.Zoo) => create(pb.ZooSchema, { animals: (z.animals ?? []).map(animal) })],
   orders: [pb.OrderBookSchema, (o: b.OrderBook) => create(pb.OrderBookSchema, {
@@ -41,14 +41,14 @@ const converters = {
   })],
   mesh: [pb.MeshSchema, (m: b.Mesh) => create(pb.MeshSchema, {
     name: m.name ?? "", vertices: (m.vertices ?? []).map(vec3), normals: (m.normals ?? []).map(vec3),
-    indices: m.indices ?? [],
+    indices: Array.from(m.indices ?? []),
   })],
   samples: [pb.SamplesSchema, (s: b.Samples) => create(pb.SamplesSchema, {
-    values: s.values ?? [], counts: s.counts ?? [], weights: s.weights ?? [],
+    values: Array.from(s.values ?? []), counts: Array.from(s.counts ?? []), weights: Array.from(s.weights ?? []),
   })],
   lookup: [pb.LookupSchema, (l: b.Lookup) => create(pb.LookupSchema, { counts: record(l.counts), names: record(l.names, (v) => v ?? "") })],
   events: [pb.EventSchema, (e: b.Event) => create(pb.EventSchema, {
-    at: e.at, userId: e.userId, kind: e.kind, refs: e.refs ?? [],
+    at: e.at, userId: e.userId, kind: e.kind, refs: Array.from(e.refs ?? []),
   })],
   strings: [pb.StringsSchema, (s: b.Strings) => create(pb.StringsSchema, { values: (s.values ?? []).map((t) => t ?? "") })],
 } as const;

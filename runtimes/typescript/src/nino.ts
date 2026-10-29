@@ -92,6 +92,60 @@ function makeScratch(): NinoReader {
   return new NinoReader(k !== null ? new Uint8Array(k.memory.buffer, 0, scratchSize) : new Uint8Array(scratchSize));
 }
 
+/**
+ * A typed array of a fixed-size number type: how generated code holds an array or list of `sbyte`, `byte`, `short`,
+ * `ushort`, `int`, `uint`, `long`, `ulong`, `float` or `double` (`NinoReader.numbers`, `NinoWriter.numbers`).
+ */
+export type NinoNumbers = Int8Array | Uint8Array | Int16Array | Uint16Array | Int32Array | Uint32Array |
+  BigInt64Array | BigUint64Array | Float32Array | Float64Array;
+
+/** The constructor of a `NinoNumbers` type (`Int32Array`, ...). */
+export interface NinoNumbersType<T extends NinoNumbers> {
+  readonly BYTES_PER_ELEMENT: number;
+  new (length: number): T;
+  new (buffer: ArrayBuffer, byteOffset: number, length: number): T;
+}
+
+/** Whether this host stores numbers little-endian, as Nino writes them: typed arrays are then copied as bytes. */
+const littleEndian = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+
+/** Reverses the bytes of each `size`-byte element in `bytes` from `at` to `end`: Nino's order and a big-endian host's. */
+function swapBytes(bytes: Uint8Array, at: number, end: number, size: number): void {
+  for (; at < end; at += size) {
+    for (let i = at, j = at + size - 1; i < j; i++, j--) {
+      const b = bytes[i];
+      bytes[i] = bytes[j];
+      bytes[j] = b;
+    }
+  }
+}
+
+/**
+ * Typed arrays `NinoReader.numbers` reads up to this many bytes are views of a shared buffer (numbersSlab bytes), as
+ * Node's small `Buffer`s share a pool: one over 64 bytes has its memory outside V8's heap, and allocating that costs
+ * more than the copy (in Node 22 about 2 µs for 1,000 int32s against 0.6 µs for a pool view). Generated code reads
+ * those of up to 64 bytes one element at a time into a typed array of their own, which V8 keeps on its heap: viewing
+ * such an array's bytes (`.buffer`) allocates outside memory for it, which made reading 4 int64s 5 times slower than
+ * reading them into an array (test branch 97deeca).
+ */
+const numbersPooled = 8192;
+const numbersSlab = 64 * 1024;
+let numbersBuffer = new ArrayBuffer(0);
+let numbersBytes = new Uint8Array(0);
+let numbersPos = 0;
+
+/** Where `bytes` bytes start in the shared buffer (8-byte aligned, as a view must be aligned to its elements). */
+function poolNumbers(bytes: number): number {
+  let at = numbersPos;
+  if (bytes > numbersBytes.length - at) {
+    numbersBuffer = new ArrayBuffer(numbersSlab);
+    numbersBytes = new Uint8Array(numbersBuffer);
+    at = 0;
+  }
+  numbersPos = (at + bytes + 7) & ~7;
+  return at;
+}
+
 /** Thrown for data that is not a valid value of the type read, or a value that cannot be written. */
 export class NinoError extends Error {
   constructor(message: string) {
@@ -790,6 +844,29 @@ export class NinoReader {
     return new Uint8Array(this.data.subarray(at, at + length));
   }
 
+  /**
+   * An array or list of a fixed-size number type (`int[]`, `List<double>`...) as a typed array of `type`: its length
+   * (unless given, when the caller read it), then the elements copied in one block (from a view of the data when the
+   * data is aligned to the elements, else from its bytes). Those of up to 8 KB are views of a buffer they share: read
+   * one by its `byteOffset` and `length`.
+   */
+  numbers<T extends NinoNumbers>(type: NinoNumbersType<T>, length: number = this.length()): T | null {
+    if (length < 0) return null;
+    const size = type.BYTES_PER_ELEMENT, bytes = length * size, at = this.take(bytes), data = this.data;
+    if (bytes > numbersPooled) {
+      const values = new type(length), start = data.byteOffset + at;
+      if (start % size === 0) (values as Uint8Array).set(new type(data.buffer as ArrayBuffer, start, length) as Uint8Array);
+      else new Uint8Array(values.buffer).set(data.subarray(at, at + bytes));
+      if (!littleEndian) swapBytes(new Uint8Array(values.buffer), 0, bytes, size);
+      return values;
+    }
+    const to = poolNumbers(bytes), pool = numbersBytes;
+    pool.set(data.subarray(at, at + bytes), to);
+    if (!littleEndian) swapBytes(pool, to, to + bytes, size);
+    return new type(numbersBuffer, to, length);
+  }
+
+
   /** An array, list or other sequence: length, then each element. */
   array<T>(read: (reader: NinoReader) => T): T[] | null {
     const length = this.length();
@@ -1459,6 +1536,17 @@ export class NinoWriter {
     const at = this.reserve(value.length);
     this.buffer.set(value, at);
   }
+
+  /** An array or list of a fixed-size number type (`int[]`, `List<double>`...): length, then its bytes as one block. */
+  numbers(values: NinoNumbers | null): void {
+    if (values === null || values === undefined) { this.i32(-1); return; }
+    const length = values.length, bytes = values.byteLength;
+    this.i32(length);
+    const at = this.reserve(bytes);
+    this.buffer.set(new Uint8Array(values.buffer, values.byteOffset, bytes), at);
+    if (!littleEndian) swapBytes(this.buffer, at, at + bytes, values.BYTES_PER_ELEMENT);
+  }
+
 
   array<T>(values: readonly T[] | null, write: (writer: NinoWriter, value: T) => void): void {
     if (values === null || values === undefined) { this.i32(-1); return; }

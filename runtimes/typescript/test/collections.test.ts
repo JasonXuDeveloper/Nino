@@ -89,6 +89,51 @@ describe("collections", () => {
     assert.deepEqual([...bytes], [0, 1, 254, 255]);
     assert.equal(new NinoReader(hex("ffffffff")).bytes(), null);
   });
+
+  it("writes typed arrays as their elements little-endian, and reads them back as copies", () => {
+    assert.equal(toHex(write((w) => w.numbers(Int32Array.of(1, -2)))), "02000000 01000000 feffffff".replace(/ /g, ""));
+    assert.equal(toHex(write((w) => w.numbers(Float32Array.of(1.5)))), "01000000 0000c03f".replace(/ /g, ""));
+    assert.equal(toHex(write((w) => w.numbers(BigUint64Array.of(258n)))), "01000000 0201000000000000".replace(/ /g, ""));
+    assert.equal(toHex(write((w) => w.numbers(null))), "ffffffff");
+    assert.equal(new NinoReader(hex("ffffffff")).numbers(Int16Array), null);
+    const types = [Int8Array, Uint8Array, Int16Array, Uint16Array, Int32Array, Uint32Array, BigInt64Array,
+      BigUint64Array, Float32Array, Float64Array] as const;
+    // Empty, on-heap (up to 64 bytes), in the shared buffer and in their own; at every offset of the data.
+    for (const type of types)
+      for (const length of [0, 3, 40, 900, 3000]) {
+        const big = type === BigInt64Array || type === BigUint64Array;
+        const values = new (type as new (n: number) => Int32Array)(length) as unknown as Int32Array;
+        for (let i = 0; i < length; i++) (values as unknown as unknown[])[i] = big ? BigInt(i * 977 - 5000) : i * 7.25 - 900;
+        const bytes = write((w) => w.numbers(values));
+        // The length, then the elements' bytes (this host is little-endian).
+        assert.deepEqual(bytes, Uint8Array.from([...int32(length), ...new Uint8Array(values.buffer)]));
+        for (const shift of [0, 1, 3]) {
+          const data = new Uint8Array(shift + bytes.length);
+          data.set(bytes, shift);
+          const reader = new NinoReader(data.subarray(shift));
+          const read = reader.numbers(type as never) as unknown as Int32Array;
+          assert.equal(Object.getPrototypeOf(read), type.prototype, `${type.name} ${length} +${shift}`);
+          assert.deepEqual([...read], [...values], `${type.name} ${length} +${shift}`);
+          assert.equal(reader.pos, bytes.length);
+          data.fill(9);
+          assert.deepEqual([...read], [...values], `${type.name} ${length} +${shift}: a copy`);
+        }
+      }
+  });
+
+  it("reads typed arrays that share a buffer without overlapping, also from a Node Buffer", () => {
+    const one = Float64Array.from({ length: 100 }, (_, i) => i / 3), two = Int16Array.from({ length: 99 }, (_, i) => -i);
+    const data = Buffer.from(write((w) => {
+      w.numbers(one);
+      w.numbers(two);
+    }));
+    const reader = new NinoReader(data);
+    const a = reader.numbers(Float64Array)!, b = reader.numbers(Int16Array)!;
+    b.fill(1);
+    assert.deepEqual(a, one);
+    a.fill(2);
+    assert.deepEqual([...b], new Array(99).fill(1));
+  });
 });
 
 describe("registry", () => {

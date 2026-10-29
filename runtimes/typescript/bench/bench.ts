@@ -93,6 +93,26 @@ function plain(v: unknown): unknown {
   return o;
 }
 
+/**
+ * The value with its typed arrays (Nino's `int[]`, `double[]`...) as arrays, the same objects where it has none:
+ * msgpackr writes a typed array as the bytes of its buffer, not as standard MessagePack numbers. Byte arrays stay.
+ */
+function untyped(v: unknown): unknown {
+  if (ArrayBuffer.isView(v)) return v instanceof Uint8Array ? v : Array.from(v as unknown as ArrayLike<unknown>);
+  if (Array.isArray(v)) {
+    const a = v.map(untyped);
+    return a.some((x, i) => x !== v[i]) ? a : v;
+  }
+  if (v instanceof Map) {
+    const entries = [...v], changed = entries.map(([k, x]) => [k, untyped(x)] as const);
+    return changed.some(([, x], i) => x !== entries[i][1]) ? new Map(changed) : v;
+  }
+  if (v instanceof Set || v instanceof Date || v === null || typeof v !== "object") return v;
+  const entries = Object.entries(v), changed = entries.map(([k, x]) => [k, untyped(x)] as const);
+  return changed.some(([, x], i) => x !== entries[i][1])
+    ? Object.assign(Object.create(Object.getPrototypeOf(v)), Object.fromEntries(changed)) : v;
+}
+
 function same(a: Uint8Array, b: Uint8Array): boolean {
   return a.length === b.length && a.every((x, i) => x === b[i]);
 }
@@ -146,7 +166,7 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
       };
     },
     MessagePack: () => {
-      const lists = values(), packed = lists.map((list) => list.map((v) => packr.pack(v)));
+      const lists = values().map((list) => list.map(untyped)), packed = lists.map((list) => list.map((v) => packr.pack(v)));
       packed.forEach((list, v) => list.forEach((x, i) => {
         // Read back: the same data (maps come back as objects, which plain JSON makes of Maps too).
         if (JSON.stringify(plain(packr.unpack(x))) !== JSON.stringify(plain(lists[v][i])))
