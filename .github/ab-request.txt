@@ -1137,3 +1137,6 @@ go:. a309ab3 ae414a0 Blocks # go blocks final copy 2 (Go block worker); ref orig
 typescript 9a3287d b8c2891 # ts --numeric-arrays typed vs main (aa6215930cf014838); ref origin/ab/ts-numeric-typed
 typescript 9a3287d b8c2891 # ts --numeric-arrays typed copy 2 (aa6215930cf014838)
 typescript 9a3287d 9a3287d # ts floor on main 9a3287d (aa6215930cf014838)
+# Go block checks out of line (c532513), run 40925188020 had DateOnly +6.8 % on Neoverse-N2 from layout
+go:. a309ab3 c532513 Blocks # go blocks, per-type checks out of line (Go block worker); ref origin/ab/go-blocks-3
+go:. a309ab3 c532513 Blocks # go blocks out of line copy 2 (Go block worker); ref origin/ab/go-blocks-3
