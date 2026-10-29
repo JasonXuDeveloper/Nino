@@ -20,6 +20,29 @@ const back = deserialize(PlayerCodec, bytes);
 `deserialize` reads one value and leaves any bytes after it unread; `deserializeExact` also throws a `NinoError`
 when bytes follow the value (Go's `DeserializeExact`, Rust's `deserialize_exact`).
 
+`serialize` returns a view of a 64 KiB (or larger) buffer that later results never overwrite, so each value costs no
+`ArrayBuffer` of its own, but a new buffer every 64 KiB or so. Code that writes each value out before the next one (to
+a socket or a file) can write into memory it owns instead, as `NinoSerializer.Serialize(value, bufferWriter)` does in
+.NET (Go's `Append` and `Writer.Reset`, Rust's `serialize_into`):
+
+```ts
+import { NinoWriter, serializeInto } from "./nino";
+
+const writer = new NinoWriter();          // reused: once large enough, writing allocates nothing
+writer.reset();                           // empty it, keeping its buffer
+serializeInto(PlayerCodec, player, writer); // appends; returns the value's size
+ws.send(writer.written());                // a view of the writer's buffer: send it before writing again
+
+const size = serializeInto(PlayerCodec, player, frame); // into a Uint8Array, from its start
+if (size > frame.length) { /* did not fit: frame is unchanged; call again with `size` bytes */ }
+```
+
+Node 24 starts a full garbage collection (a pause that grows with the heap) for every 64 MB of
+new `ArrayBuffer`s that no scavenge freed in between; a reused writer allocates none, so it never starts one. Writing
+into a `Uint8Array` copies the value once, from a writer the runtime reuses; a `NinoWriter` is written in place.
+Since the next `reset` writes over the bytes `written()` views, hand them only to a call that copies them before it
+returns (a browser `WebSocket.send`, `fs.writeSync`), or wait until the write is done (a Node stream's `write` callback).
+
 ## Typed arrays
 
 With nino-gen's `--numeric-arrays typed` (`NumericArrays="typed"`), an array or list of a fixed-size number (`sbyte`,
