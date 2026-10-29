@@ -79,6 +79,18 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 - .NET: a class in `benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
   MessagePack, protobuf-net), a `Verify.cs` entry, the class in `shards.json` (the report and A/B shards).
 - Go, Rust, TypeScript: the same data in each `bench` against that language's competitors.
+- Rotate the inputs of any microbenchmark that parses (deserialize, `JSON.parse`, decoders): prepare K variants of the
+  same shape and size with different content (K=64 in `runtimes/typescript/bench`), give every serializer all of them
+  before the timing, and let each iteration take the next one round robin, for serialize and deserialize alike;
+  allocate the variants outside the timed region. Why: V8 reuses work for a JSON text it just parsed (hidden-class
+  transitions, internalized keys), so one repeated input flatters JSON: a Lookup-like text took 0.21 ms a parse
+  repeated, 7.8 to 8.4 ms with 200 different texts in turn. On runners (19801e3, landed as 81d0700, against main, run 40792547994, medians
+  of 3 to 60 rounds a CPU, head-vs-head floors within 1-12 %) Lookup's JSON deserialize went from 0.72x Nino's time to
+  8.97x on EPYC 7763 in Node (0.58x to 6.85x in Chromium), and from 0.62-0.79x to 8.5-9.5x on every other CPU
+  (Neoverse-N2 0.76x to 8.48x); Strings ASCII barely moved (2.11x to 2.27x in Node on EPYC 7763). Rotation also takes
+  the inputs out of the cache, which every serializer pays: Nino's Mesh serialize went from 0.19 to 1.15 ms on EPYC 7763
+  and 0.22 to 1.19 ms on Neoverse-N2 (64 x 20 x 1,000 `Vec3` objects, likely each with boxed doubles), Player and
+  OrderBook serialize 1.5x on EPYC 7763 (1.2x and 1.04x on Neoverse-N2).
 - A new section or heading in the release body changes with its parser in Nino.Docs (`scripts/sync-benchmarks.ts`)
   and the components that show it (`audit-docs`).
 
