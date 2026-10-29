@@ -99,6 +99,11 @@ namespace Nino.Core.Internal
                 }
             }
 
+            // Values of more than 16 bytes with AVX-512 VBMI: several at a time from 128 bytes of their memory by one
+            // two-source permute; the tail written is overwritten by the next one, as with Permute64.
+            if (Avx512Vbmi.IsSupported && NinoBlock<T, TFormatter>.PerPair > 0)
+                i = WritePairs<T, TFormatter>(ref Unsafe.As<T, byte>(ref first), ref destination, i, count);
+
             // Then each value as one 16-byte vector, by one shuffle. The last values, whose vector would reach past
             // the end of either side, one item at a time.
             if (NinoBlock<T, TFormatter>.Shuffles)
@@ -181,6 +186,46 @@ namespace Nino.Core.Internal
             {
                 WriteGroup<T, TFormatter>(ref source, ref destination, last, size);
                 i = last + group;
+            }
+
+            return i;
+        }
+
+        /// <summary>
+        /// The values from value <paramref name="i"/> of <paramref name="count"/>,
+        /// <see cref="NinoBlock{T, TFormatter}.PerPair"/> at a time, each step one two-source byte permute of 128 bytes
+        /// of their memory stored as 64 bytes of blocks (the bytes past the step's blocks rewritten by the next); the
+        /// values after the last step by one more, over values already written (the same bytes). Returns the values
+        /// written.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int WritePairs<T, TFormatter>(ref byte source, ref byte destination, int i, int count)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int size = NinoBlock<T, TFormatter>.Size;
+            int step = NinoBlock<T, TFormatter>.PerPair;
+            int last = NinoBlock<T, TFormatter>.LastPair(count);
+            if (i > last)
+                return i;
+            var toWire = NinoBlock<T, TFormatter>.ToWire128;
+            int n = (last - i) / step + 1;
+            ref byte from = ref Unsafe.Add(ref source, (nint)i * Unsafe.SizeOf<T>());
+            ref byte to = ref Unsafe.Add(ref destination, (nint)i * size);
+            i += n * step;
+            do
+            {
+                Avx512Vbmi.PermuteVar64x8x2(Vector512.LoadUnsafe(ref from), toWire, Vector512.LoadUnsafe(ref from, 64))
+                    .StoreUnsafe(ref to);
+                from = ref Unsafe.Add(ref from, (nint)step * Unsafe.SizeOf<T>());
+                to = ref Unsafe.Add(ref to, (nint)step * size);
+            } while (--n != 0);
+
+            if (i < last + step)
+            {
+                from = ref Unsafe.Add(ref source, (nint)last * Unsafe.SizeOf<T>());
+                Avx512Vbmi.PermuteVar64x8x2(Vector512.LoadUnsafe(ref from), toWire, Vector512.LoadUnsafe(ref from, 64))
+                    .StoreUnsafe(ref destination, (nuint)last * (nuint)size);
+                i = last + step;
             }
 
             return i;

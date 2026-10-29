@@ -531,6 +531,16 @@ namespace Nino.Core.CompilerServices
             return ebx == 0x68747541 && edx == 0x69746E65 && ecx == 0x444D4163;
         }
 
+        /// <summary>
+        /// An x64 CPU with AVX-512 VBMI whose two-source 64-byte byte permute (vpermt2b) writes values of more than 16
+        /// bytes faster than lane groups of 32-byte vectors (<see cref="NinoBlock"/>.WritePairs): AMD's (Zen 4 and
+        /// later) and Intel's with AVX512-FP16 (Sapphire Rapids and later), not Ice Lake. Measured on GitHub's runners,
+        /// 1,000 values of 24 bytes as 15-byte blocks (.NET 10): Xeon Platinum 8573C 0.65 and EPYC 9V45 0.76 times the
+        /// time of lane groups, Xeon Platinum 8370C (Ice Lake) 1.44 times. Two CPUIDs at startup.
+        /// </summary>
+        internal static readonly bool PairPermutes = Avx512Vbmi.IsSupported &&
+                                                     (IsAmd() || (X86Base.CpuId(7, 0).Edx & (1 << 23)) != 0);
+
 #endif
         /// <summary>
         /// <see cref="Copy"/> into memory that may have just been allocated (a read into a new array): Memmove from
