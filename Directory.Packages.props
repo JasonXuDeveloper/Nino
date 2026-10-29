@@ -9,7 +9,7 @@
         <PackageVersion Include="System.Buffers" Version="4.6.1"/>
         <PackageVersion Include="System.Memory" Version="4.6.3"/>
         <PackageVersion Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2"/>
-        <PackageVersion Include="System.Collections.Immutable" Version="10.0.13"/>
+        <PackageVersion Include="System.Collections.Immutable" Version="10.0.14"/>
         <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.13"/>
     </ItemGroup>
 
@@ -31,8 +31,8 @@
     <!-- Tests. -->
     <ItemGroup>
         <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0"/>
-        <PackageVersion Include="MSTest.TestAdapter" Version="4.5.1"/>
-        <PackageVersion Include="MSTest.TestFramework" Version="4.5.1"/>
+        <PackageVersion Include="MSTest.TestAdapter" Version="4.5.2"/>
+        <PackageVersion Include="MSTest.TestFramework" Version="4.5.2"/>
         <PackageVersion Include="SharpFuzz" Version="2.3.0"/>
         <PackageVersion Include="coverlet.collector" Version="10.1.0"/>
         <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4"/>
