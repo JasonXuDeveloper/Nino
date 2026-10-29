@@ -1020,3 +1020,11 @@ rust 6af5111 6af5111 # rsblk compare floor 1
 rust 6af5111 6af5111 # rsblk compare floor 2
 # TS cold serialize (runs 40815167424, 40816601617): cause is Node 24 full GCs on external memory over a heap of every
 # serializer's data; landed 0c5ad99 (bench keeps only the running serializer's data). Gather/Ahead loops: no gain.
+# TS typed arrays rebased (30eb091) against main with the own-data bench (7c30927); without the shared buffer (f85f4e7)
+typescript 7c30927 30eb091 # typed 1
+typescript 7c30927 30eb091 # typed 2
+typescript 7c30927 30eb091 # typed 3
+typescript f85f4e7 30eb091 # pool vs no pool 1
+typescript f85f4e7 30eb091 # pool vs no pool 2
+typescript 30eb091 30eb091 # typed floor 1
+typescript 7c30927 7c30927 # main floor 1
