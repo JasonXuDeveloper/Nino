@@ -1031,3 +1031,5 @@ typescript 7c30927 7c30927 # main floor 1
 # TS serializeInto (7927f28): Nino serialize vs serializeInto into one reset NinoWriter, same code both sides
 typescript 7927f28 7927f28 # serializeInto 1
 typescript 7927f28 7927f28 # serializeInto 2
+typescript 7c30927 7927f28 # serializeInto vs main 1
+typescript 7c30927 7927f28 # serializeInto vs main 2
