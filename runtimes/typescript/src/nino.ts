@@ -12,6 +12,11 @@ export const ninoVersion = "__NINO_VERSION__";
 export interface NinoCodec<T> {
   read(reader: NinoReader): T;
   write(writer: NinoWriter, value: T): void;
+  /**
+   * Reads a value into `value` where it can (see `deserializeInto`) and returns the value read: `value` itself when it
+   * was reused. Optional: a codec without it reads a new value.
+   */
+  readInto?(reader: NinoReader, value: T): T;
 }
 
 let shared: NinoWriter | null = null;
@@ -90,6 +95,17 @@ export function deserialize<T>(codec: NinoCodec<T>, data: Uint8Array): T {
 /** `deserialize` that also throws a `NinoError` when bytes follow the value. */
 export function deserializeExact<T>(codec: NinoCodec<T>, data: Uint8Array): T {
   return readValue(codec, data, true);
+}
+
+/**
+ * Deserializes one value into `value`, as `NinoDeserializer.Deserialize(data, ref value)` does in .NET, and returns
+ * the value read: the members of objects are read into the objects `value` holds (of the same class), arrays keep
+ * their storage and read their elements into the old ones by index, maps and sets are cleared and refilled, and a
+ * polymorphic member is read into only when the data holds the same class (tracked objects are read new). Bytes after
+ * the value are not read. If it throws, `value` holds what was read before the error, the rest as it was.
+ */
+export function deserializeInto<T>(codec: NinoCodec<T>, data: Uint8Array, value: T): T {
+  return readValue({ read: (r) => r.into(codec, value), write: codec.write }, data, false);
 }
 
 function readValue<T>(codec: NinoCodec<T>, data: Uint8Array, exact: boolean): T {
@@ -954,6 +970,11 @@ export class NinoReader {
   /** A nullable value, `Tuple` or sealed class: a presence byte, then the value if present. */
   nullable<T>(read: (reader: NinoReader) => T): T | null {
     return this.notNull() ? read(this) : null;
+  }
+
+  /** Reads a value with `codec` into `value` when the codec can (`NinoCodec.readInto`), else a new one. */
+  into<T>(codec: NinoCodec<T>, value: T): T {
+    return codec.readInto === undefined ? codec.read(this) : codec.readInto(this, value);
   }
 
   /** A presence byte: true when a value follows. */

@@ -250,6 +250,40 @@ func read(s)
   end
 end
 
+# An expression reading the value into `cur` (an expression of its current value, read once; undefined or null for
+# none): the objects, arrays, maps and sets it holds are reused where they can be (`deserializeInto`), else a new value.
+func read_into(s, cur)
+  case s.kind
+  when "seq", "map"
+    if s.array_type
+      ret read(s)
+    end
+    # A null one is read new, through the read helper: one that only reads (the read path measured slower with the
+    # into branches in it).
+    ret "(" + cur + " == null ? " + read(s) + " : " + helper(s, "readinto") + "(r" + s.codecs_argument + ", " + cur + "))"
+  when "nullable"
+    $inner = read_into(s.inner, cur)
+    if $inner == read(s.inner)
+      ret read(s)
+    end
+    if s.inner.kind == "type"
+      $inner = "(" + cur + " == null ? " + read(s.inner) + " : " + read_into(s.inner, cur + "!") + ")"
+    end
+    ret "(r.notNull() ? " + $inner + " : null)"
+  when "type"
+    if s.header == "typeid"
+      ret "(" + cur + " == null ? " + read(s) + " : r.into(" + name(s.type) + "Codec, " + cur + "))"
+    else if s.header == "ref"
+      ret read(s)
+    end
+    # A struct member always holds one (its default): read into it.
+    ret "read" + name(s.type) + "(r, " + cur + ")"
+  when "param", "generic"
+    ret "(" + cur + " == null ? " + read(s) + " : r.into(" + s.field + ", " + cur + "))"
+  end
+  ret read(s)
+end
+
 # A statement (maybe without its `;`) writing the value `v` (an expression it may evaluate more than once).
 func write(s, v)
   case s.kind
