@@ -10,12 +10,12 @@
 import { equals, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { Packr } from "msgpackr";
 import { Bench } from "tinybench";
-import { deserialize, serialize, type NinoCodec } from "./gen/nino.ts";
+import { deserialize, serialize, NinoWriter, type NinoCodec } from "./gen/nino.ts";
 import * as b from "./gen/Bench.ts";
 import { protobuf } from "./protobuf.ts";
 
 /** The serializers, in the order of the tables. */
-export const serializers = ["Nino", "Protobuf", "MessagePack", "JSON"] as const;
+export const serializers = ["Nino", "Protobuf", "MessagePack", "JSON", "Touch", "Gather", "Ahead"] as const;
 export type Serializer = (typeof serializers)[number];
 
 /** One task's result: a pass over all of a scenario's values (one variant) with one serializer, in one direction. */
@@ -102,6 +102,64 @@ const packr = new Packr({ useRecords: false, int64AsType: "bigint" });
 const size = (variants: { length: number }[][]) =>
   Math.round(variants.reduce((n, list) => list.reduce((m, x) => m + x.length, n), 0) / variants.length);
 
+
+// DIAGNOSTIC (experiment only): what reading the graph costs without writing, and two other write loops for Mesh.
+let sink = 0;
+function touchMesh(m: b.Mesh): number {
+  let s = m.name!.length;
+  for (const v of m.vertices!) s += v.x + v.y + v.z;
+  for (const v of m.normals!) s += v.x + v.y + v.z;
+  for (const i of m.indices!) s += i;
+  return s;
+}
+function touchPlayer(p: b.Player): number {
+  let s = p.level + p.score + (p.online ? 1 : 0) + p.name!.length + p.name!.charCodeAt(0) + (p.id > 0n ? 1 : 0);
+  s += p.position.x + p.position.y + p.position.z;
+  for (const u of p.unlocked!) s += u;
+  for (const [k, v] of p.inventory!) s += k!.length + v;
+  s += p.pet!.name!.length;
+  return s;
+}
+function touchOrders(o: b.OrderBook): number {
+  let s = 0;
+  for (const x of o.orders!) s += x!.id + x!.quantity + x!.price + x!.status + (x!.paid ? 1 : 0) + x!.sku!.charCodeAt(0) + x!.customer!.charCodeAt(0);
+  return s;
+}
+let scratch = new Float32Array(3 * 1024);
+function gatherVec3(w: NinoWriter, values: b.Vec3[]): void {
+  const n = values.length;
+  w.i32(n);
+  const at = w.reserve(n * 12);
+  if (scratch.length < 3 * n) scratch = new Float32Array(3 * n);
+  const s = scratch;
+  for (let i = 0, j = 0; i < n; i++, j += 3) { const v = values[i]; s[j] = v.x; s[j + 1] = v.y; s[j + 2] = v.z; }
+  new Uint8Array(w.view.buffer).set(new Uint8Array(s.buffer, 0, n * 12), at);
+}
+function aheadVec3(w: NinoWriter, values: b.Vec3[]): void {
+  const n = values.length;
+  w.i32(n);
+  let at = w.reserve(n * 12), t = 0;
+  const view = w.view;
+  for (let i = 0; i < n; i++) {
+    const v = values[i];
+    t += values[i + 8 < n ? i + 8 : i].x;
+    view.setFloat32(at, v.x, true); view.setFloat32(at + 4, v.y, true); view.setFloat32(at + 8, v.z, true);
+    at += 12;
+  }
+  sink += t;
+}
+function ints(w: NinoWriter, values: number[]): void {
+  w.i32(values.length);
+  let at = w.reserve(values.length * 4);
+  const view = w.view;
+  for (let i = 0; i < values.length; i++, at += 4) view.setInt32(at, values[i], true);
+}
+const meshWith = (vec3: (w: NinoWriter, v: b.Vec3[]) => void): NinoCodec<b.Mesh> => ({
+  read: () => { throw new Error("write only"); },
+  write: (w, m) => { w.u8(1); w.string(m.name); vec3(w, m.vertices!); vec3(w, m.normals!); ints(w, m.indices!); },
+});
+const gatherCodec = meshWith(gatherVec3), aheadCodec = meshWith(aheadVec3);
+
 async function scenario<T>(name: string, file: string, data: Uint8Array, codec: NinoCodec<T>, options: Options):
   Promise<Row[]> {
   // Every variant's values for every serializer, made and checked before the timing.
@@ -139,9 +197,20 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
     ["MessagePack", "deserialize", rotate(packed, (l) => { for (const x of l) packr.unpack(x); }), size(packed)],
     ["JSON", "deserialize", rotate(utf8, (l) => { for (const x of l) JSON.parse(decoder.decode(x)); }), size(utf8)],
   ];
+  const touch = file === "mesh" ? touchMesh : file === "player" ? touchPlayer : file === "orders" ? touchOrders : null;
+  if (touch) tasks.push(["Touch", "serialize", rotate(lists, (l) => { let t = 0; for (const v of l) t += touch(v as never); sink += t; }), 0]);
+  if (file === "mesh") {
+    for (const [who, c] of [["Gather", gatherCodec], ["Ahead", aheadCodec]] as const) {
+      lists.forEach((list) => list.forEach((v) => {
+        if (!same(serialize(c, v as never), serialize(codec, v))) throw new Error(`${who}: bytes differ`);
+      }));
+      tasks.push([who, "serialize", rotate(lists, (l) => { for (const v of l) serialize(c, v as never); }), size(bytes)]);
+    }
+  }
   const bench = new Bench({ name, time: options.time ?? 1000, warmupTime: options.warmupTime ?? 250 });
   for (const [who, op, fn] of tasks) bench.add(`${op} ${who}`, fn);
   await bench.run();
+  if (sink === 0.5) console.log(sink);
   return tasks.map(([serializer, op, , encoded]) => {
     const result = bench.getTask(`${op} ${serializer}`)!.result;
     if (result.state !== "completed") throw new Error(`${name}: ${op} ${serializer} ${result.state}`);
