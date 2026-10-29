@@ -50,7 +50,20 @@ namespace Nino.Core
         /// <summary>Whether <typeparamref name="TFormatter"/> may know sizes: a JIT-time constant.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Is<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+#if NET8_0_OR_GREATER
             default(TFormatter) is INinoSizedFormatter<T>;
+#else
+            Of<T, TFormatter>.Formatter != null;
+
+        /// <summary>
+        /// The formatter boxed once: IL2CPP and Mono box <c>default(TFormatter)</c> at every cast to an interface (a
+        /// GC allocation per top-level call), where RyuJIT removes the box and calls the struct directly.
+        /// </summary>
+        private static class Of<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
+        {
+            public static readonly INinoSizedFormatter<T> Formatter = default(TFormatter) as INinoSizedFormatter<T>;
+        }
+#endif
 
         /// <summary>
         /// <paramref name="value"/> as a new array of exactly its bytes, written straight into it; null when its size is
@@ -59,7 +72,11 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
         {
+#if NET8_0_OR_GREATER
             int size = ((INinoSizedFormatter<T>)default(TFormatter)).Size(value);
+#else
+            int size = Of<T, TFormatter>.Formatter.Size(value);
+#endif
             if (size < 0)
                 return null;
             // Bytes are written little-endian, as Writer does (which rejects other hosts).
@@ -68,7 +85,11 @@ namespace Nino.Core
             // Zeroed, not uninitialized: the clearing brings the lines into the cache (as a fast string store), where
             // vector stores into fresh lines first read each one; 1,000 (int, long) took 1.3 times as long.
             var bytes = new byte[size];
+#if NET8_0_OR_GREATER
             ((INinoSizedFormatter<T>)default(TFormatter)).WriteSized(value, ref NinoUnsafe.GetArrayDataReference(bytes));
+#else
+            Of<T, TFormatter>.Formatter.WriteSized(value, ref NinoUnsafe.GetArrayDataReference(bytes));
+#endif
             return bytes;
         }
     }

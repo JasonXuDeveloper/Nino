@@ -143,7 +143,7 @@ namespace Nino.Core.Internal
                 int n = count - i;
                 do
                 {
-                    ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(ref to, in from);
+                    WriteValue<T, TFormatter>(ref to, in from);
                     from = ref Unsafe.Add(ref from, 1);
                     to = ref Unsafe.Add(ref to, size);
                 } while (--n != 0);
@@ -358,8 +358,7 @@ namespace Nino.Core.Internal
                 return;
 #endif
             for (; i < count; i++)
-                ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(
-                    ref Unsafe.Add(ref source, (nint)i * size), ref Unsafe.Add(ref first, i));
+                ReadValue<T, TFormatter>(ref Unsafe.Add(ref source, (nint)i * size), ref Unsafe.Add(ref first, i));
         }
 
 #if !NET8_0_OR_GREATER
@@ -417,7 +416,7 @@ namespace Nino.Core.Internal
             // start past its first bytes, and each group's last vector writes those of the next.
             int skip = FirstAligned(at + (nuint)phase, Unsafe.SizeOf<T>(), 0, group, 63);
             if (phase > 0)
-                ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(ref source, ref first);
+                ReadValue<T, TFormatter>(ref source, ref first);
 
             // The indices from an array, not constants, so they stay in registers: the JIT reloads a vector
             // constant at every use (1,000 (int, long) into an array: 135 to 150 ns, against 115 to 130 with them in
@@ -657,6 +656,26 @@ namespace Nino.Core.Internal
             return i;
         }
 
+        /// <summary>Writes one value as its block (<see cref="INinoBlockFormatter{T}.WriteBlock"/>).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteValue<T, TFormatter>(ref byte destination, in T value)
+            where TFormatter : struct, INinoFormatter<T> =>
+#if NET8_0_OR_GREATER
+            ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(ref destination, in value);
+#else
+            NinoBlock<T, TFormatter>.Formatter.WriteBlock(ref destination, in value);
+#endif
+
+        /// <summary>Reads one value from its block (<see cref="INinoBlockFormatter{T}.ReadBlock"/>).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ReadValue<T, TFormatter>(ref byte source, ref T value)
+            where TFormatter : struct, INinoFormatter<T> =>
+#if NET8_0_OR_GREATER
+            ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(ref source, ref value);
+#else
+            NinoBlock<T, TFormatter>.Formatter.ReadBlock(ref source, ref value);
+#endif
+
         /// <summary>Value <paramref name="i"/> moved alone, in the direction of <typeparamref name="TDirection"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Move<T, TFormatter, TDirection>(ref byte source, ref byte destination, int i, int size)
@@ -664,10 +683,10 @@ namespace Nino.Core.Internal
             where TDirection : struct, INinoDirection
         {
             if (typeof(TDirection) == typeof(NinoWrites))
-                ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(ref Unsafe.Add(ref destination, (nint)i * size),
+                WriteValue<T, TFormatter>(ref Unsafe.Add(ref destination, (nint)i * size),
                     in Unsafe.Add(ref Unsafe.As<byte, T>(ref source), i));
             else
-                ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(ref Unsafe.Add(ref source, (nint)i * size),
+                ReadValue<T, TFormatter>(ref Unsafe.Add(ref source, (nint)i * size),
                     ref Unsafe.Add(ref Unsafe.As<byte, T>(ref destination), i));
         }
 
