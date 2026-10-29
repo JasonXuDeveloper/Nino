@@ -975,3 +975,11 @@ typescript 0c5ad99 0c5ad99 # own-data 3
 typescript 78ceaa1 78ceaa1 # all-data 1
 typescript 78ceaa1 78ceaa1 # all-data 2
 typescript 78ceaa1 78ceaa1 # all-data 3
+# TS typed arrays for fixed-size number sequences (97deeca) against main (78ceaa1); without the shared buffer (56ea681)
+typescript 78ceaa1 97deeca # typed 1
+typescript 78ceaa1 97deeca # typed 2
+typescript 78ceaa1 97deeca # typed 3
+typescript 56ea681 97deeca # pool vs no pool 1
+typescript 56ea681 97deeca # pool vs no pool 2
+typescript 97deeca 97deeca # typed floor 1
+typescript 97deeca 97deeca # typed floor 2
