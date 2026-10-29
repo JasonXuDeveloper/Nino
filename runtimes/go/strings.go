@@ -227,9 +227,7 @@ func (r *Reader) UTF16() []uint16 {
 		}
 		r.buf = b[n:]
 		units := make([]uint16, n)
-		for i, c := range b[:n] {
-			units[i] = uint16(c)
-		}
+		widenUnits(units, b[:n])
 		return units
 	}
 	if h != 0 {
@@ -818,9 +816,14 @@ func nextUnit(s string, i int) (rune, int) {
 	return c, size
 }
 
-// decodeUnits returns the UTF-16 code units of b (2 bytes each, little-endian).
+// decodeUnits returns the UTF-16 code units of b (2 bytes each, little-endian): its bytes copied as the units'
+// memory on a little-endian host.
 func decodeUnits(b []byte) []uint16 {
 	units := make([]uint16, len(b)/2)
+	if littleEndian {
+		copy(unsafeBytes(units), b)
+		return units
+	}
 	for i := range units {
 		if len(b) < 2 {
 			break
@@ -829,6 +832,67 @@ func decodeUnits(b []byte) []uint16 {
 		b = b[2:]
 	}
 	return units
+}
+
+// unsafeBytes returns the memory of units as bytes.
+func unsafeBytes(units []uint16) []byte {
+	return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(units))), 2*len(units))
+}
+
+// widenUnits writes the bytes of src to dst (as long) as code units: four a word (widen) on a little-endian host.
+func widenUnits(dst []uint16, src []byte) {
+	dst = dst[:len(src)]
+	if littleEndian {
+		d, s := unsafe.Pointer(unsafe.SliceData(dst)), unsafe.Pointer(unsafe.SliceData(src))
+		i := 0
+		for ; i+4 <= len(src); i += 4 {
+			store64(d, 2*i, widen(load32(s, i)))
+		}
+		dst, src = dst[i:], src[i:]
+	}
+	for i, c := range src {
+		dst[i] = uint16(c)
+	}
+}
+
+// narrowUnits writes the code units of src (each at most 0xFF) to dst (as long) as bytes: four a word on a
+// little-endian host.
+func narrowUnits(dst []byte, src []uint16) {
+	dst = dst[:len(src)]
+	if littleEndian {
+		d, s := unsafe.Pointer(unsafe.SliceData(dst)), unsafe.Pointer(unsafe.SliceData(src))
+		i := 0
+		for ; i+4 <= len(src); i += 4 {
+			x := load64(s, 2*i)
+			x = (x | x>>8) & 0x0000FFFF0000FFFF
+			store32(d, i, uint32(x|x>>16))
+		}
+		dst, src = dst[i:], src[i:]
+	}
+	for i, u := range src {
+		dst[i] = byte(u)
+	}
+}
+
+// narrowable reports whether every unit of units is at most 0xFF: four a word on a little-endian host, stopping at
+// the first word with a wider one.
+func narrowable(units []uint16) bool {
+	if littleEndian {
+		p := unsafe.Pointer(unsafe.SliceData(units))
+		i := 0
+		for ; i+4 <= len(units); i += 4 {
+			if load64(p, 2*i)&0xFF00FF00FF00FF00 != 0 {
+				return false
+			}
+		}
+		units = units[i:]
+	}
+	for _, u := range units {
+		if u > 0xFF {
+			return false
+		}
+	}
+	return true
 }
 
 // NullableString writes s, or null when ok is false.
@@ -936,23 +1000,14 @@ func (w *Writer) UTF16(units []uint16) {
 		w.Fail(CodeTooLarge, "string")
 		return
 	}
-	narrow := true
-	for _, u := range units {
-		if u > 0xFF {
-			narrow = false
-			break
-		}
-	}
 	hs := headerSize(uint32(2 * n))
-	if narrow {
+	if narrowable(units) {
 		b := w.Extend(hs + n)
 		if len(b) < hs+n {
 			return
 		}
 		putHeader(b, uint32(2*n+1))
-		for i, u := range units {
-			b[hs+i] = byte(u)
-		}
+		narrowUnits(b[hs:], units)
 		return
 	}
 	b := w.Extend(hs + 2*n)
@@ -960,6 +1015,10 @@ func (w *Writer) UTF16(units []uint16) {
 		return
 	}
 	putHeader(b, uint32(2*n))
+	if littleEndian {
+		copy(b[hs:], unsafeBytes(units))
+		return
+	}
 	for i, u := range units {
 		binary.LittleEndian.PutUint16(b[hs+2*i:], u)
 	}
