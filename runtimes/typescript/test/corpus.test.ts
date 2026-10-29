@@ -1,5 +1,6 @@
 // The conformance corpus (conformance/corpus, or NINO_CORPUS) over the code nino-gen generates for its types
-// (test/generated/Nino.Conformance.ts; Nino.Codegen.Tests checks it is what nino-gen writes today): every valid case
+// (test/generated/Nino.Conformance.ts, and Nino.Conformance.TypedArrays.ts with --numeric-arrays typed; Nino.Codegen.Tests
+// checks they are what nino-gen writes today): every valid case
 // read and written back byte for byte, every malicious case and every strict prefix of a valid case rejected with a
 // NinoError. Types TypeScript has no form for (Half, BigInteger, grids...) are left out by the generator with a
 // warning; the cases of those types are skipped, and the list of them is checked so none is skipped by mistake.
@@ -9,6 +10,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { deserialize, deserializeExact, NinoError, serialize, type NinoCodec } from "../src/nino.ts";
 import * as generated from "./generated/Nino.Conformance.ts";
+import * as typedArrays from "./generated/Nino.Conformance.TypedArrays.ts";
 
 const corpus = process.env.NINO_CORPUS ?? join(import.meta.dirname, "..", "..", "..", "conformance", "corpus");
 const present = existsSync(join(corpus, "index.json"));
@@ -25,10 +27,10 @@ const notGenerated = new Set([
 /** The optional features of the corpus the generated code supports. */
 const supported = new Set(["track-references"]);
 
-const codecs = generated as unknown as Record<string, NinoCodec<unknown> | undefined>;
+type Codecs = Record<string, NinoCodec<unknown> | undefined>;
 
 /** The generated codec of a .NET type: `<Name>Codec`, named after its last part. */
-function codecOf(type: string): NinoCodec<unknown> | undefined {
+function codecOf(codecs: Codecs, type: string): NinoCodec<unknown> | undefined {
   return codecs[type.split(/[.+]/).at(-1)! + "Codec"];
 }
 
@@ -57,70 +59,73 @@ function cases(group: "valid" | "malicious"): { name: string; c: any }[] {
   return (index[group] as string[]).map((name) => ({ name, c: json(join(corpus, group, name + ".json")) }));
 }
 
-function skipReason(c: any): string | null {
+function skipReason(codecs: Codecs, c: any): string | null {
   if (c.optional && !supported.has(c.optional)) return `optional: ${c.optional}`;
   if (notGenerated.has(c.type)) {
-    assert.equal(codecOf(c.type), undefined, `${c.type} is generated now: take it out of notGenerated`);
+    assert.equal(codecOf(codecs, c.type), undefined, `${c.type} is generated now: take it out of notGenerated`);
     return `${c.type} is not generated for TypeScript`;
   }
   return null;
 }
 
-describe("conformance corpus over generated code", { skip: present ? false : "no corpus (set NINO_CORPUS)" }, () => {
-  describe("valid", () => {
-    for (const { name, c } of cases("valid")) {
-      it(name, (t) => {
-        const skip = skipReason(c);
-        if (skip) return t.skip(skip);
-        const codec = codecOf(c.type);
-        assert.ok(codec, `no generated codec for ${c.type}`);
-        const data = new Uint8Array(readFileSync(join(corpus, "valid", name + ".bin")));
-        const expected = c.roundTrip ? Buffer.from(data).toString("hex") : c.reencoded;
-        assert.deepEqual(Buffer.from(serialize(codec, read(codec, data))).toString("hex"), expected);
-        assert.deepEqual(Buffer.from(serialize(codec, deserialized(codec, data))).toString("hex"), expected);
-      });
-    }
-  });
+for (const [label, module] of [["generated code", generated], ["generated code with typed arrays", typedArrays]] as const) {
+  const codecs = module as unknown as Codecs;
+  describe(`conformance corpus over ${label}`, { skip: present ? false : "no corpus (set NINO_CORPUS)" }, () => {
+    describe("valid", () => {
+      for (const { name, c } of cases("valid")) {
+        it(name, (t) => {
+          const skip = skipReason(codecs, c);
+          if (skip) return t.skip(skip);
+          const codec = codecOf(codecs, c.type);
+          assert.ok(codec, `no generated codec for ${c.type}`);
+          const data = new Uint8Array(readFileSync(join(corpus, "valid", name + ".bin")));
+          const expected = c.roundTrip ? Buffer.from(data).toString("hex") : c.reencoded;
+          assert.deepEqual(Buffer.from(serialize(codec, read(codec, data))).toString("hex"), expected);
+          assert.deepEqual(Buffer.from(serialize(codec, deserialized(codec, data))).toString("hex"), expected);
+        });
+      }
+    });
 
-  describe("malicious", () => {
-    for (const { name, c } of cases("malicious")) {
-      it(name, (t) => {
-        const skip = skipReason(c);
-        if (skip) return t.skip(skip);
-        const codec = codecOf(c.type);
-        assert.ok(codec, `no generated codec for ${c.type}`);
-        const data = new Uint8Array(readFileSync(join(corpus, "malicious", name + ".bin")));
-        if (c.expected === "error-or-value") {
-          for (const f of [read, deserialized]) {
-            try {
-              f(codec, data);
-            } catch (e) {
-              assert.ok(e instanceof NinoError, String(e));
+    describe("malicious", () => {
+      for (const { name, c } of cases("malicious")) {
+        it(name, (t) => {
+          const skip = skipReason(codecs, c);
+          if (skip) return t.skip(skip);
+          const codec = codecOf(codecs, c.type);
+          assert.ok(codec, `no generated codec for ${c.type}`);
+          const data = new Uint8Array(readFileSync(join(corpus, "malicious", name + ".bin")));
+          if (c.expected === "error-or-value") {
+            for (const f of [read, deserialized]) {
+              try {
+                f(codec, data);
+              } catch (e) {
+                assert.ok(e instanceof NinoError, String(e));
+              }
             }
+            return;
           }
-          return;
-        }
-        assert.throws(() => read(codec, data), NinoError);
-        assert.throws(() => deserialized(codec, data), NinoError);
-      });
-    }
-  });
+          assert.throws(() => read(codec, data), NinoError);
+          assert.throws(() => deserialized(codec, data), NinoError);
+        });
+      }
+    });
 
-  describe("truncations", () => {
-    const list = present ? json(join(corpus, "malicious", "truncations.json")) : { cases: [] };
-    for (const c of list.cases as { case: string; type: string; optional?: string }[]) {
-      it(c.case, (t) => {
-        const skip = skipReason(c);
-        if (skip) return t.skip(skip);
-        const codec = codecOf(c.type)!;
-        const data = new Uint8Array(readFileSync(join(corpus, "valid", c.case + ".bin")));
-        for (let n = 0; n < data.length; n++) {
-          assert.throws(() => read(codec, data.slice(0, n)), NinoError, `a prefix of ${n} bytes was read`);
-          // The reader deserialize reuses still holds the whole value past the prefix: it must not read it.
-          deserialized(codec, data);
-          assert.throws(() => deserialized(codec, data.subarray(0, n)), NinoError, `a prefix of ${n} bytes was deserialized`);
-        }
-      });
-    }
+    describe("truncations", () => {
+      const list = present ? json(join(corpus, "malicious", "truncations.json")) : { cases: [] };
+      for (const c of list.cases as { case: string; type: string; optional?: string }[]) {
+        it(c.case, (t) => {
+          const skip = skipReason(codecs, c);
+          if (skip) return t.skip(skip);
+          const codec = codecOf(codecs, c.type)!;
+          const data = new Uint8Array(readFileSync(join(corpus, "valid", c.case + ".bin")));
+          for (let n = 0; n < data.length; n++) {
+            assert.throws(() => read(codec, data.slice(0, n)), NinoError, `a prefix of ${n} bytes was read`);
+            // The reader deserialize reuses still holds the whole value past the prefix: it must not read it.
+            deserialized(codec, data);
+            assert.throws(() => deserialized(codec, data.subarray(0, n)), NinoError, `a prefix of ${n} bytes was deserialized`);
+          }
+        });
+      }
+    });
   });
-});
+}

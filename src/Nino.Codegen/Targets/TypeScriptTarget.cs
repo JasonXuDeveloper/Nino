@@ -20,6 +20,12 @@ namespace Nino.Codegen.Targets
 
         /// <summary>Whether member names are camelCased (the default) or kept as in C#.</summary>
         public bool CamelCase { get; set; } = true;
+
+        /// <summary>
+        /// Whether arrays and lists of fixed-size numbers are typed arrays (<c>Int32Array</c>, <c>Float64Array</c>...;
+        /// <c>--numeric-arrays typed</c>) rather than <c>number[]</c> and <c>bigint[]</c> (the default).
+        /// </summary>
+        public bool TypedArrays { get; set; }
     }
 
     /// <summary>
@@ -484,13 +490,20 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Sequence:
                 {
                     var element = Shape(value.Element!);
+                    bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
+                               CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
                     if (value.IsByteArray)
                         return new TsShape("bytes");
+                    string? array = null;
+                    if (_options.TypedArrays && !set && element.Kind == "prim" &&
+                        NumberArrays.TryGetValue(element.Primitive!, out array) && array == "Uint8Array")
+                        return new TsShape("bytes");
+                    // With --numeric-arrays typed, other fixed-size numbers are a typed array, read and written one by
+                    // one while it fits V8's heap (64 bytes), else copied in one block.
                     return InContext(value, Holding(new TsShape("seq")
                     {
-                        Element = element,
-                        Set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
-                              CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null,
+                        Element = element, Set = set, ArrayType = array,
+                        InlineLength = array == null ? 0 : 64 / element.Size,
                     }, element));
                 }
                 case ValueKind.Map:
@@ -644,6 +657,19 @@ namespace Nino.Codegen.Targets
                     throw new UnsupportedException($"{value.ClrName} ({value.Encoding}) has no TypeScript form");
             }
         }
+
+        /// <summary>
+        /// The typed array an array or list (not a set) of a primitive is held in: the fixed-size numbers, whose bytes
+        /// on the wire are those of the typed array on a little-endian host. <c>bool</c> (validated 0 or 1, read as
+        /// <c>boolean</c>), <c>char</c> (a string), <c>decimal</c>, <c>TimeSpan</c> and enums (their constants' type)
+        /// stay arrays.
+        /// </summary>
+        private static readonly Dictionary<string, string> NumberArrays = new()
+        {
+            ["i8"] = "Int8Array", ["u8"] = "Uint8Array", ["i16"] = "Int16Array", ["u16"] = "Uint16Array",
+            ["i32"] = "Int32Array", ["u32"] = "Uint32Array", ["i64"] = "BigInt64Array", ["u64"] = "BigUint64Array",
+            ["f32"] = "Float32Array", ["f64"] = "Float64Array",
+        };
 
         /// <summary>The primitives TypeScript reads and writes alone, and at an offset of a view.</summary>
         private static TsShape? Primitive(PrimitiveKind kind)
@@ -944,6 +970,15 @@ namespace Nino.Codegen.Targets
         /// <summary>A set (<c>Set</c>) rather than an array.</summary>
         public bool Set { get; internal set; }
 
+        /// <summary>The typed array a sequence of fixed-size numbers is (<c>Int32Array</c>...), else null.</summary>
+        public string? ArrayType { get; internal set; }
+
+        /// <summary>
+        /// The most elements of a typed array read and written one by one (those that fit in 64 bytes, which V8
+        /// keeps on its heap); longer ones are copied in one block (<c>NinoReader.numbers</c>, <c>NinoWriter.numbers</c>).
+        /// </summary>
+        public int InlineLength { get; internal set; }
+
         public TsShape? Key { get; internal set; }
 
         public TsShape? Value { get; internal set; }
@@ -982,6 +1017,7 @@ namespace Nino.Codegen.Targets
             yield return Type?.FullName ?? "";
             yield return Header ?? "";
             yield return Set ? "set" : "";
+            yield return ArrayType ?? "";
             yield return FlagOffset + "/" + ValueOffset;
             yield return string.Join("/", Offsets);
             foreach (var child in new[] { Inner, Element, Key, Value }.Concat(Items))

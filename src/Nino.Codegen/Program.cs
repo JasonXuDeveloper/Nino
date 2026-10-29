@@ -60,6 +60,7 @@ namespace Nino.Codegen
                     {
                         ImportExtension = options.Get("import-extension"),
                         CamelCase = options.Get("names") == "camel",
+                        TypedArrays = options.Get("numeric-arrays") == "typed",
                         RuntimeModule = runtime.Length == 0 ? null : runtime,
                     });
                     files[options.Get("name", source + ".ts")] = target.Render(source);

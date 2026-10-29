@@ -10,10 +10,12 @@ const json = (value: unknown) =>
     typeof v === "bigint" ? v.toString()
     : v instanceof Map ? Object.fromEntries(v)
     : v instanceof Set ? [...v]
-    : v instanceof Uint8Array ? [...v]
+    : ArrayBuffer.isView(v) ? [...(v as unknown as Iterable<unknown>)]
     : v);
 
 const cases = JSON.parse(readFileSync(process.argv[2], "utf8")) as { codec: string; hex: string }[];
+// "typed" when the code was generated with --numeric-arrays typed (int[] is an Int32Array), else "array".
+const ints = (...values: number[]) => (process.argv[3] === "typed" ? Int32Array.from(values) : values) as never;
 const codecs = types as unknown as Record<string, NinoCodec<unknown>>;
 // A case that throws gives its error (bad data must throw a NinoError); a value too deep for JSON.stringify, no JSON.
 const results = cases.map(({ codec, hex: input }) => {
@@ -40,8 +42,8 @@ player.rank = types.Rank.Gold;
 player.access = types.Access.Read | types.Access.Admin;
 player.joined = new Date(Date.UTC(2026, 9, 18, 12, 30, 45, 123));
 player.balance = "-12.345";
-player.levels = [1, 2, 3];
-player.inventory = new Map([["sword", [7]]]);
+player.levels = ints(1, 2, 3);
+player.inventory = new Map([["sword", ints(7)]]);
 player.pair = [5, "five"];
 const cat = new types.Cat();
 cat.name = "Tom";

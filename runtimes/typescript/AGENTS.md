@@ -29,7 +29,8 @@ test/
   corpus.test.ts             the conformance corpus (conformance/corpus or NINO_CORPUS) over generated/Nino.Conformance.ts
   codecs.ts                  codecs written as nino-gen generates them, for the runtime's tests
   runtime.ts                 --import hook: NINO_TEST_RUNTIME=browser (no Buffer), NINO_WASM=0 (no kernels)
-  generated/                 Nino.Conformance.ts and Nino.Codegen.Tests.ts: nino-gen's output for the corpus's types and
+  generated/                 Nino.Conformance.ts (also as .TypedArrays.ts, --numeric-arrays typed) and
+                             Nino.Codegen.Tests.ts: nino-gen's output for the corpus's types and
                              tests/Nino.Codegen.Tests/Shapes.cs (do not edit)
 bench/                       the generated TypeScript against protobuf-es, msgpackr and JSON (tinybench) in Node
                              (node.ts) and headless Chromium (browser.mjs); Bench.csproj + Program.cs write the data in

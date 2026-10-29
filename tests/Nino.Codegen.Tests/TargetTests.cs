@@ -86,6 +86,21 @@ namespace Nino.Codegen.Tests
         }
 
         [TestMethod]
+        public void TypeScriptNumericArrays()
+        {
+            var (array, _) = Run("ts", "Nino.Codegen.Tests.ts");
+            var (explicitArray, _) = Run("ts", "Nino.Codegen.Tests.ts", "--numeric-arrays", "array");
+            var (typed, _) = Run("ts", "Nino.Codegen.Tests.ts", "--numeric-arrays", "typed");
+            Assert.AreEqual(array, explicitArray);
+            StringAssert.Contains(array, "Box<number[] | null>");
+            Assert.IsFalse(array.Contains("Int32Array", StringComparison.Ordinal));
+            StringAssert.Contains(typed, "Box<Int32Array | null>");
+            StringAssert.Contains(typed, "return r.numbers(Int32Array, length);");
+            Assert.ThrowsExactly<ArgumentException>(() => Run("ts", "Nino.Codegen.Tests.ts", "--numeric-arrays", "list"));
+            Assert.ThrowsExactly<ArgumentException>(() => Run("go", "nino_types.go", "--numeric-arrays", "typed"));
+        }
+
+        [TestMethod]
         public void RustMaps()
         {
             var (indexmap, _) = Run("rust", "nino_types.rs");

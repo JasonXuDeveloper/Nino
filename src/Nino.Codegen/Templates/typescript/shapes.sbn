@@ -63,6 +63,9 @@ end
 
 # The type of an element of a sequence (without `| null`).
 func seq_ts(s)
+  if s.array_type
+    ret s.array_type
+  end
   if s.set
     ret "Set<" + ts(s.element) + ">"
   end
@@ -163,6 +166,8 @@ func elements_def(s)
   when "seq"
     if s.set
       ret "new " + seq_ts(s) + "()"
+    else if s.array_type
+      ret "new " + s.array_type + "(0)"
     end
     ret "[]"
   when "map"
