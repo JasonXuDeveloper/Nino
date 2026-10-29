@@ -47,8 +47,9 @@ func (w *Writer) Decimal(d Decimal) {
 	d.Put(w.Extend(DecimalSize))
 }
 
-// Valid reports whether the scale is at most 28 and no flag bit other than the scale and the sign is set.
-func (d Decimal) Valid() bool { return d.Flags&0x7F00FFFF == 0 && d.Flags>>16&0xFF <= 28 }
+// Valid reports whether the scale is at most 28 and no flag bit other than the scale and the sign is set: without
+// the sign, rotated by 16 bits (the scale and the bits above it low, the bits below the scale high), at most 28.
+func (d Decimal) Valid() bool { return bits.RotateLeft32(d.Flags&0x7FFFFFFF, 16) <= 28 }
 
 // DecimalAt decodes the decimal at the start of b (zero when b is shorter).
 func DecimalAt(b []byte) Decimal {
@@ -408,7 +409,7 @@ const MaxTimeOnly TimeOnly = 863999999999
 func (d DateOnly) Valid() bool { return d >= 0 && d <= MaxDateOnly }
 
 // Valid reports whether t is in TimeOnly's range.
-func (t TimeOnly) Valid() bool { return t >= 0 && t <= MaxTimeOnly }
+func (t TimeOnly) Valid() bool { return uint64(t) <= uint64(MaxTimeOnly) } // negative is above as unsigned
 
 // Time returns the date at midnight UTC.
 func (d DateOnly) Time() time.Time { return ticksTime(int64(d) * 86400 * ticksPerSecond) }
