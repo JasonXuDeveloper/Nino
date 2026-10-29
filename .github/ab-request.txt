@@ -1123,3 +1123,7 @@ go#12 78ceaa1 bcbbcbe ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control B 3
 go#12 78ceaa1 bcbbcbe ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control B 4
 go#12 78ceaa1 bcbbcbe ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control B 5
 go#12 78ceaa1 bcbbcbe ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control B 6
+# TS typed arrays with a 1 MiB pool for arrays up to 64 KiB (65c395e) against the 64 KiB pool (d07506b) and main (7c30927)
+typescript d07506b 65c395e # 1 MiB pool 1
+typescript d07506b 65c395e # 1 MiB pool 2
+typescript 7c30927 65c395e # 1 MiB pool vs main 1
