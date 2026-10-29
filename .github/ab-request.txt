@@ -1127,3 +1127,13 @@ go#12 78ceaa1 bcbbcbe ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control B 6
 typescript d07506b 65c395e # 1 MiB pool 1
 typescript d07506b 65c395e # 1 MiB pool 2
 typescript 7c30927 65c395e # 1 MiB pool vs main 1
+# Batch (agent-notes queue): ts serializeInto null, rust read-into, Go block checks final, ts numeric arrays
+typescript 0b46472 78774c3 # serializeInto null (a0f34ddb0aa4462cf); ref origin/ab/ts-into-null
+rust 9e3499e 8d5ebba # rust read-into (a0f34ddb0aa4462cf); ref origin/ab/rust-read-into
+rust 9e3499e 8d5ebba # rust read-into (a0f34ddb0aa4462cf) copy 2
+rust 9e3499e 9e3499e # rust read-into floor (a0f34ddb0aa4462cf)
+go:. a309ab3 ae414a0 Blocks # go blocks final, DateOnly back to one at a time (Go block worker); ref origin/ab/go-blocks
+go:. a309ab3 ae414a0 Blocks # go blocks final copy 2 (Go block worker); ref origin/ab/go-blocks
+typescript 9a3287d b8c2891 # ts --numeric-arrays typed vs main (aa6215930cf014838); ref origin/ab/ts-numeric-typed
+typescript 9a3287d b8c2891 # ts --numeric-arrays typed copy 2 (aa6215930cf014838)
+typescript 9a3287d 9a3287d # ts floor on main 9a3287d (aa6215930cf014838)
