@@ -2,6 +2,7 @@ package bench
 
 import (
 	"strconv"
+	"unsafe"
 
 	"github.com/JasonXuDeveloper/Nino/runtimes/go/bench/benchpb"
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
@@ -37,15 +38,39 @@ func MixedStrings() []string {
 }
 
 // ReadStrings and WriteStrings are a string[] (List<string> writes the same bytes).
-func ReadStrings(r *nino.Reader) []string { return nino.ReadSlice(r, 1, (*nino.Reader).String) }
+func ReadStrings(r *nino.Reader) []string { return nino.ReadStrings(r) }
 
 func WriteStrings(w *nino.Writer, v []string) { nino.WriteStrings(w, v) }
 
 // ReadUtf8Strings and WriteUtf8Strings are a [NinoUtf8] string[]: each element as UTF-8 (wire format §4.2), read
 // with the same checks (strict UTF-8, the char count) as a [NinoUtf8] member.
-func ReadUtf8Strings(r *nino.Reader) []string { return nino.ReadSlice(r, 1, (*nino.Reader).UTF8) }
+func ReadUtf8Strings(r *nino.Reader) []string {
+	n := r.Length(1)
+	if n < 0 {
+		return nil
+	}
+	var e string
+	v := make([]string, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		e = r.UTF8()
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return v
+}
 
-func WriteUtf8Strings(w *nino.Writer, v []string) { nino.WriteSlice(w, v, (*nino.Writer).UTF8) }
+func WriteUtf8Strings(w *nino.Writer, v []string) {
+	if v == nil {
+		w.Null()
+		return
+	}
+	w.Length(len(v))
+	for _, e := range v {
+		w.UTF8(e)
+	}
+}
 
 // The values as Protocol Buffers messages (benchpb/bench.proto).
 

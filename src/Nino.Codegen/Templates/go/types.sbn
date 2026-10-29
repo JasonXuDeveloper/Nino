@@ -161,7 +161,7 @@ func helper_body(h)
     when "enum"
       ret $o + "\treturn " + name($s.enum) + "(r." + $s.inner.primitive + "())\n}\n"
     when "rawnullable", "rawtuple"
-      ret $o + "\treturn readRaw(r, " + $s.size + ", " + decode_fn($s) + ")\n}\n"
+      ret $o + "\tvar v " + $t + "\n\tif b := r.Take(" + $s.size + "); len(b) == " + $s.size + " {\n\t\tv = " + decode_fn($s) + "(r, b)\n\t}\n\treturn v\n}\n"
     when "nullable"
       ret $o + "\tif !r.Present() {\n\t\treturn nil\n\t}\n\tx := " + read($s.inner) + "\n\treturn &x\n}\n"
     when "tuple"
@@ -173,8 +173,11 @@ func helper_body(h)
     when "grid"
       ret $o + "\treturn readGrid(r, " + $s.rank + ", " + compact($s.element.min) + ", " + rfn($s.element) + ")\n}\n"
     when "map"
-      $how = $s.mode == "unique" ? "ReadUniqueEntries" : "ReadEntries"
-      ret $o + "\treturn nino." + $how + "(r, " + compact(plus($s.key, $s.value)) + ", " + rfn($s.key) + ", " + rfn($s.value) + ")\n}\n"
+      if $s.mode == "unique"
+        ret $o + "\treturn nino.ReadUniqueEntries(r, " + compact(plus($s.key, $s.value)) + ", " + rfn($s.key) + ", " + rfn($s.value) + ")\n}\n"
+      end
+      $e = "nino.Entry[" + gotype($s.key) + ", " + gotype($s.value) + "]"
+      ret $o + read_loop($e, plus($s.key, $s.value), "k := " + read($s.key) + "\n\t\te = " + $e + "{Key: k, Value: " + read($s.value) + "}") + "\treturn v\n}\n"
     end
     # A sequence.
     case $s.mode
@@ -182,7 +185,7 @@ func helper_body(h)
       ret $o + "\treturn nino.ReadUnique(r, " + compact($s.element.min) + ", " + rfn($s.element) + ")\n}\n"
     when "stringset"
       # A set of strings in the order of the data: a string (or null) read twice fails.
-      $o = $o + "\tv := nino.ReadSlice(r, " + compact($s.element.min) + ", " + rfn($s.element) + ")\n\tif v == nil {\n\t\treturn nil\n\t}\n"
+      $o = $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element))
       $o = $o + "\tseen := make(map[string]struct{}, len(v))\n\tnull := false\n\tfor _, s := range v {\n\t\tdup := false\n"
       $o = $o + "\t\tif s == nil {\n\t\t\tdup, null = null, true\n\t\t} else if _, dup = seen[*s]; !dup {\n\t\t\tseen[*s] = struct{}{}\n\t\t}\n"
       ret $o + "\t\tif dup {\n\t\t\tr.Fail(nino.CodeDuplicateKey, \"\")\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn v\n}\n"
@@ -191,9 +194,13 @@ func helper_body(h)
       if $b
         ret $o + "\treturn nino.ReadRaw(r, " + $s.element.size + ", " + $b.as_is + ", " + $b.bools + ", " + decode_fn($s.element) + ")\n}\n"
       end
-      ret $o + "\treturn nino.ReadFixed(r, " + $s.element.size + ", " + decode_fn($s.element) + ")\n}\n"
+      # The elements' bytes with one bounds check, then each element's from a cursor.
+      $z = $s.element.size
+      $o = $o + "\tn := r.Length(" + $z + ")\n\tif n < 0 {\n\t\treturn nil\n\t}\n\tb := r.Take(n * " + $z + ")\n\tif len(b) != n*" + $z + " {\n\t\treturn nil\n\t}\n"
+      $o = $o + make_slice(gotype($s.element)) + "\tfor len(b) >= " + $z + " {\n\t\te = " + decode_fn($s.element) + "(r, b[:" + $z + ":" + $z + "])\n"
+      ret $o + "\t\tif r.Failed() {\n\t\t\treturn nil\n\t\t}\n\t\tv = append(v, e)\n\t\tb = b[" + $z + ":]\n\t}\n\treturn v\n}\n"
     end
-    ret $o + "\treturn nino.ReadSlice(r, " + compact($s.element.min) + ", " + rfn($s.element) + ")\n}\n"
+    ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn v\n}\n"
   end
 
   $o = "func " + $n + "(w *nino.Writer, v " + $t + ") {\n"
@@ -201,7 +208,7 @@ func helper_body(h)
   when "enum"
     ret $o + "\tw." + $s.inner.primitive + "(" + gotype($s.inner) + "(v))\n}\n"
   when "rawnullable", "rawtuple"
-    ret $o + "\twriteRaw(w, v, " + $s.size + ", " + encode_fn($s) + ")\n}\n"
+    ret $o + "\tif b := w.ExtendZero(" + $s.size + "); len(b) == " + $s.size + " {\n\t\t" + encode_fn($s) + "(b, v)\n\t}\n}\n"
   when "nullable"
     ret $o + "\tw.Present(v != nil)\n\tif v != nil {\n\t\t" + write($s.inner, "*v") + "\n\t}\n}\n"
   when "tuple"
@@ -212,14 +219,17 @@ func helper_body(h)
   when "grid"
     ret $o + "\twriteGrid(w, v, " + $s.rank + ", " + wfn($s.element) + ")\n}\n"
   when "map"
-    ret $o + "\tnino.WriteEntries(w, v, " + wfn($s.key) + ", " + wfn($s.value) + ")\n}\n"
+    ret $o + write_loop(write($s.key, "e.Key") + "\n\t\t" + write($s.value, "e.Value"))
   end
   if $s.mode == "fixed"
     $b = $s.element.raw_block
     if $b
       ret $o + "\tnino.WriteRaw(w, v, " + $s.element.size + ", " + $b.as_is + ", " + $b.bools + ", " + $b.pads + ", " + encode_fn($s.element) + ")\n}\n"
     end
-    ret $o + "\tnino.WriteFixed(w, v, " + $s.element.size + ", " + encode_fn($s.element) + ")\n}\n"
+    # One reservation, cleared (padding is written as zeros), then each element's bytes from a cursor.
+    $z = $s.element.size
+    $o = $o + "\tif v == nil {\n\t\tw.Null()\n\t\treturn\n\t}\n\tw.Length(len(v))\n\tb := w.ExtendZero(len(v) * " + $z + ")\n\tif len(b) != len(v)*" + $z + " {\n\t\treturn\n\t}\n"
+    ret $o + "\tfor _, e := range v {\n\t\t" + encode_fn($s.element) + "(b[:" + $z + ":" + $z + "], e)\n\t\tb = b[" + $z + ":]\n\t}\n}\n"
   else if $s.element.block
     ret $o + "\tnino.WritePrimitives(w, v)\n}\n"
   else if $s.element.kind == "string" && !$s.element.field
@@ -227,7 +237,25 @@ func helper_body(h)
   else if $s.element.kind == "keystring" && !$s.element.field
     ret $o + "\tnino.WriteStrings(w, v)\n}\n"
   end
-  ret $o + "\tnino.WriteSlice(w, v, " + wfn($s.element) + ")\n}\n"
+  ret $o + write_loop(write($s.element, "e"))
+end
+
+# The loop of a sequence's read helper: its length (n), then each element, read by `each` into `e` (of type `t`)
+# with direct calls (no func value an element), appended to `v`. As nino.ReadSlice does: nil for null and on a
+# failure, the slice presized only as far as the bytes left allow (Reader.SliceCap).
+func read_loop(t, min, each)
+  $o = "\tn := r.Length(" + min + ")\n\tif n < 0 {\n\t\treturn nil\n\t}\n" + make_slice(t)
+  ret $o + "\tfor range n {\n\t\t" + each + "\n\t\tif r.Failed() {\n\t\t\treturn nil\n\t\t}\n\t\tv = append(v, e)\n\t}\n"
+end
+
+# `e`, and `v`, an empty []t with the capacity Reader.SliceCap allows for n elements.
+func make_slice(t)
+  ret "\tvar e " + t + "\n\tv := make([]" + t + ", 0, r.SliceCap(n, int(unsafe.Sizeof(e))))\n"
+end
+
+# The rest of a sequence's write helper: null for nil, else its length and each element `e`, written by `each`.
+func write_loop(each)
+  ret "\tif v == nil {\n\t\tw.Null()\n\t\treturn\n\t}\n\tw.Length(len(v))\n\tfor _, e := range v {\n\t\t" + each + "\n\t}\n}\n"
 end
 
 # A slot's dispatch: the type id, then the body of one of the types the declared type allows. `read` and `write`
@@ -540,8 +568,8 @@ for s in raw_structs
     if s.block
       "\n// " + s.block.as_is + ": whether " + s.name + "'s memory is its bytes (on a little-endian host), for arrays copied as one block.\nconst " + s.block.as_is + " = " + s.block.expression + "\n"
     end
-    "\nfunc read" + s.name + "(r *nino.Reader) " + s.name + " {\n\treturn readRaw(r, " + $model.size + ", decode" + s.name + ")\n}\n"
-    "\nfunc write" + s.name + "(w *nino.Writer, v " + s.name + ") {\n\twriteRaw(w, v, " + $model.size + ", encode" + s.name + ")\n}\n"
+    "\nfunc read" + s.name + "(r *nino.Reader) " + s.name + " {\n\tvar v " + s.name + "\n\tif b := r.Take(" + $model.size + "); len(b) == " + $model.size + " {\n\t\tv = decode" + s.name + "(r, b)\n\t}\n\treturn v\n}\n"
+    "\nfunc write" + s.name + "(w *nino.Writer, v " + s.name + ") {\n\tif b := w.ExtendZero(" + $model.size + "); len(b) == " + $model.size + " {\n\t\tencode" + s.name + "(b, v)\n\t}\n}\n"
   end
 end
 
@@ -742,21 +770,6 @@ if uses_grid
   "\tw.WriteShape(g.Lengths...)\n\tfor _, e := range g.Items {\n\t\twrite(w, e)\n\t}\n}\n"
 end
 ~}}
-
-// readRaw reads one raw value of size bytes.
-func readRaw[T any](r *nino.Reader, size int, decode func(*nino.Reader, []byte) T) (v T) {
-	if b := r.Take(size); len(b) == size {
-		v = decode(r, b)
-	}
-	return v
-}
-
-// writeRaw writes one raw value of size bytes, zeroed first.
-func writeRaw[T any](w *nino.Writer, v T, size int, encode func([]byte, T)) {
-	if b := w.ExtendZero(size); len(b) == size {
-		encode(b, v)
-	}
-}
 
 // keyString reads a string dictionary key: null is invalid (.NET's dictionaries reject a null key).
 func keyString(r *nino.Reader) string {
