@@ -10,7 +10,7 @@
         <PackageVersion Include="System.Memory" Version="4.6.3"/>
         <PackageVersion Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2"/>
         <PackageVersion Include="System.Collections.Immutable" Version="10.0.13"/>
-        <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.13"/>
+        <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.14"/>
     </ItemGroup>
 
     <!-- Tools only (Nino.Codegen, Nino.Codegen.Tool): the templates of the code generated for other languages. Shipped
