@@ -34,8 +34,32 @@ func init() {
 	simpleClass = nino.Class[SimpleClass]{Read: readSimpleClassBody, Write: writeSimpleClassBody, Deferrable: true}
 }
 
-func ReadSimpleClass(r *nino.Reader) *SimpleClass     { return nino.ReadSealed(r, &simpleClass) }
-func WriteSimpleClass(w *nino.Writer, v *SimpleClass) { nino.WriteSealed(w, v, &simpleClass) }
+func ReadSimpleClass(r *nino.Reader) *SimpleClass {
+	if !r.Present() {
+		return nil
+	}
+	v := new(SimpleClass)
+	if d, ok := r.EnterBody(); ok {
+		readSimpleClassBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &simpleClass)
+	}
+	return v
+}
+func WriteSimpleClass(w *nino.Writer, v *SimpleClass) {
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeSimpleClassBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &simpleClass)
+	}
+}
 
 func readSimpleClassBody(r *nino.Reader, v *SimpleClass) {
 	b := r.Take(21)

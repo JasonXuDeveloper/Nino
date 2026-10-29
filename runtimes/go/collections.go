@@ -423,39 +423,32 @@ func ReadUnique[T comparable](r *Reader, minSize int, read func(*Reader) T) []T 
 // ReadUniqueEntries reads a dictionary as its pairs in the order of the data (nil for null): a key read twice
 // fails with CodeDuplicateKey, as .NET's dictionaries do when filled from empty.
 func ReadUniqueEntries[K comparable, V any](r *Reader, minSize int, readKey func(*Reader) K, readValue func(*Reader) V) []Entry[K, V] {
-	n := r.Length(minSize)
-	if n < 0 {
+	return UniqueEntries(r, ReadEntries(r, minSize, readKey, readValue))
+}
+
+// UniqueEntries returns e, the pairs of a dictionary read in the order of the data, unless two of its keys are equal:
+// then it fails r with CodeDuplicateKey (as .NET's dictionaries do when filled from empty) and returns nil. It
+// returns nil for nil and after r failed. Generated code reads the pairs with direct calls, then checks them once
+// here. Integer keys (of any integer type, named or not) are compared without a map (see repeatedKey); others go
+// through one.
+func UniqueEntries[K comparable, V any](r *Reader, e []Entry[K, V]) []Entry[K, V] {
+	if e == nil || r.err != nil {
 		return nil
 	}
-	var e Entry[K, V]
-	var k K
-	size := int(unsafe.Sizeof(e))
-	keySize := intKeySize[K]()
-	v := make([]Entry[K, V], r.SliceCap(n, size))
-	var seen map[K]struct{}
-	if keySize == 0 {
-		seen = make(map[K]struct{}, capacity(n, int(unsafe.Sizeof(k))+hashSlot, len(r.buf)))
-	}
-	for i := 0; i < n; i++ {
-		if i == len(v) {
-			v = growSlice(v, n)
-		}
-		key := readKey(r)
-		value := readValue(r)
-		if r.err != nil {
+	if keySize := intKeySize[K](); keySize != 0 {
+		var pair Entry[K, V]
+		if repeatedKey(unsafe.Pointer(unsafe.SliceData(e)), len(e), int(unsafe.Sizeof(pair)), keySize) {
+			r.Fail(CodeDuplicateKey, "")
 			return nil
 		}
-		if keySize == 0 {
-			if seen[key] = struct{}{}; len(seen) != i+1 {
-				r.Fail(CodeDuplicateKey, "")
-				return nil
-			}
+		return e
+	}
+	seen := make(map[K]struct{}, len(e))
+	for i := range e {
+		if seen[e[i].Key] = struct{}{}; len(seen) != i+1 {
+			r.Fail(CodeDuplicateKey, "")
+			return nil
 		}
-		v[i] = Entry[K, V]{key, value}
 	}
-	if keySize != 0 && repeatedKey(unsafe.Pointer(unsafe.SliceData(v)), n, size, keySize) {
-		r.Fail(CodeDuplicateKey, "")
-		return nil
-	}
-	return v
+	return e
 }

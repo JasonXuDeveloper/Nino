@@ -174,11 +174,10 @@ func helper_body(h)
       $o = $o + "\tg := readGrid[" + gotype($s.element) + "](r, " + $s.rank + ", " + compact($s.element.min) + ")\n\tif g == nil {\n\t\treturn nil\n\t}\n"
       ret $o + "\tfor i := range g.Items {\n\t\tg.Items[i] = " + read($s.element) + "\n\t\tif r.Failed() {\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn g\n}\n"
     when "map"
-      if $s.mode == "unique"
-        ret $o + "\treturn nino.ReadUniqueEntries(r, " + compact(plus($s.key, $s.value)) + ", " + rfn($s.key) + ", " + rfn($s.value) + ")\n}\n"
-      end
       $e = "nino.Entry[" + gotype($s.key) + ", " + gotype($s.value) + "]"
-      ret $o + read_loop($e, plus($s.key, $s.value), "k := " + read($s.key) + "\n\t\te = " + $e + "{Key: k, Value: " + read($s.value) + "}") + "\treturn v\n}\n"
+      $o = $o + read_loop($e, plus($s.key, $s.value), "k := " + read($s.key) + "\n\t\te = " + $e + "{Key: k, Value: " + read($s.value) + "}")
+      # Keys read twice fail, checked once over the pairs.
+      ret $o + ($s.mode == "unique" ? "\treturn nino.UniqueEntries(r, v)\n}\n" : "\treturn v\n}\n")
     end
     # A sequence.
     case $s.mode
@@ -280,7 +279,7 @@ func dispatch(read, write, slot, allowed, allowed_closed, iface, tracked, own, i
     else if $t.tracked
       $o = $o + "\t\treturn nino.ReadTrackedClass(r, &" + lower($t.name) + "Class)\n"
     else
-      $o = $o + "\t\treturn nino.ReadClass(r, &" + lower($t.name) + "Class)\n"
+      $o = $o + "\t\treturn read" + $t.name + "Class(r)\n"
     end
   end
   for $k in allowed_closed
@@ -297,7 +296,7 @@ func dispatch(read, write, slot, allowed, allowed_closed, iface, tracked, own, i
     if tracked
       ret $o + "func " + write + "(w *nino.Writer, v " + slot + ") {\n\tif v == nil {\n\t\tw.I32(0)\n\t} else if w.Ref(v) {\n\t\tw.TypeID(" + id + ")\n\t\tnino.WriteClass(w, v, &" + lower(own) + "Class)\n\t}\n}\n"
     end
-    ret $o + "func " + write + "(w *nino.Writer, v " + slot + ") {\n\tnino.WriteTyped(w, " + id + ", v, &" + lower(own) + "Class)\n}\n"
+    ret $o + "func " + write + "(w *nino.Writer, v " + slot + ") {\n" + typed_write(id, own, "\t") + "}\n"
   end
   $o = $o + "func " + write + "(w *nino.Writer, v " + slot + ") {\n\tswitch v := v.(type) {\n\tcase nil:\n\t\t" + (tracked ? "w.I32(0)" : "w.TypeID(nino.NullTypeID)") + "\n"
   for $t in allowed
@@ -308,7 +307,7 @@ func dispatch(read, write, slot, allowed, allowed_closed, iface, tracked, own, i
     else if $t.tracked
       $o = $o + "\tcase *" + $t.name + ":\n\t\tnino.WriteTypedTracked(w, " + $t.id + ", v, &" + lower($t.name) + "Class)\n"
     else
-      $o = $o + "\tcase *" + $t.name + ":\n\t\tnino.WriteTyped(w, " + $t.id + ", v, &" + lower($t.name) + "Class)\n"
+      $o = $o + "\tcase *" + $t.name + ":\n" + typed_write($t.id, $t.name, "\t\t")
     end
   end
   for $k in allowed_closed
@@ -319,6 +318,22 @@ func dispatch(read, write, slot, allowed, allowed_closed, iface, tracked, own, i
     end
   end
   ret $o + "\tdefault:\n\t\tw.Fail(nino.CodeUnknownType, \"not a type the slot allows\")\n\t}\n}\n"
+end
+
+# Statements reading the body of the class `name` into a new instance and returning it: in place with a direct call
+# to its body, or, from 128 open bodies on, through its Class (deferred or nested as .NET does).
+func class_read(name)
+  ret "\tv := new(" + name + ")\n\tif d, ok := r.EnterBody(); ok {\n\t\tread" + name + "Body(r, v)\n\t\tr.ExitBody(d)\n\t} else {\n\t\tnino.ReadClassInto(r, v, &" + lower(name) + "Class)\n\t}\n\treturn v\n"
+end
+
+# Statements writing the body of `v` (not nil), a *T of the class `name`, as class_read reads it.
+func class_write(name)
+  ret "\tif d, ok := w.EnterBody(); ok {\n\t\twrite" + name + "Body(w, v)\n\t\tw.ExitBody(d)\n\t} else {\n\t\tnino.WriteClass(w, v, &" + lower(name) + "Class)\n\t}\n"
+end
+
+# Statements writing `v`, a *T of the class `name` that does not track references, behind its type id `id`.
+func typed_write(id, name, i)
+  ret i + "if v == nil {\n" + i + "\tw.TypeID(nino.NullTypeID)\n" + i + "} else {\n" + i + "\tw.TypeID(" + id + ")\n" + i + "\twrite" + name + "Class(w, v)\n" + i + "}\n"
 end
 
 # The dispatch of a slot declared as a [NinoType] (ReadAnimal, WriteAnimal).
@@ -712,13 +727,23 @@ for c in types
     "func Read" + c.name + "(r *nino.Reader) *" + c.name + " {\n\treturn nino.ReadTracked(r, &" + lower(c.name) + "Class)\n}\n\n"
     "func Write" + c.name + "(w *nino.Writer, v *" + c.name + ") {\n\tnino.WriteTracked(w, v, &" + lower(c.name) + "Class)\n}\n\n"
   else if c.kind == "class"
-    "func Read" + c.name + "(r *nino.Reader) *" + c.name + " {\n\treturn nino.ReadSealed(r, &" + lower(c.name) + "Class)\n}\n\n"
-    "func Write" + c.name + "(w *nino.Writer, v *" + c.name + ") {\n\tnino.WriteSealed(w, v, &" + lower(c.name) + "Class)\n}\n\n"
+    # Its presence byte, then its body in place with a direct call, or (128 bodies deep) through its Class, which
+    # defers it as .NET does.
+    "func Read" + c.name + "(r *nino.Reader) *" + c.name + " {\n\tif !r.Present() {\n\t\treturn nil\n\t}\n" + class_read(c.name) + "}\n\n"
+    "func Write" + c.name + "(w *nino.Writer, v *" + c.name + ") {\n\tif v == nil {\n\t\tw.U8(0)\n\t\treturn\n\t}\n\tw.U8(1)\n" + class_write(c.name) + "}\n\n"
   else
     if c.interface_slot
       "// " + c.slot_name + " is a value of a slot declared as `" + c.model.full_name + "`: it or a type deriving from it.\ntype " + c.slot_name + " interface {\n\tnino.Typed\n\tis" + c.slot_name + "()\n}\n\n"
     end
     slot_functions(c) + "\n"
+  end
+  if (c.kind == "class" || c.kind == "typeid") && !c.tracked
+    # The body after a type id, for the dispatches of the slots that allow it (a sealed class's Read and Write keep
+    # it inline: one call fewer on the common path).
+    "// read" + c.name + "Class reads the body of a " + c.name + " (after its type id) into a new instance.\n"
+    "func read" + c.name + "Class(r *nino.Reader) *" + c.name + " {\n" + class_read(c.name) + "}\n\n"
+    "// write" + c.name + "Class writes the body of v (not nil, after its type id).\n"
+    "func write" + c.name + "Class(w *nino.Writer, v *" + c.name + ") {\n" + class_write(c.name) + "}\n\n"
   end
   "func read" + c.name + "Body(r *nino.Reader, v *" + c.name + ") {\n" + read_members(c) + "}\n\n"
   "func write" + c.name + "Body(w *nino.Writer, v *" + c.name + ") {\n" + write_members(c) + "}\n"

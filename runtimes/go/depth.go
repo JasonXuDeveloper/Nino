@@ -57,14 +57,12 @@ func (c *Class[T]) writeAny(w *Writer, v any) {
 // .NET defers it, later (the instance is returned now and filled when its body is read).
 func ReadClass[T any](r *Reader, c *Class[T]) *T {
 	v := new(T)
-	d := r.depth
-	if d >= InlineDepth {
+	if d, ok := r.EnterBody(); ok {
+		c.Read(r, v)
+		r.ExitBody(d)
+	} else {
 		r.readDeep(v, c, c.Deferrable)
-		return v
 	}
-	r.depth = d + 1
-	c.Read(r, v)
-	r.exitBody(d)
 	return v
 }
 
@@ -75,14 +73,12 @@ func ReadClassInto[T any](r *Reader, v *T, c *Class[T]) {
 		r.Fail(CodeInvalidValue, "nil instance")
 		return
 	}
-	d := r.depth
-	if d >= InlineDepth {
+	if d, ok := r.EnterBody(); ok {
+		c.Read(r, v)
+		r.ExitBody(d)
+	} else {
 		r.readDeep(v, c, c.Deferrable)
-		return
 	}
-	r.depth = d + 1
-	c.Read(r, v)
-	r.exitBody(d)
 }
 
 // WriteClass writes the body of v (not nil: the caller wrote its presence byte or type id), in place or, as deep as
@@ -92,15 +88,44 @@ func WriteClass[T any](w *Writer, v *T, c *Class[T]) {
 		w.Fail(CodeInvalidValue, "nil body")
 		return
 	}
-	d := w.depth
-	if d >= InlineDepth {
+	if d, ok := w.EnterBody(); ok {
+		c.Write(w, v)
+		w.ExitBody(d)
+	} else {
 		w.writeDeep(v, c, c.Deferrable)
-		return
 	}
-	w.depth = d + 1
-	c.Write(w, v)
-	w.exitBody(d)
 }
+
+// EnterBody opens the body of a class that the caller reads in place, calling the code of its members directly
+// (generated code does, instead of going through [ReadClass] and its [Class]): it returns the depth to give
+// [Reader.ExitBody] once the members are read. ok is false from [InlineDepth] open bodies on: the caller then reads
+// the body through [ReadClassInto], which defers it or nests it up to [MaxDepth] exactly as .NET does.
+func (r *Reader) EnterBody() (depth int32, ok bool) {
+	depth = r.depth
+	if depth >= InlineDepth {
+		return depth, false
+	}
+	r.depth = depth + 1
+	return depth, true
+}
+
+// ExitBody closes a body opened by [Reader.EnterBody], which returned depth; once every body is closed, it reads
+// the bodies deferred outside regions.
+func (r *Reader) ExitBody(depth int32) { r.exitBody(depth) }
+
+// EnterBody is [Reader.EnterBody] for the writer: ok is false from [InlineDepth] open bodies on, where the caller
+// writes the body through [WriteClass].
+func (w *Writer) EnterBody() (depth int32, ok bool) {
+	depth = w.depth
+	if depth >= InlineDepth {
+		return depth, false
+	}
+	w.depth = depth + 1
+	return depth, true
+}
+
+// ExitBody closes a body opened by [Writer.EnterBody], which returned depth.
+func (w *Writer) ExitBody(depth int32) { w.exitBody(depth) }
 
 // deferredItem is a body read or written later.
 type deferredItem struct {
