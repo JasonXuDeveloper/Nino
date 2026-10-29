@@ -395,6 +395,39 @@ fn serialize_into_reuses_the_vec() {
     }
 }
 
+#[test]
+fn deserialize_into_reuses_buffers() {
+    // A Vec of strings: its buffer is kept when it is large enough (the strings are read new).
+    let mut strings: Vec<String> = (0..4).map(|i| format!("old {i}")).collect();
+    let outer = strings.as_ptr();
+    let data: Vec<String> = vec!["x".into(), "y".into()];
+    deserialize_into(&serialize(&data).unwrap(), &mut strings).unwrap();
+    assert_eq!(strings, data);
+    assert_eq!(strings.as_ptr(), outer);
+    // Maps, sets and deques are cleared and refilled.
+    let mut map: HashMap<i32, String> = [(1, "a".into()), (2, "b".into())].into_iter().collect();
+    let data: HashMap<i32, String> = [(3, "c".into())].into_iter().collect();
+    deserialize_into(&serialize(&data).unwrap(), &mut map).unwrap();
+    assert_eq!(map, data);
+    let mut set: BTreeSet<i32> = [1, 2, 3].into_iter().collect();
+    deserialize_into(&serialize(&BTreeSet::from([9])).unwrap(), &mut set).unwrap();
+    assert_eq!(set, BTreeSet::from([9]));
+    let mut deque: VecDeque<u16> = (0..100).collect();
+    deserialize_into(&serialize(&VecDeque::from([7u16])).unwrap(), &mut deque).unwrap();
+    assert_eq!(deque, VecDeque::from([7]));
+    // Null clears an option; a value fills it.
+    let mut maybe = Some(vec![1u8]);
+    deserialize_into(&serialize(&None::<Vec<u8>>).unwrap(), &mut maybe).unwrap();
+    assert_eq!(maybe, None);
+    // A failed read leaves a value: the elements read before the error, then the rest of the old ones.
+    let mut ints = vec![0i32; 4];
+    let bytes = serialize(&vec![5i32, 6, 7]).unwrap();
+    assert!(deserialize_into(&bytes[..bytes.len() - 1], &mut ints).is_err());
+    serialize(&ints).unwrap();
+    deserialize_into(&bytes, &mut ints).unwrap();
+    assert_eq!(ints, [5, 6, 7]);
+}
+
 /// A non-deferrable recursive class, to make writing fail.
 #[derive(Default, Debug)]
 struct Deep {
