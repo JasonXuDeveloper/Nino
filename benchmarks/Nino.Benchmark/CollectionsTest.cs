@@ -17,7 +17,7 @@ namespace Nino.Benchmark;
 /// <summary>
 /// Collections of the base class library with 1,000 elements each, serialized to a reused buffer writer and
 /// deserialized into new instances: a list of tuples (packed by Nino, copied with padding by MemoryPack), an array
-/// of key-value pairs, and the hashed, queued, linked, sorted and concurrent collections, whose fast paths depend on
+/// of key-value pairs, a dictionary of ints, and the hashed, queued, linked, sorted and concurrent collections, whose fast paths depend on
 /// the runtime's collection layouts and on SIMD. Against MemoryPack, MessagePack and protobuf-net.
 /// </summary>
 [PayloadColumn]
@@ -34,6 +34,7 @@ public class CollectionsTest
     private static readonly List<(int, long)> TupleList = Enumerable.Range(0, N).Select(i => (i, (long)i * 31)).ToList();
     private static readonly KeyValuePair<int, int>[] KeyValuePairs = Enumerable.Range(0, N).Select(i => new KeyValuePair<int, int>(i, i * 7)).ToArray();
     private static readonly HashSet<int> HashSet = new HashSet<int>(Enumerable.Range(0, N).Select(i => i * 3));
+    private static readonly Dictionary<int, int> IntDictionary = Enumerable.Range(0, N).ToDictionary(i => i * 3, i => i * 7);
     private static readonly Queue<int> Queue = new Queue<int>(Enumerable.Range(0, N));
     private static readonly LinkedList<int> LinkedList = new LinkedList<int>(Enumerable.Range(0, N));
     private static readonly SortedSet<int> SortedSet = new SortedSet<int>(Enumerable.Range(0, N).Select(i => i * 7));
@@ -54,6 +55,10 @@ public class CollectionsTest
     private static readonly byte[] MessagePackHashSetBytes = MessagePackSerializer.Serialize(HashSet);
     private static readonly byte[] ProtobufHashSetBytes = ProtobufModel.Serialize(HashSet);
     private static readonly byte[] MemoryPackHashSetBytes = MemoryPackSerializer.Serialize(HashSet);
+    private static readonly byte[] NinoIntDictionaryBytes = NinoSerializer.Serialize(IntDictionary);
+    private static readonly byte[] MessagePackIntDictionaryBytes = MessagePackSerializer.Serialize(IntDictionary);
+    private static readonly byte[] ProtobufIntDictionaryBytes = ProtobufModel.Serialize(IntDictionary);
+    private static readonly byte[] MemoryPackIntDictionaryBytes = MemoryPackSerializer.Serialize(IntDictionary);
     private static readonly byte[] NinoQueueBytes = NinoSerializer.Serialize(Queue);
     private static readonly byte[] MessagePackQueueBytes = MessagePackSerializer.Serialize(Queue);
     private static readonly byte[] ProtobufQueueBytes = ProtobufModel.Serialize(Queue);
@@ -90,6 +95,8 @@ public class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeKeyValuePairs), MemoryPackKeyValuePairsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeHashSet), NinoHashSetBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeHashSet), MemoryPackHashSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeIntDictionary), NinoIntDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeIntDictionary), MemoryPackIntDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeQueue), NinoQueueBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeQueue), MemoryPackQueueBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeLinkedList), NinoLinkedListBytes.Length);
@@ -108,6 +115,8 @@ public class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeKeyValuePairs), ProtobufKeyValuePairsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeHashSet), MessagePackHashSetBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeHashSet), ProtobufHashSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeIntDictionary), MessagePackIntDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeIntDictionary), ProtobufIntDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeQueue), MessagePackQueueBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeQueue), ProtobufQueueBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeLinkedList), MessagePackLinkedListBytes.Length);
@@ -202,6 +211,30 @@ public class CollectionsTest
     [Benchmark, BenchmarkCategory("HashSetDeserialize")]
     public HashSet<int> MemoryPackDeserializeHashSet() =>
         MemoryPackSerializer.Deserialize<HashSet<int>>(MemoryPackHashSetBytes);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("IntDictionarySerialize")]
+    public int NinoSerializeIntDictionary()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(IntDictionary, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("IntDictionarySerialize")]
+    public int MemoryPackSerializeIntDictionary()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, IntDictionary);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("IntDictionaryDeserialize")]
+    public Dictionary<int, int> NinoDeserializeIntDictionary() =>
+        NinoDeserializer.Deserialize<Dictionary<int, int>>(NinoIntDictionaryBytes);
+
+    [Benchmark, BenchmarkCategory("IntDictionaryDeserialize")]
+    public Dictionary<int, int> MemoryPackDeserializeIntDictionary() =>
+        MemoryPackSerializer.Deserialize<Dictionary<int, int>>(MemoryPackIntDictionaryBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("QueueSerialize")]
     public int NinoSerializeQueue()
@@ -395,6 +428,22 @@ public class CollectionsTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("IntDictionarySerialize")]
+    public int MessagePackSerializeIntDictionary()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, IntDictionary);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("IntDictionarySerialize")]
+    public int ProtobufSerializeIntDictionary()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, IntDictionary);
+        return (int)_protobufStream.Length;
+    }
+
     [Benchmark, BenchmarkCategory("QueueSerialize")]
     public int MessagePackSerializeQueue()
     {
@@ -514,6 +563,14 @@ public class CollectionsTest
     [Benchmark, BenchmarkCategory("HashSetDeserialize")]
     public HashSet<int> ProtobufDeserializeHashSet() =>
         Serializer.Deserialize<HashSet<int>>(new ReadOnlySpan<byte>(ProtobufHashSetBytes));
+
+    [Benchmark, BenchmarkCategory("IntDictionaryDeserialize")]
+    public Dictionary<int, int> MessagePackDeserializeIntDictionary() =>
+        MessagePackSerializer.Deserialize<Dictionary<int, int>>(MessagePackIntDictionaryBytes);
+
+    [Benchmark, BenchmarkCategory("IntDictionaryDeserialize")]
+    public Dictionary<int, int> ProtobufDeserializeIntDictionary() =>
+        Serializer.Deserialize<Dictionary<int, int>>(new ReadOnlySpan<byte>(ProtobufIntDictionaryBytes));
 
     [Benchmark, BenchmarkCategory("QueueDeserialize")]
     public Queue<int> MessagePackDeserializeQueue() =>

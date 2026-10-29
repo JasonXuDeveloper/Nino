@@ -1,15 +1,15 @@
 {
-  "classes": ["SimpleTest", "PolymorphicTest", "GenericPolymorphicTest", "PooledTest", "PooledGraphTest", "ReferenceTest", "VersionTolerantTest", "FixedSizeTest", "CommonTypesTest", "CollectionsTest", "BclTypesTest", "ScatteredTest"],
+  "classes": ["SimpleTest", "PolymorphicTest", "GenericPolymorphicTest", "PooledTest", "PooledGraphTest", "ReferenceTest", "VersionTolerantTest", "FixedSizeTest", "CommonTypesTest", "CollectionsTest", "BclTypesTest", "ScatteredTest", "UntrustedTest"],
   "report": [
     {"id": "a", "filters": ["*.SimpleTest.NinoSerialize*", "*.SimpleTest.MemoryPackSerialize*", "*.SimpleTest.MessagePackSerialize*", "*.SimpleTest.ProtobufSerialize*", "*.PooledTest.*", "*.ReferenceTest.*"], "v3": ["*SimpleTest.NinoSerialize*", "*SimpleTest.MemoryPackSerialize*"]},
     {"id": "h", "filters": ["*.SimpleTest.NinoDeserialize*", "*.SimpleTest.MemoryPackDeserialize*", "*.SimpleTest.MessagePackDeserialize*", "*.SimpleTest.ProtobufDeserialize*", "*.VersionTolerantTest.*"], "v3": ["*SimpleTest.NinoDeserialize*", "*SimpleTest.MemoryPackDeserialize*"]},
-    {"id": "b", "filters": ["*.FixedSizeTest.*", "*.PooledGraphTest.*", "*.ScatteredTest.*"]},
+    {"id": "b", "filters": ["*.FixedSizeTest.*", "*.PooledGraphTest.*", "*.ScatteredTest.*", "*.UntrustedTest.*"]},
     {"id": "c", "filters": ["*.GenericPolymorphicTest.*", "*.BclTypesTest.*BigInteger", "*.BclTypesTest.*BitArray"]},
     {"id": "d", "filters": ["*.PolymorphicTest.*", "*.CommonTypesTest.*Players", "*.CommonTypesTest.*Orders"]},
     {"id": "e", "filters": ["*.CommonTypesTest.*Shapes", "*.CommonTypesTest.*Tree", "*.CommonTypesTest.*Inventory", "*.CommonTypesTest.*Waypoints", "*.CommonTypesTest.*StringDictionary", "*.BclTypesTest.*CultureInfo", "*.BclTypesTest.*TimeZoneInfo"]},
     {"id": "f", "filters": ["*.BclTypesTest.*ImmutableHashSet", "*.BclTypesTest.*ImmutableSortedSet", "*.BclTypesTest.*ImmutableQueue", "*.BclTypesTest.*ImmutableStack", "*.BclTypesTest.*ImmutableDictionary", "*.BclTypesTest.*BlockingCollection"]},
     {"id": "g", "filters": ["*.BclTypesTest.*ImmutableSortedDictionary", "*.BclTypesTest.*Uri", "*.BclTypesTest.*Version", "*.BclTypesTest.*StringBuilder", "*.BclTypesTest.*Lazy", "*.BclTypesTest.*Memory", "*.BclTypesTest.*ReadOnlySequence"]},
-    {"id": "i", "filters": ["*.BclTypesTest.*ReadOnlyCollection", "*.BclTypesTest.*Lookup", "*.CollectionsTest.*TupleList", "*.CollectionsTest.*KeyValuePairs", "*.CollectionsTest.*HashSet", "*.CollectionsTest.*Queue"]},
+    {"id": "i", "filters": ["*.BclTypesTest.*ReadOnlyCollection", "*.BclTypesTest.*Lookup", "*.CollectionsTest.*TupleList", "*.CollectionsTest.*KeyValuePairs", "*.CollectionsTest.*HashSet", "*.CollectionsTest.*IntDictionary", "*.CollectionsTest.*Queue"]},
     {"id": "j", "filters": ["*.CollectionsTest.*LinkedList", "*.CollectionsTest.*SortedSet", "*.CollectionsTest.*SortedDictionary", "*.CollectionsTest.*SortedList", "*.CollectionsTest.*ConcurrentDictionary"]}
   ],
   "ab": [
@@ -17,6 +17,6 @@
     {"id": "b", "filters": ["*.CommonTypesTest.Nino*", "*.CommonTypesTest.MemoryPack*", "*.FixedSizeTest.Nino*", "*.FixedSizeTest.MemoryPack*", "*.GenericPolymorphicTest.Nino*", "*.GenericPolymorphicTest.MemoryPack*"]},
     {"id": "c", "filters": ["*.PolymorphicTest.Nino*", "*.PolymorphicTest.MemoryPack*", "*.BclTypesTest.NinoSerialize*", "*.BclTypesTest.MemoryPackSerialize*"]},
     {"id": "d", "filters": ["*.VersionTolerantTest.Nino*", "*.VersionTolerantTest.MemoryPack*", "*.ReferenceTest.Nino*", "*.ReferenceTest.MemoryPack*", "*.BclTypesTest.NinoDeserialize*", "*.BclTypesTest.MemoryPackDeserialize*"]},
-    {"id": "e", "filters": ["*.CollectionsTest.Nino*", "*.CollectionsTest.MemoryPack*", "*.PooledGraphTest.Nino*", "*.PooledGraphTest.MemoryPack*", "*.ScatteredTest.Nino*", "*.ScatteredTest.MemoryPack*"]}
+    {"id": "e", "filters": ["*.CollectionsTest.Nino*", "*.CollectionsTest.MemoryPack*", "*.PooledGraphTest.Nino*", "*.PooledGraphTest.MemoryPack*", "*.ScatteredTest.Nino*", "*.ScatteredTest.MemoryPack*", "*.UntrustedTest.Nino*", "*.UntrustedTest.MemoryPack*"]}
   ]
 }
