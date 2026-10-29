@@ -254,7 +254,10 @@ NINO_BENCH_TIME=300 runtimes/typescript/bench/run.sh strings   # 300 ms per task
 `Program.cs` declares the types and writes each scenario's values, serialized by Nino in .NET, to
 `bench/out/data`; `nino-gen --lang ts` generates their TypeScript into `bench/gen`. Before a scenario is timed, every
 value is read and written back in TypeScript and must give exactly the bytes .NET wrote, and every protobuf message
-must read back equal. A task is one pass over all of a scenario's values.
+must read back equal. A task is one pass over all of a scenario's values. Nino has a third task, `serializeInto`: the
+same values written with `serializeInto` into one `NinoWriter` reset before each value, as an application that sends
+each value before the next one does; it allocates no `ArrayBuffer` once the writer is large enough, where `serialize`
+takes a new 64 KiB (or larger) buffer as its results fill the last one.
 
 Inputs rotate: `Program.cs` writes each scenario in 64 variants (the first is the original data; the others have their
 own random seed and scramble the fixed text letter for letter within its script, so shapes, lengths and encodings stay
