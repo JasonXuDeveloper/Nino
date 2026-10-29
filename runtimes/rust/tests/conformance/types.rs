@@ -18,8 +18,8 @@ pub struct BigValues {
 
 impl NinoReadBody for BigValues {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.big = r.read()?;
-        self.version = r.read()?;
+        r.read_into(&mut self.big)?;
+        r.read_into(&mut self.version)?;
         Ok(())
     }
 }
@@ -49,6 +49,18 @@ impl NinoRead for BigValues {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -87,9 +99,9 @@ pub struct BlueLink {
 
 impl NinoReadBody for BlueLink {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
-        self.next = r.read_in(field!(Self, next))?;
-        self.note = r.read()?;
+        r.read_into(&mut self.value)?;
+        r.read_into_in(&mut self.next, field!(Self, next))?;
+        r.read_into(&mut self.note)?;
         Ok(())
     }
 }
@@ -120,6 +132,18 @@ impl NinoRead for BlueLink {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -159,9 +183,9 @@ pub struct Bytes {
 
 impl NinoReadBody for Bytes {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.array = r.read()?;
-        self.list = r.read()?;
-        self.signed = r.read()?;
+        r.read_into(&mut self.array)?;
+        r.read_into(&mut self.list)?;
+        r.read_into(&mut self.signed)?;
         Ok(())
     }
 }
@@ -192,6 +216,18 @@ impl NinoRead for Bytes {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -230,8 +266,8 @@ pub struct Cat {
 
 impl NinoReadBody for Cat {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.name = r.read()?;
-        self.lives = r.read()?;
+        r.read_into(&mut self.name)?;
+        r.read_into(&mut self.lives)?;
         Ok(())
     }
 }
@@ -261,6 +297,18 @@ impl NinoRead for Cat {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -298,8 +346,8 @@ pub struct Chain {
 
 impl NinoReadBody for Chain {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
-        self.next = r.read_in(field!(Self, next))?;
+        r.read_into(&mut self.value)?;
+        r.read_into_in(&mut self.next, field!(Self, next))?;
         Ok(())
     }
 }
@@ -329,6 +377,18 @@ impl NinoRead for Chain {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -366,8 +426,8 @@ pub struct Circle {
 
 impl NinoReadBody for Circle {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.area = r.read()?;
-        self.radius = r.read()?;
+        r.read_into(&mut self.area)?;
+        r.read_into(&mut self.radius)?;
         Ok(())
     }
 }
@@ -423,27 +483,27 @@ pub struct Collections {
 
 impl NinoReadBody for Collections {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.ints = r.read()?;
-        self.int_list = r.read()?;
-        self.int_set = r.read()?;
-        self.longs = r.read()?;
-        self.doubles = r.read()?;
-        self.bools = r.read()?;
-        self.chars = r.read()?;
-        self.strings = r.read()?;
-        self.string_set = r.read()?;
-        self.points = r.read_in(field!(Self, points))?;
-        self.point_list = r.read_in(field!(Self, point_list))?;
-        self.int_map = r.read()?;
-        self.string_map = r.read()?;
-        self.point_map = r.read_in(field!(Self, point_map))?;
-        self.list_map = r.read()?;
-        self.sorted_ints = r.read()?;
-        self.sorted_strings = r.read()?;
-        self.nested = r.read()?;
-        self.jagged = r.read()?;
-        self.grid = r.read()?;
-        self.string_grid = r.read()?;
+        r.read_into(&mut self.ints)?;
+        r.read_into(&mut self.int_list)?;
+        r.read_into(&mut self.int_set)?;
+        r.read_into(&mut self.longs)?;
+        r.read_into(&mut self.doubles)?;
+        r.read_into(&mut self.bools)?;
+        r.read_into(&mut self.chars)?;
+        r.read_into(&mut self.strings)?;
+        r.read_into(&mut self.string_set)?;
+        r.read_into_in(&mut self.points, field!(Self, points))?;
+        r.read_into_in(&mut self.point_list, field!(Self, point_list))?;
+        r.read_into(&mut self.int_map)?;
+        r.read_into(&mut self.string_map)?;
+        r.read_into_in(&mut self.point_map, field!(Self, point_map))?;
+        r.read_into(&mut self.list_map)?;
+        r.read_into(&mut self.sorted_ints)?;
+        r.read_into(&mut self.sorted_strings)?;
+        r.read_into(&mut self.nested)?;
+        r.read_into(&mut self.jagged)?;
+        r.read_into(&mut self.grid)?;
+        r.read_into(&mut self.string_grid)?;
         Ok(())
     }
 }
@@ -492,6 +552,18 @@ impl NinoRead for Collections {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -550,10 +622,10 @@ pub struct Dates {
 
 impl NinoReadBody for Dates {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.utc = r.read()?;
-        self.local = r.read()?;
-        self.unspecified = r.read()?;
-        self.offset = r.read()?;
+        r.read_into(&mut self.utc)?;
+        r.read_into(&mut self.local)?;
+        r.read_into(&mut self.unspecified)?;
+        r.read_into(&mut self.offset)?;
         Ok(())
     }
 }
@@ -585,6 +657,18 @@ impl NinoRead for Dates {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -624,8 +708,8 @@ pub struct Dog {
 
 impl NinoReadBody for Dog {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.name = r.read()?;
-        self.bones = r.read()?;
+        r.read_into(&mut self.name)?;
+        r.read_into(&mut self.bones)?;
         Ok(())
     }
 }
@@ -664,10 +748,10 @@ pub struct Empties {
 
 impl NinoReadBody for Empties {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.class = r.read_in(field!(Self, class))?;
-        self.r#struct = r.read()?;
-        self.structs = r.read()?;
-        self.classes = r.read_in(field!(Self, classes))?;
+        r.read_into_in(&mut self.class, field!(Self, class))?;
+        r.read_into(&mut self.r#struct)?;
+        r.read_into(&mut self.structs)?;
+        r.read_into_in(&mut self.classes, field!(Self, classes))?;
         Ok(())
     }
 }
@@ -699,6 +783,18 @@ impl NinoRead for Empties {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -765,6 +861,18 @@ impl NinoRead for Empty {
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
     }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
+    }
 }
 
 impl NinoWrite for Empty {
@@ -808,17 +916,17 @@ pub struct Enums {
 
 impl NinoReadBody for Enums {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.a = r.read()?;
-        self.b = r.read()?;
-        self.c = r.read()?;
-        self.d = r.read()?;
-        self.e = r.read()?;
-        self.f = r.read()?;
-        self.g = r.read()?;
-        self.h = r.read()?;
-        self.flags = r.read()?;
-        self.wide = r.read()?;
-        self.array = r.read()?;
+        r.read_into(&mut self.a)?;
+        r.read_into(&mut self.b)?;
+        r.read_into(&mut self.c)?;
+        r.read_into(&mut self.d)?;
+        r.read_into(&mut self.e)?;
+        r.read_into(&mut self.f)?;
+        r.read_into(&mut self.g)?;
+        r.read_into(&mut self.h)?;
+        r.read_into(&mut self.flags)?;
+        r.read_into(&mut self.wide)?;
+        r.read_into(&mut self.array)?;
         Ok(())
     }
 }
@@ -857,6 +965,18 @@ impl NinoRead for Enums {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -904,9 +1024,9 @@ pub struct Floats {
 
 impl NinoReadBody for Floats {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.f16 = r.read()?;
-        self.f32 = r.read()?;
-        self.f64 = r.read()?;
+        r.read_into(&mut self.f16)?;
+        r.read_into(&mut self.f32)?;
+        r.read_into(&mut self.f64)?;
         Ok(())
     }
 }
@@ -937,6 +1057,18 @@ impl NinoRead for Floats {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -976,9 +1108,9 @@ pub struct Inner {
 
 impl NinoReadBody for Inner {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
-        self.text = r.read()?;
-        self.point = r.read_in(field!(Self, point))?;
+        r.read_into(&mut self.value)?;
+        r.read_into(&mut self.text)?;
+        r.read_into_in(&mut self.point, field!(Self, point))?;
         Ok(())
     }
 }
@@ -1009,6 +1141,18 @@ impl NinoRead for Inner {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -1055,16 +1199,16 @@ pub struct Integers {
 
 impl NinoReadBody for Integers {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.i8 = r.read()?;
-        self.u8 = r.read()?;
-        self.i16 = r.read()?;
-        self.u16 = r.read()?;
-        self.i32 = r.read()?;
-        self.u32 = r.read()?;
-        self.i64 = r.read()?;
-        self.u64 = r.read()?;
-        self.i128 = r.read()?;
-        self.u128 = r.read()?;
+        r.read_into(&mut self.i8)?;
+        r.read_into(&mut self.u8)?;
+        r.read_into(&mut self.i16)?;
+        r.read_into(&mut self.u16)?;
+        r.read_into(&mut self.i32)?;
+        r.read_into(&mut self.u32)?;
+        r.read_into(&mut self.i64)?;
+        r.read_into(&mut self.u64)?;
+        r.read_into(&mut self.i128)?;
+        r.read_into(&mut self.u128)?;
         Ok(())
     }
 }
@@ -1102,6 +1246,18 @@ impl NinoRead for Integers {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -1152,8 +1308,8 @@ impl NinoReadBody for KeyedChain {
             let key = r.i32()?;
             let member = r.begin_region()?;
             match key as u32 {
-                0xC373233E => self.value = r.read()?,
-                0xC9A6113A => self.next = r.read_in(field!(Self, next))?,
+                0xC373233E => r.read_into(&mut self.value)?,
+                0xC9A6113A => r.read_into_in(&mut self.next, field!(Self, next))?,
                 _ => {
                     r.end_region(member, self)?;
                     continue;
@@ -1200,6 +1356,18 @@ impl NinoRead for KeyedChain {
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
     }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
+    }
 }
 
 impl NinoWrite for KeyedChain {
@@ -1237,9 +1405,9 @@ pub struct KeyedHolder {
 
 impl NinoReadBody for KeyedHolder {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.keyed = r.read_in(field!(Self, keyed))?;
-        self.r#struct = r.read()?;
-        self.array = r.read_in(field!(Self, array))?;
+        r.read_into_in(&mut self.keyed, field!(Self, keyed))?;
+        r.read_into(&mut self.r#struct)?;
+        r.read_into_in(&mut self.array, field!(Self, array))?;
         Ok(())
     }
 }
@@ -1270,6 +1438,18 @@ impl NinoRead for KeyedHolder {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -1309,8 +1489,12 @@ pub struct KeyedStruct {
 impl NinoRead for KeyedStruct {
     fn read(r: &mut Reader<'_>) -> Result<Self> {
         let mut v = Self::default();
-        v.read_body(r)?;
+        v.read_into(r)?;
         Ok(v)
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        self.read_body(r)
     }
 }
 
@@ -1327,8 +1511,8 @@ impl NinoReadBody for KeyedStruct {
             let key = r.i32()?;
             let member = r.begin_region()?;
             match key as u32 {
-                0x6AD58324 => self.a = r.read()?,
-                0xDCDCF25F => self.b = r.read()?,
+                0x6AD58324 => r.read_into(&mut self.a)?,
+                0xDCDCF25F => r.read_into(&mut self.b)?,
                 _ => {
                     r.end_region(member, self)?;
                     continue;
@@ -1384,10 +1568,10 @@ impl NinoReadBody for KeyedV1 {
             let key = r.i32()?;
             let member = r.begin_region()?;
             match key as u32 {
-                0x99A16761 => self.health = r.read()?,
-                0x3085B3E2 => self.name = r.read()?,
-                0xDCA8A053 => self.items = r.read()?,
-                0x044AB14D => self.score = r.read()?,
+                0x99A16761 => r.read_into(&mut self.health)?,
+                0x3085B3E2 => r.read_into(&mut self.name)?,
+                0xDCA8A053 => r.read_into(&mut self.items)?,
+                0x044AB14D => r.read_into(&mut self.score)?,
                 _ => {
                     r.end_region(member, self)?;
                     continue;
@@ -1442,6 +1626,18 @@ impl NinoRead for KeyedV1 {
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
     }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
+    }
 }
 
 impl NinoWrite for KeyedV1 {
@@ -1487,10 +1683,10 @@ impl NinoReadBody for KeyedV2 {
             let key = r.i32()?;
             let member = r.begin_region()?;
             match key as u32 {
-                0x044AB14D => self.score = r.read()?,
-                0x3085B3E2 => self.name = r.read()?,
-                0xA17135AD | 0x99A16761 => self.hp = r.read()?,
-                0xEAA8149B => self.level = r.read()?,
+                0x044AB14D => r.read_into(&mut self.score)?,
+                0x3085B3E2 => r.read_into(&mut self.name)?,
+                0xA17135AD | 0x99A16761 => r.read_into(&mut self.hp)?,
+                0xEAA8149B => r.read_into(&mut self.level)?,
                 _ => {
                     r.end_region(member, self)?;
                     continue;
@@ -1545,6 +1741,18 @@ impl NinoRead for KeyedV2 {
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
     }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
+    }
 }
 
 impl NinoWrite for KeyedV2 {
@@ -1584,8 +1792,12 @@ pub struct Label {
 impl NinoRead for Label {
     fn read(r: &mut Reader<'_>) -> Result<Self> {
         let mut v = Self::default();
-        v.read_body(r)?;
+        v.read_into(r)?;
         Ok(v)
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        self.read_body(r)
     }
 }
 
@@ -1597,8 +1809,8 @@ impl NinoWrite for Label {
 
 impl NinoReadBody for Label {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.name = r.read()?;
-        self.weight = r.read()?;
+        r.read_into(&mut self.name)?;
+        r.read_into(&mut self.weight)?;
         Ok(())
     }
 }
@@ -1632,9 +1844,9 @@ pub struct Middle {
 
 impl NinoReadBody for Middle {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.first = r.read_in(field!(Self, first))?;
-        self.second = r.read_in(field!(Self, second))?;
-        self.inner = r.read_in(field!(Self, inner))?;
+        r.read_into_in(&mut self.first, field!(Self, first))?;
+        r.read_into_in(&mut self.second, field!(Self, second))?;
+        r.read_into_in(&mut self.inner, field!(Self, inner))?;
         Ok(())
     }
 }
@@ -1665,6 +1877,18 @@ impl NinoRead for Middle {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -1714,19 +1938,19 @@ pub struct Nullables {
 
 impl NinoReadBody for Nullables {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.int = r.read()?;
-        self.long = r.read()?;
-        self.double = r.read()?;
-        self.bool = r.read()?;
-        self.guid = r.read()?;
-        self.r#enum = r.read()?;
-        self.vec = r.read()?;
-        self.padded = r.read()?;
-        self.label = r.read()?;
-        self.int_array = r.read()?;
-        self.long_list = r.read()?;
-        self.padded_array = r.read()?;
-        self.map = r.read()?;
+        r.read_into(&mut self.int)?;
+        r.read_into(&mut self.long)?;
+        r.read_into(&mut self.double)?;
+        r.read_into(&mut self.bool)?;
+        r.read_into(&mut self.guid)?;
+        r.read_into(&mut self.r#enum)?;
+        r.read_into(&mut self.vec)?;
+        r.read_into(&mut self.padded)?;
+        r.read_into(&mut self.label)?;
+        r.read_into(&mut self.int_array)?;
+        r.read_into(&mut self.long_list)?;
+        r.read_into(&mut self.padded_array)?;
+        r.read_into(&mut self.map)?;
         Ok(())
     }
 }
@@ -1767,6 +1991,18 @@ impl NinoRead for Nullables {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -1816,9 +2052,9 @@ pub struct Outer {
 
 impl NinoReadBody for Outer {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.name = r.read()?;
-        self.point = r.read_in(field!(Self, point))?;
-        self.middle = r.read_in(field!(Self, middle))?;
+        r.read_into(&mut self.name)?;
+        r.read_into_in(&mut self.point, field!(Self, point))?;
+        r.read_into_in(&mut self.middle, field!(Self, middle))?;
         Ok(())
     }
 }
@@ -1849,6 +2085,18 @@ impl NinoRead for Outer {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -1886,7 +2134,7 @@ pub struct Plain {
 
 impl NinoReadBody for Plain {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
+        r.read_into(&mut self.value)?;
         Ok(())
     }
 }
@@ -1921,8 +2169,8 @@ pub struct Point {
 
 impl NinoReadBody for Point {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.x = r.read()?;
-        self.y = r.read()?;
+        r.read_into(&mut self.x)?;
+        r.read_into(&mut self.y)?;
         Ok(())
     }
 }
@@ -1952,6 +2200,18 @@ impl NinoRead for Point {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -1990,9 +2250,9 @@ pub struct Puppy {
 
 impl NinoReadBody for Puppy {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.name = r.read()?;
-        self.bones = r.read()?;
-        self.sleepy = r.read()?;
+        r.read_into(&mut self.name)?;
+        r.read_into(&mut self.bones)?;
+        r.read_into(&mut self.sleepy)?;
         Ok(())
     }
 }
@@ -2023,6 +2283,18 @@ impl NinoRead for Puppy {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2063,8 +2335,8 @@ impl NinoReadBody for RecordChain {
     const DEFERRABLE: bool = false;
 
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
-        self.next = r.read_in(field!(Self, next))?;
+        r.read_into(&mut self.value)?;
+        r.read_into_in(&mut self.next, field!(Self, next))?;
         Ok(())
     }
 }
@@ -2096,6 +2368,18 @@ impl NinoRead for RecordChain {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2133,8 +2417,8 @@ pub struct RedLink {
 
 impl NinoReadBody for RedLink {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
-        self.next = r.read_in(field!(Self, next))?;
+        r.read_into(&mut self.value)?;
+        r.read_into_in(&mut self.next, field!(Self, next))?;
         Ok(())
     }
 }
@@ -2164,6 +2448,18 @@ impl NinoRead for RedLink {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2206,13 +2502,13 @@ pub struct Scalars {
 
 impl NinoReadBody for Scalars {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.flag = r.read()?;
-        self.char = r.read()?;
-        self.decimal = r.read()?;
-        self.guid = r.read()?;
-        self.span = r.read()?;
-        self.date = r.read()?;
-        self.time = r.read()?;
+        r.read_into(&mut self.flag)?;
+        r.read_into(&mut self.char)?;
+        r.read_into(&mut self.decimal)?;
+        r.read_into(&mut self.guid)?;
+        r.read_into(&mut self.span)?;
+        r.read_into(&mut self.date)?;
+        r.read_into(&mut self.time)?;
         Ok(())
     }
 }
@@ -2247,6 +2543,18 @@ impl NinoRead for Scalars {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2289,8 +2597,8 @@ pub struct Square {
 
 impl NinoReadBody for Square {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.area = r.read()?;
-        self.side = r.read()?;
+        r.read_into(&mut self.area)?;
+        r.read_into(&mut self.side)?;
         Ok(())
     }
 }
@@ -2320,6 +2628,18 @@ impl NinoRead for Square {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2360,11 +2680,11 @@ pub struct StringCollections {
 
 impl NinoReadBody for StringCollections {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.array = r.read()?;
-        self.list = r.read()?;
-        self.utf8_a = r.read()?;
-        self.plain = r.read()?;
-        self.utf8_b = r.read()?;
+        r.read_into(&mut self.array)?;
+        r.read_into(&mut self.list)?;
+        r.read_into(&mut self.utf8_a)?;
+        r.read_into(&mut self.plain)?;
+        r.read_into(&mut self.utf8_b)?;
         Ok(())
     }
 }
@@ -2397,6 +2717,18 @@ impl NinoRead for StringCollections {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2437,8 +2769,8 @@ pub struct Strings {
 
 impl NinoReadBody for Strings {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.text = r.read()?;
-        self.utf8 = r.read()?;
+        r.read_into(&mut self.text)?;
+        r.read_into(&mut self.utf8)?;
         Ok(())
     }
 }
@@ -2468,6 +2800,18 @@ impl NinoRead for Strings {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2517,20 +2861,20 @@ pub struct Structs {
 
 impl NinoReadBody for Structs {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.vec = r.read()?;
-        self.padded = r.read()?;
-        self.mixed = r.read()?;
-        self.packed = r.read()?;
-        self.sized = r.read()?;
-        self.nested = r.read()?;
-        self.label = r.read()?;
-        self.vec_array = r.read()?;
-        self.padded_list = r.read()?;
-        self.mixed_array = r.read()?;
-        self.labels = r.read()?;
-        self.raw_tuple = r.read()?;
-        self.tuple = r.read()?;
-        self.pair = r.read()?;
+        r.read_into(&mut self.vec)?;
+        r.read_into(&mut self.padded)?;
+        r.read_into(&mut self.mixed)?;
+        r.read_into(&mut self.packed)?;
+        r.read_into(&mut self.sized)?;
+        r.read_into(&mut self.nested)?;
+        r.read_into(&mut self.label)?;
+        r.read_into(&mut self.vec_array)?;
+        r.read_into(&mut self.padded_list)?;
+        r.read_into(&mut self.mixed_array)?;
+        r.read_into(&mut self.labels)?;
+        r.read_into(&mut self.raw_tuple)?;
+        r.read_into(&mut self.tuple)?;
+        r.read_into(&mut self.pair)?;
         Ok(())
     }
 }
@@ -2572,6 +2916,18 @@ impl NinoRead for Structs {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2620,7 +2976,7 @@ pub struct TAnimalSlot {
 
 impl NinoReadBody for TAnimalSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read_in(field!(Self, value))?;
+        r.read_into_in(&mut self.value, field!(Self, value))?;
         Ok(())
     }
 }
@@ -2649,6 +3005,18 @@ impl NinoRead for TAnimalSlot {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2684,7 +3052,7 @@ pub struct TBigSlot {
 
 impl NinoReadBody for TBigSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
+        r.read_into(&mut self.value)?;
         Ok(())
     }
 }
@@ -2713,6 +3081,18 @@ impl NinoRead for TBigSlot {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2748,7 +3128,7 @@ pub struct TBoolArray {
 
 impl NinoReadBody for TBoolArray {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -2777,6 +3157,18 @@ impl NinoRead for TBoolArray {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2812,7 +3204,7 @@ pub struct TBoolValue {
 
 impl NinoReadBody for TBoolValue {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
+        r.read_into(&mut self.value)?;
         Ok(())
     }
 }
@@ -2841,6 +3233,18 @@ impl NinoRead for TBoolValue {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2876,7 +3280,7 @@ pub struct TByteArray {
 
 impl NinoReadBody for TByteArray {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -2905,6 +3309,18 @@ impl NinoRead for TByteArray {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -2940,7 +3356,7 @@ pub struct TDogSlot {
 
 impl NinoReadBody for TDogSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read_in(field!(Self, value))?;
+        r.read_into_in(&mut self.value, field!(Self, value))?;
         Ok(())
     }
 }
@@ -2969,6 +3385,18 @@ impl NinoRead for TDogSlot {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3004,7 +3432,7 @@ pub struct TGrid {
 
 impl NinoReadBody for TGrid {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -3033,6 +3461,18 @@ impl NinoRead for TGrid {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3068,7 +3508,7 @@ pub struct TIntArray {
 
 impl NinoReadBody for TIntArray {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -3097,6 +3537,18 @@ impl NinoRead for TIntArray {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3132,7 +3584,7 @@ pub struct TIntMap {
 
 impl NinoReadBody for TIntMap {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -3161,6 +3613,18 @@ impl NinoRead for TIntMap {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3196,7 +3660,7 @@ pub struct TIntSet {
 
 impl NinoReadBody for TIntSet {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -3225,6 +3689,18 @@ impl NinoRead for TIntSet {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3260,7 +3736,7 @@ pub struct TLongList {
 
 impl NinoReadBody for TLongList {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -3289,6 +3765,18 @@ impl NinoRead for TLongList {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3324,7 +3812,7 @@ pub struct TMaybeInt {
 
 impl NinoReadBody for TMaybeInt {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
+        r.read_into(&mut self.value)?;
         Ok(())
     }
 }
@@ -3353,6 +3841,18 @@ impl NinoRead for TMaybeInt {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3388,7 +3888,7 @@ pub struct TMaybeIntArray {
 
 impl NinoReadBody for TMaybeIntArray {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -3417,6 +3917,18 @@ impl NinoRead for TMaybeIntArray {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3452,7 +3964,7 @@ pub struct TObjectSlot {
 
 impl NinoReadBody for TObjectSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read_in(field!(Self, value))?;
+        r.read_into_in(&mut self.value, field!(Self, value))?;
         Ok(())
     }
 }
@@ -3481,6 +3993,18 @@ impl NinoRead for TObjectSlot {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3516,7 +4040,7 @@ pub struct TPaddedArray {
 
 impl NinoReadBody for TPaddedArray {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -3545,6 +4069,18 @@ impl NinoRead for TPaddedArray {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3580,7 +4116,7 @@ pub struct TPointList {
 
 impl NinoReadBody for TPointList {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read_in(field!(Self, values))?;
+        r.read_into_in(&mut self.values, field!(Self, values))?;
         Ok(())
     }
 }
@@ -3609,6 +4145,18 @@ impl NinoRead for TPointList {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3644,7 +4192,7 @@ pub struct TShapeSlot {
 
 impl NinoReadBody for TShapeSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read_in(field!(Self, value))?;
+        r.read_into_in(&mut self.value, field!(Self, value))?;
         Ok(())
     }
 }
@@ -3673,6 +4221,18 @@ impl NinoRead for TShapeSlot {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3708,7 +4268,7 @@ pub struct TSortedMap {
 
 impl NinoReadBody for TSortedMap {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -3737,6 +4297,18 @@ impl NinoRead for TSortedMap {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3772,7 +4344,7 @@ pub struct TStringList {
 
 impl NinoReadBody for TStringList {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -3801,6 +4373,18 @@ impl NinoRead for TStringList {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3836,7 +4420,7 @@ pub struct TStringMap {
 
 impl NinoReadBody for TStringMap {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -3865,6 +4449,18 @@ impl NinoRead for TStringMap {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3900,7 +4496,7 @@ pub struct TStringSet {
 
 impl NinoReadBody for TStringSet {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.values = r.read()?;
+        r.read_into(&mut self.values)?;
         Ok(())
     }
 }
@@ -3929,6 +4525,18 @@ impl NinoRead for TStringSet {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -3964,7 +4572,7 @@ pub struct TTextValue {
 
 impl NinoReadBody for TTextValue {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
+        r.read_into(&mut self.value)?;
         Ok(())
     }
 }
@@ -3993,6 +4601,18 @@ impl NinoRead for TTextValue {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -4028,7 +4648,7 @@ pub struct TUtf8Value {
 
 impl NinoReadBody for TUtf8Value {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
+        r.read_into(&mut self.value)?;
         Ok(())
     }
 }
@@ -4057,6 +4677,18 @@ impl NinoRead for TUtf8Value {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -4092,7 +4724,7 @@ pub struct TVersionSlot {
 
 impl NinoReadBody for TVersionSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
+        r.read_into(&mut self.value)?;
         Ok(())
     }
 }
@@ -4121,6 +4753,18 @@ impl NinoRead for TVersionSlot {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -4158,7 +4802,7 @@ impl NinoReadBody for TolerantBase {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
-            self.a = r.read()?;
+            r.read_into(&mut self.a)?;
         }
         r.end_region(body, self)?;
         Ok(())
@@ -4199,10 +4843,10 @@ impl NinoReadBody for TolerantChain {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
-            self.value = r.read()?;
+            r.read_into(&mut self.value)?;
         }
         if r.has_more() {
-            self.next = r.read_in(field!(Self, next))?;
+            r.read_into_in(&mut self.next, field!(Self, next))?;
         }
         r.end_region(body, self)?;
         Ok(())
@@ -4236,6 +4880,18 @@ impl NinoRead for TolerantChain {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -4302,6 +4958,18 @@ impl NinoRead for TolerantEmpty {
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
     }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
+    }
 }
 
 impl NinoWrite for TolerantEmpty {
@@ -4338,10 +5006,10 @@ pub struct TolerantHolder {
 
 impl NinoReadBody for TolerantHolder {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.first = r.read_in(field!(Self, first))?;
-        self.polymorphic = r.read_in(field!(Self, polymorphic))?;
-        self.empty = r.read_in(field!(Self, empty))?;
-        self.after = r.read()?;
+        r.read_into_in(&mut self.first, field!(Self, first))?;
+        r.read_into_in(&mut self.polymorphic, field!(Self, polymorphic))?;
+        r.read_into_in(&mut self.empty, field!(Self, empty))?;
+        r.read_into(&mut self.after)?;
         Ok(())
     }
 }
@@ -4373,6 +5041,18 @@ impl NinoRead for TolerantHolder {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -4414,10 +5094,10 @@ impl NinoReadBody for TolerantLeaf {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
-            self.a = r.read()?;
+            r.read_into(&mut self.a)?;
         }
         if r.has_more() {
-            self.b = r.read()?;
+            r.read_into(&mut self.b)?;
         }
         r.end_region(body, self)?;
         Ok(())
@@ -4451,6 +5131,18 @@ impl NinoRead for TolerantLeaf {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -4491,13 +5183,13 @@ impl NinoReadBody for TolerantRoot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
-            self.name = r.read()?;
+            r.read_into(&mut self.name)?;
         }
         if r.has_more() {
-            self.chain = r.read_in(field!(Self, chain))?;
+            r.read_into_in(&mut self.chain, field!(Self, chain))?;
         }
         if r.has_more() {
-            self.after = r.read()?;
+            r.read_into(&mut self.after)?;
         }
         r.end_region(body, self)?;
         Ok(())
@@ -4532,6 +5224,18 @@ impl NinoRead for TolerantRoot {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -4572,10 +5276,10 @@ impl NinoReadBody for TolerantV1 {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
-            self.a = r.read()?;
+            r.read_into(&mut self.a)?;
         }
         if r.has_more() {
-            self.b = r.read()?;
+            r.read_into(&mut self.b)?;
         }
         r.end_region(body, self)?;
         Ok(())
@@ -4609,6 +5313,18 @@ impl NinoRead for TolerantV1 {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -4650,16 +5366,16 @@ impl NinoReadBody for TolerantV2 {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
-            self.a = r.read()?;
+            r.read_into(&mut self.a)?;
         }
         if r.has_more() {
-            self.b = r.read()?;
+            r.read_into(&mut self.b)?;
         }
         if r.has_more() {
-            self.c = r.read()?;
+            r.read_into(&mut self.c)?;
         }
         if r.has_more() {
-            self.d = r.read()?;
+            r.read_into(&mut self.d)?;
         }
         r.end_region(body, self)?;
         Ok(())
@@ -4695,6 +5411,18 @@ impl NinoRead for TolerantV2 {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -4734,8 +5462,8 @@ pub struct TreeHolder {
 
 impl NinoReadBody for TreeHolder {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.tree = r.read_in(field!(Self, tree))?;
-        self.dict_tree = r.read_in(field!(Self, dict_tree))?;
+        r.read_into_in(&mut self.tree, field!(Self, tree))?;
+        r.read_into_in(&mut self.dict_tree, field!(Self, dict_tree))?;
         Ok(())
     }
 }
@@ -4765,6 +5493,18 @@ impl NinoRead for TreeHolder {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -4802,8 +5542,8 @@ pub struct TreeNode {
 
 impl NinoReadBody for TreeNode {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.value = r.read()?;
-        self.children = r.read_in(field!(Self, children))?;
+        r.read_into(&mut self.value)?;
+        r.read_into_in(&mut self.children, field!(Self, children))?;
         Ok(())
     }
 }
@@ -4833,6 +5573,18 @@ impl NinoRead for TreeNode {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -4877,15 +5629,15 @@ pub struct Zoo {
 
 impl NinoReadBody for Zoo {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.star = r.read_in(field!(Self, star))?;
-        self.dog = r.read_in(field!(Self, dog))?;
-        self.animals = r.read_in(field!(Self, animals))?;
-        self.cages = r.read_in(field!(Self, cages))?;
-        self.shape = r.read_in(field!(Self, shape))?;
-        self.shapes = r.read_in(field!(Self, shapes))?;
-        self.plain = r.read_in(field!(Self, plain))?;
-        self.anything = r.read_in(field!(Self, anything))?;
-        self.by_name = r.read_in(field!(Self, by_name))?;
+        r.read_into_in(&mut self.star, field!(Self, star))?;
+        r.read_into_in(&mut self.dog, field!(Self, dog))?;
+        r.read_into_in(&mut self.animals, field!(Self, animals))?;
+        r.read_into_in(&mut self.cages, field!(Self, cages))?;
+        r.read_into_in(&mut self.shape, field!(Self, shape))?;
+        r.read_into_in(&mut self.shapes, field!(Self, shapes))?;
+        r.read_into_in(&mut self.plain, field!(Self, plain))?;
+        r.read_into_in(&mut self.anything, field!(Self, anything))?;
+        r.read_into_in(&mut self.by_name, field!(Self, by_name))?;
         Ok(())
     }
 }
@@ -4922,6 +5674,18 @@ impl NinoRead for Zoo {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -4966,8 +5730,8 @@ pub struct BoxOfVec2 {
 
 impl NinoReadBody for BoxOfVec2 {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.name = r.read()?;
-        self.value = r.read()?;
+        r.read_into(&mut self.name)?;
+        r.read_into(&mut self.value)?;
         Ok(())
     }
 }
@@ -4997,6 +5761,18 @@ impl NinoRead for BoxOfVec2 {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -5034,8 +5810,8 @@ pub struct BoxOfListOfPoint {
 
 impl NinoReadBody for BoxOfListOfPoint {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.name = r.read()?;
-        self.value = r.read_in(field!(Self, value))?;
+        r.read_into(&mut self.name)?;
+        r.read_into_in(&mut self.value, field!(Self, value))?;
         Ok(())
     }
 }
@@ -5065,6 +5841,18 @@ impl NinoRead for BoxOfListOfPoint {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -5102,8 +5890,8 @@ pub struct BoxOfInt32 {
 
 impl NinoReadBody for BoxOfInt32 {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.name = r.read()?;
-        self.value = r.read()?;
+        r.read_into(&mut self.name)?;
+        r.read_into(&mut self.value)?;
         Ok(())
     }
 }
@@ -5133,6 +5921,18 @@ impl NinoRead for BoxOfInt32 {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -5170,8 +5970,8 @@ pub struct BoxOfString {
 
 impl NinoReadBody for BoxOfString {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.name = r.read()?;
-        self.value = r.read()?;
+        r.read_into(&mut self.name)?;
+        r.read_into(&mut self.value)?;
         Ok(())
     }
 }
@@ -5201,6 +6001,18 @@ impl NinoRead for BoxOfString {
 
     fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
         r.read_sealed_boxed()
+    }
+
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_into(self)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_option_into(slot)
+    }
+
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        r.read_sealed_boxed_option_into(slot)
     }
 }
 
@@ -5264,23 +6076,63 @@ impl NinoRead for AnimalRef {
     }
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
         let mark = r.mark();
-        let value = match id {
-            Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
-            Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
-            Cat::TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
-            BoxOfInt32::TYPE_ID => Self::BoxOfInt32(Box::new(r.read_class()?)),
-            BoxOfString::TYPE_ID => Self::BoxOfString(Box::new(r.read_class()?)),
-            BoxOfVec2::TYPE_ID => Self::BoxOfVec2(Box::new(r.read_class()?)),
-            BoxOfListOfPoint::TYPE_ID => Self::BoxOfListOfPoint(Box::new(r.read_class()?)),
-            _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+        let reused = match slot {
+            Some(Self::Dog(v)) if id == Dog::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Puppy(v)) if id == Puppy::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Cat(v)) if id == Cat::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::BoxOfInt32(v)) if id == BoxOfInt32::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::BoxOfString(v)) if id == BoxOfString::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::BoxOfVec2(v)) if id == BoxOfVec2::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::BoxOfListOfPoint(v)) if id == BoxOfListOfPoint::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            _ => false,
         };
+        if !reused {
+            *slot = Some(match id {
+                Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
+                Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
+                Cat::TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
+                BoxOfInt32::TYPE_ID => Self::BoxOfInt32(Box::new(r.read_class()?)),
+                BoxOfString::TYPE_ID => Self::BoxOfString(Box::new(r.read_class()?)),
+                BoxOfVec2::TYPE_ID => Self::BoxOfVec2(Box::new(r.read_class()?)),
+                BoxOfListOfPoint::TYPE_ID => Self::BoxOfListOfPoint(Box::new(r.read_class()?)),
+                _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+            });
+        }
         r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<AnimalRef>()?.body())));
-        Ok(Some(value))
+        Ok(())
     }
 }
 
@@ -5369,18 +6221,38 @@ impl NinoRead for DogRef {
     }
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
         let mark = r.mark();
-        let value = match id {
-            Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
-            Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
-            _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+        let reused = match slot {
+            Some(Self::Dog(v)) if id == Dog::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Puppy(v)) if id == Puppy::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            _ => false,
         };
+        if !reused {
+            *slot = Some(match id {
+                Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
+                Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
+                _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+            });
+        }
         r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<DogRef>()?.body())));
-        Ok(Some(value))
+        Ok(())
     }
 }
 
@@ -5444,18 +6316,38 @@ impl NinoRead for IShapeRef {
     }
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
         let mark = r.mark();
-        let value = match id {
-            Square::TYPE_ID => Self::Square(Box::new(r.read_class()?)),
-            Circle::TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
-            _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+        let reused = match slot {
+            Some(Self::Square(v)) if id == Square::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Circle(v)) if id == Circle::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            _ => false,
         };
+        if !reused {
+            *slot = Some(match id {
+                Square::TYPE_ID => Self::Square(Box::new(r.read_class()?)),
+                Circle::TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
+                _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+            });
+        }
         r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<IShapeRef>()?.body())));
-        Ok(Some(value))
+        Ok(())
     }
 }
 
@@ -5517,17 +6409,33 @@ impl NinoRead for CircleRef {
     }
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
         let mark = r.mark();
-        let value = match id {
-            Circle::TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
-            _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+        let reused = match slot {
+            Some(Self::Circle(v)) if id == Circle::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            _ => false,
         };
+        if !reused {
+            *slot = Some(match id {
+                Circle::TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
+                _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+            });
+        }
         r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<CircleRef>()?.body())));
-        Ok(Some(value))
+        Ok(())
     }
 }
 
@@ -5584,17 +6492,33 @@ impl NinoRead for PlainRef {
     }
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
         let mark = r.mark();
-        let value = match id {
-            Plain::TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
-            _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+        let reused = match slot {
+            Some(Self::Plain(v)) if id == Plain::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            _ => false,
         };
+        if !reused {
+            *slot = Some(match id {
+                Plain::TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
+                _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+            });
+        }
         r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<PlainRef>()?.body())));
-        Ok(Some(value))
+        Ok(())
     }
 }
 
@@ -5653,18 +6577,38 @@ impl NinoRead for TolerantBaseRef {
     }
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
         let mark = r.mark();
-        let value = match id {
-            TolerantBase::TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
-            TolerantLeaf::TYPE_ID => Self::TolerantLeaf(Box::new(r.read_class()?)),
-            _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+        let reused = match slot {
+            Some(Self::TolerantBase(v)) if id == TolerantBase::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TolerantLeaf(v)) if id == TolerantLeaf::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            _ => false,
         };
+        if !reused {
+            *slot = Some(match id {
+                TolerantBase::TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
+                TolerantLeaf::TYPE_ID => Self::TolerantLeaf(Box::new(r.read_class()?)),
+                _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+            });
+        }
         r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<TolerantBaseRef>()?.body())));
-        Ok(Some(value))
+        Ok(())
     }
 }
 
@@ -5728,18 +6672,38 @@ impl NinoRead for LinkRef {
     }
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
         let mark = r.mark();
-        let value = match id {
-            RedLink::TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
-            BlueLink::TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
-            _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+        let reused = match slot {
+            Some(Self::RedLink(v)) if id == RedLink::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::BlueLink(v)) if id == BlueLink::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            _ => false,
         };
+        if !reused {
+            *slot = Some(match id {
+                RedLink::TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
+                BlueLink::TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
+                _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+            });
+        }
         r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<LinkRef>()?.body())));
-        Ok(Some(value))
+        Ok(())
     }
 }
 
@@ -5941,87 +6905,383 @@ impl NinoRead for AnyObject {
     }
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
         let mark = r.mark();
-        let value = match id {
-            BigValues::TYPE_ID => Self::BigValues(Box::new(r.read_class()?)),
-            BlueLink::TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
-            Bytes::TYPE_ID => Self::Bytes(Box::new(r.read_class()?)),
-            Cat::TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
-            Chain::TYPE_ID => Self::Chain(Box::new(r.read_class()?)),
-            Circle::TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
-            Collections::TYPE_ID => Self::Collections(Box::new(r.read_class()?)),
-            Dates::TYPE_ID => Self::Dates(Box::new(r.read_class()?)),
-            Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
-            Empties::TYPE_ID => Self::Empties(Box::new(r.read_class()?)),
-            Empty::TYPE_ID => Self::Empty(Box::new(r.read_class()?)),
-            Enums::TYPE_ID => Self::Enums(Box::new(r.read_class()?)),
-            Floats::TYPE_ID => Self::Floats(Box::new(r.read_class()?)),
-            Inner::TYPE_ID => Self::Inner(Box::new(r.read_class()?)),
-            Integers::TYPE_ID => Self::Integers(Box::new(r.read_class()?)),
-            KeyedChain::TYPE_ID => Self::KeyedChain(Box::new(r.read_class()?)),
-            KeyedHolder::TYPE_ID => Self::KeyedHolder(Box::new(r.read_class()?)),
-            KeyedV1::TYPE_ID => Self::KeyedV1(Box::new(r.read_class()?)),
-            KeyedV2::TYPE_ID => Self::KeyedV2(Box::new(r.read_class()?)),
-            Middle::TYPE_ID => Self::Middle(Box::new(r.read_class()?)),
-            Nullables::TYPE_ID => Self::Nullables(Box::new(r.read_class()?)),
-            Outer::TYPE_ID => Self::Outer(Box::new(r.read_class()?)),
-            Plain::TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
-            Point::TYPE_ID => Self::Point(Box::new(r.read_class()?)),
-            Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
-            RecordChain::TYPE_ID => Self::RecordChain(Box::new(r.read_class()?)),
-            RedLink::TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
-            Scalars::TYPE_ID => Self::Scalars(Box::new(r.read_class()?)),
-            Square::TYPE_ID => Self::Square(Box::new(r.read_class()?)),
-            StringCollections::TYPE_ID => Self::StringCollections(Box::new(r.read_class()?)),
-            Strings::TYPE_ID => Self::Strings(Box::new(r.read_class()?)),
-            Structs::TYPE_ID => Self::Structs(Box::new(r.read_class()?)),
-            TAnimalSlot::TYPE_ID => Self::TAnimalSlot(Box::new(r.read_class()?)),
-            TBigSlot::TYPE_ID => Self::TBigSlot(Box::new(r.read_class()?)),
-            TBoolArray::TYPE_ID => Self::TBoolArray(Box::new(r.read_class()?)),
-            TBoolValue::TYPE_ID => Self::TBoolValue(Box::new(r.read_class()?)),
-            TByteArray::TYPE_ID => Self::TByteArray(Box::new(r.read_class()?)),
-            TDogSlot::TYPE_ID => Self::TDogSlot(Box::new(r.read_class()?)),
-            TGrid::TYPE_ID => Self::TGrid(Box::new(r.read_class()?)),
-            TIntArray::TYPE_ID => Self::TIntArray(Box::new(r.read_class()?)),
-            TIntMap::TYPE_ID => Self::TIntMap(Box::new(r.read_class()?)),
-            TIntSet::TYPE_ID => Self::TIntSet(Box::new(r.read_class()?)),
-            TLongList::TYPE_ID => Self::TLongList(Box::new(r.read_class()?)),
-            TMaybeInt::TYPE_ID => Self::TMaybeInt(Box::new(r.read_class()?)),
-            TMaybeIntArray::TYPE_ID => Self::TMaybeIntArray(Box::new(r.read_class()?)),
-            TObjectSlot::TYPE_ID => Self::TObjectSlot(Box::new(r.read_class()?)),
-            TPaddedArray::TYPE_ID => Self::TPaddedArray(Box::new(r.read_class()?)),
-            TPointList::TYPE_ID => Self::TPointList(Box::new(r.read_class()?)),
-            TShapeSlot::TYPE_ID => Self::TShapeSlot(Box::new(r.read_class()?)),
-            TSortedMap::TYPE_ID => Self::TSortedMap(Box::new(r.read_class()?)),
-            TStringList::TYPE_ID => Self::TStringList(Box::new(r.read_class()?)),
-            TStringMap::TYPE_ID => Self::TStringMap(Box::new(r.read_class()?)),
-            TStringSet::TYPE_ID => Self::TStringSet(Box::new(r.read_class()?)),
-            TTextValue::TYPE_ID => Self::TTextValue(Box::new(r.read_class()?)),
-            TUtf8Value::TYPE_ID => Self::TUtf8Value(Box::new(r.read_class()?)),
-            TVersionSlot::TYPE_ID => Self::TVersionSlot(Box::new(r.read_class()?)),
-            TolerantBase::TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
-            TolerantChain::TYPE_ID => Self::TolerantChain(Box::new(r.read_class()?)),
-            TolerantEmpty::TYPE_ID => Self::TolerantEmpty(Box::new(r.read_class()?)),
-            TolerantHolder::TYPE_ID => Self::TolerantHolder(Box::new(r.read_class()?)),
-            TolerantLeaf::TYPE_ID => Self::TolerantLeaf(Box::new(r.read_class()?)),
-            TolerantRoot::TYPE_ID => Self::TolerantRoot(Box::new(r.read_class()?)),
-            TolerantV1::TYPE_ID => Self::TolerantV1(Box::new(r.read_class()?)),
-            TolerantV2::TYPE_ID => Self::TolerantV2(Box::new(r.read_class()?)),
-            TreeHolder::TYPE_ID => Self::TreeHolder(Box::new(r.read_class()?)),
-            TreeNode::TYPE_ID => Self::TreeNode(Box::new(r.read_class()?)),
-            Zoo::TYPE_ID => Self::Zoo(Box::new(r.read_class()?)),
-            BoxOfVec2::TYPE_ID => Self::BoxOfVec2(Box::new(r.read_class()?)),
-            BoxOfListOfPoint::TYPE_ID => Self::BoxOfListOfPoint(Box::new(r.read_class()?)),
-            BoxOfInt32::TYPE_ID => Self::BoxOfInt32(Box::new(r.read_class()?)),
-            BoxOfString::TYPE_ID => Self::BoxOfString(Box::new(r.read_class()?)),
-            _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+        let reused = match slot {
+            Some(Self::BigValues(v)) if id == BigValues::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::BlueLink(v)) if id == BlueLink::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Bytes(v)) if id == Bytes::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Cat(v)) if id == Cat::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Chain(v)) if id == Chain::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Circle(v)) if id == Circle::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Collections(v)) if id == Collections::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Dates(v)) if id == Dates::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Dog(v)) if id == Dog::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Empties(v)) if id == Empties::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Empty(v)) if id == Empty::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Enums(v)) if id == Enums::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Floats(v)) if id == Floats::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Inner(v)) if id == Inner::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Integers(v)) if id == Integers::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::KeyedChain(v)) if id == KeyedChain::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::KeyedHolder(v)) if id == KeyedHolder::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::KeyedV1(v)) if id == KeyedV1::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::KeyedV2(v)) if id == KeyedV2::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Middle(v)) if id == Middle::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Nullables(v)) if id == Nullables::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Outer(v)) if id == Outer::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Plain(v)) if id == Plain::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Point(v)) if id == Point::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Puppy(v)) if id == Puppy::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::RecordChain(v)) if id == RecordChain::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::RedLink(v)) if id == RedLink::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Scalars(v)) if id == Scalars::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Square(v)) if id == Square::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::StringCollections(v)) if id == StringCollections::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Strings(v)) if id == Strings::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Structs(v)) if id == Structs::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TAnimalSlot(v)) if id == TAnimalSlot::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TBigSlot(v)) if id == TBigSlot::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TBoolArray(v)) if id == TBoolArray::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TBoolValue(v)) if id == TBoolValue::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TByteArray(v)) if id == TByteArray::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TDogSlot(v)) if id == TDogSlot::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TGrid(v)) if id == TGrid::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TIntArray(v)) if id == TIntArray::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TIntMap(v)) if id == TIntMap::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TIntSet(v)) if id == TIntSet::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TLongList(v)) if id == TLongList::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TMaybeInt(v)) if id == TMaybeInt::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TMaybeIntArray(v)) if id == TMaybeIntArray::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TObjectSlot(v)) if id == TObjectSlot::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TPaddedArray(v)) if id == TPaddedArray::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TPointList(v)) if id == TPointList::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TShapeSlot(v)) if id == TShapeSlot::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TSortedMap(v)) if id == TSortedMap::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TStringList(v)) if id == TStringList::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TStringMap(v)) if id == TStringMap::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TStringSet(v)) if id == TStringSet::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TTextValue(v)) if id == TTextValue::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TUtf8Value(v)) if id == TUtf8Value::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TVersionSlot(v)) if id == TVersionSlot::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TolerantBase(v)) if id == TolerantBase::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TolerantChain(v)) if id == TolerantChain::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TolerantEmpty(v)) if id == TolerantEmpty::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TolerantHolder(v)) if id == TolerantHolder::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TolerantLeaf(v)) if id == TolerantLeaf::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TolerantRoot(v)) if id == TolerantRoot::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TolerantV1(v)) if id == TolerantV1::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TolerantV2(v)) if id == TolerantV2::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TreeHolder(v)) if id == TreeHolder::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TreeNode(v)) if id == TreeNode::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Zoo(v)) if id == Zoo::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::BoxOfVec2(v)) if id == BoxOfVec2::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::BoxOfListOfPoint(v)) if id == BoxOfListOfPoint::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::BoxOfInt32(v)) if id == BoxOfInt32::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::BoxOfString(v)) if id == BoxOfString::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            _ => false,
         };
+        if !reused {
+            *slot = Some(match id {
+                BigValues::TYPE_ID => Self::BigValues(Box::new(r.read_class()?)),
+                BlueLink::TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
+                Bytes::TYPE_ID => Self::Bytes(Box::new(r.read_class()?)),
+                Cat::TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
+                Chain::TYPE_ID => Self::Chain(Box::new(r.read_class()?)),
+                Circle::TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
+                Collections::TYPE_ID => Self::Collections(Box::new(r.read_class()?)),
+                Dates::TYPE_ID => Self::Dates(Box::new(r.read_class()?)),
+                Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
+                Empties::TYPE_ID => Self::Empties(Box::new(r.read_class()?)),
+                Empty::TYPE_ID => Self::Empty(Box::new(r.read_class()?)),
+                Enums::TYPE_ID => Self::Enums(Box::new(r.read_class()?)),
+                Floats::TYPE_ID => Self::Floats(Box::new(r.read_class()?)),
+                Inner::TYPE_ID => Self::Inner(Box::new(r.read_class()?)),
+                Integers::TYPE_ID => Self::Integers(Box::new(r.read_class()?)),
+                KeyedChain::TYPE_ID => Self::KeyedChain(Box::new(r.read_class()?)),
+                KeyedHolder::TYPE_ID => Self::KeyedHolder(Box::new(r.read_class()?)),
+                KeyedV1::TYPE_ID => Self::KeyedV1(Box::new(r.read_class()?)),
+                KeyedV2::TYPE_ID => Self::KeyedV2(Box::new(r.read_class()?)),
+                Middle::TYPE_ID => Self::Middle(Box::new(r.read_class()?)),
+                Nullables::TYPE_ID => Self::Nullables(Box::new(r.read_class()?)),
+                Outer::TYPE_ID => Self::Outer(Box::new(r.read_class()?)),
+                Plain::TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
+                Point::TYPE_ID => Self::Point(Box::new(r.read_class()?)),
+                Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
+                RecordChain::TYPE_ID => Self::RecordChain(Box::new(r.read_class()?)),
+                RedLink::TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
+                Scalars::TYPE_ID => Self::Scalars(Box::new(r.read_class()?)),
+                Square::TYPE_ID => Self::Square(Box::new(r.read_class()?)),
+                StringCollections::TYPE_ID => Self::StringCollections(Box::new(r.read_class()?)),
+                Strings::TYPE_ID => Self::Strings(Box::new(r.read_class()?)),
+                Structs::TYPE_ID => Self::Structs(Box::new(r.read_class()?)),
+                TAnimalSlot::TYPE_ID => Self::TAnimalSlot(Box::new(r.read_class()?)),
+                TBigSlot::TYPE_ID => Self::TBigSlot(Box::new(r.read_class()?)),
+                TBoolArray::TYPE_ID => Self::TBoolArray(Box::new(r.read_class()?)),
+                TBoolValue::TYPE_ID => Self::TBoolValue(Box::new(r.read_class()?)),
+                TByteArray::TYPE_ID => Self::TByteArray(Box::new(r.read_class()?)),
+                TDogSlot::TYPE_ID => Self::TDogSlot(Box::new(r.read_class()?)),
+                TGrid::TYPE_ID => Self::TGrid(Box::new(r.read_class()?)),
+                TIntArray::TYPE_ID => Self::TIntArray(Box::new(r.read_class()?)),
+                TIntMap::TYPE_ID => Self::TIntMap(Box::new(r.read_class()?)),
+                TIntSet::TYPE_ID => Self::TIntSet(Box::new(r.read_class()?)),
+                TLongList::TYPE_ID => Self::TLongList(Box::new(r.read_class()?)),
+                TMaybeInt::TYPE_ID => Self::TMaybeInt(Box::new(r.read_class()?)),
+                TMaybeIntArray::TYPE_ID => Self::TMaybeIntArray(Box::new(r.read_class()?)),
+                TObjectSlot::TYPE_ID => Self::TObjectSlot(Box::new(r.read_class()?)),
+                TPaddedArray::TYPE_ID => Self::TPaddedArray(Box::new(r.read_class()?)),
+                TPointList::TYPE_ID => Self::TPointList(Box::new(r.read_class()?)),
+                TShapeSlot::TYPE_ID => Self::TShapeSlot(Box::new(r.read_class()?)),
+                TSortedMap::TYPE_ID => Self::TSortedMap(Box::new(r.read_class()?)),
+                TStringList::TYPE_ID => Self::TStringList(Box::new(r.read_class()?)),
+                TStringMap::TYPE_ID => Self::TStringMap(Box::new(r.read_class()?)),
+                TStringSet::TYPE_ID => Self::TStringSet(Box::new(r.read_class()?)),
+                TTextValue::TYPE_ID => Self::TTextValue(Box::new(r.read_class()?)),
+                TUtf8Value::TYPE_ID => Self::TUtf8Value(Box::new(r.read_class()?)),
+                TVersionSlot::TYPE_ID => Self::TVersionSlot(Box::new(r.read_class()?)),
+                TolerantBase::TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
+                TolerantChain::TYPE_ID => Self::TolerantChain(Box::new(r.read_class()?)),
+                TolerantEmpty::TYPE_ID => Self::TolerantEmpty(Box::new(r.read_class()?)),
+                TolerantHolder::TYPE_ID => Self::TolerantHolder(Box::new(r.read_class()?)),
+                TolerantLeaf::TYPE_ID => Self::TolerantLeaf(Box::new(r.read_class()?)),
+                TolerantRoot::TYPE_ID => Self::TolerantRoot(Box::new(r.read_class()?)),
+                TolerantV1::TYPE_ID => Self::TolerantV1(Box::new(r.read_class()?)),
+                TolerantV2::TYPE_ID => Self::TolerantV2(Box::new(r.read_class()?)),
+                TreeHolder::TYPE_ID => Self::TreeHolder(Box::new(r.read_class()?)),
+                TreeNode::TYPE_ID => Self::TreeNode(Box::new(r.read_class()?)),
+                Zoo::TYPE_ID => Self::Zoo(Box::new(r.read_class()?)),
+                BoxOfVec2::TYPE_ID => Self::BoxOfVec2(Box::new(r.read_class()?)),
+                BoxOfListOfPoint::TYPE_ID => Self::BoxOfListOfPoint(Box::new(r.read_class()?)),
+                BoxOfInt32::TYPE_ID => Self::BoxOfInt32(Box::new(r.read_class()?)),
+                BoxOfString::TYPE_ID => Self::BoxOfString(Box::new(r.read_class()?)),
+                _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
+            });
+        }
         r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<AnyObject>()?.body())));
-        Ok(Some(value))
+        Ok(())
     }
 }
 

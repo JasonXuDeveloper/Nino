@@ -85,6 +85,14 @@ pub fn deserialize<T: NinoRead>(data: &[u8]) -> Result<T> {
     T::read(&mut Reader::new(data))
 }
 
+/// Deserializes one value into `value`, reusing what it holds ([`NinoRead::read_into`]: the members of a class or
+/// struct, the buffers and elements of a `Vec`, the buffers of maps and sets, a polymorphic value of the same type),
+/// as `NinoDeserializer.Deserialize(data, ref value)` does in .NET. Bytes after the value are ignored. On an error,
+/// `value` is a valid value holding what was read before it: read into it again, or drop it.
+pub fn deserialize_into<T: NinoRead>(data: &[u8], value: &mut T) -> Result<()> {
+    value.read_into(&mut Reader::new(data))
+}
+
 /// [`deserialize`], failing when bytes are left after the value.
 pub fn deserialize_exact<T: NinoRead>(data: &[u8]) -> Result<T> {
     let mut r = Reader::new(data);
