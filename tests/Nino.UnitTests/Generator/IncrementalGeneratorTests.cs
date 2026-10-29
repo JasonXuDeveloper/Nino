@@ -68,6 +68,23 @@ public class IncrementalGeneratorTests
     }
 
     [TestMethod]
+    public void GenericTypesTakeTheFormattersOfTheirTypeArguments()
+    {
+        // A member of type T calls the formatter the closed type names: a direct call on every runtime, where
+        // CachedFormatter<T> is a virtual call on IL2CPP, Mono and NativeAOT.
+        var compilation = Create(
+            ("Box.cs", Usings + "[NinoType] public class Box<T> { public T Value; public System.Collections.Generic.List<T> Items; }\n}"),
+            ("Holder.cs", Usings + "[NinoType] public class Holder { public Box<int> Ints; }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGenerators(compilation);
+        string box = Output(driver, "Box_1");
+        StringAssert.Contains(box, "where __F_T : struct, global::Nino.Core.INinoFormatter<T>");
+        Assert.IsFalse(box.Contains("CachedFormatter"), box);
+        StringAssert.Contains(Output(driver, "Holder"),
+            "Inc_Box_1Formatter<int, global::Nino.Core.UnmanagedFormatter<int>>");
+    }
+
+    [TestMethod]
     public void EditedFormatterRegistrationsReachCachedModels()
     {
         // The registration is in a file no model depends on: models must still see it change.

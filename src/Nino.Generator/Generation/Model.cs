@@ -205,7 +205,8 @@ internal sealed record TypeModel(
     string OpenTypeName,
     // Formatter type name without type parameters, e.g. "Ns_Outer_Box_1Formatter".
     string FormatterName,
-    // Type parameter names, outermost containing type first; empty for non-generic types.
+    // Type parameter names, outermost containing type first; empty for non-generic types. The formatter also takes
+    // the formatter of each (TypeParameterList).
     EquatableArray<string> TypeParameters,
     // " where T : struct" ... or "".
     string Constraints,
@@ -396,10 +397,25 @@ internal sealed record TypeModel(
     /// </summary>
     public bool SplitFresh => FreshRead && OutOfLineBody && !InlineBody;
 
-    /// <summary>"&lt;T1, T2&gt;", or "" for non-generic types.</summary>
-    public string TypeParameterList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";
+    /// <summary>
+    /// The formatter's type parameters, "&lt;T1, T2, __F_T1, __F_T2&gt;": the type's, then the formatter of each
+    /// (<see cref="TypeNames.FormatterParameter"/>); "" for non-generic types.
+    /// </summary>
+    public string TypeParameterList => IsGeneric
+        ? "<" + string.Join(", ", TypeParameters.Concat(TypeParameters.Select(TypeNames.FormatterParameter))) + ">"
+        : "";
 
-    /// <summary>The formatter as its own code names it: its name with the type's parameters.</summary>
+    /// <summary>The type's own type parameters, "&lt;T1, T2&gt;", or "".</summary>
+    public string TypeArgumentList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";
+
+    /// <summary>The number of the formatter's type parameters (<see cref="TypeParameterList"/>).</summary>
+    public int FormatterArity => 2 * TypeParameters.Length;
+
+    /// <summary>The constraints of the formatter's own type parameters, then of their formatters.</summary>
+    public string FormatterConstraints => Constraints + string.Concat(TypeParameters.Select(static p =>
+        $" where {TypeNames.FormatterParameter(p)} : struct, {TypeNames.Core}INinoFormatter<{p}>"));
+
+    /// <summary>The formatter as its own code names it: its name with its type parameters.</summary>
     public string Self => SelfOf(FormatterName, TypeParameterList);
 
     /// <summary>A formatter as its own code names it (<see cref="Self"/>, <see cref="DispatchEntry.Self"/>).</summary>
