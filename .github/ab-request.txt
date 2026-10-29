@@ -1058,3 +1058,12 @@ go:. d2512f3 7101288 UTF16 # utf16 3
 go:. d2512f3 7101288 UTF16 # utf16 4
 go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 3
 go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 4
+# go dispatch (rerun after the cancelled run 40837874482): Xeon 8573C showed Serialize/scattered-1m 1.22 (n=2, no floor on that CPU): more samples of 4225c20 against main, and main's floor.
+go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch 3 rerun
+go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch 4 rerun
+go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch 5 rerun
+go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch 6 rerun
+go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 3 rerun
+go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 4 rerun
+go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 5 rerun
+go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 6 rerun
