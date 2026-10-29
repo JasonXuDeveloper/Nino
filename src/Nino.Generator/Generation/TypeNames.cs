@@ -272,6 +272,21 @@ internal static class TypeNames
     }
 
     /// <summary>
+    /// The formatter type parameter a generated formatter of a generic type declares for its type parameter
+    /// <paramref name="name"/>: the formatter of <c>T</c>, which closed instances name (<c>Box&lt;int&gt;</c>'s
+    /// formatter takes <c>UnmanagedFormatter&lt;int&gt;</c>), so a member of type <c>T</c> is a direct call on every
+    /// runtime instead of a virtual call through <c>CachedFormatter&lt;T&gt;</c> (IL2CPP, Mono and NativeAOT do not
+    /// devirtualize that one).
+    /// </summary>
+    public static string FormatterParameter(string name) => "__F_" + name;
+
+    /// <summary>
+    /// Whether <paramref name="p"/> has a <see cref="FormatterParameter"/>: a parameter of a type (not of a method),
+    /// which every generated formatter it is in scope in declares.
+    /// </summary>
+    public static bool HasFormatterParameter(ITypeParameterSymbol p) => p.TypeParameterKind == TypeParameterKind.Type;
+
+    /// <summary>
     /// Name of the generated formatter for a type definition: namespace and containing types joined by '_'
     /// (literal underscores doubled, so names cannot collide), arity suffixes, then "Formatter".
     /// </summary>
