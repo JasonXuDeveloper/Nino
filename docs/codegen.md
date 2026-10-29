@@ -44,7 +44,7 @@ Each language needs its runtime next to the generated code:
 
 ```
 nino-gen --assembly <dll> --lang ts|go|rust --out <dir> [--references <file>] [--name <file name>]
-  ts:   [--names camel|keep] [--import-extension <.js|.ts|.mjs|.mts>] [--runtime <module>]
+  ts:   [--names camel|keep] [--import-extension <.js|.ts|.mjs|.mts>] [--runtime <module>] [--numeric-arrays array|typed]
   go:   [--package <name>] [--tags json,yaml] [--tag-names camel|snake|original]
   rust: [--serde] [--serde-names camel|snake|original] [--strings string|wide] [--maps indexmap|std]
 ```
@@ -59,6 +59,7 @@ nino-gen --assembly <dll> --lang ts|go|rust --out <dir> [--references <file>] [-
 | `--names` (ts) | `camel` (default) or `keep`: the property names. |
 | `--import-extension` (ts) | The extension of the runtime import, for ESM resolvers that need one. |
 | `--runtime` (ts) | Import the runtime from this module instead of writing `nino.ts` next to the code. |
+| `--numeric-arrays` (ts) | `array` (default): arrays and lists of fixed-size numbers are `number[]` (`bigint[]` for 64-bit integers). `typed`: typed arrays (`Int32Array`, `Float64Array`...), copied in one block; faster to serialize, but slower to deserialize in Chromium ([TypeScript](#typescript)). |
 | `--package` (go) | The package name; by default the assembly name's letters and digits, lower-cased. |
 | `--tags` (go) | The struct tags after `nino`, in order; `json,yaml` by default, empty for none. |
 | `--tag-names` (go) | How those tags name a member: `camel` (default), `snake` or `original` (runtimes/go/README.md, "Tags on generated structs"). |
@@ -85,7 +86,7 @@ The Nino.Codegen package runs nino-gen after `CoreCompile`, once per `<NinoCodeg
 | --- | --- | --- |
 | `Out` | `--out`: relative to the project; `ts/`, `go/` or `rust/` next to it by default | all |
 | `Name` | `--name` | all |
-| `Names`, `ImportExtension`, `Runtime` | `--names`, `--import-extension`, `--runtime` | TypeScript |
+| `Names`, `ImportExtension`, `Runtime`, `NumericArrays` | `--names`, `--import-extension`, `--runtime`, `--numeric-arrays` | TypeScript |
 | `Package`, `Tags`, `TagNames` | `--package`, `--tags`, `--tag-names` | Go |
 | `Serde`, `SerdeNames`, `Strings`, `Maps` | `--serde` (`true` or `false`), `--serde-names`, `--strings`, `--maps` | Rust |
 
@@ -267,6 +268,17 @@ types without members (`readBody$Empty`, `writeBody$Empty` and the version-toler
 in browsers and Deno; where WebAssembly is unavailable or blocked (a Content Security Policy without
 `'wasm-unsafe-eval'`), the runtime keeps its JavaScript paths, which write the same bytes (runtimes/typescript/README.md,
 "Text in browsers: WebAssembly").
+
+With `--numeric-arrays typed` (`NumericArrays="typed"`; the default `array` writes `number[]` and `bigint[]`), an
+array, list or other sequence (not a set) of a fixed-size number is a typed array (`TypeScriptTarget.NumberArrays`:
+`Int8Array` to `Float64Array`, `BigInt64Array` and `BigUint64Array` for 64-bit integers, `Uint8Array` for `List<byte>`
+too). Those of up to 64 bytes are read and written one element at a time (V8 keeps such an array on its heap, and
+viewing its bytes through `.buffer` costs more than the loop); longer ones go through `NinoReader.numbers` and
+`NinoWriter.numbers` as one block copy, since the wire bytes are the typed array's on a little-endian engine. `bool`
+(checked 0 or 1), `char`, `decimal`, `TimeSpan` and enum sequences stay arrays (runtimes/typescript/README.md, "Typed
+arrays"). The trade-off is per engine: serialize is faster in Node and Chromium and deserialize faster in Node, but
+Chromium deserializes numeric arrays of a few KB 2 to 3 times slower than into arrays (a new backing store per typed
+array), which is why it is not the default.
 
 A `Date` has no kind: the reader takes the ticks of every `DateTime` as UTC, so one written with
 `DateTimeKind.Unspecified` (or `Local`) reads as the UTC time with the same clock reading, and is written back with
