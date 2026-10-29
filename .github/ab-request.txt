@@ -1110,3 +1110,16 @@ go:. a309ab3 f5ac426 Blocks # blocks swar 4
 go:. a309ab3 f5ac426 Blocks # blocks swar 5
 go:. a309ab3 f5ac426 Blocks # blocks swar 6
 go a309ab3 d16dd6a .*/.*/Nino # blocks bench module 2
+# go dispatch, Xeon 8573C scattered-1m serialize 1.20 (n=4): A = 4225c20 with the records list through WriteSlice again (does the rest of the binary move it?), B = main with only the records loop written out.
+go#12 4225c20 31b8e79 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control A 1
+go#12 4225c20 31b8e79 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control A 2
+go#12 4225c20 31b8e79 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control A 3
+go#12 4225c20 31b8e79 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control A 4
+go#12 4225c20 31b8e79 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control A 5
+go#12 4225c20 31b8e79 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control A 6
+go#12 78ceaa1 bcbbcbe ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control B 1
+go#12 78ceaa1 bcbbcbe ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control B 2
+go#12 78ceaa1 bcbbcbe ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control B 3
+go#12 78ceaa1 bcbbcbe ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control B 4
+go#12 78ceaa1 bcbbcbe ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control B 5
+go#12 78ceaa1 bcbbcbe ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # control B 6
