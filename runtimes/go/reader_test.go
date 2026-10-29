@@ -783,6 +783,37 @@ func TestSerializeAPI(t *testing.T) {
 	}
 }
 
+// A Writer reused with Reset writes what Serialize returns, into the same memory, with no allocation.
+func TestWriterReuse(t *testing.T) {
+	want, err := Serialize("hello", (*Writer).String)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := NewWriter(0)
+	w.String("hello")
+	buf := w.Bytes()
+	allocs := testing.AllocsPerRun(100, func() {
+		w.Reset()
+		w.String("hello")
+	})
+	if !bytes.Equal(w.Bytes(), want) || &w.Bytes()[0] != &buf[0] {
+		t.Fatal(w.Bytes())
+	}
+	if allocs != 0 {
+		t.Fatalf("%v allocations", allocs)
+	}
+	// After a failure, Reset clears the error and the writer writes again.
+	w.DateTimeOffset(DateTimeOffset{OffsetMinutes: 2000})
+	if w.Err() == nil {
+		t.Fatal("no error")
+	}
+	w.Reset()
+	w.String("hello")
+	if w.Err() != nil || !bytes.Equal(w.Bytes(), want) {
+		t.Fatal(w.Err(), w.Bytes())
+	}
+}
+
 func TestValueRanges(t *testing.T) {
 	// decimal: scale above 28, or reserved flag bits.
 	expectCode(t, hx("00001D00 00000000 0100000000000000"), CodeInvalidData, func(r *Reader) { r.Decimal() })
