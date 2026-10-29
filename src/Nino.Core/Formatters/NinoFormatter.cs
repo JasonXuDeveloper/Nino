@@ -302,15 +302,17 @@ namespace Nino.Core
 
     /// <summary>
     /// Forwards to <see cref="NinoFormatterCache{T}.Instance"/>. Used for generic type parameters and types whose
-    /// formatter is only known at runtime. Costs one virtual call.
+    /// formatter is only known at runtime. Tier1 code calls (and inlines) the formatter directly where
+    /// <typeparamref name="T"/> is exact (<see cref="NinoTopFormatter{T}"/>); shared generic code and AOT runtimes
+    /// make one virtual call.
     /// </summary>
     public struct CachedFormatter<T> : INinoFormatter<T>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Serialize(T value, ref Writer writer) => NinoTopFormatter<T>.Get.Serialize(value, ref writer);
+        public void Serialize(T value, ref Writer writer) => NinoTopFormatter<T>.Formatter.Serialize(value, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T value, ref Reader reader) =>
-            NinoTopFormatter<T>.Get.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
     }
 }

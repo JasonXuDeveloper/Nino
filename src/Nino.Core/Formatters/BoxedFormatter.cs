@@ -54,7 +54,7 @@ namespace Nino.Core
 
     internal sealed class BoxedFormatter<T> : BoxedFormatter
     {
-        public override bool HasFormatter => NinoTopFormatter<T>.Formatter != null;
+        public override bool HasFormatter => NinoTopFormatter<T>.Exists;
 
         public override byte[] Serialize(object value) => NinoSerializer.Serialize(Unbox(value));
 
@@ -62,7 +62,7 @@ namespace Nino.Core
             NinoSerializer.Serialize(Unbox(value), bufferWriter);
 
         public override void Serialize(object value, ref Writer writer) =>
-            NinoTopFormatter<T>.Get.Serialize(Unbox(value), ref writer);
+            NinoTopFormatter<T>.Formatter.Serialize(Unbox(value), ref writer);
 
         /// <summary>
         /// <paramref name="value"/> as a <typeparamref name="T"/>; null only for a type that can be null (a cast
@@ -78,7 +78,7 @@ namespace Nino.Core
         public override void Deserialize(ref object value, ref Reader reader)
         {
             T typed = value is T existing ? existing : default;
-            NinoTopFormatter<T>.Get.Deserialize(ref typed, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref typed, ref reader);
             value = typed;
         }
     }
