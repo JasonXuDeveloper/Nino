@@ -1050,14 +1050,22 @@ typescript 30eb091 d07506b # short inline vs block 1
 typescript 30eb091 d07506b # short inline vs block 2
 # Round 1 (run 40822228516): block checks 7-38 % faster writing on every CPU but Xeon 8370C dateonly/write +20.5 % (one job);
 # Latin-1 widening on read +86 % on EPYC 7763: dropped (7101288). Round 2: more samples of the blocks line, UTF-16 without it.
-go:. a309ab3 d2512f3 Blocks # blocks 4
-go:. a309ab3 d2512f3 Blocks # blocks 5
-go:. a309ab3 d2512f3 Blocks # blocks 6
-go:. a309ab3 d2512f3 Blocks # blocks 7
-go:. d2512f3 7101288 UTF16 # utf16 3
-go:. d2512f3 7101288 UTF16 # utf16 4
-go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 3
-go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 4
+# cancelled (run 40841478581): go:. a309ab3 d2512f3 Blocks # blocks 4
+go:. a309ab3 d2512f3 Blocks # blocks 4 again
+# cancelled (run 40841478581): go:. a309ab3 d2512f3 Blocks # blocks 5
+go:. a309ab3 d2512f3 Blocks # blocks 5 again
+# cancelled (run 40841478581): go:. a309ab3 d2512f3 Blocks # blocks 6
+go:. a309ab3 d2512f3 Blocks # blocks 6 again
+# cancelled (run 40841478581): go:. a309ab3 d2512f3 Blocks # blocks 7
+go:. a309ab3 d2512f3 Blocks # blocks 7 again
+# cancelled (run 40841478581): go:. d2512f3 7101288 UTF16 # utf16 3
+go:. d2512f3 7101288 UTF16 # utf16 3 again
+# cancelled (run 40841478581): go:. d2512f3 7101288 UTF16 # utf16 4
+go:. d2512f3 7101288 UTF16 # utf16 4 again
+# cancelled (run 40841478581): go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 3
+go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 3 again
+# cancelled (run 40841478581): go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 4
+go:. a309ab3 a309ab3 Blocks|UTF16 # blocks floor 4 again
 # go dispatch (rerun after the cancelled run 40837874482): Xeon 8573C showed Serialize/scattered-1m 1.22 (n=2, no floor on that CPU): more samples of 4225c20 against main, and main's floor.
 go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch 3 rerun
 go#12 78ceaa1 4225c20 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch 4 rerun
