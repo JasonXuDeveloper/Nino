@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 	"unsafe"
 )
@@ -19,6 +20,13 @@ func FuzzReader(f *testing.F) {
 	f.Add([]byte{16, 17, 18, 19}, hx("01000000 07 01 0000 D00102030405060708090A0B0C0D0E0F"))
 	f.Add([]byte{24, 25}, hx("02000000 01000000 02000000 03000000 04000000 01000000 07 0000000000000840"))
 	f.Add([]byte{20, 21, 22, 23}, hx("01000000 0000000000000000 01000000 00001C00000000000000000000000000 01000000 01000000 01000000 0000803F 01 02 0300"))
+	// Blocks with a value their checks reject after a run of valid ones (the step of four, then the rest): a DateTime
+	// past MaxTicks, a decimal of scale 29, a negative DateOnly, a TimeOnly past a day, a raw struct's bool of 2.
+	f.Add([]byte{20}, hx("05000000 0000000000000000 0100000000000000 0200000000000000 0300000000000000 00000000000000B0"))
+	f.Add([]byte{21}, hx("05000000"+strings.Repeat("00000200 00000000 0000000000000000", 4)+"00001D00 00000000 0000000000000000"))
+	f.Add([]byte{22}, hx("06000000 00000000 01000000 02000000 03000000 04000000 FFFFFFFF"))
+	f.Add([]byte{27}, hx("05000000 0000000000000000 0100000000000000 0200000000000000 0300000000000000 00C0692AC9000000"))
+	f.Add([]byte{23}, hx("06000000"+strings.Repeat("0000803F 01 02 0300", 5)+"0000803F 02 02 0300"))
 	f.Fuzz(func(t *testing.T, program, data []byte) {
 		if len(program) > 64 {
 			program = program[:64]
@@ -191,11 +199,14 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 			back := ReadPrimitiveMap[int32, int64](b)
 			return (back == nil) == (v == nil) && sameMap(back, v)
 		})
+	case 27:
+		v := ReadBlock[TimeOnly](r)
+		check(func(w *Writer) { WriteBlock(w, v) }, func(b *Reader) bool { return equalSlices(ReadBlock[TimeOnly](b), v) })
 	}
 }
 
 // fuzzOps is the number of ops fuzzOp runs.
-const fuzzOps = 27
+const fuzzOps = 28
 
 // equalSlices reports whether a and b are both nil, or both not nil with the same memory (bit for bit: a NaN equals
 // itself; the types compared have no padding).

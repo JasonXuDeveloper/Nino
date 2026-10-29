@@ -229,15 +229,37 @@ func ReadRaw[T any](r *Reader, size int, asIs bool, bools []int, decode func(r *
 	return v
 }
 
-// rawBools reports whether the bytes at each offset of bools in each element (size bytes) of b are 0 or 1.
+// rawBools reports whether the bytes at each offset of bools in each element (size bytes) of b are 0 or 1: ORed into
+// four accumulators, four elements a step, read through the slice's pointer (an index per byte kept a bounds check
+// per element). An offset outside an element takes the bounds-checked loop.
 func rawBools(b []byte, size int, bools []int) bool {
-	var acc byte
+	if size <= 0 {
+		return true // no bytes (Take of n*size)
+	}
+	var a0, a1, a2, a3 byte
+	p, s, n := unsafe.Pointer(unsafe.SliceData(b)), uintptr(size), len(b)/size
 	for _, o := range bools {
-		for i := uint(o); i < uint(len(b)); i += uint(size) {
-			acc |= b[i]
+		if uint(o) >= uint(size) {
+			for i := uint(o); i < uint(len(b)); i += uint(size) {
+				a0 |= b[i]
+			}
+			continue
+		}
+		// Element k's byte is at o + k*size, k < n: within b (only in-range offsets are added to p).
+		i, k := uintptr(o), n
+		for ; k >= 4; k -= 4 {
+			a0 |= *(*byte)(unsafe.Add(p, i))
+			a1 |= *(*byte)(unsafe.Add(p, i+s))
+			a2 |= *(*byte)(unsafe.Add(p, i+2*s))
+			a3 |= *(*byte)(unsafe.Add(p, i+3*s))
+			i += 4 * s
+		}
+		for ; k > 0; k-- {
+			a0 |= *(*byte)(unsafe.Add(p, i))
+			i += s
 		}
 	}
-	return acc <= 1
+	return a0|a1|a2|a3 <= 1
 }
 
 // WriteRaw writes a sequence of raw elements of size bytes each, as [WriteFixed] does, copying their memory as one

@@ -66,35 +66,80 @@ func WriteBlock[T BlockValue](w *Writer, v []T) {
 	}
 }
 
-// invalidAt returns the index of the first value of v that is not valid and the type's name, or -1.
+// invalidAt returns the index of the first value of v that is not valid and the type's name, or -1. Each type's check
+// is a function of its own, out of line: inlined here, every instantiation compiled all four loops, and the DateOnly
+// loop, its instructions unchanged, ran 6.8 % slower on Neoverse-N2 at its new place.
 func invalidAt[T BlockValue](v []T) (int, string) {
 	switch v := any(v).(type) {
 	case []DateTime:
-		for i, d := range v {
-			if !d.Valid() {
-				return i, "DateTime"
-			}
-		}
+		return invalidDateTime(v), "DateTime"
 	case []DateOnly:
-		for i, d := range v {
-			if !d.Valid() {
-				return i, "DateOnly"
-			}
-		}
+		return invalidDateOnly(v), "DateOnly"
 	case []TimeOnly:
-		for i, t := range v {
-			if !t.Valid() {
-				return i, "TimeOnly"
-			}
-		}
+		return invalidTimeOnly(v), "TimeOnly"
 	case []Decimal:
-		for i, d := range v {
-			if !d.Valid() {
-				return i, "decimal"
-			}
-		}
+		return invalidDecimal(v), "decimal"
 	}
 	return -1, ""
+}
+
+// invalidDateTime, invalidTimeOnly and invalidDecimal return the index of the first value of v that is not valid, or
+// -1. Four values are tested per step, one compare each (the Valid methods), so the loop's own branches are a quarter
+// as many; the step that fails is searched value by value.
+//
+//go:noinline
+func invalidDateTime(v []DateTime) int {
+	w := v
+	for len(w) >= 4 && w[0].Valid() && w[1].Valid() && w[2].Valid() && w[3].Valid() {
+		w = w[4:]
+	}
+	for i, d := range w {
+		if !d.Valid() {
+			return len(v) - len(w) + i
+		}
+	}
+	return -1
+}
+
+//go:noinline
+func invalidTimeOnly(v []TimeOnly) int {
+	w := v
+	for len(w) >= 4 && w[0].Valid() && w[1].Valid() && w[2].Valid() && w[3].Valid() {
+		w = w[4:]
+	}
+	for i, t := range w {
+		if !t.Valid() {
+			return len(v) - len(w) + i
+		}
+	}
+	return -1
+}
+
+//go:noinline
+func invalidDecimal(v []Decimal) int {
+	w := v
+	for len(w) >= 4 && w[0].Valid() && w[1].Valid() && w[2].Valid() && w[3].Valid() {
+		w = w[4:]
+	}
+	for i, d := range w {
+		if !d.Valid() {
+			return len(v) - len(w) + i
+		}
+	}
+	return -1
+}
+
+// invalidDateOnly is the same check for DateOnly, one value at a time: four a step (compare-branches, or two
+// words of two lanes with one branch) wrote 8-19 % slower on Xeon 8370C, EPYC 7763 and 9V74.
+//
+//go:noinline
+func invalidDateOnly(v []DateOnly) int {
+	for i, d := range v {
+		if !d.Valid() {
+			return i
+		}
+	}
+	return -1
 }
 
 // writeEachBlock writes v element by element: the writer's checks fail where they would for each value alone.
