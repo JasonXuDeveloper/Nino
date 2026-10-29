@@ -1042,3 +1042,9 @@ go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floo
 go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 4
 go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 5
 go#12 78ceaa1 78ceaa1 ^BenchmarkSerialize$/^scattered-1m$/^Nino$ # dispatch floor 6
+# TS typed arrays, short ones element by element (d07506b) against main (7c30927) and against all-block typed arrays (30eb091)
+typescript 7c30927 d07506b # short inline 1
+typescript 7c30927 d07506b # short inline 2
+typescript 7c30927 d07506b # short inline 3
+typescript 30eb091 d07506b # short inline vs block 1
+typescript 30eb091 d07506b # short inline vs block 2
