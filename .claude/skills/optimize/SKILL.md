@@ -134,6 +134,32 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   net10.0 builds) were identical. Which `Vector<T>` operations Mono accelerates at all is `platforms`.
 - ARM64 is a load/store architecture: what x64 does in one instruction on memory is a load, an operation and a store
   there, and 64-bit constants and addresses take several instructions. Keep hot state in registers.
+- Check bytes spread at a fixed stride (the bools of a block, `NinoChecks.Strided`) eight at a time into four
+  accumulators, OR-ed once at the end: one accumulator is a chain of dependent ORs, one cycle per byte. Evidence:
+  1,000 bytes 15 apart in 155 ns instead of 535 on a 2.1 GHz AVX-512 Xeon (four a step: 195); on GitHub's runners
+  1,000 `Waypoint`s (a bool at offset 14 of 15) deserialized in 0.81 to 0.93 times the time on every CPU (EPYC 7763,
+  9V45, 9V74, Xeon 8573C and 8370C, Neoverse-N2). Rejected: a vector check with a periodic mask of the bool
+  positions, 211 ns with 64-byte vectors and 325 with 32-byte ones against the scalar 155.
+- Gate an instruction choice per CPU where the runners disagree, by CPUID at startup in a `static readonly` (the JIT
+  folds it), never by a `Vector512.IsHardwareAccelerated`-style ISA flag alone: AVX-512 VBMI is on Ice Lake, Sapphire
+  Rapids and Zen 4/5 alike. `NinoBlock.WritePairs` (four 24-byte values per `vpermt2b` of 128 bytes of memory into 64
+  of blocks) wrote 1,000 `Waypoint`s in 0.64 times the time of 32-byte lane groups on Xeon Platinum 8573C, 0.74 on
+  EPYC 9V45 and 0.97 on 9V74, but 1.44 times on Xeon Platinum 8370C (Ice Lake): `NinoUnsafe.PairPermutes` takes AMD
+  and Intel with AVX512-FP16 (CPUID 7.0 EDX bit 23, Sapphire Rapids on). Include `Xeon` in the A/B line's CPU regex
+  for any AVX-512 path, or Ice Lake goes unmeasured.
+- On Arm64, move values over 8 bytes in partial lane groups (`NinoLanes.Solve` with `partial`), as x64 without VBMI
+  does: one at a time they took 1.44 µs for 1,000 `Waypoint`s on Neoverse-N2, in lane groups 0.43 (MemoryPack's copy
+  of their memory 0.39).
+- Copy long blocks per vendor and per destination: past 32 KB a 32-byte vector loop beats Memmove into a new zeroed
+  array on Intel (Xeon 8370C, 160,000 bytes: 3.18 µs instead of 3.51) and loses there on Zen 5 (EPYC 9V45: 1.81
+  against 1.67), while on AMD it beats Memmove into a new uninitialized array (9V45 and 9V74: 0.93 to 0.95 times the
+  time). `NinoUnsafe.CopyOver64` (zeroed or existing memory) takes it on Intel only, `CopyToNew` on AMD only.
+- Allocate a new array uninitialized only where the read writes every byte of it, padding included
+  (`NinoElements.CopiedWhole`): block reads (lanes, permutes, per value) leave a padded value's padding as it was (9
+  of a `Waypoint`'s 24 bytes, 4 of an `(int, long)`'s 16, on every ISA), so an uninitialized array would hand stale
+  heap memory to `MemoryMarshal.AsBytes` or a raw re-serializer. Rejected for that, though faster: padded blocks
+  allocated uninitialized read 1,000 `Waypoint`s in 0.68 to 0.76 times main's time (EPYC 7763, 9V74, Xeon 8370C,
+  Neoverse-N2) and 1,000 `(int, long)` in 0.89 on the 7763; it can land only with reads that write the padding too.
 
 ## Unity kernels and IL2CPP
 
@@ -177,6 +203,10 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
 - The signs in any listing: `Reader:Skip`, `Reader:CopyTo` or `NinoUnsafe:Read` as calls (the budget ran out);
   `NinoReadContext:Return` or `NinoWriteContext:Return` calls and `[rbp-0x..]` loads and stores of the cursor (the
   reader or writer was not kept in registers).
+- The block order of a Tier1 method varies between dumps of the same code (profile data): `asm.py` dumps of
+  `--filter TupleList` showed `NinoBlock.WriteEach<(int, long)>` with its permute loop moved, dumps of
+  `--filter SerializeTupleList` the same listing on both sides. Before calling a listing changed, dump both sides
+  again with the narrowest filter and compare the instructions with addresses and labels normalized.
 - Timings on a shared machine vary by ±15 %: read the code before trusting a local difference, and take the decision
   from runners (`benchmark`). The wire format must not change unless that is the point: compare the bytes.
 

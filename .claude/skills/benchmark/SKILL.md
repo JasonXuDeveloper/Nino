@@ -51,7 +51,9 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    Never bend the filter to make lines differ: `r{4}ecords` demands the letter four times, every job of such a line
    matches no bench and fails (the first three-way prefetch round, 400 failed jobs).
    Match x64 runners with `cpu='EPYC|Neoverse'`, not `'7763|Neoverse'`: runners are also EPYC 9V45 and 9V74, and a
-   line whose regex misses them ends its slots without measuring (the first land/cmod round got one EPYC job).
+   line whose regex misses them ends its slots without measuring (the first land/cmod round got one EPYC job). Use
+   `cpu='EPYC|Xeon|Neoverse'` for a change with an AVX-512 path: Xeon Platinum 8573C and 8370C (Ice Lake) runners
+   come too, and Ice Lake reversed the pair permutes that won everywhere else (`optimize`).
 2. Always request the floor too: the base against itself, on the same runners, over several jobs. A floor from one
    job underestimates the noise: the TimeZoneInfo floor jobs' own medians spanned 0.982 to 1.023 on one EPYC CPU.
    Before blaming a 1–2 % move on a change that touches code the case does not run, also request a null change in
@@ -66,6 +68,8 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    identical listing, or IL identical to main) is not counted against the branch, whatever its number (the owner's
    rule): show the listings side by side in the report (the gen/dedupe landing, 61747f6, had cases up to 1.2 % past a
    one-job floor with IL identical to main). Pool rounds of the same code before judging; a single round is not n.
+   Read the rounds of a surprising median: a case can take one of a few times per process on both sides (Xeon
+   8370C, `NinoSerializeKeyValuePairs` 105, 151 or 212 ns on identical code), and its median then follows the draw.
    On the test branch, `runtime-ab.yml` builds both sides of a Rust line with
    `RUSTFLAGS=-Cllvm-args=-align-all-functions=6` (every function at a 64-byte boundary): on Zen 5 identical code
    moved by 16 bytes changed timings by 10–50%. A side's env `NINO_AB_RUSTFLAGS=` builds without it. A side's env
