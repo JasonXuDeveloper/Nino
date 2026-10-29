@@ -983,3 +983,8 @@ typescript 56ea681 97deeca # pool vs no pool 1
 typescript 56ea681 97deeca # pool vs no pool 2
 typescript 97deeca 97deeca # typed floor 1
 typescript 97deeca 97deeca # typed floor 2
+# go dispatch: nino-gen's Go collections with direct calls instead of func values (4225c20) against main (78ceaa1), floor main vs main.
+go#12 78ceaa1 4225c20 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # dispatch 1
+go#12 78ceaa1 4225c20 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # dispatch 2
+go#12 78ceaa1 78ceaa1 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # dispatch floor 1
+go#12 78ceaa1 78ceaa1 ^Benchmark(Serialize|Deserialize)$/./^Nino$ # dispatch floor 2
