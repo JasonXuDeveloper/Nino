@@ -484,14 +484,16 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Sequence:
                 {
                     var element = Shape(value.Element!);
-                    if (value.IsByteArray)
-                        return new TsShape("bytes");
-                    return InContext(value, Holding(new TsShape("seq")
+                    bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
+                               CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
+                    if (!set && element.Kind == "prim" && NumberArrays.TryGetValue(element.Primitive!, out var array))
                     {
-                        Element = element,
-                        Set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
-                              CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null,
-                    }, element));
+                        // Bytes as a Uint8Array copy; other fixed-size numbers as a typed array, copied in one block.
+                        return array == "Uint8Array"
+                            ? new TsShape("bytes")
+                            : new TsShape("numbers") { Element = element, ArrayType = array };
+                    }
+                    return InContext(value, Holding(new TsShape("seq") { Element = element, Set = set }, element));
                 }
                 case ValueKind.Map:
                 {
@@ -644,6 +646,19 @@ namespace Nino.Codegen.Targets
                     throw new UnsupportedException($"{value.ClrName} ({value.Encoding}) has no TypeScript form");
             }
         }
+
+        /// <summary>
+        /// The typed array an array or list (not a set) of a primitive is held in: the fixed-size numbers, whose bytes
+        /// on the wire are those of the typed array on a little-endian host. <c>bool</c> (validated 0 or 1, read as
+        /// <c>boolean</c>), <c>char</c> (a string), <c>decimal</c>, <c>TimeSpan</c> and enums (their constants' type)
+        /// stay arrays.
+        /// </summary>
+        private static readonly Dictionary<string, string> NumberArrays = new()
+        {
+            ["i8"] = "Int8Array", ["u8"] = "Uint8Array", ["i16"] = "Int16Array", ["u16"] = "Uint16Array",
+            ["i32"] = "Int32Array", ["u32"] = "Uint32Array", ["i64"] = "BigInt64Array", ["u64"] = "BigUint64Array",
+            ["f32"] = "Float32Array", ["f64"] = "Float64Array",
+        };
 
         /// <summary>The primitives TypeScript reads and writes alone, and at an offset of a view.</summary>
         private static TsShape? Primitive(PrimitiveKind kind)
@@ -888,7 +903,7 @@ namespace Nino.Codegen.Targets
     /// <summary>
     /// How a value is written in TypeScript (<see cref="Kind"/>: <c>prim</c>, <c>enum</c>, <c>rawstruct</c>,
     /// <c>rawnullable</c>, <c>fixedtuple</c>, <c>tuple</c>, <c>string</c>, <c>utf8</c>, <c>object</c>,
-    /// <c>nullable</c>, <c>bytes</c>, <c>seq</c>, <c>map</c>, <c>type</c>, <c>param</c>: a type parameter,
+    /// <c>nullable</c>, <c>bytes</c>, <c>numbers</c>: a typed array, <c>seq</c>, <c>map</c>, <c>type</c>, <c>param</c>: a type parameter,
     /// <c>generic</c>: a generic type with its arguments in <see cref="Items"/>): the template turns it into a type, a
     /// default, and code reading and writing it, alone or at an offset.
     /// </summary>
@@ -943,6 +958,9 @@ namespace Nino.Codegen.Targets
 
         /// <summary>A set (<c>Set</c>) rather than an array.</summary>
         public bool Set { get; internal set; }
+
+        /// <summary>The typed array of <c>numbers</c> (<c>Int32Array</c>...).</summary>
+        public string? ArrayType { get; internal set; }
 
         public TsShape? Key { get; internal set; }
 

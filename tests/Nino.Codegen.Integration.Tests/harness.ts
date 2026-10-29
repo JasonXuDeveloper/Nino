@@ -10,7 +10,7 @@ const json = (value: unknown) =>
     typeof v === "bigint" ? v.toString()
     : v instanceof Map ? Object.fromEntries(v)
     : v instanceof Set ? [...v]
-    : v instanceof Uint8Array ? [...v]
+    : ArrayBuffer.isView(v) ? [...(v as unknown as Iterable<unknown>)]
     : v);
 
 const cases = JSON.parse(readFileSync(process.argv[2], "utf8")) as { codec: string; hex: string }[];
@@ -40,8 +40,8 @@ player.rank = types.Rank.Gold;
 player.access = types.Access.Read | types.Access.Admin;
 player.joined = new Date(Date.UTC(2026, 9, 18, 12, 30, 45, 123));
 player.balance = "-12.345";
-player.levels = [1, 2, 3];
-player.inventory = new Map([["sword", [7]]]);
+player.levels = Int32Array.of(1, 2, 3);
+player.inventory = new Map([["sword", Int32Array.of(7)]]);
 player.pair = [5, "five"];
 const cat = new types.Cat();
 cat.name = "Tom";

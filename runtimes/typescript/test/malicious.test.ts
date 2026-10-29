@@ -19,6 +19,8 @@ class Item {
   price = "0";
   key = "00000000-0000-0000-0000-000000000000";
   blob: Uint8Array | null = null;
+  counts: Int32Array | null = null;
+  weights: Float64Array | null = null;
   note: string | null = null;
 }
 
@@ -36,6 +38,8 @@ const ItemCodec: NinoCodec<Item> = {
     v.price = r.decimal();
     v.key = r.guid();
     v.blob = r.bytes();
+    v.counts = r.numbers(Int32Array);
+    v.weights = r.numbers(Float64Array);
     v.note = r.utf8();
     return v;
   },
@@ -50,6 +54,8 @@ const ItemCodec: NinoCodec<Item> = {
     w.decimal(v.price);
     w.guid(v.key);
     w.bytes(v.blob);
+    w.numbers(v.counts);
+    w.numbers(v.weights);
     w.utf8(v.note);
   },
 };
@@ -59,7 +65,8 @@ function item(): Item {
     id: 7, name: "Zoë 名字 " + "x".repeat(40), tags: ["a", "", "ünï", "😀".repeat(20)],
     scores: new Map([["__proto__", 1.5], [null, -2]]), flags: new Set([1, 65535]), maybe: -5n,
     when: new Date(Date.UTC(2026, 0, 2)), price: "-12.3400", key: "0f8fad5b-d9cb-469f-a165-70867728950e",
-    blob: Uint8Array.of(1, 2, 3), note: "naïve text",
+    blob: Uint8Array.of(1, 2, 3), counts: Int32Array.of(-1, 2, 0x7fffffff),
+    weights: Float64Array.of(0.5, -Infinity, NaN), note: "naïve text",
   });
 }
 
@@ -83,6 +90,8 @@ describe("malicious data", () => {
       assert.throws(() => reader().set((r) => r.u8()), NinoError);
       assert.throws(() => reader().map((r) => r.u8(), (r) => r.u8()), NinoError);
       assert.throws(() => reader().bytes(), NinoError);
+      assert.throws(() => reader().numbers(Int32Array), NinoError);
+      assert.throws(() => reader().numbers(BigUint64Array), NinoError);
       assert.throws(() => new NinoReader(Uint8Array.from(strHeader(2 * count))).string(), NinoError);
       assert.throws(() => new NinoReader(Uint8Array.from(strHeader(2 * count + 1))).string(), NinoError);
       assert.throws(() => reader().region(), NinoError);
@@ -92,6 +101,7 @@ describe("malicious data", () => {
       const reader = () => new NinoReader(Uint8Array.from(int32(count)));
       assert.throws(() => reader().array((r) => r.u8()), NinoError);
       assert.throws(() => reader().bytes(), NinoError);
+      assert.throws(() => reader().numbers(Float32Array), NinoError);
       assert.throws(() => reader().length(), NinoError);
       assert.throws(() => reader().region(), NinoError);
     }
@@ -102,6 +112,10 @@ describe("malicious data", () => {
     const forged = Uint8Array.from([...int32(1000), ...new Array(999).fill(0)]);
     assert.throws(() => new NinoReader(forged).array((r) => r.u8()), NinoError);
     assert.throws(() => new NinoReader(forged).map((r) => r.u8(), (r) => r.u8()), NinoError);
+    // 1000 int16s need 2000 bytes; 1000 int32s with 3999 bytes, one short.
+    assert.throws(() => new NinoReader(forged).numbers(Int16Array), NinoError);
+    const short = Uint8Array.from([...int32(1000), ...new Array(3999).fill(0)]);
+    assert.throws(() => new NinoReader(short).numbers(Int32Array), NinoError);
   });
 
   it("rejects presence bytes other than 0 and 1", () => {
