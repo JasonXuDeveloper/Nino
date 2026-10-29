@@ -1,7 +1,10 @@
 using System;
+using System.Buffers;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Environments;
@@ -271,5 +274,167 @@ public unsafe class Copy128Probe
         b.Store(d + end + 16);
         c.Store(d + end + 32);
         e.Store(d + end + 48);
+    }
+}
+
+/// <summary>
+/// Experiment: an array of 1,000 padded raw structs (InventoryItem: 8 bytes, a padding byte) written into a buffer,
+/// Nino (NinoMask's masked vector copy) against MemoryPack (a plain copy).
+/// </summary>
+[Config(typeof(ProbeConfig))]
+public class MaskCopyProbe
+{
+    private static readonly InventoryItem[] Items = Enumerable.Range(0, 1000)
+        .Select(i => new InventoryItem { ItemId = i, Count = (short)(i % 100), Bound = i % 3 == 0 }).ToArray();
+
+    private readonly NinoArrayBufferWriter _nino = new(1 << 16);
+    private readonly ArrayBufferWriter<byte> _memoryPack = new(1 << 16);
+
+    [Benchmark(Baseline = true)]
+    public int Nino()
+    {
+        _nino.ResetWrittenCount();
+        NinoSerializer.Serialize(Items, _nino);
+        return _nino.WrittenCount;
+    }
+
+    [Benchmark]
+    public int MemoryPackCopy()
+    {
+        _memoryPack.ResetWrittenCount();
+        MemoryPack.MemoryPackSerializer.Serialize(_memoryPack, Items);
+        return _memoryPack.WrittenCount;
+    }
+}
+
+/// <summary>
+/// Experiment: the kernels NinoMask could copy padded values with, on 8,000 bytes of 8-byte values with a padding byte
+/// each, the destination 4 bytes past a 64-byte boundary (after a length): Memmove, 64-byte vectors masked by vpand
+/// with aligned or unaligned stores, masked by a zero-masking load, 32-byte vectors, and Memmove then a masking pass.
+/// </summary>
+[Config(typeof(ProbeConfig))]
+public unsafe class MaskKernelProbe
+{
+    private const int Bytes = 8000;
+    private static readonly byte* Source = (byte*)NativeMemory.AlignedAlloc(1 << 14, 64);
+    private static readonly byte* Destination = (byte*)NativeMemory.AlignedAlloc(1 << 14, 64) + 4;
+    private static readonly Vector512<byte> Mask512 = Vector512.Create(0x00FF_FFFF_FFFF_FFFFUL).AsByte();
+    private static readonly Vector256<byte> Mask256 = Vector256.Create(0x00FF_FFFF_FFFF_FFFFUL).AsByte();
+
+    [Benchmark(Baseline = true)]
+    public int Memmove()
+    {
+        Buffer.MemoryCopy(Source, Destination, Bytes, Bytes);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int Aligned512()
+    {
+        if (!Vector512.IsHardwareAccelerated) return 0;
+        // As NinoMask.CopyVectors: an unaligned first vector, the body with aligned stores, an overlapping last one.
+        var v = Mask512;
+        (Vector512.Load(Source) & v).Store(Destination);
+        nuint i = 64 - ((nuint)Destination & 63);
+        nuint end = Bytes - 64;
+        for (; i + 192 <= end; i += 256)
+        {
+            var a = Vector512.Load(Source + i) & v;
+            var b = Vector512.Load(Source + i + 64) & v;
+            var c = Vector512.Load(Source + i + 128) & v;
+            var d = Vector512.Load(Source + i + 192) & v;
+            a.Store(Destination + i);
+            b.Store(Destination + i + 64);
+            c.Store(Destination + i + 128);
+            d.Store(Destination + i + 192);
+        }
+
+        for (; i <= end; i += 64)
+            (Vector512.Load(Source + i) & v).Store(Destination + i);
+        (Vector512.Load(Source + end) & v).Store(Destination + end);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int ZeroMaskedLoad512()
+    {
+        // Aligned512 with the mask applied by the load (vmovdqu8 with zero-masking) instead of a vpand.
+        if (!Avx512BW.IsSupported) return 0;
+        var v = Mask512;
+        var zero = Vector512<byte>.Zero;
+        Avx512BW.MaskLoad(Source, v, zero).Store(Destination);
+        nuint i = 64 - ((nuint)Destination & 63);
+        nuint end = Bytes - 64;
+        for (; i + 192 <= end; i += 256)
+        {
+            var a = Avx512BW.MaskLoad(Source + i, v, zero);
+            var b = Avx512BW.MaskLoad(Source + i + 64, v, zero);
+            var c = Avx512BW.MaskLoad(Source + i + 128, v, zero);
+            var d = Avx512BW.MaskLoad(Source + i + 192, v, zero);
+            a.Store(Destination + i);
+            b.Store(Destination + i + 64);
+            c.Store(Destination + i + 128);
+            d.Store(Destination + i + 192);
+        }
+
+        for (; i <= end; i += 64)
+            Avx512BW.MaskLoad(Source + i, v, zero).Store(Destination + i);
+        Avx512BW.MaskLoad(Source + end, v, zero).Store(Destination + end);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int Unaligned512()
+    {
+        if (!Vector512.IsHardwareAccelerated) return 0;
+        var v = Mask512;
+        nuint i = 0, end = Bytes - 64;
+        for (; i + 192 <= end; i += 256)
+        {
+            (Vector512.Load(Source + i) & v).Store(Destination + i);
+            (Vector512.Load(Source + i + 64) & v).Store(Destination + i + 64);
+            (Vector512.Load(Source + i + 128) & v).Store(Destination + i + 128);
+            (Vector512.Load(Source + i + 192) & v).Store(Destination + i + 192);
+        }
+
+        for (; i <= end; i += 64)
+            (Vector512.Load(Source + i) & v).Store(Destination + i);
+        (Vector512.Load(Source + end) & v).Store(Destination + end);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int Aligned256()
+    {
+        var v = Mask256;
+        (Vector256.Load(Source) & v).Store(Destination);
+        nuint i = 32 - ((nuint)Destination & 31);
+        nuint end = Bytes - 32;
+        for (; i + 96 <= end; i += 128)
+        {
+            var a = Vector256.Load(Source + i) & v;
+            var b = Vector256.Load(Source + i + 32) & v;
+            var c = Vector256.Load(Source + i + 64) & v;
+            var d = Vector256.Load(Source + i + 96) & v;
+            a.Store(Destination + i);
+            b.Store(Destination + i + 32);
+            c.Store(Destination + i + 64);
+            d.Store(Destination + i + 96);
+        }
+
+        for (; i <= end; i += 32)
+            (Vector256.Load(Source + i) & v).Store(Destination + i);
+        (Vector256.Load(Source + end) & v).Store(Destination + end);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int MemmoveThenMask()
+    {
+        Buffer.MemoryCopy(Source, Destination, Bytes, Bytes);
+        var v = Mask256;
+        for (nuint i = 0; i + 32 <= Bytes; i += 32)
+            (Vector256.Load(Destination + i) & v).Store(Destination + i);
+        return Bytes;
     }
 }
