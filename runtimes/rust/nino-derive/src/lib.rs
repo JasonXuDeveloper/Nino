@@ -710,7 +710,8 @@ fn expand_struct(
             let tys: Vec<&Type> = members.iter().filter(|m| m.opts.utf8.is_none()).map(|m| m.ty).collect();
             let min = if format == Format::Plain {
                 let parts = members.iter().map(|m| match m.opts.utf8 {
-                    Some(_) => quote!(4usize),
+                    // A string written as UTF-8 takes one byte at least (null or empty: its header alone).
+                    Some(_) => quote!(1usize),
                     None => {
                         let ty = m.ty;
                         quote!(<#ty as #krate::NinoRead>::MIN_SIZE)
