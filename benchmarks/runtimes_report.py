@@ -93,10 +93,14 @@ def typescript(path, tag):
     scenarios, ops = list(dict.fromkeys(c for c, _ in cells)), ["serialize", "deserialize", "size"]
     cells = {k: cells[k] for k in sorted(cells, key=lambda k: (scenarios.index(k[0]), ops.index(k[1])))}
     who = pivot(cells, ["Nino", "Protobuf", "MessagePack", "JSON"])
+    # Benches since the rotation take a different variant of the values on each pass (bench.ts, "Inputs rotate").
+    variants = max((r.get("variants", 1) for r in data["rows"]), default=1)
+    turn = (f" (each pass the next of {variants} variants, so that no pass reads what the one before read)"
+            if variants > 1 else "")
     intro = (f"The code nino-gen generates for `runtimes/typescript/bench` (`Program.cs`'s types), against Protocol "
              f"Buffers (protobuf-es), MessagePack (msgpackr) and `JSON` (to and from UTF-8 bytes), in Node {data.get('node', '')}, on data .NET "
              f"wrote, timed by tinybench {data.get('tinybench', '')}: the mean time of a pass over each scenario's "
-             "values, ± its relative margin of error, and passes per second.")
+             f"values{turn}, ± its relative margin of error, and passes per second.")
     return section("typescript", tag, f"Generated TypeScript of {tag} against Protocol Buffers, MessagePack and JSON, "
                    "in Node", intro, grid(cells, who, "Scenario"))
 

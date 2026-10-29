@@ -1,6 +1,12 @@
 // Nino's generated TypeScript against Protocol Buffers (protobuf-es), MessagePack (msgpackr) and JSON, on data
 // written by Nino in .NET (Program.cs), timed by tinybench. Each value must read and write back to exactly the bytes
 // .NET wrote before it is timed. Shared by the Node (node.ts) and browser (browser.mjs) runs.
+//
+// Inputs rotate: .NET writes each scenario in 64 variants (the same shapes and sizes, other content), every
+// serializer gets all of them ready before the timing, and each pass of every task takes the next variant in turn.
+// Repeating one input lets V8 reuse work: a repeated JSON text parses along the hidden-class transitions and
+// internalized keys of the previous parse (a Lookup-like text took 0.21 ms a parse repeated, 7.8 to 8.4 ms with 200
+// different texts in turn), which made JSON look faster than it is in deserialize.
 import { equals, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { Packr } from "msgpackr";
 import { Bench } from "tinybench";
@@ -12,7 +18,7 @@ import { protobuf } from "./protobuf.ts";
 export const serializers = ["Nino", "Protobuf", "MessagePack", "JSON"] as const;
 export type Serializer = (typeof serializers)[number];
 
-/** One task's result: a pass over all of a scenario's values with one serializer, in one direction. */
+/** One task's result: a pass over all of a scenario's values (one variant) with one serializer, in one direction. */
 export interface Row {
   scenario: string;
   serializer: Serializer;
@@ -26,8 +32,10 @@ export interface Row {
   /** Passes per second (1 / mean). */
   hz: number;
   samples: number;
-  /** The encoded size of the scenario's values (bytes). */
+  /** The encoded size of a pass's values (bytes, the mean over the variants). */
   bytes: number;
+  /** How many variants of the values the passes took in turn. */
+  variants: number;
 }
 
 /** tinybench's budget per task (milliseconds). */
@@ -36,16 +44,34 @@ export interface Options {
   warmupTime?: number;
 }
 
-/** The values of a data file: a count, then each value's length and bytes. */
-function values(file: Uint8Array): Uint8Array[] {
+/**
+ * The variants of a data file, each a list of values: -K for K variants, then per variant a count, then each value's
+ * length and bytes. A file that starts with a count instead has one variant: the data of a commit before the rotation,
+ * which an A/B (runtime-ab.yml) reads with this file's bench on its base side.
+ */
+function variants(file: Uint8Array): Uint8Array[][] {
   const view = new DataView(file.buffer, file.byteOffset, file.byteLength);
-  const list: Uint8Array[] = [];
-  for (let i = 0, count = view.getInt32(0, true), at = 4; i < count; i++) {
-    const length = view.getInt32(at, true);
-    list.push(file.slice(at + 4, at + 4 + length));
-    at += 4 + length;
-  }
-  return list;
+  let at = 0;
+  const int = () => {
+    at += 4;
+    return view.getInt32(at - 4, true);
+  };
+  const first = int();
+  if (first >= 0) at = 0; // the count of the only variant
+  return Array.from({ length: Math.max(-first, 1) }, () => Array.from({ length: int() }, () => {
+    const length = int();
+    at += length;
+    return file.slice(at - length, at);
+  }));
+}
+
+/** A task that passes over the next variant on each call, round robin. */
+function rotate<T>(variants: T[], pass: (variant: T) => void): () => void {
+  let next = 0;
+  return () => {
+    pass(variants[next]);
+    next = next + 1 === variants.length ? 0 : next + 1;
+  };
 }
 
 /** The value as plain JSON data: 64-bit integers as strings, maps as objects, typed arrays as arrays. */
@@ -72,40 +98,46 @@ function same(a: Uint8Array, b: Uint8Array): boolean {
 // It writes the values Nino read as they are: classes and Maps as maps, bigints as 64-bit integers.
 const packr = new Packr({ useRecords: false, int64AsType: "bigint" });
 
-const size = (list: { length: number }[]) => list.reduce((n, x) => n + x.length, 0);
+/** The mean encoded size of a variant (bytes). */
+const size = (variants: { length: number }[][]) =>
+  Math.round(variants.reduce((n, list) => list.reduce((m, x) => m + x.length, n), 0) / variants.length);
 
 async function scenario<T>(name: string, file: string, data: Uint8Array, codec: NinoCodec<T>, options: Options):
   Promise<Row[]> {
-  const bytes = values(data);
-  const list = bytes.map((x, i) => {
+  // Every variant's values for every serializer, made and checked before the timing.
+  const bytes = variants(data);
+  const lists = bytes.map((variant, v) => variant.map((x, i) => {
     const value = deserialize(codec, x);
-    if (!same(serialize(codec, value), x)) throw new Error(`${name}[${i}]: written bytes differ from .NET's`);
+    if (!same(serialize(codec, value), x)) throw new Error(`${name}[${v}][${i}]: written bytes differ from .NET's`);
     return value;
-  });
+  }));
   const [schema, convert] = protobuf(file);
-  const messages = list.map((v) => convert(v as never));
-  const proto = messages.map((m) => toBinary(schema, m));
-  proto.forEach((x, i) => {
-    if (!equals(schema, fromBinary(schema, x), messages[i])) throw new Error(`${name}[${i}]: protobuf round trip`);
-  });
-  const packed = list.map((v) => packr.pack(v));
-  const json = list.map(plain), text = json.map((j) => JSON.stringify(j));
-  packed.forEach((x, i) => {
+  const messages = lists.map((list) => list.map((v) => convert(v as never)));
+  const proto = messages.map((list) => list.map((m) => toBinary(schema, m)));
+  proto.forEach((list, v) => list.forEach((x, i) => {
+    if (!equals(schema, fromBinary(schema, x), messages[v][i]))
+      throw new Error(`${name}[${v}][${i}]: protobuf round trip`);
+  }));
+  const packed = lists.map((list) => list.map((v) => packr.pack(v)));
+  const json = lists.map((list) => list.map(plain)), text = json.map((list) => list.map((j) => JSON.stringify(j)));
+  packed.forEach((list, v) => list.forEach((x, i) => {
     // Read back: the same data (maps come back as objects, which plain JSON makes of Maps too).
-    if (JSON.stringify(plain(packr.unpack(x))) !== text[i]) throw new Error(`${name}[${i}]: MessagePack round trip`);
-  });
+    if (JSON.stringify(plain(packr.unpack(x))) !== text[v][i])
+      throw new Error(`${name}[${v}][${i}]: MessagePack round trip`);
+  }));
   // JSON is timed to and from UTF-8 bytes, as every other format is: what goes over a wire or into a file.
-  const encoder = new TextEncoder(), decoder = new TextDecoder(), utf8 = text.map((s) => encoder.encode(s));
+  const encoder = new TextEncoder(), decoder = new TextDecoder();
+  const utf8 = text.map((list) => list.map((s) => encoder.encode(s)));
 
   const tasks: [Serializer, Row["op"], () => void, number][] = [
-    ["Nino", "serialize", () => { for (const v of list) serialize(codec, v); }, size(bytes)],
-    ["Protobuf", "serialize", () => { for (const m of messages) toBinary(schema, m); }, size(proto)],
-    ["MessagePack", "serialize", () => { for (const v of list) packr.pack(v); }, size(packed)],
-    ["JSON", "serialize", () => { for (const j of json) encoder.encode(JSON.stringify(j)); }, size(utf8)],
-    ["Nino", "deserialize", () => { for (const x of bytes) deserialize(codec, x); }, size(bytes)],
-    ["Protobuf", "deserialize", () => { for (const x of proto) fromBinary(schema, x); }, size(proto)],
-    ["MessagePack", "deserialize", () => { for (const x of packed) packr.unpack(x); }, size(packed)],
-    ["JSON", "deserialize", () => { for (const x of utf8) JSON.parse(decoder.decode(x)); }, size(utf8)],
+    ["Nino", "serialize", rotate(lists, (l) => { for (const v of l) serialize(codec, v); }), size(bytes)],
+    ["Protobuf", "serialize", rotate(messages, (l) => { for (const m of l) toBinary(schema, m); }), size(proto)],
+    ["MessagePack", "serialize", rotate(lists, (l) => { for (const v of l) packr.pack(v); }), size(packed)],
+    ["JSON", "serialize", rotate(json, (l) => { for (const j of l) encoder.encode(JSON.stringify(j)); }), size(utf8)],
+    ["Nino", "deserialize", rotate(bytes, (l) => { for (const x of l) deserialize(codec, x); }), size(bytes)],
+    ["Protobuf", "deserialize", rotate(proto, (l) => { for (const x of l) fromBinary(schema, x); }), size(proto)],
+    ["MessagePack", "deserialize", rotate(packed, (l) => { for (const x of l) packr.unpack(x); }), size(packed)],
+    ["JSON", "deserialize", rotate(utf8, (l) => { for (const x of l) JSON.parse(decoder.decode(x)); }), size(utf8)],
   ];
   const bench = new Bench({ name, time: options.time ?? 1000, warmupTime: options.warmupTime ?? 250 });
   for (const [who, op, fn] of tasks) bench.add(`${op} ${who}`, fn);
@@ -116,7 +148,7 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
     const l = result.latency;
     return {
       scenario: name, serializer, op, mean: l.mean, rme: l.rme, p75: l.p75, p99: l.p99, hz: 1000 / l.mean,
-      samples: l.samplesCount, bytes: encoded,
+      samples: l.samplesCount, bytes: encoded, variants: bytes.length,
     };
   });
 }
