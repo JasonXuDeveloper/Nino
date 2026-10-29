@@ -214,11 +214,28 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   against 1.67), while on AMD it beats Memmove into a new uninitialized array (9V45 and 9V74: 0.93 to 0.95 times the
   time). `NinoUnsafe.CopyOver64` (zeroed or existing memory) takes it on Intel only, `CopyToNew` on AMD only.
 - Allocate a new array uninitialized only where the read writes every byte of it, padding included
-  (`NinoElements.CopiedWhole`): block reads (lanes, permutes, per value) leave a padded value's padding as it was (9
-  of a `Waypoint`'s 24 bytes, 4 of an `(int, long)`'s 16, on every ISA), so an uninitialized array would hand stale
-  heap memory to `MemoryMarshal.AsBytes` or a raw re-serializer. Rejected for that, though faster: padded blocks
-  allocated uninitialized read 1,000 `Waypoint`s in 0.68 to 0.76 times main's time (EPYC 7763, 9V74, Xeon 8370C,
-  Neoverse-N2) and 1,000 `(int, long)` in 0.89 on the 7763; it can land only with reads that write the padding too.
+  (`NinoElements.CopiedWhole`), or it hands stale heap memory to `MemoryMarshal.AsBytes` or a raw re-serializer: block
+  reads write a padded value's padding as zero (`NinoBlock.ReadOne` clears a value before `ReadBlock`; AVX-512's
+  `vpermb`/`vpermt2b` read only an index's low bits, so their padding bytes are masked with a `vpand` per vector,
+  `ReadPlan.Keeps`, `KeepMemory64`; pshufb, tbl and Arm64's lookups write 0 for index 0x80 by themselves), and the
+  tests read into 0xFF-filled and recycled 0xCC memory and compare every byte (`BlockStructTests.ReadsWriteEveryByte`;
+  without the masks they fail on AVX-512). Values read a field at a time (Untrusted mode, `ReadSize` -1) keep a zeroed
+  array. Evidence: rejected first with the padding unwritten (Waypoints 0.68-0.76 times main's time); landed with it
+  written, together with the read groups below (run 40935400095).
+- Read values over 16 bytes whose blocks never fill whole vectors in four of memory in groups that fill whole memory
+  vectors (`ReadPlan.Group`: 8 24-byte values in three vectors, each one `vpermt2b` of two 64-byte loads, aligned
+  stores), and check their bools in those loads (`ReadPlan.Checks`: OR `load & 0xFE-at-bools` into one accumulator,
+  test once, the strided pass only to name the bad one). Evidence (GitHub runners, run 40935400095, n=12): 1,000
+  `Waypoint`s deserialize in 0.77-0.85 times the time on EPYC 7763 and 9V74, Xeon 8370C and Neoverse-N2. Rejected: one
+  64-byte load permuted into 128 bytes of memory per four values (`vpermb` twice, overlapping stores), 1.3 to 1.4 times
+  the time of lane groups on a local AVX-512 Xeon. Not built: the same fused check in Arm64's lane groups, whose
+  windows overlap per output vector (an AND and ORR per window against the strided pass's one load per bool).
+- On Ice Lake, mask padded raw structs with 32-byte vectors (`NinoUnsafe.Wide512` gates `NinoMask`'s 64-byte masks
+  as it gates the pair permutes): GitHub's Xeon Platinum 8370C wrote 1,000 8-byte structs with a padding byte in 116
+  ns with 64-byte vectors and 83 with 32-byte ones (MemoryPack 88). Its 64-byte kernels on 8,000 bytes (aligned
+  stores 145 ns, a zero-masking load `Avx512BW.MaskLoad` instead of the `vpand` 147, unaligned 167-287) ran no faster
+  than 32-byte ones (144) and slower than Memmove (122) (`MaskKernelProbe`, run 40935400095): a zero-masking load
+  buys nothing there, nor locally on Emerald Rapids (1.06 against 1.07 of Memmove).
 - In Rust, give every fixed-size shape `FIXED_SIZE` with `decode_fixed` / `encode_fixed` and let `read_fixed` /
   `extend_fixed` run it over `chunks_exact`; write no shuffle kernel. LLVM already turns a block whose wire bytes
   equal its memory ((i32, i32), a raw struct, a derived plain `{i32, f32}`) into vector copies (`vmovups ymm` on
