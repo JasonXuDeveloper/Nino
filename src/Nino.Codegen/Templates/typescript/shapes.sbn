@@ -95,6 +95,8 @@ func ts(s)
     ret "unknown"
   when "bytes"
     ret "Uint8Array | null"
+  when "numbers"
+    ret s.array_type + " | null"
   when "seq"
     ret seq_ts(s) + " | null"
   when "map"
@@ -154,6 +156,8 @@ func elements_ts(s)
     ret seq_ts(s)
   when "map"
     ret map_ts(s)
+  when "numbers"
+    ret s.array_type
   end
   ret "Uint8Array"
 end
@@ -167,6 +171,8 @@ func elements_def(s)
     ret "[]"
   when "map"
     ret "new " + map_ts(s) + "()"
+  when "numbers"
+    ret "new " + s.array_type + "(0)"
   end
   ret "new Uint8Array(0)"
 end
@@ -230,6 +236,8 @@ func read(s)
     ret "types.read(r, null)"
   when "bytes"
     ret "r.bytes()"
+  when "numbers"
+    ret "r.numbers(" + s.array_type + ")"
   when "nullable"
     ret "(r.notNull() ? " + read(s.inner) + " : null)"
   when "type"
@@ -270,6 +278,8 @@ func write(s, v)
     ret "types.write(w, " + v + ", null)"
   when "bytes"
     ret "w.bytes(" + v + ")"
+  when "numbers"
+    ret "w.numbers(" + v + ")"
   when "nullable"
     ret "if (" + v + " === null || " + v + " === undefined) w.u8(0); else { w.u8(1); " + stmt(write(s.inner, v)) + " }"
   when "type"

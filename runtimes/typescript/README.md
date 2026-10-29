@@ -20,6 +20,19 @@ const back = deserialize(PlayerCodec, bytes);
 `deserialize` reads one value and leaves any bytes after it unread; `deserializeExact` also throws a `NinoError`
 when bytes follow the value (Go's `DeserializeExact`, Rust's `deserialize_exact`).
 
+## Typed arrays
+
+An array or list of a fixed-size number (`sbyte`, `byte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `nint`,
+`nuint`, `float`, `double`) is a typed array in generated code (`Int8Array` to `Float64Array`, `BigInt64Array` for
+64-bit integers; `byte` sequences are `Uint8Array`). Its bytes on the wire are the typed array's own little-endian
+bytes, so `NinoReader.numbers(Int32Array)` and `NinoWriter.numbers(values)` copy them in one block, with no loop over
+the elements (a big-endian engine swaps each element's bytes after the copy). The reader copies from an aligned view
+of the data when the data is aligned to the elements, else from its bytes. What it returns never refers to the data:
+typed arrays of 65 bytes to 8 KB are views of a shared 64 KB buffer (as Node's small `Buffer`s share a pool, since an
+`ArrayBuffer` for each costs more than the copy), so read them by `byteOffset` and `length`, and `slice()` one you
+transfer or keep long after the rest. `bool`, `char`, `decimal`, `TimeSpan` and enum sequences stay arrays, and sets
+stay `Set`s.
+
 ## Guarantees
 
 The reader takes untrusted input, as the .NET, Go and Rust readers do. Any data that is not a value of the type read

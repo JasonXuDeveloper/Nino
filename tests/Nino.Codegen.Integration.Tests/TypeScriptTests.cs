@@ -101,6 +101,24 @@ namespace Nino.Codegen.Integration.Tests
             Decimals = new[] { 0m, -0.0001m, 79228162514264337593543950335m, -1234567890.123456789m, 0.5m },
         };
 
+        private static Numbers FullNumbers() => new()
+        {
+            Odd = 1,
+            SBytes = new sbyte[] { -128, 0, 127 },
+            ByteList = new List<byte> { 0, 255 },
+            Shorts = new short[] { short.MinValue, -1, short.MaxValue },
+            UShorts = new List<ushort> { 0, ushort.MaxValue },
+            // Past the 64 bytes a typed array holds on V8's heap: read into the buffer read typed arrays share.
+            Ints = Enumerable.Range(-50, 100).Select(i => i * 40_000_000).ToArray(),
+            UInts = new List<uint> { 0, uint.MaxValue },
+            Longs = new[] { long.MinValue, -1, long.MaxValue },
+            ULongs = new List<ulong> { 0, ulong.MaxValue },
+            Floats = new[] { 1.5f, float.NegativeInfinity, -0f },
+            Doubles = new List<double> { double.Epsilon, -2.25, double.MaxValue },
+            Bools = new[] { true, false },
+            Chars = new List<char> { 'a', '中' },
+        };
+
         private static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
 
         private static List<(string Hex, string Json, string Error)> RunNode(List<(string Codec, byte[] Bytes)> cases)
@@ -176,6 +194,8 @@ namespace Nino.Codegen.Integration.Tests
                 ("TagCodec", NinoSerializer.Serialize(new Tag { Name = new string('é', 5000) })),
                 ("TagCodec", NinoSerializer.Serialize(new Tag { Name = "a😀b\ud800c" + new string('中', 5000) })),
                 ("TagCodec", NinoSerializer.Serialize(new Tag { Name = "\ufeff中文" })),
+                ("NumbersCodec", NinoSerializer.Serialize(FullNumbers())),
+                ("NumbersCodec", NinoSerializer.Serialize(new Numbers { Ints = Array.Empty<int>(), Doubles = new List<double>() })),
                 ("ExtrasCodec", NinoSerializer.Serialize(FullExtras())),
                 ("ExtrasCodec", NinoSerializer.Serialize(new Extras())),
                 // Keys that name prototype members stay Map entries.
@@ -219,6 +239,19 @@ namespace Nino.Codegen.Integration.Tests
                          "\"guids\":[\"00000000-0000-0000-0000-000000000000\",\"0f8fad5b-d9cb-469f-a165-70867728950e\"]",
                      })
                 StringAssert.Contains(extras, expected);
+
+            int numbers = cases.FindIndex(c => c.Item1 == "NumbersCodec");
+            foreach (string expected in new[]
+                     {
+                         "\"sBytes\":[-128,0,127]", "\"byteList\":[0,255]", "\"shorts\":[-32768,-1,32767]",
+                         "\"uShorts\":[0,65535]", "\"ints\":[-2000000000,-1960000000,", "\"uInts\":[0,4294967295]",
+                         "\"longs\":[\"-9223372036854775808\",\"-1\",\"9223372036854775807\"]",
+                         "\"uLongs\":[\"0\",\"18446744073709551615\"]", "\"floats\":[1.5,null,0]",
+                         "\"doubles\":[5e-324,-2.25,1.7976931348623157e+308]", "\"bools\":[true,false]",
+                         "\"chars\":[\"a\",\"中\"]",
+                     })
+                StringAssert.Contains(results[numbers].Json, expected);
+            StringAssert.Contains(results[numbers + 1].Json, "\"ints\":[],\"uInts\":null");
         }
 
         /// <summary>Closed generic types as members: read with the codecs built from those of their arguments.</summary>
@@ -248,7 +281,12 @@ namespace Nino.Codegen.Integration.Tests
                 "export function BoxCodec<T>(p0: NinoCodec<T>, type: new () => Box<T> = Box): NinoCodec<Box<T> | null> {");
             // A closed generic type a slot holds: a subclass the slots' writers tell apart by its constructor.
             StringAssert.Contains(types, "export class CrateInt32 extends Crate<number> {}");
-            StringAssert.Contains(types, "export class BoxInt32Array extends Box<number[] | null> {}");
+            StringAssert.Contains(types, "export class BoxInt32Array extends Box<Int32Array | null> {}");
+            // An array or list of fixed-size numbers: a typed array, read and written in one block.
+            StringAssert.Contains(types, "levels: Int32Array | null = null;");
+            StringAssert.Contains(types, "r.numbers(Int32Array)");
+            // Enums keep their constants' type.
+            StringAssert.Contains(types, "ranks: Rank[] | null = null;");
         }
 
         [TestMethod]

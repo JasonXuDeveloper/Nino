@@ -90,6 +90,26 @@ function plain(v: unknown): unknown {
   return o;
 }
 
+/**
+ * The value with its typed arrays (Nino's `int[]`, `double[]`...) as arrays, the same objects where it has none:
+ * msgpackr writes a typed array as the bytes of its buffer, not as standard MessagePack numbers. Byte arrays stay.
+ */
+function untyped(v: unknown): unknown {
+  if (ArrayBuffer.isView(v)) return v instanceof Uint8Array ? v : Array.from(v as unknown as ArrayLike<unknown>);
+  if (Array.isArray(v)) {
+    const a = v.map(untyped);
+    return a.some((x, i) => x !== v[i]) ? a : v;
+  }
+  if (v instanceof Map) {
+    const entries = [...v], changed = entries.map(([k, x]) => [k, untyped(x)] as const);
+    return changed.some(([, x], i) => x !== entries[i][1]) ? new Map(changed) : v;
+  }
+  if (v instanceof Set || v instanceof Date || v === null || typeof v !== "object") return v;
+  const entries = Object.entries(v), changed = entries.map(([k, x]) => [k, untyped(x)] as const);
+  return changed.some(([, x], i) => x !== entries[i][1])
+    ? Object.assign(Object.create(Object.getPrototypeOf(v)), Object.fromEntries(changed)) : v;
+}
+
 function same(a: Uint8Array, b: Uint8Array): boolean {
   return a.length === b.length && a.every((x, i) => x === b[i]);
 }
@@ -118,7 +138,7 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
     if (!equals(schema, fromBinary(schema, x), messages[v][i]))
       throw new Error(`${name}[${v}][${i}]: protobuf round trip`);
   }));
-  const packed = lists.map((list) => list.map((v) => packr.pack(v)));
+  const unpacked = lists.map((list) => list.map(untyped)), packed = unpacked.map((list) => list.map((v) => packr.pack(v)));
   const json = lists.map((list) => list.map(plain)), text = json.map((list) => list.map((j) => JSON.stringify(j)));
   packed.forEach((list, v) => list.forEach((x, i) => {
     // Read back: the same data (maps come back as objects, which plain JSON makes of Maps too).
@@ -132,7 +152,7 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
   const tasks: [Serializer, Row["op"], () => void, number][] = [
     ["Nino", "serialize", rotate(lists, (l) => { for (const v of l) serialize(codec, v); }), size(bytes)],
     ["Protobuf", "serialize", rotate(messages, (l) => { for (const m of l) toBinary(schema, m); }), size(proto)],
-    ["MessagePack", "serialize", rotate(lists, (l) => { for (const v of l) packr.pack(v); }), size(packed)],
+    ["MessagePack", "serialize", rotate(unpacked, (l) => { for (const v of l) packr.pack(v); }), size(packed)],
     ["JSON", "serialize", rotate(json, (l) => { for (const j of l) encoder.encode(JSON.stringify(j)); }), size(utf8)],
     ["Nino", "deserialize", rotate(bytes, (l) => { for (const x of l) deserialize(codec, x); }), size(bytes)],
     ["Protobuf", "deserialize", rotate(proto, (l) => { for (const x of l) fromBinary(schema, x); }), size(proto)],
