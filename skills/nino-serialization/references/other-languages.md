@@ -48,9 +48,9 @@ one path per line).
 
 | Language | Runtime | Use |
 | --- | --- | --- |
-| TypeScript (5.7+, ES2020) | `nino.ts`, written next to the code; or npm `nino-serialization` with `Runtime="nino-serialization"` | `serialize(OrderCodec, order)`, `serializeInto(OrderCodec, order, writer)` (a reused `NinoWriter`, or a `Uint8Array`), `deserialize(OrderCodec, bytes)`, `deserializeExact` |
-| Go (1.22+) | `go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4` (package `nino`, no dependencies) | `nino.Serialize(p, model.WritePlayer)`, `nino.Append(buf[:0], p, model.WritePlayer)`, a reused `*nino.Writer` (`Reset`, `Bytes`), `nino.Deserialize(data, model.ReadPlayer)`, `nino.DeserializeExact` |
-| Rust (1.88+) | crate `nino-serialization` (library `nino`) with feature `indexmap`, plus `indexmap`; `Maps="std"` needs the crate alone | `nino::serialize(&v)?`, `nino::serialize_into(&v, &mut buf)?` (appends to a reused `Vec`), `nino::deserialize_exact::<T>(&bytes)?` |
+| TypeScript (5.7+, ES2020) | `nino.ts`, written next to the code; or npm `nino-serialization` with `Runtime="nino-serialization"` | `serialize(OrderCodec, order)`, `serializeInto(OrderCodec, order, writer)` (a reused `NinoWriter`, or a `Uint8Array`), `deserialize(OrderCodec, bytes)`, `deserializeExact`, `deserializeInto(OrderCodec, bytes, order)` |
+| Go (1.22+) | `go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4` (package `nino`, no dependencies) | `nino.Serialize(p, model.WritePlayer)`, `nino.Append(buf[:0], p, model.WritePlayer)`, a reused `*nino.Writer` (`Reset`, `Bytes`), `nino.Deserialize(data, model.ReadPlayer)`, `nino.DeserializeExact`, `nino.DeserializeInto(data, &p, model.ReadPlayerInto)` |
+| Rust (1.88+) | crate `nino-serialization` (library `nino`) with feature `indexmap`, plus `indexmap`; `Maps="std"` needs the crate alone | `nino::serialize(&v)?`, `nino::serialize_into(&v, &mut buf)?` (appends to a reused `Vec`), `nino::deserialize_exact::<T>(&bytes)?`, `nino::deserialize_into(&bytes, &mut v)?` |
 
 The runtimes are versioned with Nino. Include the generated Rust file with rustfmt off:
 
@@ -75,8 +75,12 @@ mod protocol;
 - Caller-owned buffers, as `NinoSerializer.Serialize(value, bufferWriter)` with a reused `NinoArrayBufferWriter`:
   TypeScript `serializeInto` into a `NinoWriter` reset per value (in Node, a new `ArrayBuffer` per value adds up to
   full garbage collections) or into a `Uint8Array` (returns the size; larger than the array: nothing written), Go
-  `Append` or a reused `Writer`, Rust `serialize_into`. Reading into an existing value
-  (`Deserialize(data, ref value)`) is .NET only: the other runtimes return new values.
+  `Append` or a reused `Writer`, Rust `serialize_into`.
+- Reading into an existing value, as `NinoDeserializer.Deserialize(data, ref value)`: TypeScript `deserializeInto`
+  (returns the value read), Go `DeserializeInto` with the generated `ReadXInto`, Rust `deserialize_into`. Nested objects
+  are read in place, arrays, slices and `Vec`s keep their storage and read elements into the old ones, maps and sets are
+  cleared and refilled, a polymorphic member is reused only when the data holds its type; tracked objects are read
+  new. After an error the value is valid but partly updated: read into it again or drop it.
 - Every reader takes hostile input with the .NET checks (bounds before allocating, depth counted as .NET does, strict
   bytes) and throws or returns one error type.
 

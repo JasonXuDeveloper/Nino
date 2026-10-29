@@ -22,8 +22,11 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
   TypeScript `serializeInto` with a `NinoWriter` and `reset`, or a `Uint8Array`; Go `Append` and `Writer.Reset`; Rust
   `serialize_into`), and `Exact` reads. Why: the owner wants them "the same as C#" in every runtime, and in Node a new
   `ArrayBuffer` per value adds up to full GCs (`benchmark`, "Keep only the running serializer's data live").
-  Reading into an existing value (`Deserialize(data, ref value)`) is .NET only so far: it needs a read-into function
-  per generated type in all three templates.
+  Reading into an existing value (`Deserialize(data, ref value)`) is TypeScript `deserializeInto` (`NinoCodec.readInto`),
+  Go `DeserializeInto` (`ReadXInto`) and Rust `deserialize_into` (`NinoRead::read_into`), with one read body per type:
+  the plain read builds a new value and reads into it (`readX(r, v = new X())`, `ReadX` calling `ReadXInto`, Rust's
+  struct `read` building `Default`), so a template change to a read path reaches both. The corpus tests read every
+  valid case into the previous case's value and every hostile input into a valid value (same verdict as a fresh read).
 
 ## Safety
 

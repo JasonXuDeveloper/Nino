@@ -20,6 +20,14 @@ const back = deserialize(PlayerCodec, bytes);
 `deserialize` reads one value and leaves any bytes after it unread; `deserializeExact` also throws a `NinoError`
 when bytes follow the value (Go's `DeserializeExact`, Rust's `deserialize_exact`).
 
+`deserializeInto(codec, bytes, value)` reads into a value you already have, as `NinoDeserializer.Deserialize(data, ref
+value)` does in .NET, and returns the value read (`value` itself, unless the data holds null or another class): nested
+objects are read in place, arrays keep their storage and read each element into the old one at its index, maps and
+sets are cleared and refilled, and a member declared as a class with subtypes or an interface is read into only when
+the data holds its own class. Tracked objects and typed arrays are read new. If it throws, `value` holds what was read
+before the error and the rest as it was. Generated codecs implement it as `NinoCodec.readInto`; a hand-written codec
+without it is read new.
+
 `serialize` returns a view of a 64 KiB (or larger) buffer that later results never overwrite, so each value costs no
 `ArrayBuffer` of its own, but a new buffer every 64 KiB or so. Code that writes each value out before the next one (to
 a socket or a file) can write into memory it owns instead, as `NinoSerializer.Serialize(value, bufferWriter)` does in
