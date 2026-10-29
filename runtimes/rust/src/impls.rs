@@ -406,9 +406,9 @@ impl NinoRead for bool {
 
     #[inline]
     fn decode_fixed(bytes: &[u8]) -> Result<Self> {
-        // One compare for both valid bytes.
         match bytes.first() {
-            Some(&b) if b <= 1 => Ok(b != 0),
+            Some(0) => Ok(false),
+            Some(1) => Ok(true),
             Some(&b) => Err(Error::new(ErrorKind::InvalidBool, i32::from(b))),
             None => Err(Error::end()),
         }
@@ -938,11 +938,19 @@ macro_rules! tuple {
             const MAY_DEFER: bool = false $(|| $name::MAY_DEFER)+;
             const MIN_SIZE: usize = 0usize $(.saturating_add($name::MIN_SIZE))+;
             /// The items' sizes added up when every item is fixed-size.
-            const FIXED_SIZE: usize = crate::traits::fixed_size(&[$(<$name as NinoRead>::FIXED_SIZE),+]);
+            const FIXED_SIZE: usize =
+                if false $(|| <$name as NinoRead>::FIXED_SIZE == 0)+ { 0 } else { 0usize $(.saturating_add(<$name as NinoRead>::FIXED_SIZE))+ };
 
+            // The last item's tail is not read.
+            #[allow(unused_assignments)]
             #[inline]
-            fn decode_fixed(mut bytes: &[u8]) -> Result<Self> {
-                Ok(($(crate::traits::decode_next::<$name>(&mut bytes)?,)+))
+            fn decode_fixed(bytes: &[u8]) -> Result<Self> {
+                let mut rest = bytes;
+                Ok(($({
+                    let (item, tail) = rest.split_at_checked(<$name as NinoRead>::FIXED_SIZE).ok_or_else(Error::end)?;
+                    rest = tail;
+                    $name::decode_fixed(item)?
+                },)+))
             }
 
             #[inline]
@@ -954,11 +962,19 @@ macro_rules! tuple {
         }
 
         impl<$($name: NinoWrite),+> NinoWrite for ($($name,)+) {
-            const FIXED_SIZE: usize = crate::traits::fixed_size(&[$(<$name as NinoWrite>::FIXED_SIZE),+]);
+            const FIXED_SIZE: usize =
+                if false $(|| <$name as NinoWrite>::FIXED_SIZE == 0)+ { 0 } else { 0usize $(.saturating_add(<$name as NinoWrite>::FIXED_SIZE))+ };
 
+            // The last item's tail is not written.
+            #[allow(unused_assignments)]
             #[inline]
-            fn encode_fixed(&self, mut out: &mut [u8]) {
-                $(crate::traits::encode_next(&self.$index, &mut out);)+
+            fn encode_fixed(&self, out: &mut [u8]) {
+                let mut rest = out;
+                $(
+                    let Some((item, tail)) = rest.split_at_mut_checked(<$name as NinoWrite>::FIXED_SIZE) else { return };
+                    rest = tail;
+                    self.$index.encode_fixed(item);
+                )+
             }
 
             #[inline]
