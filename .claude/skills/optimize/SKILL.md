@@ -202,6 +202,16 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   heap memory to `MemoryMarshal.AsBytes` or a raw re-serializer. Rejected for that, though faster: padded blocks
   allocated uninitialized read 1,000 `Waypoint`s in 0.68 to 0.76 times main's time (EPYC 7763, 9V74, Xeon 8370C,
   Neoverse-N2) and 1,000 `(int, long)` in 0.89 on the 7763; it can land only with reads that write the padding too.
+- In Rust, give every fixed-size shape `FIXED_SIZE` with `decode_fixed` / `encode_fixed` and let `read_fixed` /
+  `extend_fixed` run it over `chunks_exact`; write no shuffle kernel. LLVM already turns a block whose wire bytes
+  equal its memory ((i32, i32), a raw struct, a derived plain `{i32, f32}`) into vector copies (`vmovups ymm` on
+  AVX2, `movups` on baseline x86-64, `ldp`/`stp q` on aarch64), and a padded or mixed shape into one bounds check
+  and a scalar loop (writes unrolled 4x) that is store-bound, so a gather would not pay. What was missing was the
+  block path itself: derived plain structs (derive and nino-gen) had no `FIXED_SIZE`, and giving them one took
+  `Vec<{i32, f32}>` 80-91 % and `Vec<{i64, bool, i32}>` 61-88 % faster on every runner CPU (runtime A/B run
+  40868354821). Keep tuples on their own macro and `bool::decode_fixed` as `match`: routing tuples through
+  `decode_next` and testing a bool as `b <= 1` made `(i64, bool)` reads 2-29 % slower (Xeon 8573C +29 %, EPYC 7763
+  +11 %, run 40829803604); with both kept, tuples were on par.
 
 ## Unity kernels and IL2CPP
 
