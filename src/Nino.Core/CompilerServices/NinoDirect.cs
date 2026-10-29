@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -118,6 +119,102 @@ namespace Nino.Core.CompilerServices
             default(TFormatter).Serialize(value, ref writer);
             writer.Flush();
             writer.ReleaseReferences();
+        }
+
+        /// <summary>
+        /// <see cref="Serialize{T,TFormatter}(in T)"/> of an array of a class whose formatter prefetches
+        /// (<see cref="INinoPrefetchFormatter"/>), called by the interceptors of a
+        /// project built with <c>NinoPrefetchLargeCollections</c>: a long one of scattered objects is written with
+        /// the objects ahead prefetched (<see cref="NinoPrefetch"/>), any other as by the plain call. The bytes are the
+        /// same.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte[] SerializePrefetched<T, TFormatter>(in T[] value)
+            where TFormatter : struct, INinoFormatter<T> =>
+            value != null && NinoPrefetch.Long<TFormatter>(value.Length)
+                ? NinoScratch.ToArray(value, default(PrefetchArrayWriter<T, TFormatter>))
+                : Serialize<T[], ArrayFormatter<T, TFormatter>>(value);
+
+        /// <summary>The list <paramref name="value"/> as <see cref="SerializePrefetched{T,TFormatter}(in T[])"/> writes an array.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte[] SerializePrefetched<T, TFormatter>(in List<T> value)
+            where TFormatter : struct, INinoFormatter<T> =>
+            value != null && NinoPrefetch.Long<TFormatter>(value.Count)
+                ? NinoScratch.ToArray(value, default(PrefetchListWriter<T, TFormatter>))
+                : Serialize<List<T>, ListFormatter<List<T>, T, TFormatter>>(value);
+
+        /// <summary>
+        /// <see cref="SerializePrefetched{T,TFormatter}(in T[])"/> into <paramref name="bufferWriter"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializePrefetched<T, TFormatter>(in T[] value, IBufferWriter<byte> bufferWriter)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (value != null && NinoPrefetch.Long<TFormatter>(value.Length) && bufferWriter is NinoArrayBufferWriter nino)
+                default(PrefetchArrayWriter<T, TFormatter>).Write(value, nino);
+            else
+                Serialize<T[], ArrayFormatter<T, TFormatter>>(value, bufferWriter);
+        }
+
+        /// <summary>
+        /// <see cref="SerializePrefetched{T,TFormatter}(in List{T})"/> into <paramref name="bufferWriter"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializePrefetched<T, TFormatter>(in List<T> value, IBufferWriter<byte> bufferWriter)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (value != null && NinoPrefetch.Long<TFormatter>(value.Count) && bufferWriter is NinoArrayBufferWriter nino)
+                default(PrefetchListWriter<T, TFormatter>).Write(value, nino);
+            else
+                Serialize<List<T>, ListFormatter<List<T>, T, TFormatter>>(value, bufferWriter);
+        }
+
+        /// <summary>Writes a long array prefetched, or as the plain call does when its objects are in order.</summary>
+        private readonly struct PrefetchArrayWriter<T, TFormatter> : INinoScratchWriter<T[]>
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Write(T[] value, NinoArrayBufferWriter buffer)
+            {
+                if (!NinoPrefetch.Write<T, TFormatter>(value, buffer))
+                    Write<T[], ArrayFormatter<T, TFormatter>>(value, buffer);
+            }
+        }
+
+        /// <summary>Writes a long list prefetched, or as the plain call does when its objects are in order.</summary>
+        private readonly struct PrefetchListWriter<T, TFormatter> : INinoScratchWriter<List<T>>
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Write(List<T> value, NinoArrayBufferWriter buffer)
+            {
+                if (!NinoPrefetch.Write<T, TFormatter>(value, buffer))
+                    Write<List<T>, ListFormatter<List<T>, T, TFormatter>>(value, buffer);
+            }
+        }
+
+        /// <summary>
+        /// <see cref="Deserialize{T,TFormatter}(ReadOnlySpan{byte}, ref T)"/> into an array of a class whose formatter
+        /// prefetches, called by the interceptors of a project built with <c>NinoPrefetchLargeCollections</c>: into
+        /// a long one of scattered objects, as long as the data's, with the objects ahead prefetched.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializePrefetched<T, TFormatter>(ReadOnlySpan<byte> data, ref T[] value)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (NinoLimits.Untrusted || value == null || !NinoPrefetch.Long<TFormatter>(value.Length) ||
+                !NinoPrefetch.Read<T, TFormatter>(data, value))
+                Deserialize<T[], ArrayFormatter<T, TFormatter>>(data, ref value);
+        }
+
+        /// <summary>The list <paramref name="value"/> as <see cref="DeserializePrefetched{T,TFormatter}(ReadOnlySpan{byte}, ref T[])"/> reads into an array.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializePrefetched<T, TFormatter>(ReadOnlySpan<byte> data, ref List<T> value)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (NinoLimits.Untrusted || value == null || !NinoPrefetch.Long<TFormatter>(value.Count) ||
+                !NinoPrefetch.Read<T, TFormatter>(data, value))
+                Deserialize<List<T>, ListFormatter<List<T>, T, TFormatter>>(data, ref value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

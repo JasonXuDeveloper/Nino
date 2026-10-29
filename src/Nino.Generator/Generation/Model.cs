@@ -248,7 +248,13 @@ internal sealed record TypeModel(
     bool PublishesDeferrable,
     // A raw struct's bytes in the canonical layout, its published layout (LayoutEmitter, RawLayout.Describe); empty
     // for any other type, whose layout is its members.
-    string RawLayout)
+    string RawLayout,
+    // The bytes an element of an array or list of this class brings into the cache (PrefetchRules), for the loop that
+    // prefetches long ones (the formatter implements INinoPrefetchFormatter); 0 for none.
+    int PrefetchBytes,
+    // The members (C# names, read as value.Member) whose objects those loops prefetch too, once the element's object is
+    // in the cache (PrefetchRules.Members).
+    EquatableArray<string> PrefetchMembers)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 

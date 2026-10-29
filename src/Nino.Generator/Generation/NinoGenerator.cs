@@ -91,7 +91,13 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
         // Both streams produce the same models; Roslyn 4.3 cannot concatenate value providers, so every output
         // below is registered for (or collected from) each of them.
-        var models = new[] { Gate(marked, enabled), Gate(inherited, enabled) };
+        // NinoPrefetchLargeCollections (an MSBuild property): only then do classes' formatters implement
+        // INinoPrefetchFormatter and the interceptors of their arrays and lists prefetch; otherwise the models carry
+        // no prefetch, and the generated code is what it is without the property.
+        var prefetching = context.AnalyzerConfigOptionsProvider.Select(static (o, _) =>
+            o.GlobalOptions.TryGetValue("build_property." + PrefetchProperty, out var value) &&
+            string.Equals(value, "true", StringComparison.OrdinalIgnoreCase));
+        var models = new[] { Gate(marked, enabled, prefetching), Gate(inherited, enabled, prefetching) };
         // Hint names are compared ignoring case (and so are file names on Windows and macOS): formatter names that
         // differ only by case (types RawS and Raws) take a suffix of their own. Usually empty, so an edit that changes
         // no such name re-emits nothing.
@@ -179,13 +185,16 @@ public sealed class NinoGenerator : IIncrementalGenerator
         // (see DepthModel.Shallow).
         var top = NamesWhere(models, static m => m.HasTop).WithTrackingName("TopTwins");
         var shallow = NamesWhere(models, static m => m.Depth.Shallow).WithTrackingName("ShallowTwins");
+        // Formatters whose arrays and lists prefetch at the top level (see TypeModel.PrefetchBytes).
+        var prefetch = NamesWhere(models, static m => m.PrefetchBytes > 0).WithTrackingName("Prefetchers");
         context.RegisterImplementationSourceOutput(
-            intercepted.Combine(fileLocal).Combine(enabled).Combine(top).Combine(shallow),
+            intercepted.Combine(fileLocal).Combine(enabled).Combine(top).Combine(shallow).Combine(prefetch),
             static (spc, x) =>
             {
-                var ((((calls, local), on), tops), twins) = x;
+                var (((((calls, local), on), tops), twins), prefetchers) = x;
                 if (on && calls.Length != 0)
-                    spc.AddSource("NinoGen.Interceptors.g.cs", Interceptors.Emit(calls, local, tops, twins));
+                    spc.AddSource("NinoGen.Interceptors.g.cs",
+                        Interceptors.Emit(calls, local, tops, twins, prefetchers));
             });
 
 #endif
@@ -213,11 +222,16 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
     /// <summary>The models of a stream, in compilations that reference Nino.Core.</summary>
     private static IncrementalValuesProvider<TypeModel> Gate(IncrementalValuesProvider<TypeModel?> models,
-        IncrementalValueProvider<bool> enabled) =>
+        IncrementalValueProvider<bool> enabled, IncrementalValueProvider<bool> prefetching) =>
         models.Where(static m => m != null)
-            .Combine(enabled)
-            .Where(static x => x.Right)
-            .Select(static (x, _) => x.Left!);
+            .Combine(enabled.Combine(prefetching))
+            .Where(static x => x.Right.Left)
+            .Select(static (x, _) => x.Right.Right || x.Left!.PrefetchBytes == 0
+                ? x.Left!
+                : x.Left with { PrefetchBytes = 0, PrefetchMembers = EquatableArray<string>.Empty });
+
+    /// <summary>The MSBuild property a project sets to true to prefetch its long top-level collections.</summary>
+    public const string PrefetchProperty = "NinoPrefetchLargeCollections";
 
     /// <summary><paramref name="select"/> of every model of every stream, collected.</summary>
     private static IncrementalValueProvider<ImmutableArray<T>> CollectAll<T>(

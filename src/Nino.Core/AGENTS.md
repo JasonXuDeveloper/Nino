@@ -52,10 +52,14 @@ NinoTypeLayoutAttribute.cs   [assembly: NinoTypeLayout]: the published wire layo
 
 ```
 FormatterInterfaces.cs       INinoBodyFormatter<T> (+ NinoBody flags), INinoRawBodyFormatter<T>, INinoTopFormatter<T>
-                             (__Top twins), INinoFixedSizeFormatter<T>, INinoBlockFormatter<T>, INinoRawFormatter
+                             (__Top twins), INinoFixedSizeFormatter<T>, INinoBlockFormatter<T>, INinoRawFormatter,
+                             INinoPrefetchFormatter (classes whose long collections prefetch, in a
+                             project built with NinoPrefetchLargeCollections)
+NinoPrefetched.cs            NinoPrefetched.At: the prefetch generated INinoPrefetchFormatter.PrefetchMembers calls
 NinoObject.cs                header handling of generated class formatters: null flag / type id / reference header, then
                              the body; the ...Raw forms write header and raw body into one reservation
-NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call)
+NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;
+                             ...Prefetched for arrays and lists of INinoPrefetchFormatter classes)
 NinoBlockMap.cs              NinoBlockMap (where a block's bytes lie in a value's memory) and NinoBlocks (constrained
                              calls on block formatters)
 NinoPolymorphicOf.cs         NinoPolymorphic<TBase>: the registry of a base type's subtypes by type id
@@ -150,6 +154,9 @@ NinoLayoutCore.cs            the struct layout algorithm shared with the generat
 NinoReflection.cs            what Nino.Core reads by reflection with the generator's rules (NinoType, raw, tracking)
 NinoFormatterBinding.cs      binding of [NinoFormatter] registrations, shared with the generator (INinoTypeSystem)
 NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed)
+NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
+                             length against the last-level cache, allocation order sampled), the loops in runs, the
+                             out-of-line helper per run
 NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
 NinoBlock.cs                 collections of INinoBlockFormatter values: whole-block reads and writes, vector groups
 NinoBlockPlan.cs             NinoBlock<T, TFormatter>: the per-type block plan (ReadPlan, LanePlan, KernelTables)

@@ -148,6 +148,32 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
+    /// Generated formatters of non-generic classes whose collections prefetch: an array or a list of their objects
+    /// larger than a quarter of the last-level cache (<see cref="PrefetchBytes"/> each), whose first objects are not
+    /// in allocation order, written by a top-level call or read into its existing objects by one
+    /// (<c>NinoDirect.SerializePrefetched</c>, <c>DeserializePrefetched</c>; generated only for a project built with
+    /// <c>NinoPrefetchLargeCollections</c>), is walked in runs of 16 elements, each run calling an out-of-line
+    /// helper that prefetches the objects of the runs ahead and the objects their members point to (x64 and Arm64 on
+    /// .NET 8 and later).
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoPrefetchFormatter
+    {
+        /// <summary>
+        /// The bytes an element brings into the cache (a constant): its object, and a line of each object its reference
+        /// members point to.
+        /// </summary>
+        int PrefetchBytes { get; }
+
+        /// <summary>
+        /// Prefetches the objects the reference members of the <paramref name="count"/> elements at
+        /// <paramref name="first"/> (null ones skipped) point to, through <see cref="NinoPrefetched.At"/>, and returns
+        /// the sum of what that returned. Called once the elements' own objects were prefetched.
+        /// </summary>
+        int PrefetchMembers(ref object first, int count);
+    }
+
+    /// <summary>
     /// Marker for struct formatters whose output is exactly the in-memory bytes of the value
     /// (<c>Unsafe.SizeOf&lt;T&gt;()</c> bytes). The top-level APIs copy such values directly.
     /// </summary>

@@ -28,7 +28,15 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   goes in the out-of-line part, never in the inline one. Evidence: `Is64Bit || IsX86 || UnalignedWide32` written in
   `NinoUnsafe.Copy` changed the x64 code of an ImmutableSortedDictionary write (`NinoBlock.WriteAll` inlined, `Copy`
   left a call) in an `asm.py` dump with `DOTNET_TieredCompilation=0`; moved into `CopyOver64`, all 990 methods were
-  identical to main (`CopyBlock` keeps Arm64's branch out of `Copy` for the same reason).
+  identical to main (`CopyBlock` keeps Arm64's branch out of `Copy` for the same reason). The root's own IL counts
+  the other way: the JIT sizes a method's whole inlining budget from its IL size (estimate 60 + 3 per IL byte, times
+  10), dead branches included, so a folded test in a root that is otherwise one call (an interceptor) raises the budget
+  and changes what is inlined under it. Never add an option to the default path as a run-time branch, not even a
+  `static readonly` one: decide it at generation time (an MSBuild property the generator reads, `NinoRegularCalls`,
+  `NinoPrefetchLargeCollections`). Evidence: an interceptor `NinoPrefetched.Enabled ? SerializePrefetched(...) :
+  Serialize(...)`, folded at Tier1, made PolymorphicClassArray's `Serialize(in PolymorphicClassBase[],
+  IBufferWriter)` 1,060 bytes instead of main's 770 (single-block inlinees 142 to 155; `DOTNET_TieredPGO=0` dumps),
+  while NonGenericBase's 1,112 methods stayed identical.
 - Never pass `ref reader` or `ref writer` to a method that is not inlined, even in a dead branch: the address keeps
   the struct in memory for the whole method. Pass it by value and return it (`reader = ReadEach(values, reader)`).
   An instance method of `Reader` or `Writer` left out of line passes `this` the same way: `Reader.ReadString(current)`
