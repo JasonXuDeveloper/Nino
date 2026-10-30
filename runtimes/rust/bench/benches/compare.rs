@@ -251,6 +251,34 @@ mod proto {
     }
 }
 
+/// 1,000 distinct non-negative integers in no order (xorshift64 from a fixed seed): a `HashSet<int>` as nino-gen
+/// writes it (an `IndexSet`, in the order of the data). The Go and TypeScript benchmarks' set cases have the same
+/// shape.
+fn set_ints() -> indexmap::IndexSet<i32> {
+    let mut set = indexmap::IndexSet::with_capacity(1000);
+    let mut state = 0x2545_F491_4F6C_DD1Du64;
+    while set.len() < 1000 {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        set.insert((state >> 33) as i32);
+    }
+    set
+}
+
+/// "member 0" to "member 999" in no order: a `HashSet<string>` as nino-gen writes it.
+fn set_strings() -> indexmap::IndexSet<String> {
+    let mut v: Vec<u32> = (0..1000).collect();
+    let mut state = 0x9E37_79B9_7F4A_7C15u64;
+    for i in (1..v.len()).rev() {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        v.swap(i, (state % (i as u64 + 1)) as usize);
+    }
+    v.into_iter().map(|k| format!("member {k}")).collect()
+}
+
 /// 1,000 strings of three kinds in turn: ASCII, Latin-1 (one byte a char in Nino) and other text (UTF-16 in Nino:
 /// Cyrillic, CJK and a char outside the BMP). The Go and TypeScript benchmarks use the same strings.
 fn mixed_strings() -> Vec<String> {
@@ -294,9 +322,14 @@ macro_rules! nino_only {
 const BINCODE: bincode::config::Configuration = bincode::config::standard();
 
 /// One group per case: serialize and deserialize with each serializer, Nino first. `$elements` is the number of
-/// values in the case (criterion's throughput); `$proto` is the case as a protobuf message of type `$p`.
+/// values in the case (criterion's throughput); `$proto` is the case as a protobuf message of type `$p`, and
+/// `$from_proto` (the message itself when left out) what the deserialize timing makes of a decoded message: the
+/// case's type where protobuf has no such type (a set).
 macro_rules! formats {
-    ($c:expr, $group:literal, $elements:expr, $value:expr, $t:ty, $proto:expr, $p:ty) => {{
+    ($c:expr, $group:literal, $elements:expr, $value:expr, $t:ty, $proto:expr, $p:ty) => {
+        formats!($c, $group, $elements, $value, $t, $proto, $p, |m: $p| m)
+    };
+    ($c:expr, $group:literal, $elements:expr, $value:expr, $t:ty, $proto:expr, $p:ty, $from_proto:expr) => {{
         let value: $t = $value;
         let message: $p = $proto(&value);
         let mut g = $c.benchmark_group($group);
@@ -368,7 +401,7 @@ macro_rules! formats {
             b.iter(|| black_box(nino::deserialize::<$t>(black_box(&nino_bytes)).unwrap()))
         });
         g.bench_function(BenchmarkId::new("deserialize", "prost"), |b| {
-            b.iter(|| black_box(<$p as prost::Message>::decode(black_box(&prost_bytes[..])).unwrap()))
+            b.iter(|| black_box($from_proto(<$p as prost::Message>::decode(black_box(&prost_bytes[..])).unwrap())))
         });
         g.bench_function(BenchmarkId::new("deserialize", "bincode"), |b| {
             b.iter(|| {
@@ -419,6 +452,23 @@ fn benches(c: &mut Criterion) {
         proto::Strings
     );
     formats!(c, "strings-mixed-1000", 1000, mixed_strings(), Vec<String>, strings, proto::Strings);
+    // Sets: protobuf has none, so its message is a repeated field of the elements, made into the set when read (as
+    // the others read theirs), without checking for a repeated element as Nino does.
+    let set_i32s = |v: &indexmap::IndexSet<i32>| proto::I32s { values: v.iter().copied().collect() };
+    let i32_set = |m: proto::I32s| m.values.into_iter().collect::<indexmap::IndexSet<i32>>();
+    formats!(c, "int-set-1000", 1000, set_ints(), indexmap::IndexSet<i32>, set_i32s, proto::I32s, i32_set);
+    let set_texts = |v: &indexmap::IndexSet<String>| proto::Strings { values: v.iter().cloned().collect() };
+    let text_set = |m: proto::Strings| m.values.into_iter().collect::<indexmap::IndexSet<String>>();
+    formats!(
+        c,
+        "string-set-1000",
+        1000,
+        set_strings(),
+        indexmap::IndexSet<String>,
+        set_texts,
+        proto::Strings,
+        text_set
+    );
     // The same strings as a `[NinoUtf8] string[]`: each as UTF-8 (wire format 4.2), read with the same checks
     // (strict UTF-8, the char count) as a `[NinoUtf8]` member, as the other serializers check theirs.
     nino_only!(
