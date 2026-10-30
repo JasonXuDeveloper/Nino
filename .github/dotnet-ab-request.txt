@@ -122,5 +122,10 @@
 # done (run 40973200874): cpu='Xeon' 3bcf28c9 3bcf28c9 12 *GenericPolymorphicTest.NinoDeserialize* # devirt2 Xeon floor (agent ad35d66b88709852c)
 # done (run 41001198454): cpu='Xeon' 08f6a142 15dd4bf8 12 *GenericPolymorphicTest.Nino* # devirt2 fix (agent ad35d66b88709852c): subtype switch out of line only where closed bases share code; make 15dd4bf8 reachable with merge -s ours (ref origin/ab/devirt4)
 # done (run 41001198454): cpu='Xeon' 08f6a142 08f6a142 12 *GenericPolymorphicTest.Nino* # devirt2 Xeon floor on 08f6a142 (agent ad35d66b88709852c); shareable
-cpu='EPYC|Xeon|Neoverse' 08f6a142 15dd4bf8 12 *GenericPolymorphicTest.Nino* # devirt2 all-CPU (agent ad35d66b88709852c); 15dd4bf8 reachable (ref origin/ab/devirt4, already merged)
-cpu='EPYC|Xeon|Neoverse' 08f6a142 08f6a142 12 *GenericPolymorphicTest.Nino* # devirt2 floor on 08f6a142 (agent ad35d66b88709852c); shareable
+# done (run 41005255972): cpu='EPYC|Xeon|Neoverse' 08f6a142 15dd4bf8 12 *GenericPolymorphicTest.Nino* # devirt2 all-CPU (agent ad35d66b88709852c); 15dd4bf8 reachable (ref origin/ab/devirt4, already merged)
+# done (run 41005255972): cpu='EPYC|Xeon|Neoverse' 08f6a142 08f6a142 12 *GenericPolymorphicTest.Nino* # devirt2 floor on 08f6a142 (agent ad35d66b88709852c); shareable
+# r101-perf (audit round 101): (a) d902e735 against its parent; (c) the Ice Lake Wide512 gate 8ca958da against its parent;
+# one floor on main 5dee5b50 (same generic-polymorphic code as d902e735) shared by (a), (c) and the coming (b) line.
+cpu='EPYC|Xeon|Neoverse' 08f6a142 d902e735 12 *GenericPolymorphicTest.Nino* # r101-perf (a): generic formatters take their arguments formatters, against its parent
+cpu='EPYC|Xeon|Neoverse' eb3dffda 8ca958da 12 *CommonTypesTest.Nino*Inventory* # r101-perf (c): NinoMask 64-byte vectors only on Wide512 CPUs
+cpu='EPYC|Xeon|Neoverse' 5dee5b50 5dee5b50 12 *GenericPolymorphicTest.Nino* *CommonTypesTest.Nino*Inventory* *CommonTypesTest.Nino*Waypoints* *CollectionsTest.Nino*TupleList* # r101-perf shared floor on main 5dee5b50; shareable
