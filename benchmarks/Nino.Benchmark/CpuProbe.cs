@@ -1,4 +1,8 @@
 using System;
+using System.Buffers;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.Intrinsics.X86;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
@@ -271,5 +275,201 @@ public unsafe class Copy128Probe
         b.Store(d + end + 16);
         c.Store(d + end + 32);
         e.Store(d + end + 48);
+    }
+}
+
+/// <summary>
+/// Experiment: 1,000 (int, long) written as 12-byte blocks (List&lt;(int, long)&gt;, TupleList), Nino and MemoryPack
+/// against the kernels Nino could use: groups of 16 values as three two-source 4-byte-word permutes of 64-byte
+/// vectors (vpermt2d zmm, Nino's AVX-512 groups), groups of 8 as three of 32-byte vectors (vpermt2d ymm, AVX-512VL),
+/// and two values a step by one one-source word permute of a 32-byte vector (vpermd, AVX2) stored over the next
+/// step's first bytes. Stores from the first value whose blocks start on a vector boundary, as Nino's groups; the
+/// source <see cref="SourceShift"/> bytes past a 64-byte boundary (a list's array: elements 16 bytes into an 8-byte
+/// aligned object), the destination 4 past one (after the length).
+/// </summary>
+[Config(typeof(ProbeConfig))]
+public unsafe class TuplePackProbe
+{
+    private const int Count = 1000;
+
+    [Params(8, 40)]
+    public int SourceShift;
+
+    private static readonly List<(int, long)> List = Enumerable.Range(0, Count).Select(i => (i, (long)i * 31)).ToList();
+    private static readonly byte* SourceBase = (byte*)NativeMemory.AlignedAlloc(1 << 15, 64);
+    private static readonly byte* Destination = (byte*)NativeMemory.AlignedAlloc(1 << 15, 64) + 4;
+    private static readonly Vector512<int> Words512A = Indices512(0), Words512B = Indices512(1), Words512C = Indices512(2);
+    private static readonly Vector256<int> Words256A = Indices256(0), Words256B = Indices256(1), Words256C = Indices256(2);
+    private static readonly Vector256<int> Pack2 = Vector256.Create(0, 2, 3, 4, 6, 7, 0, 0);
+    private readonly NinoArrayBufferWriter _nino = new(1 << 16);
+    private readonly ArrayBufferWriter<byte> _memoryPack = new(1 << 16);
+
+    private byte* Source => SourceBase + SourceShift;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        for (int i = 0; i < Count; i++)
+        {
+            *(int*)(Source + i * 16) = i;
+            *(int*)(Source + i * 16 + 4) = 0;
+            *(long*)(Source + i * 16 + 8) = i * 31L;
+        }
+
+        // Each kernel writes Nino's blocks (after its 4-byte length).
+        var expected = NinoSerializer.Serialize(List).AsSpan(4);
+        foreach (var kernel in new Func<int>[] { Words512, Words256, Pairs256, Pairs256x2 })
+        {
+            new Span<byte>(Destination, 12000).Clear();
+            if (kernel() != 0 && !new ReadOnlySpan<byte>(Destination, 12000).SequenceEqual(expected))
+                throw new InvalidOperationException(kernel.Method.Name + " wrote other bytes");
+        }
+    }
+
+    // Block word w of a group holds memory word w / 3 * 4 + (0, 2, 3)[w % 3]; vector k reads memory vectors k and k + 1.
+    private static Vector512<int> Indices512(int k)
+    {
+        var x = new int[16];
+        for (int b = 0; b < 16; b++)
+        {
+            int w = 16 * k + b;
+            x[b] = w / 3 * 4 + (w % 3 == 0 ? 0 : w % 3 + 1) - 16 * k;
+        }
+
+        return Vector512.Create(x);
+    }
+
+    private static Vector256<int> Indices256(int k)
+    {
+        var x = new int[8];
+        for (int b = 0; b < 8; b++)
+        {
+            int w = 8 * k + b;
+            x[b] = w / 3 * 4 + (w % 3 == 0 ? 0 : w % 3 + 1) - 8 * k;
+        }
+
+        return Vector256.Create(x);
+    }
+
+    [Benchmark(Baseline = true)]
+    public int Nino()
+    {
+        _nino.ResetWrittenCount();
+        NinoSerializer.Serialize(List, _nino);
+        return _nino.WrittenCount;
+    }
+
+    [Benchmark]
+    public int MemoryPack()
+    {
+        _memoryPack.ResetWrittenCount();
+        global::MemoryPack.MemoryPackSerializer.Serialize(_memoryPack, List);
+        return _memoryPack.WrittenCount;
+    }
+
+    [Benchmark]
+    public int Memmove16K()
+    {
+        Buffer.MemoryCopy(Source, Destination, 16000, 16000);
+        return 16000;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Group512(byte* s, byte* d, Vector512<int> ia, Vector512<int> ib, Vector512<int> ic)
+    {
+        var a = Vector512.Load((int*)s);
+        var b = Vector512.Load((int*)(s + 64));
+        var c = Vector512.Load((int*)(s + 128));
+        var e = Vector512.Load((int*)(s + 192));
+        Avx512F.PermuteVar16x32x2(a, ia, b).Store((int*)d);
+        Avx512F.PermuteVar16x32x2(b, ib, c).Store((int*)(d + 64));
+        Avx512F.PermuteVar16x32x2(c, ic, e).Store((int*)(d + 128));
+    }
+
+    [Benchmark]
+    public int Words512()
+    {
+        if (!Avx512F.IsSupported) return 0;
+        byte* s = Source, d = Destination;
+        Vector512<int> ia = Words512A, ib = Words512B, ic = Words512C;
+        Group512(s, d, ia, ib, ic);
+        int i = 5; // (4 + 12 * 5) % 64 == 0
+        for (; i + 16 <= Count; i += 16)
+            Group512(s + i * 16, d + i * 12, ia, ib, ic);
+        Group512(s + (Count - 16) * 16, d + (Count - 16) * 12, ia, ib, ic);
+        return Count;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Group256(byte* s, byte* d, Vector256<int> ia, Vector256<int> ib, Vector256<int> ic)
+    {
+        var a = Vector256.Load((int*)s);
+        var b = Vector256.Load((int*)(s + 32));
+        var c = Vector256.Load((int*)(s + 64));
+        var e = Vector256.Load((int*)(s + 96));
+        Avx512F.VL.PermuteVar8x32x2(a, ia, b).Store((int*)d);
+        Avx512F.VL.PermuteVar8x32x2(b, ib, c).Store((int*)(d + 32));
+        Avx512F.VL.PermuteVar8x32x2(c, ic, e).Store((int*)(d + 64));
+    }
+
+    [Benchmark]
+    public int Words256()
+    {
+        if (!Avx512F.VL.IsSupported) return 0;
+        byte* s = Source, d = Destination;
+        Vector256<int> ia = Words256A, ib = Words256B, ic = Words256C;
+        Group256(s, d, ia, ib, ic);
+        int i = 5; // (4 + 12 * 5) % 32 == 0
+        for (; i + 8 <= Count; i += 8)
+            Group256(s + i * 16, d + i * 12, ia, ib, ic);
+        Group256(s + (Count - 8) * 16, d + (Count - 8) * 12, ia, ib, ic);
+        return Count;
+    }
+
+    [Benchmark]
+    public int Pairs256()
+    {
+        if (!Avx2.IsSupported) return 0;
+        byte* s = Source, d = Destination;
+        var p = Pack2;
+        // Two values a step, each store 8 bytes past their blocks, rewritten by the next; the last pair by itself.
+        int n = (Count - 2) / 2;
+        for (int k = 0; k < n; k++)
+        {
+            Avx2.PermuteVar8x32(Vector256.Load((int*)s), p).Store((int*)d);
+            s += 32;
+            d += 24;
+        }
+
+        var last = Avx2.PermuteVar8x32(Vector256.Load((int*)(Source + (Count - 2) * 16)), p);
+        Vector128.Store(last.GetLower(), (int*)(Destination + (Count - 2) * 12));
+        Unsafe.WriteUnaligned(Destination + (Count - 2) * 12 + 16, last.AsInt64().GetElement(2));
+        return Count;
+    }
+
+    [Benchmark]
+    public int Pairs256x2()
+    {
+        if (!Avx2.IsSupported) return 0;
+        byte* s = Source, d = Destination;
+        var p = Pack2;
+        // Pairs256 with four values a step: two loads, two permutes, two stores.
+        int n = (Count - 4) / 4;
+        for (int k = 0; k < n; k++)
+        {
+            var a = Avx2.PermuteVar8x32(Vector256.Load((int*)s), p);
+            var b = Avx2.PermuteVar8x32(Vector256.Load((int*)(s + 32)), p);
+            a.Store((int*)d);
+            b.Store((int*)(d + 24));
+            s += 64;
+            d += 48;
+        }
+
+        for (int i = n * 4; i < Count - 2; i += 2)
+            Avx2.PermuteVar8x32(Vector256.Load((int*)(Source + i * 16)), p).Store((int*)(Destination + i * 12));
+        var last = Avx2.PermuteVar8x32(Vector256.Load((int*)(Source + (Count - 2) * 16)), p);
+        Vector128.Store(last.GetLower(), (int*)(Destination + (Count - 2) * 12));
+        Unsafe.WriteUnaligned(Destination + (Count - 2) * 12 + 16, last.AsInt64().GetElement(2));
+        return Count;
     }
 }
