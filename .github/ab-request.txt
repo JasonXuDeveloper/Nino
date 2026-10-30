@@ -1157,3 +1157,10 @@ typescript e5e92702 c37701a7 # ts read-into 2 copy 2 (agent a0f34ddb0aa4462cf)
 typescript e5e92702 e5e92702 # ts read-into 2 floor (agent a0f34ddb0aa4462cf)
 go#12 a8bcbc5b 5e6da5c3 ^BenchmarkDeserialize$/./^Nino$ # go read-into on main with direct class calls (agent a0f34ddb0aa4462cf); make 5e6da5c3 reachable with merge -s ours (ref origin/ab/go-read-into-2)
 go#12 a8bcbc5b a8bcbc5b ^BenchmarkDeserialize$/./^Nino$ # go read-into 2 floor (agent a0f34ddb0aa4462cf)
+go#12 73b513fad88d729385c76e6c53fea4c8c1dda8f0 e3e9bee64829521998a2aeb59036f35a973c4991 /(simple|int-set|string-set) # r101-runtimes go sets
+go#12 73b513fad88d729385c76e6c53fea4c8c1dda8f0 73b513fad88d729385c76e6c53fea4c8c1dda8f0 /(simple|int-set|string-set) # r101-runtimes go floor
+go#12 3ba1d533bdd7e996ec3a2f53b3e93da1f5e22310 73b513fad88d729385c76e6c53fea4c8c1dda8f0 /int-set # r101-runtimes UniqueValues vs ReadUnique
+rust 9064fa6eaf66860147350dc9f69a33dfacd2e775 9064fa6eaf66860147350dc9f69a33dfacd2e775 (set-1000|records-1000) # r101-runtimes rust sets vs competitors, records floor
+typescript cff5bd50f498118807e2350d0f9fe46f52d356c4 20468a3d6df289f4460594d321a7b18281a7e4ba int-set # r101-runtimes ts sets and NinoKeyGuard cost
+typescript cff5bd50f498118807e2350d0f9fe46f52d356c4 cff5bd50f498118807e2350d0f9fe46f52d356c4 string-set # r101-runtimes ts sets
+rust 9064fa6eaf66860147350dc9f69a33dfacd2e775 e3e9bee64829521998a2aeb59036f35a973c4991 records-1000 # r101-runtimes rust sealed_read!/PREFETCH_BYTES
