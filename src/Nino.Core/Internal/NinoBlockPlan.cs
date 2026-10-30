@@ -61,7 +61,7 @@ namespace Nino.Core.Internal
         /// <summary>
         /// Whether a read of values can reject the data after it has started writing them: a block with a
         /// <c>bool</c> (0 or 1), or one whose map failed (values read one at a time, their bools not all known).
-        /// A new array of them then takes its slot only once filled (<see cref="NinoElements.Rejects{T, TFormatter}"/>).
+        /// A new array of them is then allocated zeroed (<see cref="NinoElements.CopiedWhole{T, TFormatter}"/>).
         /// </summary>
         public static readonly bool Rejects = Size > 0 && (Map == null || Description.Bools != null);
 

@@ -197,17 +197,39 @@ public class UntrustedInputTests
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(heldData, ref held));
         Assert.AreSame(heldOld, held.Item1);
 
-        var pairs = Elements(i => Ints(i).Append((byte)(i == n - 1 ? 2 : 1)).ToArray());
+        // Blocks with a bool are read into a zeroed array (kept off the recursive read path): what the read did not
+        // reach is default, never the 0xCD of freed memory. 12,000 of 8 bytes: an array on the large object heap,
+        // whose memory is reused uninitialized after a collection.
+        const int m = 12000;
+        var pairs = Ints(m).Concat(Enumerable.Range(0, m)
+            .SelectMany(i => Ints(i).Append((byte)(i == m - 1 ? 2 : 1)))).ToArray();
+        void Garbage()
+        {
+            for (int i = 0; i < 32; i++)
+                new byte[200_000].AsSpan().Fill(0xCD);
+            GC.Collect();
+        }
+
+        bool Clean(ReadOnlySpan<(int, bool)> values)
+        {
+            for (int i = 0; i < values.Length; i++)
+                if (values[i] != default && values[i] != (i, true))
+                    return false;
+            return true;
+        }
+
+        Garbage();
         var pairArray = new (int, bool)[1];
-        var pairOld = pairArray;
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(pairs, ref pairArray));
-        Assert.AreSame(pairOld, pairArray);
+        Assert.IsTrue(Clean(pairArray));
+        Garbage();
         List<(int, bool)> pairList = null;
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(pairs, ref pairList));
-        Assert.IsNull(pairList);
-        var pairMemory = new Memory<(int, bool)>(pairOld);
+        Assert.IsTrue(pairList == null || Clean(pairList.ToArray()));
+        Garbage();
+        var pairMemory = new Memory<(int, bool)>(new (int, bool)[1]);
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(pairs, ref pairMemory));
-        Assert.AreEqual(1, pairMemory.Length);
+        Assert.IsTrue(Clean(pairMemory.Span));
     }
 
     [TestMethod]

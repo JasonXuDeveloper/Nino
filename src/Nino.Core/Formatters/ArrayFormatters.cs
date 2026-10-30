@@ -39,14 +39,6 @@ namespace Nino.Core
                 return;
             }
 
-            // A new uninitialized array the read may reject half way takes the slot once filled: out of line, and
-            // nothing compiled for the others.
-            if (typeof(T).IsValueType && NinoElements.Rejecting<T, TFormatter>.Value)
-            {
-                reader = NinoElements.ReadPublished<T, TFormatter>(ref value, length, reader);
-                return;
-            }
-
             NinoElements.Read<T, TFormatter>(
                 NinoElements.EnsureLength(ref value, length, NinoElements.CopiedWhole<T, TFormatter>(),
                     NinoElements.ReadOverwrites<T, TFormatter>()), ref reader);
@@ -203,7 +195,7 @@ namespace Nino.Core
                 return;
 
             // Uninitialized only for a block copy, after which the has-value bytes are checked: such a new array
-            // takes the slot once filled (NinoElements.Rejects).
+            // takes the slot once filled (see NinoElements.CopiedWhole).
             if (NinoNullables<T>.Raw)
             {
                 var current = value;

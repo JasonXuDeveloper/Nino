@@ -45,14 +45,6 @@ namespace Nino.Core
                 return;
             }
 
-            // A new list over an uninitialized array the read may reject half way takes the slot once filled (see
-            // ArrayFormatter).
-            if (typeof(T).IsValueType && NinoElements.Rejecting<T, TFormatter>.Value)
-            {
-                reader = ReadPublished(ref value, length, reader);
-                return;
-            }
-
             var list = value;
             // Values each read in full: neither a new list's backing array nor an existing one's new slots need be
             // cleared first.
@@ -70,25 +62,6 @@ namespace Nino.Core
             var span = ListAccess.Open(list, length, overwritten, out var buffer);
             NinoElements.Read<T, TFormatter>(span, ref reader);
             ListAccess.Close(list, length, buffer);
-        }
-
-        /// <summary>
-        /// <see cref="Deserialize"/> of <see cref="NinoElements.Rejecting{T, TFormatter}"/> elements: a new list, over
-        /// an uninitialized array, takes the slot only once filled. Out of line, the reader by value and returned.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader ReadPublished(scoped ref TList value, int length, Reader reader)
-        {
-            var list = value;
-            if (list == null)
-                list = ListAccess.CreateOverwritten<TList, T>(length, uninitialized: true);
-            else if (list.Count > length)
-                NinoRecycler.DiscardAll(ListAccess.AsSpan<T>(list).Slice(length));
-            var span = ListAccess.Open(list, length, overwritten: true, out var buffer);
-            NinoElements.Read<T, TFormatter>(span, ref reader);
-            ListAccess.Close(list, length, buffer);
-            value = list;
-            return reader;
         }
     }
 
@@ -180,7 +153,7 @@ namespace Nino.Core
                 return;
 
             // Uninitialized only for a block copy, after which the has-value bytes are checked: a new list takes the
-            // slot once filled (NinoElements.Rejects).
+            // slot once filled (see NinoElements.CopiedWhole).
             var list = value ?? ListAccess.CreateOverwritten<TList, T?>(length, NinoNullables<T>.Raw);
             var span = ListAccess.Open(list, length, overwritten: true, out var buffer);
             NinoNullables<T>.Read(span, ref reader);
