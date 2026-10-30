@@ -25,7 +25,7 @@ namespace Nino.Codegen.Targets
         /// Whether arrays and lists of fixed-size numbers are typed arrays (<c>Int32Array</c>, <c>Float64Array</c>...;
         /// <c>--numeric-arrays typed</c>) rather than <c>number[]</c> and <c>bigint[]</c> (the default).
         /// </summary>
-        public bool TypedArrays { get; set; }
+        public bool TypedNumericArrays { get; set; }
     }
 
     /// <summary>
@@ -446,7 +446,7 @@ namespace Nino.Codegen.Targets
                     if (value.IsByteArray)
                         return new TsShape("bytes");
                     string? array = null;
-                    if (_options.TypedArrays && !set && element.Kind == "prim" &&
+                    if (_options.TypedNumericArrays && !set && element.Kind == "prim" &&
                         NumberArrays.TryGetValue(element.Primitive!, out array) && array == "Uint8Array")
                         return new TsShape("bytes");
                     // With --numeric-arrays typed, other fixed-size numbers are a typed array, read and written one by
