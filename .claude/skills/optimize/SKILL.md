@@ -91,8 +91,9 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   `new`), BCL internals (`ArrayPool`, string comparers inside `Dictionary`), calls through a shared generic's
   dictionary (`T` a class: `CORINFO_HELP_RUNTIMEHANDLE_METHOD` then `call rax`), and the enumerator of a collection
   declared as an interface whose object is neither a list nor an array. IL2CPP, Mono and NativeAOT do not devirtualize
-  `static readonly` fields: there `CachedFormatter<T>` and the top-level calls without interceptors (Unity's Roslyn
-  4.3) stay one virtual call per value of that type.
+  `static readonly` fields: there `CachedFormatter<T>` (a method's type parameter, another assembly's `[NinoType]`, a
+  type that holds itself) and the top-level calls without interceptors (Unity's Roslyn 4.3) stay one virtual call
+  per value of that type; generic `[NinoType]`s do not use it (Unity kernels and IL2CPP).
 - Do not inline a generic method that needs a runtime lookup into shared code on a hot path.
 - Past the JIT's tracking limit, locals are zeroed in the prolog: rare paths out of line also keep the local count
   down.
@@ -249,6 +250,20 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
 
 ## Unity kernels and IL2CPP
 
+- Give a generic formatter the formatter of each type parameter as a type parameter of its own (`Box_1Formatter<T,
+  __F_T> where __F_T : struct, INinoFormatter<T>`), never `CachedFormatter<T>`: a closed type names its arguments'
+  formatters, so a `T` member is `default(__F_T).Serialize`, a direct call IL2CPP specializes for the value-type
+  formatter argument, where `CachedFormatter<T>` is a `VirtualActionInvoker` per value on IL2CPP (its C++ in
+  `CachedFormatter_1_Deserialize`, unity.yml run 40818519412) and a virtual call on Mono and NativeAOT, which do not
+  devirtualize `static readonly` fields. `[UnsafeAccessor]` externs then move to a class of their own with exactly
+  the type's type parameters (the runtime rejects a declaring class with more: "Generic type constraints do not
+  match"). Leave RyuJIT's inlining of a closed generic base's subtype switch (`__NinoDispatchN.__ReadSubtype`) alone:
+  with per-formatter instances it inlines into the generic `Deserialize` of a box of `(class, int)` (237 to 559
+  bytes, the same instructions per element). Keeping it out of line where two closed bases share code reproduced
+  main's listings yet read boxes of `(class, int)` 3 to 8% slower on every CPU (run 41005255972), and `NoInlining` on
+  every switch made every generic polymorphic deserialize 4 to 18% slower (it also stopped the switch inlining into
+  the element loop over value types, `ReadEach` 375 to 124 bytes; run 40973200874). Inlined, the one loss is that
+  case on Xeon 8573C, 3.6 to 4.9% (runs 40935400095, 40967495867): code placement, not executed work.
 - Never cast `default(TFormatter)` to an interface on a path IL2CPP (or Mono) runs per value: IL2CPP compiles
   `((IFoo)default(TFormatter)).M()` as a GC `Box()` and an `InterfaceFuncInvoker` on every call, where RyuJIT removes
   the box and inlines the struct's method. In the netstandard builds take a boxed instance cached once in a
