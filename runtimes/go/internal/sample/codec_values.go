@@ -477,7 +477,7 @@ func keyString(r *nino.Reader) string {
 }
 
 // readStringSet reads a HashSet<string> in the order of the data: a string (or null) read twice fails.
-func readStringSet(r *nino.Reader) []*string { return nino.UniqueStrings(r, readStringPtrs(r)) }
+func readStringSet(r *nino.Reader) []*string { return nino.CheckUniqueStrings(r, readStringPtrs(r)) }
 
 func readStringList(r *nino.Reader) []*string { return readStringPtrs(r) }
 
@@ -555,7 +555,7 @@ func writeStringGrid(w *nino.Writer, g *Grid[*string]) {
 func readCollectionsBody(r *nino.Reader, v *Collections) {
 	v.Ints = nino.ReadPrimitives[int32](r)
 	v.IntList = nino.ReadPrimitives[int32](r)
-	v.IntSet = nino.UniqueValues(r, nino.ReadPrimitives[int32](r))
+	v.IntSet = nino.CheckUniqueValues(r, nino.ReadPrimitives[int32](r))
 	v.Longs = nino.ReadPrimitives[int64](r)
 	v.Doubles = nino.ReadPrimitives[float64](r)
 	v.Bools = nino.ReadBools(r)

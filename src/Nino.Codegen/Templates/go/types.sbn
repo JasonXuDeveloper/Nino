@@ -63,7 +63,7 @@ func read_members(c)
     else if c.seen_words > 1
       $o = $o + "\tvar seen [" + c.seen_words + "]uint64\n"
     end
-    $o = $o + "\tfor r.More() {\n\t\tkey := r.I32()\n\t\te := r.BeginEntry()\n\t\tswitch key {\n"
+    $o = $o + "\tfor r.More() {\n\t\tkey := r.I32()\n\t\te := r.BeginMember()\n\t\tswitch key {\n"
     for $m in c.members
       $keys = []
       for $k in $m.model.all_keys
@@ -72,7 +72,7 @@ func read_members(c)
       $seen = c.seen_words == 1 ? "&seen, " + for.index : "&seen[" + (for.index // 64) + "], " + (for.index % 64)
       $o = $o + "\t\tcase " + (array.join $keys ", ") + ":\n\t\t\tif r.KeyedSeen(" + $seen + ") {\n\t\t\t\t" + read_into($m.shape, "v." + $m.name) + "\n\t\t\t}\n"
     end
-    $o = $o + "\t\tdefault:\n\t\t\tr.SkipEntry(e)\n\t\t\tcontinue\n\t\t}\n\t\tr.EndEntry(e)\n\t}\n\tr.EndRegion(g)\n"
+    $o = $o + "\t\tdefault:\n\t\t\tr.SkipMember(e)\n\t\t\tcontinue\n\t\t}\n\t\tr.EndMember(e)\n\t}\n\tr.EndRegion(g)\n"
   else if c.format == "tolerant"
     # Members written by an older version end early; those of a newer one are skipped.
     $o = $o + $elements + "\tg := r.BeginRegion()\n"
@@ -106,7 +106,7 @@ func write_members(c)
   if c.format == "keyed"
     $o = $o + "\tg := w.BeginRegion()\n" + $elements
     for $m in c.members
-      $o = $o + "\t" + (for.first ? "e := " : "e = ") + "w.BeginEntry(" + $m.model.key + ")\n\t" + write($m.shape, "v." + $m.name) + "\n\tw.EndEntry(e)\n"
+      $o = $o + "\t" + (for.first ? "e := " : "e = ") + "w.BeginMember(" + $m.model.key + ")\n\t" + write($m.shape, "v." + $m.name) + "\n\tw.EndMember(e)\n"
     end
     $o = $o + "\tw.EndRegion(g)\n"
   else if c.format == "tolerant"
@@ -190,19 +190,19 @@ func helper_body(h)
       $e = "nino.Entry[" + gotype($s.key) + ", " + gotype($s.value) + "]"
       $o = $o + read_loop($e, plus($s.key, $s.value), "k := " + read($s.key) + "\n\t\te = " + $e + "{Key: k, Value: " + read($s.value) + "}")
       # Keys read twice fail, checked once over the pairs.
-      ret $o + ($s.mode == "unique" ? "\treturn nino.UniqueEntries(r, v)\n}\n" : "\treturn v\n}\n")
+      ret $o + ($s.mode == "unique" ? "\treturn nino.CheckUniqueKeys(r, v)\n}\n" : "\treturn v\n}\n")
     end
     # A sequence.
     case $s.mode
     when "unique"
       # Elements read twice fail, checked once over the elements (primitives read as one block).
       if $s.element.block
-        ret $o + "\treturn nino.UniqueValues(r, nino.ReadPrimitives[" + gotype($s.element) + "](r))\n}\n"
+        ret $o + "\treturn nino.CheckUniqueValues(r, nino.ReadPrimitives[" + gotype($s.element) + "](r))\n}\n"
       end
-      ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn nino.UniqueValues(r, v)\n}\n"
+      ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn nino.CheckUniqueValues(r, v)\n}\n"
     when "stringset"
       # A set of strings in the order of the data: a string (or null) read twice fails.
-      ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn nino.UniqueStrings(r, v)\n}\n"
+      ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn nino.CheckUniqueStrings(r, v)\n}\n"
     when "fixed"
       $b = $s.element.raw_block
       if $b

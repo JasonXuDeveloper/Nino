@@ -194,7 +194,7 @@ func readKeyedV1Body(r *nino.Reader, v *KeyedV1) {
 	var seen uint64
 	for r.More() {
 		key := r.I32()
-		e := r.BeginEntry()
+		e := r.BeginMember()
 		switch key {
 		case keyKeyedV1Health:
 			if r.KeyedSeen(&seen, 0) {
@@ -213,28 +213,28 @@ func readKeyedV1Body(r *nino.Reader, v *KeyedV1) {
 				v.Score = r.I64()
 			}
 		default:
-			r.SkipEntry(e)
+			r.SkipMember(e)
 			continue
 		}
-		r.EndEntry(e)
+		r.EndMember(e)
 	}
 	r.EndRegion(g)
 }
 
 func writeKeyedV1Body(w *nino.Writer, v *KeyedV1) {
 	g := w.BeginRegion()
-	e := w.BeginEntry(keyKeyedV1Health)
+	e := w.BeginMember(keyKeyedV1Health)
 	w.I32(v.Health)
-	w.EndEntry(e)
-	e = w.BeginEntry(keyName)
+	w.EndMember(e)
+	e = w.BeginMember(keyName)
 	w.StringPtr(v.Name)
-	w.EndEntry(e)
-	e = w.BeginEntry(keyKeyedV1Items)
+	w.EndMember(e)
+	e = w.BeginMember(keyKeyedV1Items)
 	nino.WritePrimitives(w, v.Items)
-	w.EndEntry(e)
-	e = w.BeginEntry(keyScore)
+	w.EndMember(e)
+	e = w.BeginMember(keyScore)
 	w.I64(v.Score)
-	w.EndEntry(e)
+	w.EndMember(e)
 	w.EndRegion(g)
 }
 
@@ -243,7 +243,7 @@ func readKeyedV2Body(r *nino.Reader, v *KeyedV2) {
 	var seen uint64
 	for r.More() {
 		key := r.I32()
-		e := r.BeginEntry()
+		e := r.BeginMember()
 		switch key {
 		case keyScore:
 			if r.KeyedSeen(&seen, 0) {
@@ -262,28 +262,28 @@ func readKeyedV2Body(r *nino.Reader, v *KeyedV2) {
 				v.Level = r.I32()
 			}
 		default:
-			r.SkipEntry(e)
+			r.SkipMember(e)
 			continue
 		}
-		r.EndEntry(e)
+		r.EndMember(e)
 	}
 	r.EndRegion(g)
 }
 
 func writeKeyedV2Body(w *nino.Writer, v *KeyedV2) {
 	g := w.BeginRegion()
-	e := w.BeginEntry(keyScore)
+	e := w.BeginMember(keyScore)
 	w.I64(v.Score)
-	w.EndEntry(e)
-	e = w.BeginEntry(keyName)
+	w.EndMember(e)
+	e = w.BeginMember(keyName)
 	w.StringPtr(v.Name)
-	w.EndEntry(e)
-	e = w.BeginEntry(keyKeyedV2Hp)
+	w.EndMember(e)
+	e = w.BeginMember(keyKeyedV2Hp)
 	w.I32(v.Hp)
-	w.EndEntry(e)
-	e = w.BeginEntry(keyKeyedV2Level)
+	w.EndMember(e)
+	e = w.BeginMember(keyKeyedV2Level)
 	w.I32(v.Level)
-	w.EndEntry(e)
+	w.EndMember(e)
 	w.EndRegion(g)
 }
 
@@ -293,7 +293,7 @@ func readKeyedStruct(r *nino.Reader) (v KeyedStruct) {
 	var seen uint64
 	for r.More() {
 		key := r.I32()
-		e := r.BeginEntry()
+		e := r.BeginMember()
 		switch key {
 		case keyKeyedStructA:
 			if r.KeyedSeen(&seen, 0) {
@@ -304,10 +304,10 @@ func readKeyedStruct(r *nino.Reader) (v KeyedStruct) {
 				v.B = r.F64()
 			}
 		default:
-			r.SkipEntry(e)
+			r.SkipMember(e)
 			continue
 		}
-		r.EndEntry(e)
+		r.EndMember(e)
 	}
 	r.EndRegion(g)
 	return v
@@ -315,12 +315,12 @@ func readKeyedStruct(r *nino.Reader) (v KeyedStruct) {
 
 func writeKeyedStruct(w *nino.Writer, v KeyedStruct) {
 	g := w.BeginRegion()
-	e := w.BeginEntry(keyKeyedStructA)
+	e := w.BeginMember(keyKeyedStructA)
 	w.I32(v.A)
-	w.EndEntry(e)
-	e = w.BeginEntry(keyKeyedStructB)
+	w.EndMember(e)
+	e = w.BeginMember(keyKeyedStructB)
 	w.F64(v.B)
-	w.EndEntry(e)
+	w.EndMember(e)
 	w.EndRegion(g)
 }
 

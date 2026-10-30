@@ -110,8 +110,8 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 		}
 		r.EndRegion(g)
 	case 8:
-		e := r.BeginEntry()
-		r.SkipEntry(e)
+		e := r.BeginMember()
+		r.SkipMember(e)
 	case 9:
 		v := r.Decimal()
 		check(func(w *Writer) { w.Decimal(v) }, func(b *Reader) bool { return b.Decimal() == v })

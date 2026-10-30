@@ -8,15 +8,15 @@ import (
 	"unsafe"
 )
 
-// Sets and dictionaries read in the order of the data (UniqueValues, UniqueEntries, UniqueStrings and the readers
-// built on them) fail on a key read twice. The keys are checked once all are read, compared as .NET's default
+// Sets and dictionaries read in the order of the data (CheckUniqueValues, CheckUniqueKeys, CheckUniqueStrings and the
+// readers built on them) fail on a key read twice. The keys are checked once all are read, compared as .NET's default
 // comparer compares them: integers and floating-point numbers by their bits (every NaN equal to every other, -0 equal
 // to 0, as double.Equals has it, where Go's == and maps keep NaNs apart), strings by their text. Up to 16 keys are
-// compared pair by pair; more go into an open-addressing table of their own (no map to allocate and fill), indexed
-// by a hash seeded per process: integers multiplied by a random odd number, strings through hash/maphash. Data
-// cannot choose keys that share a slot without knowing the seed, and a key that still probes past maxProbes slots
-// sends the whole check to a path whose cost the data cannot raise: a sort for numbers (pdqsort falls back to
-// heapsort), a Go map (seeded too) for strings. Other comparable keys go through a Go map.
+// compared pair by pair; more go into an open-addressing table of their own (no map to allocate and fill), indexed by a
+// hash seeded per process: integers multiplied by a random odd number, strings through hash/maphash. Data cannot choose
+// keys that share a slot without knowing the seed, and a key that still probes past maxProbes slots sends the whole
+// check to a path whose cost the data cannot raise: a sort for numbers (pdqsort falls back to heapsort), a Go map
+// (seeded too) for strings. Other comparable keys go through a Go map.
 
 // maxProbes bounds the slots one key may probe in a table before the check falls back (see above). With the table at
 // most half full and a seeded hash, honest data almost never comes near it.
