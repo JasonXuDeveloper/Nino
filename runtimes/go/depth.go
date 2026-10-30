@@ -594,30 +594,30 @@ func (w *Writer) endOuterRegion(lengthPos int) {
 	w.PatchInt32(lengthPos, int32(n)|sectionFlag)
 }
 
-// KeyedEntry is a keyed member being read: its value's bytes.
-type KeyedEntry struct {
+// KeyedMember is a keyed member being read: its value's bytes.
+type KeyedMember struct {
 	rest []byte
 }
 
-// BeginEntry reads a keyed entry's length (after its key, inside a keyed region) and limits the reader to the
-// entry's value until [Reader.EndEntry]. A length that is negative or past the region fails.
-func (r *Reader) BeginEntry() KeyedEntry {
+// BeginMember reads a keyed member's length (after its key, inside a keyed region) and limits the reader to the
+// member's value until [Reader.EndMember]. A length that is negative or past the region fails.
+func (r *Reader) BeginMember() KeyedMember {
 	n := r.I32()
 	if r.err != nil {
-		return KeyedEntry{}
+		return KeyedMember{}
 	}
 	if n < 0 || int64(n) > int64(len(r.buf)) {
 		r.badLength(int64(n))
-		return KeyedEntry{}
+		return KeyedMember{}
 	}
 	b := r.buf
 	r.buf = b[:n]
-	return KeyedEntry{rest: b[n:]}
+	return KeyedMember{rest: b[n:]}
 }
 
-// EndEntry ends the entry e: the reader moves past it. A value that left bytes of its entry unread is invalid
+// EndMember ends the member m: the reader moves past it. A value that left bytes of its member unread is invalid
 // (writers make the length exactly the value's; .NET skips the rest).
-func (r *Reader) EndEntry(e KeyedEntry) {
+func (r *Reader) EndMember(m KeyedMember) {
 	if r.err != nil {
 		return
 	}
@@ -625,25 +625,25 @@ func (r *Reader) EndEntry(e KeyedEntry) {
 		r.Fail(CodeInvalidData, "bytes left in a keyed member")
 		return
 	}
-	r.buf = e.rest
+	r.buf = m.rest
 }
 
-// SkipEntry skips the value of a keyed entry whose key the reader does not know (after [Reader.BeginEntry]).
-func (r *Reader) SkipEntry(e KeyedEntry) {
+// SkipMember skips the value of a keyed member whose key the reader does not know (after [Reader.BeginMember]).
+func (r *Reader) SkipMember(m KeyedMember) {
 	if r.err != nil {
 		return
 	}
-	r.buf = e.rest
+	r.buf = m.rest
 }
 
-// BeginEntry writes a keyed entry's key and reserves its length; [Writer.EndEntry] writes the length.
-func (w *Writer) BeginEntry(key int32) int {
+// BeginMember writes a keyed member's key and reserves its length; [Writer.EndMember] writes the length.
+func (w *Writer) BeginMember(key int32) int {
 	w.I32(key)
 	return w.ReserveInt32()
 }
 
-// EndEntry ends the entry whose length is at pos.
-func (w *Writer) EndEntry(pos int) { w.patchLength(pos) }
+// EndMember ends the member whose length is at pos.
+func (w *Writer) EndMember(pos int) { w.patchLength(pos) }
 
 // ReadSealedInto is [ReadSealed] into *v: the object it points to is read into (its members in place), a nil one is
 // replaced by a new object, and null sets it to nil. What deserializing into an existing value reads a sealed class

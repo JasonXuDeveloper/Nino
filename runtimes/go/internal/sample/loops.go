@@ -8,7 +8,7 @@ import (
 
 // The collection loops of the codecs, written out as nino-gen's Go template writes them (read_loop, write_loop):
 // each element's code called directly, never through a function value (optimize-runtimes, "Dispatch outside
-// .NET"); dictionaries checked once with nino.UniqueEntries; fixed-size elements from one Take or ExtendZero.
+// .NET"); dictionaries checked once with nino.CheckUniqueKeys; fixed-size elements from one Take or ExtendZero.
 
 func readAnimals(r *nino.Reader) []Animal {
 	n := r.Length(4)
@@ -76,7 +76,7 @@ func readI32I32Entries(r *nino.Reader) []nino.Entry[int32, int32] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readI32NullableInt32Entries(r *nino.Reader) []nino.Entry[int32, *int32] {
@@ -94,7 +94,7 @@ func readI32NullableInt32Entries(r *nino.Reader) []nino.Entry[int32, *int32] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readI32StringListEntries(r *nino.Reader) []nino.Entry[int32, []*string] {
@@ -112,7 +112,7 @@ func readI32StringListEntries(r *nino.Reader) []nino.Entry[int32, []*string] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readI32StringPtrEntries(r *nino.Reader) []nino.Entry[int32, *string] {
@@ -130,7 +130,7 @@ func readI32StringPtrEntries(r *nino.Reader) []nino.Entry[int32, *string] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readKeyedV1s(r *nino.Reader) []*KeyedV1 {
@@ -321,7 +321,7 @@ func readStringAnimalEntries(r *nino.Reader) []nino.Entry[string, Animal] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readStringDictTreeEntries(r *nino.Reader) []nino.Entry[string, DictTree] {
@@ -339,7 +339,7 @@ func readStringDictTreeEntries(r *nino.Reader) []nino.Entry[string, DictTree] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readStringI32Entries(r *nino.Reader) []nino.Entry[string, int32] {
@@ -357,7 +357,7 @@ func readStringI32Entries(r *nino.Reader) []nino.Entry[string, int32] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readStringPointEntries(r *nino.Reader) []nino.Entry[string, *Point] {
@@ -375,7 +375,7 @@ func readStringPointEntries(r *nino.Reader) []nino.Entry[string, *Point] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readStringPtrs(r *nino.Reader) []*string {
@@ -410,7 +410,7 @@ func readStringStringPtrEntries(r *nino.Reader) []nino.Entry[string, *string] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readTreeNodes(r *nino.Reader) []*TreeNode {

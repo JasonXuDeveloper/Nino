@@ -33,11 +33,11 @@ func checkUnique[K comparable](t *testing.T, keys []K, writeKey func(*Writer, K)
 	if repeated != duplicate(r.Err()) || repeated != (got == nil) || !repeated && (r.Err() != nil || !slices.Equal(got, keys)) {
 		t.Fatalf("set of %d keys (repeated %v): got %v, %v", len(keys), repeated, got, r.Err())
 	}
-	// UniqueValues alone, as generated code calls it after reading the elements itself.
+	// CheckUniqueValues alone, as generated code calls it after reading the elements itself.
 	r = NewReader(nil)
-	values := UniqueValues(r, slices.Clone(keys))
+	values := CheckUniqueValues(r, slices.Clone(keys))
 	if repeated != duplicate(r.Err()) || repeated != (values == nil) || !repeated && !slices.Equal(values, keys) {
-		t.Fatalf("UniqueValues of %d keys (repeated %v): got %v, %v", len(keys), repeated, values, r.Err())
+		t.Fatalf("CheckUniqueValues of %d keys (repeated %v): got %v, %v", len(keys), repeated, values, r.Err())
 	}
 
 	entries := make([]Entry[K, int32], len(keys))
@@ -52,11 +52,11 @@ func checkUnique[K comparable](t *testing.T, keys []K, writeKey func(*Writer, K)
 		t.Fatalf("dictionary of %d keys (repeated %v): got %v, %v", len(keys), repeated, gotEntries, r.Err())
 	}
 
-	// UniqueEntries alone, as generated code calls it after reading the pairs itself.
+	// CheckUniqueKeys alone, as generated code calls it after reading the pairs itself.
 	r = NewReader(nil)
-	checked := UniqueEntries(r, slices.Clone(entries))
+	checked := CheckUniqueKeys(r, slices.Clone(entries))
 	if repeated != duplicate(r.Err()) || repeated != (checked == nil) || !repeated && !slices.Equal(checked, entries) {
-		t.Fatalf("UniqueEntries of %d keys (repeated %v): got %v, %v", len(keys), repeated, checked, r.Err())
+		t.Fatalf("CheckUniqueKeys of %d keys (repeated %v): got %v, %v", len(keys), repeated, checked, r.Err())
 	}
 }
 
@@ -64,17 +64,17 @@ func checkUnique[K comparable](t *testing.T, keys []K, writeKey func(*Writer, K)
 // its first error.
 func TestUniqueNilAndFailed(t *testing.T) {
 	r := NewReader(nil)
-	if UniqueValues[int32](r, nil) != nil || r.Err() != nil {
+	if CheckUniqueValues[int32](r, nil) != nil || r.Err() != nil {
 		t.Fatalf("nil set: %v", r.Err())
 	}
-	if UniqueEntries[int32, int32](r, nil) != nil || r.Err() != nil {
+	if CheckUniqueKeys[int32, int32](r, nil) != nil || r.Err() != nil {
 		t.Fatalf("nil: %v", r.Err())
 	}
 	r.Fail(CodeEndOfData, "")
-	if UniqueEntries(r, []Entry[string, int32]{{"a", 1}}) != nil {
+	if CheckUniqueKeys(r, []Entry[string, int32]{{"a", 1}}) != nil {
 		t.Fatal("a failed reader returned the pairs")
 	}
-	if UniqueValues(r, []string{"a"}) != nil || UniqueValues(r, []int64{1}) != nil {
+	if CheckUniqueValues(r, []string{"a"}) != nil || CheckUniqueValues(r, []int64{1}) != nil {
 		t.Fatal("a failed reader returned the elements")
 	}
 	var e *Error
@@ -311,30 +311,30 @@ func TestUniqueFloatsAsDotNet(t *testing.T) {
 			v := slices.Clone(base)
 			v[0], v[n-1] = pair[0], pair[1]
 			r := NewReader(nil)
-			if UniqueValues(r, v) != nil || r.Err() == nil {
+			if CheckUniqueValues(r, v) != nil || r.Err() == nil {
 				t.Fatalf("%d float64s with %v and %v: accepted", n, pair[0], pair[1])
 			}
 			e := []Entry[float64, int32]{{pair[0], 1}, {pair[1], 2}}
-			if r = NewReader(nil); UniqueEntries(r, e) != nil || r.Err() == nil {
+			if r = NewReader(nil); CheckUniqueKeys(r, e) != nil || r.Err() == nil {
 				t.Fatalf("keys %v and %v: accepted", pair[0], pair[1])
 			}
 			f := make([]float32, n)
 			for i := range f {
 				f[i] = float32(v[i])
 			}
-			if r = NewReader(nil); UniqueValues(r, f) != nil || r.Err() == nil {
+			if r = NewReader(nil); CheckUniqueValues(r, f) != nil || r.Err() == nil {
 				t.Fatalf("%d float32s with %v and %v: accepted", n, pair[0], pair[1])
 			}
 		}
 		v := slices.Clone(base)
 		v[0] = quiet
-		if r := NewReader(nil); UniqueValues(r, v) == nil || r.Err() != nil {
+		if r := NewReader(nil); CheckUniqueValues(r, v) == nil || r.Err() != nil {
 			t.Fatalf("%d float64s with one NaN: %v", n, r.Err())
 		}
 	}
 }
 
-// TestUniqueStrings: sets of nullable strings (UniqueStrings) and of strings, small and large, distinct, with a
+// TestUniqueStrings: sets of nullable strings (CheckUniqueStrings) and of strings, small and large, distinct, with a
 // repeated string or null at both ends and in the middle, and the fallbacks (a sort, a map) against the tables.
 func TestUniqueStrings(t *testing.T) {
 	for _, n := range []int{0, 1, 2, 16, 17, 255, 256, 257, 1000} {
@@ -347,7 +347,7 @@ func TestUniqueStrings(t *testing.T) {
 		check := func(v []*string, want bool) {
 			t.Helper()
 			r := NewReader(nil)
-			got := UniqueStrings(r, v)
+			got := CheckUniqueStrings(r, v)
 			if want != (r.Err() != nil) || want != (got == nil) {
 				t.Fatalf("%d strings (repeated %v): %v", len(v), want, r.Err())
 			}
@@ -357,7 +357,7 @@ func TestUniqueStrings(t *testing.T) {
 			}
 		}
 		check(ptrs, false)
-		if r := NewReader(nil); UniqueValues(r, texts) == nil && n > 0 || r.Err() != nil {
+		if r := NewReader(nil); CheckUniqueValues(r, texts) == nil && n > 0 || r.Err() != nil {
 			t.Fatalf("%d strings: %v", n, r.Err())
 		}
 		if n < 2 {
@@ -374,7 +374,7 @@ func TestUniqueStrings(t *testing.T) {
 			check(dup, false)
 			plain := slices.Clone(texts)
 			plain[at[1]] = plain[at[0]]
-			if r := NewReader(nil); UniqueValues(r, plain) != nil || r.Err() == nil {
+			if r := NewReader(nil); CheckUniqueValues(r, plain) != nil || r.Err() == nil {
 				t.Fatalf("%d strings with a repeat: accepted", n)
 			}
 		}

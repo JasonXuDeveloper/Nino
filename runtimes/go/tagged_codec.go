@@ -149,10 +149,10 @@ func (p *plan) readKeyed(r *Reader, v reflect.Value) {
 	}
 	for r.More() {
 		key := r.I32()
-		e := r.BeginEntry()
+		e := r.BeginMember()
 		i := p.lookupKey(key)
 		if i < 0 || r.err != nil {
-			r.SkipEntry(e)
+			r.SkipMember(e)
 			continue
 		}
 		if seenMany != nil {
@@ -166,7 +166,7 @@ func (p *plan) readKeyed(r *Reader, v reflect.Value) {
 		}
 		f := &p.fields[i]
 		f.c.read(r, p.fieldValue(v, f))
-		r.EndEntry(e)
+		r.EndMember(e)
 	}
 	r.EndRegion(g)
 }
@@ -210,9 +210,9 @@ func (p *plan) writeBody(w *Writer, v reflect.Value) {
 		g := w.BeginRegion()
 		for i := range p.fields {
 			f := &p.fields[i]
-			e := w.BeginEntry(f.key)
+			e := w.BeginMember(f.key)
 			f.c.write(w, p.fieldValue(v, f))
-			w.EndEntry(e)
+			w.EndMember(e)
 		}
 		w.EndRegion(g)
 	}

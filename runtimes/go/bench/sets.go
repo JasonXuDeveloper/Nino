@@ -41,7 +41,7 @@ func SetStrings() []*string {
 
 // ReadIntSet and WriteIntSet are a HashSet<int>, as nino-gen writes them.
 func ReadIntSet(r *nino.Reader) []int32 {
-	return nino.UniqueValues(r, nino.ReadPrimitives[int32](r))
+	return nino.CheckUniqueValues(r, nino.ReadPrimitives[int32](r))
 }
 
 func WriteIntSet(w *nino.Writer, v []int32) { nino.WritePrimitives(w, v) }
@@ -61,7 +61,7 @@ func ReadStringSet(r *nino.Reader) []*string {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueStrings(r, v)
+	return nino.CheckUniqueStrings(r, v)
 }
 
 func WriteStringSet(w *nino.Writer, v []*string) { nino.WriteStringPtrs(w, v) }
