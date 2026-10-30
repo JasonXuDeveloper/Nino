@@ -249,6 +249,17 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
 
 ## Unity kernels and IL2CPP
 
+- Never cast `default(TFormatter)` to an interface on a path IL2CPP (or Mono) runs per value: IL2CPP compiles
+  `((IFoo)default(TFormatter)).M()` as a GC `Box()` and an `InterfaceFuncInvoker` on every call, where RyuJIT removes
+  the box and inlines the struct's method. In the netstandard builds take a boxed instance cached once in a
+  `static readonly` field (`NinoBlock<T, TFormatter>.Formatter`, `NinoSized.Of<T, TFormatter>`), and keep the cast
+  under `#if NET8_0_OR_GREATER`. Evidence (IL2CPP C++, unity.yml run 40818519412, artifact `il2cpp-cpp-6000.3.27f1`):
+  `NinoBlock.WriteEach<(int, long), ...>` boxed the formatter and made an interface call per element whenever no Burst
+  kernel ran, and `NinoSized.Is`/`Serialize` boxed one to three times per top-level `Serialize` (87 and 174 `Box()`
+  sites); after (run 40969941689, exp/devirt-unity) no `Box()` there, a static field load and one interface call. The
+  .NET 8+ FullOpts listings stayed identical (1,048 methods). No call at all needs the loop inside the formatter (a
+  public `INinoBlockFormatter` member, the owner's decision).
+
 - Hold native kernels as function pointers in static fields, never behind a virtual base: `NinoKernels` is a table of
   `delegate* unmanaged[Cdecl]` that `Register` copies into `NinoKernelHook`'s static fields, a missing pointer leaves
   its threshold at `int.MaxValue`, so a call site is one static load, a compare and a `calli` (IL2CPP: a C function
