@@ -108,7 +108,7 @@ func FuzzWireString(f *testing.F) {
 }
 
 // TestWriteStrings writes lists of strings of every kind (empty, nil, not UTF-8, long) with WriteStrings and
-// WriteStringPtrs, with the vector path and without, into buffers of several sizes, against WriteSlice of each
+// WriteStringPtrs, with the vector path and without, into buffers of several sizes, against writeSlice of each
 // string.
 func TestWriteStrings(t *testing.T) {
 	rnd := rand.New(rand.NewSource(2))
@@ -155,8 +155,8 @@ func TestWriteStrings(t *testing.T) {
 				}
 			}
 		}
-		check("WriteStrings", func(w *Writer) { WriteStrings(w, strs) }, func(w *Writer) { WriteSlice(w, strs, (*Writer).String) })
-		check("WriteStringPtrs", func(w *Writer) { WriteStringPtrs(w, ptrs) }, func(w *Writer) { WriteSlice(w, ptrs, (*Writer).StringPtr) })
+		check("WriteStrings", func(w *Writer) { WriteStrings(w, strs) }, func(w *Writer) { writeSlice(w, strs, (*Writer).String) })
+		check("WriteStringPtrs", func(w *Writer) { WriteStringPtrs(w, ptrs) }, func(w *Writer) { writeSlice(w, ptrs, (*Writer).StringPtr) })
 	}
 	check := func(w *Writer) []byte { return w.Bytes() }
 	w := NewWriter(0)
@@ -298,7 +298,7 @@ func BenchmarkStringTiers(b *testing.B) {
 			setReadTier(tier)
 			for range b.N {
 				r := NewReader(data)
-				ReadSlice(r, 1, (*Reader).String)
+				readSlice(r, 1, (*Reader).String)
 			}
 		})
 	}

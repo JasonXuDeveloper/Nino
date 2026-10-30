@@ -148,13 +148,13 @@ func invalidDateOnly(v []DateOnly) int {
 func writeEachBlock[T BlockValue](w *Writer, v []T) {
 	switch v := any(v).(type) {
 	case []DateTime:
-		WriteSlice(w, v, (*Writer).DateTime)
+		writeSlice(w, v, (*Writer).DateTime)
 	case []DateOnly:
-		WriteSlice(w, v, (*Writer).DateOnly)
+		writeSlice(w, v, (*Writer).DateOnly)
 	case []TimeOnly:
-		WriteSlice(w, v, (*Writer).TimeOnly)
+		writeSlice(w, v, (*Writer).TimeOnly)
 	case []Decimal:
-		WriteSlice(w, v, (*Writer).Decimal)
+		writeSlice(w, v, (*Writer).Decimal)
 	}
 }
 

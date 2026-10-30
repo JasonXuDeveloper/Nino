@@ -71,14 +71,17 @@ func TestBlockShapesRoundTrip(t *testing.T) {
 	}
 	each, err := nino.Serialize(stamps, func(w *nino.Writer, v *Stamps) {
 		w.Present(true)
-		nino.WriteSlice(w, v.Times, (*nino.Writer).DateTime)
-		nino.WriteSlice(w, v.Days, (*nino.Writer).DateOnly)
-		nino.WriteSlice(w, v.Clocks, (*nino.Writer).TimeOnly)
-		nino.WriteSlice(w, v.Prices, (*nino.Writer).Decimal)
-		nino.WriteSlice(w, v.Ids, (*nino.Writer).Guid)
-		nino.WriteSlice(w, v.Signed, (*nino.Writer).I128)
-		nino.WriteSlice(w, v.Unsigned, (*nino.Writer).U128)
-		nino.WriteFixed(w, v.Marks, 8, encodeMarked)
+		writeEach(w, v.Times, (*nino.Writer).DateTime)
+		writeEach(w, v.Days, (*nino.Writer).DateOnly)
+		writeEach(w, v.Clocks, (*nino.Writer).TimeOnly)
+		writeEach(w, v.Prices, (*nino.Writer).Decimal)
+		writeEach(w, v.Ids, (*nino.Writer).Guid)
+		writeEach(w, v.Signed, (*nino.Writer).I128)
+		writeEach(w, v.Unsigned, (*nino.Writer).U128)
+		w.Length(len(v.Marks))
+		for _, m := range v.Marks {
+			encodeMarked(w.Extend(8), m)
+		}
 	})
 	if err != nil || !reflect.DeepEqual(data, each) {
 		t.Fatalf("wrote %x, element by element %x (%v)", data, each, err)
@@ -177,3 +180,15 @@ func TestGenericSlotsRoundTrip(t *testing.T) {
 }
 
 func le32(v int32) []byte { return []byte{byte(v), byte(v >> 8), byte(v >> 16), byte(v >> 24)} }
+
+// writeEach writes v one element at a time with write (nil is null): the reference the block writes are compared with.
+func writeEach[T any](w *nino.Writer, v []T, write func(*nino.Writer, T)) {
+	if v == nil {
+		w.Null()
+		return
+	}
+	w.Length(len(v))
+	for _, e := range v {
+		write(w, e)
+	}
+}

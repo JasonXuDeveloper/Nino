@@ -57,7 +57,7 @@ func blockCase[T BlockValue](t *testing.T, rnd *rand.Rand, valid, invalid func()
 		for i := range v {
 			v[i] = valid()
 		}
-		want := encode(t, func(w *Writer) { WriteSlice(w, v, write) })
+		want := encode(t, func(w *Writer) { writeSlice(w, v, write) })
 		if got := encode(t, func(w *Writer) { WriteBlock(w, v) }); !bytes.Equal(got, want) {
 			t.Fatalf("%T n=%d: wrote %x, want %x", zero, n, got, want)
 		}
@@ -73,7 +73,7 @@ func blockCase[T BlockValue](t *testing.T, rnd *rand.Rand, valid, invalid func()
 			bad[i] = invalid()
 			// The writer fails where writing one by one fails, after the same bytes.
 			w1, w2 := NewWriter(0), NewWriter(0)
-			WriteSlice(w1, bad, write)
+			writeSlice(w1, bad, write)
 			WriteBlock(w2, bad)
 			if !sameError(w1.Err(), w2.Err()) || !bytes.Equal(w1.Bytes()[:w1.err.Offset], w2.Bytes()[:w2.err.Offset]) {
 				t.Fatalf("%T n=%d bad=%d: wrote %v, want %v", zero, n, i, w2.Err(), w1.Err())
@@ -85,7 +85,7 @@ func blockCase[T BlockValue](t *testing.T, rnd *rand.Rand, valid, invalid func()
 				encodeBlock(data[4+i*size:], bad[i:i+1])
 			}
 			r1, r2 := NewReader(data), NewReader(data)
-			ReadSlice(r1, size, read)
+			readSlice(r1, size, read)
 			if got := ReadBlock[T](r2); got != nil || !sameError(r1.Err(), r2.Err()) {
 				t.Fatalf("%T n=%d bad=%d: read %v, want %v", zero, n, i, r2.Err(), r1.Err())
 			}

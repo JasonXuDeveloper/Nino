@@ -89,7 +89,7 @@ func encodeRawPoint(b []byte, v rawPoint) {
 	binary.LittleEndian.PutUint16(b[6:], uint16(v.Y))
 }
 
-// TestRawBlocks checks that ReadRaw and WriteRaw, copying blocks, read and write what ReadFixed and WriteFixed do,
+// TestRawBlocks checks that ReadRaw and WriteRaw, copying blocks, read and write what readFixed and writeFixed do,
 // element by element: every length to 40, a bool byte other than 0 or 1 in every element, and asIs false.
 func TestRawBlocks(t *testing.T) {
 	if !rawPointAsIs {
@@ -101,7 +101,7 @@ func TestRawBlocks(t *testing.T) {
 		for i := range v {
 			v[i] = rawPoint{X: float32(i) * 1.5, Flag: i%3 == 1, Kind: int8(-i), Y: int16(i * 1000)}
 		}
-		want := encode(t, func(w *Writer) { WriteFixed(w, v, 8, encodeRawPoint) })
+		want := encode(t, func(w *Writer) { writeFixed(w, v, 8, encodeRawPoint) })
 		for _, asIs := range []bool{true, false} {
 			got := encode(t, func(w *Writer) { WriteRaw(w, v, 8, asIs, bools, nil, encodeRawPoint) })
 			if !bytes.Equal(got, want) {
@@ -188,7 +188,7 @@ func decodeRawWide(r *Reader, b []byte) rawWide {
 }
 
 // checkPadded writes v with its padding bytes set to garbage (through unsafe) with WriteRaw and checks the bytes are
-// WriteFixed's, padding written as zeros.
+// writeFixed's, padding written as zeros.
 func checkPadded[T any](t *testing.T, v []T, size int, asIs bool, bools, pads []int, enc func([]byte, T)) {
 	t.Helper()
 	for i := range v {
@@ -197,14 +197,14 @@ func checkPadded[T any](t *testing.T, v []T, size int, asIs bool, bools, pads []
 			p[o] = byte(0xA5 + i + k)
 		}
 	}
-	want := encode(t, func(w *Writer) { WriteFixed(w, v, size, enc) })
+	want := encode(t, func(w *Writer) { writeFixed(w, v, size, enc) })
 	got := encode(t, func(w *Writer) { WriteRaw(w, v, size, asIs, bools, pads, enc) })
 	if !bytes.Equal(got, want) {
 		t.Fatalf("%T, %d elements: wrote %x, want %x", v, len(v), got, want)
 	}
 }
 
-// TestRawPadded checks WriteRaw on raw structs with padding against WriteFixed: every length to 40 (the mask covers 8
+// TestRawPadded checks WriteRaw on raw structs with padding against writeFixed: every length to 40 (the mask covers 8
 // elements), elements of 12 bytes (the mask) and 40 (byte by byte).
 func TestRawPadded(t *testing.T) {
 	for n := 0; n <= 40; n++ {

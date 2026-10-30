@@ -268,7 +268,7 @@ func (r *Reader) ByteArrayView() []byte {
 // SliceCap returns the capacity to give a slice of n elements of elemSize bytes in memory before reading them:
 // n, unless they would take more than 16 bytes of memory per byte of data left (or 16 KB), and then what fits
 // that bound. Data claiming more elements than it holds then fails after allocating a bounded multiple of the
-// memory of the elements it held (see [ReadSlice], which grows the slice as it reads).
+// memory of the elements it held (as a loop that appends each element read grows the slice).
 func (r *Reader) SliceCap(n, elemSize int) int {
 	return capacity(n, elemSize, len(r.buf))
 }

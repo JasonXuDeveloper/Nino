@@ -255,7 +255,7 @@ func helper_body(h)
 end
 
 # The loop of a sequence's read helper: its length (n), then each element, read by `each` into `e` (of type `t`)
-# with direct calls (no func value an element), appended to `v`. As nino.ReadSlice does: nil for null and on a
+# with direct calls (no func value an element), appended to `v`. As the runtime's own loops do: nil for null and on a
 # failure, the slice presized only as far as the bytes left allow (Reader.SliceCap).
 func read_loop(t, min, each)
   $o = "\tn := r.Length(" + min + ")\n\tif n < 0 {\n\t\treturn nil\n\t}\n" + make_slice(t)

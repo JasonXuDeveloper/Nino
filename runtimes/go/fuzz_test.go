@@ -140,20 +140,20 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 		v := ReadBools(r)
 		check(func(w *Writer) { WriteBools(w, v) }, func(b *Reader) bool { return len(ReadBools(b)) == len(v) })
 	case 16:
-		v := ReadUnique(r, 4, (*Reader).I32)
+		v := readUnique(r, 4, (*Reader).I32)
 		check(func(w *Writer) { WritePrimitives(w, v) }, func(b *Reader) bool {
-			return len(ReadUnique(b, 4, (*Reader).I32)) == len(v)
+			return len(readUnique(b, 4, (*Reader).I32)) == len(v)
 		})
 	case 17:
-		v := ReadMap(r, 5, (*Reader).I32, (*Reader).String)
-		check(func(w *Writer) { WriteMap(w, v, (*Writer).I32, (*Writer).String) }, func(b *Reader) bool {
-			return len(ReadMap(b, 5, (*Reader).I32, (*Reader).String)) == len(v)
+		v := readMap(r, 5, (*Reader).I32, (*Reader).String)
+		check(func(w *Writer) { writeMap(w, v, (*Writer).I32, (*Writer).String) }, func(b *Reader) bool {
+			return len(readMap(b, 5, (*Reader).I32, (*Reader).String)) == len(v)
 		})
 	case 18:
 		s, ok := r.ReadShape(2+int(r.U8()%3), 4)
 		if ok {
 			items := make([]int32, s.Total)
-			ReadPrimitivesInto(r, items)
+			readPrimitivesInto(r, items)
 		}
 	case 19:
 		v := r.Guid()

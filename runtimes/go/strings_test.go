@@ -357,7 +357,7 @@ func BenchmarkWriteString(b *testing.B) {
 	}
 }
 
-// TestReadStrings checks ReadStrings against ReadSlice with Reader.String: the strings WriteStrings wrote (ASCII,
+// TestReadStrings checks ReadStrings against readSlice with Reader.String: the strings WriteStrings wrote (ASCII,
 // Latin-1, UTF-16, long), a null element, null, and every truncation.
 func TestReadStrings(t *testing.T) {
 	strs := []string{"", "a", "héllo", "日本語", strings.Repeat("x", 300), "\U0001F600", "end"}
@@ -380,7 +380,7 @@ func TestReadStrings(t *testing.T) {
 	}
 	// Short text of every length around the in-loop path's bounds (1 to 16 chars of ASCII), Latin-1 and UTF-16 among
 	// it, enough to grow the slice and to fill several blocks of r.text, then a byte after: the same strings as
-	// ReadSlice reads, and nothing past them read.
+	// readSlice reads, and nothing past them read.
 	var many []string
 	for i := range 5000 {
 		s := "abcdefghijklmnopqrstuvwxyz"[:i%20]
@@ -397,7 +397,7 @@ func TestReadStrings(t *testing.T) {
 	w.U8(0x7E)
 	for _, cut := range []int{len(w.Bytes()), len(w.Bytes()) - 1} {
 		r, ref := NewReader(w.Bytes()[:cut]), NewReader(w.Bytes()[:cut])
-		got, want := ReadStrings(r), ReadSlice(ref, 1, (*Reader).String)
+		got, want := ReadStrings(r), readSlice(ref, 1, (*Reader).String)
 		if strings.Join(got, "|") != strings.Join(want, "|") || r.Remaining() != ref.Remaining() ||
 			(r.Err() == nil) != (ref.Err() == nil) || r.Err() != nil && r.Err().Error() != ref.Err().Error() {
 			t.Fatalf("%d strings, cut at %d: %d read (%v), want %d (%v)", len(many), cut, len(got), r.Err(), len(want), ref.Err())
@@ -409,7 +409,7 @@ func TestReadStrings(t *testing.T) {
 	for cut := range len(data) {
 		r := NewReader(data[:cut])
 		ref := NewReader(data[:cut])
-		got, want := ReadStrings(r), ReadSlice(ref, 1, (*Reader).String)
+		got, want := ReadStrings(r), readSlice(ref, 1, (*Reader).String)
 		if got != nil || want != nil || r.Err() == nil || r.Err().Error() != ref.Err().Error() {
 			t.Fatalf("cut at %d: %q (%v), want %q (%v)", cut, got, r.Err(), want, ref.Err())
 		}

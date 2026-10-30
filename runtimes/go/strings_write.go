@@ -549,7 +549,7 @@ func utf16Tail(dst unsafe.Pointer, j int, s string, i int) int {
 }
 
 // WriteStrings writes a sequence of strings (a string[] or List<string>): nil is null. It writes the bytes
-// [WriteSlice] with [Writer.String] writes, many strings in one call where the platform has a vector path.
+// a loop of [Writer.String] writes, many strings in one call where the platform has a vector path.
 func WriteStrings(w *Writer, v []string) {
 	if v == nil {
 		w.Null()

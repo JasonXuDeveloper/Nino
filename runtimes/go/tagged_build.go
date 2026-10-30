@@ -840,7 +840,7 @@ func blockSlice[T any](read func(*Reader) []T, write func(*Writer, []T)) (func(*
 }
 
 // fastMaps holds, for the map types of built-in key and value types a struct most often has, a read and a write
-// on the unsafe path: as generated code does ([ReadMap], and the pairs written in key order as [keyOrder] gives
+// on the unsafe path: as generated code does ([readMap], and the pairs written in key order as [keyOrder] gives
 // them), with no reflect.Value a key or value.
 var fastMaps = map[reflect.Type]fastMap{}
 
@@ -886,14 +886,14 @@ func addFastMaps[K cmp.Ordered](rk func(*Reader) K, wk func(*Writer, K)) {
 func addFastMap[K cmp.Ordered, V any](rk func(*Reader) K, wk func(*Writer, K), rv func(*Reader) V, wv func(*Writer, V)) {
 	fastMaps[reflect.TypeFor[map[K]V]()] = fastMap{codecs: func(pairMin int) (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
 		read := func(r *Reader, v reflect.Value) {
-			m := ReadMap(r, pairMin, rk, rv)
+			m := readMap(r, pairMin, rk, rv)
 			if r.err == nil {
 				v.Set(reflect.ValueOf(m))
 			}
 		}
 		write := func(w *Writer, v reflect.Value) {
 			var room [16]Entry[K, V]
-			WriteEntries(w, sortedEntries(mapAt[K, V](v), room[:0]), wk, wv)
+			writeEntries(w, sortedEntries(mapAt[K, V](v), room[:0]), wk, wv)
 		}
 		return read, write
 	}}

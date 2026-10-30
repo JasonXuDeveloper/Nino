@@ -29,8 +29,8 @@ func ReadPrimitives[T Primitive](r *Reader) []T {
 	return v
 }
 
-// ReadPrimitivesInto reads len(dst) primitives (a block without a length) into dst.
-func ReadPrimitivesInto[T Primitive](r *Reader, dst []T) {
+// readPrimitivesInto reads len(dst) primitives (a block without a length) into dst.
+func readPrimitivesInto[T Primitive](r *Reader, dst []T) {
 	var zero T
 	size := int(unsafe.Sizeof(zero))
 	b := r.Take(len(dst) * size)
@@ -47,11 +47,11 @@ func WritePrimitives[T Primitive](w *Writer, v []T) {
 		return
 	}
 	w.Length(len(v))
-	WritePrimitivesRaw(w, v)
+	writePrimitivesRaw(w, v)
 }
 
-// WritePrimitivesRaw writes primitives as one block, without a length.
-func WritePrimitivesRaw[T Primitive](w *Writer, v []T) {
+// writePrimitivesRaw writes primitives as one block, without a length.
+func writePrimitivesRaw[T Primitive](w *Writer, v []T) {
 	var zero T
 	size := int(unsafe.Sizeof(zero))
 	b := w.Extend(len(v) * size)
@@ -213,7 +213,7 @@ func normalizeBools(b []byte) {
 }
 
 // ReadPrimitiveEntries reads a dictionary of primitive keys and values as its pairs in the order of the data (nil
-// for null): a key read twice fails with CodeDuplicateKey, as [ReadUniqueEntries]. On little-endian hosts, where
+// for null): a key read twice fails with CodeDuplicateKey, as [readUniqueEntries]. On little-endian hosts, where
 // Entry[K, V] has no padding (its memory is the bytes of a pair), the pairs are one block copied as memory; elsewhere
 // (big-endian hosts, a pair such as int8 and int64 that is padded in memory) they are read one at a time.
 func ReadPrimitiveEntries[K, V Primitive](r *Reader) []Entry[K, V] {
@@ -221,7 +221,7 @@ func ReadPrimitiveEntries[K, V Primitive](r *Reader) []Entry[K, V] {
 	size := int(unsafe.Sizeof(e))
 	wire := int(unsafe.Sizeof(e.Key) + unsafe.Sizeof(e.Value))
 	if !littleEndian || size != wire {
-		return ReadUniqueEntries(r, wire, readPrimitive[K], readPrimitive[V])
+		return readUniqueEntries(r, wire, readPrimitive[K], readPrimitive[V])
 	}
 	n := r.Length(size)
 	if n < 0 {
@@ -246,7 +246,7 @@ func WritePrimitiveEntries[K, V Primitive](w *Writer, e []Entry[K, V]) {
 	var p Entry[K, V]
 	size := int(unsafe.Sizeof(p))
 	if !littleEndian || size != int(unsafe.Sizeof(p.Key)+unsafe.Sizeof(p.Value)) {
-		WriteEntries(w, e, writePrimitive[K], writePrimitive[V])
+		writeEntries(w, e, writePrimitive[K], writePrimitive[V])
 		return
 	}
 	if e == nil {
@@ -262,8 +262,8 @@ func WritePrimitiveEntries[K, V Primitive](w *Writer, e []Entry[K, V]) {
 }
 
 // ReadPrimitiveMap reads a dictionary of primitive keys and values into a map (nil for null): a key read twice
-// fails with CodeDuplicateKey, as [ReadMap]. The pairs are one block, checked against the bytes left once, and
-// each key and value is decoded at a constant offset in it (no call per pair); the map is presized as [ReadMap]
+// fails with CodeDuplicateKey, as [readMap]. The pairs are one block, checked against the bytes left once, and
+// each key and value is decoded at a constant offset in it (no call per pair); the map is presized as [readMap]
 // presizes it.
 func ReadPrimitiveMap[K, V Primitive](r *Reader) map[K]V {
 	var k K
@@ -354,12 +354,12 @@ func storePrimitive[T Primitive](b []byte, v T) {
 // readPrimitive reads one primitive in little-endian order.
 func readPrimitive[T Primitive](r *Reader) T {
 	var v [1]T
-	ReadPrimitivesInto(r, v[:])
+	readPrimitivesInto(r, v[:])
 	return v[0]
 }
 
 // writePrimitive writes one primitive in little-endian order.
 func writePrimitive[T Primitive](w *Writer, x T) {
 	v := [1]T{x}
-	WritePrimitivesRaw(w, v[:])
+	writePrimitivesRaw(w, v[:])
 }

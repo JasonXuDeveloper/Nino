@@ -26,8 +26,8 @@ endian_little.go             littleEndian = true on little-endian architectures 
 endian_other.go              littleEndian = false elsewhere (blocks converted element by element)
 unique.go                    duplicate keys of sets and maps read in data order: numbers and strings compared as .NET
                              does, pairwise or in a seeded open-addressing table (the reader's scratch), no map
-collections.go               slices, maps, sets, entries, fixed-size runs, multidimensional shapes; counts checked
-                             against the bytes left, unique keys
+collections.go               slices, maps, sets, entries, fixed-size runs, multidimensional shapes (the func-value
+                             helpers unexported, for the runtime's rare paths); counts checked against the bytes left
 depth.go                     class bodies (Class, ReadClass, WriteClass), regions, deferral past 128, the 512 limit
 poly.go                      polymorphism: TypeID (FNV-1a), Subtype, TypeSet, ReadAny / WriteAny (allowed ids only)
 refs.go                      reference tracking (wire-format spec §7.9): reference headers, Track, Back
@@ -58,6 +58,7 @@ block_test.go                block sizes and ReadBlock / WriteBlock against elem
                              (checked blocks: dates, decimals, bools, raw structs with a bool; Guids as the copy alone)
 raw_test.go                  bool blocks, raw struct blocks and padded structs
 unique_test.go               duplicate keys: integer keys, large sets, primitive entries
+collections_ref_test.go      the func-value collection helpers the runtime dropped, as the tests' references
 reader_test.go               the Reader and Writer against hand-written bytes
 race_test.go, norace_test.go  raceEnabled: allocation counts are checked without the race detector (sync.Pool drops)
 strings_test.go              strings against a plain char-by-char reference; BenchmarkWriteString, BenchmarkUTF16
@@ -108,8 +109,8 @@ requirements:
   (`ReadPrimitives`, `ReadPrimitiveEntries`, `ReadPrimitiveMap`), never the generic helpers that take element
   functions: those are an indirect call per element (`(*Reader).I32` is never inlined through a func value) and a
   bounds check per value. Any other collection loop in generated code is written out with the element's call made directly
-  (nino-gen's `read_loop` / `write_loop`), never `ReadSlice`/`WriteSlice` with a func value (`optimize-runtimes`, "Dispatch
-  outside .NET"). `ReadPrimitiveMap` read a 10-pair `map[int32]int32` 31 % faster than `ReadMap`, and
+  (nino-gen's `read_loop` / `write_loop`), never a helper taking a func value (the runtime keeps `readSlice` and the like unexported, for its own rare paths) (`optimize-runtimes`, "Dispatch
+  outside .NET"). `ReadPrimitiveMap` read a 10-pair `map[int32]int32` 31 % faster than `ReadMap` (now unexported), and
   SimpleClass 4-7 % faster on runners (7ac8b46). Walk a block with a cursor (`for len(b) >= wire { ...; b =
   b[wire:] }`): indexing `b[i*wire:]` kept a bounds check per pair. A runner A/B can move code you did not touch by
   layout: the first map round left the untouched tag write 1.5-7.7 % slower on x64 only; make that path faster too
@@ -129,4 +130,4 @@ requirements:
   `GOTOOLCHAIN=go1.22.12 go vet ./...` before pushing. CI also tests 386, Arm32 and big-endian s390x: run
   `GOARCH=386 go test ./...` (a constant such as `1<<31` compared with an `int` does not build there, and a test that
   hard-codes a pointer's size as 8 reads past its slice; both reached main in r101) and, with qemu-user,
-  `GOARCH=arm go test -exec qemu-arm ./...` and `GOARCH=s390x go test -exec qemu-s390x ./...`.
+  `GOARCH=arm GOMAXPROCS=1 go test -exec qemu-arm ./...` (several Ps crash Go 1.27 under qemu: `platforms`) and `GOARCH=s390x go test -exec qemu-s390x ./...`.

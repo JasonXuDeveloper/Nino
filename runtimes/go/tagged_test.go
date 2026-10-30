@@ -244,7 +244,7 @@ func writeAllByHand(w *Writer, v *tagAll) {
 	for k := range v.Set {
 		w.I32(k)
 	}
-	WriteEntries(w, v.Pairs, (*Writer).I32, (*Writer).StringPtr)
+	writeEntries(w, v.Pairs, (*Writer).I32, (*Writer).StringPtr)
 	if w.Present(v.Small != nil); v.Small != nil {
 		w.I32(v.Small.A)
 		w.StringPtr(v.Small.B)
@@ -725,7 +725,7 @@ func TestParseHex32(t *testing.T) {
 }
 
 // Slices of strings, of a named string type too, read and written without a reflect.Value an element: the bytes of
-// WriteSlice, nil kept apart from empty, and a slice longer than its first capacity.
+// writeSlice, nil kept apart from empty, and a slice longer than its first capacity.
 type tagWord string
 
 type tagStrings struct {
@@ -749,11 +749,11 @@ func TestTagStrings(t *testing.T) {
 		}
 		want, err := Serialize(v, func(w *Writer, v *tagStrings) {
 			w.Present(true)
-			WriteSlice(w, v.Plain, (*Writer).String)
-			WriteSlice(w, v.Named, func(w *Writer, s tagWord) { w.String(string(s)) })
-			WriteSlice(w, v.Nil, (*Writer).String)
-			WriteSlice(w, v.Empty, (*Writer).String)
-			WriteSlice(w, v.Mixed, (*Writer).String)
+			writeSlice(w, v.Plain, (*Writer).String)
+			writeSlice(w, v.Named, func(w *Writer, s tagWord) { w.String(string(s)) })
+			writeSlice(w, v.Nil, (*Writer).String)
+			writeSlice(w, v.Empty, (*Writer).String)
+			writeSlice(w, v.Mixed, (*Writer).String)
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -892,15 +892,15 @@ func TestTagBlocks(t *testing.T) {
 		}
 		want, err := Serialize(v, func(w *Writer, v *tagBlocks) {
 			w.Present(true)
-			WriteSlice(w, v.Bools, (*Writer).Bool)
-			WriteSlice(w, v.Times, (*Writer).DateTime)
-			WriteSlice(w, v.Days, (*Writer).DateOnly)
-			WriteSlice(w, v.Clocks, (*Writer).TimeOnly)
-			WriteSlice(w, v.Prices, (*Writer).Decimal)
-			WriteSlice(w, v.Ids, (*Writer).Guid)
-			WriteSlice(w, v.Signed, (*Writer).I128)
-			WriteSlice(w, v.Unsigned, (*Writer).U128)
-			WriteSlice(w, v.Empty, (*Writer).Bool)
+			writeSlice(w, v.Bools, (*Writer).Bool)
+			writeSlice(w, v.Times, (*Writer).DateTime)
+			writeSlice(w, v.Days, (*Writer).DateOnly)
+			writeSlice(w, v.Clocks, (*Writer).TimeOnly)
+			writeSlice(w, v.Prices, (*Writer).Decimal)
+			writeSlice(w, v.Ids, (*Writer).Guid)
+			writeSlice(w, v.Signed, (*Writer).I128)
+			writeSlice(w, v.Unsigned, (*Writer).U128)
+			writeSlice(w, v.Empty, (*Writer).Bool)
 		})
 		if err != nil || !bytes.Equal(got, want) {
 			t.Fatalf("\n got %X\nwant %X (%v)", got, want, err)

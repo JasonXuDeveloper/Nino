@@ -37,7 +37,7 @@ func (r *Reader) String() string {
 }
 
 // ReadStrings reads a sequence of strings into a []string (nil for null; a null element reads as ""): the bytes
-// [WriteStrings] writes, read as [ReadSlice] with [Reader.String] reads them, without a call through a func value
+// [WriteStrings] writes, read as a loop of [Reader.String] reads them, without a call through a func value
 // per string. Short ASCII text, the common case, is read in the loop itself (the first path of
 // [Reader.NullableString]), with no call a string; any other string through [Reader.String].
 func ReadStrings(r *Reader) []string {

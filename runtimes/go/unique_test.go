@@ -27,9 +27,9 @@ func checkUnique[K comparable](t *testing.T, keys []K, writeKey func(*Writer, K)
 	}
 
 	w := NewWriter(0)
-	WriteSlice(w, keys, writeKey)
+	writeSlice(w, keys, writeKey)
 	r := NewReader(w.Bytes())
-	got := ReadUnique(r, size, readKey)
+	got := readUnique(r, size, readKey)
 	if repeated != duplicate(r.Err()) || repeated != (got == nil) || !repeated && (r.Err() != nil || !slices.Equal(got, keys)) {
 		t.Fatalf("set of %d keys (repeated %v): got %v, %v", len(keys), repeated, got, r.Err())
 	}
@@ -45,9 +45,9 @@ func checkUnique[K comparable](t *testing.T, keys []K, writeKey func(*Writer, K)
 		entries[i] = Entry[K, int32]{k, int32(i)}
 	}
 	w = NewWriter(0)
-	WriteEntries(w, entries, writeKey, (*Writer).I32)
+	writeEntries(w, entries, writeKey, (*Writer).I32)
 	r = NewReader(w.Bytes())
-	gotEntries := ReadUniqueEntries(r, size+4, readKey, (*Reader).I32)
+	gotEntries := readUniqueEntries(r, size+4, readKey, (*Reader).I32)
 	if repeated != duplicate(r.Err()) || repeated != (gotEntries == nil) || !repeated && (r.Err() != nil || !slices.Equal(gotEntries, entries)) {
 		t.Fatalf("dictionary of %d keys (repeated %v): got %v, %v", len(keys), repeated, gotEntries, r.Err())
 	}
@@ -165,8 +165,8 @@ func TestUniqueLargeSets(t *testing.T) {
 }
 
 // checkPrimitiveEntries writes e with WritePrimitiveEntries (one block where Entry[K, V] has no padding on a
-// little-endian host, else a pair at a time) and checks the bytes are those of WriteEntries, then reads them back
-// with ReadPrimitiveEntries and checks the pairs and error against ReadUniqueEntries' (CodeDuplicateKey for a
+// little-endian host, else a pair at a time) and checks the bytes are those of writeEntries, then reads them back
+// with ReadPrimitiveEntries and checks the pairs and error against readUniqueEntries' (CodeDuplicateKey for a
 // repeated key), and that every truncation fails.
 func checkPrimitiveEntries[K, V Primitive](t *testing.T, e []Entry[K, V]) {
 	t.Helper()
@@ -174,7 +174,7 @@ func checkPrimitiveEntries[K, V Primitive](t *testing.T, e []Entry[K, V]) {
 	WritePrimitiveEntries(w, e)
 	b := w.Bytes()
 	ref := NewWriter(0)
-	WriteEntries(ref, e, writePrimitive[K], writePrimitive[V])
+	writeEntries(ref, e, writePrimitive[K], writePrimitive[V])
 	if !bytes.Equal(b, ref.Bytes()) {
 		t.Fatalf("%T: %d pairs: bytes %x, want %x", e, len(e), b, ref.Bytes())
 	}
@@ -192,7 +192,7 @@ func checkPrimitiveEntries[K, V Primitive](t *testing.T, e []Entry[K, V]) {
 	got := ReadPrimitiveEntries[K, V](r)
 	var p Entry[K, V]
 	rr := NewReader(b)
-	want := ReadUniqueEntries(rr, int(unsafe.Sizeof(p.Key)+unsafe.Sizeof(p.Value)), readPrimitive[K], readPrimitive[V])
+	want := readUniqueEntries(rr, int(unsafe.Sizeof(p.Key)+unsafe.Sizeof(p.Value)), readPrimitive[K], readPrimitive[V])
 	if code(r.Err()) != code(rr.Err()) || (got == nil) != (want == nil) || len(got) != len(want) {
 		t.Fatalf("%T: %d pairs: got %d, %v; want %d, %v", e, len(e), len(got), r.Err(), len(want), rr.Err())
 	}
@@ -217,15 +217,15 @@ func checkPrimitiveEntries[K, V Primitive](t *testing.T, e []Entry[K, V]) {
 }
 
 // checkPrimitiveMap reads b (a dictionary's bytes) with ReadPrimitiveMap and checks the map and error against
-// ReadMap's, then writes the map with WritePrimitiveMap and checks those bytes read back as the same map with
-// ReadMap.
+// readMap's, then writes the map with WritePrimitiveMap and checks those bytes read back as the same map with
+// readMap.
 func checkPrimitiveMap[K, V Primitive](t *testing.T, b []byte, code func(error) Code) {
 	t.Helper()
 	var p Entry[K, V]
 	wire := int(unsafe.Sizeof(p.Key) + unsafe.Sizeof(p.Value))
 	r, rr := NewReader(b), NewReader(b)
 	got := ReadPrimitiveMap[K, V](r)
-	want := ReadMap(rr, wire, readPrimitive[K], readPrimitive[V])
+	want := readMap(rr, wire, readPrimitive[K], readPrimitive[V])
 	if code(r.Err()) != code(rr.Err()) || (got == nil) != (want == nil) || !sameMap(got, want) ||
 		r.Remaining() != rr.Remaining() {
 		t.Fatalf("map[%T]%T: got %d, %v; want %d, %v", p.Key, p.Value, len(got), r.Err(), len(want), rr.Err())
@@ -236,7 +236,7 @@ func checkPrimitiveMap[K, V Primitive](t *testing.T, b []byte, code func(error) 
 	w := NewWriter(0)
 	WritePrimitiveMap(w, got)
 	back := NewReader(w.Bytes())
-	if m := ReadMap(back, wire, readPrimitive[K], readPrimitive[V]); back.Err() != nil || back.Remaining() != 0 ||
+	if m := readMap(back, wire, readPrimitive[K], readPrimitive[V]); back.Err() != nil || back.Remaining() != 0 ||
 		!sameMap(m, got) || len(w.Bytes()) != 4+len(got)*wire {
 		t.Fatalf("map[%T]%T: %d pairs written as %x", p.Key, p.Value, len(got), w.Bytes())
 	}
@@ -401,19 +401,19 @@ func TestUniqueFallbacks(t *testing.T) {
 	}
 }
 
-// TestMapNaNKeys: Go maps read from the data (ReadMap, ReadSet, ReadPrimitiveMap, struct tags) reject a second NaN
+// TestMapNaNKeys: Go maps read from the data (readMap, readSet, ReadPrimitiveMap, struct tags) reject a second NaN
 // key, which .NET's comparers find equal to the first.
 func TestMapNaNKeys(t *testing.T) {
 	keys := []float64{1, math.NaN(), 2, math.Float64frombits(0x7FF0000000000001)}
 	w := NewWriter(0)
-	WriteEntries(w, []Entry[float64, int32]{{keys[0], 0}, {keys[1], 1}, {keys[2], 2}, {keys[3], 3}}, (*Writer).F64, (*Writer).I32)
+	writeEntries(w, []Entry[float64, int32]{{keys[0], 0}, {keys[1], 1}, {keys[2], 2}, {keys[3], 3}}, (*Writer).F64, (*Writer).I32)
 	data := w.Bytes()
 	failed := func(r *Reader) bool {
 		var e *Error
 		return errors.As(r.Err(), &e) && e.Code == CodeDuplicateKey
 	}
-	if r := NewReader(data); ReadMap(r, 12, (*Reader).F64, (*Reader).I32) != nil || !failed(r) {
-		t.Fatalf("ReadMap: %v", r.Err())
+	if r := NewReader(data); readMap(r, 12, (*Reader).F64, (*Reader).I32) != nil || !failed(r) {
+		t.Fatalf("readMap: %v", r.Err())
 	}
 	if r := NewReader(data); ReadPrimitiveMap[float64, int32](r) != nil || !failed(r) {
 		t.Fatalf("ReadPrimitiveMap: %v", r.Err())
@@ -423,13 +423,13 @@ func TestMapNaNKeys(t *testing.T) {
 		t.Fatal("struct tags accepted two NaN keys")
 	}
 	ws := NewWriter(0)
-	WriteSlice(ws, keys, (*Writer).F64)
-	if r := NewReader(ws.Bytes()); ReadSet(r, 8, (*Reader).F64) != nil || !failed(r) {
-		t.Fatalf("ReadSet: %v", r.Err())
+	writeSlice(ws, keys, (*Writer).F64)
+	if r := NewReader(ws.Bytes()); readSet(r, 8, (*Reader).F64) != nil || !failed(r) {
+		t.Fatalf("readSet: %v", r.Err())
 	}
 	// One NaN is fine.
 	w = NewWriter(0)
-	WriteEntries(w, []Entry[float64, int32]{{1, 0}, {math.NaN(), 1}}, (*Writer).F64, (*Writer).I32)
+	writeEntries(w, []Entry[float64, int32]{{1, 0}, {math.NaN(), 1}}, (*Writer).F64, (*Writer).I32)
 	if r := NewReader(w.Bytes()); len(ReadPrimitiveMap[float64, int32](r)) != 2 || r.Err() != nil {
 		t.Fatalf("one NaN: %v", r.Err())
 	}
