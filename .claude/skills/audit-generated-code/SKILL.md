@@ -61,7 +61,7 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - nino-gen output follows each runtime's performance and safety rules (`runtimes/*/AGENTS.md`): one bounds check per
   run of fixed-size members, bounds checked before allocating, depth counted as .NET does, rare paths out of line.
 - No dispatch per element: every loop nino-gen writes calls the element's code directly (no func value, interface
-  call or closure per element; `optimize`, "Dispatch outside .NET").
+  call or closure per element; `optimize-runtimes`, "Dispatch outside .NET").
 
 ## Proof
 

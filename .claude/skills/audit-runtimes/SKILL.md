@@ -44,7 +44,7 @@ to a read path.
 - SIMD beyond strings where it measures faster (primitive blocks, bool validation, fixed-size records, transcoding),
   with the portable path kept and tested (Go `purego`, Rust without the features, TypeScript without WebAssembly).
 - Hot paths: one bounds check per run of fixed-size members and per loop (the idioms per language are in
-  `optimize`, "Bounds checks"), no reflection or boxing outside polymorphic slots, rare
+  `optimize-runtimes`, "Bounds checks"), no reflection or boxing outside polymorphic slots, rare
   paths out of line (`//go:noinline`, `#[inline(never)]`), writing a value free of allocations.
 
 ## Templates (nino-gen)

@@ -18,7 +18,8 @@ One round = parallel audits, each in its own worktree and branch off `origin/mai
 | `audit-core` | `src/Nino.Core`, `src/Nino.Immutable`, `src/Nino.AspNetCore`, `src/Nino.UnityTypes` | correctness, redundancy, coupling, lifecycle, threads, platform fallbacks |
 | `audit-security` | every read path (.NET and the runtimes), `tests/Nino.Fuzz`, the malicious corpus | hostile input that crashes, over-allocates, recurses or reads outside |
 | `audit-perf` | no files: research, prototypes, A/B on runners | the next win, gaps against MemoryPack and each runtime's competitors |
-| `optimize` | read and write paths' machine code (with the owners of the files) | budget overruns, spills, calls in loops, per-ISA problems |
+| `optimize` | .NET and Unity read and write paths' machine code (with the owners of the files) | budget overruns, spills, calls in loops, per-ISA problems |
+| `optimize-runtimes` | the Go, Rust and TypeScript hot paths and nino-gen's generated loops (with the owners) | calls through func values or closures, bounds checks, GC and allocation, kernels per target |
 | `audit-generator` | `src/Nino.Generator` pipeline, models, `src/Nino.Generator.Roslyn*` | incremental rules, IDE cost, shapes that do not compile |
 | `audit-generated-code` | the templates and emitters of `src/Nino.Generator/Generation/Emit`, nino-gen's templates | generated text and its machine code |
 | `audit-analyzer` | `src/Nino.Generator/Analysis`, `src/Nino.Generator.CodeFixes` | missing rules, false positives, code fixes, tests per rule |
@@ -29,8 +30,8 @@ One round = parallel audits, each in its own worktree and branch off `origin/mai
 | `audit-docs` | README, README.zh.md, `docs/`, CONTRIBUTING.md, runtime READMEs, `skills/nino-serialization`, nino.docs | docs that disagree with the code or each other, duplication, gaps |
 
 `audit-generator`, `audit-generated-code` and `audit-analyzer` share `src/Nino.Generator`: give the shared files
-(`NinoSymbols.cs`, `Model*.cs`) to one of them, or run them in different rounds. `optimize` and `audit-perf`
-report findings to the owner of the file unless the round gives them the file. `audit-naming` reports only, so it
+(`NinoSymbols.cs`, `Model*.cs`) to one of them, or run them in different rounds. `optimize`, `optimize-runtimes` and
+`audit-perf` report findings to the owner of the file unless the round gives them the file. `audit-naming` reports only, so it
 runs beside any of them; `audit-redundancy` reports its findings to each owner, or fixes them itself in a round where
 the owners are not running.
 

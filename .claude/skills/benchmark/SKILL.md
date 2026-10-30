@@ -8,7 +8,7 @@ metadata:
 # Benchmarks
 
 Every number that counts comes from a GitHub runner. Local runs only choose between ideas; runners decide; only
-`report.yml` publishes. Where the next win is: `audit-perf`. The techniques: `optimize`. The files and options:
+`report.yml` publishes. Where the next win is: `audit-perf`. The techniques: `optimize` (.NET, Unity) and `optimize-runtimes`. The files and options:
 `benchmarks/AGENTS.md` and benchmarks/README.md (read it instead of guessing an option).
 
 ## What to run
