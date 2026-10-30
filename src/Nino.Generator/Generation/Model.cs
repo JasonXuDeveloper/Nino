@@ -169,7 +169,7 @@ internal sealed record DepthModel(
     // A class whose body can be read after its instance is in its slot (see NinoDepth): created without its
     // members (not by a constructor taking them) and not compared by value.
     bool Deferrable,
-    // Whether a class body may hold class bodies (see NinoBody.Nests): false lets it skip the depth count.
+    // Whether a class body may hold class bodies (see NinoBodyTraits.Nests): false lets it skip the depth count.
     bool Nests,
     // How deep below its own check a value can check the depth (TypeFacts.DepthBound): -1 if it opens no class
     // body, TypeFacts.Unbounded when not known.

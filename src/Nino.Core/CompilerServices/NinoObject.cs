@@ -30,7 +30,7 @@ namespace Nino.Core.CompilerServices
                 return;
             }
 
-            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
+            if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
             {
                 default(TFormatter).WriteBody(sub, ref writer);
                 return;
@@ -205,7 +205,7 @@ namespace Nino.Core.CompilerServices
             int depth = reader.Depth;
             if (depth >= NinoDepth.Inline)
             {
-                if ((default(TFormatter).Traits & NinoBody.Deferrable) != 0)
+                if ((default(TFormatter).Traits & NinoBodyTraits.Deferrable) != 0)
                 {
                     if (value == null)
                         value = default(TFormatter).Create();
@@ -216,7 +216,7 @@ namespace Nino.Core.CompilerServices
                 return;
             }
 
-            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
+            if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
             {
                 default(TFormatter).ReadBody(ref value, ref reader);
                 return;
@@ -243,7 +243,7 @@ namespace Nino.Core.CompilerServices
                 return;
             }
 
-            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
+            if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
             {
                 // Nothing nests in this body: the depth it would count is seen by no other body.
                 default(TFormatter).WriteBody(value, ref writer);
@@ -261,7 +261,7 @@ namespace Nino.Core.CompilerServices
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
-            if ((default(TFormatter).Traits & NinoBody.Deferrable) != 0)
+            if ((default(TFormatter).Traits & NinoBodyTraits.Deferrable) != 0)
             {
                 writer.DeferBody<T, TFormatter>(value);
                 return;
@@ -304,7 +304,7 @@ namespace Nino.Core.CompilerServices
             int depth = reader.Depth;
             if (depth >= NinoDepth.Inline)
             {
-                if ((default(TFormatter).Traits & NinoBody.Deferrable) != 0)
+                if ((default(TFormatter).Traits & NinoBodyTraits.Deferrable) != 0)
                 {
                     // The instance is created here and passed by value: a local whose address reaches a call is
                     // an untracked GC slot, zeroed in the prolog and again after every inlined copy of this path
@@ -328,7 +328,7 @@ namespace Nino.Core.CompilerServices
                 return;
             }
 
-            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
+            if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
             {
                 // Nothing nests in this body: the depth it would count is seen by no other body.
                 default(TFormatter).ReadBody(ref value, ref reader);
@@ -573,7 +573,7 @@ namespace Nino.Core.CompilerServices
         /// <summary>
         /// Generated <c>__Top</c> formatters: <see cref="SerializeSealed{T,TFormatter}"/> with a writer that the
         /// top-level call just created (no body open, so none is deferred), for a body that opens no class body
-        /// (no <see cref="NinoBody.Nests"/>): the depth stays 0. Little IL: inlined into the caller
+        /// (no <see cref="NinoBodyTraits.Nests"/>): the depth stays 0. Little IL: inlined into the caller
         /// with the body, it leaves the JIT's inlining budget to the body's own helpers.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

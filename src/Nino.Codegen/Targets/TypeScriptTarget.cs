@@ -723,8 +723,9 @@ namespace Nino.Codegen.Targets
         }
 
         /// <summary>
-        /// Whether a class body may hold other class bodies (<c>NinoBody.Nests</c>): it counts the depth for them, and
-        /// at depth 0, ends with the bodies deferred below it. Saying so of one that does not changes no byte.
+        /// Whether a class body may hold other class bodies (<c>NinoBodyTraits.Nests</c>): it counts the depth for
+        /// them, and at depth 0, ends with the bodies deferred below it. Saying so of one that does not changes no
+        /// byte.
         /// </summary>
         internal bool Nests(TypeModel type) =>
             type.Members.Select(m => m.Value).Append(type.Elements).Any(v => v != null && Opens(ShapeIn(type, v)));

@@ -23,8 +23,9 @@ namespace Nino.Core.CompilerServices
         void ReadBody(ref T value, ref Reader reader);
 
         /// <summary>
-        /// What the body does, as <see cref="NinoBody"/> flags (a constant): <see cref="NinoBody.Nests"/> and
-        /// <see cref="NinoBody.Deferrable"/>. One member for both: generated formatters implement it for every type.
+        /// What the body does, as <see cref="NinoBodyTraits"/> flags (a constant):
+        /// <see cref="NinoBodyTraits.Nests"/> and <see cref="NinoBodyTraits.Deferrable"/>. One member for both:
+        /// generated formatters implement it for every type.
         /// </summary>
         int Traits { get; }
 
@@ -34,7 +35,7 @@ namespace Nino.Core.CompilerServices
 
     /// <summary>The flags of <see cref="INinoBodyFormatter{T}.Traits"/>.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static class NinoBody
+    public static class NinoBodyTraits
     {
         /// <summary>
         /// The body may hold class bodies (through its members' formatters). A body that cannot skips the depth count:

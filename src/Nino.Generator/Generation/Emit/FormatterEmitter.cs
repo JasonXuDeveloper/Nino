@@ -371,7 +371,7 @@ internal static class FormatterEmitter
     private static void EmitDeferral(CodeWriter w, TypeModel m)
     {
         string t = m.TypeName;
-        // NinoBody.Nests and NinoBody.Deferrable.
+        // NinoBodyTraits.Nests and NinoBodyTraits.Deferrable.
         int traits = (m.Depth.Nests ? 1 : 0) | (m.Depth.Deferrable ? 2 : 0);
         w.Line($"public int Traits => {traits};");
         if (!m.Depth.Deferrable)

@@ -37,7 +37,7 @@ namespace Nino.Core
                 return;
             }
 
-            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
+            if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
             {
                 default(TFormatter).WriteBody(As(ref value), ref writer);
                 return;
@@ -60,7 +60,7 @@ namespace Nino.Core
                 }
 
                 // value is null or exactly a TSub, and the body stores a TSub: the slot is read as a TSub slot.
-                if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
+                if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
                 {
                     default(TFormatter).ReadBody(ref Unsafe.As<object, TSub>(ref value), ref reader);
                     return;

@@ -991,10 +991,10 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   `WriteMembers`) reserves the region's length and those members together (`Writer.BeginRegion(size, out
   lengthPosition)`): one capacity check instead of two.
 * Body formatters report whether they open class bodies and can be read later in one `Traits` property
-  (`NinoBody.Nests | NinoBody.Deferrable`, constants the JIT folds), not two, and the registration of each type
-  (`TryRegister`/`TryRegisterTop`/`TryRegisterFixed` and `NinoPolymorphic.Register`) is emitted straight into the
-  assembly's registry instead of a `__Register()` method per formatter called from it: fewer members per type for
-  the compiler to bind and emit (see `v4-benchmarks.md`, compile time).
+  (`NinoBodyTraits.Nests | NinoBodyTraits.Deferrable`, constants the JIT folds), not two, and the registration of
+  each type (`TryRegister`/`TryRegisterTop`/`TryRegisterFixed` and `NinoPolymorphic.Register`) is emitted straight
+  into the assembly's registry instead of a `__Register()` method per formatter called from it: fewer members per type
+  for the compiler to bind and emit (see `v4-benchmarks.md`, compile time).
 
 ### The API generated code calls
 
@@ -1004,7 +1004,7 @@ Generated formatters call Nino.Core directly: `Writer`/`Reader`, the built-in fo
 (and Nino's own packages: Nino.Immutable, Nino.UnityTypes) live in the namespace `Nino.Core.CompilerServices`, folder
 `CompilerServices/`: `NinoObject`, `NinoDirect`, `NinoUnsafe`, `INinoBodyFormatter<T>`, `INinoTopFormatter<T>`,
 `INinoRawBodyFormatter<T>`, `INinoFixedSizeFormatter<T>`, `INinoBlockFormatter<T>` with `NinoBlockMap` and `NinoBlocks`,
-`INinoRawFormatter`, `NinoBody`, `NinoPolymorphic<TBase>`
+`INinoRawFormatter`, `NinoBodyTraits`, `NinoPolymorphic<TBase>`
 and the `NinoSubtypeHandler` it returns, `[NinoGenerated]`, `INinoRegistry` and `NinoEffectiveSettings`. The name
 says who calls them: user code never needs a `using` for it, generated code names them with `global::`, and a
 namespace of their own keeps them out of completion lists and away from user types of the same name (Nino.AspNetCore's
@@ -1085,7 +1085,7 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   boundary would otherwise be written as one block, since splitting that block costs an extra reservation.
 * `[assembly: NinoTypeLayout(typeof(T), format, header, trackReferences, raw, typeId, "members", Deferrable = ...)]`
   publishes what the formatter writes (issue #197): whether a body nested past `NinoDepth.Inline` is deferred (the
-  formatter's `NinoBody.Deferrable` trait, which readers in other languages need), and each member as
+  formatter's `NinoBodyTraits.Deferrable` trait, which readers in other languages need), and each member as
   `name:type:encoding` (keyed members add `:key=0x...`).
   The encoding describes the bytes, not the formatter class (`WireEncoding`, computed by `FormatterResolver` next
   to each formatter): `string`, `utf8`, `object`, `type(T)` for a `[NinoType]`, `nullable(E)`, `seq(E)`,

@@ -50,7 +50,7 @@ NinoTypeLayoutAttribute.cs   [assembly: NinoTypeLayout]: the published wire layo
 ## CompilerServices/ (public, for generated code)
 
 ```
-FormatterInterfaces.cs       INinoBodyFormatter<T> (+ NinoBody flags), INinoRawBodyFormatter<T>, INinoTopFormatter<T>
+FormatterInterfaces.cs       INinoBodyFormatter<T> (+ NinoBodyTraits), INinoRawBodyFormatter<T>, INinoTopFormatter<T>
                              (__Top twins), INinoFixedSizeFormatter<T>, INinoBlockFormatter<T>, INinoRawFormatter,
                              INinoPrefetchFormatter (classes whose long collections prefetch, in a
                              project built with NinoPrefetchLargeCollections)
