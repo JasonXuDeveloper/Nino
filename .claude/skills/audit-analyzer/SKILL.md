@@ -15,6 +15,10 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
 
 - Every declaration the generator cannot serialize gets a rule (Error when it cannot work, Warning when it works but
   costs or is likely wrong), so a user never meets "no formatter" at run time for something the compiler could see.
+  That includes what generated code writes but cannot: a generic `[NinoType]` closed over a type without a formatter
+  (`Box<Action>`, anywhere in a member's type) is NINO007 with "writing a value of it throws", because its formatter
+  takes `CachedFormatter<Action>`; the generator keeps the member, so the bytes stay (the owner's call, round 101).
+  Only type parameters a serialized member uses count (`Tag<Action>` writes fine).
 - Every pattern that works but costs (a member that defeats raw copying, a format that adds bytes nobody needs, a
   pooled type without its hooks) gets a Warning that names the cheaper form.
 - Mistakes from the FAQ and the pitfalls pages (`docs/pitfalls.md`, the site's FAQ) that no rule catches are findings.
