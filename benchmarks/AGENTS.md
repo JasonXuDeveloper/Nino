@@ -31,7 +31,7 @@ members/                     member-by-member v3 against v4 (run.sh: v3, v4, v3 
                              shared/Parts.cs built as v3/P3.csproj (NuGet 3.3.13) and v4/P4.csproj; table.py,
                              split-asm.py; results/ ignored
 bdn.py                       the one parser of BenchmarkDotNet github reports, units and FLOOR_NS (1 ns), for the
-                             scripts below
+                             scripts below; show: the time format of every release-body table
 merge_reports.py             merges the reports of parallel jobs into one report (report.yml)
 compact_report.py            shortens a merged report for a release body (125,000-character limit)
 compare_v3.py                v3 3.3.13 against v4 from two SimpleTest reports, with both MemoryPack runs

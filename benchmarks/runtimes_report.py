@@ -25,6 +25,8 @@ import os
 import re
 import sys
 
+from bdn import show
+
 HEADINGS = {
     "typescript": "## 🌐 TypeScript runtime benchmark",
     "go": "## 🐹 Go runtime benchmark",
@@ -39,14 +41,6 @@ ARM64_HEADINGS = {
 
 # Set by --arch: the headings and the words that name the machine.
 ARCH = None
-
-
-def time(ns):
-    """A time in the unit that keeps it readable: 151.2 ns, 17.04 μs, 3.21 ms."""
-    for unit, size in (("s", 1e9), ("ms", 1e6), ("μs", 1e3)):
-        if ns >= size:
-            return f"{ns / size:.2f} {unit}"
-    return f"{ns:.1f} ns"
 
 
 def size(n):
@@ -87,7 +81,7 @@ def typescript(path, tag):
     for r in data["rows"]:
         hz = f"{r['hz']:,.0f}/s" if r["hz"] >= 10 else f"{r['hz']:.1f}/s"
         cells.setdefault((r["scenario"], r["op"]), {})[r["serializer"]] = \
-            f"{time(r['mean'] * 1e6)}{spread(r['rme'])} ({hz})"
+            f"{show(r['mean'] * 1e6)}{spread(r['rme'])} ({hz})"
         if r["op"] == "serialize":
             cells.setdefault((r["scenario"], "size"), {})[r["serializer"]] = size(r["bytes"])
     # serializeInto: Nino's serialize into one NinoWriter reset per value (bench.ts, operations).
@@ -111,7 +105,7 @@ def typescript_json_only(data, tag):
     rows = ["| Scenario | Nino serialize | JSON.stringify | Nino deserialize | JSON.parse | Nino size | JSON size |",
             "|---|--:|--:|--:|--:|--:|--:|"]
     for r in data["rows"]:
-        ms = lambda x: time(x * 1e6)
+        ms = lambda x: show(x * 1e6)
         rows.append(f"| {r['name']} | {ms(r['serialize'])} | {ms(r['stringify'])} | {ms(r['deserialize'])} | "
                     f"{ms(r['parse'])} | {size(r['ninoBytes'])} | {size(r['jsonBytes'])} |")
     intro = (f"The code nino-gen generates for `runtimes/typescript/bench` (`Program.cs`'s types), against `JSON`, "
@@ -153,7 +147,7 @@ def go(path, tag):
 
     for name, (sec, ci) in units["sec/op"].items():
         case, op, who = key(name)
-        cells.setdefault((case, op), {})[who] = time(sec * 1e9) + (f" ±{ci}" if ci and ci != "∞" else "")
+        cells.setdefault((case, op), {})[who] = show(sec * 1e9) + (f" ±{ci}" if ci and ci != "∞" else "")
     for name, (v, _) in units.get("allocs/op", {}).items():
         case, op, who = key(name)
         cells.setdefault((case, f"{op} allocs"), {})[who] = f"{v:.0f}"
@@ -201,7 +195,7 @@ def rust(directory, tag, log=None):
     for group in dict.fromkeys(group for group, _ in times):
         for op in ("serialize", "deserialize"):
             for w, (mean, pct) in times.get((group, op), {}).items():
-                cells.setdefault((group, op), {})[w] = time(mean) + spread(pct)
+                cells.setdefault((group, op), {})[w] = show(mean) + spread(pct)
         for w, n in sizes.get(group, {}).items():
             cells.setdefault((group, "size"), {})[w] = size(n)
     who = pivot(cells, ["nino", "prost", "rmp-serde", "bincode", "postcard", "serde_json"])

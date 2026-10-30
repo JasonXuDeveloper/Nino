@@ -25,7 +25,7 @@ import os
 import sys
 import xml.etree.ElementTree as ElementTree
 
-from runtimes_report import time
+from bdn import show
 
 HEADING = "## 🎮 Unity benchmark (Burst, IL2CPP)"
 LEGEND = 'Each time is the median per call; "Speedup" is without Burst divided by with Burst.'
@@ -184,7 +184,7 @@ def table(run):
     rows = ["| Case | Operation | Without Burst | With Burst | Speedup |", "|---|---|--:|--:|--:|"]
     for case, operation, times in run["rows"]:
         scalar, burst = times[WITHOUT], times[WITH]
-        rows.append(f"| {cell(case)} | {operation} | {time(scalar)} | {time(burst)} | {speedup(scalar, burst)} |")
+        rows.append(f"| {cell(case)} | {operation} | {show(scalar)} | {show(burst)} | {speedup(scalar, burst)} |")
     return rows
 
 
