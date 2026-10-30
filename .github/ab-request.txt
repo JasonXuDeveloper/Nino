@@ -1164,3 +1164,4 @@ rust 9064fa6eaf66860147350dc9f69a33dfacd2e775 9064fa6eaf66860147350dc9f69a33dfac
 typescript cff5bd50f498118807e2350d0f9fe46f52d356c4 20468a3d6df289f4460594d321a7b18281a7e4ba int-set # r101-runtimes ts sets and NinoKeyGuard cost
 typescript cff5bd50f498118807e2350d0f9fe46f52d356c4 cff5bd50f498118807e2350d0f9fe46f52d356c4 string-set # r101-runtimes ts sets
 rust 9064fa6eaf66860147350dc9f69a33dfacd2e775 e3e9bee64829521998a2aeb59036f35a973c4991 records-1000 # r101-runtimes rust sealed_read!/PREFETCH_BYTES
+typescript 179af9674bbe4693213a0dec89d28cafe99d42b1 884a99b988c423b22add9aa0d5d291aecc098592 int-set # r101-runtimes TS set from array (base: NinoKeyGuard commit)
