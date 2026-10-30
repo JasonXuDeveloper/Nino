@@ -484,7 +484,9 @@ internal sealed record DispatchEntry(string TypeName, string FormatterName, stri
 
 // A closed generic [NinoType] ancestor (global name) and its definition (global name, as the definition's TypeModel
 // names it).
-internal sealed record GenericAncestor(string Type, string Definition);
+// SharedCode: the type with its classes as System.__Canon, the code the runtime shares between such instances; empty
+// where every type argument is a value type (ModelBuilder.SharedCode).
+internal sealed record GenericAncestor(string Type, string Definition, string SharedCode);
 
 // RegisteringReferences: one formatter (open name) of each referenced assembly that registers formatters.
 internal sealed record GeneratorOptions(string AssemblyName, bool HasModuleInitializer, bool HasUnityEngine,

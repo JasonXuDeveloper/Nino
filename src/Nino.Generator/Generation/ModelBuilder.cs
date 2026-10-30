@@ -258,7 +258,8 @@ internal static class ModelBuilder
                 .Where(static a => a.TypeKind == TypeKind.Interface).Select(Global)),
             NinoGenericAncestors: new EquatableArray<GenericAncestor>(ancestors
                 .Where(a => !a.IsDefinition && facts.Visibility.CanName(a))
-                .Select(a => new GenericAncestor(Global(a), Global(a.OriginalDefinition)))));
+                .Select(a => new GenericAncestor(Global(a), Global(a.OriginalDefinition),
+                    SharedInstance(a) ? SharedCode(a) : ""))));
     }
 
     /// <summary>
@@ -341,6 +342,20 @@ internal static class ModelBuilder
     /// their concrete types.
     /// A base over a subtype's own type parameters is shared either way, and stays reused.
     /// </summary>
+    /// <summary>
+    /// <paramref name="type"/> as the runtime's shared code sees it: every class among its type arguments (at any depth)
+    /// replaced by <c>__Canon</c>, so two closed types with the same result run the same generic code.
+    /// </summary>
+    private static string SharedCode(INamedTypeSymbol type) =>
+        Global(type.OriginalDefinition) + "<" + string.Join(",", AllTypeArguments(type).Select(Argument)) + ">";
+
+    private static string Argument(ITypeSymbol type) => type switch
+    {
+        _ when type.IsReferenceType => "__Canon",
+        INamedTypeSymbol { IsGenericType: true } n => SharedCode(n),
+        _ => Global(type),
+    };
+
     private static bool SharedInstance(INamedTypeSymbol type)
     {
         var arguments = new List<ITypeSymbol>();

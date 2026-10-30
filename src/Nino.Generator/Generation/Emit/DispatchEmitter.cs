@@ -54,8 +54,9 @@ internal static class DispatchEmitter
             // base, in a class of its own (where ReadExact is not shared code). The generic formatter selects it by
             // comparing types, which the JIT folds where the type arguments are value types; for reference types it is
             // one lookup in the method's generic context.
-            var closed = entries.Where(static t => t.IsTarget).SelectMany(static t => t.GenericAncestors)
-                .Where(a => a.Definition == e.TypeName).Select(static a => a.Type).Distinct()
+            var ancestors = entries.Where(static t => t.IsTarget).SelectMany(static t => t.GenericAncestors)
+                .Where(a => a.Definition == e.TypeName).ToList();
+            var closed = ancestors.Select(static a => a.Type).Distinct()
                 .OrderBy(static a => a, System.StringComparer.Ordinal).ToList();
             var classes = new List<string>();
             foreach (var c in closed)
@@ -63,7 +64,7 @@ internal static class DispatchEmitter
                 string name = $"__NinoDispatch{closedCount++}";
                 classes.Add(name);
                 w.Open($"static class {name}");
-                EmitBase(w, c, Subtypes(subtypesOf, c, 0));
+                EmitBase(w, c, Subtypes(subtypesOf, c, 0), outOfLine: SharesCode(ancestors, c));
                 w.Close();
                 w.Line();
             }
@@ -125,8 +126,16 @@ internal static class DispatchEmitter
         return subtypes;
     }
 
+    /// <summary>Whether another closed base among <paramref name="ancestors"/> runs the same shared code as <paramref name="type"/>.</summary>
+    private static bool SharesCode(List<GenericAncestor> ancestors, string type)
+    {
+        string code = ancestors.First(a => a.Type == type).SharedCode;
+        return code.Length != 0 &&
+               ancestors.Where(a => a.SharedCode == code).Select(static a => a.Type).Distinct().Count() > 1;
+    }
+
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
-    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry> subtypes)
+    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry> subtypes, bool outOfLine = false)
     {
         w.Block($"internal static void __WriteSubtype({t} value, ref {Core}Writer writer)", () =>
         {
@@ -140,6 +149,13 @@ internal static class DispatchEmitter
             w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.Serialize(value, ref writer);");
         });
         w.Line();
+        // Out of line where the generic formatter that selects it is code the runtime shares with another closed base
+        // here (Box<(A, int)> and Box<(B, int)>: one comparison of types each, through the generic context): inlined
+        // there, the switch made that body 237 to 559 bytes and the read of a box of (class, int) 3.6% slower on Xeon
+        // 8573C. Elsewhere it is inlined into the element loop or the one comparison (NoInlining everywhere cost 4 to
+        // 18%, run 40973200874).
+        if (outOfLine)
+            w.Line(GeneratedCode.NoInline);
         w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref {Core}Reader reader)", () =>
         {
             if (subtypes.Count != 0)
