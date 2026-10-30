@@ -3,9 +3,8 @@
 > Read when: reading or changing the source generator, the emitted formatter code, the analyzer, the code fixes or the Roslyn 4.8 / 4.12 builds.
 
 The incremental generator and the analyzer (netstandard2.0, loaded by every Roslyn host and by Unity), packed as
-`Nino.Generator` with its other builds and the code fixes (section below). The root CLAUDE.md's "Source generator"
-section applies. `audit-generator` audits the pipeline and models, `audit-generated-code` `Generation/Emit`,
-`audit-analyzer` `Analysis/` and the code fixes.
+`Nino.Generator` with its other builds and the code fixes (section below). `audit-generator` audits the
+pipeline and models, `audit-generated-code` `Generation/Emit`, `audit-analyzer` `Analysis/` and the code fixes.
 
 When you add, rename or delete a file here, update its line (`tools/agents.sh --check` fails on a `.cs` file it does
 not find named here).

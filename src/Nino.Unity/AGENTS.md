@@ -5,7 +5,7 @@
 A Unity 2022.3 project (ProjectSettings/ProjectVersion.txt: 2022.3.62f2) holding the OpenUPM package
 `com.jasonxudeveloper.nino` and the tests Unity runs on it. The package ships prebuilt DLLs: the netstandard2.1
 Nino.Core, the Roslyn 4.3 generator, the code fixes and Nino.UnityTypes. Only the Unity tests touch it (paths below);
-`audit-code` audits this directory, the root CLAUDE.md's "Machine code" section applies to the Burst kernels.
+`audit-code` audits this directory; `optimize` applies to the Burst kernels.
 
 ```
 .gitignore                   Unity's own ignores (Library/, Temp/, Logs/, ...); the root .gitignore does not cover them

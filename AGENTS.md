@@ -57,7 +57,7 @@ conformance/    the corpus every runtime reads and writes (valid and malicious c
 docs/           design, wire-format spec, codegen, diagnostics, pitfalls, benchmark notes (Markdown in the repository)
 tools/          CodeGen (generated formatter families), agents.sh
 build/          the props users import to turn the generator on
-.github/        workflows, the setup-dotnet action, release and test scripts
+.github/        workflows, composite actions (setup-dotnet, apt-install), release and CI scripts
 skills/         the public skill nino-serialization: how AI agents use Nino (`npx skills add JasonXuDeveloper/Nino`)
 .claude/skills/ the development skills (internal); .agents/skills links here
 ```

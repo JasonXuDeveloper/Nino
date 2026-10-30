@@ -4,8 +4,8 @@
 
 netstandard2.0 and net8.0 (trimmable, NativeAOT compatible) library, packed as `Nino.Immutable`: formatters for the
 eight immutable collections, registered with `[assembly: NinoFormatter]` so generated code and the runtime resolver
-bind them. Writes the bytes of the matching mutable collection. `audit-core` audits it; the root CLAUDE.md's
-"Machine code" rules (building a runtime's own objects) apply to the tree builders.
+bind them. Writes the bytes of the matching mutable collection. `audit-core` audits it; the
+tree builders follow `runtime-internals` (building a runtime's own objects).
 
 ```
 Nino.Immutable.csproj        targets, the Nino.Core reference (-p:NinoCoreTfm=netstandard2.0 / 2.1 picks a build),

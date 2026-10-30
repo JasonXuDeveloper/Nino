@@ -3,9 +3,8 @@
 > Read when: reading or changing anything in `src/Nino.Core` (the runtime: the public API, formatters, Reader/Writer, settings, polymorphism, pooling, the internal fast paths).
 
 The runtime every generated formatter calls, packed as `Nino.Serialization`; netstandard2.0, netstandard2.1 (Unity,
-.NET Framework: no hardware intrinsics), net8.0 and net10.0 (trimmable, NativeAOT compatible). The root CLAUDE.md's
-"Machine code" and "Security" sections apply to every read and write path here. `audit-core` audits this directory,
-`audit-security` its read paths, `optimize` their machine code.
+.NET Framework: no hardware intrinsics), net8.0 and net10.0 (trimmable, NativeAOT compatible).
+`audit-core` audits this directory, `audit-security` its read paths, `optimize` their machine code.
 
 When you add, rename or delete a file here, update its line (`tools/agents.sh --check` fails on a `.cs` file it does
 not find named here).
