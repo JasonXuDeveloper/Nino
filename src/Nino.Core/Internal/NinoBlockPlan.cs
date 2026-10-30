@@ -471,6 +471,26 @@ namespace Nino.Core.Internal
             /// <inheritdoc cref="Masks32"/>
             public static readonly Vector128<byte>[] Masks16 = Plan?.Masks16() ?? new Vector128<byte>[8];
 
+            /// <summary>
+            /// Reads: whether the groups check the bools of the blocks they move (<see cref="Bools"/>) in the same pass,
+            /// in place of the strided pass before them (NinoBlock.LanesChecked; AVX-512 CPUs take
+            /// <see cref="ReadPlan{TPhase}.Checks"/> instead). 32-byte groups only: on Arm64, Lanes16 is at the edge of
+            /// the JIT's inlining budget. Not for values that <see cref="Shuffles"/> moves after the groups without a
+            /// look; the others are read one at a time, through ReadBlock, which checks them.
+            /// </summary>
+            public static readonly bool Checks = Plan is { Width: 32 } && typeof(TDirection) == typeof(NinoReads) &&
+                                                 Bools != null && !Shuffles && !ReadPlan<NinoPhase0>.Enabled;
+
+            /// <summary>
+            /// For each vector of <see cref="Checks"/>, 0xFE at the bools of the values in it (fields: the JIT reads each
+            /// where it is used, vpand's memory operand).
+            /// </summary>
+            public static readonly Vector256<byte> BoolsA = BoolMask(0), BoolsB = BoolMask(1), BoolsC = BoolMask(2),
+                BoolsD = BoolMask(3);
+
+            private static Vector256<byte> BoolMask(int vector) =>
+                Checks ? Vector256.Create(Plan.Bools(vector, Bools, NinoBlock.Size<T, TFormatter>())) : default;
+
             private static int Get(int index) => Plan == null ? 0 : Plan.Windows[index];
 
             /// <summary>
@@ -712,6 +732,24 @@ namespace Nino.Core.Internal
 
     /// <summary>From memory to their blocks.</summary>
     internal struct NinoWrites : INinoDirection
+    {
+    }
+
+    /// <summary>
+    /// Whether NinoBlock's lane groups check the bools of what they read, as a type argument
+    /// (<see cref="NinoBlock{T, TFormatter}.LanePlan{TDirection}.Checks"/>).
+    /// </summary>
+    internal interface INinoBoolChecks
+    {
+    }
+
+    /// <summary>The lane groups check the bools they read.</summary>
+    internal struct NinoChecked : INinoBoolChecks
+    {
+    }
+
+    /// <summary>The lane groups do not check bools (writes, values without bools, or checked by a pass before).</summary>
+    internal struct NinoUnchecked : INinoBoolChecks
     {
     }
 #endif
