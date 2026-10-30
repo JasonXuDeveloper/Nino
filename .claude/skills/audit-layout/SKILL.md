@@ -34,8 +34,10 @@ its own `AGENTS.md` maps every file in it.
 - `git mv`, then update every reference: workflows (paths, `paths:` filters, cache keys), solution and project files,
   scripts that call each other, docs and READMEs, AGENTS.md maps, skills, `.gitattributes` and `.gitignore`.
   `git grep -n '<old path>'` must come back empty (history pages excepted).
-- A move that published packages, OpenUPM or users' builds depend on (`src/Nino.Unity` is published from its path,
-  `build/` props are imported by users) stays where it is unless the owner agrees.
+- A move that published packages, OpenUPM or users' builds depend on (`src/Nino.Unity` is published from its path;
+  the props and targets in each package's `build/` folder, such as `src/Nino.Generator/build`, are what NuGet imports
+  into users' builds) stays where it is unless the owner agrees. The root `build/` is not one of them: only this
+  repository's projects import it.
 - Run `verify` for what the references touch, `actionlint` for workflows, and `tools/agents.sh` (then `--check`).
 
 ## Adding files that nothing builds
