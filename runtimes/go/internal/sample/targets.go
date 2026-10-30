@@ -32,22 +32,22 @@ func (c *TargetCodec[T]) Write(w *nino.Writer, v *Target[T]) { nino.WriteSealed(
 // The targets' members.
 
 func ReadIntMap(r *nino.Reader) []nino.Entry[int32, int32] {
-	return nino.ReadUniqueEntries(r, 8, (*nino.Reader).I32, (*nino.Reader).I32)
+	return readI32I32Entries(r)
 }
 
 func WriteIntMap(w *nino.Writer, v []nino.Entry[int32, int32]) {
-	nino.WriteEntries(w, v, (*nino.Writer).I32, (*nino.Writer).I32)
+	writeI32I32Entries(w, v)
 }
 
 func ReadStringIntMap(r *nino.Reader) []nino.Entry[string, int32] {
-	return nino.ReadUniqueEntries(r, 5, keyString, (*nino.Reader).I32)
+	return readStringI32Entries(r)
 }
 
 func WriteStringIntMap(w *nino.Writer, v []nino.Entry[string, int32]) {
-	nino.WriteEntries(w, v, (*nino.Writer).String, (*nino.Writer).I32)
+	writeStringI32Entries(w, v)
 }
 
-func ReadIntSet(r *nino.Reader) []int32 { return nino.ReadUnique(r, 4, (*nino.Reader).I32) }
+func ReadIntSet(r *nino.Reader) []int32 { return nino.UniqueValues(r, nino.ReadPrimitives[int32](r)) }
 
 func ReadStringSet(r *nino.Reader) []*string { return readStringSet(r) }
 
@@ -55,26 +55,26 @@ func ReadStringList(r *nino.Reader) []*string { return readStringList(r) }
 
 func WriteStringList(w *nino.Writer, v []*string) { writeStringList(w, v) }
 
-func ReadIntGrid(r *nino.Reader) *Grid[int32] { return readGrid(r, 4, (*nino.Reader).I32) }
+func ReadIntGrid(r *nino.Reader) *Grid[int32] { return readIntGrid(r) }
 
-func WriteIntGrid(w *nino.Writer, v *Grid[int32]) { writeGrid(w, v, (*nino.Writer).I32) }
+func WriteIntGrid(w *nino.Writer, v *Grid[int32]) { writeIntGrid(w, v) }
 
-func ReadMaybeIntArray(r *nino.Reader) []*int32 { return nino.ReadFixed(r, 8, decodeStrideInt32) }
+func ReadMaybeIntArray(r *nino.Reader) []*int32 { return readStrideInt32s(r) }
 
 func WriteMaybeIntArray(w *nino.Writer, v []*int32) {
-	nino.WriteFixed(w, v, 8, encodeStrideInt32)
+	writeStrideInt32s(w, v)
 }
 
 func ReadMaybeInt(r *nino.Reader) *int32 { return readNullableInt32(r) }
 
 func WriteMaybeInt(w *nino.Writer, v *int32) { writeNullableInt32(w, v) }
 
-func ReadPaddedArray(r *nino.Reader) []Padded { return nino.ReadFixed(r, 16, decodePadded) }
+func ReadPaddedArray(r *nino.Reader) []Padded { return readPaddeds(r) }
 
-func WritePaddedArray(w *nino.Writer, v []Padded) { nino.WriteFixed(w, v, 16, encodePadded) }
+func WritePaddedArray(w *nino.Writer, v []Padded) { writePaddeds(w, v) }
 
-func ReadPointList(r *nino.Reader) []*Point { return nino.ReadSlice(r, 1, ReadPoint) }
+func ReadPointList(r *nino.Reader) []*Point { return readPoints(r) }
 
-func WritePointList(w *nino.Writer, v []*Point) { nino.WriteSlice(w, v, WritePoint) }
+func WritePointList(w *nino.Writer, v []*Point) { writePoints(w, v) }
 
 func ReadBig(r *nino.Reader) *big.Int { return r.BigInteger() }

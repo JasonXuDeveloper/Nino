@@ -142,12 +142,12 @@ func writeKeyedChainBody(w *nino.Writer, v *KeyedChain) {
 
 func readTreeNodeBody(r *nino.Reader, v *TreeNode) {
 	v.Value = r.I32()
-	v.Children = nino.ReadSlice(r, 1, ReadTreeNode)
+	v.Children = readTreeNodes(r)
 }
 
 func writeTreeNodeBody(w *nino.Writer, v *TreeNode) {
 	w.I32(v.Value)
-	nino.WriteSlice(w, v.Children, WriteTreeNode)
+	writeTreeNodes(w, v.Children)
 }
 
 func readRedLinkBody(r *nino.Reader, v *RedLink) {
@@ -211,7 +211,7 @@ func readTree(r *nino.Reader) Tree {
 	if !r.EnterStruct() {
 		return nil
 	}
-	v := nino.ReadSlice(r, 4, readTree)
+	v := readTrees(r)
 	r.ExitStruct()
 	return v
 }
@@ -220,7 +220,7 @@ func writeTree(w *nino.Writer, v Tree) {
 	if !w.EnterStruct() {
 		return
 	}
-	nino.WriteSlice(w, v, writeTree)
+	writeTrees(w, v)
 	w.ExitStruct()
 }
 
@@ -228,7 +228,7 @@ func readDictTree(r *nino.Reader) DictTree {
 	if !r.EnterStruct() {
 		return nil
 	}
-	v := nino.ReadUniqueEntries(r, 5, keyString, readDictTree)
+	v := readStringDictTreeEntries(r)
 	r.ExitStruct()
 	return v
 }
@@ -237,7 +237,7 @@ func writeDictTree(w *nino.Writer, v DictTree) {
 	if !w.EnterStruct() {
 		return
 	}
-	nino.WriteEntries(w, v, (*nino.Writer).String, writeDictTree)
+	writeStringDictTreeEntries(w, v)
 	w.ExitStruct()
 }
 
