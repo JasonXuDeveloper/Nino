@@ -259,22 +259,22 @@ func writeBoxStringBody(w *nino.Writer, v *BoxString) {
 
 func readBoxPointsBody(r *nino.Reader, v *BoxPoints) {
 	v.Name = r.StringPtr()
-	v.Value = nino.ReadSlice(r, 1, ReadPoint)
+	v.Value = readPoints(r)
 }
 
 func writeBoxPointsBody(w *nino.Writer, v *BoxPoints) {
 	w.StringPtr(v.Name)
-	nino.WriteSlice(w, v.Value, WritePoint)
+	writePoints(w, v.Value)
 }
 
 func readBoxVec2Body(r *nino.Reader, v *BoxVec2) {
 	v.Name = r.StringPtr()
-	v.Value = readRaw(r, 8, decodeVec2)
+	v.Value = readVec2(r)
 }
 
 func writeBoxVec2Body(w *nino.Writer, v *BoxVec2) {
 	w.StringPtr(v.Name)
-	writeRaw(w, v.Value, 8, encodeVec2)
+	writeVec2(w, v.Value)
 }
 
 func readSquareBody(r *nino.Reader, v *Square) {
@@ -304,23 +304,23 @@ func writePlainBody(w *nino.Writer, v *Plain) { w.I32(v.Value) }
 func readZooBody(r *nino.Reader, v *Zoo) {
 	v.Star = ReadAnimal(r)
 	v.Dog = ReadDogType(r)
-	v.Animals = nino.ReadSlice(r, 4, ReadAnimal)
-	v.Cages = nino.ReadSlice(r, 4, ReadAnimal)
+	v.Animals = readAnimals(r)
+	v.Cages = readAnimals(r)
 	v.Shape = ReadShape(r)
-	v.Shapes = nino.ReadSlice(r, 4, ReadShape)
+	v.Shapes = readShapes(r)
 	v.Plain = ReadPlain(r)
 	v.Anything = ReadObject(r)
-	v.ByName = nino.ReadUniqueEntries(r, 5, keyString, ReadAnimal)
+	v.ByName = readStringAnimalEntries(r)
 }
 
 func writeZooBody(w *nino.Writer, v *Zoo) {
 	WriteAnimal(w, v.Star)
 	WriteDogType(w, v.Dog)
-	nino.WriteSlice(w, v.Animals, WriteAnimal)
-	nino.WriteSlice(w, v.Cages, WriteAnimal)
+	writeAnimals(w, v.Animals)
+	writeAnimals(w, v.Cages)
 	WriteShape(w, v.Shape)
-	nino.WriteSlice(w, v.Shapes, WriteShape)
+	writeShapes(w, v.Shapes)
 	WritePlain(w, v.Plain)
 	WriteObject(w, v.Anything)
-	nino.WriteEntries(w, v.ByName, (*nino.Writer).String, WriteAnimal)
+	writeStringAnimalEntries(w, v.ByName)
 }

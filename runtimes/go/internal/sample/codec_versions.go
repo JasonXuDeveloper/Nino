@@ -327,13 +327,13 @@ func writeKeyedStruct(w *nino.Writer, v KeyedStruct) {
 func readKeyedHolderBody(r *nino.Reader, v *KeyedHolder) {
 	v.Keyed = ReadKeyedV1(r)
 	v.Struct = readKeyedStruct(r)
-	v.Array = nino.ReadSlice(r, 1, ReadKeyedV1)
+	v.Array = readKeyedV1s(r)
 }
 
 func writeKeyedHolderBody(w *nino.Writer, v *KeyedHolder) {
 	WriteKeyedV1(w, v.Keyed)
 	writeKeyedStruct(w, v.Struct)
-	nino.WriteSlice(w, v.Array, WriteKeyedV1)
+	writeKeyedV1s(w, v.Array)
 }
 
 func ReadKeyedStruct(r *nino.Reader) KeyedStruct     { return readKeyedStruct(r) }

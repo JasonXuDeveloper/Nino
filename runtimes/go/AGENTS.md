@@ -75,8 +75,9 @@ internal/
   corpustest/                runs the conformance corpus (valid, malicious, truncations) over a set of codecs;
                              render.go: values to the corpus's JSON (reflection, test code only)
   sample/                    the corpus's types (conformance/Nino.Conformance/Types.cs) with hand-written codecs in the
-                             style a generator emits (codec_*.go), their ids, layouts and tags; conformance, deep,
-                             registry and tagged tests; FuzzDecode, FuzzTaggedDecode
+                             style a generator emits (codec_*.go; their collection loops and raw values in loops.go, as
+                             the template writes them), their ids, layouts and tags; conformance, deep, registry and
+                             tagged tests; FuzzDecode, FuzzTaggedDecode
   generated/                 nino_types.go: the corpus's types as nino-gen writes them (do not edit), its corpus test and
                              into_test.go (DeserializeInto: objects, slices, slots, failures, deferral);
                              shapes/: tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it, round-tripped
