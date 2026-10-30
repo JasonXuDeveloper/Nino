@@ -89,6 +89,14 @@ namespace Test.Runtime.Burst
             cases.Add(One("SimpleClass", BenchClass.Create(random)));
             cases.Add(Values("SimpleClass[100]",
                 Enumerable.Range(0, 100).Select(_ => BenchClass.Create(random)).ToArray()));
+            // A generic [NinoType] against its non-generic twin, 1,000 of each: the members of BenchBox<long> are
+            // direct calls as BenchLongs' are (they were a virtual call each through CachedFormatter<long>).
+            cases.Add(Values("BenchBox<long>[1000] (4 longs, generic)",
+                Enumerable.Range(0, 1000).Select(i => new BenchBox<long> { A = i, B = 2L * i, C = 3L * i, D = 4L * i })
+                    .ToArray()));
+            cases.Add(Values("BenchLongs[1000] (4 longs, non-generic)",
+                Enumerable.Range(0, 1000).Select(i => new BenchLongs { A = i, B = 2L * i, C = 3L * i, D = 4L * i })
+                    .ToArray()));
             // [NinoUtf8] text: ASCII, whose UTF-8 the kernels write and read, and CJK, where the kernels stop at the first
             // char and .NET's encoder and decoder do it all.
             foreach (int n in Lengths)

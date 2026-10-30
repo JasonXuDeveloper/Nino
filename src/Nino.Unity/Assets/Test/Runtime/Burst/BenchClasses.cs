@@ -53,5 +53,30 @@ namespace Test.Runtime.Burst
             };
         }
     }
+
+    /// <summary>
+    /// A generic [NinoType] and its non-generic twin (BurstBenchmark's two "4 longs" cases): a member of type T calls the
+    /// formatter the closed type names, where it made a virtual call through CachedFormatter&lt;T&gt; per value under
+    /// IL2CPP before the generated formatters took their type arguments' formatters; the two should now take the same
+    /// time.
+    /// </summary>
+    [NinoType]
+    public sealed partial class BenchBox<T>
+    {
+        public T A;
+        public T B;
+        public T C;
+        public T D;
+    }
+
+    /// <summary>The non-generic twin of <see cref="BenchBox{T}"/> over <c>long</c>.</summary>
+    [NinoType]
+    public sealed partial class BenchLongs
+    {
+        public long A;
+        public long B;
+        public long C;
+        public long D;
+    }
 }
 #endif
