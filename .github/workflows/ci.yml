@@ -533,18 +533,40 @@ jobs:
           delete-merged: true
           retention-days: 30
 
-  # Run benchmarks on PRs only
-  benchmark:
-    name: Run Benchmarks (${{ matrix.classes }})
-    runs-on: ubuntu-26.04
-    # Independent of the tests, so it runs beside them. A quick signal (ShortRun, Nino against MemoryPack); the full,
-    # published numbers come from report.yml on release. The classes run in parallel, as in report.yml.
+  # A pull request's quick benchmark signal: the A/B shards of benchmarks/shards.json ("ab": Nino and MemoryPack, the
+  # list ab-bench.yml runs), so a new class is benchmarked here once it is in a shard. The full, published numbers
+  # come from report.yml on release.
+  benchmark-plan:
+    name: Plan the benchmark shards
     if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - name: Checkout the shard list
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: benchmarks/shards.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Plan
+        id: plan
+        run: |
+          echo "shards=$(jq -c '[.ab[] | {id, filters: (.filters | join(" "))}]' benchmarks/shards.json)" >> "$GITHUB_OUTPUT"
+
+  benchmark:
+    name: Run Benchmarks (${{ matrix.shard.id }})
+    needs: benchmark-plan
+    runs-on: ubuntu-26.04
+    # Independent of the tests, so it runs beside them.
     timeout-minutes: 90
     strategy:
       fail-fast: false
+      max-parallel: 6   # grows with shards.json, like ab-bench.yml's
       matrix:
-        classes: [ SimpleTest PooledTest, CommonTypesTest FixedSizeTest GenericPolymorphicTest, PolymorphicTest VersionTolerantTest BclTypesTest, CollectionsTest ReferenceTest PooledGraphTest ScatteredTest ]
+        shard: ${{ fromJSON(needs.benchmark-plan.outputs.shards) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -564,22 +586,14 @@ jobs:
           dotnet run -c Release --no-build -- --verify
 
       - name: Run benchmarks
+        env:
+          FILTERS: ${{ matrix.shard.filters }}
         run: |
           cd benchmarks/Nino.Benchmark
-          echo "Running benchmarks for PR #${{ github.event.pull_request.number }}..."
-          FILTERS=()
-          for CLASS in ${{ matrix.classes }}; do FILTERS+=("*.$CLASS.Nino*" "*.$CLASS.MemoryPack*"); done
-          dotnet run -c Release --no-build -- --filter "${FILTERS[@]}"
-
-          # Verify benchmark results exist (check for any github markdown file)
-          MARKDOWN_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | head -n1 || true)
-          if [[ -n "$MARKDOWN_FILE" && -f "$MARKDOWN_FILE" ]]; then
-            echo "✅ Benchmark completed successfully - found report file:"
-            echo "$MARKDOWN_FILE"
-          else
-            echo "❌ Benchmark results not found"
-            echo "Looking for markdown files in results directory..."
-            find BenchmarkDotNet.Artifacts -name "*.md" -type f || echo "No markdown files found"
+          read -ra filters <<< "$FILTERS"
+          dotnet run -c Release --no-build -- --filter "${filters[@]}"
+          if ! find BenchmarkDotNet.Artifacts/results -name '*-report-github.md' | grep -q .; then
+            echo "::error::no benchmark report was written"
             exit 1
           fi
 
@@ -587,6 +601,6 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
-          name: benchmark-results-pr-${{ github.event.pull_request.number }}-${{ strategy.job-index }}
+          name: benchmark-results-pr-${{ github.event.pull_request.number }}-${{ matrix.shard.id }}
           path: benchmarks/Nino.Benchmark/**/BenchmarkDotNet.Artifacts/results
           retention-days: 30

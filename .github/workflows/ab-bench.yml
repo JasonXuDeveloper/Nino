@@ -97,6 +97,8 @@ jobs:
     timeout-minutes: 240
     strategy:
       fail-fast: false
+      # Grows with shards.json's "ab" list: capped like every matrix a file or a request can grow (audit-ci).
+      max-parallel: 6
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     env:

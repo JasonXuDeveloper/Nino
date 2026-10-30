@@ -175,6 +175,9 @@ jobs:
     timeout-minutes: 150
     strategy:
       fail-fast: false
+      # The matrix grows with shards.json (two jobs a shard): capped, so a release takes at most 12 of the account's
+      # concurrent jobs here, beside the runtime benchmarks and Unity, and pushes to main still find runners.
+      max-parallel: 12
       matrix:
         # benchmarks/shards.json, "report" (the target job's Plan the shards step).
         include: ${{ fromJSON(needs.target.outputs.matrix) }}

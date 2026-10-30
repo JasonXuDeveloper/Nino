@@ -142,8 +142,9 @@ jobs:
           retention-days: 30
 
   # The targets split over runners (target i on shard i mod n): libFuzzer runs one target at a time, so one runner
-  # takes the sum of every target's time. Three at night and by hand (an hour on one runner), two on pushes and
-  # pull requests (ten seconds a target: the build is a third of the time).
+  # takes the sum of every target's time. Three at night and by hand (an hour on one runner), one on pushes and
+  # pull requests (ten seconds a target, under four minutes in all: two runners there finished a minute or two
+  # sooner, but held a second slot of the account's concurrent jobs while ci.yml's waited).
   libfuzzer:
     name: libFuzzer (SharpFuzz, ${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-26.04
@@ -151,7 +152,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '[1, 2, 3]' || '[1, 2]') }}
+        shard: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '[1, 2, 3]' || '[1]') }}
     env:
       LIBFUZZER_SHARDS: ${{ strategy.job-total }}
     steps:
