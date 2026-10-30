@@ -480,13 +480,13 @@ namespace Nino.Core.Internal
 
             /// <summary>
             /// Reads: whether the groups check the bools of the blocks they move (<see cref="Bools"/>) in the same pass,
-            /// in place of the strided pass before them (as <see cref="ReadPlan{TPhase}.Checks"/>): the values a step
-            /// moves are ORed into one accumulator per vector, tested once at the end. Not for values that
-            /// <see cref="Shuffles"/> moves after the groups without a look; the others are read one at a time,
-            /// through ReadBlock, which checks them.
+            /// in place of the strided pass before them (as <see cref="ReadPlan{TPhase}.Checks"/>, which AVX-512 CPUs
+            /// take instead): the values a step moves are ORed into one accumulator per vector, tested once at the end.
+            /// Not for values that <see cref="Shuffles"/> moves after the groups without a look; the others are read one
+            /// at a time, through ReadBlock, which checks them.
             /// </summary>
             public static readonly bool Checks = Plan != null && typeof(TDirection) == typeof(NinoReads) &&
-                                                 Bools != null && !Shuffles;
+                                                 Bools != null && !Shuffles && !ReadPlan<NinoPhase0>.Enabled;
 
             /// <summary>For each vector of <see cref="Checks"/>, 0xFE at the bools of the values in it.</summary>
             public static readonly Vector256<byte>[] BoolMasks32 = BoolMasks<Vector256<byte>>(32);

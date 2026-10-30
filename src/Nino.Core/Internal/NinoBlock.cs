@@ -278,10 +278,10 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool GroupsCheck<T, TFormatter>(int count) where TFormatter : struct, INinoFormatter<T> =>
 #if NET8_0_OR_GREATER
-            NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Enabled &&
-            NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Last(count) >=
-            NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Group
-                ? NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Checks
+            NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Enabled
+                ? NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Checks &&
+                  NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Last(count) >=
+                  NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Group
                 : NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Checks &&
                   NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Worth(count);
 #else
