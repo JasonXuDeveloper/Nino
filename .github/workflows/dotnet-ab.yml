@@ -30,6 +30,8 @@ jobs:
     name: A/B on ${{ matrix.runner }} (line ${{ matrix.line }}, slot ${{ matrix.slot }})
     strategy:
       fail-fast: false
+      # The account runs a limited number of jobs at once: leave room for main's CI and the other A/B workflow.
+      max-parallel: 8
       matrix:
         runner: [ubuntu-26.04, ubuntu-26.04-arm]
         line: [1, 2, 3]

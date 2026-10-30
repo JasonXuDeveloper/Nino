@@ -7,8 +7,8 @@ name: Runtime A/B (test branch)
 #
 # Each line is a job of its own on every runner and copy, and a push runs only the lines it adds or changes: a line
 # already in the file before the push is not measured again (add or change a note after " #" to run it again; never
-# change its filter to a regexp that matches nothing). At most 25 new lines are measured per push (a matrix holds 256
-# jobs); more are cut with a warning. A push that changes this workflow measures every line, unless its last commit
+# change its filter to a regexp that matches nothing). At most 8 new lines are measured per push (80 jobs), and at most
+# 10 jobs run at once, so a run never takes the account's whole concurrent-job budget; more lines are cut with a warning. A push that changes this workflow measures every line, unless its last commit
 # message says "[ab: new lines only]".
 # Both commits must be on a branch of this repository (main, or this branch: push them here, merging, never
 # force-pushing).
@@ -56,11 +56,11 @@ jobs:
             : > "$RUNNER_TEMP/before"
           fi
           grep -vxF -f "$RUNNER_TEMP/before" "$RUNNER_TEMP/now" > "$RUNNER_TEMP/new" || true
-          # A matrix holds 256 jobs and each line takes 10 (two runners, five copies): measure the first 25 and say so,
-          # rather than fail the whole run. The rest are already in the file: edit them (a note) to run them.
-          if (( $(wc -l < "$RUNNER_TEMP/new") > 25 )); then
-            echo "::warning::$(wc -l < "$RUNNER_TEMP/new") new lines: measuring the first 25 only (push the rest in later pushes)"
-            sed -i '26,$d' "$RUNNER_TEMP/new"
+          # Each line takes 10 jobs (two runners, five copies): measure the first 8 and say so, rather than queue more
+          # jobs than the account's concurrency budget allows. The rest are already in the file: edit them (a note) to run them.
+          if (( $(wc -l < "$RUNNER_TEMP/new") > 8 )); then
+            echo "::warning::$(wc -l < "$RUNNER_TEMP/new") new lines: measuring the first 8 only (push the rest in later pushes)"
+            sed -i '9,$d' "$RUNNER_TEMP/new"
           fi
           # A note after " #" on a line ("... records-1000 # rerun 2") makes an unchanged line new again; it is not
           # part of the request.
@@ -75,6 +75,8 @@ jobs:
     name: A/B ${{ matrix.line }} on ${{ matrix.runner }} (${{ matrix.copy }})
     strategy:
       fail-fast: false
+      # The account runs a limited number of jobs at once: leave room for main's CI and the other A/B workflow.
+      max-parallel: 10
       matrix:
         line: ${{ fromJSON(needs.plan.outputs.lines) }}
         runner: [ubuntu-26.04, ubuntu-26.04-arm]
