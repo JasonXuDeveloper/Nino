@@ -738,6 +738,7 @@ func (b *builder) mapCodec(c *codec) error {
 		m := reflect.MakeMapWithSize(t, capacity(n, slot, len(r.buf)))
 		k := reflect.New(kt).Elem()
 		val := reflect.New(vt).Elem()
+		nan := false
 		for i := 0; i < n; i++ {
 			k.SetZero()
 			kc.read(r, k)
@@ -749,10 +750,12 @@ func (b *builder) mapCodec(c *codec) error {
 				break
 			}
 			m.SetMapIndex(k, val)
-			if m.Len() != i+1 {
+			// A NaN key adds an entry every time (see repeatedNaN): a second one is a repeat, as in .NET.
+			if m.Len() != i+1 || !k.Equal(k) && nan {
 				r.Fail(CodeDuplicateKey, "")
 				break
 			}
+			nan = nan || !k.Equal(k)
 		}
 		if c.enter {
 			r.ExitStruct()
