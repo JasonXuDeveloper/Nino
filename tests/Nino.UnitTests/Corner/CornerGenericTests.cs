@@ -50,6 +50,47 @@ namespace Nino.UnitTests
         public T Node;
     }
 
+    // A base closed over another parameter of the subtype, over a collection of it, over a tuple, and two levels deep:
+    // each base formatter is named with the subtype's formatter parameters (__F_U, ListFormatter<..., __F_T>).
+    [NinoType]
+    public abstract class ArgBase<T>
+    {
+        public T A;
+    }
+
+    [NinoType]
+    public class OtherArg<T, U> : ArgBase<U>
+    {
+        public T B;
+    }
+
+    [NinoType]
+    public class ListArg<T> : ArgBase<List<T>>
+    {
+        public T C;
+    }
+
+    [NinoType]
+    public class ListArgChild<T> : ListArg<T>
+    {
+        public T E;
+    }
+
+    [NinoType]
+    public class TupleArg : ArgBase<(string, int)>
+    {
+        public int D;
+    }
+
+    // Holds itself over a bigger type argument: its formatter names its own over List<T> (an expanding cycle the
+    // runtime instantiates only as deep as the data goes).
+    [NinoType]
+    public class Expanding<T>
+    {
+        public T Value;
+        public Expanding<List<T>> Child;
+    }
+
     public class GenericOuter<T>
     {
         [NinoType]
@@ -149,6 +190,47 @@ namespace Nino.UnitTests
             CollectionAssert.AreEqual(new[] { 1 }, nested.First);
 
             Assert.AreEqual(3.5, Rt.RoundTrip(new GenericOuter<double>.Plain { Only = 3.5 }).Only);
+        }
+
+        [TestMethod]
+        public void GenericSubtypesOfBasesClosedOverOtherArguments()
+        {
+            var other = (OtherArg<string, int>)Rt.RoundTrip<ArgBase<int>>(new OtherArg<string, int> { A = 1, B = "b" });
+            Assert.AreEqual(1, other.A);
+            Assert.AreEqual("b", other.B);
+
+            var child = (ListArgChild<long>)Rt.RoundTrip<ArgBase<List<long>>>(
+                new ListArgChild<long> { A = new List<long> { 5 }, C = 6, E = 7 });
+            CollectionAssert.AreEqual(new[] { 5L }, child.A);
+            Assert.AreEqual(6, child.C);
+            Assert.AreEqual(7, child.E);
+
+            var tuple = (TupleArg)Rt.RoundTrip<ArgBase<(string, int)>>(new TupleArg { A = ("q", 2), D = 3 });
+            Assert.AreEqual(("q", 2), tuple.A);
+            Assert.AreEqual(3, tuple.D);
+
+            var list = Rt.RoundTrip(new List<ArgBase<int>> { other, new OtherArg<int, int> { A = 2, B = 3 }, null });
+            Assert.AreEqual("b", ((OtherArg<string, int>)list[0]).B);
+            Assert.AreEqual(3, ((OtherArg<int, int>)list[1]).B);
+            Assert.IsNull(list[2]);
+        }
+
+        [TestMethod]
+        public void GenericHoldingItselfOverABiggerArgument()
+        {
+            var read = Rt.RoundTrip(new Expanding<int>
+            {
+                Value = 1,
+                Child = new Expanding<List<int>>
+                {
+                    Value = new List<int> { 2, 3 },
+                    Child = new Expanding<List<List<int>>> { Value = new List<List<int>> { new List<int> { 4 } } },
+                },
+            });
+            Assert.AreEqual(1, read.Value);
+            CollectionAssert.AreEqual(new[] { 2, 3 }, read.Child.Value);
+            Assert.AreEqual(4, read.Child.Child.Value[0][0]);
+            Assert.IsNull(read.Child.Child.Child);
         }
 
         [TestMethod]
