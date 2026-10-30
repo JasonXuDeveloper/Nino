@@ -4829,9 +4829,10 @@ function write$18(w: NinoWriter, map: ReadonlyMap<number, number> | null): void 
 function read$19(r: NinoReader): Set<number> | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Set<number>();
+  const elements = new Array<number>(length);
   const guard = r.keyGuard(length);
-  for (let i = 0, at = r.take(length * 4); i < length; i++, at += 4) values.add(guard === null ? r.view.getInt32(at, true) : guard.int(r.view.getInt32(at, true)));
+  for (let i = 0, at = r.take(length * 4); i < length; i++, at += 4) elements[i] = guard === null ? r.view.getInt32(at, true) : guard.int(r.view.getInt32(at, true));
+  const values = new Set<number>(elements);
   if (values.size !== length) throw r.duplicateKey();
   return values;
 }

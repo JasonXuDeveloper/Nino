@@ -291,7 +291,13 @@ func helper_body(h)
     if $s.kind == "seq"
       $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + "): " + seq_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n"
       $guard = false
-      if $s.set
+      if $s.set && $s.element.fixed
+        # Fixed-size elements into an array, then the Set built from it (V8's constructor adds them faster than a
+        # loop of add calls).
+        $o = $o + "  const elements = new Array<" + ts($s.element) + ">(length);\n" + guard_decl($s.element)
+        $o = $o + "  for (let i = 0, at = r.take(length * " + $s.element.size + "); i < length; i++, at += " + $s.element.size + ") elements[i] = " + guarded($s.element, read_at($s.element, 0)) + ";\n"
+        ret $o + "  const values = new Set<" + ts($s.element) + ">(elements);\n  if (values.size !== length) throw r.duplicateKey();\n  return values;\n}\n"
+      else if $s.set
         $o = $o + "  const values = new Set<" + ts($s.element) + ">();\n" + guard_decl($s.element)
         $add = "values.add("
         $close = ")"
