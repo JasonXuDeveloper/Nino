@@ -34,8 +34,46 @@ defaults:
     shell: bash
 
 jobs:
+  # The languages the push or pull request changed (.github/scripts/changed_paths.py): a change to Nino.Core needs
+  # the C# analysis, not six more runners for Go, Rust, TypeScript, Python, C++ and the workflows it left as they were.
+  # The weekly and manual scans, a new branch and a change to this workflow analyze every language, so new queries
+  # still reach unchanged code within a week.
+  languages:
+    name: Changed languages
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # <language>:<build mode>, then the paths it analyzes. c-cpp is the libFuzzer driver, compiled on its own
+      # (linking needs libFuzzer, analysis does not).
+      - name: Plan
+        id: plan
+        env:
+          BASE: ${{ (github.event_name == 'push' || github.event_name == 'pull_request') && (github.event.pull_request.base.sha || github.event.before) || '' }}
+        run: |
+          python3 .github/scripts/changed_paths.py "$BASE" \
+            --all-if '^\.github/(workflows/codeql\.yml|scripts/changed_paths\.py)$' \
+            'actions:none=^\.github/(workflows|actions)/' \
+            'csharp:none=\.(cs|csproj|props|targets)$' \
+            'go:autobuild=\.(go|s)$|(^|/)go\.(mod|sum)$' \
+            'javascript-typescript:none=\.(ts|js|mjs|cjs)$|(^|/)package(-lock)?\.json$|(^|/)tsconfig[^/]*\.json$' \
+            'python:none=\.py$' \
+            'rust:none=\.rs$|(^|/)Cargo\.(toml|lock)$' \
+            'c-cpp:manual=\.(c|cc|cpp|h|hpp)$' > "$RUNNER_TEMP/languages.txt"
+          cat "$RUNNER_TEMP/languages.txt"
+          matrix=$(sed -n 's/^\([^:]*\):\([^=]*\)=true$/{"language":"\1","build-mode":"\2"}/p' "$RUNNER_TEMP/languages.txt" | jq -sc .)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   analyze:
     name: Analyze (${{ matrix.language }})
+    needs: languages
+    if: needs.languages.outputs.matrix != '[]'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -45,22 +83,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - language: actions
-            build-mode: none
-          - language: csharp
-            build-mode: none
-          - language: go
-            build-mode: autobuild
-          - language: javascript-typescript
-            build-mode: none
-          - language: python
-            build-mode: none
-          - language: rust
-            build-mode: none
-          # The libFuzzer driver, compiled on its own (linking needs libFuzzer, analysis does not).
-          - language: c-cpp
-            build-mode: manual
+        include: ${{ fromJSON(needs.languages.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
