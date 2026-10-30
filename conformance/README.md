@@ -119,8 +119,8 @@ dotnet run --project conformance/Nino.Conformance -c Release -- --verify conform
 malicious input and the truncated prefixes in child processes of itself, so an input that crashes .NET does not stop
 it. `--verify` checks a committed corpus against the current Nino: every valid `.bin` reads to its `value`, layouts
 and type ids, and is written back as recorded; .NET still writes each case's bytes; and every malicious case and
-truncation still gets the recorded `dotnet` outcome. The `conformance` job of `.github/workflows/runtimes.yml` runs
-both (`--verify`, then `--out` to a temporary directory compared with `diff -r`), so a change to the wire format, a
+truncation still gets the recorded `dotnet` outcome. The integrations job of `.github/workflows/ci.yml`
+runs both (`--verify`, then `--out` to a temporary directory compared with `diff -r`), so a change to the wire format, a
 layout, or how .NET handles a malicious input fails CI until the corpus is regenerated and committed.
 
 ## Versioning

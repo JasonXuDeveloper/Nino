@@ -34,8 +34,9 @@ Nino.Conformance/            the net10.0 program that writes (--out) and checks 
 - Rust: `runtimes/rust/tests/conformance.rs`, `generated.rs`, `derive.rs` (`NINO_CORPUS`; `tests/conformance/gen.py`
   reads the layouts).
 - TypeScript: `runtimes/typescript/test/corpus.test.ts` (`NINO_CORPUS` or `conformance/corpus`).
-- CI: the `conformance` job of `.github/workflows/runtimes.yml` runs `--verify`, then `--out` to a temporary
-  directory compared with `diff -r`; the runtimes' jobs set `NINO_CORPUS`, so a missing corpus fails them.
+- CI: the integrations job of `.github/workflows/ci.yml` runs `--verify`, then `--out` to a temporary directory
+  compared with `diff -r`, on every .NET change; `.github/workflows/runtimes.yml` runs the runtimes against the
+  committed corpus only when it or `runtimes/` change, and sets `NINO_CORPUS`, so a missing corpus fails them.
 
 ## Rules for these files
 
