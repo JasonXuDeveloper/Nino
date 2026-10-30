@@ -47,7 +47,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     }
 
     private const string NinoMember = NinoNames.NinoMember, NinoIgnore = NinoNames.NinoIgnore,
-        NinoType = NinoNames.NinoType;
+        NinoType = NinoNames.NinoType, NinoFormerName = "NinoFormerName", NinoFactory = "NinoFactory";
 
     private static readonly Dictionary<string, Fix[]> Fixes = new()
     {
@@ -78,6 +78,9 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                 RemoveAttribute(e, n, NinoIgnore);
             }),
         },
+        [NinoDiagnostics.FormerNameNotKeyed.Id] = new[] { RemoveAttributeFix(NinoFormerName) },
+        // The factory is never called while the type has a [NinoConstructor]: removing it changes nothing.
+        [NinoDiagnostics.FactoryIgnored.Id] = new[] { RemoveAttributeFix(NinoFactory) },
         [NinoDiagnostics.DuplicateIndex.Id] = new[] { new Fix("Use the next free index", "NextIndex", NextFreeIndex) },
         [NinoDiagnostics.TrackReferencesOnStruct.Id] = new[]
         {
@@ -190,25 +193,36 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         member.AttributeLists.SelectMany(l => l.Attributes)
             .FirstOrDefault(a => IsAttribute(editor.SemanticModel, a, name));
 
+    /// <summary>
+    /// Removes every <c>[name]</c> of the member <paramref name="node"/> is in (a member may carry several
+    /// <c>[NinoFormerName]</c>s), with the lists left empty; the declaration keeps the indentation the first list
+    /// carried.
+    /// </summary>
     private static void RemoveAttribute(DocumentEditor editor, SyntaxNode node, string name)
     {
         var member = Member(node);
-        if (FindAttribute(editor, member, name) is not { Parent: AttributeListSyntax list } attribute)
+        var attributes = member.AttributeLists.SelectMany(l => l.Attributes)
+            .Where(a => IsAttribute(editor.SemanticModel, a, name)).ToList();
+        if (attributes.Count == 0)
             return;
-        if (list.Attributes.Count > 1)
-        {
-            editor.RemoveNode(attribute);
-            return;
-        }
-
-        // The whole list goes; the declaration keeps the indentation the list carried.
         editor.ReplaceNode(member, (current, _) =>
         {
             var m = (MemberDeclarationSyntax)current;
-            var currentList = m.AttributeLists.First(l => l.Attributes.Any(a => a.IsEquivalentTo(attribute)));
-            var leading = m.AttributeLists[0] == currentList ? currentList.GetLeadingTrivia() : default;
-            var removed = m.RemoveNode(currentList, SyntaxRemoveOptions.KeepNoTrivia)!;
-            return leading.Count == 0 ? removed : removed.WithLeadingTrivia(leading);
+            var removed = new List<SyntaxNode>();
+            foreach (var list in m.AttributeLists)
+            {
+                var matched = list.Attributes.Where(a => attributes.Any(r => r.IsEquivalentTo(a))).ToList();
+                if (matched.Count == list.Attributes.Count)
+                    removed.Add(list);
+                else
+                    removed.AddRange(matched);
+            }
+
+            var leading = m.AttributeLists.Count != 0 && removed.Contains(m.AttributeLists[0])
+                ? m.AttributeLists[0].GetLeadingTrivia()
+                : default;
+            var result = m.RemoveNodes(removed, SyntaxRemoveOptions.KeepNoTrivia)!;
+            return leading.Count == 0 ? result : result.WithLeadingTrivia(leading);
         });
     }
 

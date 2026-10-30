@@ -1831,4 +1831,80 @@ public sealed partial class TestClass
     }
 
     #endregion
+
+    #region NINO024 / NINO025 - Remove an attribute that has no effect
+
+    [TestMethod]
+    public async Task NINO024_RemoveFormerNamesOfAMemberOfAPositionalType()
+    {
+        // Every former name of the member goes; other attributes stay.
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoFormerName(""Old""), NinoFormerName(""Older"")]
+    public int {|#0:A|};
+
+    [NinoFormerName(""Was"")]
+    [System.Obsolete]
+    public int {|#1:B|};
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    public int A;
+
+    [System.Obsolete]
+    public int B;
+}";
+
+        await SetUpCodeFixTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO024").WithLocation(0).WithArguments("A", "TestClass"),
+            VerifyCF.Diagnostic("NINO024").WithLocation(1).WithArguments("B", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO025_RemoveTheFactoryAConstructorOverrides()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    public int A;
+
+    [NinoFactory]
+    public static TestClass {|#0:Rent|}() => new TestClass();
+
+    [NinoConstructor]
+    public static TestClass Create(int a) => new TestClass { A = a };
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    public int A;
+
+    public static TestClass Rent() => new TestClass();
+
+    [NinoConstructor]
+    public static TestClass Create(int a) => new TestClass { A = a };
+}";
+
+        await SetUpCodeFixTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO025").WithLocation(0)
+                .WithArguments("Rent", "TestClass", "TestClass.Create(int)")).RunAsync();
+    }
+
+    #endregion
 }

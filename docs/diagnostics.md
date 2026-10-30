@@ -32,8 +32,8 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO021](#nino021) | Error | `[NinoConstructor]` is not accessible to generated code |
 | [NINO022](#nino022) | Warning | A member hidden with `new` cannot be reached by generated code |
 | [NINO023](#nino023) | Error | A struct serializes no member |
-| [NINO024](#nino024) | Warning | `[NinoFormerName]` on a member of a type that is not keyed |
-| [NINO025](#nino025) | Warning | `[NinoFactory]` on a type created through `[NinoConstructor]` |
+| [NINO024](#nino024) | Warning | `[NinoFormerName]` on a member of a type that is not keyed 🔧 |
+| [NINO025](#nino025) | Warning | `[NinoFactory]` on a type created through `[NinoConstructor]` 🔧 |
 | [NINO026](#nino026) | Error | More than one `[NinoFormerName]` on a type |
 | [NINO027](#nino027) | Warning | `[NinoFormerName]` on a generic type written with its type id |
 
@@ -62,8 +62,8 @@ containing it must be `partial`. 🔧 Make them partial.
 
 ### NINO003
 
-The base type or interface is a NinoType with `allowInheritance: false`, so this subtype is not serialized as
-itself. 🔧 Add `[NinoType]`.
+The base type or interface is a NinoType with `allowInheritance: false`, so this subtype gets no formatter of its
+own: writing one (through the base, an interface or `object`) throws `InvalidOperationException`. 🔧 Add `[NinoType]`.
 
 ## Construction
 
@@ -79,7 +79,9 @@ parameters: the object initializer sets them.
 ### NINO005
 
 A `[NinoConstructor]` constructor or factory method has a parameter (or a name passed to the attribute) that
-matches no serialized member.
+matches no serialized member, so the type cannot be created when read: deserializing it throws
+`NotSupportedException`. Name the parameter after a member (any case), or list the members in
+`[NinoConstructor(nameof(A), ...)]`.
 
 ### NINO006
 
@@ -99,7 +101,7 @@ The type is not constructed by the generated formatter: deserializing it throws 
 A type with a `[NinoConstructor]` (a constructor or a static factory method) is re-created through it on every read, so its
 `[NinoFactory]` method is never called. Remove one of the two attributes:
 `[NinoFactory]` to keep re-creating instances from the constructor, or `[NinoConstructor]` to create instances with
-the factory and fill them in place.
+the factory and fill them in place. 🔧 Remove `[NinoFactory]` (what reading does now).
 
 ## Members
 
@@ -172,7 +174,7 @@ claims it second. A former name equal to the member's own name is ignored.
 
 Member-level `[NinoFormerName]` lets keyed types read data written before a member was renamed. Positional and
 version-tolerant types write no member names (members are matched by position), so there it has no effect. Remove
-it, or give the type `format: NinoFormat.Keyed`.
+it, or give the type `format: NinoFormat.Keyed`. 🔧 Remove the member's `[NinoFormerName]`s.
 
 ### NINO026
 

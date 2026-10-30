@@ -10,21 +10,21 @@ Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 NINO001 | Nino | Error | NinoType must be accessible
 NINO002 | Nino | Error | Type must be partial
-NINO003 | Nino | Warning | Sub-type of a NinoType should also have the NinoTypeAttribute applied
+NINO003 | Nino | Warning | Subtype of a NinoType without [NinoType]
 NINO004 | Nino | Error | No usable constructor
 NINO005 | Nino | Error | Constructor parameter matches no member
 NINO006 | Nino | Warning | Member cannot be deserialized
 NINO007 | Nino | Warning | Member type cannot be serialized
 NINO008 | Nino | Error | Invalid custom formatter type
 NINO009 | Nino | Error | Non-public member is not serialized
-NINO010 | Nino | Warning | Redundant NinoMemberAttribute
-NINO011 | Nino | Warning | Redundant NinoIgnoreAttribute
-NINO012 | Nino | Error | Ambiguous member
+NINO010 | Nino | Warning | Redundant [NinoMember]
+NINO011 | Nino | Warning | Redundant [NinoIgnore]
+NINO012 | Nino | Error | Member has both [NinoMember] and [NinoIgnore]
 NINO013 | Nino | Error | Duplicate member index
 NINO014 | Nino | Error | Member key collision
 NINO015 | Nino | Warning | trackReferences on a struct
 NINO016 | Nino | Error | Cannot track references
-NINO017 | Nino | Error | Invalid NinoFactoryAttribute usage
+NINO017 | Nino | Error | Invalid [NinoFactory]
 NINO018 | Nino | Error | Type cannot be pooled
 NINO019 | Nino | Error | Pool hooks not implemented
 NINO020 | Nino | Error | Invalid formatter registration

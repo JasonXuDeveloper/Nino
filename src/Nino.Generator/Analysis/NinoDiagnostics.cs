@@ -32,8 +32,8 @@ internal static class NinoDiagnostics
         "'{0}' serializes non-public members that generated code reaches through an accessor inside the type (before .NET 8, and for generic types before .NET 9), or is [NinoPooled], so it (and every type containing it) must be declared partial");
 
     public static readonly DiagnosticDescriptor SubTypeWithoutNinoType = Warning("NINO003",
-        "Sub-type of a NinoType should also have the NinoTypeAttribute applied",
-        "Sub-type '{0}' of NinoType '{1}' should also have the NinoTypeAttribute applied to ensure serialization does not lead to undefined behavior");
+        "Subtype of a NinoType without [NinoType]",
+        "'{0}' derives from NinoType '{1}', whose [NinoType] does not apply to subtypes (allowInheritance: false), so writing a '{0}' throws; mark it [NinoType]");
 
     // Construction
 
@@ -41,7 +41,8 @@ internal static class NinoDiagnostics
         "'{0}' has no accessible parameterless constructor and no constructor whose parameters all match serialized members; mark one with [NinoConstructor]");
 
     public static readonly DiagnosticDescriptor MissingConstructorMember = Error("NINO005",
-        "Constructor parameter matches no member", "Missing constructor member {0} for {1}");
+        "Constructor parameter matches no member",
+        "[NinoConstructor] parameter '{0}' of '{1}' matches no serialized member, so '{1}' cannot be deserialized; name it after a member, or list the members in [NinoConstructor(...)]");
 
     public static readonly DiagnosticDescriptor InaccessibleConstructor = Error("NINO021",
         "NinoConstructor is not accessible",
@@ -58,7 +59,7 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor UnserializableMember = Warning("NINO007",
         "Member type cannot be serialized",
-        "Member '{0}' of type '{1}' in NinoType '{2}' has an unrecognizable type and will be skipped during serialization/deserialization");
+        "Nino has no formatter for '{1}', the type of member '{0}' of NinoType '{2}': the member is skipped; mark it [NinoIgnore] or give it a custom formatter");
 
     public static readonly DiagnosticDescriptor InvalidCustomFormatter = Error("NINO008",
         "Invalid custom formatter type",
@@ -67,14 +68,14 @@ internal static class NinoDiagnostics
     public static readonly DiagnosticDescriptor PrivateMember = Error("NINO009", "Non-public member is not serialized",
         "Member '{0}' of NinoType '{1}' is not public, and the type does not set containNonPublicMembers: it is not serialized");
 
-    public static readonly DiagnosticDescriptor RedundantMember = Warning("NINO010", "Redundant NinoMemberAttribute",
-        "Member '{0}' of NinoType '{1}' will be automatically collected, the NinoMemberAttribute is redundant");
+    public static readonly DiagnosticDescriptor RedundantMember = Warning("NINO010", "Redundant [NinoMember]",
+        "[NinoMember] on '{0}' has no effect: NinoType '{1}' collects it already (autoCollect); remove it");
 
-    public static readonly DiagnosticDescriptor RedundantIgnore = Warning("NINO011", "Redundant NinoIgnoreAttribute",
-        "Member '{0}' of NinoType '{1}' will not be collected at anytime, the NinoIgnoreAttribute is redundant");
+    public static readonly DiagnosticDescriptor RedundantIgnore = Warning("NINO011", "Redundant [NinoIgnore]",
+        "[NinoIgnore] on '{0}' has no effect: NinoType '{1}' collects only [NinoMember] members (autoCollect: false); remove it");
 
-    public static readonly DiagnosticDescriptor AmbiguousMember = Error("NINO012", "Ambiguous member",
-        "Member '{0}' of NinoType '{1}' is annotated with both NinoMemberAttribute and NinoIgnoreAttribute, it is ambiguous");
+    public static readonly DiagnosticDescriptor AmbiguousMember = Error("NINO012", "Member has both [NinoMember] and [NinoIgnore]",
+        "Member '{0}' of NinoType '{1}' has both [NinoMember] and [NinoIgnore]; remove the one you do not mean");
 
     /// <summary>
     /// The property of a <see cref="DuplicateIndex"/> diagnostic holding its rank among the type's duplicates (0 for
@@ -117,7 +118,7 @@ internal static class NinoDiagnostics
         "'{0}' is re-created from constructor arguments or read-only members, so a reference to it cannot be read before it exists; trackReferences needs a type whose members are all assignable");
 
     public static readonly DiagnosticDescriptor InvalidFactory = Error("NINO017",
-        "Invalid NinoFactoryAttribute usage", "Method '{0}' with [NinoFactory] {1}");
+        "Invalid [NinoFactory]", "[NinoFactory] '{0}' cannot create instances: it {1}");
 
     // Pooling
 
