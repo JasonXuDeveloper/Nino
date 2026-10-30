@@ -37,6 +37,8 @@ type Reader struct {
 	// across Reset; an offset, as textAt is.
 	boxes []string
 	boxAt int
+	// The slots that check a set's elements or a dictionary's keys for a repeat (unique.go), kept across Reset.
+	keys []uint64
 }
 
 // NewReader returns a reader of data.
