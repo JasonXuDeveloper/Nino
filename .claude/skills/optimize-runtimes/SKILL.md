@@ -124,6 +124,31 @@ runtime: `optimize`, "Prefetch"). How to measure on runners is `benchmark` (runt
   and read lists through the into loop: on par (40976827882, geomean within 0.8 %); Rust's `read = Default +
   read_into` was on par too (40925188020).
 
+## Sets and dictionary keys
+
+- Check a set's elements or a dictionary's keys for a repeat in an open-addressing table of the reader's own (Go
+  `unique.go`: a slot array kept in `Reader.keys` across reads, linear probing from a multiply-shift hash with a
+  per-process random multiplier for numbers, `hash/maphash` with a per-process seed for strings, a bit per key for 1-
+  and 2-byte keys), with a bound on the probes of one key that falls back to a sort or a Go map, never a sort or a Go
+  map first. Why: sorting a copy of 1,000 int32s took twice protobuf's whole read, and a Go map for strings a lookup
+  plus an insert per element. Runner numbers (runtime A/B run 41042990902, jobs of 12 rounds against main's bench
+  with sets, floor within 0.98-1.01): a `HashSet<int>` of 1,000 read in 0.16-0.19 of the time on EPYC 7763, 9V45,
+  9V74 and Neoverse-N2, a `HashSet<string>` of 1,000 in 0.54-0.66; SimpleClass on par. Read a set of primitives as one
+  block (`ReadPrimitives`) before the check. Rust: reading an `IndexSet<i32>`'s elements as one block of
+  `decode_fixed` instead of `read_key` per element did not move it locally (SipHash dominates the insert), so it was
+  not landed; Nino already led every serde serializer and prost made into the set (run 41042990902: deserialize
+  1.14-1.37x faster than each on EPYC 7763 and Neoverse-N2).
+- TypeScript: a `Set` or `Map` of numbers or bigints from the data takes `NinoKeyGuard` (V8 hashes them without a
+  seed; `audit-security`). Count only the final table's buckets: following every growth of V8's table (the hashes
+  kept, recounted on each doubling) took twice the time per key locally; a pre-pass over a block of fixed-size keys
+  before the add loop was no faster than the check inside it (44.7 against 44.0 us for 1,000 ints). The guard cost a
+  `HashSet<int>` of 1,000 4-9 % in deserialize on runners (run 41042990902, Node and Chromium). Keep a loop of `add`
+  for a fresh set: reading the elements into an array and building `new Set(elements)` was 10 % faster locally and
+  0.87-0.99 of the time in Chromium, but 1.06-1.15 in Node 24 on every CPU (run 41067631023), so it was not landed.
+- Rust: a sealed class's forwarding methods with `#[inline]` (`nino::sealed_read!` / `sealed_write!`, as the derive
+  had them and the template did not) read records-1000 2.0-4.3 % and wrote it 2.0-9.2 % faster on EPYC 7763, 9V45 and
+  Neoverse-N2 (run 41042990902; floor -2.1 to +0.7 %).
+
 ## Checking blocks in Go
 
 - Check a block of range-limited 8- or 16-byte values four a step with one compare each (`w[0].Valid() && ... &&

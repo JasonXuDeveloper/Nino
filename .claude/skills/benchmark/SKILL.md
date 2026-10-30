@@ -102,7 +102,11 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   `asm.py compare`).
 - Read a joined BenchmarkDotNet summary with `grep '\| Nino'`, not `'^\| *Nino'`: with several classes it starts each
   row with a Type column.
-- Go, Rust, TypeScript: the same data in each `bench` against that language's competitors.
+- Go, Rust, TypeScript: the same data in each `bench` against that language's competitors. Every column ends with
+  the same value: where a competitor has no such type (protobuf, MessagePack and JSON have no set), its deserialize
+  timing makes what it read into the case's type (Rust `formats!`'s `$from_proto`, TypeScript's `Revive`), and where
+  Nino's own form is a slice (Go's sets) the others read the same slices. A TypeScript scenario whose codec the
+  generated code lacks is skipped, so runtime-ab can run the head's `bench.ts` on an older base.
 - Rotate the inputs of any microbenchmark that parses (deserialize, `JSON.parse`, decoders): prepare K variants of the
   same shape and size with different content (K=64 in `runtimes/typescript/bench`), give every serializer all of them
   before the timing, and let each iteration take the next one round robin, for serialize and deserialize alike;
