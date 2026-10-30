@@ -74,7 +74,7 @@ hosts are not supported: `Writer`/`Reader` throw `PlatformNotSupportedException`
 | --- | --- |
 | Unmanaged value (`int`, `Guid`, unmanaged structs, enums) | raw bytes, `Unsafe.SizeOf<T>()` |
 | `bool` | 1 byte (0/1) |
-| `T?` (nullable value type) | 1 byte has-value flag, then the value if present |
+| `T?` (nullable value type) | a presence byte, then the value if present |
 | Collection / array length | `int32`; `-1` means `null` |
 | `string` (default) | header (1, 3 or 5 bytes, minimal: the value itself up to 127, else `0x80` and a `u16`, else `0x81` and a `u32`): `0` = null; `2n + 1` (odd, `1` = empty) then `n` Latin-1 bytes when every char is at most U+00FF; else `2n` then `n` UTF-16 code units (see below) |
 | `string` with `[NinoUtf8]` | char count plus one as a header (`0` = null, `1` = empty; nothing follows either), then the byte count as a header and the UTF-8 bytes (see below) |
@@ -563,7 +563,7 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
     are all raw values, see `INinoRawBodyFormatter<T>`) is written by `NinoObject.WriteExactRaw`: one capacity
     check (`Reserve`) for its type id and body together, then constant-offset stores, instead of one check for the
     id and another for the body. The same merge applies where the formatter writes its own subtype (`TryWriteOwnRaw`,
-    `SerializeRaw`, `SerializeSealedRaw`: id or null flag with the body) and to the top-level twins
+    `SerializeRaw`, `SerializeSealedRaw`: id or presence byte with the body) and to the top-level twins
     (`SerializeTopRaw`). The bytes are the same; the deep path (nesting at `NinoDepth.Inline`) is unchanged.
 * **Serialize (registry)**: other subtypes (other assemblies, generic subtypes, tracked types, more than 64): look up
   the runtime type in a lock-free open-addressing table and call the subtype's body serializer through its
@@ -895,7 +895,7 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   (`FixedSize`, and `WriteFixed(in value, ref byte destination)`, which stores each member at a constant offset), and
   `NinoSerializer.Serialize(T)` returning `byte[]` is intercepted to `NinoDirect.SerializeFixed<T, TFormatter>`:
   it allocates the array at its final size and writes into it, with no writer, scratch buffer, growth checks or
-  final copy. A null sealed class is its null flag, `new byte[1]`. The regular call does the same through the
+  final copy. A null sealed class is its presence byte, `new byte[1]`. The regular call does the same through the
   cached formatter (`NinoFormatter<T>.FixedSize`, a constant check in Tier1 code), and
   `NinoSerializer.GetFixedSize<T>()` returns the size (raw values: their size; -1 when not fixed). The bytes are the
   regular writer's. Measured (x64, a 10-member struct of 30 bytes, `Serialize(T)` to `byte[]`): 216 → 108

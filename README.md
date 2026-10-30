@@ -17,7 +17,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 [🌐 **Website**](https://nino.xgamedev.net/en) ·
 [🚀 **Getting Started**](https://nino.xgamedev.net/en/docs/v4/start) ·
 [**What's new in v4**](https://nino.xgamedev.net/en/docs/v4/whats-new) ·
-[**Benchmarks**](https://nino.xgamedev.net/en/docs/v4/perf) ·
+[**Benchmarks**](https://nino.xgamedev.net/en/docs/v4/benchmarks) ·
 [**vs MemoryPack**](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) ·
 [**中文**](https://github.com/JasonXuDeveloper/Nino/blob/main/README.zh.md)
 
@@ -104,7 +104,7 @@ path writes the same bytes as the portable code, which takes over where a CPU or
 
 | Platform | Vector paths | Benchmark |
 |---|---|---|
-| .NET 8 and 10 | x64: AVX-512 (byte permutes, 64-byte copies), AVX2, SSSE3; Arm64: AdvSimd (`TBL` lookups, paired loads and stores); WebAssembly (.NET 10): `PackedSimd` swizzles; portable code elsewhere | [.NET](https://nino.xgamedev.net/en/docs/v4/perf) |
+| .NET 8 and 10 | x64: AVX-512 (byte permutes, 64-byte copies), AVX2, SSSE3; Arm64: AdvSimd (`TBL` lookups, paired loads and stores); WebAssembly (.NET 10): `PackedSimd` swizzles; portable code elsewhere | [.NET](https://nino.xgamedev.net/en/docs/v4/benchmarks) |
 | Unity (Mono, IL2CPP) | With `com.unity.burst`: Burst-compiled kernels, AVX2 (blocks of 256 values or more) and SSSE3 on x86 and x64, Neon on Arm64; Nino.Core's own paths on Armv7, WebGL and without Burst | [Unity](https://nino.xgamedev.net/en/docs/v4/perf-unity) |
 | .NET Framework, .NET Core 3.0–7 | No intrinsics (the netstandard builds): blocks over 64 bytes through `memmove`; long Latin-1 text and padded structs with `Vector<T>` where the JIT accelerates it, else a word at a time | |
 | Go | Strings in assembly: AVX2 and AVX-512 conversion on amd64, 16-byte ASCII copies (SSE2 on amd64, NEON on arm64); plain Go elsewhere and with the `purego` tag | [Go](https://nino.xgamedev.net/en/docs/v4/perf-runtimes#go) |

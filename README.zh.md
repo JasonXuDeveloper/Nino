@@ -17,7 +17,7 @@
 [🌐 **官网**](https://nino.xgamedev.net/zh) ·
 [🚀 **快速上手**](https://nino.xgamedev.net/zh/docs/v4/start) ·
 [**v4 新特性**](https://nino.xgamedev.net/zh/docs/v4/whats-new) ·
-[**性能**](https://nino.xgamedev.net/zh/docs/v4/perf) ·
+[**性能**](https://nino.xgamedev.net/zh/docs/v4/benchmarks) ·
 [**对比 MemoryPack**](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack) ·
 [**English**](https://github.com/JasonXuDeveloper/Nino/blob/main/README.md)
 
@@ -59,7 +59,7 @@
 - **多态无需标签。** 声明为基类或接口（抽象或非抽象、泛型或非泛型）的值会按运行时类型读回。
   类型 ID 由类型名算出，不用维护标签表，其他程序集里的子类（插件、HybridCLR 热更）也会自动找到。
   [多态](https://nino.xgamedev.net/zh/docs/v4/polymorphism)。
-- **数据可以演进。** 版本兼容、keyed 成员、引用追踪（共享引用和循环引用），都按类型按需开启，不用的类型零开销。
+- **数据可以演进。** 版本容错、键控成员、引用追踪（共享引用和循环引用），都按类型按需开启，不用的类型零开销。
 - **处处同一格式。** `netstandard2.0`、`netstandard2.1`、`net8.0`、`net10.0` 在 CoreCLR、Mono 和 IL2CPP 上，64 位和 32 位、x64 和 Arm64 上写出的字节完全一致，Unity 客户端和 .NET 服务端可以直接互通。
 - **你已在用的类型。** 基元类型、字符串、元组、所有 BCL 集合、`BigInteger`、`Uri`、`Version`、`Memory<T>`、`ILookup<,>`、`Lazy<T>` 等，
   所有不可变集合（`Nino.Immutable`），Unity 的 `AnimationCurve`、`Gradient` 和 `RectOffset`，你自己的集合类型，其他类型则通过可插拔的格式化器支持。
@@ -79,7 +79,7 @@
 | 🌐 **[RPC 与网络层](https://nino.xgamedev.net/zh/docs/v4/advanced/networking)** | 直接序列化进 `IBufferWriter<byte>`（`PipeWriter`、池化缓冲区），从 `ReadOnlySpan<byte>` 反序列化，复用池化的消息对象。多态消息无需手写标签；伪造的消息只会抛出一种异常，不会让服务端崩溃。 |
 | 📨 **[消息队列与事件流](https://nino.xgamedev.net/zh/docs/v4/advanced/message-queues)** | 多态事件类型共用一个基类型，数据小巧，生产者和消费者可以在不同时间升级。 |
 | 🗄️ **[缓存](https://nino.xgamedev.net/zh/docs/v4/advanced/caching)** | 作为 Redis、`IDistributedCache`/`HybridCache` 或进程内缓存的值格式，跨部署修改结构也没问题。 |
-| 💾 **[持久化与存储](https://nino.xgamedev.net/zh/docs/v4/advanced/persistence)** | 版本兼容和 keyed 成员让你在版本之间增加、调整顺序、删除字段；引用追踪保留共享引用和循环引用的对象图。 |
+| 💾 **[持久化与存储](https://nino.xgamedev.net/zh/docs/v4/advanced/persistence)** | 版本容错和键控成员让你在版本之间增加、调整顺序、删除字段；引用追踪保留共享引用和循环引用的对象图。 |
 | 🎮 **[Unity](https://nino.xgamedev.net/zh/docs/v4/advanced/unity)** | Unity 2022.3+，Mono 和 IL2CPP，HybridCLR 热更程序集。`Vector3`、`Quaternion`、`Color32` 等非托管结构体按原始内存直接拷贝；`AnimationCurve`、`Gradient` 和 `RectOffset` 已内置。装了 `com.unity.burst` 时，元组和结构体数组以及 Latin-1 字符串由 Burst 编译的 SIMD 内核（AVX2、SSSE3、Arm64 Neon）处理。通过 OpenUPM 安装。 |
 | 👾 **[Godot 4（.NET）](https://nino.xgamedev.net/zh/docs/v4/platforms)** | Godot 的 .NET 项目直接引用 NuGet 包。Godot 的数学结构体（`Vector3`、`Transform3D` 等）是非托管类型，按原始内存直接拷贝。 |
 
@@ -90,7 +90,7 @@ CPU 或运行时没有向量指令时由可移植代码接手。[各平台的 SI
 
 | 平台 | 向量路径 | 基准测试 |
 |---|---|---|
-| .NET 8 和 10 | x64：AVX-512（字节置换、64 字节复制）、AVX2、SSSE3；Arm64：AdvSimd（`TBL` 查表、成对加载与存储）；WebAssembly（.NET 10）：`PackedSimd` 重排；其他平台走可移植代码 | [.NET](https://nino.xgamedev.net/zh/docs/v4/perf) |
+| .NET 8 和 10 | x64：AVX-512（字节置换、64 字节复制）、AVX2、SSSE3；Arm64：AdvSimd（`TBL` 查表、成对加载与存储）；WebAssembly（.NET 10）：`PackedSimd` 重排；其他平台走可移植代码 | [.NET](https://nino.xgamedev.net/zh/docs/v4/benchmarks) |
 | Unity（Mono、IL2CPP） | 装有 `com.unity.burst` 时：Burst 编译的内核，x86 和 x64 用 AVX2（256 个值以上的块）和 SSSE3，Arm64 用 Neon；Armv7、WebGL 和没有 Burst 时走 Nino.Core 自身的路径 | [Unity](https://nino.xgamedev.net/zh/docs/v4/perf-unity) |
 | .NET Framework、.NET Core 3.0–7 | 没有硬件内在函数（netstandard 构建）：超过 64 字节的块用 `memmove` 复制；JIT 加速 `Vector<T>` 时，较长的 Latin-1 文本和带填充的结构体用它处理，否则按字处理 | |
 | Go | 字符串用汇编：amd64 上 AVX2 和 AVX-512 转换，16 字节 ASCII 复制（amd64 SSE2、arm64 NEON）；其他平台和 `purego` 标签下用纯 Go | [Go](https://nino.xgamedev.net/zh/docs/v4/perf-runtimes#go) |
@@ -202,7 +202,7 @@ Nino 正是为这类输入设计的：长度和分配以收到的字节数为上
 | 原始结构体数组 | 至少持平（两者都是整块拷贝）；v4 会清零填充字节，热点结构体建议声明为无填充 | 原样复制填充字节 |
 | 反序列化到已有对象 | **0 B，最多快 <!--bench:reuse.inplace-->8.7<!--/bench--> 倍**（原地复用） | 覆盖写入，有分配 |
 | 多态 | 自动类型 ID，任何基类或接口，包括泛型基类 | 需要维护 `[MemoryPackUnion]` 标签，只能用于接口和抽象类，不支持泛型类型 |
-| keyed 成员、引用追踪、对象池 | ✅ | 有版本兼容和循环引用，没有对象池 |
+| 键控成员、引用追踪、对象池 | ✅ | 有版本容错和循环引用，没有对象池 |
 | Unity | ✅ 2022.3+，一个 OpenUPM 包，`netstandard2.0` 和 `2.1`，HybridCLR 无需初始化调用 | ✅ 2022.3.12f1+，NuGetForUnity 加一个 git 包，`netstandard2.1` |
 
 ### 基准测试中发现的 MemoryPack 问题
@@ -241,7 +241,7 @@ v4 新增：
 - **不可信数据**：分配（在读到元素之前最多为剩余字节的 16 倍）和栈深度都有上限，所有无效输入只抛出一种
   `NinoDataException`，拒绝 Nino 从不写出的字节，限制哈希冲突，提供 `NinoSettings.MaxDepth`、`MaxCollectionLength`
   和 `Untrusted`，并用 fuzz 和手工构造的数据检验过。
-- **格式**：版本容错类型和 keyed 类型、引用追踪，以及每个类型的线上布局以 `[assembly: NinoTypeLayout]` 元数据发布，
+- **格式**：版本容错类型和键控类型、引用追踪，以及每个类型的线上布局以 `[assembly: NinoTypeLayout]` 元数据发布，
   构建之间字节一有变化就能发现。
 - **分配**：复用反序列化到已有对象、`[NinoPooled]` 对象池、`[NinoFactory]`，以及可以从你自己的 `ArrayPool<byte>`
   租用数组的 `NinoArrayBufferWriter`。

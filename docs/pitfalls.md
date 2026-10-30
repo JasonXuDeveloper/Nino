@@ -17,9 +17,9 @@ reads the data lays the type out the same way. CoreCLR, Mono (Unity editor, Unit
 Copying a `T?` as raw memory (what MemoryPack does) therefore produces different bytes on old Unity
 versions. Nino defines the bytes instead:
 
-- A single `T?` is a has-value byte followed by the value when present.
+- A single `T?` is a presence byte followed by the value when present.
 - A `T?` array or list with unmanaged `T` uses the canonical (64-bit corefx) `Nullable<T>` layout: a
-  has-value byte, zero padding up to `T`'s alignment, then `T` (zero when null). On runtimes whose
+  presence byte, zero padding up to `T`'s alignment, then `T` (zero when null). On runtimes whose
   `Nullable<T>` matches, the block is copied as is (padding cleared). Elsewhere it is converted element
   by element: `NullableLayout<T>` probes the runtime's field offsets once (it builds `default(T)` as a
   `T?` and finds the flag byte) instead of assuming an order.

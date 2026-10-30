@@ -108,7 +108,7 @@ primary constructor); structs fall back to `new T()`; otherwise NINO004.
 ### Polymorphism and references
 
 - A slot declared as a non-sealed class, abstract class or interface writes a 4-byte type id (FNV-1a of the full
-  name), and reads back the runtime type; a sealed class writes a 1-byte null flag. **Seal classes without subtypes.**
+  name), and reads back the runtime type; a sealed class writes a presence byte. **Seal classes without subtypes.**
 - Serialize and deserialize through the common `[NinoType]` base (`Serialize<Message>(msg)`,
   `Deserialize<Message>(bytes)`), never `object`: `Serialize<object>` accepts only `[NinoType]` values and dispatches
   through the global registry. `SerializeBoxed(value, type)` / `DeserializeBoxed(data, type)` only for a type known

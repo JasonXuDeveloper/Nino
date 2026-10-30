@@ -1026,7 +1026,7 @@ checked one product at a time against overflow and the remaining bytes.
 
 A presence byte or a `bool` MUST be `0` or `1`, and readers MUST reject other values: a `bool` read as a value or a
 member, the elements of a `bool[]` or `List<bool>` (and other raw blocks of `bool`), the presence byte of a sealed
-class, `T?`, `Lazy<T>` or `Tuple<...>`, and the has-value bytes of a fixed-stride `T?[]` (§6.2). **.NET:** done
+class, `T?`, `Lazy<T>` or `Tuple<...>`, and the presence bytes of a fixed-stride `T?[]` (§6.2). **.NET:** done
 (`Nino: invalid bool byte`, `Nino: invalid presence byte`); so are the Go, Rust and TypeScript runtimes.
 
 Note: the .NET reader copies a `bool` field inside a raw struct (§5) with the struct's bytes, unchecked, unless

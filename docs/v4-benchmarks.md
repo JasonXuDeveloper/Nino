@@ -187,7 +187,7 @@ the result objects.
 * **Blocks instead of fields.** Consecutive unmanaged members are reserved and written as one block (one
   bounds check), unmanaged arrays, lists and raw `[NinoType]` structs are single block copies, and arrays and
   lists of fixed-size elements are written straight into a `byte[]` of their exact size, without a scratch buffer.
-  A raw nullable reads its has-value byte and its value under one bounds check, and multi-dimensional arrays take
+  A raw nullable reads its presence byte and its value under one bounds check, and multi-dimensional arrays take
   the block paths of flat ones.
 * **Copies sized to the CPU.** Up to 64 bytes (on 64-bit runtimes) or 128 bytes (with 32-byte vectors) are copied
   inline, as overlapping loads and stores of the widest vector that fits (up to 64 bytes the same way in one call on
