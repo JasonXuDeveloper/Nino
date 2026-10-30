@@ -24,8 +24,6 @@ namespace Nino.Core
     /// </summary>
     public static class NinoSettings
     {
-        internal const int DefaultPoolMaxRetainedValue = 256;
-
         /// <summary>Default of <see cref="MaxDepth"/>.</summary>
         public const int DefaultMaxDepth = 512;
 
@@ -206,17 +204,17 @@ namespace Nino.Core
             public bool Untrusted;
         }
 
-        private static int _defaultPoolMaxRetained = DefaultPoolMaxRetainedValue;
+        private static int _poolMaxRetained = 256;
 
         /// <summary>
         /// The <see cref="NinoPool{T}.MaxRetained"/> of pools created from now on (a pool is created when its type is
         /// first deserialized or returned). Default 256. Use <see cref="SetPoolMaxRetained{T}"/> for a pool that may
         /// already exist.
         /// </summary>
-        public static int DefaultPoolMaxRetained
+        public static int PoolMaxRetained
         {
-            get => _defaultPoolMaxRetained;
-            set => _defaultPoolMaxRetained = CheckMaxRetained(value);
+            get => _poolMaxRetained;
+            set => _poolMaxRetained = CheckMaxRetained(value);
         }
 
         /// <summary>

@@ -65,7 +65,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         {
             RemoveAttributeFix(NinoMember),
             new Fix("Update type to allow non-public members", "AllowNonPublic",
-                (e, n) => SetTypeArgument(e, n, "containNonPublicMembers", true)),
+                (e, n) => SetTypeArgument(e, n, "includeNonPublicMembers", true)),
         },
         [NinoDiagnostics.RedundantMember.Id] = new[] { RemoveAttributeFix(NinoMember) },
         [NinoDiagnostics.RedundantIgnore.Id] = new[] { RemoveAttributeFix(NinoIgnore) },

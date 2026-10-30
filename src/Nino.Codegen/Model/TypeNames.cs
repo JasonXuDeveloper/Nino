@@ -15,7 +15,7 @@ namespace Nino.Codegen.Model
             return tick < 0 ? name : name.Substring(0, tick);
         }
 
-        /// <summary>The runtime-form name (<c>NinoTypeId.GetName</c>): <c>Namespace.Outer+Inner</c>, <c>Box&lt;System.Int32&gt;</c>.</summary>
+        /// <summary>The runtime-form name (<c>NinoTypeId.GetRuntimeName</c>): <c>Namespace.Outer+Inner</c>, <c>Box&lt;System.Int32&gt;</c>.</summary>
         internal static string Runtime(Type type)
         {
             var sb = new StringBuilder();

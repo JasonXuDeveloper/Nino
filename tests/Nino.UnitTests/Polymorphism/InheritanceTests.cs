@@ -48,7 +48,7 @@ namespace Nino.UnitTests
 
     // Private base members are not part of the derived layout, so the derived member list is not an extension of
     // the base list: the derived formatter must write its members inline instead of delegating.
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class DelegPrivateBase
     {
         private int _secret;
@@ -58,7 +58,7 @@ namespace Nino.UnitTests
         public void SetSecret(int value) => _secret = value;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class DelegPrivateDerived : DelegPrivateBase
     {
         public int Extra;

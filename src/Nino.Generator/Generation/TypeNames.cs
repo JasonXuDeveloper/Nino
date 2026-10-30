@@ -311,7 +311,7 @@ internal static class TypeNames
     }
 
     /// <summary>
-    /// Name hashed into the type id; must match <c>Nino.Core.NinoTypeId.GetName</c> at runtime.
+    /// Name hashed into the type id; must match <c>Nino.Core.NinoTypeId.GetRuntimeName</c> at runtime.
     /// </summary>
     public static string RuntimeName(ITypeSymbol type)
     {

@@ -140,13 +140,13 @@ members first. Consecutive unmanaged members are written as one block
 
 The serialized members are the type's fields and properties (its own and its `[NinoType]` bases'):
 
-* Public ones, and non-public ones with `containNonPublicMembers` (private members of a base class are never
+* Public ones, and non-public ones with `includeNonPublicMembers` (private members of a base class are never
   part of a subtype). Properties need a getter and a setter (`set` or `init`).
 * Get-only auto-properties (`public int Id { get; }`) only when a constructor (or `[NinoConstructor]` factory)
   takes them: a parameter of the same name, ignoring case, or a name the `[NinoConstructor]` lists. Nothing
   else can restore them, so otherwise they are skipped.
 * Explicit interface implementations (`int IHasId.Id { get; set; }`) never, even with
-  `containNonPublicMembers`: they have no name generated code can use on the type. A `[NinoType]` interface
+  `includeNonPublicMembers`: they have no name generated code can use on the type. A `[NinoType]` interface
   serializes its own members through the implementing type's members of the same name.
 * An `override` is the member it overrides, collected once with the base. A member hiding a base member with
   `new` is another member: both are serialized, the base one first. Generated code reaches the hidden one
@@ -427,10 +427,10 @@ deserialization.
   `NinoFormatter<T>` class wrapping the struct formatter). It is used for type parameters of generic methods, for
   `[NinoType]`s from other assemblies, for types that hold themselves, and for types resolved at runtime. It costs
   one virtual call.
-* **Custom formatters**: `[NinoCustomFormatter(typeof(F))]`, where `F` is a struct implementing `INinoFormatter<T>`
+* **Custom formatters**: `[NinoMemberFormatter(typeof(F))]`, where `F` is a struct implementing `INinoFormatter<T>`
   for exactly the member type (NINO008 otherwise), called as `default(F)` and inlined. Every formatter a user
   writes is a struct: `NinoFormatter<T>` is only the runtime dispatch carrier and is internal. There is no
-  run-time registration API: formatters are declared with `[assembly: NinoFormatter]` or `[NinoCustomFormatter]`.
+  run-time registration API: formatters are declared with `[assembly: NinoFormatter]` or `[NinoMemberFormatter]`.
 
 ### Formatter registrations
 
@@ -711,7 +711,7 @@ serialization call on any thread.
 | Setting | Meaning |
 | --- | --- |
 | `SetRecycler<T>(Action<T>)` | handler for instances dropped from slots declared as `T` (null removes it) |
-| `DefaultPoolMaxRetained` | shared-stack size of pools created from now on (default 256) |
+| `PoolMaxRetained` | shared-stack size of pools created from now on (default 256) |
 | `SetPoolMaxRetained<T>(int)` | shared-stack size of `T`'s pool |
 | `MaxDepth` | open bodies (classes, and structs and collections that can hold themselves) a read or write may nest (default 512, at least 128) |
 | `MaxCollectionLength` | the most elements a collection in the data may claim (default `int.MaxValue`; the bytes left bound it anyway) |
@@ -892,7 +892,7 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 * **Fixed-size types.** A generated struct, or sealed class, whose members are all unmanaged portable values or
   such structs (not raw itself, not version tolerant, keyed, tracked or a collection, no custom formatters) is
   written in the same number of bytes for every value. Its formatter also implements `INinoFixedSizeFormatter<T>`
-  (`FixedSize`, and `WriteFixed(value, ref byte destination)`, which stores each member at a constant offset), and
+  (`FixedSize`, and `WriteFixed(in value, ref byte destination)`, which stores each member at a constant offset), and
   `NinoSerializer.Serialize(T)` returning `byte[]` is intercepted to `NinoDirect.SerializeFixed<T, TFormatter>`:
   it allocates the array at its final size and writes into it, with no writer, scratch buffer, growth checks or
   final copy. A null sealed class is its null flag, `new byte[1]`. The regular call does the same through the
@@ -906,13 +906,14 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 * **Block formatters.** A fixed-size generated struct (above) whose bytes can all be found in its memory (every
   instance field a member, or an auto-property's backing field, each directly assignable, no `[NinoConstructor]`, and
   each member raw and portable, a value tuple or `KeyValuePair` of such items, or another such struct) also implements
-  `INinoBlockFormatter<T>` (`BlockSize`, `BlockMap()`, `WriteBlock`, `ReadBlock`; the model's `TypeModel.Block`,
-  `TypeFacts.IsBlock`), as the tuple and pair formatters of Nino.Core do. Arrays, lists and spans of it then take the
+  `INinoBlockFormatter<T>`, which extends `INinoFixedSizeFormatter<T>` with `BlockMap()` and `ReadBlock` (the model's
+  `TypeModel.Block`, `TypeFacts.IsBlock`), as the tuple and pair formatters of Nino.Core do (their `FixedSize` is -1
+  when an item is not raw). One write serves both: a block is the bytes of `WriteFixed`. Arrays, lists and spans of it then take the
   paths of `NinoBlock<T, TFormatter>`: one bounds check for the collection, and where the block map gives every wire
   byte one memory byte (`NinoBlockMap.Runs`) the vector shuffles and permutes (AVX-512 VBMI groups and 64-byte
   permutes, AVX2 or SSSE3 lanes, Arm64 `tbl`, WebAssembly's swizzle; with VBMI, values of more than 16 bytes in
   memory, which its groups and permutes do not take, are written in the AVX2 lane plan's partial groups); elsewhere (no SIMD, a map that overlaps, Mono,
-  .NET Framework and the netstandard builds of Nino.Core) the scalar loop of `WriteBlock`/`ReadBlock`, inlined, one
+  .NET Framework and the netstandard builds of Nino.Core) the scalar loop of `WriteFixed`/`ReadBlock`, inlined, one
   value after another, unless kernels are registered (below). `BlockMap()` is built once per type from `NinoBlockMap` (`Raw<TItem>(memory, wire)` for a raw
   item, `Block<TItem, TFormatter>` for a nested block, whose map is merged); the memory offset of a field is
   `NinoBlocks.Offset`, of an auto-property's backing field (which generated code cannot name) `NinoBlocks.Find`, which

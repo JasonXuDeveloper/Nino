@@ -28,7 +28,7 @@ internal sealed class NinoSymbols
         INamedTypeSymbol? Core(string name) => compilation.GetTypeByMetadataName(NinoNames.Core(name));
         Member = Core(NinoNames.NinoMember + "Attribute");
         Ignore = Core(NinoNames.NinoIgnore + "Attribute");
-        CustomFormatter = Core("NinoCustomFormatterAttribute");
+        CustomFormatter = Core("NinoMemberFormatterAttribute");
         IFormatter = Core("INinoFormatter`1");
         FormatterAttribute = Core("NinoFormatterAttribute");
         Utf8 = Core("NinoUtf8Attribute");
@@ -46,7 +46,7 @@ internal sealed class NinoSymbols
     }
 
     /// <summary>
-    /// Whether <paramref name="formatter"/> can be the <c>[NinoCustomFormatter]</c> of a <paramref name="memberType"/>
+    /// Whether <paramref name="formatter"/> can be the <c>[NinoMemberFormatter]</c> of a <paramref name="memberType"/>
     /// member: a struct implementing <c>INinoFormatter&lt;T&gt;</c> where <c>T</c> is exactly the member type, called
     /// directly like the built-in formatters. The analyzer reports NINO008 for anything else and the generator skips
     /// the member.

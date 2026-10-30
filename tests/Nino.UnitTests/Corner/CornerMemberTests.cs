@@ -31,7 +31,7 @@ namespace Nino.UnitTests
 
     // ---- same-named private fields at several levels ----
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class PrivLevel1
     {
         private int _x;
@@ -39,7 +39,7 @@ namespace Nino.UnitTests
         public void SetX1(int v) => _x = v;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class PrivLevel2 : PrivLevel1
     {
         private int _x;
@@ -47,7 +47,7 @@ namespace Nino.UnitTests
         public void SetX2(int v) => _x = v;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class PrivLevel3 : PrivLevel2
     {
         private string _x;
@@ -84,7 +84,7 @@ namespace Nino.UnitTests
 
     // ---- getter-only / computed ----
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class GetterBacked
     {
         private int _count;
@@ -263,7 +263,7 @@ namespace Nino.UnitTests
         public string Deserialize;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class AwkwardPrivateNames
     {
         private int value;
@@ -292,15 +292,15 @@ using System.Collections.Generic;
 using Nino.Core;
 namespace C
 {
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class L1 { private int _x; protected string Shared; public void Set1(int v) => _x = v; public int Get1() => _x; }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class L2 : L1 { private int _x; private List<int> value; public void Set2(int v) { _x = v; value = new List<int> { v }; Shared = ""s""; } public string Get2() => _x + "","" + value[0] + Shared; }
 
     public partial class Outer
     {
-        [NinoType(containNonPublicMembers: true)]
+        [NinoType(includeNonPublicMembers: true)]
         internal partial class Inner { private int __G_x; private string @this; public void Set(int a, string b) { __G_x = a; @this = b; } public string Get() => __G_x + @this; }
         public static string RunInner()
         {
@@ -474,16 +474,16 @@ namespace C
     [NinoType]
     public class IgnoredHiding : Base { [NinoIgnore] public new long Value; }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class PBase { protected int Value; public int Get() => Value; public void Set(int v) => Value = v; }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class PDerived : PBase { public new string Value; }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class GBase<T> { protected int Value; public int Get() => Value; public void Set(int v) => Value = v; }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class GDerived<T> : GBase<T> { public new T Value; }
 
     public static class Api
@@ -578,7 +578,7 @@ namespace C
 {
     public interface IHasId { int Id { get; set; } }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class Impl : IHasId
     {
         int IHasId.Id { get; set; }
@@ -597,7 +597,7 @@ namespace C
     }
 }");
             // Explicit interface implementations are never members of the implementing type, even with
-            // containNonPublicMembers: they belong to the interface (serialized when it is a [NinoType]).
+            // includeNonPublicMembers: they belong to the interface (serialized when it is a [NinoType]).
             Assert.AreEqual(0, compiled.Errors.Length, compiled.ErrorText);
             var result = (int)compiled.Assembly.GetType("C.Api")!.GetMethod("Run")!.Invoke(null, null)!;
             Assert.AreEqual(3, result);

@@ -143,7 +143,7 @@ namespace Nino.Core
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct | System.AttributeTargets.Interface)]
     public sealed class NinoTypeAttribute : System.Attribute
     {
-        public NinoTypeAttribute(bool autoCollect = true, bool containNonPublicMembers = false,
+        public NinoTypeAttribute(bool autoCollect = true, bool includeNonPublicMembers = false,
             bool allowInheritance = true, NinoFormat format = NinoFormat.Positional, bool trackReferences = false) { }
     }
     [System.AttributeUsage(System.AttributeTargets.Assembly, AllowMultiple = true)]

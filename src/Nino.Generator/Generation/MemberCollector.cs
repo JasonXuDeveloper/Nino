@@ -10,10 +10,10 @@ namespace Nino.Generator.Generation;
 /// <summary>Why a member's annotations are wrong or pointless; the analyzer reports each as a diagnostic.</summary>
 internal enum MemberFindingKind
 {
-    /// <summary>NINO008: the <c>[NinoCustomFormatter]</c> cannot format the member's type.</summary>
+    /// <summary>NINO008: the <c>[NinoMemberFormatter]</c> cannot format the member's type.</summary>
     InvalidCustomFormatter,
 
-    /// <summary>NINO009: <c>[NinoMember]</c> on a non-public member of a type without containNonPublicMembers.</summary>
+    /// <summary>NINO009: <c>[NinoMember]</c> on a non-public member of a type without includeNonPublicMembers.</summary>
     NonPublicMember,
 
     /// <summary>NINO010: <c>[NinoMember]</c> on a member that is collected automatically.</summary>
@@ -63,7 +63,7 @@ internal static class MemberCollector
         List<MemberFinding>? findings = null)
     {
         bool autoCollect = attr.AutoCollect;
-        bool containNonPublic = attr.ContainNonPublicMembers;
+        bool containNonPublic = attr.IncludeNonPublicMembers;
 
         var levels = new List<INamedTypeSymbol>();
         var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
@@ -193,9 +193,9 @@ internal static class MemberCollector
             !known.IsCustomFormatterOf(formatter, memberType))
             findings.Add(new MemberFinding(MemberFindingKind.InvalidCustomFormatter, member, formatter));
 
-        // Non-public members are only collected with containNonPublicMembers: [NinoMember] cannot opt one in.
+        // Non-public members are only collected with includeNonPublicMembers: [NinoMember] cannot opt one in.
         bool dropped = annotated && member.DeclaredAccessibility != Accessibility.Public &&
-                       !attr.ContainNonPublicMembers;
+                       !attr.IncludeNonPublicMembers;
         if (dropped)
             findings.Add(new MemberFinding(MemberFindingKind.NonPublicMember, member));
         if (attr.AutoCollect)

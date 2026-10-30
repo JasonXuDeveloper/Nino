@@ -32,39 +32,31 @@ namespace Nino.Core
         public static bool IsRegistered => Volatile.Read(ref _instance) != null;
 
         /// <summary>
-        /// Registers the formatter unless one is already registered. Used by generated code: users declare
-        /// formatters with <c>[assembly: NinoFormatter]</c> or <c>[NinoCustomFormatter]</c> instead.
+        /// Registers the formatter unless one is already registered, and returns whether this call registered it.
+        /// Used by generated code: users declare formatters with <c>[assembly: NinoFormatter]</c> or
+        /// <c>[NinoMemberFormatter]</c> instead.
         /// </summary>
         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static void TryRegister<TFormatter>() where TFormatter : struct, INinoFormatter<T>
-        {
-            if (Volatile.Read(ref _instance) == null)
-                Publish(new StructFormatter<T, TFormatter>());
-        }
+        public static bool TryRegister<TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            Volatile.Read(ref _instance) == null && TryPublish(new StructFormatter<T, TFormatter>());
 
         /// <summary>
         /// <see cref="TryRegister{TFormatter}"/> for a formatter of fixed size, which the regular byte array call
         /// uses to write into an array of that size. Used by generated code.
         /// </summary>
         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static void TryRegisterFixed<TFormatter>() where TFormatter : struct, INinoFixedSizeFormatter<T>
-        {
-            if (Volatile.Read(ref _instance) == null)
-                Publish(new FixedStructFormatter<T, TFormatter>());
-        }
+        public static bool TryRegisterFixed<TFormatter>() where TFormatter : struct, INinoFixedSizeFormatter<T> =>
+            Volatile.Read(ref _instance) == null && TryPublish(new FixedStructFormatter<T, TFormatter>());
 
         /// <summary>
         /// <see cref="TryRegister{TFormatter}"/> for a formatter with a <c>__Top</c> twin, which the regular top-level
         /// calls write through (see <see cref="INinoTopFormatter{T}"/>). Used by generated code.
         /// </summary>
         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static void TryRegisterTop<TFormatter, TTop>()
+        public static bool TryRegisterTop<TFormatter, TTop>()
             where TFormatter : struct, INinoFormatter<T>
-            where TTop : struct, INinoTopFormatter<T>
-        {
-            if (Volatile.Read(ref _instance) == null)
-                Publish(new TopStructFormatter<T, TFormatter, TTop>());
-        }
+            where TTop : struct, INinoTopFormatter<T> =>
+            Volatile.Read(ref _instance) == null && TryPublish(new TopStructFormatter<T, TFormatter, TTop>());
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static NinoFormatter<T> Resolve()
@@ -134,11 +126,26 @@ namespace Nino.Core
         /// </summary>
         private static NinoFormatter<T> Publish(NinoFormatter<T> formatter)
         {
+            Publish(ref formatter);
+            return formatter;
+        }
+
+        /// <summary>Publishes <paramref name="formatter"/> unless another was first; whether it was.</summary>
+        private static bool TryPublish(NinoFormatter<T> formatter) => Publish(ref formatter);
+
+        /// <summary>
+        /// Stores <paramref name="formatter"/> unless a formatter is already stored, and sets it to the one stored;
+        /// returns whether it was this one.
+        /// </summary>
+        private static bool Publish(ref NinoFormatter<T> formatter)
+        {
             if (NinoNesting.Holds(typeof(T)))
                 formatter = formatter.Counted();
-            var instance = Interlocked.CompareExchange(ref _instance, formatter, null) ?? formatter;
-            NinoFormatterCache.MarkRegistered(typeof(T), instance);
-            return instance;
+            var existing = Interlocked.CompareExchange(ref _instance, formatter, null);
+            if (existing != null)
+                formatter = existing;
+            NinoFormatterCache.MarkRegistered(typeof(T), formatter);
+            return existing == null;
         }
     }
 

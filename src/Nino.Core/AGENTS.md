@@ -28,7 +28,7 @@ Properties.cs                [module: SkipLocalsInit]
 ## Attributes/
 
 ```
-NinoTypeAttribute.cs         [NinoType]: marks a type for the generator (autoCollect, containNonPublicMembers,
+NinoTypeAttribute.cs         [NinoType]: marks a type for the generator (autoCollect, includeNonPublicMembers,
                              allowInheritance, format, trackReferences)
 NinoFormat.cs                NinoFormat: Positional, VersionTolerant, Keyed (also compiled into the generator)
 NinoMemberAttribute.cs       [NinoMember(index)]: selects and orders members under [NinoType(false)]
@@ -38,7 +38,7 @@ NinoFormerNameAttribute.cs   [NinoFormerName]: a type's former name (its type id
 NinoConstructorAttribute.cs  [NinoConstructor]: the constructor deserialization uses
 NinoFactoryAttribute.cs      [NinoFactory]: a static method Nino calls to create an instance (a pool, ...)
 NinoPooledAttribute.cs       [NinoPooled]: the generator adds ReturnToPool() and pool hooks to a sealed class
-NinoCustomFormatterAttribute.cs  [NinoCustomFormatter(typeof(F))]: a member written by a formatter of the user's
+NinoMemberFormatterAttribute.cs  [NinoMemberFormatter(typeof(F))]: a member written by a formatter of the user's
 NinoFormatterAttribute.cs    [assembly: NinoFormatter(typeof(F<>))]: registers a struct formatter for the generator and
                              the runtime resolver alike (rules shared through NinoFormatterBinding)
 NinoCreatedAttribute.cs      [NinoCreated] on a formatter's type parameter: the formatter creates it (NinoActivator)

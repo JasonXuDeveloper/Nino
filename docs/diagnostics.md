@@ -123,15 +123,15 @@ generic). That member is not skipped: it is written, and null works, but writing
 
 ### NINO008
 
-`[NinoCustomFormatter(typeof(F))]` requires `F` to be a struct implementing `INinoFormatter<T>`, where `T` is exactly the
+`[NinoMemberFormatter(typeof(F))]` requires `F` to be a struct implementing `INinoFormatter<T>`, where `T` is exactly the
 member type. Generated code calls it as `default(F)`, inlined like the built-in formatters, so it has no instance:
 keep any state it needs in static fields.
 
 ### NINO009
 
 A non-public (private, protected, internal...) member marked `[NinoMember]` is only serialized when the type sets
-`containNonPublicMembers: true`, with or without `autoCollect`. 🔧 Remove `[NinoMember]`, or set
-`containNonPublicMembers: true` on the type.
+`includeNonPublicMembers: true`, with or without `autoCollect`. 🔧 Remove `[NinoMember]`, or set
+`includeNonPublicMembers: true` on the type.
 
 ### NINO010
 

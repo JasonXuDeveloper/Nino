@@ -232,4 +232,24 @@ public class FormatterRegistrationTests
         Assert.AreEqual((7, 3), (element, priority));
 #endif
     }
+
+    private sealed class TryRegisterTarget
+    {
+    }
+
+    private struct TryRegisterTargetFormatter : INinoFormatter<TryRegisterTarget>
+    {
+        public void Serialize(TryRegisterTarget value, ref Writer writer) => writer.Write(0);
+
+        public void Deserialize(ref TryRegisterTarget value, ref Reader reader) => reader.Read(out int _);
+    }
+
+    [TestMethod]
+    public void TryRegisterSaysWhetherThisCallRegistered()
+    {
+        Assert.IsTrue(NinoFormatterCache<TryRegisterTarget>.TryRegister<TryRegisterTargetFormatter>());
+        Assert.IsFalse(NinoFormatterCache<TryRegisterTarget>.TryRegister<TryRegisterTargetFormatter>());
+        Assert.IsTrue(NinoActivator<TryRegisterTarget>.TryRegister(static () => new TryRegisterTarget()));
+        Assert.IsFalse(NinoActivator<TryRegisterTarget>.TryRegister(static () => new TryRegisterTarget()));
+    }
 }

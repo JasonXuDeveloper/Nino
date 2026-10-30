@@ -590,7 +590,7 @@ id = h reinterpreted as i32
 ```
 
 The **id name** is the `[NinoFormerName("...")]` argument of the type, when it has one. Otherwise it is the
-runtime-form name (`NinoTypeId.GetName`):
+runtime-form name (`NinoTypeId.GetRuntimeName`):
 
 - `Namespace.Name`, or `Name` alone when the type has no namespace.
 - Nested types: `Namespace.Outer+Inner`, with the outer chain joined by `+`.
@@ -887,7 +887,7 @@ graphs MUST be trees.
 
 - **Pooling and reuse.** Object pooling (`NinoPool`, `NinoRecycler`) and reading into existing instances have no
   effect on the bytes.
-- **Custom formatters.** A member or type that uses a custom formatter (`[NinoCustomFormatter]`, `[NinoFormatter]`,
+- **Custom formatters.** A member or type that uses a custom formatter (`[NinoMemberFormatter]`, `[NinoFormatter]`,
   or a formatter from another library) is written however that formatter writes it. The layout shows it as
   `formatter(F)`. Its bytes are outside this specification.
 - **Formatter-backed BCL types.** Some BCL types are also published as `formatter(F)`, for example

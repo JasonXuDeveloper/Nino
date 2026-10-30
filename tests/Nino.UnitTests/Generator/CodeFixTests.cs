@@ -286,7 +286,7 @@ using Nino.Core;
 
 public class Outer
 {
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public class TestClass
     {
         private int _value;
@@ -299,7 +299,7 @@ using Nino.Core;
 
 public partial class Outer
 {
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class TestClass
     {
         private int _value;
@@ -320,7 +320,7 @@ public partial class Outer
         var code = @"
 using Nino.Core;
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public class {|#0:TestClass|}
 {
     private int _value;
@@ -330,7 +330,7 @@ public class {|#0:TestClass|}
         var fixedCode = @"
 using Nino.Core;
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class TestClass
 {
     private int _value;
@@ -380,14 +380,14 @@ using Nino.Core;
 
 public class Outer
 {
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public class {|#0:A|}
     {
         private int _value;
         public int Value => _value;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public class {|#1:B|}
     {
         private int _value;
@@ -400,14 +400,14 @@ using Nino.Core;
 
 public partial class Outer
 {
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class A
     {
         private int _value;
         public int Value => _value;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public partial class B
     {
         private int _value;
@@ -692,7 +692,7 @@ public partial class TestClass
         var fixedCode = @"
 using Nino.Core;
 
-[NinoType(autoCollect: false, containNonPublicMembers: true)]
+[NinoType(autoCollect: false, includeNonPublicMembers: true)]
 public partial class TestClass
 {
     [NinoMember(0)]
@@ -753,7 +753,7 @@ public partial class TestClass
         var fixedCode = @"
 using Nino.Core;
 
-[NinoType(false, containNonPublicMembers: true)]
+[NinoType(false, includeNonPublicMembers: true)]
 public partial class TestClass
 {
     [NinoMember(0)]
@@ -782,7 +782,7 @@ public class TestClass
         var fixedCode = @"
 using Nino.Core;
 
-[NinoType(autoCollect: false, containNonPublicMembers: true)]
+[NinoType(autoCollect: false, includeNonPublicMembers: true)]
 public class {|#0:TestClass|}
 {
     [NinoMember(0)]

@@ -43,7 +43,7 @@ namespace Nino.Codegen.Model
         public string FullName => Clr.FullName ?? Clr.Name;
 
         /// <summary>
-        /// The runtime-form name its type id hashes and the corpus uses (<c>NinoTypeId.GetName</c>:
+        /// The runtime-form name its type id hashes and the corpus uses (<c>NinoTypeId.GetRuntimeName</c>:
         /// <c>Namespace.Outer+Inner</c>, generic arguments in <c>&lt;&gt;</c>).
         /// </summary>
         public string RuntimeName => TypeNames.Runtime(Clr);

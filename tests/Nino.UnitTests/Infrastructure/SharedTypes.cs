@@ -175,7 +175,7 @@ public sealed class ListElementClass2Renamed : IListElementClass
 }
 
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public
 partial class ProtectedShouldInclude
 {
@@ -227,7 +227,7 @@ partial class Bindable<T>
 
 namespace Nino.UnitTests
 {
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public
 partial class
         TestPrivateMemberClass : Base
@@ -246,7 +246,7 @@ partial class
         }
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public
 partial record RecordWithPrivateMember(string Name)
     {
@@ -255,7 +255,7 @@ partial record RecordWithPrivateMember(string Name)
         public int ReadonlyId => Id;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public
 partial record struct RecordWithPrivateMember2(string Name)
     {
@@ -264,7 +264,7 @@ partial record struct RecordWithPrivateMember2(string Name)
         public int ReadonlyId => Id;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public
 partial struct StructWithPrivateMember
     {
@@ -275,7 +275,7 @@ partial struct StructWithPrivateMember
         public void SetName(string name) => Name = name;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public
 partial class ClassWithPrivateMember<T>
     {

@@ -34,8 +34,8 @@ namespace Conformance
             return null;
         }
 
-        /// <summary>The name a type is listed under: its runtime-form name (<see cref="NinoTypeId.GetName"/>).</summary>
-        public static string Name(Type type) => NinoTypeId.GetName(type);
+        /// <summary>The name a type is listed under: its runtime-form name (<see cref="NinoTypeId.GetRuntimeName"/>).</summary>
+        public static string Name(Type type) => NinoTypeId.GetRuntimeName(type);
 
         /// <summary>Splits on <paramref name="separator"/> outside brackets.</summary>
         public static List<string> Split(string text, char separator)

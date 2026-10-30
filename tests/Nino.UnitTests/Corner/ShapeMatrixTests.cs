@@ -225,7 +225,7 @@ namespace Other
 
             private string Attribute(bool nonPublic = false) =>
                 $"[NinoType(format: NinoFormat.{_format}, trackReferences: {(_track ? "true" : "false")}" +
-                $"{(nonPublic ? ", containNonPublicMembers: true" : "")})]";
+                $"{(nonPublic ? ", includeNonPublicMembers: true" : "")})]";
 
             // (name, value) of the members every subtype inherits.
             private List<(string Name, string Type, string Value)> Inherited()

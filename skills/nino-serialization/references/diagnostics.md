@@ -13,8 +13,8 @@ warning here usually means data is dropped. Full text: https://nino.xgamedev.net
 | NINO005 | Error | A `[NinoConstructor]` parameter or name matches no serialized member | Fix the names |
 | NINO006 | Warning | A read-only member of a re-created type is not a constructor parameter: read and dropped | Add it to the constructor, make it settable, or `[NinoIgnore]` 🔧 |
 | NINO007 | Warning | No formatter for the member type (delegate, `Task`, pointer, `Type`, an uncreatable collection): skipped | `[NinoIgnore]` 🔧, or a custom formatter |
-| NINO008 | Error | `[NinoCustomFormatter]` is not a struct implementing `INinoFormatter<T>` for exactly the member type | Fix the formatter |
-| NINO009 | Error | Non-public `[NinoMember]` without `containNonPublicMembers: true` | Remove it, or set the option 🔧 |
+| NINO008 | Error | `[NinoMemberFormatter]` is not a struct implementing `INinoFormatter<T>` for exactly the member type | Fix the formatter |
+| NINO009 | Error | Non-public `[NinoMember]` without `includeNonPublicMembers: true` | Remove it, or set the option 🔧 |
 | NINO010 | Warning | `[NinoMember]` with `autoCollect: true` changes nothing | Remove it 🔧 |
 | NINO011 | Warning | `[NinoIgnore]` with `autoCollect: false` changes nothing | Remove it 🔧 |
 | NINO012 | Error | Both `[NinoMember]` and `[NinoIgnore]` | Remove one 🔧 |

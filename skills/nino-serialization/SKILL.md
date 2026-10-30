@@ -30,7 +30,7 @@ also served as Markdown: add `.md` to its URL (`https://nino.xgamedev.net/en/doc
 
 - `[NinoType]` on a `class`, `struct`, `record`, `record struct` or `interface`. The type and every type containing it
   are `public` or `internal`, never a `static` class or `ref struct` (NINO001).
-- Options: `[NinoType(autoCollect: true, containNonPublicMembers: false, allowInheritance: true, format:
+- Options: `[NinoType(autoCollect: true, includeNonPublicMembers: false, allowInheritance: true, format:
   NinoFormat.Positional, trackReferences: false)]`; use named arguments.
 - With `autoCollect: true` every public field and every public property with a getter and a `set`/`init` is written:
   `[NinoType]` base classes first (root first), then the type's own members in declaration order. Get-only
@@ -38,7 +38,7 @@ also served as Markdown: add `.md` to its URL (`https://nino.xgamedev.net/en/doc
   implementations are skipped; a member of a type Nino cannot write is skipped with NINO007.
 - `[NinoIgnore]` drops a member. `[NinoType(false)]` writes only `[NinoMember(index)]` members, by index ascending
   (`[property: NinoMember(n)]` on record parameters). Don't mix them up: NINO010 to NINO013.
-- Non-public members need `containNonPublicMembers: true` (a non-public `[NinoMember]` without it: NINO009). Before
+- Non-public members need `includeNonPublicMembers: true` (a non-public `[NinoMember]` without it: NINO009). Before
   .NET 8 (Unity, .NET Framework, `netstandard`), and for generic types before .NET 9, the type and every containing type
   must be `partial` (NINO002). Write `partial` on such types anyway when the code may build for Unity.
 - Subtypes inherit `[NinoType]` and its options from the nearest `[NinoType]` base class or interface. A subtype's own
@@ -68,7 +68,7 @@ public sealed class Order
 [NinoType]
 public struct OrderLine { public int ProductId; public int Quantity; } // raw: 8 bytes, one block per list
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class Account { private long _balance; public int Id; }
 ```
 
@@ -180,7 +180,7 @@ NinoSettings.MaxDepth = 512;                // default 512, at least 128
 NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
 ```
 
-- Pool settings (`DefaultPoolMaxRetained`, `SetPoolMaxRetained<T>`, `SetRecycler<T>`) are also startup-only.
+- Pool settings (`PoolMaxRetained`, `SetPoolMaxRetained<T>`, `SetRecycler<T>`) are also startup-only.
 - Still your job: validate values (a negative health, an unnamed enum value), cap frame or request sizes before
   buffering, and version payloads yourself (the bytes carry no schema: data for another type with a compatible layout
   reads without error; put a magic number and version in front of stored files).
@@ -205,7 +205,7 @@ NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
 
 A formatter is a **struct** implementing `INinoFormatter<T>` (`Serialize(T, ref Writer)`, `Deserialize(ref T, ref
 Reader)`), called as `default(F)`: no instance state. Read exactly what you wrote, in order.
-- One member: `[NinoCustomFormatter(typeof(F))]`, `F` for exactly the member type (NINO008).
+- One member: `[NinoMemberFormatter(typeof(F))]`, `F` for exactly the member type (NINO008).
 - A type Nino does not know: `[assembly: NinoFormatter(typeof(F<,>))]`, generic formatters as open definitions; a
   type parameter constrained `struct, INinoFormatter<E>` gets the element formatter; `[NinoRaw]` and `[NinoCreated]`
   narrow what binds. Invalid registrations: NINO020. There is no runtime registration call.
@@ -235,7 +235,7 @@ public struct ZigZagLongFormatter : INinoFormatter<long>
 public sealed class BalanceChange
 {
     public int AccountId;
-    [NinoCustomFormatter(typeof(ZigZagLongFormatter))] public long DeltaCents;
+    [NinoMemberFormatter(typeof(ZigZagLongFormatter))] public long DeltaCents;
 }
 ```
 

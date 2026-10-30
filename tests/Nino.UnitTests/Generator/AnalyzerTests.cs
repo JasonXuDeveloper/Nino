@@ -159,7 +159,7 @@ using Nino.Core;
 
 public class Container
 {
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     private class {|#0:Hidden|}
     {
         private int _value;
@@ -181,7 +181,7 @@ using Nino.Core;
 
 public class Outer
 {
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public class {|#0:TestClass|}
     {
         private int _value;
@@ -189,7 +189,7 @@ public class Outer
     }
 }
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class PartialClass
 {
     private int _value;
@@ -240,7 +240,7 @@ public class Outer
     }
 }
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public class {|#1:Box|}<T>
 {
     private T _value;
@@ -266,7 +266,7 @@ public class PublicMembersOnly
         var code = @"
 using Nino.Core;
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class TestClass
 {
     private int _a;
@@ -820,7 +820,7 @@ public class InitOnly
     }
 }
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class PrivateReadOnly
 {
     private readonly int {|#0:_a|};
@@ -1047,13 +1047,13 @@ public class NotAFormatter
 [NinoType]
 public class TestClass
 {
-    [NinoCustomFormatter(typeof(StringFormatter))]
+    [NinoMemberFormatter(typeof(StringFormatter))]
     public int {|#0:A|};
 
-    [NinoCustomFormatter(typeof(NotAFormatter))]
+    [NinoMemberFormatter(typeof(NotAFormatter))]
     public int {|#1:B|};
 
-    [NinoCustomFormatter(typeof(IntFormatter))]
+    [NinoMemberFormatter(typeof(IntFormatter))]
     public int C;
 }
 ";
@@ -1097,25 +1097,25 @@ public struct GenericFormatter<T> : INinoFormatter<T>
 [NinoType]
 public class TestClass
 {
-    [NinoCustomFormatter(typeof(IntFormatter))]
+    [NinoMemberFormatter(typeof(IntFormatter))]
     public int Property { get; set; }
 
-    [NinoCustomFormatter(typeof(NullableIntFormatter))]
+    [NinoMemberFormatter(typeof(NullableIntFormatter))]
     public int {|#0:Nullable|} { get; set; }
 
-    [NinoCustomFormatterAttribute(typeof(IntFormatter))]
+    [NinoMemberFormatterAttribute(typeof(IntFormatter))]
     public int? {|#1:NullableMember|};
 
-    [NinoCustomFormatter(typeof(IntFormatter))]
+    [NinoMemberFormatter(typeof(IntFormatter))]
     public long {|#2:WrongType|};
 
-    [NinoCustomFormatter(typeof(ClassIntFormatter))]
+    [NinoMemberFormatter(typeof(ClassIntFormatter))]
     public int {|#3:Class|};
 
-    [NinoCustomFormatter(typeof(GenericFormatter<int>))]
+    [NinoMemberFormatter(typeof(GenericFormatter<int>))]
     public int Generic;
 
-    [NinoCustomFormatter(typeof(GenericFormatter<>))]
+    [NinoMemberFormatter(typeof(GenericFormatter<>))]
     public int {|#4:Open|};
 }
 ";
@@ -1158,7 +1158,7 @@ public partial class TestClass2
     }
 
     [TestMethod]
-    public async Task NINO009_NestedTypeMayContainNonPublicMembers()
+    public async Task NINO009_NestedTypeMayIncludeNonPublicMembers()
     {
         var code = @"
 using Nino.Core;
@@ -1228,7 +1228,7 @@ public class TestClass
 }
 ";
 
-        // Protected and internal [NinoMember]s are not collected without containNonPublicMembers either.
+        // Protected and internal [NinoMember]s are not collected without includeNonPublicMembers either.
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO009").WithLocation(0).WithArguments("A", "TestClass"),
             Verify.Diagnostic("NINO009").WithLocation(1).WithArguments("B", "TestClass")).RunAsync();
@@ -1289,7 +1289,7 @@ public partial class TestClass
 }
 ";
 
-        // A non-public [NinoMember] in an autoCollect type is not collected without containNonPublicMembers:
+        // A non-public [NinoMember] in an autoCollect type is not collected without includeNonPublicMembers:
         // that is NINO009, not NINO010.
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO010").WithLocation(0).WithArguments("A", "TestClass"),
@@ -1481,14 +1481,14 @@ public class AutoCollect
         var code = @"
 using Nino.Core;
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class Base
 {
     protected int {|#0:Value|};
     public string Name;
 }
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class Derived : Base
 {
     public new string Value;

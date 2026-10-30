@@ -134,7 +134,7 @@ internal static class NinoTypeHelper
 internal sealed class NinoTypeOptions
 {
     public bool AutoCollect { get; private set; } = true;
-    public bool ContainNonPublicMembers { get; private set; }
+    public bool IncludeNonPublicMembers { get; private set; }
     public bool AllowInheritance { get; private set; } = true;
     public NinoFormat Format { get; private set; }
     public bool TrackReferences { get; private set; }
@@ -167,7 +167,7 @@ internal sealed class NinoTypeOptions
             switch (parameters[i].Name)
             {
                 case "autoCollect": options.AutoCollect = value; break;
-                case "containNonPublicMembers": options.ContainNonPublicMembers = value; break;
+                case "includeNonPublicMembers": options.IncludeNonPublicMembers = value; break;
                 case "allowInheritance": options.AllowInheritance = value; break;
                 case "trackReferences": options.TrackReferences = value; break;
             }

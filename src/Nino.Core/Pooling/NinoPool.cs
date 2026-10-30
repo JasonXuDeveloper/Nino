@@ -30,7 +30,7 @@ namespace Nino.Core
         private readonly object _lock = new object();
         private T[] _items = new T[ThreadCapacity];
         private int _count;
-        private int _maxRetained = NinoSettings.DefaultPoolMaxRetained;
+        private int _maxRetained = NinoSettings.PoolMaxRetained;
 
         private NinoPool()
         {
@@ -43,7 +43,7 @@ namespace Nino.Core
 
         /// <summary>
         /// Most instances kept by the shared stack; more are left to the garbage collector. Set through
-        /// <see cref="NinoSettings.SetPoolMaxRetained{T}"/> (or <see cref="NinoSettings.DefaultPoolMaxRetained"/>).
+        /// <see cref="NinoSettings.SetPoolMaxRetained{T}"/> (or <see cref="NinoSettings.PoolMaxRetained"/>).
         /// </summary>
         public int MaxRetained
         {

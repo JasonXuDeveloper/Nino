@@ -23,17 +23,17 @@ namespace Nino.Core
         public static int Compute(string name) => NinoHash.Compute(name);
 
         /// <summary>Returns the id of <paramref name="type"/>, honoring <see cref="NinoFormerNameAttribute"/>.</summary>
-        public static int Of(Type type) => Cache.GetOrAdd(type, t => Compute(GetIdName(t)));
+        public static int Of(Type type) => Cache.GetOrAdd(type, t => Compute(GetHashedName(t)));
 
         /// <summary>Returns the name hashed for <paramref name="type"/>.</summary>
-        public static string GetIdName(Type type)
+        public static string GetHashedName(Type type)
         {
             var former = type.GetCustomAttribute<NinoFormerNameAttribute>(false);
-            return former?.FormerName ?? GetName(type);
+            return former?.FormerName ?? GetRuntimeName(type);
         }
 
         /// <summary>Returns the runtime-form name of <paramref name="type"/>.</summary>
-        public static string GetName(Type type)
+        public static string GetRuntimeName(Type type)
         {
             var sb = new StringBuilder();
             AppendName(sb, type);

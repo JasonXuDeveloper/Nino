@@ -55,7 +55,7 @@ namespace RawRules
     [NinoType] public struct WithPrivate { public int A; private int _b; public int B => _b; }
     [NinoType(false)] public struct NotAutoCollected { [NinoMember(0)] public int A; public int B; }
     [NinoType(false)] public struct AllMarked { [NinoMember(0)] public int A; [NinoMember(1)] public int B; }
-    [NinoType(containNonPublicMembers: true)] public struct WithPrivateCollected { public int A; private int _b; }
+    [NinoType(includeNonPublicMembers: true)] public struct WithPrivateCollected { public int A; private int _b; }
     [NinoType(format: NinoFormat.VersionTolerant)] public struct Tolerant { public int A; }
     [NinoType(format: NinoFormat.Keyed)] public struct Keyed { public int A; }
     [NinoType, StructLayout(LayoutKind.Explicit)] public struct Union { [FieldOffset(0)] public int A; [FieldOffset(0)] public float B; }

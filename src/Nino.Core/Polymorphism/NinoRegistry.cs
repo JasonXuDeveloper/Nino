@@ -167,7 +167,7 @@ namespace Nino.Core
             {
                 // Keyed by the plain name hash (generated registries also list [NinoFormerName] types under it), which
                 // needs no attribute reflection.
-                RegisterId(NinoTypeId.Compute(NinoTypeId.GetName(type)));
+                RegisterId(NinoTypeId.Compute(NinoTypeId.GetRuntimeName(type)));
             }
             finally
             {

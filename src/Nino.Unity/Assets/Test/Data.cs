@@ -80,7 +80,7 @@ namespace Nino.Test
 
     // Only the [NinoMember]s, one of them private: the generator reaches it through an accessor inside the type,
     // which is why the type is partial (NINO002; Unity has no [UnsafeAccessor]).
-    [NinoType(autoCollect: false, containNonPublicMembers: true)]
+    [NinoType(autoCollect: false, includeNonPublicMembers: true)]
     public partial class PrimitiveTypeTest
     {
         [NinoMember(1)] public Vector3 v3;

@@ -246,10 +246,10 @@ public partial class Outer
 {
     internal partial class Middle
     {
-        [NinoType(containNonPublicMembers: true)]
+        [NinoType(includeNonPublicMembers: true)]
         public partial class Inner { private int _secret; public string Name; }
 
-        [NinoType(containNonPublicMembers: true)]
+        [NinoType(includeNonPublicMembers: true)]
         public partial struct InnerStruct { private long _value; }
     }
 }
@@ -336,7 +336,7 @@ public class MadeList : System.Collections.Generic.List<Made> { }
     {
         var compilation = Create(
             ("A.cs", Usings + "[NinoType] public class A { public int X; public System.Action Bad; }\n}"),
-            ("B.cs", Usings + "[NinoType(containNonPublicMembers: true)] public partial class B { private int _y; }\n}"),
+            ("B.cs", Usings + "[NinoType(includeNonPublicMembers: true)] public partial class B { private int _y; }\n}"),
             ("C.cs", Usings + "public static class C { public static byte[] W(System.Collections.Generic.List<A> a) => NinoSerializer.Serialize(a); }\n}"));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new Generator.Generation.NinoGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
@@ -516,7 +516,7 @@ public class holder { [NinoType] public class item { public int I; } }
         // .NET 8+: private members are reached through [UnsafeAccessor], which the compiler cannot see.
         var parse = new CSharpParseOptions(LanguageVersion.Latest).WithPreprocessorSymbols("NET8_0_OR_GREATER");
         var compilation = Create(("S.cs", Usings + @"
-[NinoType(containNonPublicMembers: true)] public class S { private int _never; private string _assigned = """"; }
+[NinoType(includeNonPublicMembers: true)] public class S { private int _never; private string _assigned = """"; }
 public class Plain { private int _unused; }
 }"));
         compilation = compilation.RemoveAllSyntaxTrees()
