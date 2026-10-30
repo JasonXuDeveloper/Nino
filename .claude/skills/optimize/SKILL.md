@@ -69,6 +69,21 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   the struct field works there. Read and write such a field through a local (`count = s.Line.Count` ... `s.Line.Count =
   count + 1`), not with `s.Line.Count++` in an expression: that took the field's address and loaded it a second time in
   `TryTake` and `Add` (one `add` and one load more per call); with the local the listing is main's, one `add` fewer.
+- Check a block read's bools in the pass that moves the values, not in a strided pass before it: OR the stored
+  vectors (read back from the store buffer) into one accumulator per vector and mask them once after the last group
+  (`NinoBlock.LanesChecked`, AVX2 lane groups; AVX-512 groups OR their loads, `ReadPlan.Checks`). 1,000 `Waypoint`s
+  deserialized in 0.922 times the time on EPYC 7763 (1,360 to 1,240 ns, floor 1.000) and 0.965 on 9V74 VMs without
+  AVX-512, writes unchanged (.NET A/B run 41079230729). On Arm64 the same check in `Lanes` cost the inlining of
+  `Lanes16` (next bullet), so Neoverse-N2 keeps the strided pass (0.967 measured with the check, run 41052335826).
+- Add nothing to a method whose inlinee sits at the edge of the JIT's inlining budget, not even code that is dead
+  for the instantiation at hand: the budget is spent by IL size, before branches fold. `NinoBlock.Lanes16` (three
+  inlined copies in `Lanes`) became a call per group on Arm64 when `Lanes` gained a fused bool check (accumulators by
+  reference, two groups a step, or groups returned by value), every lane path 1.4 to 5 times as slow on Neoverse-N2
+  (TupleList and `HashSet<int>` writes included, run 41035440735), while x64 inlined everything. Put the new path in
+  a method of its own and pick it by a `static readonly` (`LanesChecked`, AVX2 only), and check the Tier1 Arm64
+  listing under qemu (`platforms`, with tiering on: `DOTNET_TieredCompilation=0` listings inlined what Tier1 did not)
+  for `blr` in such a loop. Two groups a step (a smaller loop share for one-vector groups) measured nothing on AVX2
+  Zen and lost 3 to 8 % on `HashSet<int>` writes (run 41052335826): not landed.
 - A JIT-time check made of several helper calls is one `static readonly` field instead (`NinoElements.Traits`,
   `NinoBlock<T, TFormatter>.Size`): one load, nothing to inline.
 - Call a formatter known only at run time through a `static readonly` field read directly, never through
@@ -177,9 +192,14 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   folds it), never by a `Vector512.IsHardwareAccelerated`-style ISA flag alone: AVX-512 VBMI is on Ice Lake, Sapphire
   Rapids and Zen 4/5 alike. `NinoBlock.WritePairs` (four 24-byte values per `vpermt2b` of 128 bytes of memory into 64
   of blocks) wrote 1,000 `Waypoint`s in 0.64 times the time of 32-byte lane groups on Xeon Platinum 8573C, 0.74 on
-  EPYC 9V45 and 0.97 on 9V74, but 1.44 times on Xeon Platinum 8370C (Ice Lake): `NinoUnsafe.PairPermutes` takes AMD
-  and Intel with AVX512-FP16 (CPUID 7.0 EDX bit 23, Sapphire Rapids on). Include `Xeon` in the A/B line's CPU regex
-  for any AVX-512 path, or Ice Lake goes unmeasured.
+  EPYC 9V45 and 0.97 on 9V74, but 1.44 times on Xeon Platinum 8370C (Ice Lake): `NinoUnsafe.Wide512` takes AMD and
+  every Intel CPU but the Sunny Cove generation, by family 6 and model (`IsIceLake`: 0x6A, 0x6C, 0x7D, 0x7E, 0x9D,
+  0x8C, 0x8D, 0xA7). Never gate on a feature bit a newer CPU merely adds: Azure's Xeon Platinum 8573C (Emerald
+  Rapids) hides AVX512-FP16 and AMX from its guests (lscpu in the job log), so the first gate, on FP16 (CPUID 7.0
+  EDX bit 23), turned the 64-byte masks off there and wrote 1,000 padded 8-byte structs in 92 ns instead of 60
+  (.NET A/B run 41020623184); gated by model, 8573C wrote them in 0.80 times the time of the FP16 gate and 1,000
+  `Waypoint`s in 0.81 (pair permutes, 336 to 259 ns), the 8370C unchanged (run 41079230729). Include `Xeon` in the A/B line's CPU regex for any AVX-512 path, or Ice Lake goes
+  unmeasured.
 - On Arm64, move values over 8 bytes in partial lane groups (`NinoLanes.Solve` with `partial`), as x64 without VBMI
   does: one at a time they took 1.44 µs for 1,000 `Waypoint`s on Neoverse-N2, in lane groups 0.43 (MemoryPack's copy
   of their memory 0.39).
