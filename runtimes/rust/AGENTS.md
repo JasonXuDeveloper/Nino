@@ -35,6 +35,7 @@ src/
 nino-derive/                 nino-serialization-derive: #[derive(NinoRead, NinoWrite)], the same code as the templates;
                              what the wire format cannot express is a compile error naming the field
 bench/                       nino-bench: benches/compare.rs (against prost, rmp-serde, bincode, postcard, serde_json),
+                             benches/common/point.rs (the Point codecs compare.rs and blocks.rs share),
                              benches/text.rs (string transcoding, for back-to-back runs; not published),
                              benches/blocks.rs (lists of fixed-size elements, likewise)
 tests/
