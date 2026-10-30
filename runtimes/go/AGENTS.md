@@ -81,8 +81,8 @@ internal/
                              into_test.go (DeserializeInto: objects, slices, slots, failures, deferral);
                              shapes/: tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it, round-tripped
 bench/                       module of its own: the runtime against Protocol Buffers (benchpb/, buf), MessagePack,
-                             encoding/json and encoding/gob on the .NET benchmark's SimpleClass, strings and a
-                             scattered list of 1,000,000 records (scattered.go);
+                             encoding/json and encoding/gob on the .NET benchmark's SimpleClass, strings, sets
+                             (sets.go) and a scattered list of 1,000,000 records (scattered.go);
                              tiers_amd64_test.go checks tier detection against golang.org/x/sys/cpu
 ```
 
