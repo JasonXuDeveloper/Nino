@@ -256,6 +256,20 @@ namespace Nino.Core.Internal
         public static void ReadAll<T, TFormatter>(ref byte source, ref T first, int count, int size)
             where TFormatter : struct, INinoFormatter<T>
         {
+            if (NinoBlock<T, TFormatter>.Rejects)
+            {
+                ReadRejecting<T, TFormatter>(ref source, ref first, count, size);
+                return;
+            }
+
+            ReadUnchecked<T, TFormatter>(ref source, ref first, count, size);
+        }
+
+        /// <summary><see cref="ReadAll{T, TFormatter}"/> itself.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ReadUnchecked<T, TFormatter>(ref byte source, ref T first, int count, int size)
+            where TFormatter : struct, INinoFormatter<T>
+        {
             // The bools of the blocks first: the copy and the vector paths move their bytes without a look, where
             // ReadBlock checks them (null for values without bools, and the test folds away).
             if (NinoBlock<T, TFormatter>.Bools != null && !GroupsCheck<T, TFormatter>(count))
@@ -267,6 +281,33 @@ namespace Nino.Core.Internal
             }
 
             ReadEach<T, TFormatter>(ref source, ref first, count);
+        }
+
+        /// <summary>
+        /// <see cref="ReadAll{T, TFormatter}"/> of values whose read can reject the data after it has written some
+        /// (<see cref="NinoBlock{T, TFormatter}.Rejects"/>: a bool other than 0 or 1, found by the strided pass, by
+        /// the groups that check them as they go, or by ReadBlock): the values are cleared when it does. New arrays of
+        /// blocks are allocated uninitialized (<see cref="NinoElements.CopiedWhole{T, TFormatter}"/>), and one already
+        /// in the caller's object (read into an existing value) must not keep stale heap memory. Here, out of line,
+        /// rather than in the formatters, which recurse through nested collections (their Debug frames grew past a
+        /// 1 MB stack). A finally, not a catch that rethrows (see NinoCollections.ReadRented).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadRejecting<T, TFormatter>(ref byte source, ref T first, int count, int size)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            bool read = false;
+            try
+            {
+                ReadUnchecked<T, TFormatter>(ref source, ref first, count, size);
+                read = true;
+            }
+            finally
+            {
+                if (!read)
+                    Unsafe.InitBlockUnaligned(ref Unsafe.As<T, byte>(ref first), 0,
+                        (uint)count * (uint)Unsafe.SizeOf<T>());
+            }
         }
 
         /// <summary>
