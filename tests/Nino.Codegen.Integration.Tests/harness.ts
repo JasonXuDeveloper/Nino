@@ -14,7 +14,7 @@ const json = (value: unknown) =>
     : v);
 
 const cases = JSON.parse(readFileSync(process.argv[2], "utf8")) as { codec: string; hex: string }[];
-// "typed" when the code was generated with --numeric-arrays typed (int[] is an Int32Array), else "array".
+// "typed" when the code was generated with --numeric-arrays typed (int[] is an Int32Array), else "plain".
 const ints = (...values: number[]) => (process.argv[3] === "typed" ? Int32Array.from(values) : values) as never;
 const codecs = types as unknown as Record<string, NinoCodec<unknown>>;
 // A case that throws gives its error (bad data must throw a NinoError); a value too deep for JSON.stringify, no JSON.

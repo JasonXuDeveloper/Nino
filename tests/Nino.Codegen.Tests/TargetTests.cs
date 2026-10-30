@@ -89,9 +89,9 @@ namespace Nino.Codegen.Tests
         public void TypeScriptNumericArrays()
         {
             var (array, _) = Run("ts", "Nino.Codegen.Tests.ts");
-            var (explicitArray, _) = Run("ts", "Nino.Codegen.Tests.ts", "--numeric-arrays", "array");
+            var (explicitPlain, _) = Run("ts", "Nino.Codegen.Tests.ts", "--numeric-arrays", "plain");
             var (typed, _) = Run("ts", "Nino.Codegen.Tests.ts", "--numeric-arrays", "typed");
-            Assert.AreEqual(array, explicitArray);
+            Assert.AreEqual(array, explicitPlain);
             StringAssert.Contains(array, "Box<number[] | null>");
             Assert.IsFalse(array.Contains("Int32Array", StringComparison.Ordinal));
             StringAssert.Contains(typed, "Box<Int32Array | null>");
