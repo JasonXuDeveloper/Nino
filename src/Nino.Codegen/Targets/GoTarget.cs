@@ -35,14 +35,11 @@ namespace Nino.Codegen.Targets
     /// type it cannot express (a generic type holding itself with other type arguments, which Go's generics reject) is
     /// left out with a warning, and so is every type holding one.
     /// </summary>
-    public sealed class GoTarget
+    public sealed class GoTarget : CodegenTarget
     {
         public const string RuntimeImport = "github.com/JasonXuDeveloper/Nino/runtimes/go/v4";
 
-        private readonly CodegenModel _model;
         private readonly GoOptions _options;
-        private readonly HashSet<TypeModel> _supported = new();
-        private readonly Dictionary<Type, string> _names = new();
         private readonly List<EnumModel> _enums = new();
         private readonly List<RawStructModel> _rawStructs = new();
         private readonly Dictionary<RawStructModel, GoRawBlock?> _rawBlocks = new();
@@ -61,20 +58,9 @@ namespace Nino.Codegen.Targets
         private bool _usesObject;
         private bool _usesGrid;
 
-        public List<string> Warnings { get; } = new();
+        public GoTarget(CodegenModel model, GoOptions options) : base(model) => _options = options;
 
-        public GoTarget(CodegenModel model, GoOptions options)
-        {
-            _model = model;
-            _options = options;
-        }
-
-        private sealed class UnsupportedException : Exception
-        {
-            public UnsupportedException(string message) : base(message)
-            {
-            }
-        }
+        protected override string Language => "Go";
 
         public string Render(string source)
         {
@@ -170,33 +156,8 @@ namespace Nino.Codegen.Targets
 
         // ---------------------------------------------------------------- which types
 
-        private void ResolveSupported()
-        {
-            foreach (var type in _model.Types)
-            {
-                string? reason = CodegenModel.GenericProblem(type) ?? type.SlotProblem ?? MarkerProblem(type)
-                    ?? (type.TrackReferences && type.IsGenericDefinition
-                        ? "a generic type with trackReferences is not supported"
-                        : null);
-                if (reason == null)
-                    _supported.Add(type);
-                else
-                    Warn(type, reason);
-            }
-
-            while (true)
-            {
-                Reset();
-                var failing = _model.Types.Where(_supported.Contains)
-                    .Select(t => (Type: t, Reason: Check(t))).FirstOrDefault(f => f.Reason != null);
-                if (failing.Type == null)
-                    break;
-                _supported.Remove(failing.Type);
-                Warn(failing.Type, failing.Reason!);
-            }
-
-            Reset();
-        }
+        protected override string? Problem(TypeModel type) =>
+            CodegenModel.GenericProblem(type) ?? type.SlotProblem ?? MarkerProblem(type) ?? TrackingProblem(type);
 
         /// <summary>
         /// Why a type cannot be marked as a value of the generic slots it sits in (<see cref="TypeModel.SlotBases"/>): Go
@@ -225,7 +186,7 @@ namespace Nino.Codegen.Targets
                 }
                 catch (UnsupportedException e)
                 {
-                    Warnings.Add($"{closed.RuntimeName} is left out of the polymorphic slots in Go: {e.Message}.");
+                    WarnClosed(closed, e.Message);
                 }
             }
 
@@ -255,7 +216,7 @@ namespace Nino.Codegen.Targets
         internal List<GoSlotClosed> ClosedOf(TypeModel definition) =>
             _slotClosed.Where(c => c.Closed.Definition == definition).ToList();
 
-        private void Reset()
+        protected override void Reset()
         {
             _enums.Clear();
             _rawStructs.Clear();
@@ -274,32 +235,20 @@ namespace Nino.Codegen.Targets
             _usesGrid = false;
         }
 
-        private string? Check(TypeModel type)
+        protected override void CheckType(TypeModel type)
         {
-            try
+            if (type.Raw)
+                Shape(type.RawValue!, false);
+            else
             {
-                if (type.Raw)
-                    Shape(type.RawValue!, false);
-                else
-                {
-                    if (type.Elements != null)
-                        ShapeIn(type, type.Elements);
-                    foreach (var member in type.Members)
-                        ShapeIn(type, member.Value);
-                    foreach (var slot in type.SlotBases)
-                        Markers(type, slot);
-                }
-
-                return null;
-            }
-            catch (UnsupportedException e)
-            {
-                return e.Message;
+                if (type.Elements != null)
+                    ShapeIn(type, type.Elements);
+                foreach (var member in type.Members)
+                    ShapeIn(type, member.Value);
+                foreach (var slot in type.SlotBases)
+                    Markers(type, slot);
             }
         }
-
-        private void Warn(TypeModel type, string reason) =>
-            Warnings.Add($"{type.FullName} is not written to Go: {reason}.");
 
         /// <summary>The type id a type is written behind: its published one, or (a closed generic) its name's.</summary>
         internal static int IdOf(TypeModel type) => type.TypeId != 0 ? type.TypeId : TypeNames.Hash(type.RuntimeName);
@@ -821,53 +770,16 @@ namespace Nino.Codegen.Targets
 
         // ---------------------------------------------------------------- names
 
-        private void AssignNames(IEnumerable<object> types)
-        {
-            var all = types.Select(Clr).Distinct().ToList();
-            var simple = all.ToLookup(t => Go(SimpleName(t)));
-            foreach (var type in all)
-            {
-                string name = Go(SimpleName(type));
-                if (simple[name].Count() > 1)
-                    name = Go((type.Namespace ?? "").Replace('.', '_')) + name;
-                // The generated code's own names (NinoCodec, NinoGrid, NinoTuple2...).
-                if (name.StartsWith("Nino", StringComparison.Ordinal))
-                    name += "Type";
-                _names[type] = name;
-            }
-        }
+        protected override string BaseName(Type type) => Go(TypeNames.Definition(type));
 
-        private static Type Clr(object type) => type switch
-        {
-            TypeModel t => t.Clr,
-            EnumModel e => e.Clr,
-            RawStructModel s => s.Clr,
-            _ => throw new ArgumentException(type.ToString()),
-        };
+        protected override string Qualified(Type type, string name) =>
+            Go((type.Namespace ?? "").Replace('.', '_')) + name;
 
-        /// <summary>
-        /// <see cref="TypeNames.Simple"/>, but a generic definition by its name alone (<c>Box</c>, not <c>Box_T</c>):
-        /// its parameters are the generated type's.
-        /// </summary>
-        internal static string SimpleName(Type type) => type.IsGenericTypeDefinition
-            ? (type.IsNested ? SimpleName(type.DeclaringType!) + "_" : "") + TypeNames.WithoutArity(type.Name)
-            : TypeNames.Simple(type);
+        /// <summary>The generated code's own names (NinoCodec, NinoGrid, NinoTuple2...).</summary>
+        protected override bool Reserved(string name) => name.StartsWith("Nino", StringComparison.Ordinal);
 
-        /// <summary>An exported Go name: the parts of the C# name, each with a capital (<c>Outer_Inner</c> → <c>OuterInner</c>).</summary>
-        internal static string Go(string name) =>
-            string.Concat(name.Split(Underscore, StringSplitOptions.RemoveEmptyEntries).Select(TypeNames.Pascal));
-
-        private static readonly char[] Underscore = { '_' };
-
-        /// <summary>
-        /// The name of a closed generic type in a slot, as each language names one (<c>BoxInt32</c>,
-        /// <c>BoxInt32Array</c> for <c>Box&lt;int[]&gt;</c>): an identifier in every one.
-        /// </summary>
-        internal static string ClosedName(Type type) => Go(new string(TypeNames.Simple(type).Replace("[", "Array_")
-            .Where(c => char.IsAsciiLetterOrDigit(c) || c == '_').ToArray()));
-
-        internal string Name(object type) =>
-            _names.TryGetValue(Clr(type), out var name) ? name : Go(SimpleName(Clr(type)));
+        /// <summary>An exported Go name: the parts of the C# name, each with a capital (<see cref="TypeNames.Joined"/>).</summary>
+        internal static string Go(string name) => TypeNames.Joined(name);
 
         /// <summary>The Go field name of a C# member: exported, and unique in its struct.</summary>
         internal static List<string> FieldNames(IEnumerable<string> names)

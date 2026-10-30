@@ -34,12 +34,9 @@ namespace Nino.Codegen.Targets
     /// cannot express (encodings without a TypeScript form, reference tracking of a generic type) is left out with a
     /// warning, and so is every type holding one.
     /// </summary>
-    public sealed class TypeScriptTarget
+    public sealed class TypeScriptTarget : CodegenTarget
     {
-        private readonly CodegenModel _model;
         private readonly TypeScriptOptions _options;
-        private readonly HashSet<TypeModel> _supported = new();
-        private readonly Dictionary<Type, string> _names = new();
 
         // Met while shaping the members of the supported types.
         private readonly List<EnumModel> _enums = new();
@@ -60,20 +57,9 @@ namespace Nino.Codegen.Targets
         private readonly List<TsSlot> _slots = new();
         private TypeModel? _context;
 
-        public List<string> Warnings { get; } = new();
+        public TypeScriptTarget(CodegenModel model, TypeScriptOptions options) : base(model) => _options = options;
 
-        public TypeScriptTarget(CodegenModel model, TypeScriptOptions options)
-        {
-            _model = model;
-            _options = options;
-        }
-
-        private sealed class UnsupportedException : Exception
-        {
-            public UnsupportedException(string message) : base(message)
-            {
-            }
-        }
+        protected override string Language => "TypeScript";
 
         /// <summary>
         /// The TypeScript runtime (<c>runtimes/typescript/src/nino.ts</c>, embedded), with this tool's version: written
@@ -157,44 +143,28 @@ namespace Nino.Codegen.Targets
 
         // ---------------------------------------------------------------- which types
 
-        private void ResolveSupported()
+        // A generic type holding itself with other arguments is fine (no GenericProblem): its codecs build those of
+        // the types it holds when the data first needs them.
+
+        protected override void Reset()
         {
-            // A generic type holding itself with other arguments is fine: its codecs build those of the types it holds
-            // when the data first needs them.
-            foreach (var type in _model.Types)
-            {
-                string? reason = type.SlotProblem
-                    ?? (type.TrackReferences && type.IsGenericDefinition
-                        ? "reference tracking (trackReferences) of a generic type is not supported"
-                        : null);
-                if (reason == null)
-                    _supported.Add(type);
-                else
-                    Warn(type, reason);
-            }
+            _enums.Clear();
+            _rawStructs.Clear();
+            ResetCodecs();
+        }
 
-            // Leave out the types holding a type that is left out, until every type left can be written.
-            while (true)
-            {
-                _enums.Clear();
-                _rawStructs.Clear();
-                _derived.Clear();
-                _closedByKey.Clear();
-                _closed.Clear();
-                _slotByModel.Clear();
-                _slots.Clear();
-                var failing = _model.Types.Where(_supported.Contains)
-                    .Select(t => (Type: t, Reason: Check(t))).FirstOrDefault(f => f.Reason != null);
-                if (failing.Type == null)
-                    break;
-                _supported.Remove(failing.Type);
-                Warn(failing.Type, failing.Reason!);
-            }
+        /// <summary>The enums and raw structs met while checking stay; the codecs and slots are shaped again.</summary>
+        protected override void ResetResolved()
+        {
+            ResetCodecs();
+            _structOpens.Clear();
+        }
 
+        private void ResetCodecs()
+        {
             _derived.Clear();
             _closedByKey.Clear();
             _closed.Clear();
-            _structOpens.Clear();
             _slotByModel.Clear();
             _slots.Clear();
         }
@@ -216,17 +186,11 @@ namespace Nino.Codegen.Targets
                 }
                 catch (UnsupportedException e)
                 {
-                    Warnings.Add(
-                        $"{closed.RuntimeName} is left out of the polymorphic slots in TypeScript: {e.Message}.");
+                    WarnClosed(closed, e.Message);
                 }
             }
 
-            _derived.Clear();
-            _closedByKey.Clear();
-            _closed.Clear();
-            _structOpens.Clear();
-            _slotByModel.Clear();
-            _slots.Clear();
+            ResetResolved();
         }
 
         /// <summary>
@@ -248,14 +212,14 @@ namespace Nino.Codegen.Targets
         private void NameClosed(List<TypeModel> layouts)
         {
             bool usesObject = layouts.Any(t => !t.Raw && t.Members.Any(m => m.Value.Walk().Any(v => v.Kind == ValueKind.Object)));
-            var used = new HashSet<string>(_names.Values, StringComparer.Ordinal);
+            var used = new HashSet<string>(Names, StringComparer.Ordinal);
             // The slots of closed generic types the supported types hold, through the codecs they build too.
             var slots = UsedSlots(layouts);
             foreach (var closed in _model.ClosedTypes.Where(c => _closedSupported.Contains(c) && (usesObject ||
                          layouts.Any(t => t.Header == HeaderKind.TypeId && t.ClosedAssignable.Contains(c)) ||
                          slots.Any(slot => slot.ClosedAssignable.Contains(c)))))
             {
-                string name = GoTarget.ClosedName(closed.Clr);
+                string name = TypeNames.Closed(closed.Clr);
                 while (!used.Add(name))
                     name += "_";
                 _slotClosed.Add(new TsSlotClosed(name, "closed$" + _slotClosed.Count, closed));
@@ -296,33 +260,20 @@ namespace Nino.Codegen.Targets
         internal List<TsSlotClosed> ClosedOf(TypeModel definition) =>
             _slotClosed.Where(c => c.Closed.Definition == definition).ToList();
 
-        /// <summary>Why a type cannot be written, or null.</summary>
-        private string? Check(TypeModel type)
+        protected override void CheckType(TypeModel type)
         {
-            try
+            if (type.Raw)
+                Shape(type.RawValue!);
+            else
             {
-                if (type.Raw)
-                    Shape(type.RawValue!);
-                else
-                {
-                    if (type.Elements != null)
-                        ShapeIn(type, type.Elements);
-                    foreach (var member in type.Members)
-                        ShapeIn(type, member.Value);
-                    if (type.BaseValue != null)
-                        BaseShape(type, type.BaseValue);
-                }
-
-                return null;
-            }
-            catch (UnsupportedException e)
-            {
-                return e.Message;
+                if (type.Elements != null)
+                    ShapeIn(type, type.Elements);
+                foreach (var member in type.Members)
+                    ShapeIn(type, member.Value);
+                if (type.BaseValue != null)
+                    BaseShape(type, type.BaseValue);
             }
         }
-
-        private void Warn(TypeModel type, string reason) =>
-            Warnings.Add($"{type.FullName} is not written to TypeScript: {reason}.");
 
         /// <summary>The concrete types of <paramref name="types"/> written behind a type id.</summary>
         private IEnumerable<TypeModel> Registered(IEnumerable<TypeModel> types) =>
@@ -802,33 +753,12 @@ namespace Nino.Codegen.Targets
 
         // ---------------------------------------------------------------- names
 
-        /// <summary>
-        /// Types are named as in C# (nested and generic types joined with _), or with their namespace when two share
-        /// a name.
-        /// </summary>
-        private void AssignNames(IEnumerable<object> types)
-        {
-            var all = types.Select(Clr).Distinct().ToList();
-            var simple = all.ToLookup(GoTarget.SimpleName);
-            foreach (var type in all)
-            {
-                string name = GoTarget.SimpleName(type);
-                if (simple[name].Count() > 1)
-                    name = (type.Namespace ?? "").Replace('.', '_') + "_" + name;
-                _names[type] = name;
-            }
-        }
+        /// <summary>Types are named as in C# (nested and generic types joined with _).</summary>
+        protected override string BaseName(Type type) => TypeNames.Definition(type);
 
-        private static Type Clr(object type) => type switch
-        {
-            TypeModel t => t.Clr,
-            EnumModel e => e.Clr,
-            RawStructModel s => s.Clr,
-            _ => throw new ArgumentException(type.ToString()),
-        };
-
-        internal string Name(object type) =>
-            _names.TryGetValue(Clr(type), out var name) ? name : GoTarget.SimpleName(Clr(type));
+        /// <summary>With their namespace when two share a name.</summary>
+        protected override string Qualified(Type type, string name) =>
+            (type.Namespace ?? "").Replace('.', '_') + "_" + name;
 
         internal string Member(string name) => _options.CamelCase ? TypeNames.Camel(name) : name;
 
