@@ -200,12 +200,11 @@ the result objects.
   reading them first, except on AMD CPUs, where it is slower than vector stores there too (1,000
   `KeyValuePair<int, int>` read in 418 ns instead of 465 ns on GitHub's EPYC 7763 runners); a list of up to 64 bytes
   read in place calls `memmove` directly, cheaper than the out-of-line copy for so few bytes.
-* **Zeroing only where it pays.** A new array that one block copy fills is allocated uninitialized from 6 KB: below,
-  the runtime's uninitialized allocation costs more than zeroing on GitHub's x64 and Arm64 runners.
-  One filled by vector shuffles or value by value (padded tuples, `DateTimeOffset`s) is allocated zeroed: the
-  clearing brings its lines into the cache, where each store into an uninitialized line first reads it from
-  memory. Slots a read overwrites are not cleared
-  first, in new or existing lists and arrays.
+* **Zeroing only where it pays.** A new array that a read fills whole, as one block copy or as blocks (padded tuples
+  and block structs, their padding written as zero), is allocated uninitialized from 6 KB: below, the runtime's
+  uninitialized allocation costs more than zeroing on GitHub's x64 and Arm64 runners. One filled value by value
+  (`DateTimeOffset`s, values Untrusted mode checks a field at a time) is allocated zeroed. Slots a read overwrites
+  are not cleared first, in new or existing lists and arrays.
 * **Padded tuples as vector shuffles.** Arrays and lists of value tuples, `KeyValuePair`s and other padded values are
   written and read a group of values at a time: with AVX-512, by permutes across a vector; elsewhere, each 16-byte
   lane is shuffled from at most two 16-byte windows (`vpshufb` on AVX2 and SSSE3, `TBL` on Arm64, swizzle on

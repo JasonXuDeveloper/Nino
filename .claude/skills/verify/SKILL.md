@@ -51,6 +51,8 @@ Docs site change: in the nino.docs clone, `bun run check && bun run build`.
 
 - Read the diff once more as CI would: what would make a job fail? A red CI run costs a cycle and the owner's
   patience; never push to find out.
+- Check `git status --short` is empty (or run `tools/agents.sh --check` on a fresh clone) before pushing: --check
+  passes locally with an untracked new file (push 3ec8ee8f went red).
 - Cherry-pick or merge workers' branches onto `origin/main`, drop session lines from their messages, add the trailers
   a user-facing change needs; then fast-forward `main` (AGENTS.md, Rules). The test branch takes merges only.
 - Watch the runs of the pushed commit to the end, and fix a red one at once.

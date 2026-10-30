@@ -195,7 +195,16 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   tests read into 0xFF-filled and recycled 0xCC memory and compare every byte (`BlockStructTests.ReadsWriteEveryByte`;
   without the masks they fail on AVX-512). Values read a field at a time (Untrusted mode, `ReadSize` -1) keep a zeroed
   array. Evidence: rejected first with the padding unwritten (Waypoints 0.68-0.76 times main's time); landed with it
-  written, together with the read groups below (run 40935400095).
+  written, together with the read groups below (run 40935400095). Where the read can still reject the data after the
+  allocation (a bool of a block, raw bools, has-value bytes, Untrusted checks: `NinoElements.Rejecting`), the new array
+  takes the caller's slot only once filled (`ReadPublished`, out of line; `audit-security`). Test such a flag in a
+  formatter as `typeof(T).IsValueType && X<T, TFormatter>.Value` (folded while the JIT imports the method), never
+  through an inlined method returning a constant: that form made `ArrayFormatter<int, ...>.Deserialize` stop inlining
+  `NinoElements.Read` into the ImmutableHashSet, ImmutableDictionary, ReadOnlyCollection and Memory<int> reads (1
+  stack access to 15, `asm.py`), though its branch folded away; the publishing read inline behind the field changed
+  the calls of KeyValuePair arrays, strings and Immutable reads, so it stays out of line, at a cost of 0.5 to 2.5 % on
+  1,000 Waypoints read into a new array (EPYC 7763 0.981, 9V74 0.984, 9V45 0.995, Xeon 8573C 0.989, Neoverse-N2
+  0.995 base/head, floor 0.986 to 1.004; runs 41052325145 and 41052335826).
 - Read values over 16 bytes whose blocks never fill whole vectors in four of memory in groups that fill whole memory
   vectors (`ReadPlan.Group`: 8 24-byte values in three vectors, each one `vpermt2b` of two 64-byte loads, aligned
   stores), and check their bools in those loads (`ReadPlan.Checks`: OR `load & 0xFE-at-bools` into one accumulator,

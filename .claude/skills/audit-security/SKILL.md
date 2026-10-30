@@ -37,6 +37,12 @@ the runtime it targets.
 
 ## Look for
 
+- A new array allocated uninitialized (`NinoUnsafe.NewArray`, `CopiedWhole`) stored in the caller's slot before a
+  read that can still reject the data (bools, has-value bytes, Untrusted checks): reading into an existing value
+  then left it stale heap memory. Such an array takes the slot once filled (`NinoElements.Rejecting`,
+  `ReadPublished`); `UntrustedInputTests.ARejectedReadKeepsNewArraysOutOfTheSlot` covers T?[], List<T?>, List<bool>,
+  (int, bool) arrays, lists and Memory, and a bool[] member. The fuzzer's reuse reads did not see it: stale bytes
+  are valid values.
 - A read that allocates from a count before checking it against the bytes left (collections, strings, multi-dim
   arrays, `BigInteger`, `BitArray`, `StringBuilder`, custom formatters' helpers).
 - A recursive path without depth counting (a struct holding a collection of itself, polymorphic slots, tuples,
