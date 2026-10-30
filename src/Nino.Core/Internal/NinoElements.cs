@@ -9,16 +9,34 @@ namespace Nino.Core.Internal
     internal static class NinoElements
     {
         /// <summary>
-        /// Whether elements read into a new array are copied into it as one block (NinoUnsafe.CopyToNew), which overwrites
-        /// it all: only then is it allocated uninitialized. An array filled by vector or per-value stores is allocated
-        /// zeroed: the clearing brings its lines into the cache, where such stores into fresh lines first read each one
-        /// (workstation GC, AVX-512 Xeon: 1,000 (int, long) into a new list in 1.5 to 1.7 µs zeroed, 2.7 to 2.9
-        /// uninitialized; 1,000 DateTimeOffsets in 3.7 to 3.8 µs against 5.0 to 5.6; server GC on par or faster zeroed). A
+        /// Whether elements read into a new array write every byte of it, padding included: raw elements copied as one
+        /// block (NinoUnsafe.CopyToNew) and blocks (NinoBlock.ReadAll, which writes padding as 0); only then is it
+        /// allocated uninitialized. Elements read value by value (DateTimeOffsets, values Untrusted mode checks a field
+        /// at a time) keep a zeroed array: the clearing brings its lines into the cache, where such stores into fresh
+        /// lines first read each one (workstation GC, AVX-512 Xeon: 1,000 DateTimeOffsets in 3.7 to 3.8 µs zeroed
+        /// against 5.0 to 5.6). Where the read can still reject the data, see <see cref="Rejecting{T, TFormatter}"/>. A
         /// JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool CopiedWhole<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             !NinoUnsafe.IsReferenceOrContainsReferences<T>() && Traits<T, TFormatter>.CopiedWhole;
+
+        /// <summary>
+        /// Whether a read of elements into a new array allocated uninitialized (<see cref="CopiedWhole"/>) can reject
+        /// the data after the allocation: a bool other than 0 or 1, a value <see cref="NinoSettings.Untrusted"/> mode
+        /// checks. Such an array takes the caller's slot only once the read has filled it
+        /// (<see cref="ReadPublished{T, TFormatter}"/>): stored first, a rejected read into an existing object left it
+        /// an array of stale heap memory. The formatters test <c>typeof(T).IsValueType &amp;&amp;
+        /// Rejecting&lt;T, TFormatter&gt;.Value</c>, folded while the JIT imports the method, with the read out of line
+        /// (as <see cref="HeavyElements{T, TFormatter}"/>): a test through an inlined method, though constant, made the
+        /// reads of other element types stop inlining NinoElements.Read (ImmutableHashSet&lt;int&gt;, Memory&lt;int&gt;:
+        /// 1 stack access to 15).
+        /// </summary>
+        internal static class Rejecting<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
+        {
+            public static readonly bool Value = !NinoUnsafe.IsReferenceOrContainsReferences<T>() &&
+                                                Traits<T, TFormatter>.Rejects;
+        }
 
         /// <summary>
         /// Whether a loop that writes elements one at a time goes through a local copy of the writer, whose cursor then
@@ -184,6 +202,12 @@ namespace Nino.Core.Internal
             // time (ReadSize -1, Untrusted mode) leave their padding as it was.
             public static readonly bool CopiedWhole = RawFormatter.Is<T, TFormatter>() ||
                 NinoBlock.ReadSize<T, TFormatter>() > 0;
+
+            // A raw element is rejected by its read where it is not copied as it is (a bool, Untrusted mode's checks),
+            // a block by its bools (NinoBlock<T, TFormatter>.Rejects).
+            public static readonly bool Rejects = CopiedWhole && (RawFormatter.Is<T, TFormatter>()
+                ? !NinoLayout<T>.CopiesAsIs
+                : NinoBlock<T, TFormatter>.Rejects);
 
             public static readonly bool ReadOverwrites = RawFormatter.Is<T, TFormatter>() ||
                 typeof(TFormatter) == typeof(DateTimeOffsetFormatter) || NinoBlock.Size<T, TFormatter>() > 0;
@@ -432,6 +456,48 @@ namespace Nino.Core.Internal
             if (current.Length != 0)
                 NinoRecycler<T[]>.Recycle(current);
             return resized;
+        }
+
+        /// <summary>
+        /// Reads <paramref name="length"/> elements into <paramref name="array"/> (in place when it has that length)
+        /// for <see cref="Rejecting{T, TFormatter}"/> elements: a new array takes the slot only once filled. Out of
+        /// line, the reader by value and returned.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static Reader ReadPublished<T, TFormatter>(scoped ref T[] array, int length, Reader reader)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            var current = array;
+            var filled = NewOrSame(current, length);
+            Read<T, TFormatter>(filled, ref reader);
+            Publish(ref array, current, filled);
+            return reader;
+        }
+
+        /// <summary>
+        /// The array a read of <paramref name="length"/> unmanaged elements that writes every one of them fills:
+        /// <paramref name="current"/> when it has that length, else a new one allocated uninitialized
+        /// (<see cref="NinoUnsafe.NewArray{T}"/>), which the caller stores with <see cref="Publish{T}"/> once the read
+        /// has filled it, so that data the read rejects half way never leaves stale heap memory in the caller's object
+        /// (<see cref="Rejecting{T, TFormatter}"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T[] NewOrSame<T>(T[] current, int length) =>
+            current != null && current.Length == length ? current : NinoUnsafe.NewArray<T>(length, uninitialized: true);
+
+        /// <summary>
+        /// Stores <paramref name="filled"/> (from <see cref="NewOrSame{T}"/> of <paramref name="current"/>) in
+        /// <paramref name="array"/> and recycles the array it replaced, as <see cref="EnsureLength{T}"/> does.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Publish<T>(ref T[] array, T[] current, T[] filled)
+        {
+            if (filled == current)
+                return;
+            array = filled;
+            // The shared empty array is never recycled.
+            if (current != null && current.Length != 0)
+                NinoRecycler<T[]>.Recycle(current);
         }
 
         /// <summary>
