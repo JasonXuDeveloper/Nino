@@ -113,20 +113,7 @@ impl NinoWriteBody for Record {
 
 impl NinoRead for Record {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
-        r.read_sealed()
-    }
-    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Record {
@@ -144,13 +131,7 @@ impl NinoWrite for Record {
         self.tags.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 fn record(i: i32) -> Record {
