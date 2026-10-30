@@ -125,12 +125,12 @@ pub(crate) fn grow_fixed<C, T>(
 const PREFETCH_AHEAD: usize = 8;
 
 /// Whether a slice of `len` elements is written prefetching ahead: at least 512 elements, and more estimated data (an
-/// element's size and the bytes it points to, [`NinoWrite::PREFETCH`]) than the last-level cache holds
+/// element's size and the bytes it points to, [`NinoWrite::PREFETCH_BYTES`]) than the last-level cache holds
 /// ([`crate::simd::last_level_cache`]). Data that fits is likely in the cache already, where a prefetch per element
 /// costs more than it saves.
 #[inline]
 pub(crate) fn prefetches<T: NinoWrite>(len: usize) -> bool {
-    len >= 512 && outgrows_cache(len, core::mem::size_of::<T>().saturating_add(T::PREFETCH))
+    len >= 512 && outgrows_cache(len, core::mem::size_of::<T>().saturating_add(T::PREFETCH_BYTES))
 }
 
 /// Whether `len` elements of `bytes` each are more than the last-level cache holds: out of line, so that a short
@@ -582,7 +582,7 @@ impl NinoRead for String {
 }
 
 impl NinoWrite for String {
-    const PREFETCH: usize = 64;
+    const PREFETCH_BYTES: usize = 64;
 
     #[inline(always)]
     fn prefetch(&self) {
@@ -654,7 +654,7 @@ impl<T: NinoRead> NinoRead for Option<T> {
 }
 
 impl<T: NinoWrite> NinoWrite for Option<T> {
-    const PREFETCH: usize = T::PREFETCH;
+    const PREFETCH_BYTES: usize = T::PREFETCH_BYTES;
 
     #[inline(always)]
     fn prefetch(&self) {
@@ -727,9 +727,9 @@ impl<T: NinoRead> NinoRead for Box<T> {
 }
 
 impl<T: NinoWrite> NinoWrite for Box<T> {
-    // Its target's size and 64 for the target's own targets (not `T::PREFETCH`: a type that holds itself through a
+    // Its target's size and 64 for the target's own targets (not `T::PREFETCH_BYTES`: a type that holds itself through a
     // `Box` would define the constant through itself).
-    const PREFETCH: usize = core::mem::size_of::<T>().saturating_add(64);
+    const PREFETCH_BYTES: usize = core::mem::size_of::<T>().saturating_add(64);
 
     #[inline(always)]
     fn prefetch(&self) {
@@ -803,7 +803,7 @@ impl<T: NinoRead> NinoRead for Vec<T> {
 }
 
 impl<T: NinoWrite> NinoWrite for Vec<T> {
-    const PREFETCH: usize = 64;
+    const PREFETCH_BYTES: usize = 64;
 
     #[inline(always)]
     fn prefetch(&self) {

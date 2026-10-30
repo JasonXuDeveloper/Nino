@@ -142,7 +142,7 @@ func write_elements(t)
   ret ""
 end
 
-# NinoWrite's PREFETCH and prefetch stages, for a type with members that may point elsewhere (text, a list, a class,
+# NinoWrite's PREFETCH_BYTES and prefetch stages, for a type with members that may point elsewhere (text, a list, a class,
 # or a type that may hold one): their bytes summed and their stages in turn; none for a type of numbers.
 func prefetch(t)
   $fields = []
@@ -160,9 +160,9 @@ func prefetch(t)
   if $fields.size == 0
     ret ""
   end
-  $o = "    const PREFETCH: usize = 0usize"
+  $o = "    const PREFETCH_BYTES: usize = 0usize"
   for $ty in $types
-    $o = $o + "\n        .saturating_add(<" + $ty + " as NinoWrite>::PREFETCH)"
+    $o = $o + "\n        .saturating_add(<" + $ty + " as NinoWrite>::PREFETCH_BYTES)"
   end
   $o = $o + ";\n\n    fn prefetch(&self) {\n"
   for $f in $fields

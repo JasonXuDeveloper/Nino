@@ -167,7 +167,7 @@ pub struct Vec2 { pub x: f32, pub y: f32 }
 pub struct Dog { pub name: Option<String>, pub at: Vec2 }
 
 #[derive(Debug, Default, Clone, PartialEq, NinoRead, NinoWrite)]
-#[nino(kind = "open", id = "MyGame.Cat", format = "tolerant")]
+#[nino(kind = "open", id = "MyGame.Cat", format = "version_tolerant")]
 pub struct Cat { pub lives: u8 }
 
 #[derive(Debug, Clone, PartialEq, NinoRead, NinoWrite)]
@@ -178,7 +178,7 @@ Type attributes:
 
 | Attribute | Meaning |
 | --- | --- |
-| `format = "plain" \| "tolerant" \| "keyed"` | `NinoFormat.Positional`, `VersionTolerant` or `Keyed`. The default is plain. |
+| `format = "positional" \| "version_tolerant" \| "keyed"` | `NinoFormat.Positional`, `VersionTolerant` or `Keyed` (`"plain"` and `"tolerant"` are accepted for the first two). The default is positional. |
 | `kind = "class" \| "open" \| "struct" \| "raw"` | The type's header (defaults to `class`): <ul><li>`class`: a sealed class, written behind a presence byte.</li><li>`open`: a class that is not sealed, written behind its type id.</li><li>`struct`: no header.</li><li>`raw`: an unmanaged struct written as its memory. It takes `pack = n` and `size = n`, as `[StructLayout]` does.</li></ul> |
 | `id = "Full.Name"` or `id = 0x…` | The type id: a .NET full name, hashed at compile time, or the number itself. 0 is rejected. |
 | `deferrable = false` | Marks a type .NET never defers (a record, a type built through a constructor taking its members). Taken from the layout's `deferrable=` when not given. |
