@@ -38,6 +38,9 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   returned 403).
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
   runs only the sections the release's tree has.
+- **Concurrency budget**: every matrix that can grow with a request has `max-parallel` (`runtime-ab.yml` 10,
+  `dotnet-ab.yml` 8, `unity.yml` 1), and request caps keep a run's job count bounded (8 runtime lines, 3 .NET lines).
+  How workers share the budget: `benchmark`, "Spend CI as a budget".
 - **A/B workflows** (`runtime-ab.yml`, `dotnet-ab.yml`) live on the test branch and read `.github/ab-request.txt`
   (`benchmark`); `ab-bench.yml` on main compares a ref with the previous release or its base.
 

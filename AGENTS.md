@@ -149,6 +149,9 @@ reusing is written down before the task ends, in the same series of commits as t
   "slower". v3 means 3.3.13.
 - **CI stays green** on `main` and on the test branch: run the checks for what you touch before every push, never push
   an experiment that fails on purpose, batch test-branch pushes (`verify`, `audit-ci`).
+- **CI is a budget**: the account runs a limited number of jobs at once. One A/B run in flight across all workers,
+  queued lines batched into the next push, fewest lines that decide the question, and one push to `main` per series
+  (docs and skills commits ride along with code) (`benchmark`, "Spend CI as a budget").
 - **Commits**: Conventional Commits, `type(scope): summary` and a body that says why (types `feat`, `fix`, `perf`,
   `refactor`, `docs`, `test`, `ci`, `build`, `chore`; scope = area). Author:
   `git -c "user.name=JasonXuDeveloper - 傑" -c user.email=jason@xgamedev.net -c commit.gpgsign=false commit`. The

@@ -47,13 +47,22 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    `<go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]` runs
    `runtime-ab.yml`; .NET lines run `dotnet-ab.yml`. Keep other workers' lines, mark finished ones `# done:`, batch
    requests into one push, merge only, never force-push. `ab-bench.yml` on `main` compares a ref with the previous
-   release or its base on one runner. Limits: a matrix holds 256 jobs, so at most 25 runtime lines per push (the
-   workflow measures the first 25 and warns; `[ab: new lines only]` in the commit message runs only the lines that
-   push added); `.github/dotnet-ab-request.txt` takes at most 3 active lines across all workers, and Arm64 runs one job
+   release or its base on one runner. Limits: at most 8 runtime lines per push, 10 jobs each (the workflow measures
+   the first 8 and warns; `[ab: new lines only]` in the commit message runs only the lines that push added); `.github/dotnet-ab-request.txt` takes at most 3 active lines across all workers, and Arm64 runs one job
    per line, so more Neoverse-N2 samples need duplicate lines. To run a line again or twice, add or change a note after
    ` #` (`rust <base> <head> records-1000 # copy 2`), since a push measures only the lines its parent did not have.
    Never bend the filter to make lines differ: `r{4}ecords` demands the letter four times, every job of such a line
    matches no bench and fails (the first three-way prefetch round, 400 failed jobs).
+   **Spend CI as a budget** (the owner: "跑太多 ci job 了，concurrency 预算都吃没了"): the account runs a limited
+   number of jobs at once, shared by main's CI and both A/B workflows, so one A/B run is in flight at a time across all
+   workers and both workflows. Before pushing the test branch, check the API for a queued or running A/B run; if one
+   is, add your lines to a shared queue file outside the repository (agents use `/workspace/agent-notes/ab-queue.txt`
+   under `flock`, not /tmp, which a container restart wipes) and wait; whoever pushes next takes every queued line in
+   one commit and tells their owners the run id. Request only lines that decide a question (narrow filters, one floor
+   per base shared by everyone, repeats only for a verdict), and skip an A/B whose code is unchanged (identical
+   generated files or machine code prove it). The workflows cap themselves (`max-parallel` 10 runtime, 8 .NET jobs);
+   cancelling and re-running from a session returns 403, so a run started is a run spent: 8 queued runtime runs of
+   25 lines (250 jobs each) once blocked every other workflow for hours.
    Match x64 runners with `cpu='EPYC|Neoverse'`, not `'7763|Neoverse'`: runners are also EPYC 9V45 and 9V74, and a
    line whose regex misses them ends its slots without measuring (the first land/cmod round got one EPYC job). Use
    `cpu='EPYC|Xeon|Neoverse'` for a change with an AVX-512 path: Xeon Platinum 8573C and 8370C (Ice Lake) runners
