@@ -533,11 +533,24 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>
         /// An x64 CPU whose 64-byte vector work beats 32-byte vectors where the two disagree: AMD's (Zen 4 and later) and
-        /// Intel's with AVX512-FP16 (Sapphire Rapids and later), not Ice Lake, where both kernels below lost. Two
-        /// CPUIDs at startup.
+        /// Intel's other than the Sunny Cove generation (<see cref="IsIceLake"/>), where both kernels below lost. Not by
+        /// AVX512-FP16 (Sapphire Rapids and later): Azure's Xeon Platinum 8573C (Emerald Rapids) does not report it,
+        /// and with 32-byte masks there it wrote 1,000 8-byte structs with a padding byte in 92 ns instead of 60
+        /// (.NET A/B run 41020623184). Two CPUIDs at startup.
         /// </summary>
-        internal static readonly bool Wide512 = X86Base.IsSupported &&
-                                                (IsAmd() || (X86Base.CpuId(7, 0).Edx & (1 << 23)) != 0);
+        internal static readonly bool Wide512 = X86Base.IsSupported && (IsAmd() || !IsIceLake());
+
+        /// <summary>
+        /// An Intel CPU of the Sunny Cove generation and its client relatives (Ice Lake server and client, Tiger Lake,
+        /// Rocket Lake), by family 6 and model: the first cores with AVX-512 VBMI, whose 64-byte permutes and masked
+        /// copies ran slower than 32-byte ones on GitHub's Xeon Platinum 8370C.
+        /// </summary>
+        private static bool IsIceLake()
+        {
+            int eax = X86Base.CpuId(1, 0).Eax;
+            int family = (eax >> 8) & 0xF, model = ((eax >> 4) & 0xF) | ((eax >> 12) & 0xF0);
+            return family == 6 && model is 0x6A or 0x6C or 0x7D or 0x7E or 0x9D or 0x8C or 0x8D or 0xA7;
+        }
 
         /// <summary>
         /// An x64 CPU with AVX-512 VBMI whose two-source 64-byte byte permute (vpermt2b) writes values of more than 16
