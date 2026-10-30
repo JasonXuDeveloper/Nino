@@ -53,6 +53,11 @@ namespace Bench
     /// <summary>Text only: the string cases of the Go and Rust benchmarks.</summary>
     [NinoType] public sealed class Strings { public string[] Values; }
 
+    /// <summary>Sets: the set cases of the Go and Rust benchmarks.</summary>
+    [NinoType] public sealed class IntSet { public HashSet<int> Values; }
+
+    [NinoType] public sealed class StringSet { public HashSet<string> Values; }
+
     /// <summary>
     /// Writes each scenario's values, serialized by Nino, to &lt;dir&gt;/&lt;name&gt;.bin, in <see cref="Variants"/>
     /// variants: the same shapes and sizes with other content. bench.ts times each pass on the next variant in turn,
@@ -156,6 +161,18 @@ namespace Bench
                     }).ToArray(),
                 },
             });
+            // The Go and Rust benchmarks' sets: 1,000 distinct non-negative integers in no order, and "member 0" to
+            // "member 999" in no order (each variant's letters scrambled, the digits keep them distinct).
+            Write("int-set", Enumerable.Range(0, 20).Select(_ =>
+            {
+                var set = new HashSet<int>();
+                while (set.Count < 1000) set.Add(rng.Next());
+                return new IntSet { Values = set };
+            }));
+            Write("string-set", Enumerable.Range(0, 20).Select(_ => new StringSet
+            {
+                Values = new HashSet<string>(Enumerable.Range(0, 1000).OrderBy(k => rng.Next()).Select(k => T("member " + k))),
+            }));
         }
 
         /// <summary>

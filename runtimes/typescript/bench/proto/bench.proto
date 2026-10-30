@@ -103,3 +103,8 @@ message Event {
 message Strings {
   repeated string values = 1;
 }
+
+// A set has no type of its own in protobuf: a repeated field holds it (IntSet; StringSet is Strings).
+message Ints {
+  repeated int32 values = 1;
+}
