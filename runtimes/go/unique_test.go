@@ -352,7 +352,7 @@ func TestUniqueStrings(t *testing.T) {
 				t.Fatalf("%d strings (repeated %v): %v", len(v), want, r.Err())
 			}
 			p := unsafe.Pointer(unsafe.SliceData(v))
-			if repeatedStringsMap(p, len(v), 8, true) != want {
+			if repeatedStringsMap(p, len(v), int(unsafe.Sizeof(v[0])), true) != want {
 				t.Fatalf("%d strings through the map: want %v", len(v), want)
 			}
 		}

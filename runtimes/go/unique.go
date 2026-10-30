@@ -271,7 +271,7 @@ func stringAt(p unsafe.Pointer, ptrs bool) (string, bool) {
 // repeatedStrings is repeated for strings, the first at p and each stride bytes after the one before (each through a
 // pointer when ptrs, where two nulls are equal too).
 func repeatedStrings(p unsafe.Pointer, n, stride int, ptrs bool, scratch *[]uint64) bool {
-	if n >= 1<<31 {
+	if int64(n) >= 1<<31 {
 		return repeatedStringsMap(p, n, stride, ptrs)
 	}
 	if n <= 16 {
