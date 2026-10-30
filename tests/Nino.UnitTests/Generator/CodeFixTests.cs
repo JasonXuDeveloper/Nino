@@ -569,7 +569,7 @@ public class TestClass
 
         var diagnostic = new DiagnosticResult("NINO007", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
             .WithSpan(8, 19, 8, 27)
-            .WithArguments("Callback", "System.Action", "TestClass");
+            .WithArguments("Callback", "System.Action", "TestClass", "", "the member is skipped");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
     }
@@ -600,7 +600,7 @@ public class TestClass
 }";
 
         await SetUpCodeFixTest(code, fixedCode,
-            VerifyCF.Diagnostic("NINO007").WithLocation(0).WithArguments("Factory", "System.Func<int>", "TestClass"))
+            VerifyCF.Diagnostic("NINO007").WithLocation(0).WithArguments("Factory", "System.Func<int>", "TestClass", "", "the member is skipped"))
             .RunAsync();
     }
 
@@ -640,7 +640,7 @@ namespace Sample
 
         await SetUpCodeFixTest(code, fixedCode,
             VerifyCF.Diagnostic("NINO007").WithLocation(0)
-                .WithArguments("Callback", "System.Action", "Sample.TestClass")).RunAsync();
+                .WithArguments("Callback", "System.Action", "Sample.TestClass", "", "the member is skipped")).RunAsync();
     }
 
     #endregion

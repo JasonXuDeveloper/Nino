@@ -936,10 +936,59 @@ public class TestClassWithTask
 
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO007").WithLocation(0)
-                .WithArguments("UnsupportedDelegate", "System.Action", "TestClassWithDelegate"),
+                .WithArguments("UnsupportedDelegate", "System.Action", "TestClassWithDelegate", "", "the member is skipped"),
             Verify.Diagnostic("NINO007").WithLocation(1)
-                .WithArguments("UnsupportedTask", "System.Threading.Tasks.Task<int>", "TestClassWithTask")
+                .WithArguments("UnsupportedTask", "System.Threading.Tasks.Task<int>", "TestClassWithTask", "", "the member is skipped")
         ).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO007_TypeArgumentWithoutFormatter()
+    {
+        // The member is written, but Box<Action>'s formatter cannot write its Action: every value throws. Reported
+        // nested in collections, arrays and other generics too; not where no member uses the argument (Tag<T>), the
+        // argument has a formatter, or the member is ignored.
+        var code = @"
+using System;
+using System.Collections.Generic;
+using Nino.Core;
+
+[NinoType]
+public class Box<T> { public T Value; }
+
+[NinoType]
+public class Tag<T> { public int X; }
+
+[NinoType]
+public class Wrapped<T> : Box<T> { }
+
+[NinoType]
+public class Holder
+{
+    public Box<Action> {|#0:Direct|};
+    public List<Box<Func<int>>> {|#1:Listed|};
+    public Box<Box<Action>> {|#2:Nested|};
+    public Box<Action>[] {|#3:Array|};
+    public Wrapped<Action> {|#4:Inherited|};
+    public Tag<Action> Unused;
+    public Box<int> Fine;
+    [NinoIgnore] public Box<Action> Ignored;
+}
+";
+
+        const string Throws = "writing a value of it throws";
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO007").WithLocation(0)
+                .WithArguments("Direct", "System.Action", "Holder", ", a type argument of 'Box<System.Action>',", Throws),
+            Verify.Diagnostic("NINO007").WithLocation(1)
+                .WithArguments("Listed", "System.Func<int>", "Holder", ", a type argument of 'Box<System.Func<int>>',", Throws),
+            Verify.Diagnostic("NINO007").WithLocation(2)
+                .WithArguments("Nested", "System.Action", "Holder", ", a type argument of 'Box<System.Action>',", Throws),
+            Verify.Diagnostic("NINO007").WithLocation(3)
+                .WithArguments("Array", "System.Action", "Holder", ", a type argument of 'Box<System.Action>',", Throws),
+            Verify.Diagnostic("NINO007").WithLocation(4)
+                .WithArguments("Inherited", "System.Action", "Holder", ", a type argument of 'Wrapped<System.Action>',", Throws))
+            .RunAsync();
     }
 
     [TestMethod]
@@ -968,8 +1017,8 @@ public class Derived : AbstractBase
 
         // Abstract types report nothing themselves; the subtype reports the inherited member where it is declared.
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO007").WithLocation(0).WithArguments("Callback", "System.Action", "Derived"),
-            Verify.Diagnostic("NINO007").WithLocation(1).WithArguments("Factory", "System.Func<int>", "Derived"))
+            Verify.Diagnostic("NINO007").WithLocation(0).WithArguments("Callback", "System.Action", "Derived", "", "the member is skipped"),
+            Verify.Diagnostic("NINO007").WithLocation(1).WithArguments("Factory", "System.Func<int>", "Derived", "", "the member is skipped"))
             .RunAsync();
     }
 
@@ -1513,7 +1562,7 @@ public sealed class EmptyClass
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO023").WithLocation(0).WithArguments("AllIgnored"),
             Verify.Diagnostic("NINO007").WithLocation(2)
-                .WithArguments("Callback", "System.Action", "AllSkipped"),
+                .WithArguments("Callback", "System.Action", "AllSkipped", "", "the member is skipped"),
             Verify.Diagnostic("NINO023").WithLocation(1).WithArguments("AllSkipped")).RunAsync();
     }
 

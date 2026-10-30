@@ -115,6 +115,12 @@ constructor callable without arguments (and no public static `[NinoFactory]` fac
 `required` members that constructor does not set, a struct implementing `ICollection<T>`, a non-generic collection
 (`ArrayList`) or a type implementing `ICollection<T>` for two different `T`.
 
+It is also reported for a generic `[NinoType]` closed over a type Nino has no formatter for, where a member of the
+generic type uses that type parameter (`Box<Action>`, also inside `List<Box<Action>>`, `Box<Action>[]` or another
+generic). That member is not skipped: it is written, and null works, but writing any `Box<Action>` throws
+`InvalidOperationException` ("no formatter for System.Action"). A type parameter no serialized member uses
+(`Tag<Action>` of `class Tag<T> { int X; }`) is not reported.
+
 ### NINO008
 
 `[NinoCustomFormatter(typeof(F))]` requires `F` to be a struct implementing `INinoFormatter<T>`, where `T` is exactly the

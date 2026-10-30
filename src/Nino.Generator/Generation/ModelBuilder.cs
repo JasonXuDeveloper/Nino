@@ -531,9 +531,16 @@ internal static class ModelBuilder
         if (formatter == null)
         {
             diagnostics?.Report(NinoDiagnostics.UnserializableMember, symbol, symbol.Name, memberType.ToDisplayString(),
-                type.ToDisplayString());
+                type.ToDisplayString(), "", "the member is skipped");
             return null;
         }
+
+        // The member is written, but a generic [NinoType] in its type cannot write what it holds (Box<Action>): its
+        // formatter takes CachedFormatter<Action>, which throws for every value. Only the analyzer asks.
+        if (diagnostics != null && custom == null && ArgumentWithoutFormatter(memberType, facts) is var (argument, generic))
+            diagnostics.Report(NinoDiagnostics.UnserializableMember, symbol, symbol.Name, argument.ToDisplayString(),
+                type.ToDisplayString(), $", a type argument of '{generic.ToDisplayString()}',",
+                "writing a value of it throws");
 
         var declaring = symbol.ContainingType;
         // A base member hidden by a derived member of the same name (`new`): generated code names it through a cast
@@ -606,6 +613,55 @@ internal static class ModelBuilder
                    (traits & replaces) == 0 && StartsDefault(symbol, ct),
             ReadsLoop: raw == null && readsLoop);
     }
+
+    /// <summary>
+    /// A type argument Nino has no formatter for, of a closed generic <c>[NinoType]</c> anywhere in
+    /// <paramref name="type"/> (<c>Box&lt;Action&gt;</c>, <c>List&lt;Box&lt;Action&gt;&gt;</c>, <c>Box&lt;Action&gt;[]</c>)
+    /// whose serialized members use that type parameter, with that generic; null when there is none. A type
+    /// parameter no member uses (<c>Tag&lt;T&gt;</c>) costs nothing: its formatter is never called.
+    /// </summary>
+    private static (ITypeSymbol Argument, INamedTypeSymbol Generic)? ArgumentWithoutFormatter(ITypeSymbol type,
+        TypeFacts facts)
+    {
+        switch (type)
+        {
+            case IArrayTypeSymbol array:
+                return ArgumentWithoutFormatter(array.ElementType, facts);
+            case INamedTypeSymbol named:
+                var arguments = AllTypeArguments(named);
+                if (arguments.Count != 0 && named.OriginalDefinition.GetNinoTypeOptions() is { } options)
+                {
+                    var definition = named.OriginalDefinition;
+                    var parameters = AllTypeParameters(definition);
+                    var members = facts.Members.Of(definition, options);
+                    for (int i = 0; i < arguments.Count; i++)
+                    {
+                        if (facts.Resolver.Resolve(arguments[i], false) == null &&
+                            members.Any(m => MemberCollector.MemberType(m) is { } t && Mentions(t, parameters[i])))
+                            return (arguments[i], named);
+                    }
+                }
+
+                foreach (var argument in arguments)
+                {
+                    if (ArgumentWithoutFormatter(argument, facts) is { } found)
+                        return found;
+                }
+
+                return null;
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>Whether <paramref name="type"/> is or contains the type parameter <paramref name="p"/>.</summary>
+    private static bool Mentions(ITypeSymbol type, ITypeParameterSymbol p) => type switch
+    {
+        ITypeParameterSymbol t => SymbolEqualityComparer.Default.Equals(t, p),
+        IArrayTypeSymbol a => Mentions(a.ElementType, p),
+        INamedTypeSymbol n => AllTypeArguments(n).Any(a => Mentions(a, p)),
+        _ => false,
+    };
 
     /// <summary>
     /// Whether an <c>[UnsafeAccessor]</c> extern in the formatter of <paramref name="type"/> reaches a member declared

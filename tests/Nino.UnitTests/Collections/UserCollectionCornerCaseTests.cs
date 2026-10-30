@@ -730,7 +730,7 @@ public class Holder
         };
         for (int i = 0; i < names.Length; i++)
             test.TestState.ExpectedDiagnostics.Add(Verify.Diagnostic("NINO007").WithLocation(i)
-                .WithArguments(names[i], types[i], "Holder"));
+                .WithArguments(names[i], types[i], "Holder", "", "the member is skipped"));
         await test.RunAsync();
     }
 

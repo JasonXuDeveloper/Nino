@@ -59,7 +59,7 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor UnserializableMember = Warning("NINO007",
         "Member type cannot be serialized",
-        "Nino has no formatter for '{1}', the type of member '{0}' of NinoType '{2}': the member is skipped; mark it [NinoIgnore] or give it a custom formatter");
+        "Nino has no formatter for '{1}'{3} in member '{0}' of NinoType '{2}': {4}; mark it [NinoIgnore] or give it a custom formatter");
 
     public static readonly DiagnosticDescriptor InvalidCustomFormatter = Error("NINO008",
         "Invalid custom formatter type",
