@@ -66,8 +66,11 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    Match x64 runners with `cpu='EPYC|Neoverse'`, not `'7763|Neoverse'`: runners are also EPYC 9V45 and 9V74, and a
    line whose regex misses them ends its slots without measuring (the first land/cmod round got one EPYC job). The
    pool decides which CPUs a run draws: run 41035440735 drew no Xeon and no 9V45 in 16 x64 slots, so a probe line
-   for `'Xeon|EPYC 9V'` measured nothing. List the CPUs of a run's jobs before reading a verdict, and queue the line
-   again for a CPU it missed. Read the CPU flags in the job log too: the same model differs by VM (some EPYC 9V74
+   for `'Xeon|EPYC 9V'` measured nothing. List the CPUs of a run's jobs before reading a verdict (a job that missed
+   says `##[notice] ... does not match`), and queue the line again for a CPU it missed. The pool rarely draws a Xeon
+   8370C (Ice Lake): four runs in round 101 drew none, so an Ice Lake probe takes several runs. Never put a space in
+   the `cpu=` filter (`'EPYC|Xeon 8370C'`): the workflow splits the line on whitespace, and run 41123157579's line
+   failed on all 8 slots with git exit 128; match on a word (`'8370C'`). Read the CPU flags in the job log too: the same model differs by VM (some EPYC 9V74
    runners hide AVX-512, the Xeon Platinum 8573C ones AVX512-FP16), and a case on such a VM takes the other path. Use
    `cpu='EPYC|Xeon|Neoverse'` for a change with an AVX-512 path: Xeon Platinum 8573C and 8370C (Ice Lake) runners
    come too, and Ice Lake reversed the pair permutes that won everywhere else (`optimize`).

@@ -96,7 +96,8 @@ Why the qemu flags:
   (`max`) has LRCPC2, whose `ldapur`/`stlur` (what the optimizing JIT emits for `Volatile.Read`/`Write` of a field) it
   emulates wrong. With or without Nino's code, runs crashed (`ToImmutableDictionary`), or a static field written by
   `Volatile.Write` read as never written elsewhere; `DOTNET_TieredCompilation=0` moves the failures, it does not
-  avoid them.
+  avoid them. Nino.Benchmark under qemu-aarch64 also needs the arm64 `libssl.so.3` and `libcrypto.so.3` in
+  `/usr/aarch64-linux-gnu/lib`, else it aborts with "No usable version of libssl" (round 101).
 
 ## Unity and IL2CPP
 
