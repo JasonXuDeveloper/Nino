@@ -141,7 +141,7 @@ namespace Nino.Codegen.Integration.Tests
             string input = Path.Combine(directory, "cases.json");
             File.WriteAllText(input, JsonSerializer.Serialize(cases.Select(c => new { codec = c.Codec, hex = Hex(c.Bytes) })));
             var start = new ProcessStartInfo("node",
-                new[] { "--no-warnings", "harness.ts", input, directory == _typed ? "typed" : "array" })
+                new[] { "--no-warnings", "harness.ts", input, directory == _typed ? "typed" : "plain" })
             {
                 WorkingDirectory = directory,
                 RedirectStandardOutput = true,
