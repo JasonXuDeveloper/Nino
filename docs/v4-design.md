@@ -1073,7 +1073,7 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   call on every runtime (`CachedFormatter<T>` is a virtual call that only RyuJIT devirtualizes); the runtime resolver
   binds them the same way for closed types the generator did not see.
 * Private members use `[UnsafeAccessor]` when the compilation targets .NET 8+ (generic types: .NET 9+, declared
-  in a class next to the generic formatter, `__NinoUnsafe_<Formatter><T...>`, whose type parameters are exactly
+  in a class next to the generic formatter, `__NinoAccessors_<Formatter><T...>`, whose type parameters are exactly
   the type's, as the runtime requires; a member of a generic base qualifies when the
   base's type arguments are the type's first type parameters in order), and generated `partial` accessors
   otherwise. The form is chosen from the compilation's preprocessor symbols (`NET8_0_OR_GREATER`,

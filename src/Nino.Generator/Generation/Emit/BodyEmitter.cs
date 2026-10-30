@@ -385,12 +385,30 @@ internal sealed class BodyEmitter
         _w.Line($"public int FixedSize => {FixedLayout().Size};");
         _w.Line();
         _w.Line(_names.Inline);
+        if (_m.Block)
+        {
+            // One body for WriteFixed and INinoBlockFormatter.WriteBlock (EmitBlock), taking the value by reference
+            // as WriteBlock does: a block loop's code is then what the body alone compiles to.
+            _w.Line($"public void WriteFixed({T} value, ref byte destination) => {WriteBlockBody}(ref destination, in value);");
+            _w.Line();
+            _w.Line(_names.Inline);
+            _w.Block($"private static void {WriteBlockBody}(ref byte destination, in {T} value)", () =>
+            {
+                foreach (var line in FixedWrites())
+                    _w.Line(line);
+            });
+            return;
+        }
+
         _w.Block($"public void WriteFixed({T} value, ref byte destination)", () =>
         {
             foreach (var line in FixedWrites())
                 _w.Line(line);
         });
     }
+
+    /// <summary>The member writes of a block struct, which <c>WriteFixed</c> and <c>WriteBlock</c> call.</summary>
+    private const string WriteBlockBody = "__WriteBlock";
 
     /// <summary>
     /// The <c>INinoBlockFormatter</c> of a struct of fixed size (<see cref="TypeModel.Block"/>): its blocks are the
@@ -424,11 +442,7 @@ internal sealed class BodyEmitter
         });
         _w.Line();
         _w.Line(_names.Inline);
-        _w.Block($"void {iface}.WriteBlock(ref byte destination, in {T} value)", () =>
-        {
-            foreach (var line in FixedWrites())
-                _w.Line(line);
-        });
+        _w.Line($"void {iface}.WriteBlock(ref byte destination, in {T} value) => {WriteBlockBody}(ref destination, in value);");
         _w.Line();
         _w.Line(_names.Inline);
         _w.Block($"void {iface}.ReadBlock(ref byte source, ref {T} value)", () =>
