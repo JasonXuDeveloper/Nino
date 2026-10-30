@@ -45,6 +45,11 @@ the runtime it targets.
   are valid values.
 - A read that allocates from a count before checking it against the bytes left (collections, strings, multi-dim
   arrays, `BigInteger`, `BitArray`, `StringBuilder`, custom formatters' helpers).
+- A hash table filled from the data whose hash the data can predict. In other runtimes the language's own table may
+  be unseeded: V8 hashes number and `bigint` keys of `Map`/`Set` without a seed (8,000 crafted ints took 40 times as
+  long as ordinary ones in Node 22), which `NinoKeyGuard` in `nino.ts` bounds by counting the buckets of the table V8 ends with; it is exact for
+  V8 only (JavaScriptCore and SpiderMonkey hash their own way). A new collection of number or `bigint` keys in
+  generated TypeScript takes the guard (`TsShape.Guard`); Go and Rust tables are seeded (maphash, `RandomState`).
 - A recursive path without depth counting (a struct holding a collection of itself, polymorphic slots, tuples,
   `object` members, reference tracking's back references).
 - A loop whose work grows faster than the input (nested lengths, quadratic rehashing, deferred sections re-read).

@@ -1085,7 +1085,10 @@ not compared, and such a map keeps both entries.
 `ImmutableDictionary` and `ImmutableHashSet` (more than that many keys with one hash code). Nino walks the bucket as
 it adds a key to a new table, and walks it after the table adds a key itself; string keys of tables that switch to a
 randomized comparer on their own (.NET's, and .NET Framework's `Dictionary` and `ConcurrentDictionary`) are left to
-them.
+them. **Go** and **Rust** fill tables hashed with a per-process seed (Go's maps and the duplicate checks' own tables;
+Rust's `RandomState`). **TypeScript:** V8 hashes number and `bigint` keys without a seed, so for a `Map` or `Set` of
+more than 128 such keys the reader counts the buckets of the table V8 ends with (`NinoKeyGuard`) and fails a key that
+would find more than 100 keys in its bucket; other engines hash differently, and there it bounds V8's buckets.
 
 Note: the .NET reader currently accepts a keyed body with a repeated key, and the last entry wins (verified).
 

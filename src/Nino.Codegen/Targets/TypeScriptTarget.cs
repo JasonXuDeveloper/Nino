@@ -902,6 +902,26 @@ namespace Nino.Codegen.Targets
         /// <summary>A set (<c>Set</c>) rather than an array.</summary>
         public bool Set { get; internal set; }
 
+        /// <summary>
+        /// How a set's element or a map's key of this shape passes through <c>NinoKeyGuard</c> (the runtime's bound on
+        /// hash flooding for the keys V8 hashes without a seed): <c>int</c> (an int32 value), <c>number</c>,
+        /// <c>bigint</c>, <c>key</c> (a nullable one, checked by its type at run time), or null for keys it does not
+        /// guard (strings, objects).
+        /// </summary>
+        public string? Guard => Kind switch
+        {
+            "prim" => Primitive switch
+            {
+                "u8" or "i8" or "i16" or "u16" or "i32" => "int",
+                "u32" or "f32" or "f64" => "number",
+                "i64" or "u64" or "timeSpan" => "bigint",
+                _ => null,
+            },
+            "enum" => Inner?.Guard,
+            "nullable" or "rawnullable" => Inner?.Guard == null ? null : "key",
+            _ => null,
+        };
+
         /// <summary>The typed array a sequence of fixed-size numbers is (<c>Int32Array</c>...), else null.</summary>
         public string? ArrayType { get; internal set; }
 

@@ -4794,7 +4794,8 @@ function read$16(r: NinoReader): Map<number, number> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<number, number>();
-  for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) map.set(r.view.getInt32(at, true), r.view.getInt32(at + 4, true));
+  const guard = r.keyGuard(length);
+  for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) map.set(guard === null ? r.view.getInt32(at, true) : guard.int(r.view.getInt32(at, true)), r.view.getInt32(at + 4, true));
   if (map.size !== length) throw r.duplicateKey();
   return map;
 }
@@ -4804,7 +4805,8 @@ function readInto$17(r: NinoReader, cur: Map<number, number>): Map<number, numbe
   if (length < 0) return null;
   const map = cur;
   map.clear();
-  for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) map.set(r.view.getInt32(at, true), r.view.getInt32(at + 4, true));
+  const guard = r.keyGuard(length);
+  for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) map.set(guard === null ? r.view.getInt32(at, true) : guard.int(r.view.getInt32(at, true)), r.view.getInt32(at + 4, true));
   if (map.size !== length) throw r.duplicateKey();
   return map;
 }
@@ -4828,7 +4830,8 @@ function read$19(r: NinoReader): Set<number> | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Set<number>();
-  for (let i = 0, at = r.take(length * 4); i < length; i++, at += 4) values.add(r.view.getInt32(at, true));
+  const guard = r.keyGuard(length);
+  for (let i = 0, at = r.take(length * 4); i < length; i++, at += 4) values.add(guard === null ? r.view.getInt32(at, true) : guard.int(r.view.getInt32(at, true)));
   if (values.size !== length) throw r.duplicateKey();
   return values;
 }
@@ -4838,7 +4841,8 @@ function readInto$20(r: NinoReader, cur: Set<number>): Set<number> | null {
   if (length < 0) return null;
   const values = cur;
   values.clear();
-  for (let i = 0, at = r.take(length * 4); i < length; i++, at += 4) values.add(r.view.getInt32(at, true));
+  const guard = r.keyGuard(length);
+  for (let i = 0, at = r.take(length * 4); i < length; i++, at += 4) values.add(guard === null ? r.view.getInt32(at, true) : guard.int(r.view.getInt32(at, true)));
   if (values.size !== length) throw r.duplicateKey();
   return values;
 }
@@ -4981,9 +4985,10 @@ function read$34(r: NinoReader): Map<number, number | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<number, number | null>();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.i32();
-    map.set(key, (r.notNull() ? r.i32() : null));
+    map.set(guard === null ? key : guard.int(key), (r.notNull() ? r.i32() : null));
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;
@@ -4994,9 +4999,10 @@ function readInto$35(r: NinoReader, cur: Map<number, number | null>): Map<number
   if (length < 0) return null;
   const map = cur;
   map.clear();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.i32();
-    map.set(key, (r.notNull() ? r.i32() : null));
+    map.set(guard === null ? key : guard.int(key), (r.notNull() ? r.i32() : null));
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;
@@ -5351,9 +5357,10 @@ function read$70(r: NinoReader): Map<number, TrackedNode | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<number, TrackedNode | null>();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.i32();
-    map.set(key, r.tracked(TrackedNode, readTrackedNode));
+    map.set(guard === null ? key : guard.int(key), r.tracked(TrackedNode, readTrackedNode));
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;
@@ -5364,9 +5371,10 @@ function readInto$71(r: NinoReader, cur: Map<number, TrackedNode | null>): Map<n
   if (length < 0) return null;
   const map = cur;
   map.clear();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.i32();
-    map.set(key, r.tracked(TrackedNode, readTrackedNode));
+    map.set(guard === null ? key : guard.int(key), r.tracked(TrackedNode, readTrackedNode));
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;
@@ -5575,7 +5583,8 @@ function read$91(r: NinoReader): Set<number | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Set<number | null>();
-  for (let i = 0; i < length; i++) values.add((r.notNull() ? r.i32() : null));
+  const guard = r.keyGuard(length);
+  for (let i = 0; i < length; i++) values.add(guard === null ? (r.notNull() ? r.i32() : null) : guard.key((r.notNull() ? r.i32() : null)));
   if (values.size !== length) throw r.duplicateKey();
   return values;
 }
@@ -5617,9 +5626,10 @@ function read$95(r: NinoReader): Map<number, number | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<number, number | null>();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.i32();
-    map.set(key, (r.notNull() ? r.f64() : null));
+    map.set(guard === null ? key : guard.int(key), (r.notNull() ? r.f64() : null));
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;

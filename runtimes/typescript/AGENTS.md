@@ -25,6 +25,7 @@ test/
   collections.test.ts        arrays, sets, maps, nullables, the type id registry, serialize's shared buffers
   nesting.test.ts            deferral past 128 bodies, the 512 limit, cycles
   malicious.test.ts          truncations, forged lengths, bad presence bytes, unknown ids, fast-check mutations
+  flooding.test.ts           hash flooding: number and bigint keys V8 puts in one bucket, rejected by NinoKeyGuard
   wasm.test.ts               the kernels against the JavaScript paths; text.wat matches what nino.ts embeds
   into.test.ts               deserializeInto: objects read in place, arrays, maps, polymorphic members, failed reads
   corpus.test.ts             the conformance corpus (conformance/corpus or NINO_CORPUS) over generated/Nino.Conformance.ts
