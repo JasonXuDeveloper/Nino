@@ -446,6 +446,13 @@ namespace Nino.Core.Internal
             /// <summary>The vector width (32 or 16), the values a group, and its vectors (1 to 4).</summary>
             public static readonly int Width = Plan?.Width ?? 0, Group = Plan?.Group ?? 0, Vectors = Plan?.Vectors ?? 0;
 
+            /// <summary>
+            /// Whether the loop moves two groups a step: a group of one 32-byte store or two 16-byte ones, whose loop
+            /// (two cursor adds, a count and a branch) is a third of its instructions (Waypoint's 15-byte blocks:
+            /// two values a group, two loads, two shuffles, an OR and a store with AVX2).
+            /// </summary>
+            public static readonly bool Unrolled = Plan != null && Plan.Vectors * Plan.Width <= 32;
+
             /// <summary>The first value a group may start at: its windows start inside the source.</summary>
             public static readonly int Start = Plan?.Start ?? 0;
 
@@ -470,6 +477,32 @@ namespace Nino.Core.Internal
 
             /// <inheritdoc cref="Masks32"/>
             public static readonly Vector128<byte>[] Masks16 = Plan?.Masks16() ?? new Vector128<byte>[8];
+
+            /// <summary>
+            /// Reads: whether the groups check the bools of the blocks they move (<see cref="Bools"/>) in the same pass,
+            /// in place of the strided pass before them (as <see cref="ReadPlan{TPhase}.Checks"/>): the values a step
+            /// moves are ORed into one accumulator per vector, tested once at the end. Not for values that
+            /// <see cref="Shuffles"/> moves after the groups without a look; the others are read one at a time,
+            /// through ReadBlock, which checks them.
+            /// </summary>
+            public static readonly bool Checks = Plan != null && typeof(TDirection) == typeof(NinoReads) &&
+                                                 Bools != null && !Shuffles;
+
+            /// <summary>For each vector of <see cref="Checks"/>, 0xFE at the bools of the values in it.</summary>
+            public static readonly Vector256<byte>[] BoolMasks32 = BoolMasks<Vector256<byte>>(32);
+
+            /// <inheritdoc cref="BoolMasks32"/>
+            public static readonly Vector128<byte>[] BoolMasks16 = BoolMasks<Vector128<byte>>(16);
+
+            private static TVector[] BoolMasks<TVector>(int width) where TVector : struct
+            {
+                var masks = new TVector[4];
+                if (!Checks || Plan.Width != width)
+                    return masks;
+                for (int v = 0; v < 4; v++)
+                    masks[v] = Unsafe.ReadUnaligned<TVector>(ref Plan.Bools(v, Bools, NinoBlock.Size<T, TFormatter>())[0]);
+                return masks;
+            }
 
             private static int Get(int index) => Plan == null ? 0 : Plan.Windows[index];
 

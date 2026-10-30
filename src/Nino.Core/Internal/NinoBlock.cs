@@ -271,15 +271,19 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Whether <see cref="ReadEach{T, TFormatter}"/> reads <paramref name="count"/> values in groups that check
-        /// their bools (<see cref="NinoBlock{T, TFormatter}.ReadPlan{TPhase}.Checks"/>), and the rest through
-        /// ReadBlock.
+        /// their bools (<see cref="NinoBlock{T, TFormatter}.ReadPlan{TPhase}.Checks"/> with AVX-512, else
+        /// <see cref="NinoBlock{T, TFormatter}.LanePlan{TDirection}.Checks"/>: the groups ReadEach takes), and the
+        /// rest through ReadBlock.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool GroupsCheck<T, TFormatter>(int count) where TFormatter : struct, INinoFormatter<T> =>
 #if NET8_0_OR_GREATER
-            NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Checks &&
+            NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Enabled &&
             NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Last(count) >=
-            NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Group;
+            NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Group
+                ? NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Checks
+                : NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Checks &&
+                  NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Worth(count);
 #else
             false;
 #endif
@@ -669,6 +673,8 @@ namespace Nino.Core.Internal
             // aligned one, and those after the last group, by one more group each, unaligned (as WriteGroups; the
             // stores of a group are its values, and at most part of the next value's, which is moved after it).
             int start = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Start;
+            bool unrolled = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Unrolled;
+            int step = unrolled ? 2 * group : group;
             int skip = FirstAligned((nuint)Unsafe.AsPointer(ref destination), to, start, group, (nuint)(width - 1));
             int i = 0;
             for (; i < start; i++)
@@ -680,33 +686,64 @@ namespace Nino.Core.Internal
                 var masks = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Masks32;
                 Vector256<byte> a0 = masks[0], b0 = masks[1], a1 = masks[2], b1 = masks[3], a2 = masks[4],
                     b2 = masks[5], a3 = masks[6], b3 = masks[7];
+                Vector256<byte> c0 = default, c1 = default, c2 = default, c3 = default;
                 if (skip > start && start <= last)
                 {
                     Lanes32<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)start * from),
-                        ref Unsafe.Add(ref destination, (nint)start * to), a0, b0, a1, b1, a2, b2, a3, b3);
+                        ref Unsafe.Add(ref destination, (nint)start * to), a0, b0, a1, b1, a2, b2, a3, b3, ref c0,
+                        ref c1, ref c2, ref c3);
                     i = skip;
                 }
 
                 if (i <= last)
                 {
-                    // Cursors bumped a group at a time and a count down, not a multiply and an add per group.
+                    // Cursors bumped a group at a time and a count down, not a multiply and an add per group;
+                    // groups that store up to 32 bytes two a step (LanePlan.Unrolled), an odd one first.
                     int n = (last - i) / group + 1;
                     ref byte at = ref Unsafe.Add(ref source, (nint)i * from);
                     ref byte into = ref Unsafe.Add(ref destination, (nint)i * to);
                     i += n * group;
-                    do
+                    if (unrolled)
                     {
-                        Lanes32<T, TFormatter, TDirection>(ref at, ref into, a0, b0, a1, b1, a2, b2, a3, b3);
-                        at = ref Unsafe.Add(ref at, (nint)group * from);
-                        into = ref Unsafe.Add(ref into, (nint)group * to);
-                    } while (--n != 0);
+                        if ((n & 1) != 0)
+                        {
+                            Lanes32<T, TFormatter, TDirection>(ref at, ref into, a0, b0, a1, b1, a2, b2, a3, b3,
+                                ref c0, ref c1, ref c2, ref c3);
+                            at = ref Unsafe.Add(ref at, (nint)group * from);
+                            into = ref Unsafe.Add(ref into, (nint)group * to);
+                        }
+
+                        n >>= 1;
+                    }
+
+                    while (n != 0)
+                    {
+                        Lanes32<T, TFormatter, TDirection>(ref at, ref into, a0, b0, a1, b1, a2, b2, a3, b3, ref c0,
+                            ref c1, ref c2, ref c3);
+                        if (unrolled)
+                            Lanes32<T, TFormatter, TDirection>(ref Unsafe.Add(ref at, (nint)group * from),
+                                ref Unsafe.Add(ref into, (nint)group * to), a0, b0, a1, b1, a2, b2, a3, b3, ref c0,
+                                ref c1, ref c2, ref c3);
+                        at = ref Unsafe.Add(ref at, (nint)step * from);
+                        into = ref Unsafe.Add(ref into, (nint)step * to);
+                        n--;
+                    }
                 }
 
                 if (i < last + group && last >= start)
                 {
                     Lanes32<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)last * from),
-                        ref Unsafe.Add(ref destination, (nint)last * to), a0, b0, a1, b1, a2, b2, a3, b3);
+                        ref Unsafe.Add(ref destination, (nint)last * to), a0, b0, a1, b1, a2, b2, a3, b3, ref c0,
+                        ref c1, ref c2, ref c3);
                     i = last + group;
+                }
+
+                // One test for all the groups' bools (LanePlan.Checks): the strided pass names the bad one.
+                if (NinoBlock<T, TFormatter>.LanePlan<TDirection>.Checks)
+                {
+                    var bools = NinoBlock<T, TFormatter>.LanePlan<TDirection>.BoolMasks32;
+                    if (((c0 & bools[0]) | (c1 & bools[1]) | (c2 & bools[2]) | (c3 & bools[3])) != Vector256<byte>.Zero)
+                        CheckBools<T, TFormatter>(ref source, count);
                 }
             }
             else
@@ -714,33 +751,64 @@ namespace Nino.Core.Internal
                 var masks = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Masks16;
                 Vector128<byte> a0 = masks[0], b0 = masks[1], a1 = masks[2], b1 = masks[3], a2 = masks[4],
                     b2 = masks[5], a3 = masks[6], b3 = masks[7];
+                Vector128<byte> c0 = default, c1 = default, c2 = default, c3 = default;
                 if (skip > start && start <= last)
                 {
                     Lanes16<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)start * from),
-                        ref Unsafe.Add(ref destination, (nint)start * to), a0, b0, a1, b1, a2, b2, a3, b3);
+                        ref Unsafe.Add(ref destination, (nint)start * to), a0, b0, a1, b1, a2, b2, a3, b3, ref c0,
+                        ref c1, ref c2, ref c3);
                     i = skip;
                 }
 
                 if (i <= last)
                 {
-                    // Cursors bumped a group at a time and a count down, not a multiply and an add per group.
+                    // Cursors bumped a group at a time and a count down, not a multiply and an add per group;
+                    // groups that store up to 32 bytes two a step (LanePlan.Unrolled), an odd one first.
                     int n = (last - i) / group + 1;
                     ref byte at = ref Unsafe.Add(ref source, (nint)i * from);
                     ref byte into = ref Unsafe.Add(ref destination, (nint)i * to);
                     i += n * group;
-                    do
+                    if (unrolled)
                     {
-                        Lanes16<T, TFormatter, TDirection>(ref at, ref into, a0, b0, a1, b1, a2, b2, a3, b3);
-                        at = ref Unsafe.Add(ref at, (nint)group * from);
-                        into = ref Unsafe.Add(ref into, (nint)group * to);
-                    } while (--n != 0);
+                        if ((n & 1) != 0)
+                        {
+                            Lanes16<T, TFormatter, TDirection>(ref at, ref into, a0, b0, a1, b1, a2, b2, a3, b3,
+                                ref c0, ref c1, ref c2, ref c3);
+                            at = ref Unsafe.Add(ref at, (nint)group * from);
+                            into = ref Unsafe.Add(ref into, (nint)group * to);
+                        }
+
+                        n >>= 1;
+                    }
+
+                    while (n != 0)
+                    {
+                        Lanes16<T, TFormatter, TDirection>(ref at, ref into, a0, b0, a1, b1, a2, b2, a3, b3, ref c0,
+                            ref c1, ref c2, ref c3);
+                        if (unrolled)
+                            Lanes16<T, TFormatter, TDirection>(ref Unsafe.Add(ref at, (nint)group * from),
+                                ref Unsafe.Add(ref into, (nint)group * to), a0, b0, a1, b1, a2, b2, a3, b3, ref c0,
+                                ref c1, ref c2, ref c3);
+                        at = ref Unsafe.Add(ref at, (nint)step * from);
+                        into = ref Unsafe.Add(ref into, (nint)step * to);
+                        n--;
+                    }
                 }
 
                 if (i < last + group && last >= start)
                 {
                     Lanes16<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)last * from),
-                        ref Unsafe.Add(ref destination, (nint)last * to), a0, b0, a1, b1, a2, b2, a3, b3);
+                        ref Unsafe.Add(ref destination, (nint)last * to), a0, b0, a1, b1, a2, b2, a3, b3, ref c0,
+                        ref c1, ref c2, ref c3);
                     i = last + group;
+                }
+
+                // As above.
+                if (NinoBlock<T, TFormatter>.LanePlan<TDirection>.Checks)
+                {
+                    var bools = NinoBlock<T, TFormatter>.LanePlan<TDirection>.BoolMasks16;
+                    if (((c0 & bools[0]) | (c1 & bools[1]) | (c2 & bools[2]) | (c3 & bools[3])) != Vector128<byte>.Zero)
+                        CheckBools<T, TFormatter>(ref source, count);
                 }
             }
 
@@ -764,12 +832,15 @@ namespace Nino.Core.Internal
         /// <summary>
         /// One group of 32-byte vectors (AVX2): each the bytes of two loads shuffled within their 16-byte lanes
         /// (vpshufb, which zeroes where an index has its high bit set) and ORed, or of one load alone. All are worked
-        /// out before any is stored, so that a load repeated across them is one (no store in between).
+        /// out before any is stored, so that a load repeated across them is one (no store in between). With
+        /// <see cref="NinoBlock{T, TFormatter}.LanePlan{TDirection}.Checks"/>, each vector is ORed into its
+        /// accumulator (<paramref name="c0"/> to <paramref name="c3"/>), its bools tested once after the last group.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Lanes32<T, TFormatter, TDirection>(ref byte source, ref byte destination,
             Vector256<byte> a0, Vector256<byte> b0, Vector256<byte> a1, Vector256<byte> b1, Vector256<byte> a2,
-            Vector256<byte> b2, Vector256<byte> a3, Vector256<byte> b3)
+            Vector256<byte> b2, Vector256<byte> a3, Vector256<byte> b3, ref Vector256<byte> c0,
+            ref Vector256<byte> c1, ref Vector256<byte> c2, ref Vector256<byte> c3)
             where TFormatter : struct, INinoFormatter<T>
             where TDirection : struct, INinoDirection
         {
@@ -778,6 +849,17 @@ namespace Nino.Core.Internal
             var v1 = vectors > 1 ? Lane32<T, TFormatter, TDirection>(ref source, 1, a1, b1) : default;
             var v2 = vectors > 2 ? Lane32<T, TFormatter, TDirection>(ref source, 2, a2, b2) : default;
             var v3 = vectors > 3 ? Lane32<T, TFormatter, TDirection>(ref source, 3, a3, b3) : default;
+            if (NinoBlock<T, TFormatter>.LanePlan<TDirection>.Checks)
+            {
+                c0 |= v0;
+                if (vectors > 1)
+                    c1 |= v1;
+                if (vectors > 2)
+                    c2 |= v2;
+                if (vectors > 3)
+                    c3 |= v3;
+            }
+
             v0.StoreUnsafe(ref destination);
             if (vectors > 1)
                 v1.StoreUnsafe(ref destination, 32);
@@ -833,12 +915,13 @@ namespace Nino.Core.Internal
         /// <summary>
         /// One group of 16-byte vectors: each one or two 16-byte loads, as one table lookup of one or two registers on
         /// Arm64 (the second's indices from 16), or each load shuffled (an index from 0x80 giving a zero) and ORed. As
-        /// <see cref="Lanes32{T, TFormatter, TDirection}"/>, all before any is stored.
+        /// <see cref="Lanes32{T, TFormatter, TDirection}"/>, all before any is stored, and ORed into the accumulators.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Lanes16<T, TFormatter, TDirection>(ref byte source, ref byte destination,
             Vector128<byte> a0, Vector128<byte> b0, Vector128<byte> a1, Vector128<byte> b1, Vector128<byte> a2,
-            Vector128<byte> b2, Vector128<byte> a3, Vector128<byte> b3)
+            Vector128<byte> b2, Vector128<byte> a3, Vector128<byte> b3, ref Vector128<byte> c0,
+            ref Vector128<byte> c1, ref Vector128<byte> c2, ref Vector128<byte> c3)
             where TFormatter : struct, INinoFormatter<T>
             where TDirection : struct, INinoDirection
         {
@@ -870,6 +953,17 @@ namespace Nino.Core.Internal
                 v1 = vectors > 1 ? Lane16<T, TFormatter, TDirection>(ref source, 1, a1, b1) : default;
                 v2 = vectors > 2 ? Lane16<T, TFormatter, TDirection>(ref source, 2, a2, b2) : default;
                 v3 = vectors > 3 ? Lane16<T, TFormatter, TDirection>(ref source, 3, a3, b3) : default;
+            }
+
+            if (NinoBlock<T, TFormatter>.LanePlan<TDirection>.Checks)
+            {
+                c0 |= v0;
+                if (vectors > 1)
+                    c1 |= v1;
+                if (vectors > 2)
+                    c2 |= v2;
+                if (vectors > 3)
+                    c3 |= v3;
             }
 
             v0.StoreUnsafe(ref destination);
