@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-nino-serialization = { path = "..", features = ["derive"] }
+nino-serialization = { path = "..", features = ["derive", "indexmap"] }
 
 [dev-dependencies]
 criterion = { version = "0.8.2", default-features = false }
@@ -15,6 +15,8 @@ bincode = { version = "2.0.1", default-features = false, features = ["serde", "s
 rmp-serde = "1.3.1"
 postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 prost = "0.14.4"
+# Sets as nino-gen writes them (IndexSet), with serde for the other serializers.
+indexmap = { version = "2.14.2", features = ["serde"] }
 
 [[bench]]
 name = "compare"
