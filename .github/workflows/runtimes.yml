@@ -513,10 +513,15 @@ jobs:
         with:
           packages: --no-install-recommends qemu-user
 
+      # One P: with several, Go 1.27's runtime under qemu-arm crashed in the garbage collector's lock-free lists
+      # (lfstack.pop SIGSEGV) in a quarter to half of the runs, Nino's code or not (main f618b973 too, 1 of 10 runs;
+      # Go 1.24 0 of 8, GOMAXPROCS=1 0 of 18; platforms skill). The step tests 32-bit code, not concurrency, which the
+      # race detector covers natively above.
       - name: Test on Arm32 under qemu
         if: ${{ !cancelled() }}
         env:
           GOARCH: arm
+          GOMAXPROCS: '1'
         run: go test -count=1 -exec qemu-arm ./...
 
       - name: Test on big-endian s390x under qemu

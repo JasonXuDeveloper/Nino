@@ -87,6 +87,11 @@ Why the qemu flags:
   (`Expression.Compile`, reflection invoke stubs) through a second mapping qemu-user does not see, and they crash.
   Set `DOTNET_INTERNAL_ThreadSuspendInjection=0` too: qemu (8.2 and 10.2) aborts in about one run in four
   (`thumb_tr_translate_insn: Assertion (dc->base.pc_next & 1) == 0`) when the GC's suspension signal lands.
+- Run Go's Arm32 tests under qemu-arm with `GOMAXPROCS=1`: with several Ps, Go 1.27.3's runtime crashed in the
+  garbage collector's lock-free lists (`runtime.(*lfstack).pop` SIGSEGV at address 0, during any test) in 2 to 5 of
+  8 runs with qemu 8.2 and the runners' qemu, and main's code before the run that showed it (f618b973) crashed too
+  (1 of 10, more allocation only made it likelier); Go 1.24 crashed in 0 of 8, `GOMAXPROCS=1` in 0 of 18, `GOARM=6`
+  did not help (4 of 8). runtimes.yml sets it on that step (r101).
 - To run tests under qemu-aarch64, pass `-cpu neoverse-n1` (listings can keep the default): qemu 8.2's default CPU
   (`max`) has LRCPC2, whose `ldapur`/`stlur` (what the optimizing JIT emits for `Volatile.Read`/`Write` of a field) it
   emulates wrong. With or without Nino's code, runs crashed (`ToImmutableDictionary`), or a static field written by
