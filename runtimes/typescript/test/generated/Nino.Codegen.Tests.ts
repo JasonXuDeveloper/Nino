@@ -1488,7 +1488,8 @@ function read$9(r: NinoReader): Map<number, number> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<number, number>();
-  for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) map.set(r.view.getFloat32(at, true), r.view.getInt32(at + 4, true));
+  const guard = r.keyGuard(length);
+  for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) map.set(guard === null ? r.view.getFloat32(at, true) : guard.number(r.view.getFloat32(at, true)), r.view.getInt32(at + 4, true));
   if (map.size !== length) throw r.duplicateKey();
   return map;
 }
@@ -1498,7 +1499,8 @@ function readInto$10(r: NinoReader, cur: Map<number, number>): Map<number, numbe
   if (length < 0) return null;
   const map = cur;
   map.clear();
-  for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) map.set(r.view.getFloat32(at, true), r.view.getInt32(at + 4, true));
+  const guard = r.keyGuard(length);
+  for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) map.set(guard === null ? r.view.getFloat32(at, true) : guard.number(r.view.getFloat32(at, true)), r.view.getInt32(at + 4, true));
   if (map.size !== length) throw r.duplicateKey();
   return map;
 }
@@ -1556,9 +1558,10 @@ function read$16(r: NinoReader): Map<number, string | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<number, string | null>();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.i32();
-    map.set(key, r.string());
+    map.set(guard === null ? key : guard.int(key), r.string());
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;
@@ -1569,9 +1572,10 @@ function readInto$17(r: NinoReader, cur: Map<number, string | null>): Map<number
   if (length < 0) return null;
   const map = cur;
   map.clear();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.i32();
-    map.set(key, r.string());
+    map.set(guard === null ? key : guard.int(key), r.string());
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;

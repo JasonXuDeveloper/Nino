@@ -238,6 +238,19 @@ func typeid_codec(assignable, closed, backref)
   ret $o + "};\n"
 end
 
+# A set's element or a map's key read by `code`, through the hash-flooding guard when its shape has one.
+func guarded(shape, code)
+  if !shape.guard
+    ret code
+  end
+  ret "guard === null ? " + code + " : guard." + shape.guard + "(" + code + ")"
+end
+
+# The guard of a set or map whose elements or keys have the shape (see NinoReader.keyGuard), else nothing.
+func guard_decl(shape)
+  ret shape.guard ? "  const guard = r.keyGuard(length);\n" : ""
+end
+
 # A function shared by every value of one shape.
 func helper_body(h)
   $s = h.shape
@@ -250,11 +263,11 @@ func helper_body(h)
     if $s.kind == "seq"
       $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + ", cur: " + seq_ts($s) + "): " + seq_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const values = cur;\n"
       if $s.set
-        $o = $o + "  values.clear();\n"
+        $o = $o + "  values.clear();\n" + guard_decl($s.element)
         if $s.element.fixed
-          $o = $o + "  for (let i = 0, at = r.take(length * " + $s.element.size + "); i < length; i++, at += " + $s.element.size + ") values.add(" + read_at($s.element, 0) + ");\n"
+          $o = $o + "  for (let i = 0, at = r.take(length * " + $s.element.size + "); i < length; i++, at += " + $s.element.size + ") values.add(" + guarded($s.element, read_at($s.element, 0)) + ");\n"
         else
-          $o = $o + "  for (let i = 0; i < length; i++) values.add(" + read($s.element) + ");\n"
+          $o = $o + "  for (let i = 0; i < length; i++) values.add(" + guarded($s.element, read($s.element)) + ");\n"
         end
         ret $o + "  if (values.size !== length) throw r.duplicateKey();\n  return values;\n}\n"
       end
@@ -265,22 +278,24 @@ func helper_body(h)
       end
       ret $o + "  if (values.length !== length) values.length = length;\n  return values;\n}\n"
     end
-    $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + ", cur: " + map_ts($s) + "): " + map_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const map = cur;\n  map.clear();\n"
+    $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + ", cur: " + map_ts($s) + "): " + map_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const map = cur;\n  map.clear();\n" + guard_decl($s.key)
     if $s.key.fixed && $s.value.fixed
       $size = $s.key.size + $s.value.size
-      $o = $o + "  for (let i = 0, at = r.take(length * " + $size + "); i < length; i++, at += " + $size + ") map.set(" + read_at($s.key, 0) + ", " + read_at($s.value, $s.key.size) + ");\n"
+      $o = $o + "  for (let i = 0, at = r.take(length * " + $size + "); i < length; i++, at += " + $size + ") map.set(" + guarded($s.key, read_at($s.key, 0)) + ", " + read_at($s.value, $s.key.size) + ");\n"
     else
-      $o = $o + "  for (let i = 0; i < length; i++) {\n    const key = " + read($s.key) + ";\n    map.set(key, " + read($s.value) + ");\n  }\n"
+      $o = $o + "  for (let i = 0; i < length; i++) {\n    const key = " + read($s.key) + ";\n    map.set(" + guarded($s.key, "key") + ", " + read($s.value) + ");\n  }\n"
     end
     ret $o + "  if (map.size !== length) throw r.duplicateKey();\n  return map;\n}\n"
   end
   if h.mode == "read"
     if $s.kind == "seq"
       $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + "): " + seq_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n"
+      $guard = false
       if $s.set
-        $o = $o + "  const values = new Set<" + ts($s.element) + ">();\n"
+        $o = $o + "  const values = new Set<" + ts($s.element) + ">();\n" + guard_decl($s.element)
         $add = "values.add("
         $close = ")"
+        $guard = true
       else if $s.array_type
         # A typed array: longer ones in one block, shorter ones one by one on V8's heap.
         $o = $o + "  if (length > " + $s.inline_length + ") return r.numbers(" + $s.array_type + ", length);\n  const values = new " + $s.array_type + "(length);\n"
@@ -292,9 +307,11 @@ func helper_body(h)
         $close = ""
       end
       if $s.element.fixed
-        $o = $o + "  for (let i = 0, at = r.take(length * " + $s.element.size + "); i < length; i++, at += " + $s.element.size + ") " + $add + read_at($s.element, 0) + $close + ";\n"
+        $e = read_at($s.element, 0)
+        $o = $o + "  for (let i = 0, at = r.take(length * " + $s.element.size + "); i < length; i++, at += " + $s.element.size + ") " + $add + ($guard ? guarded($s.element, $e) : $e) + $close + ";\n"
       else
-        $o = $o + "  for (let i = 0; i < length; i++) " + $add + read($s.element) + $close + ";\n"
+        $e = read($s.element)
+        $o = $o + "  for (let i = 0; i < length; i++) " + $add + ($guard ? guarded($s.element, $e) : $e) + $close + ";\n"
       end
       if $s.set
         # An element read twice (the set holds fewer than were read) is invalid data, as in .NET.
@@ -302,12 +319,12 @@ func helper_body(h)
       end
       ret $o + "  return values;\n}\n"
     else if $s.kind == "map"
-      $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + "): " + map_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const map = new " + map_ts($s) + "();\n"
+      $o = "function " + $n + h.type_params + "(r: NinoReader" + h.codecs + "): " + map_ts($s) + " | null {\n  const length = r.length();\n  if (length < 0) return null;\n  const map = new " + map_ts($s) + "();\n" + guard_decl($s.key)
       if $s.key.fixed && $s.value.fixed
         $size = $s.key.size + $s.value.size
-        $o = $o + "  for (let i = 0, at = r.take(length * " + $size + "); i < length; i++, at += " + $size + ") map.set(" + read_at($s.key, 0) + ", " + read_at($s.value, $s.key.size) + ");\n"
+        $o = $o + "  for (let i = 0, at = r.take(length * " + $size + "); i < length; i++, at += " + $size + ") map.set(" + guarded($s.key, read_at($s.key, 0)) + ", " + read_at($s.value, $s.key.size) + ");\n"
       else
-        $o = $o + "  for (let i = 0; i < length; i++) {\n    const key = " + read($s.key) + ";\n    map.set(key, " + read($s.value) + ");\n  }\n"
+        $o = $o + "  for (let i = 0; i < length; i++) {\n    const key = " + read($s.key) + ";\n    map.set(" + guarded($s.key, "key") + ", " + read($s.value) + ");\n  }\n"
       end
       # A key read twice (the map holds fewer than were read) is invalid data, as in .NET.
       ret $o + "  if (map.size !== length) throw r.duplicateKey();\n  return map;\n}\n"

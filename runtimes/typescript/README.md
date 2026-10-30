@@ -94,6 +94,13 @@ more than the data holds:
   size comparison after the map or set is read. Keys are compared as `Map` and `Set` compare them: numbers, `bigint`s,
   strings, booleans and null by value; keys read as objects (`DateTime` as a `Date`, structs, tuples) and `decimal`s
   that differ only in scale are not compared.
+- Keys built to share a hash bucket (hash flooding) cannot make reading a map or set quadratic, as
+  `NinoSettings.MaxHashCollisions` ensures in .NET (§9.8). V8 hashes strings with a per-process seed but numbers and
+  `bigint`s without one, so for a map or set of more than 128 number or `bigint` keys, generated code passes each key
+  through `NinoKeyGuard`, which counts the keys of each bucket of the table V8 ends with and throws a `NinoError` when
+  a key would find more than 100 keys in its bucket (the smaller tables on the way stay within O(n log n) probes). The guard is exact for V8 (Node, Chromium, Deno); JavaScriptCore (Safari, Bun) and
+  SpiderMonkey (Firefox) hash numbers their own way, where it bounds V8's buckets, not theirs. A map or set of 128
+  keys or fewer is not guarded: no key there costs more than 128 probes.
 - Bytes after the value are left unread, as .NET does by default (§9.12).
 
 A `DateTime` is read as a `Date`, which has no kind: the ticks are taken as UTC whatever the kind, so a value written
@@ -130,7 +137,7 @@ npm ci && npm test
 
 type-checks and runs the `node:test` suite in `test/` three times: in Node, then as a browser runs it (the runtime
 evaluated without `Buffer`, `NINO_TEST_RUNTIME=browser`, `test/runtime.ts`), with the WebAssembly module and without
-it (`NINO_WASM=0`). `test/wasm.test.ts` compares the module's paths with the JavaScript ones for every length up to
+it (`NINO_WASM=0`). `test/flooding.test.ts` reads sets and maps of keys V8 puts in one bucket. `test/wasm.test.ts` compares the module's paths with the JavaScript ones for every length up to
 256 and longer, with every kind of char at each position. `test/corpus.test.ts` runs the conformance corpus
 (`conformance/corpus`, or the directory in `NINO_CORPUS`) over the code nino-gen generates for its types
 (`test/generated`, checked by Nino.Codegen.Tests): every valid case read and written back byte for byte, every
