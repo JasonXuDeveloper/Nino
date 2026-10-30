@@ -462,6 +462,16 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   Xeon 8573C loss above went to 0.947 of the old base (one job of 12 rounds). Sets followed with `nino.UniqueValues` (no bench case
   holds a set, so no runner number). Still dispatched by design: tracked classes, generic type arguments (Go `NinoArg`, TypeScript codec objects) and the struct-tag
   path (a plan of closures).
+- Keep reuse branches off the read path of a new value: share the body, not the dispatch. Reading into an existing
+  value (`deserializeInto`, `ReadXInto`, `read_into`) shares each type's body with the plain read, but a member that
+  holds nothing goes straight to the plain read (`v.m == null ? readX(r) : into`), and a slot's switch and a
+  collection's loop keep a fresh form without the reuse checks. TypeScript with one switch and one helper for both
+  (`read: (r) => XCodec.readInto(r, null)`, helpers taking an optional `cur`) took Player deserialize 4-9 % and Zoo
+  7-8 % longer in Chromium (run 40961396786, n=9-30); with the fresh forms back, on par (40969410249). Reading a
+  struct member into the instance its class's initializer already made, instead of a second one, made Mesh
+  deserialize 8-24 % faster. Go kept its slots' and sealed classes' plain reads (with 414a0a28's direct body calls)
+  and read lists through the into loop: on par (40976827882, geomean within 0.8 %); Rust's `read = Default +
+  read_into` was on par too (40925188020).
 
 ## Checking blocks in Go
 
