@@ -605,44 +605,11 @@ impl NinoWriteBody for AnimalSlot {
 
 impl NinoRead for AnimalSlot {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for AnimalSlot {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl AnimalSlot {
@@ -723,34 +690,7 @@ impl NinoWriteBody for BagHolder {
 
 impl NinoRead for BagHolder {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for BagHolder {
@@ -774,13 +714,7 @@ impl NinoWrite for BagHolder {
         self.bags.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl BagHolder {
@@ -815,44 +749,11 @@ impl NinoWriteBody for BigSlot {
 
 impl NinoRead for BigSlot {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for BigSlot {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl BigSlot {
@@ -890,44 +791,11 @@ impl NinoWriteBody for BigValues {
 
 impl NinoRead for BigValues {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for BigValues {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl BigValues {
@@ -968,44 +836,11 @@ impl NinoWriteBody for BlueLink {
 
 impl NinoRead for BlueLink {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for BlueLink {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl BlueLink {
@@ -1040,34 +875,7 @@ impl NinoWriteBody for BoolArray {
 
 impl NinoRead for BoolArray {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for BoolArray {
@@ -1082,13 +890,7 @@ impl NinoWrite for BoolArray {
         self.values.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl BoolArray {
@@ -1123,44 +925,11 @@ impl NinoWriteBody for BoolValue {
 
 impl NinoRead for BoolValue {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for BoolValue {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl BoolValue {
@@ -1198,34 +967,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for BoxType<T> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for BoxType<T> {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for BoxType<T> {
@@ -1240,13 +982,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for BoxType<T> {
         self.value.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl<T> BoxType<T> {
@@ -1279,34 +1015,7 @@ impl NinoWriteBody for ByteArray {
 
 impl NinoRead for ByteArray {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for ByteArray {
@@ -1321,13 +1030,7 @@ impl NinoWrite for ByteArray {
         self.values.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl ByteArray {
@@ -1368,34 +1071,7 @@ impl NinoWriteBody for Bytes {
 
 impl NinoRead for Bytes {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Bytes {
@@ -1416,13 +1092,7 @@ impl NinoWrite for Bytes {
         self.signed.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Bytes {
@@ -1460,44 +1130,11 @@ impl NinoWriteBody for Cat {
 
 impl NinoRead for Cat {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Cat {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Cat {
@@ -1535,34 +1172,7 @@ impl NinoWriteBody for Chain {
 
 impl NinoRead for Chain {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Chain {
@@ -1577,13 +1187,7 @@ impl NinoWrite for Chain {
         self.next.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Chain {
@@ -1711,34 +1315,7 @@ impl NinoWriteBody for Collections {
 
 impl NinoRead for Collections {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Collections {
@@ -1789,13 +1366,7 @@ impl NinoWrite for Collections {
         self.jagged.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Collections {
@@ -1867,44 +1438,11 @@ impl NinoWriteBody for Dates {
 
 impl NinoRead for Dates {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Dates {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Dates {
@@ -1972,44 +1510,11 @@ impl NinoWriteBody for DogSlot {
 
 impl NinoRead for DogSlot {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for DogSlot {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl DogSlot {
@@ -2053,34 +1558,7 @@ impl NinoWriteBody for Empties {
 
 impl NinoRead for Empties {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Empties {
@@ -2101,13 +1579,7 @@ impl NinoWrite for Empties {
         self.classes.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Empties {
@@ -2140,44 +1612,11 @@ impl NinoWriteBody for Empty {
 
 impl NinoRead for Empty {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Empty {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Empty {
@@ -2242,34 +1681,7 @@ impl NinoWriteBody for Enums {
 
 impl NinoRead for Enums {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Enums {
@@ -2284,13 +1696,7 @@ impl NinoWrite for Enums {
         self.array.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Enums {
@@ -2331,44 +1737,11 @@ impl NinoWriteBody for Floats {
 
 impl NinoRead for Floats {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Floats {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Floats {
@@ -2418,34 +1791,7 @@ impl NinoWriteBody for GenericSlots {
 
 impl NinoRead for GenericSlots {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for GenericSlots {
@@ -2460,13 +1806,7 @@ impl NinoWrite for GenericSlots {
         self.shelves.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl GenericSlots {
@@ -2501,44 +1841,11 @@ impl NinoWriteBody for Grid {
 
 impl NinoRead for Grid {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Grid {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Grid {
@@ -2576,34 +1883,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for Holder<T> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for Holder<T> {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Holder<T> {
@@ -2618,13 +1898,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Holder<T> {
         self.held.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl<T> Holder<T> {
@@ -2663,34 +1937,7 @@ impl NinoWriteBody for Inner {
 
 impl NinoRead for Inner {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Inner {
@@ -2705,13 +1952,7 @@ impl NinoWrite for Inner {
         self.point.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Inner {
@@ -2746,34 +1987,7 @@ impl NinoWriteBody for IntArray {
 
 impl NinoRead for IntArray {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for IntArray {
@@ -2788,13 +2002,7 @@ impl NinoWrite for IntArray {
         self.values.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl IntArray {
@@ -2829,44 +2037,11 @@ impl NinoWriteBody for IntMap {
 
 impl NinoRead for IntMap {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for IntMap {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl IntMap {
@@ -2901,34 +2076,7 @@ impl NinoWriteBody for IntSet {
 
 impl NinoRead for IntSet {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for IntSet {
@@ -2943,13 +2091,7 @@ impl NinoWrite for IntSet {
         self.values.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl IntSet {
@@ -2987,44 +2129,11 @@ impl NinoWriteBody for IntShelf {
 
 impl NinoRead for IntShelf {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for IntShelf {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl IntShelf {
@@ -3086,44 +2195,11 @@ impl NinoWriteBody for Integers {
 
 impl NinoRead for Integers {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Integers {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Integers {
@@ -3180,34 +2256,7 @@ impl NinoWriteBody for KeyedBag {
 
 impl NinoRead for KeyedBag {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for KeyedBag {
@@ -3222,13 +2271,7 @@ impl NinoWrite for KeyedBag {
         self.elements.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl KeyedBag {
@@ -3287,34 +2330,7 @@ impl NinoWriteBody for KeyedChain {
 
 impl NinoRead for KeyedChain {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for KeyedChain {
@@ -3329,13 +2345,7 @@ impl NinoWrite for KeyedChain {
         self.next.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl KeyedChain {
@@ -3376,34 +2386,7 @@ impl NinoWriteBody for KeyedHolder {
 
 impl NinoRead for KeyedHolder {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for KeyedHolder {
@@ -3424,13 +2407,7 @@ impl NinoWrite for KeyedHolder {
         self.array.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl KeyedHolder {
@@ -3577,34 +2554,7 @@ impl NinoWriteBody for KeyedV1 {
 
 impl NinoRead for KeyedV1 {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for KeyedV1 {
@@ -3619,13 +2569,7 @@ impl NinoWrite for KeyedV1 {
         self.items.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl KeyedV1 {
@@ -3696,44 +2640,11 @@ impl NinoWriteBody for KeyedV2 {
 
 impl NinoRead for KeyedV2 {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for KeyedV2 {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl KeyedV2 {
@@ -3826,34 +2737,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for LabeledCrate
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for LabeledCrate<T> {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for LabeledCrate<T> {
@@ -3868,13 +2752,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for LabeledCrate<T> 
         self.content.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl<T> LabeledCrate<T> {
@@ -3910,34 +2788,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for ListShelf<T>
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for ListShelf<T> {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for ListShelf<T> {
@@ -3955,13 +2806,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for ListShelf<T> {
         self.more.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl<T> ListShelf<T> {
@@ -3994,34 +2839,7 @@ impl NinoWriteBody for LongList {
 
 impl NinoRead for LongList {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for LongList {
@@ -4036,13 +2854,7 @@ impl NinoWrite for LongList {
         self.values.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl LongList {
@@ -4077,34 +2889,7 @@ impl NinoWriteBody for MaybeInt {
 
 impl NinoRead for MaybeInt {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for MaybeInt {
@@ -4119,13 +2904,7 @@ impl NinoWrite for MaybeInt {
         self.value.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl MaybeInt {
@@ -4160,34 +2939,7 @@ impl NinoWriteBody for MaybeIntArray {
 
 impl NinoRead for MaybeIntArray {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for MaybeIntArray {
@@ -4202,13 +2954,7 @@ impl NinoWrite for MaybeIntArray {
         self.values.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl MaybeIntArray {
@@ -4249,34 +2995,7 @@ impl NinoWriteBody for Middle {
 
 impl NinoRead for Middle {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Middle {
@@ -4297,13 +3016,7 @@ impl NinoWrite for Middle {
         self.inner.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Middle {
@@ -4374,34 +3087,7 @@ impl NinoWriteBody for Nullables {
 
 impl NinoRead for Nullables {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Nullables {
@@ -4449,13 +3135,7 @@ impl NinoWrite for Nullables {
         self.padded_array.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Nullables {
@@ -4490,44 +3170,11 @@ impl NinoWriteBody for ObjectSlot {
 
 impl NinoRead for ObjectSlot {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for ObjectSlot {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl ObjectSlot {
@@ -4568,34 +3215,7 @@ impl NinoWriteBody for Outer {
 
 impl NinoRead for Outer {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Outer {
@@ -4613,13 +3233,7 @@ impl NinoWrite for Outer {
         self.middle.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Outer {
@@ -4654,34 +3268,7 @@ impl NinoWriteBody for PaddedArray {
 
 impl NinoRead for PaddedArray {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for PaddedArray {
@@ -4696,13 +3283,7 @@ impl NinoWrite for PaddedArray {
         self.values.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl PaddedArray {
@@ -4770,44 +3351,11 @@ impl NinoWriteBody for Point {
 
 impl NinoRead for Point {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Point {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Point {
@@ -4842,34 +3390,7 @@ impl NinoWriteBody for PointList {
 
 impl NinoRead for PointList {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for PointList {
@@ -4884,13 +3405,7 @@ impl NinoWrite for PointList {
         self.values.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl PointList {
@@ -4929,34 +3444,7 @@ impl NinoWriteBody for PointSet {
 
 impl NinoRead for PointSet {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for PointSet {
@@ -4974,13 +3462,7 @@ impl NinoWrite for PointSet {
         self.origin.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl PointSet {
@@ -5021,44 +3503,11 @@ impl NinoWriteBody for Puppy {
 
 impl NinoRead for Puppy {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Puppy {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Puppy {
@@ -5100,34 +3549,7 @@ impl NinoWriteBody for RecordChain {
 
 impl NinoRead for RecordChain {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for RecordChain {
@@ -5142,13 +3564,7 @@ impl NinoWrite for RecordChain {
         self.next.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl RecordChain {
@@ -5186,44 +3602,11 @@ impl NinoWriteBody for RedLink {
 
 impl NinoRead for RedLink {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for RedLink {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl RedLink {
@@ -5276,44 +3659,11 @@ impl NinoWriteBody for Scalars {
 
 impl NinoRead for Scalars {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Scalars {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Scalars {
@@ -5348,44 +3698,11 @@ impl NinoWriteBody for ShapeSlot {
 
 impl NinoRead for ShapeSlot {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for ShapeSlot {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl ShapeSlot {
@@ -5420,44 +3737,11 @@ impl NinoWriteBody for SortedMap {
 
 impl NinoRead for SortedMap {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for SortedMap {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl SortedMap {
@@ -5495,44 +3779,11 @@ impl NinoWriteBody for Square {
 
 impl NinoRead for Square {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Square {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Square {
@@ -5579,34 +3830,7 @@ impl NinoWriteBody for StringCollections {
 
 impl NinoRead for StringCollections {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for StringCollections {
@@ -5624,13 +3848,7 @@ impl NinoWrite for StringCollections {
         self.list.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl StringCollections {
@@ -5665,34 +3883,7 @@ impl NinoWriteBody for StringList {
 
 impl NinoRead for StringList {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for StringList {
@@ -5707,13 +3898,7 @@ impl NinoWrite for StringList {
         self.values.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl StringList {
@@ -5748,44 +3933,11 @@ impl NinoWriteBody for StringMap {
 
 impl NinoRead for StringMap {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for StringMap {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl StringMap {
@@ -5820,34 +3972,7 @@ impl NinoWriteBody for StringSet {
 
 impl NinoRead for StringSet {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for StringSet {
@@ -5862,13 +3987,7 @@ impl NinoWrite for StringSet {
         self.values.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl StringSet {
@@ -5906,44 +4025,11 @@ impl NinoWriteBody for Strings {
 
 impl NinoRead for Strings {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Strings {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Strings {
@@ -6017,34 +4103,7 @@ impl NinoWriteBody for Structs {
 
 impl NinoRead for Structs {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Structs {
@@ -6071,13 +4130,7 @@ impl NinoWrite for Structs {
         self.labels.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Structs {
@@ -6112,44 +4165,11 @@ impl NinoWriteBody for TextValue {
 
 impl NinoRead for TextValue {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TextValue {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TextValue {
@@ -6194,34 +4214,7 @@ impl NinoWriteBody for TolerantBag {
 
 impl NinoRead for TolerantBag {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TolerantBag {
@@ -6236,13 +4229,7 @@ impl NinoWrite for TolerantBag {
         self.elements.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TolerantBag {
@@ -6324,34 +4311,7 @@ impl NinoWriteBody for TolerantChain {
 
 impl NinoRead for TolerantChain {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TolerantChain {
@@ -6366,13 +4326,7 @@ impl NinoWrite for TolerantChain {
         self.next.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TolerantChain {
@@ -6407,44 +4361,11 @@ impl NinoWriteBody for TolerantEmpty {
 
 impl NinoRead for TolerantEmpty {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TolerantEmpty {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TolerantEmpty {
@@ -6488,34 +4409,7 @@ impl NinoWriteBody for TolerantHolder {
 
 impl NinoRead for TolerantHolder {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TolerantHolder {
@@ -6533,13 +4427,7 @@ impl NinoWrite for TolerantHolder {
         self.empty.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TolerantHolder {
@@ -6585,44 +4473,11 @@ impl NinoWriteBody for TolerantLeaf {
 
 impl NinoRead for TolerantLeaf {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TolerantLeaf {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TolerantLeaf {
@@ -6673,34 +4528,7 @@ impl NinoWriteBody for TolerantRoot {
 
 impl NinoRead for TolerantRoot {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TolerantRoot {
@@ -6715,13 +4543,7 @@ impl NinoWrite for TolerantRoot {
         self.chain.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TolerantRoot {
@@ -6767,44 +4589,11 @@ impl NinoWriteBody for TolerantV1 {
 
 impl NinoRead for TolerantV1 {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TolerantV1 {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TolerantV1 {
@@ -6860,34 +4649,7 @@ impl NinoWriteBody for TolerantV2 {
 
 impl NinoRead for TolerantV2 {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TolerantV2 {
@@ -6902,13 +4664,7 @@ impl NinoWrite for TolerantV2 {
         self.d.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TolerantV2 {
@@ -6988,34 +4744,7 @@ impl NinoWriteBody for TrackedHolder {
 
 impl NinoRead for TrackedHolder {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TrackedHolder {
@@ -7030,13 +4759,7 @@ impl NinoWrite for TrackedHolder {
         self.all.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TrackedHolder {
@@ -7125,34 +4848,7 @@ impl NinoWriteBody for TrackedMix {
 
 impl NinoRead for TrackedMix {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TrackedMix {
@@ -7167,13 +4863,7 @@ impl NinoWrite for TrackedMix {
         self.nodes.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TrackedMix {
@@ -7285,34 +4975,7 @@ impl NinoWriteBody for TreeHolder {
 
 impl NinoRead for TreeHolder {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TreeHolder {
@@ -7327,13 +4990,7 @@ impl NinoWrite for TreeHolder {
         self.tree.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TreeHolder {
@@ -7371,34 +5028,7 @@ impl NinoWriteBody for TreeNode {
 
 impl NinoRead for TreeNode {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for TreeNode {
@@ -7413,13 +5043,7 @@ impl NinoWrite for TreeNode {
         self.children.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl TreeNode {
@@ -7454,44 +5078,11 @@ impl NinoWriteBody for Utf8Value {
 
 impl NinoRead for Utf8Value {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Utf8Value {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Utf8Value {
@@ -7526,44 +5117,11 @@ impl NinoWriteBody for VersionSlot {
 
 impl NinoRead for VersionSlot {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for VersionSlot {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl VersionSlot {
@@ -7598,34 +5156,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for Wrap<T> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for Wrap<T> {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Wrap<T> {
@@ -7640,13 +5171,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Wrap<T> {
         self.value.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl<T> Wrap<T> {
@@ -7697,34 +5222,7 @@ impl NinoWriteBody for WrappedArgs {
 
 impl NinoRead for WrappedArgs {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for WrappedArgs {
@@ -7757,13 +5255,7 @@ impl NinoWrite for WrappedArgs {
         self.pair_array.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl WrappedArgs {
@@ -7822,34 +5314,7 @@ impl NinoWriteBody for Zoo {
 
 impl NinoRead for Zoo {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Zoo {
@@ -7870,13 +5335,7 @@ impl NinoWrite for Zoo {
         self.shapes.prefetch_members();
     }
 
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl Zoo {

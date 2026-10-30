@@ -498,44 +498,11 @@ impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
 
 impl{{ t.impl_generics }} NinoRead for {{ t.name }}{{ t.generics }} {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
-
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_into(self)
-    }
-
-    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_option_into(slot)
-    }
-
-    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_sealed_boxed_option_into(slot)
-    }
+    nino::sealed_read!();
 }
 
 impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
-{{ prefetch(t) }}    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+{{ prefetch(t) }}    nino::sealed_write!();
 }
 {{~ end ~}}
 
