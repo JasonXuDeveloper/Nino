@@ -14,10 +14,18 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
 - **Fast and parallel**: jobs that do not depend on each other run side by side; long suites are sharded (the unit
   tests' three shards per configuration, `.github/scripts/test_shards.py` checks they ran everything; `report.yml`'s
   ten shards per architecture); builds are cached where the cache is safe; each job installs only what it needs.
-- **Path filters** run a workflow only for the paths it builds or tests (ci.yml lists them with a YAML anchor shared
-  by push and pull_request); a new folder a job reads is added to its filter.
-- **Green**: never push a change whose workflow was not run locally in its parts (`verify`); `actionlint` with
-  `.github/actionlint.yaml` after any workflow edit; a step that pipes a command keeps its failure (`bash -eo
+- **Path filters** run a workflow only for the paths its jobs read (ci.yml lists them with a YAML anchor shared by
+  push and pull_request); a new folder a job reads is added to its filter. A job whose inputs are committed files
+  that another workflow checks runs on those files, not on what produces them: runtimes.yml runs on `runtimes/` and
+  `conformance/corpus/` only, because ci.yml's integrations job checks that the corpus and nino-gen's generated files
+  are what .NET writes today (its 16 jobs had run for every Nino.Core change). Inside a workflow, jobs of different
+  areas are gated by `.github/scripts/changed_paths.py` (a `changes` job diffing against the push's `before` or the
+  pull request's base; everything runs when that is unknown, on a schedule and when the workflow changes):
+  runtimes.yml per runtime (Miri only for the crate's library code), codeql.yml per language (every language
+  weekly).
+- **Green**: never push a change whose workflow was not run locally in its parts (`verify`); `actionlint` (1.7.8 or newer: 1.7.7 rejects
+  the YAML anchors of the path filters with "must be sequence node but got alias node"; `go install
+  github.com/rhysd/actionlint/cmd/actionlint@latest`) with `.github/actionlint.yaml` after any workflow edit; a step that pipes a command keeps its failure (`bash -eo
   pipefail` by default). Flaky is not a root cause: find it. A step that downloads has a bound: Ubuntu packages go
   through `.github/actions/apt-install` (a time limit per try, three tries, the .deb files cached), never a bare
   `apt-get`.
@@ -38,8 +46,11 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   returned 403).
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
   runs only the sections the release's tree has.
-- **Concurrency budget**: every matrix that can grow with a request has `max-parallel` (`runtime-ab.yml` 10,
-  `dotnet-ab.yml` 8, `unity.yml` 1), and request caps keep a run's job count bounded (8 runtime lines, 3 .NET lines).
+- **Concurrency budget**: every matrix that can grow with a request or a file has `max-parallel` (`runtime-ab.yml`
+  10, `dotnet-ab.yml` 8, `report.yml`'s bench 12, `ab-bench.yml` and ci.yml's pull-request benchmark 6 (shards.json),
+  `unity.yml` 1), and request caps keep a run's job count bounded (8 runtime lines, 3 .NET lines). A push to main
+  should start well under the account's 40 concurrent jobs: short checks of one runner share a job, pushes fuzz with
+  one libFuzzer runner (three at night), and a job runs only for the area that changed (Path filters).
   How workers share the budget: `benchmark`, "Spend CI as a budget".
 - **A/B workflows** (`runtime-ab.yml`, `dotnet-ab.yml`) live on the test branch and read `.github/ab-request.txt`
   (`benchmark`); `ab-bench.yml` on main compares a ref with the previous release or its base.
