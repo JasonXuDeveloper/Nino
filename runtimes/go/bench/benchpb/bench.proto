@@ -1,6 +1,6 @@
-// The Go benchmark's values as Protocol Buffers messages, field for field (simple.go, scattered.go, strings.go): SimpleClass, a
-// list of them, a list of records and a list of strings. A DateTime is its 8 bytes as .NET writes them (ticks and kind), a Guid
-// its 16 bytes.
+// The Go benchmark's values as Protocol Buffers messages, field for field (simple.go, scattered.go, strings.go,
+// sets.go): SimpleClass, a list of them, a list of records, a list of strings and a list of integers (protobuf has no
+// set: a repeated field holds one). A DateTime is its 8 bytes as .NET writes them (ticks and kind), a Guid its 16 bytes.
 //
 // Regenerate bench.pb.go (in runtimes/go/bench, with protoc-gen-go v1.36.12 on PATH):
 //   go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
@@ -43,4 +43,8 @@ message Records {
 
 message Strings {
   repeated string values = 1;
+}
+
+message Ints {
+  repeated int32 values = 1;
 }

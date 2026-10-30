@@ -59,6 +59,21 @@ func WriteRecord(w *nino.Writer, v *Record) {
 		nino.WriteClass(w, v, &record)
 	}
 }
+func ReadRecordInto(r *nino.Reader, v **Record) {
+	if !r.Present() {
+		*v = nil
+		return
+	}
+	if *v == nil {
+		*v = new(Record)
+	}
+	if d, ok := r.EnterBody(); ok {
+		readRecordBody(r, *v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, *v, &record)
+	}
+}
 
 func readRecordBody(r *nino.Reader, v *Record) {
 	b := r.Take(12)
@@ -83,21 +98,38 @@ func writeRecordBody(w *nino.Writer, v *Record) {
 }
 
 // ReadRecords and WriteRecords are a List<Record>.
-func ReadRecords(r *nino.Reader) []*Record {
+func ReadRecords(r *nino.Reader) (v []*Record) {
+	ReadRecordsInto(r, &v)
+	return v
+}
+
+// ReadRecordsInto reads into *p as nino-gen's readinto helpers do: its storage kept when it holds n elements, each
+// element read into the old one at its index.
+func ReadRecordsInto(r *nino.Reader, p *[]*Record) {
 	n := r.Length(1)
 	if n < 0 {
-		return nil
+		*p = nil
+		return
 	}
-	var e *Record
-	v := make([]*Record, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
-	for range n {
-		e = ReadRecord(r)
+	old := *p
+	v := old[:0]
+	if old == nil || cap(old) < n {
+		var z *Record
+		v = make([]*Record, 0, r.SliceCap(n, int(unsafe.Sizeof(z))))
+	}
+	for i := range n {
+		var e *Record
+		if i < len(old) {
+			e = old[i]
+		}
+		ReadRecordInto(r, &e)
 		if r.Failed() {
-			return nil
+			*p = nil
+			return
 		}
 		v = append(v, e)
 	}
-	return v
+	*p = v
 }
 
 func WriteRecords(w *nino.Writer, v []*Record) {
