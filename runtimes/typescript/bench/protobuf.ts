@@ -51,6 +51,8 @@ const converters = {
     at: e.at, userId: e.userId, kind: e.kind, refs: Array.from(e.refs ?? []),
   })],
   strings: [pb.StringsSchema, (s: b.Strings) => create(pb.StringsSchema, { values: (s.values ?? []).map((t) => t ?? "") })],
+  "int-set": [pb.IntsSchema, (s: b.IntSet) => create(pb.IntsSchema, { values: [...(s.values ?? [])] })],
+  "string-set": [pb.StringsSchema, (s: b.StringSet) => create(pb.StringsSchema, { values: [...(s.values ?? [])].map((t) => t ?? "") })],
 } as const;
 
 /** The schema of a data file's messages, and the conversion of its values. */

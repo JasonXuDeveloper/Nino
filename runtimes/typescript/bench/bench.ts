@@ -135,8 +135,14 @@ const size = (variants: { length: number }[][]) =>
 /** A serializer's two tasks on its own data: what each pass runs, and the mean encoded size of a variant. */
 type Tasks = { serialize: () => void; serializeInto?: () => void; deserialize: () => void; bytes: number };
 
-async function scenario<T>(name: string, file: string, data: Uint8Array, codec: NinoCodec<T>, options: Options):
-  Promise<Row[]> {
+/**
+ * What the other serializers' deserialize makes of a value they read, where it is not yet the scenario's type: the
+ * set scenarios' arrays (protobuf, MessagePack and JSON have no set) made into the `Set` Nino reads.
+ */
+type Revive = (value: { values: unknown[] }) => unknown;
+
+async function scenario<T>(name: string, file: string, data: Uint8Array, codec: NinoCodec<T>, options: Options,
+  revive?: Revive): Promise<Row[]> {
   const bytes = variants(data);
   // Nino's values of every variant, checked to write back to .NET's bytes: each serializer's data is made from them.
   const values = () => bytes.map((variant, v) => variant.map((x, i) => {
@@ -173,7 +179,10 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
       }));
       return {
         serialize: rotate(messages, (l) => { for (const m of l) toBinary(schema, m); }),
-        deserialize: rotate(proto, (l) => { for (const x of l) fromBinary(schema, x); }), bytes: size(proto),
+        deserialize: revive
+          ? rotate(proto, (l) => { for (const x of l) revive(fromBinary(schema, x) as never); })
+          : rotate(proto, (l) => { for (const x of l) fromBinary(schema, x); }),
+        bytes: size(proto),
       };
     },
     MessagePack: () => {
@@ -185,7 +194,10 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
       }));
       return {
         serialize: rotate(lists, (l) => { for (const v of l) packr.pack(v); }),
-        deserialize: rotate(packed, (l) => { for (const x of l) packr.unpack(x); }), bytes: size(packed),
+        deserialize: revive
+          ? rotate(packed, (l) => { for (const x of l) revive(packr.unpack(x)); })
+          : rotate(packed, (l) => { for (const x of l) packr.unpack(x); }),
+        bytes: size(packed),
       };
     },
     JSON: () => {
@@ -193,7 +205,10 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
       const utf8 = json.map((list) => list.map((j) => encoder.encode(JSON.stringify(j))));
       return {
         serialize: rotate(json, (l) => { for (const j of l) encoder.encode(JSON.stringify(j)); }),
-        deserialize: rotate(utf8, (l) => { for (const x of l) JSON.parse(decoder.decode(x)); }), bytes: size(utf8),
+        deserialize: revive
+          ? rotate(utf8, (l) => { for (const x of l) revive(JSON.parse(decoder.decode(x))); })
+          : rotate(utf8, (l) => { for (const x of l) JSON.parse(decoder.decode(x)); }),
+        bytes: size(utf8),
       };
     },
   };
@@ -218,8 +233,11 @@ async function scenario<T>(name: string, file: string, data: Uint8Array, codec: 
   return rows;
 }
 
-/** The scenarios: their names, data files and codecs. */
-const scenarios: [string, string, NinoCodec<never>][] = [
+/** A set scenario's array as the `Set` Nino reads. */
+const toSet: Revive = (v) => new Set(v.values);
+
+/** The scenarios: their names, data files, codecs and, for sets, what the other serializers' reads are made into. */
+const scenarios: [string, string, NinoCodec<never>, Revive?][] = [
   ["Player x1000", "player", b.PlayerCodec],
   ["Zoo 50 x 100 animals (type ids)", "zoo", b.ZooCodec],
   ["OrderBook 100 x 50 orders", "orders", b.OrderBookCodec],
@@ -230,14 +248,19 @@ const scenarios: [string, string, NinoCodec<never>][] = [
   ["Event x1000 (long)", "events", b.EventCodec],
   ["Strings 1000 (ASCII)", "strings", b.StringsCodec],
   ["Strings 1000 (ASCII, Latin-1, other)", "strings-mixed", b.StringsCodec],
-] as [string, string, NinoCodec<never>][];
+  ["IntSet 20 x 1000", "int-set", b.IntSetCodec, toSet],
+  ["StringSet 20 x 1000", "string-set", b.StringSetCodec, toSet],
+] as unknown as [string, string, NinoCodec<never>, Revive?][];
 
-/** Runs the scenarios whose data file starts with `only` (all when empty). */
+/**
+ * Runs the scenarios whose data file starts with `only` (all when empty). A scenario whose codec the generated code
+ * lacks is skipped: runtime-ab runs this file on code a base commit generates, which may predate the scenario.
+ */
 export async function run(read: (name: string) => Promise<Uint8Array>, only = "", options: Options = {}):
   Promise<Row[]> {
   const rows: Row[] = [];
-  for (const [name, file, codec] of scenarios)
-    if (file.startsWith(only)) rows.push(...await scenario(name, file, await read(file), codec, options));
+  for (const [name, file, codec, revive] of scenarios)
+    if (codec && file.startsWith(only)) rows.push(...await scenario(name, file, await read(file), codec, options, revive));
   return rows;
 }
 
