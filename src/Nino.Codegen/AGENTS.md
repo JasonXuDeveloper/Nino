@@ -27,8 +27,11 @@ Model/                       the IR: language-neutral, built once, read by every
   CodegenModel.cs            the assembly's [NinoType]s (and those of its references), encodings resolved to ValueModels
   TypeModel.cs               TypeModel, MemberModel, ClosedTypeModel; BodyFormat, HeaderKind
   ValueModel.cs              ValueModel (what a value is on the wire), SlotModel, RawStructModel, EnumModel
-  TypeNames.cs               .NET type and member names, and the FNV-1a hash of ids and keys
+  TypeNames.cs               .NET type and member names (and the forms every target names a type with), the
+                             FNV-1a hash of ids and keys
 Targets/                     what each language can express and how (NINOGEN002 for what it cannot)
+  CodegenTarget.cs           the base of the three: which types are written (the rest left out with a warning),
+                             the warnings, the names of the generated types
   TypeScriptTarget.cs        classes, `as const` enums and a NinoCodec per type (TsShape, TsClass, ...)
   GoTarget.cs                structs with nino tags and NinoLayout, codecs in the style of runtimes/go/internal/sample
   RustTarget.cs              structs and NinoReadBody / NinoWriteBody impls in the shape of
