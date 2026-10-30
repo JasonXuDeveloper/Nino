@@ -42,7 +42,7 @@ namespace Nino.Core.Internal
         /// </summary>
         internal struct SetEntryBlock<T> : INinoFormatter<SetEntry<T>>, INinoBlockFormatter<SetEntry<T>>
         {
-            public int BlockSize => Unsafe.SizeOf<T>();
+            public int FixedSize => Unsafe.SizeOf<T>();
 
             public NinoBlockMap BlockMap()
             {
@@ -51,13 +51,13 @@ namespace Nino.Core.Internal
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void WriteBlock(ref byte destination, in SetEntry<T> value)
+            public void WriteFixed(in SetEntry<T> value, ref byte destination)
             {
                 NinoUnsafe.Write(ref destination, value.Value);
                 NinoLayout<T>.ClearPadding(ref destination);
             }
 
-            public void ReadBlock(ref byte source, ref SetEntry<T> value) => throw new NotSupportedException();
+            public void ReadBlock(ref SetEntry<T> value, ref byte source) => throw new NotSupportedException();
             public void Serialize(SetEntry<T> value, ref Writer writer) => throw new NotSupportedException();
             public void Deserialize(ref SetEntry<T> value, ref Reader reader) => throw new NotSupportedException();
         }
@@ -69,7 +69,7 @@ namespace Nino.Core.Internal
         internal struct MapEntryBlock<TKey, TValue> : INinoFormatter<MapEntry<TKey, TValue>>,
             INinoBlockFormatter<MapEntry<TKey, TValue>>
         {
-            public int BlockSize => Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>();
+            public int FixedSize => Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>();
 
             public NinoBlockMap BlockMap()
             {
@@ -79,7 +79,7 @@ namespace Nino.Core.Internal
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void WriteBlock(ref byte destination, in MapEntry<TKey, TValue> value)
+            public void WriteFixed(in MapEntry<TKey, TValue> value, ref byte destination)
             {
                 NinoUnsafe.Write(ref destination, 0, value.Key);
                 NinoUnsafe.Write(ref destination, Unsafe.SizeOf<TKey>(), value.Value);
@@ -87,7 +87,7 @@ namespace Nino.Core.Internal
                 NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref destination, Unsafe.SizeOf<TKey>()));
             }
 
-            public void ReadBlock(ref byte source, ref MapEntry<TKey, TValue> value) =>
+            public void ReadBlock(ref MapEntry<TKey, TValue> value, ref byte source) =>
                 throw new NotSupportedException();
 
             public void Serialize(MapEntry<TKey, TValue> value, ref Writer writer) => throw new NotSupportedException();

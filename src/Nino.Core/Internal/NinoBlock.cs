@@ -27,7 +27,7 @@ namespace Nino.Core.Internal
 
 #endif
         /// <summary>
-        /// The <see cref="INinoBlockFormatter{T}.BlockSize"/> of <typeparamref name="TFormatter"/>, -1 when it does not
+        /// The <see cref="INinoFixedSizeFormatter{T}.FixedSize"/> of the block formatter <typeparamref name="TFormatter"/>, -1 when it does not
         /// implement it. A JIT-time constant; -1 without a lookup for references (shared code).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -420,14 +420,14 @@ namespace Nino.Core.Internal
 
 #endif
 
-        /// <summary>Writes one value as its block (<see cref="INinoBlockFormatter{T}.WriteBlock"/>).</summary>
+        /// <summary>Writes one value as its block (<see cref="INinoFixedSizeFormatter{T}.WriteFixed"/>).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteValue<T, TFormatter>(ref byte destination, in T value)
             where TFormatter : struct, INinoFormatter<T> =>
 #if NET8_0_OR_GREATER
-            ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(ref destination, in value);
+            ((INinoBlockFormatter<T>)default(TFormatter)).WriteFixed(in value, ref destination);
 #else
-            NinoBlock<T, TFormatter>.Formatter.WriteBlock(ref destination, in value);
+            NinoBlock<T, TFormatter>.Formatter.WriteFixed(in value, ref destination);
 #endif
 
         /// <summary>Reads one value from its block (<see cref="INinoBlockFormatter{T}.ReadBlock"/>).</summary>
@@ -435,9 +435,9 @@ namespace Nino.Core.Internal
         private static void ReadValue<T, TFormatter>(ref byte source, ref T value)
             where TFormatter : struct, INinoFormatter<T> =>
 #if NET8_0_OR_GREATER
-            ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(ref source, ref value);
+            ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(ref value, ref source);
 #else
-            NinoBlock<T, TFormatter>.Formatter.ReadBlock(ref source, ref value);
+            NinoBlock<T, TFormatter>.Formatter.ReadBlock(ref value, ref source);
 #endif
 
 #if NET8_0_OR_GREATER

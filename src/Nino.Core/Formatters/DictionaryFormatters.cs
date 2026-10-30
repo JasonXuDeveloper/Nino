@@ -631,7 +631,7 @@ namespace Nino.Core
             get => RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>();
         }
 
-        int INinoBlockFormatter<KeyValuePair<TKey, TValue>>.BlockSize
+        int INinoFixedSizeFormatter<KeyValuePair<TKey, TValue>>.FixedSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => Raw ? NinoLayout<TKey>.Size + NinoLayout<TValue>.Size : -1;
@@ -650,12 +650,12 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoBlockFormatter<KeyValuePair<TKey, TValue>>.WriteBlock(ref byte destination,
-            in KeyValuePair<TKey, TValue> value) => WriteRaw(ref destination, in value);
+        void INinoFixedSizeFormatter<KeyValuePair<TKey, TValue>>.WriteFixed(in KeyValuePair<TKey, TValue> value,
+            ref byte destination) => WriteRaw(ref destination, in value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoBlockFormatter<KeyValuePair<TKey, TValue>>.ReadBlock(ref byte source,
-            ref KeyValuePair<TKey, TValue> value) => value = ReadRaw(ref source);
+        void INinoBlockFormatter<KeyValuePair<TKey, TValue>>.ReadBlock(ref KeyValuePair<TKey, TValue> value,
+            ref byte source) => value = ReadRaw(ref source);
 
         /// <summary>The key and the value of a pair of raw items, at <paramref name="destination"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

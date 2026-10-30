@@ -117,7 +117,7 @@ namespace Nino.CodeGen
             sb.Append("        }\n");
             sb.Append("\n");
             string allRaw = arity > 1 ? AllRaw(arity) : "RawFormatter.Is<T1, TF1>()";
-            sb.Append($"        int INinoBlockFormatter<{type}>.BlockSize\n");
+            sb.Append($"        int INinoFixedSizeFormatter<{type}>.FixedSize\n");
             sb.Append("        {\n");
             sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
             sb.Append($"            get => {allRaw} ? {Sum(arity, arity)} : -1;\n");
@@ -135,14 +135,14 @@ namespace Nino.CodeGen
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-            sb.Append($"        void INinoBlockFormatter<{type}>.WriteBlock(ref byte destination, in {type} value)\n");
+            sb.Append($"        void INinoFixedSizeFormatter<{type}>.WriteFixed(in {type} value, ref byte destination)\n");
             sb.Append("        {\n");
             foreach (int i in Items(arity))
                 sb.Append($"            NinoLayout<T{i}>.Write(ref {At("destination", i)}, in value.Item{i});\n");
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-            sb.Append($"        void INinoBlockFormatter<{type}>.ReadBlock(ref byte source, ref {type} value)\n");
+            sb.Append($"        void INinoBlockFormatter<{type}>.ReadBlock(ref {type} value, ref byte source)\n");
             sb.Append("        {\n");
             foreach (int i in Items(arity))
                 sb.Append($"            value.Item{i} = NinoLayout<T{i}>.Read(ref {At("source", i)});\n");

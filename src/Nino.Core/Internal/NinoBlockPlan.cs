@@ -34,7 +34,7 @@ namespace Nino.Core.Internal
         /// were each an inlined call, which the JIT counts against what else it inlines into the method.
         /// </summary>
         public static readonly int Size = default(TFormatter) is INinoBlockFormatter<T>
-            ? ((INinoBlockFormatter<T>)default(TFormatter)).BlockSize
+            ? ((INinoBlockFormatter<T>)default(TFormatter)).FixedSize
             : -1;
 
         /// <summary>Where the bytes of a block lie in a value's memory, as the formatter describes it (null: not known).</summary>

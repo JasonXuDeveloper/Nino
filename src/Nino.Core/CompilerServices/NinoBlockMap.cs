@@ -47,7 +47,7 @@ namespace Nino.Core.CompilerServices
             where TFormatter : struct, INinoFormatter<TItem>
         {
             if (_failed || memory < 0 || NinoUnsafe.IsReferenceOrContainsReferences<TItem>() ||
-                !(default(TFormatter) is INinoBlockFormatter<TItem> block) || block.BlockSize <= 0 ||
+                !(default(TFormatter) is INinoBlockFormatter<TItem> block) || block.FixedSize <= 0 ||
                 !(block.BlockMap() is { _failed: false } inner))
                 return Fail();
             for (int i = 0; i < inner._runs.Count; i += 3)
@@ -112,22 +112,22 @@ namespace Nino.Core.CompilerServices
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static class NinoBlocks
     {
-        /// <summary><see cref="INinoBlockFormatter{T}.BlockSize"/> of <typeparamref name="TFormatter"/>: a JIT-time constant.</summary>
+        /// <summary><see cref="INinoFixedSizeFormatter{T}.FixedSize"/> of <typeparamref name="TFormatter"/>: a JIT-time constant.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Size<T, TFormatter>() where TFormatter : struct, INinoBlockFormatter<T> =>
-            default(TFormatter).BlockSize;
+            default(TFormatter).FixedSize;
 
-        /// <summary><see cref="INinoBlockFormatter{T}.WriteBlock"/> of <typeparamref name="TFormatter"/>.</summary>
+        /// <summary><see cref="INinoFixedSizeFormatter{T}.WriteFixed"/> of <typeparamref name="TFormatter"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Write<T, TFormatter>(ref byte destination, in T value)
+        public static void Write<T, TFormatter>(in T value, ref byte destination)
             where TFormatter : struct, INinoBlockFormatter<T> =>
-            default(TFormatter).WriteBlock(ref destination, in value);
+            default(TFormatter).WriteFixed(in value, ref destination);
 
         /// <summary><see cref="INinoBlockFormatter{T}.ReadBlock"/> of <typeparamref name="TFormatter"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Read<T, TFormatter>(ref byte source, ref T value)
+        public static void Read<T, TFormatter>(ref T value, ref byte source)
             where TFormatter : struct, INinoBlockFormatter<T> =>
-            default(TFormatter).ReadBlock(ref source, ref value);
+            default(TFormatter).ReadBlock(ref value, ref source);
 
         /// <summary>The byte offset of <paramref name="field"/> inside <paramref name="value"/>.</summary>
         public static int Offset<T, TField>(ref T value, ref TField field) =>

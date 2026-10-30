@@ -38,12 +38,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - **Names a reader can follow**: locals after the member they hold.
 - **Generate once, refer to it**: a form that needs code another file generates names that code instead of copying
   it; a family that differs only by type comes from one template.
-  Two members of one formatter that write the same bytes share one body, passed the struct by reference: a block
-  struct's `WriteFixed(T value, ...)` and `WriteBlock(..., in T value)` call one `__WriteBlock(ref byte, in T)`.
-  Forwarding `WriteBlock` to the by-value `WriteFixed` instead made the block loops load every field before storing
-  any (`NinoBlock.WriteValue`, `WriteEach` and `WriteBlock` of Waypoints changed); through the `in` helper the 96
-  Tier1 methods of the Waypoints cases and the FullOpts code of top-level and member `WriteFixed` calls were
-  identical to main (round 101).
+  One act is one member, taking a struct by reference: a block struct's collections and its top-level and member
+  writes all call `WriteFixed(in T value, ref byte destination)` (`INinoBlockFormatter` extends
+  `INinoFixedSizeFormatter`; round 101 merged `BlockSize`/`WriteBlock` into it). A by-value `WriteFixed` that the
+  block write forwarded to made the block loops load every field before storing any (`NinoBlock.WriteValue`,
+  `WriteEach` of Waypoints changed); by reference, the listings are the old by-reference `WriteBlock`'s.
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
   GeneratorBenchmark and the package size of a sample.
 

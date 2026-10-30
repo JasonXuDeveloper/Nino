@@ -368,7 +368,7 @@ internal sealed class BodyEmitter
             string formatter = Formatter(member);
             string at = $"ref {CoreCompilerServices}NinoUnsafe.Add(ref destination, {offset})";
             lines.Add(IsBlockItem(member)
-                ? $"{CoreCompilerServices}NinoBlocks.Write<{member.TypeName}, {formatter}>({at}, {Get(_m, member, "value")});"
+                ? $"{CoreCompilerServices}NinoBlocks.Write<{member.TypeName}, {formatter}>({Get(_m, member, "value")}, {at});"
                 : $"default({formatter}).WriteFixed({Get(_m, member, "value")}, {at});");
         }
 
@@ -378,21 +378,21 @@ internal sealed class BodyEmitter
     /// <summary>
     /// <c>FixedSize</c> and <c>WriteFixed</c> of a type of fixed size (<see cref="TypeModel.FixedSize"/>): the bytes of
     /// <c>Serialize</c> for a non-null value (a sealed class's flag, then the members at constant offsets) written
-    /// into memory the caller sized, without a writer.
+    /// into memory the caller sized, without a writer. A block struct's collections write each value with it too.
     /// </summary>
     public void EmitFixed()
     {
         _w.Line($"public int FixedSize => {FixedLayout().Size};");
         _w.Line();
         _w.Line(_names.Inline);
-        if (_m.Block)
+        if (_m.Kind == FormatterKind.SealedClass)
         {
-            // One body for WriteFixed and INinoBlockFormatter.WriteBlock (EmitBlock), taking the value by reference
-            // as WriteBlock does: a block loop's code is then what the body alone compiles to.
-            _w.Line($"public void WriteFixed({T} value, ref byte destination) => {WriteBlockBody}(ref destination, in value);");
+            // A class's members read through the reference passed by value: through the `in` reference, the JIT
+            // loads the object again for every member, as a store into the destination might change it.
+            _w.Line($"public void WriteFixed(in {T} value, ref byte destination) => __WriteFixed(value, ref destination);");
             _w.Line();
             _w.Line(_names.Inline);
-            _w.Block($"private static void {WriteBlockBody}(ref byte destination, in {T} value)", () =>
+            _w.Block($"private static void __WriteFixed({T} value, ref byte destination)", () =>
             {
                 foreach (var line in FixedWrites())
                     _w.Line(line);
@@ -400,29 +400,24 @@ internal sealed class BodyEmitter
             return;
         }
 
-        _w.Block($"public void WriteFixed({T} value, ref byte destination)", () =>
+        _w.Block($"public void WriteFixed(in {T} value, ref byte destination)", () =>
         {
             foreach (var line in FixedWrites())
                 _w.Line(line);
         });
     }
 
-    /// <summary>The member writes of a block struct, which <c>WriteFixed</c> and <c>WriteBlock</c> call.</summary>
-    private const string WriteBlockBody = "__WriteBlock";
-
     /// <summary>
     /// The <c>INinoBlockFormatter</c> of a struct of fixed size (<see cref="TypeModel.Block"/>): its blocks are the
-    /// bytes of <c>WriteFixed</c>; <c>ReadBlock</c> reads them as <c>ReadBody</c> does, with the same checks; and
-    /// <c>BlockMap</c> says where each member lies in the struct's memory (a field by its reference, an
-    /// auto-property where a marked value stored through it lands), which lets collections of it move several values
-    /// at a time by vector shuffles.
+    /// bytes of <c>WriteFixed</c> (<see cref="EmitFixed"/>); <c>ReadBlock</c> reads them as <c>ReadBody</c> does, with
+    /// the same checks; and <c>BlockMap</c> says where each member lies in the struct's memory (a field by its
+    /// reference, an auto-property where a marked value stored through it lands), which lets collections of it move
+    /// several values at a time by vector shuffles.
     /// </summary>
     public void EmitBlock()
     {
         string iface = $"{CoreCompilerServices}INinoBlockFormatter<{T}>";
         var layout = FixedLayout();
-        _w.Line($"int {iface}.BlockSize => FixedSize;");
-        _w.Line();
         _w.Block($"{CoreCompilerServices}NinoBlockMap {iface}.BlockMap()", () =>
         {
             _w.Line($"var __v = default({T});");
@@ -442,10 +437,7 @@ internal sealed class BodyEmitter
         });
         _w.Line();
         _w.Line(_names.Inline);
-        _w.Line($"void {iface}.WriteBlock(ref byte destination, in {T} value) => {WriteBlockBody}(ref destination, in value);");
-        _w.Line();
-        _w.Line(_names.Inline);
-        _w.Block($"void {iface}.ReadBlock(ref byte source, ref {T} value)", () =>
+        _w.Block($"void {iface}.ReadBlock(ref {T} value, ref byte source)", () =>
         {
             foreach (var (member, offset) in layout.Members)
             {
@@ -456,17 +448,17 @@ internal sealed class BodyEmitter
                     continue;
                 }
 
-                string read = $"{CoreCompilerServices}NinoBlocks.Read<{member.TypeName}, {Formatter(member)}>(" +
-                              $"ref {CoreCompilerServices}NinoUnsafe.Add(ref source, {offset}), ref ";
+                string read = $"{CoreCompilerServices}NinoBlocks.Read<{member.TypeName}, {Formatter(member)}>(ref ";
+                string at = $", ref {CoreCompilerServices}NinoUnsafe.Add(ref source, {offset}));";
                 if (Ref(_m, member, "value") is { } field)
                 {
-                    _w.Line($"{read}{field});");
+                    _w.Line($"{read}{field}{at}");
                     continue;
                 }
 
                 _w.Open();
                 _w.Line($"var __t = default({member.TypeName});");
-                _w.Line($"{read}__t);");
+                _w.Line($"{read}__t{at}");
                 _w.Line(Set(_m, member, "value", "__t"));
                 _w.Close();
             }

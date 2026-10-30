@@ -97,17 +97,20 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// Generated formatters of types whose values all take the same number of bytes (<see cref="FixedSize"/>, a
-    /// non-null one for a sealed class): structs and sealed classes whose members are all unmanaged values or such
-    /// structs. <see cref="NinoSerializer.Serialize{T}(in T)"/> allocates the result at that size and writes the value
-    /// straight into it (see <see cref="NinoDirect.SerializeFixed{T,TFormatter}"/>).
+    /// Formatters whose values all take the same number of bytes (<see cref="FixedSize"/>, a JIT-time constant; for a
+    /// sealed class, every non-null value), written into memory the caller sized, without a writer. Generated
+    /// formatters of structs and sealed classes whose members are all unmanaged values or such structs: there
+    /// <see cref="NinoSerializer.Serialize{T}(in T)"/> allocates the result at that size and writes the value straight
+    /// into it (see <see cref="NinoDirect.SerializeFixed{T,TFormatter}"/>). The block formatters
+    /// (<see cref="INinoBlockFormatter{T}"/>) are this too.
     /// </summary>
-    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public interface INinoFixedSizeFormatter<T> : INinoFormatter<T>
     {
         /// <summary>
         /// The bytes <see cref="INinoFormatter{T}.Serialize"/> writes for any value (any non-null one: a null
-        /// sealed class is its 1-byte null flag). A JIT-time constant.
+        /// sealed class is its 1-byte null flag), or -1 for a block formatter whose values vary in size (a tuple
+        /// holding a string). A JIT-time constant.
         /// </summary>
         int FixedSize { get; }
 
@@ -115,37 +118,34 @@ namespace Nino.Core.CompilerServices
         /// Writes <paramref name="value"/> (not null) into the <see cref="FixedSize"/> bytes at
         /// <paramref name="destination"/>: the same bytes as <see cref="INinoFormatter{T}.Serialize"/>.
         /// </summary>
-        void WriteFixed(T value, ref byte destination);
+        void WriteFixed(in T value, ref byte destination);
     }
 
     /// <summary>
-    /// Formatters whose values take <see cref="BlockSize"/> bytes each when it is not -1 (a JIT-time constant): value
-    /// tuples and pairs of raw items, and generated <c>[NinoType]</c> structs of a fixed size that are not raw. A
-    /// collection of them reserves or bounds-checks its whole block once and writes or reads each value at its position
-    /// with no check of its own; where <see cref="BlockMap"/> says where each byte of a block lies in a value's memory,
-    /// several values at a time by vector shuffles and permutes (<c>NinoBlock</c>).
+    /// Formatters whose values a collection moves as blocks when their
+    /// <see cref="INinoFixedSizeFormatter{T}.FixedSize"/> is not -1: value tuples and pairs of raw items, and generated <c>[NinoType]</c> structs of a
+    /// fixed size that are not raw. A collection of them reserves or bounds-checks its whole block once and writes
+    /// (<see cref="INinoFixedSizeFormatter{T}.WriteFixed"/>) or reads (<see cref="ReadBlock"/>) each value at its
+    /// position with no check of its own; where <see cref="BlockMap"/> says where each byte of a block lies in a
+    /// value's memory, several values at a time by vector shuffles and permutes (<c>NinoBlock</c>).
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public interface INinoBlockFormatter<T>
+    public interface INinoBlockFormatter<T> : INinoFixedSizeFormatter<T>
     {
-        /// <summary>The bytes of every value, or -1 when values are not written as blocks.</summary>
-        int BlockSize { get; }
-
         /// <summary>
         /// Where the bytes of a block lie in a value's memory (<see cref="NinoBlockMap"/>), or null (or a map that
         /// failed) when that is not known, or values hold bytes no block byte gives them (padding inside an item):
-        /// values are then moved one at a time, by <see cref="WriteBlock"/> and <see cref="ReadBlock"/>. Called once.
+        /// values are then moved one at a time, by <see cref="INinoFixedSizeFormatter{T}.WriteFixed"/> and
+        /// <see cref="ReadBlock"/>. Called once.
         /// </summary>
         NinoBlockMap BlockMap();
 
-        /// <summary>Writes <paramref name="value"/> into the <see cref="BlockSize"/> bytes at <paramref name="destination"/>.</summary>
-        void WriteBlock(ref byte destination, in T value);
-
         /// <summary>
-        /// Reads the value in the <see cref="BlockSize"/> bytes at <paramref name="source"/>, with the checks a read of
-        /// it does otherwise (a <c>bool</c> other than 0 or 1 is invalid data).
+        /// Reads into <paramref name="value"/> the value in the <see cref="INinoFixedSizeFormatter{T}.FixedSize"/>
+        /// bytes at <paramref name="source"/>, with the checks a read of it does otherwise (a <c>bool</c> other than 0
+        /// or 1 is invalid data).
         /// </summary>
-        void ReadBlock(ref byte source, ref T value);
+        void ReadBlock(ref T value, ref byte source);
     }
 
     /// <summary>
