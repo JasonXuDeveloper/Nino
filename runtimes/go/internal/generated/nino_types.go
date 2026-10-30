@@ -10354,20 +10354,7 @@ func writeV19(w *nino.Writer, v []*Bag) {
 }
 
 func readV20(r *nino.Reader) []int32 {
-	n := r.Length(4)
-	if n < 0 {
-		return nil
-	}
-	var e int32
-	v := make([]int32, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
-	for range n {
-		e = r.I32()
-		if r.Failed() {
-			return nil
-		}
-		v = append(v, e)
-	}
-	return nino.UniqueValues(r, v)
+	return nino.UniqueValues(r, nino.ReadPrimitives[int32](r))
 }
 
 func readintoV21(r *nino.Reader, p *[]*string) {
@@ -10408,21 +10395,7 @@ func readV22(r *nino.Reader) []*string {
 		}
 		v = append(v, e)
 	}
-	seen := make(map[string]struct{}, len(v))
-	null := false
-	for _, s := range v {
-		dup := false
-		if s == nil {
-			dup, null = null, true
-		} else if _, dup = seen[*s]; !dup {
-			seen[*s] = struct{}{}
-		}
-		if dup {
-			r.Fail(nino.CodeDuplicateKey, "")
-			return nil
-		}
-	}
-	return v
+	return nino.UniqueStrings(r, v)
 }
 
 func readintoV23(r *nino.Reader, p *[]*Point) {

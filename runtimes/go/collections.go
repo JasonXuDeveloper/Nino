@@ -413,25 +413,29 @@ func ReadUnique[T comparable](r *Reader, minSize int, read func(*Reader) T) []T 
 // UniqueValues returns v, the elements of a set read in the order of the data, unless two of them are equal: then
 // it fails r with CodeDuplicateKey (as .NET's HashSet and SortedSet do when filled from empty) and returns nil. It
 // returns nil for nil and after r failed. Generated code reads the elements with direct calls, then checks them
-// once here, as [UniqueEntries] does for a dictionary's keys. Integers (of any integer type, named or not) are
-// compared without a map (see repeatedKey); other values go through one.
+// once here, as [UniqueEntries] does for a dictionary's keys. Numbers and strings are compared as .NET compares them
+// (a NaN equals every NaN), without a map; other values as Go compares them (unique.go).
 func UniqueValues[T comparable](r *Reader, v []T) []T {
 	if v == nil || r.err != nil {
 		return nil
 	}
-	if size := intKeySize[T](); size != 0 {
-		if repeatedKey(unsafe.Pointer(unsafe.SliceData(v)), len(v), size, size) {
-			r.Fail(CodeDuplicateKey, "")
-			return nil
-		}
-		return v
+	var e T
+	if repeated[T](unsafe.Pointer(unsafe.SliceData(v)), len(v), int(unsafe.Sizeof(e)), &r.keys) {
+		r.Fail(CodeDuplicateKey, "")
+		return nil
 	}
-	seen := make(map[T]struct{}, len(v))
-	for i := range v {
-		if seen[v[i]] = struct{}{}; len(seen) != i+1 {
-			r.Fail(CodeDuplicateKey, "")
-			return nil
-		}
+	return v
+}
+
+// UniqueStrings is [UniqueValues] for a set of nullable strings (a HashSet<string> as nino-gen's Go holds it): two
+// equal strings, or two nulls, fail r with CodeDuplicateKey.
+func UniqueStrings(r *Reader, v []*string) []*string {
+	if v == nil || r.err != nil {
+		return nil
+	}
+	if repeatedStrings(unsafe.Pointer(unsafe.SliceData(v)), len(v), int(unsafe.Sizeof(v[0])), true, &r.keys) {
+		r.Fail(CodeDuplicateKey, "")
+		return nil
 	}
 	return v
 }
@@ -445,26 +449,15 @@ func ReadUniqueEntries[K comparable, V any](r *Reader, minSize int, readKey func
 // UniqueEntries returns e, the pairs of a dictionary read in the order of the data, unless two of its keys are equal:
 // then it fails r with CodeDuplicateKey (as .NET's dictionaries do when filled from empty) and returns nil. It
 // returns nil for nil and after r failed. Generated code reads the pairs with direct calls, then checks them once
-// here. Integer keys (of any integer type, named or not) are compared without a map (see repeatedKey); others go
-// through one.
+// here. Keys are compared as [UniqueValues] compares elements.
 func UniqueEntries[K comparable, V any](r *Reader, e []Entry[K, V]) []Entry[K, V] {
 	if e == nil || r.err != nil {
 		return nil
 	}
-	if keySize := intKeySize[K](); keySize != 0 {
-		var pair Entry[K, V]
-		if repeatedKey(unsafe.Pointer(unsafe.SliceData(e)), len(e), int(unsafe.Sizeof(pair)), keySize) {
-			r.Fail(CodeDuplicateKey, "")
-			return nil
-		}
-		return e
-	}
-	seen := make(map[K]struct{}, len(e))
-	for i := range e {
-		if seen[e[i].Key] = struct{}{}; len(seen) != i+1 {
-			r.Fail(CodeDuplicateKey, "")
-			return nil
-		}
+	var pair Entry[K, V]
+	if repeated[K](unsafe.Pointer(unsafe.SliceData(e)), len(e), int(unsafe.Sizeof(pair)), &r.keys) {
+		r.Fail(CodeDuplicateKey, "")
+		return nil
 	}
 	return e
 }
