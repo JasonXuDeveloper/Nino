@@ -68,14 +68,15 @@ func ReadMap[K comparable, V any](r *Reader, minSize int, readKey func(*Reader) 
 	var k K
 	var v V
 	m := make(map[K]V, capacity(n, int(unsafe.Sizeof(k))+int(unsafe.Sizeof(v))+hashSlot, len(r.buf)))
+	nan := false
 	for i := 0; i < n; i++ {
 		key := readKey(r)
 		value := readValue(r)
 		if r.err != nil {
 			return nil
 		}
-		// One hash operation: a repeated key leaves the size unchanged.
-		if m[key] = value; len(m) != i+1 {
+		// One hash operation: a repeated key leaves the size unchanged, but for a NaN (see repeatedNaN).
+		if m[key] = value; len(m) != i+1 || repeatedNaN(key, &nan) {
 			r.Fail(CodeDuplicateKey, "")
 			return nil
 		}
@@ -134,12 +135,13 @@ func ReadSet[T comparable](r *Reader, minSize int, read func(*Reader) T) map[T]s
 	}
 	var e T
 	m := make(map[T]struct{}, capacity(n, int(unsafe.Sizeof(e))+hashSlot, len(r.buf)))
+	nan := false
 	for i := 0; i < n; i++ {
 		v := read(r)
 		if r.err != nil {
 			return nil
 		}
-		if m[v] = struct{}{}; len(m) != i+1 {
+		if m[v] = struct{}{}; len(m) != i+1 || repeatedNaN(v, &nan) {
 			r.Fail(CodeDuplicateKey, "")
 			return nil
 		}

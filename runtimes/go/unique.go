@@ -343,3 +343,16 @@ func repeatedStringsMap(p unsafe.Pointer, n, stride int, ptrs bool) bool {
 	}
 	return false
 }
+
+// repeatedNaN reports whether k is a NaN (a key not equal to itself) after another: a Go map adds an entry for every
+// NaN key, which .NET's comparers find equal (double.Equals). *nan records that one was seen.
+func repeatedNaN[K comparable](k K, nan *bool) bool {
+	if k == k {
+		return false
+	}
+	if *nan {
+		return true
+	}
+	*nan = true
+	return false
+}
