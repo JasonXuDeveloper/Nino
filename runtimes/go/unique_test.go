@@ -400,3 +400,37 @@ func TestUniqueFallbacks(t *testing.T) {
 		}
 	}
 }
+
+// TestMapNaNKeys: Go maps read from the data (ReadMap, ReadSet, ReadPrimitiveMap, struct tags) reject a second NaN
+// key, which .NET's comparers find equal to the first.
+func TestMapNaNKeys(t *testing.T) {
+	keys := []float64{1, math.NaN(), 2, math.Float64frombits(0x7FF0000000000001)}
+	w := NewWriter(0)
+	WriteEntries(w, []Entry[float64, int32]{{keys[0], 0}, {keys[1], 1}, {keys[2], 2}, {keys[3], 3}}, (*Writer).F64, (*Writer).I32)
+	data := w.Bytes()
+	failed := func(r *Reader) bool {
+		var e *Error
+		return errors.As(r.Err(), &e) && e.Code == CodeDuplicateKey
+	}
+	if r := NewReader(data); ReadMap(r, 12, (*Reader).F64, (*Reader).I32) != nil || !failed(r) {
+		t.Fatalf("ReadMap: %v", r.Err())
+	}
+	if r := NewReader(data); ReadPrimitiveMap[float64, int32](r) != nil || !failed(r) {
+		t.Fatalf("ReadPrimitiveMap: %v", r.Err())
+	}
+	var m map[float64]int32
+	if err := Unmarshal(data, &m); err == nil {
+		t.Fatal("struct tags accepted two NaN keys")
+	}
+	ws := NewWriter(0)
+	WriteSlice(ws, keys, (*Writer).F64)
+	if r := NewReader(ws.Bytes()); ReadSet(r, 8, (*Reader).F64) != nil || !failed(r) {
+		t.Fatalf("ReadSet: %v", r.Err())
+	}
+	// One NaN is fine.
+	w = NewWriter(0)
+	WriteEntries(w, []Entry[float64, int32]{{1, 0}, {math.NaN(), 1}}, (*Writer).F64, (*Writer).I32)
+	if r := NewReader(w.Bytes()); len(ReadPrimitiveMap[float64, int32](r)) != 2 || r.Err() != nil {
+		t.Fatalf("one NaN: %v", r.Err())
+	}
+}

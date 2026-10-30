@@ -279,8 +279,10 @@ func ReadPrimitiveMap[K, V Primitive](r *Reader) map[K]V {
 	if len(b) != n*wire {
 		return nil
 	}
+	nan := false
 	for i := 1; len(b) >= wire; i++ {
-		if m[loadPrimitive[K](b)] = loadPrimitive[V](b[ks:]); len(m) != i {
+		key := loadPrimitive[K](b)
+		if m[key] = loadPrimitive[V](b[ks:]); len(m) != i || repeatedNaN(key, &nan) {
 			r.Fail(CodeDuplicateKey, "")
 			return nil
 		}
