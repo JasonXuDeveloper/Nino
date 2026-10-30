@@ -37,6 +37,9 @@ namespace Nino.Core.Internal
         // For each vector and load, the shuffle index of each byte (0x80 for none); Arm64: both loads in the first.
         private byte[][] _masks;
 
+        // For each vector, the source byte of each of its bytes from the group's first value (-1: padding).
+        private int[][] _sources;
+
         /// <summary>
         /// The plan, or null when a group would take more than four vectors or a lane draws on bytes no two windows
         /// cover. <paramref name="bytes"/> matches the bytes of a value and its block.
@@ -117,7 +120,8 @@ namespace Nino.Core.Internal
             int vectors = (targets + width - 1) / width;
             if (vectors > 4)
                 return null;
-            var plan = new NinoLanes { Width = width, Group = group, Vectors = vectors, _masks = new byte[8][] };
+            var plan = new NinoLanes
+                { Width = width, Group = group, Vectors = vectors, _masks = new byte[8][], _sources = new int[4][] };
             for (int v = 0; v < vectors; v++)
             {
                 // The source byte of each byte of the vector (-1: padding, any value).
@@ -126,6 +130,7 @@ namespace Nino.Core.Internal
                     sources[b] = v * width + b < targets ? Source(bytes, writes, v * width + b) : -1;
                 if (!Cover(sources, width, grid, out int[] first, out int[] second))
                     return null;
+                plan._sources[v] = sources;
                 var a = new byte[width];
                 var c = new byte[width];
                 for (int b = 0; b < width; b++)
@@ -353,6 +358,25 @@ namespace Nino.Core.Internal
             }
 
             windows[0] = wanted;
+        }
+
+        /// <summary>
+        /// Reads: for each vector, 0xFE at the bytes that hold a bool of a block (at <paramref name="bools"/> of each
+        /// <paramref name="size"/>-byte block), whose bits other than the lowest must all be clear; 0 elsewhere.
+        /// </summary>
+        public byte[] Bools(int vector, int[] bools, int size)
+        {
+            var mask = new byte[Width];
+            if (vector >= Vectors)
+                return mask;
+            for (int b = 0; b < Width; b++)
+            {
+                int s = _sources[vector][b];
+                if (s >= 0 && Array.IndexOf(bools, s % size) >= 0)
+                    mask[b] = 0xFE;
+            }
+
+            return mask;
         }
 
         public Vector256<byte>[] Masks32()

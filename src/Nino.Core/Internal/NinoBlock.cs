@@ -271,15 +271,18 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Whether <see cref="ReadEach{T, TFormatter}"/> reads <paramref name="count"/> values in groups that check
-        /// their bools (<see cref="NinoBlock{T, TFormatter}.ReadPlan{TPhase}.Checks"/>), and the rest through
-        /// ReadBlock.
+        /// their bools (<see cref="NinoBlock{T, TFormatter}.ReadPlan{TPhase}.Checks"/> with AVX-512, else
+        /// <see cref="LanesChecked{T, TFormatter}"/>: the groups ReadEach takes), and the rest through ReadBlock.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool GroupsCheck<T, TFormatter>(int count) where TFormatter : struct, INinoFormatter<T> =>
 #if NET8_0_OR_GREATER
-            NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Checks &&
-            NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Last(count) >=
-            NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Group;
+            NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Enabled
+                ? NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Checks &&
+                  NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Last(count) >=
+                  NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Group
+                : NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Checks &&
+                  NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Worth(count);
 #else
             false;
 #endif
@@ -316,7 +319,9 @@ namespace Nino.Core.Internal
                 NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Group)
                 i = ReadGroups<T, TFormatter>(ref source, ref first, count);
             else if (NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Worth(count))
-                i = Lanes<T, TFormatter, NinoReads>(ref source, ref destination, count);
+                i = NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Checks
+                    ? LanesChecked<T, TFormatter>(ref source, ref destination, count)
+                    : Lanes<T, TFormatter, NinoReads>(ref source, ref destination, count);
 
             if (NinoBlock<T, TFormatter>.Permutes)
             {
@@ -745,6 +750,93 @@ namespace Nino.Core.Internal
             }
 
             return i;
+        }
+
+        /// <summary>
+        /// <see cref="Lanes{T, TFormatter, TDirection}"/> of reads that check their bools
+        /// (<see cref="NinoBlock{T, TFormatter}.LanePlan{TDirection}.Checks"/>, 32-byte groups): each group's vectors,
+        /// read back once stored and ORed into one accumulator per vector, have their bools tested once after the last
+        /// group, in place of the strided pass before the groups (<see cref="CheckBools{T, TFormatter}"/>, which then
+        /// names the bad one). A method of its own, not a branch of Lanes: that code in Lanes, even where it is dead,
+        /// put Lanes16 past the JIT's inlining budget on Arm64 (a call per group, every lane path 1.4 to 5 times as
+        /// slow on Neoverse-N2, .NET A/B run 41035440735).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe int LanesChecked<T, TFormatter>(ref byte source, ref byte destination, int count)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int size = NinoBlock<T, TFormatter>.Size, to = Unsafe.SizeOf<T>();
+            int group = NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Group;
+            int last = NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Last(count, size, to);
+            // As in Lanes.
+            int start = NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Start;
+            int skip = FirstAligned((nuint)Unsafe.AsPointer(ref destination), to, start, group, 31);
+            int i = 0;
+            for (; i < start; i++)
+                Move<T, TFormatter, NinoReads>(ref source, ref destination, i, size);
+
+            var masks = NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Masks32;
+            Vector256<byte> a0 = masks[0], b0 = masks[1], a1 = masks[2], b1 = masks[3], a2 = masks[4], b2 = masks[5],
+                a3 = masks[6], b3 = masks[7];
+            Vector256<byte> c0 = default, c1 = default, c2 = default, c3 = default;
+            if (skip > start && start <= last)
+            {
+                ref byte into = ref Unsafe.Add(ref destination, (nint)start * to);
+                Lanes32<T, TFormatter, NinoReads>(ref Unsafe.Add(ref source, (nint)start * size), ref into, a0, b0,
+                    a1, b1, a2, b2, a3, b3);
+                Stored<T, TFormatter>(ref into, ref c0, ref c1, ref c2, ref c3);
+                i = skip;
+            }
+
+            if (i <= last)
+            {
+                int n = (last - i) / group + 1;
+                ref byte at = ref Unsafe.Add(ref source, (nint)i * size);
+                ref byte into = ref Unsafe.Add(ref destination, (nint)i * to);
+                i += n * group;
+                do
+                {
+                    Lanes32<T, TFormatter, NinoReads>(ref at, ref into, a0, b0, a1, b1, a2, b2, a3, b3);
+                    Stored<T, TFormatter>(ref into, ref c0, ref c1, ref c2, ref c3);
+                    at = ref Unsafe.Add(ref at, (nint)group * size);
+                    into = ref Unsafe.Add(ref into, (nint)group * to);
+                } while (--n != 0);
+            }
+
+            if (i < last + group && last >= start)
+            {
+                ref byte into = ref Unsafe.Add(ref destination, (nint)last * to);
+                Lanes32<T, TFormatter, NinoReads>(ref Unsafe.Add(ref source, (nint)last * size), ref into, a0, b0, a1,
+                    b1, a2, b2, a3, b3);
+                Stored<T, TFormatter>(ref into, ref c0, ref c1, ref c2, ref c3);
+                i = last + group;
+            }
+
+            if (((c0 & NinoBlock<T, TFormatter>.LanePlan<NinoReads>.BoolsA) |
+                 (c1 & NinoBlock<T, TFormatter>.LanePlan<NinoReads>.BoolsB) |
+                 (c2 & NinoBlock<T, TFormatter>.LanePlan<NinoReads>.BoolsC) |
+                 (c3 & NinoBlock<T, TFormatter>.LanePlan<NinoReads>.BoolsD)) != Vector256<byte>.Zero)
+                CheckBools<T, TFormatter>(ref source, count);
+            return i;
+        }
+
+        /// <summary>
+        /// The vectors a group of <see cref="LanesChecked{T, TFormatter}"/> just stored at <paramref name="into"/>, read
+        /// back (from the store buffer) and ORed into one accumulator each: one load and one OR a vector.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Stored<T, TFormatter>(ref byte into, ref Vector256<byte> c0, ref Vector256<byte> c1,
+            ref Vector256<byte> c2, ref Vector256<byte> c3)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int vectors = NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Vectors;
+            c0 |= Vector256.LoadUnsafe(ref into);
+            if (vectors > 1)
+                c1 |= Vector256.LoadUnsafe(ref into, 32);
+            if (vectors > 2)
+                c2 |= Vector256.LoadUnsafe(ref into, 64);
+            if (vectors > 3)
+                c3 |= Vector256.LoadUnsafe(ref into, 96);
         }
 
         /// <summary>Value <paramref name="i"/> moved alone, in the direction of <typeparamref name="TDirection"/>.</summary>
