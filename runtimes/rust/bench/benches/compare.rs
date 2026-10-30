@@ -117,9 +117,9 @@ impl NinoRead for Record {
 }
 
 impl NinoWrite for Record {
-    const PREFETCH: usize = 0usize
-        .saturating_add(<Option<String> as NinoWrite>::PREFETCH)
-        .saturating_add(<Option<Vec<i32>> as NinoWrite>::PREFETCH);
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<String> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<i32>> as NinoWrite>::PREFETCH_BYTES);
 
     fn prefetch(&self) {
         self.name.prefetch();

@@ -133,6 +133,11 @@ pub trait NinoWrite {
     /// at least 512 values with some, whose estimated data (the elements and these bytes) outgrows the last-level
     /// cache, is written prefetching ahead ([`NinoWrite::prefetch`], [`NinoWrite::prefetch_members`]). Set by
     /// `#[derive(NinoWrite)]` and nino-gen to the sum of the members'.
+    #[allow(deprecated)]
+    const PREFETCH_BYTES: usize = Self::PREFETCH;
+
+    /// The old name of [`NinoWrite::PREFETCH_BYTES`]: an impl that sets it sets that (unless it sets both).
+    #[deprecated(since = "4.0.0", note = "set `PREFETCH_BYTES` instead")]
     const PREFETCH: usize = 0;
 
     /// Prefetches the memory the value points to (a `String`'s text, a `Box`'s target, a struct's members' targets).
@@ -176,7 +181,7 @@ pub trait NinoWrite {
             crate::impls::write_fixed(values, w);
             return Ok(());
         }
-        if Self::PREFETCH != 0 && crate::impls::prefetches::<Self>(values.len()) {
+        if Self::PREFETCH_BYTES != 0 && crate::impls::prefetches::<Self>(values.len()) {
             return crate::impls::write_prefetched(values, w);
         }
         for v in values {

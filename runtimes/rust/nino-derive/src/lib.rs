@@ -3,7 +3,8 @@
 //! hand-written code would not do); see `runtimes/rust/README.md` for the attributes.
 //!
 //! On a struct, `#[nino(...)]` takes:
-//! - `format = "plain" | "tolerant" | "keyed"`: the .NET `NinoFormat` (`Positional`, `VersionTolerant`, `Keyed`).
+//! - `format = "positional" | "version_tolerant" | "keyed"`: the .NET `NinoFormat` (`Positional`, `VersionTolerant`,
+//!   `Keyed`); `"plain"` and `"tolerant"` are accepted too.
 //! - `kind = "class" | "open" | "struct" | "raw"`: a sealed class (presence byte), a class that is not sealed (its
 //!   type id), a struct (no header) or an unmanaged struct written as raw memory in the canonical layout
 //!   (`pack = n`, `size = n` as `[StructLayout]`).
@@ -116,7 +117,9 @@ fn type_opts(attrs: &[syn::Attribute]) -> syn::Result<TypeOpts> {
                     "plain" | "positional" => Format::Plain,
                     "tolerant" | "version_tolerant" => Format::Tolerant,
                     "keyed" => Format::Keyed,
-                    _ => return Err(Error::new(s.span(), "format is \"plain\", \"tolerant\" or \"keyed\"")),
+                    _ => {
+                        return Err(Error::new(s.span(), "format is \"positional\", \"version_tolerant\" or \"keyed\""))
+                    }
                 };
                 o.format = Some((f, s.span()));
             } else if meta.path.is_ident("kind") {
@@ -777,7 +780,7 @@ fn expand_struct(
     })
 }
 
-/// `NinoWrite::PREFETCH` and the two prefetch stages of a type with members: the sum of its members' bytes, and each
+/// `NinoWrite::PREFETCH_BYTES` and the two prefetch stages of a type with members: the sum of its members' bytes, and each
 /// member's stage in turn (a member whose type points nowhere adds 0 and asks for nothing, so a type of numbers has
 /// what the defaults give). The members written as UTF-8 (`utf8`) are left out: their type need not be `NinoWrite`.
 fn prefetch_items(members: &[Member], krate: &syn::Path) -> Tokens {
@@ -788,7 +791,7 @@ fn prefetch_items(members: &[Member], krate: &syn::Path) -> Tokens {
     let tys = members.iter().map(|m| m.ty);
     let fields: Vec<&syn::Ident> = members.iter().map(|m| m.ident).collect();
     quote! {
-        const PREFETCH: usize = 0usize #(.saturating_add(<#tys as #krate::NinoWrite>::PREFETCH))*;
+        const PREFETCH_BYTES: usize = 0usize #(.saturating_add(<#tys as #krate::NinoWrite>::PREFETCH_BYTES))*;
         #[inline(always)]
         fn prefetch(&self) {
             #(#krate::NinoWrite::prefetch(&self.#fields);)*

@@ -650,3 +650,19 @@ fn string_lists() {
     // A null element is an error in a list of String (Option<String> elements read it).
     assert_eq!(kind::<Vec<String>>("02000000 03 61 00"), ErrorKind::UnexpectedNull);
 }
+
+/// `NinoWrite::PREFETCH`, the old name of `PREFETCH_BYTES`: an impl that still sets it sets `PREFETCH_BYTES`.
+#[test]
+#[allow(deprecated)]
+fn prefetch_old_name_sets_prefetch_bytes() {
+    struct Old;
+    impl nino::NinoWrite for Old {
+        const PREFETCH: usize = 48;
+        fn write<'a>(&'a self, _: &mut nino::Writer<'a>) -> nino::Result<()> {
+            Ok(())
+        }
+    }
+    assert_eq!(<Old as nino::NinoWrite>::PREFETCH_BYTES, 48);
+    assert_eq!(<String as nino::NinoWrite>::PREFETCH_BYTES, 64);
+    assert_eq!(<u32 as nino::NinoWrite>::PREFETCH_BYTES, 0);
+}
