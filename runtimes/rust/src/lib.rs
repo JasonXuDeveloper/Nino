@@ -160,3 +160,69 @@ macro_rules! field {
         }
     };
 }
+
+/// The read methods of a sealed class's [`NinoRead`] impl (a class written behind a presence byte, never a type id),
+/// each forwarding to the [`Reader`]'s sealed-class read (`read_sealed_value`, `read_sealed`, ...). Generated code
+/// and the derive write it in the impl, after the constants:
+/// `impl NinoRead for Record { const MAY_DEFER: bool = true; nino::sealed_read!(); }`.
+#[macro_export]
+macro_rules! sealed_read {
+    () => {
+        #[inline]
+        fn read(r: &mut $crate::Reader<'_>) -> $crate::Result<Self> {
+            r.read_sealed_value()
+        }
+
+        #[inline]
+        fn read_option(r: &mut $crate::Reader<'_>) -> $crate::Result<::core::option::Option<Self>> {
+            r.read_sealed()
+        }
+
+        #[inline]
+        fn read_boxed(r: &mut $crate::Reader<'_>) -> $crate::Result<::std::boxed::Box<Self>> {
+            r.read_sealed_boxed_value()
+        }
+
+        #[inline]
+        fn read_boxed_option(
+            r: &mut $crate::Reader<'_>,
+        ) -> $crate::Result<::core::option::Option<::std::boxed::Box<Self>>> {
+            r.read_sealed_boxed()
+        }
+
+        #[inline]
+        fn read_into(&mut self, r: &mut $crate::Reader<'_>) -> $crate::Result<()> {
+            r.read_sealed_into(self)
+        }
+
+        #[inline]
+        fn read_option_into(slot: &mut ::core::option::Option<Self>, r: &mut $crate::Reader<'_>) -> $crate::Result<()> {
+            r.read_sealed_option_into(slot)
+        }
+
+        #[inline]
+        fn read_boxed_option_into(
+            slot: &mut ::core::option::Option<::std::boxed::Box<Self>>,
+            r: &mut $crate::Reader<'_>,
+        ) -> $crate::Result<()> {
+            r.read_sealed_boxed_option_into(slot)
+        }
+    };
+}
+
+/// The write methods of a sealed class's [`NinoWrite`] impl ([`sealed_read!`]'s counterpart), forwarding to
+/// [`Writer::write_sealed`]: `impl NinoWrite for Record { nino::sealed_write!(); }`.
+#[macro_export]
+macro_rules! sealed_write {
+    () => {
+        #[inline]
+        fn write<'a>(&'a self, w: &mut $crate::Writer<'a>) -> $crate::Result<()> {
+            w.write_sealed(::core::option::Option::Some(self))
+        }
+
+        #[inline]
+        fn write_option<'a>(value: ::core::option::Option<&'a Self>, w: &mut $crate::Writer<'a>) -> $crate::Result<()> {
+            w.write_sealed(value)
+        }
+    };
+}

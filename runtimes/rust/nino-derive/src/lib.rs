@@ -597,42 +597,7 @@ fn expand_struct(
             }
             impl #impl_g #krate::NinoRead for #name #ty_g #where_clause {
                 const MAY_DEFER: bool = true;
-                #[inline]
-                fn read(r: &mut #krate::Reader<'_>) -> #krate::Result<Self> {
-                    r.read_sealed_value()
-                }
-                #[inline]
-                fn read_option(r: &mut #krate::Reader<'_>) -> #krate::Result<::core::option::Option<Self>> {
-                    r.read_sealed()
-                }
-                #[inline]
-                fn read_boxed(r: &mut #krate::Reader<'_>) -> #krate::Result<::std::boxed::Box<Self>> {
-                    r.read_sealed_boxed_value()
-                }
-                #[inline]
-                fn read_boxed_option(
-                    r: &mut #krate::Reader<'_>,
-                ) -> #krate::Result<::core::option::Option<::std::boxed::Box<Self>>> {
-                    r.read_sealed_boxed()
-                }
-                #[inline]
-                fn read_into(&mut self, r: &mut #krate::Reader<'_>) -> #krate::Result<()> {
-                    r.read_sealed_into(self)
-                }
-                #[inline]
-                fn read_option_into(
-                    slot: &mut ::core::option::Option<Self>,
-                    r: &mut #krate::Reader<'_>,
-                ) -> #krate::Result<()> {
-                    r.read_sealed_option_into(slot)
-                }
-                #[inline]
-                fn read_boxed_option_into(
-                    slot: &mut ::core::option::Option<::std::boxed::Box<Self>>,
-                    r: &mut #krate::Reader<'_>,
-                ) -> #krate::Result<()> {
-                    r.read_sealed_boxed_option_into(slot)
-                }
+                #krate::sealed_read!();
             }
         },
         (Side::Write, Kind::Class) => quote! {
@@ -647,17 +612,7 @@ fn expand_struct(
             }
             impl #impl_g #krate::NinoWrite for #name #ty_g #where_clause {
                 #prefetch
-                #[inline]
-                fn write<'a>(&'a self, w: &mut #krate::Writer<'a>) -> #krate::Result<()> {
-                    w.write_sealed(::core::option::Option::Some(self))
-                }
-                #[inline]
-                fn write_option<'a>(
-                    value: ::core::option::Option<&'a Self>,
-                    w: &mut #krate::Writer<'a>,
-                ) -> #krate::Result<()> {
-                    w.write_sealed(value)
-                }
+                #krate::sealed_write!();
             }
         },
         (Side::Read, Kind::Open) => quote! {
