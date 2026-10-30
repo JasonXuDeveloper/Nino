@@ -25,6 +25,14 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   4.8+ and the regular entry points must agree with them (the `-p:NinoRegularCalls=true` run of `verify`).
 - Partial, nested, generic, record, struct, abstract and interface types, types in other assemblies, and every
   accessibility combination are handled or reported (NINO diagnostics, `audit-analyzer`).
+- A generic type's formatter takes the formatter of each type parameter (`__F_T`), so every name of a generated
+  generic formatter (base formatters, member formatters, registrations, the hot-update resolver) carries formatters
+  of the other assembly or of type parameters in scope. Shapes covered: bases closed over another parameter, a
+  collection of one or a tuple (`CornerGenericTests.GenericSubtypesOfBasesClosedOverOtherArguments`), a type holding
+  itself over a bigger argument (`Expanding<T>` holding `Expanding<List<T>>`), generics crossing a hot-update
+  assembly both ways (`HotUpdateAssemblyTests.LoadedGenericsAcrossTheAotBoundary`), nested generics, constraints
+  naming other parameters, records, keyed and tracked generics. Identifiers with two consecutive underscores are
+  the implementation's (C# spec), so a user type parameter named `__F_T` clashing with one is not a bug.
 
 ## Fast on every keystroke
 
