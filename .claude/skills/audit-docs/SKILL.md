@@ -70,6 +70,18 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   recommended forms, the fast forms, the pitfalls and the diagnostics, matching the pages.
 - Stale names: grep the old names of every rename across both repositories; history pages (changelog, migration,
   v3-vs-v4) keep them on purpose.
+- **The changelog describes what changed between releases, not within one.** Before writing a "renamed" or "removed"
+  entry, check the old name shipped: `git grep -n <old> <last tag>`. An API that is new in the release under audit is
+  described as it is released; renames made while it was unreleased go at most into one entry for code written
+  against `main`. Evidence: rc.8's Go `BeginEntry`, function-value helpers and Rust `PREFETCH` had three entries for names no
+  release had (the Go and Rust runtimes first shipped in rc.8).
+- **Chinese terms**: one per concept, from the glossary in nino.docs' `WRITING.md` (Tone: Chinese); grep the
+  variants it lists across both repositories (README.zh.md too) in every pass.
+- **Renaming a site page's slug**: the old URL and its `.md` copy get a 301 in `public/_redirects` and an entry in
+  `public/_routes.json`'s `exclude` (paths a function handles never reach the redirects); `git mv` its
+  `scripts/csharp-check/Context/<slug>.cs` and change its `namespace Docs.Page_<slug>` (the check reports the page's
+  types as missing otherwise); update links in v2/v3 pages that point at v4 and in Nino's README.md/README.zh.md
+  (perf -> benchmarks, round 101).
 
 - The code standard (`audit-code`: DRY, decoupled, clear) applies to these files, and redundancy in them
   (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is
