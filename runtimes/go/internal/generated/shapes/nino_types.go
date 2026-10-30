@@ -2919,21 +2919,7 @@ func readV10(r *nino.Reader) []*string {
 		}
 		v = append(v, e)
 	}
-	seen := make(map[string]struct{}, len(v))
-	null := false
-	for _, s := range v {
-		dup := false
-		if s == nil {
-			dup, null = null, true
-		} else if _, dup = seen[*s]; !dup {
-			seen[*s] = struct{}{}
-		}
-		if dup {
-			r.Fail(nino.CodeDuplicateKey, "")
-			return nil
-		}
-	}
-	return v
+	return nino.UniqueStrings(r, v)
 }
 
 func writeV11(w *nino.Writer, v []*string) {

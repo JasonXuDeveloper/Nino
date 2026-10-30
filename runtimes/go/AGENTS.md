@@ -24,8 +24,8 @@ block.go                     ReadBlock / WriteBlock: lists of dates, Decimal, Gu
                              each value checked as when read alone
 endian_little.go             littleEndian = true on little-endian architectures (blocks copied as memory)
 endian_other.go              littleEndian = false elsewhere (blocks converted element by element)
-unique.go                    duplicate keys of sets and maps read in data order: integer keys compared pairwise or
-                             sorted, no map
+unique.go                    duplicate keys of sets and maps read in data order: numbers and strings compared as .NET
+                             does, pairwise or in a seeded open-addressing table (the reader's scratch), no map
 collections.go               slices, maps, sets, entries, fixed-size runs, multidimensional shapes; counts checked
                              against the bytes left, unique keys
 depth.go                     class bodies (Class, ReadClass, WriteClass), regions, deferral past 128, the 512 limit

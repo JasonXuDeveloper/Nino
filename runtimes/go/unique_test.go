@@ -83,8 +83,8 @@ func TestUniqueNilAndFailed(t *testing.T) {
 	}
 }
 
-// uniqueKeys checks every length up to 100 (pairs up to 16 keys, then a sort, its scratch on the stack up to 64) with distinct keys, then with
-// each pair of positions holding the same key, and random keys from a small range.
+// uniqueKeys checks every length up to 100 (pairs up to 16 keys, then a table on the stack) with distinct keys, then
+// with each pair of positions holding the same key, and random keys from a small range.
 func uniqueKeys[K comparable](t *testing.T, key func(int) K, writeKey func(*Writer, K), readKey func(*Reader) K, size int) {
 	t.Helper()
 	rng := rand.New(rand.NewSource(1))
@@ -121,7 +121,7 @@ func TestUniqueIntegerKeys(t *testing.T) {
 	uniqueKeys(t, func(i int) uint32 { return uint32(i) * 0x01000193 }, (*Writer).U32, (*Reader).U32, 4)
 	uniqueKeys(t, func(i int) int64 { return int64(i) << 40 }, (*Writer).I64, (*Reader).I64, 8)
 	uniqueKeys(t, func(i int) uint64 { return uint64(i) * 0x9E3779B97F4A7C15 }, (*Writer).U64, (*Reader).U64, 8)
-	// Keys that keep the map: floats (NaN, -0) and strings.
+	// Floats (by their bits, NaN and -0 in TestUniqueFloatsAsDotNet) and strings (their own table).
 	uniqueKeys(t, func(i int) float64 { return float64(i) / 4 }, (*Writer).F64, (*Reader).F64, 8)
 	uniqueKeys(t, func(i int) string { return string(rune('a'+i%26)) + string(rune('a'+i/26%26)) },
 		(*Writer).String, (*Reader).String, 1)
@@ -296,4 +296,107 @@ func TestPrimitiveEntries(t *testing.T) {
 	primitiveEntries(t, func(i int) uint8 { return uint8(i) }, func(i int) int64 { return int64(i) << 33 })
 	primitiveEntries(t, func(i int) uniqueKind { return uniqueKind(i) }, func(i int) int8 { return int8(i) })
 	primitiveEntries(t, func(i int) int64 { return int64(i) }, func(i int) float32 { return float32(i) })
+}
+
+// TestUniqueFloatsAsDotNet: floating-point elements and keys are equal as .NET's double.Equals has it: any two NaNs
+// (whatever their payload), and -0 with 0, where Go's == and maps keep NaNs apart.
+func TestUniqueFloatsAsDotNet(t *testing.T) {
+	quiet, payload := math.NaN(), math.Float64frombits(0x7FF0000000000001)
+	for _, n := range []int{2, 16, 17, 300} {
+		base := make([]float64, n)
+		for i := range base {
+			base[i] = float64(i) + 0.5
+		}
+		for _, pair := range [][2]float64{{quiet, payload}, {quiet, quiet}, {0, math.Copysign(0, -1)}} {
+			v := slices.Clone(base)
+			v[0], v[n-1] = pair[0], pair[1]
+			r := NewReader(nil)
+			if UniqueValues(r, v) != nil || r.Err() == nil {
+				t.Fatalf("%d float64s with %v and %v: accepted", n, pair[0], pair[1])
+			}
+			e := []Entry[float64, int32]{{pair[0], 1}, {pair[1], 2}}
+			if r = NewReader(nil); UniqueEntries(r, e) != nil || r.Err() == nil {
+				t.Fatalf("keys %v and %v: accepted", pair[0], pair[1])
+			}
+			f := make([]float32, n)
+			for i := range f {
+				f[i] = float32(v[i])
+			}
+			if r = NewReader(nil); UniqueValues(r, f) != nil || r.Err() == nil {
+				t.Fatalf("%d float32s with %v and %v: accepted", n, pair[0], pair[1])
+			}
+		}
+		v := slices.Clone(base)
+		v[0] = quiet
+		if r := NewReader(nil); UniqueValues(r, v) == nil || r.Err() != nil {
+			t.Fatalf("%d float64s with one NaN: %v", n, r.Err())
+		}
+	}
+}
+
+// TestUniqueStrings: sets of nullable strings (UniqueStrings) and of strings, small and large, distinct, with a
+// repeated string or null at both ends and in the middle, and the fallbacks (a sort, a map) against the tables.
+func TestUniqueStrings(t *testing.T) {
+	for _, n := range []int{0, 1, 2, 16, 17, 255, 256, 257, 1000} {
+		texts := make([]string, n)
+		ptrs := make([]*string, n)
+		for i := range texts {
+			texts[i] = "member " + string(rune('a'+i%26)) + string(rune('0'+i/26%10)) + string(rune('0'+i/260))
+			ptrs[i] = &texts[i]
+		}
+		check := func(v []*string, want bool) {
+			t.Helper()
+			r := NewReader(nil)
+			got := UniqueStrings(r, v)
+			if want != (r.Err() != nil) || want != (got == nil) {
+				t.Fatalf("%d strings (repeated %v): %v", len(v), want, r.Err())
+			}
+			p := unsafe.Pointer(unsafe.SliceData(v))
+			if repeatedStringsMap(p, len(v), 8, true) != want {
+				t.Fatalf("%d strings through the map: want %v", len(v), want)
+			}
+		}
+		check(ptrs, false)
+		if r := NewReader(nil); UniqueValues(r, texts) == nil && n > 0 || r.Err() != nil {
+			t.Fatalf("%d strings: %v", n, r.Err())
+		}
+		if n < 2 {
+			continue
+		}
+		for _, at := range [][2]int{{0, 1}, {0, n - 1}, {n/2 - 1, n / 2}} {
+			dup := slices.Clone(ptrs)
+			copyText := *dup[at[0]]
+			dup[at[1]] = &copyText // equal text, another pointer
+			check(dup, true)
+			dup[at[0]], dup[at[1]] = nil, nil
+			check(dup, true)
+			dup[at[1]] = ptrs[at[1]]
+			check(dup, false)
+			plain := slices.Clone(texts)
+			plain[at[1]] = plain[at[0]]
+			if r := NewReader(nil); UniqueValues(r, plain) != nil || r.Err() == nil {
+				t.Fatalf("%d strings with a repeat: accepted", n)
+			}
+		}
+	}
+}
+
+// TestUniqueFallbacks: the sort that takes over from the integer table when a key probes too far finds the same
+// repeats.
+func TestUniqueFallbacks(t *testing.T) {
+	rng := rand.New(rand.NewSource(3))
+	for _, n := range []int{17, 100, 1000} {
+		v := make([]int64, n)
+		for i := range v {
+			v[i] = rng.Int63()
+		}
+		p := unsafe.Pointer(unsafe.SliceData(v))
+		if repeatedSorted(p, n, 8, 8, false) || repeatedBits(p, n, 8, 8, false, new([]uint64)) {
+			t.Fatalf("%d distinct keys found repeated", n)
+		}
+		v[n-1] = v[n/3]
+		if !repeatedSorted(p, n, 8, 8, false) || !repeatedBits(p, n, 8, 8, false, new([]uint64)) {
+			t.Fatalf("%d keys with a repeat not found", n)
+		}
+	}
 }

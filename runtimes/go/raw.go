@@ -233,31 +233,11 @@ func ReadPrimitiveEntries[K, V Primitive](r *Reader) []Entry[K, V] {
 	}
 	v := make([]Entry[K, V], n)
 	copy(unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), n*size), b)
-	repeated := false
-	if keySize := intKeySize[K](); keySize != 0 {
-		repeated = repeatedKey(unsafe.Pointer(unsafe.SliceData(v)), n, size, keySize)
-	} else {
-		repeated = repeatedEntryKeys(v)
-	}
-	if repeated {
+	if repeated[K](unsafe.Pointer(unsafe.SliceData(v)), n, size, &r.keys) {
 		r.Fail(CodeDuplicateKey, "")
 		return nil
 	}
 	return v
-}
-
-// repeatedEntryKeys reports whether two keys (floating-point ones, compared as Go's maps compare them) of e are
-// equal.
-//
-//go:noinline
-func repeatedEntryKeys[K comparable, V any](e []Entry[K, V]) bool {
-	seen := make(map[K]struct{}, len(e))
-	for i, p := range e {
-		if seen[p.Key] = struct{}{}; len(seen) != i+1 {
-			return true
-		}
-	}
-	return false
 }
 
 // WritePrimitiveEntries writes a dictionary of primitive keys and values as its pairs, in order (nil is null): one

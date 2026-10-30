@@ -195,14 +195,14 @@ func helper_body(h)
     # A sequence.
     case $s.mode
     when "unique"
-      # Elements read twice fail, checked once over the elements.
+      # Elements read twice fail, checked once over the elements (primitives read as one block).
+      if $s.element.block
+        ret $o + "\treturn nino.UniqueValues(r, nino.ReadPrimitives[" + gotype($s.element) + "](r))\n}\n"
+      end
       ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn nino.UniqueValues(r, v)\n}\n"
     when "stringset"
       # A set of strings in the order of the data: a string (or null) read twice fails.
-      $o = $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element))
-      $o = $o + "\tseen := make(map[string]struct{}, len(v))\n\tnull := false\n\tfor _, s := range v {\n\t\tdup := false\n"
-      $o = $o + "\t\tif s == nil {\n\t\t\tdup, null = null, true\n\t\t} else if _, dup = seen[*s]; !dup {\n\t\t\tseen[*s] = struct{}{}\n\t\t}\n"
-      ret $o + "\t\tif dup {\n\t\t\tr.Fail(nino.CodeDuplicateKey, \"\")\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn v\n}\n"
+      ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn nino.UniqueStrings(r, v)\n}\n"
     when "fixed"
       $b = $s.element.raw_block
       if $b
