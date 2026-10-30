@@ -61,7 +61,7 @@ namespace Nino.Core.Internal
         /// <summary>
         /// Whether a read of values can reject the data after it has started writing them: a block with a
         /// <c>bool</c> (0 or 1), or one whose map failed (values read one at a time, their bools not all known).
-        /// A new array of them is then allocated zeroed (<see cref="NinoElements.CopiedWhole{T, TFormatter}"/>).
+        /// Such reads clear the values when they do (<see cref="NinoBlock"/>.ReadRejecting).
         /// </summary>
         public static readonly bool Rejects = Size > 0 && (Map == null || Description.Bools != null);
 
@@ -739,24 +739,6 @@ namespace Nino.Core.Internal
 
     /// <summary>From memory to their blocks.</summary>
     internal struct NinoWrites : INinoDirection
-    {
-    }
-
-    /// <summary>
-    /// Whether NinoBlock's lane groups check the bools of what they read, as a type argument
-    /// (<see cref="NinoBlock{T, TFormatter}.LanePlan{TDirection}.Checks"/>).
-    /// </summary>
-    internal interface INinoBoolChecks
-    {
-    }
-
-    /// <summary>The lane groups check the bools they read.</summary>
-    internal struct NinoChecked : INinoBoolChecks
-    {
-    }
-
-    /// <summary>The lane groups do not check bools (writes, values without bools, or checked by a pass before).</summary>
-    internal struct NinoUnchecked : INinoBoolChecks
     {
     }
 #endif
