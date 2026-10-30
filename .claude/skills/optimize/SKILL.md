@@ -216,8 +216,10 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   without the masks they fail on AVX-512). Values read a field at a time (Untrusted mode, `ReadSize` -1) keep a zeroed
   array. Evidence: rejected first with the padding unwritten (Waypoints 0.68-0.76 times main's time); landed with it
   written, together with the read groups below (run 40935400095). Where the read can still reject the data after the
-  allocation (a bool of a block: `NinoBlock<T, TFormatter>.Rejects`), the array is allocated zeroed (`CopiedWhole`
-  false; `audit-security`). Add nothing to `ArrayFormatter` or `ListFormatter.Deserialize`, not even a test that folds
+  allocation (a bool of a block: `NinoBlock<T, TFormatter>.Rejects`), `NinoBlock.ReadAll` reads them out of line
+  under a try/finally that clears the values when it throws (`ReadRejecting`; `audit-security`). Never allocate those
+  arrays zeroed instead: 1,000 Waypoints read into a new array took 1.15 to 1.27 times as long (A/B run 41110873514,
+  every CPU). Add nothing to `ArrayFormatter` or `ListFormatter.Deserialize`, not even a test that folds
   in Release: they recurse through collections nested in themselves, and Debug builds (CI's Windows unit tests, 1 MB
   stacks) compile every branch and keep a temp per call. A test of a static field and an out-of-line call there grew
   the two frames from 672 + 448 to 768 + 576 bytes (`DOTNET_JitDisasm` under Debug, `sub rsp`) and 400 nested

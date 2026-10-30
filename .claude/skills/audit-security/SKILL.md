@@ -39,9 +39,9 @@ the runtime it targets.
 
 - A new array allocated uninitialized (`NinoUnsafe.NewArray`, `CopiedWhole`) stored in the caller's slot before a
   read that can still reject the data (bools, has-value bytes, Untrusted checks): reading into an existing value
-  then left it stale heap memory. Arrays and lists of blocks with a bool are allocated zeroed
-  (`NinoElements.CopiedWhole` excludes `NinoBlock<T, TFormatter>.Rejects`); the raw formatters (T?[], List<T?>,
-  bool lists, Untrusted checks) store a new array once filled (`NinoElements.NewOrSame`, `Publish`);
+  then left it stale heap memory. Blocks with a bool (`NinoBlock<T, TFormatter>.Rejects`) are read by
+  `NinoBlock.ReadRejecting`, a try/finally that clears the values when the read throws; the raw formatters (T?[],
+  List<T?>, bool lists, Untrusted checks) store a new array once filled (`NinoElements.NewOrSame`, `Publish`);
   `UntrustedInputTests.ARejectedReadKeepsNewArraysOutOfTheSlot` covers each, over 0xCD-filled freed memory. The fuzzer's reuse reads did not see it: stale bytes
   are valid values.
 - A read that allocates from a count before checking it against the bytes left (collections, strings, multi-dim
