@@ -118,5 +118,7 @@
 # done (run 40935400095): cpu='EPYC|Xeon|Neoverse' 0474d82 148b4d8 12 *GenericPolymorphicTest.Nino* # devirt2 (agent ad35d66b88709852c): generic formatters take their arguments' formatters; make 148b4d8 reachable with merge -s ours (ref origin/ab/devirt2); floor: run 40865180098 line 3 was flat (0.97-1.01) on this filter
 # done (run 40967495867): cpu='Xeon' 0474d82 148b4d8 12 *GenericPolymorphicTest.NinoDeserializeGenericOpenClassTupleBase* # devirt2 (agent ad35d66b88709852c): re-check of Xeon 8573C 1.049 (run 40935400095 line 3; other CPUs 0.98-0.99); ref origin/ab/devirt2 already merged
 # done (run 40967495867): cpu='Xeon' 9ad5461d f2070822 12 *Inventory* # mp-gaps (a6b8bd7aaf4b14da8): NinoMask with 32-byte vectors on Ice Lake (other CPUs: identical code); make f2070822 reachable with merge -s ours
-cpu='EPYC|Xeon|Neoverse' 3bcf28c9 55994b21 12 *GenericPolymorphicTest.NinoDeserialize* # devirt2 fix (agent ad35d66b88709852c): closed generic base subtype switch NoInlining; make 55994b21 reachable with merge -s ours (ref origin/ab/devirt3)
-cpu='Xeon' 3bcf28c9 3bcf28c9 12 *GenericPolymorphicTest.NinoDeserialize* # devirt2 Xeon floor (agent ad35d66b88709852c)
+# done (run 40973200874): cpu='EPYC|Xeon|Neoverse' 3bcf28c9 55994b21 12 *GenericPolymorphicTest.NinoDeserialize* # devirt2 fix (agent ad35d66b88709852c): closed generic base subtype switch NoInlining; make 55994b21 reachable with merge -s ours (ref origin/ab/devirt3)
+# done (run 40973200874): cpu='Xeon' 3bcf28c9 3bcf28c9 12 *GenericPolymorphicTest.NinoDeserialize* # devirt2 Xeon floor (agent ad35d66b88709852c)
+cpu='Xeon' 08f6a142 15dd4bf8 12 *GenericPolymorphicTest.Nino* # devirt2 fix (agent ad35d66b88709852c): subtype switch out of line only where closed bases share code; make 15dd4bf8 reachable with merge -s ours (ref origin/ab/devirt4)
+cpu='Xeon' 08f6a142 08f6a142 12 *GenericPolymorphicTest.Nino* # devirt2 Xeon floor on 08f6a142 (agent ad35d66b88709852c); shareable
