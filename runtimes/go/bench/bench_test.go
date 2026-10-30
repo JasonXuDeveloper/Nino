@@ -182,6 +182,32 @@ func cases() []benchCase {
 				gobCodec(v),
 			}
 		}},
+		{"int-set-1000", func() []codec {
+			v := SetInts()
+			return []codec{
+				ninoCodec(v, WriteIntSet, ReadIntSet),
+				tagsCodec(v),
+				protoCodec(&benchpb.Ints{Values: v}, func() *benchpb.Ints { return &benchpb.Ints{} }),
+				msgpackCodec(v),
+				jsonCodec(v),
+				gobCodec(v),
+			}
+		}},
+		{"string-set-1000", func() []codec {
+			v := SetStrings()
+			texts := make([]string, len(v))
+			for i, s := range v {
+				texts[i] = *s
+			}
+			return []codec{
+				ninoCodec(v, WriteStringSet, ReadStringSet),
+				tagsCodec(v),
+				protoCodec(&benchpb.Strings{Values: texts}, func() *benchpb.Strings { return &benchpb.Strings{} }),
+				msgpackCodec(v),
+				jsonCodec(v),
+				gobCodec(v),
+			}
+		}},
 		stringsCase("strings-1000", ASCIIStrings),
 		stringsCase("strings-mixed-1000", MixedStrings),
 		// The same strings as a [NinoUtf8] string[]: Nino only (the others write what they write above).
