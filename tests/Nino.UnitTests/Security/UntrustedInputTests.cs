@@ -168,6 +168,49 @@ public class UntrustedInputTests
     }
 
     [TestMethod]
+    public void ARejectedReadKeepsNewArraysOutOfTheSlot()
+    {
+        // 8,000 elements (allocated uninitialized from 6 KB), the last one invalid: the read rejects the data after it
+        // allocated the new array, which must not reach the existing value (stale heap memory once the read stopped).
+        const int n = 8000;
+        byte[] Elements(Func<int, byte[]> element) =>
+            Ints(n).Concat(Enumerable.Range(0, n).SelectMany(element)).ToArray();
+
+        // Has-value bytes other than 0 or 1.
+        var nullables = Elements(i => new byte[] { (byte)(i == n - 1 ? 2 : 0), 0, 0, 0, 0, 0, 0, 0 });
+        var nullableArray = new int?[1];
+        var old = nullableArray;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(nullables, ref nullableArray));
+        Assert.AreSame(old, nullableArray);
+        List<int?> nullableList = null;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(nullables, ref nullableList));
+        Assert.IsNull(nullableList);
+
+        // Bools other than 0 or 1, raw and in blocks.
+        var bools = Elements(i => new[] { (byte)(i == n - 1 ? 2 : 1) });
+        List<bool> boolList = null;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bools, ref boolList));
+        Assert.IsNull(boolList);
+        var held = (new bool[1], 5);
+        var heldOld = held.Item1;
+        var heldData = bools.Concat(Ints(5)).ToArray();
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(heldData, ref held));
+        Assert.AreSame(heldOld, held.Item1);
+
+        var pairs = Elements(i => Ints(i).Append((byte)(i == n - 1 ? 2 : 1)).ToArray());
+        var pairArray = new (int, bool)[1];
+        var pairOld = pairArray;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(pairs, ref pairArray));
+        Assert.AreSame(pairOld, pairArray);
+        List<(int, bool)> pairList = null;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(pairs, ref pairList));
+        Assert.IsNull(pairList);
+        var pairMemory = new Memory<(int, bool)>(pairOld);
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(pairs, ref pairMemory));
+        Assert.AreEqual(1, pairMemory.Length);
+    }
+
+    [TestMethod]
     public void InvalidValuesThrowAsInvalidData()
     {
         // A null key: [count 1][key: null string][value].

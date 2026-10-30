@@ -39,6 +39,14 @@ namespace Nino.Core
                 return;
             }
 
+            // A new uninitialized array the read may reject half way takes the slot once filled: out of line, and
+            // nothing compiled for the others.
+            if (typeof(T).IsValueType && NinoElements.Rejecting<T, TFormatter>.Value)
+            {
+                reader = NinoElements.ReadPublished<T, TFormatter>(ref value, length, reader);
+                return;
+            }
+
             NinoElements.Read<T, TFormatter>(
                 NinoElements.EnsureLength(ref value, length, NinoElements.CopiedWhole<T, TFormatter>(),
                     NinoElements.ReadOverwrites<T, TFormatter>()), ref reader);
@@ -164,7 +172,11 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoLayout<T>.Size, out int length))
                 return;
 
-            reader.ReadUnmanagedRaw(NinoElements.EnsureLength(ref value, length, uninitialized: true).AsSpan());
+            // Bools and Untrusted mode's values are checked by the read: a new array takes the slot once filled.
+            var current = value;
+            var array = NinoElements.NewOrSame(current, length);
+            reader.ReadUnmanagedRaw(array.AsSpan());
+            NinoElements.Publish(ref value, current, array);
         }
     }
 
@@ -190,9 +202,18 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoNullables<T>.Stride, out int length))
                 return;
 
-            // Uninitialized only for a block copy (NinoElements.CopiedWhole).
-            NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, NinoNullables<T>.Raw, overwritten: true),
-                ref reader);
+            // Uninitialized only for a block copy, after which the has-value bytes are checked: such a new array
+            // takes the slot once filled (NinoElements.Rejects).
+            if (NinoNullables<T>.Raw)
+            {
+                var current = value;
+                var array = NinoElements.NewOrSame(current, length);
+                NinoNullables<T>.Read(array, ref reader);
+                NinoElements.Publish(ref value, current, array);
+                return;
+            }
+
+            NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, overwritten: true), ref reader);
         }
     }
 

@@ -397,6 +397,15 @@ namespace Nino.Core
                     return;
                 }
 
+                // Taken once filled where the read may reject the data half way (see ArrayFormatter).
+                if (typeof(T).IsValueType && NinoElements.Rejecting<T, TFormatter>.Value)
+                {
+                    T[] filled = null;
+                    reader = NinoElements.ReadPublished<T, TFormatter>(ref filled, length, reader);
+                    value = filled;
+                    return;
+                }
+
                 value = NinoUnsafe.NewArray<T>(length, NinoElements.CopiedWhole<T, TFormatter>());
             }
             NinoElements.Read<T, TFormatter>(value.Span, ref reader);
