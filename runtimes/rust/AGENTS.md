@@ -40,6 +40,8 @@ bench/                       nino-bench: benches/compare.rs (against prost, rmp-
 tests/
   conformance.rs             the corpus over tests/conformance/types.rs: valid, malicious, truncations, mutational fuzzing
                              (NINO_FUZZ_ITERATIONS)
+  common/harness.rs          what conformance.rs and generated.rs share (by #[path]): the allocator that measures a
+                             read, the corpus's location and files, the fuzz's mutations, the large stack
   conformance/gen.py         writes conformance/types.rs from the corpus's layouts (edit this, not types.rs)
   conformance/types.rs       generated codecs of the corpus's types; json.rs: values as the corpus's JSON
   generated.rs               the corpus over tests/generated/nino_types.rs (nino-gen's output; do not edit), and

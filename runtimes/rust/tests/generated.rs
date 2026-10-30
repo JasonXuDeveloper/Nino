@@ -18,64 +18,14 @@ mod nino_types;
 #[path = "generated/shapes.rs"]
 mod shapes;
 
-use std::alloc::{GlobalAlloc, Layout, System};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+#[path = "common/harness.rs"]
+mod harness;
+
+use harness::{allowance, corpus, corpus_or_skip, measured, on_large_stack, read_json, unhex, Rng};
 
 use nino::{NinoRead, NinoWrite};
 use nino_types::{with_nino_type, NinoVisit};
 use serde_json::Value;
-
-// ---------------------------------------------------------------------------------------------- allocation tracking
-
-struct Counting;
-
-static CURRENT: AtomicUsize = AtomicUsize::new(0);
-static PEAK: AtomicUsize = AtomicUsize::new(0);
-
-unsafe impl GlobalAlloc for Counting {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let p = unsafe { System.alloc(layout) };
-        if !p.is_null() {
-            let now = CURRENT.fetch_add(layout.size(), Ordering::Relaxed) + layout.size();
-            PEAK.fetch_max(now, Ordering::Relaxed);
-        }
-        p
-    }
-
-    unsafe fn dealloc(&self, p: *mut u8, layout: Layout) {
-        unsafe { System.dealloc(p, layout) };
-        CURRENT.fetch_sub(layout.size(), Ordering::Relaxed);
-    }
-
-    unsafe fn realloc(&self, p: *mut u8, layout: Layout, new: usize) -> *mut u8 {
-        let q = unsafe { System.realloc(p, layout, new) };
-        if !q.is_null() {
-            if new >= layout.size() {
-                let now = CURRENT.fetch_add(new - layout.size(), Ordering::Relaxed) + (new - layout.size());
-                PEAK.fetch_max(now, Ordering::Relaxed);
-            } else {
-                CURRENT.fetch_sub(layout.size() - new, Ordering::Relaxed);
-            }
-        }
-        q
-    }
-}
-
-#[global_allocator]
-static ALLOCATOR: Counting = Counting;
-
-fn measured<R>(f: impl FnOnce() -> R) -> (R, usize) {
-    let base = CURRENT.load(Ordering::Relaxed);
-    PEAK.store(base, Ordering::Relaxed);
-    let r = f();
-    (r, PEAK.load(Ordering::Relaxed).saturating_sub(base))
-}
-
-/// The same allowance as tests/conformance.rs: 256 bytes per input byte, plus 64 KiB.
-fn allowance(size: usize) -> usize {
-    256 * size + (64 << 10)
-}
 
 // ---------------------------------------------------------------------------------------------- visitors
 
@@ -98,26 +48,6 @@ impl NinoVisit<Result<(), nino::Error>> for Decode<'_> {
 
 // ---------------------------------------------------------------------------------------------- the corpus
 
-fn corpus() -> Option<PathBuf> {
-    if let Ok(dir) = std::env::var("NINO_CORPUS") {
-        return Some(PathBuf::from(dir));
-    }
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/corpus");
-    dir.join("index.json").exists().then_some(dir)
-}
-
-fn read_json(path: &Path) -> Value {
-    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    // Deep cases nest their values about 1,000 levels deep.
-    let mut de = serde_json::Deserializer::from_str(&text);
-    de.disable_recursion_limit();
-    serde::Deserialize::deserialize(&mut de).unwrap()
-}
-
-fn unhex(s: &str) -> Vec<u8> {
-    (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect()
-}
-
 /// Optional features the generated code supports.
 const SUPPORTED: &[&str] = &["track-references"];
 
@@ -133,14 +63,7 @@ const NOT_GENERATED: &[&str] = &[
 ];
 
 fn run() {
-    let Some(dir) = corpus() else {
-        assert!(
-            std::env::var("NINO_CORPUS_REQUIRED").as_deref() != Ok("1"),
-            "NINO_CORPUS_REQUIRED=1 but no corpus at NINO_CORPUS or conformance/corpus"
-        );
-        eprintln!("generated: no corpus (set NINO_CORPUS); skipped");
-        return;
-    };
+    let Some(dir) = corpus_or_skip("generated") else { return };
     let index = read_json(&dir.join("index.json"));
     assert_eq!(index["corpusVersion"], 2, "corpus version");
     let mut failures = Vec::new();
@@ -245,24 +168,8 @@ fn run() {
     assert!(failures.is_empty(), "{} failures:\n{}", failures.len(), failures.join("\n"));
 }
 
-/// xorshift64*: deterministic, so a failure reproduces from its seed and iteration.
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> u64 {
-        self.0 ^= self.0 >> 12;
-        self.0 ^= self.0 << 25;
-        self.0 ^= self.0 >> 27;
-        self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
-    }
-
-    fn below(&mut self, n: usize) -> usize {
-        (self.next() % n.max(1) as u64) as usize
-    }
-}
-
 /// Mutates every valid and malicious case `NINO_FUZZ_ITERATIONS` times (default 100: tests/conformance.rs runs
-/// the longer fuzz) with bit flips, cuts, insertions and interesting i32s: an error or a value, never a panic, and
+/// the longer fuzz) as it does (`harness::mutate`): an error or a value, never a panic, and
 /// never memory out of proportion to the input.
 fn fuzz() {
     let Some(dir) = corpus() else {
@@ -286,28 +193,7 @@ fn fuzz() {
             let mut rng = Rng(0x9E37_79B9_7F4A_7C15 ^ k.wrapping_mul(0xD1B5_4A32_D192_ED03));
             for iteration in 0..iterations {
                 let mut data = seed.clone();
-                let len = data.len();
-                match rng.below(5) {
-                    0 if len > 0 => {
-                        let i = rng.below(len);
-                        data[i] ^= 1 << rng.below(8);
-                    }
-                    1 if len >= 4 => {
-                        let i = rng.below(len - 3);
-                        let v = [0i32, -1, -2, 127, 128, i32::MAX, i32::MIN, 0x4000_0000][rng.below(8)];
-                        data[i..i + 4].copy_from_slice(&v.to_le_bytes());
-                    }
-                    2 if len > 0 => data.truncate(rng.below(len)),
-                    3 => {
-                        let i = rng.below(len + 1);
-                        data.insert(i, rng.next() as u8);
-                    }
-                    _ if len > 0 => {
-                        let i = rng.below(len);
-                        data.remove(i);
-                    }
-                    _ => data.push(rng.next() as u8),
-                }
+                harness::mutate(&mut rng, &mut data);
                 let outcome = std::panic::catch_unwind(|| measured(|| with_nino_type(ty, Decode(&data))));
                 match outcome {
                     Err(_) => failures.push(format!("{name} iteration {iteration}: panicked")),
@@ -320,14 +206,6 @@ fn fuzz() {
         }
     }
     assert!(failures.is_empty(), "{} failures:\n{}", failures.len(), failures.join("\n"));
-}
-
-/// The tests measure memory through one global counter: one at a time, on a large stack (deep cases).
-static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-fn on_large_stack(f: fn()) {
-    let _guard = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
-    std::thread::Builder::new().stack_size(512 << 20).spawn(f).unwrap().join().unwrap();
 }
 
 #[test]
