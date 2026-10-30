@@ -110,7 +110,7 @@ func readKeyedChainBody(r *nino.Reader, v *KeyedChain) {
 	var seen uint64
 	for r.More() {
 		key := r.I32()
-		e := r.BeginEntry()
+		e := r.BeginMember()
 		switch key {
 		case keyKeyedChainValue:
 			if r.KeyedSeen(&seen, 0) {
@@ -121,22 +121,22 @@ func readKeyedChainBody(r *nino.Reader, v *KeyedChain) {
 				v.Next = ReadKeyedChain(r)
 			}
 		default:
-			r.SkipEntry(e)
+			r.SkipMember(e)
 			continue
 		}
-		r.EndEntry(e)
+		r.EndMember(e)
 	}
 	r.EndRegion(g)
 }
 
 func writeKeyedChainBody(w *nino.Writer, v *KeyedChain) {
 	g := w.BeginRegion()
-	e := w.BeginEntry(keyKeyedChainValue)
+	e := w.BeginMember(keyKeyedChainValue)
 	w.I32(v.Value)
-	w.EndEntry(e)
-	e = w.BeginEntry(keyKeyedChainNext)
+	w.EndMember(e)
+	e = w.BeginMember(keyKeyedChainNext)
 	WriteKeyedChain(w, v.Next)
-	w.EndEntry(e)
+	w.EndMember(e)
 	w.EndRegion(g)
 }
 

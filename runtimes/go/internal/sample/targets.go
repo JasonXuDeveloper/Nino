@@ -47,7 +47,9 @@ func WriteStringIntMap(w *nino.Writer, v []nino.Entry[string, int32]) {
 	writeStringI32Entries(w, v)
 }
 
-func ReadIntSet(r *nino.Reader) []int32 { return nino.UniqueValues(r, nino.ReadPrimitives[int32](r)) }
+func ReadIntSet(r *nino.Reader) []int32 {
+	return nino.CheckUniqueValues(r, nino.ReadPrimitives[int32](r))
+}
 
 func ReadStringSet(r *nino.Reader) []*string { return readStringSet(r) }
 

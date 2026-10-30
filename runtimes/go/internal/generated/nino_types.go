@@ -4213,17 +4213,17 @@ func readKeyedBagBody(r *nino.Reader, v *KeyedBag) {
 	var seen uint64
 	for r.More() {
 		key := r.I32()
-		e := r.BeginEntry()
+		e := r.BeginMember()
 		switch key {
 		case -1909720929:
 			if r.KeyedSeen(&seen, 0) {
 				v.Version = r.I32()
 			}
 		default:
-			r.SkipEntry(e)
+			r.SkipMember(e)
 			continue
 		}
-		r.EndEntry(e)
+		r.EndMember(e)
 	}
 	r.EndRegion(g)
 }
@@ -4231,9 +4231,9 @@ func readKeyedBagBody(r *nino.Reader, v *KeyedBag) {
 func writeKeyedBagBody(w *nino.Writer, v *KeyedBag) {
 	g := w.BeginRegion()
 	writeV39(w, ninoNonNil(v.Elements))
-	e := w.BeginEntry(-1909720929)
+	e := w.BeginMember(-1909720929)
 	w.I32(v.Version)
-	w.EndEntry(e)
+	w.EndMember(e)
 	w.EndRegion(g)
 }
 
@@ -4327,7 +4327,7 @@ func readKeyedChainBody(r *nino.Reader, v *KeyedChain) {
 	var seen uint64
 	for r.More() {
 		key := r.I32()
-		e := r.BeginEntry()
+		e := r.BeginMember()
 		switch key {
 		case -1015864514:
 			if r.KeyedSeen(&seen, 0) {
@@ -4338,22 +4338,22 @@ func readKeyedChainBody(r *nino.Reader, v *KeyedChain) {
 				ReadKeyedChainInto(r, &v.Next)
 			}
 		default:
-			r.SkipEntry(e)
+			r.SkipMember(e)
 			continue
 		}
-		r.EndEntry(e)
+		r.EndMember(e)
 	}
 	r.EndRegion(g)
 }
 
 func writeKeyedChainBody(w *nino.Writer, v *KeyedChain) {
 	g := w.BeginRegion()
-	e := w.BeginEntry(-1015864514)
+	e := w.BeginMember(-1015864514)
 	w.I32(v.Value)
-	w.EndEntry(e)
-	e = w.BeginEntry(-911863494)
+	w.EndMember(e)
+	e = w.BeginMember(-911863494)
 	WriteKeyedChain(w, v.Next)
-	w.EndEntry(e)
+	w.EndMember(e)
 	w.EndRegion(g)
 }
 
@@ -4484,7 +4484,7 @@ func ReadKeyedStructInto(r *nino.Reader, v *KeyedStruct) {
 	var seen uint64
 	for r.More() {
 		key := r.I32()
-		e := r.BeginEntry()
+		e := r.BeginMember()
 		switch key {
 		case 1792377636:
 			if r.KeyedSeen(&seen, 0) {
@@ -4495,22 +4495,22 @@ func ReadKeyedStructInto(r *nino.Reader, v *KeyedStruct) {
 				v.B = r.F64()
 			}
 		default:
-			r.SkipEntry(e)
+			r.SkipMember(e)
 			continue
 		}
-		r.EndEntry(e)
+		r.EndMember(e)
 	}
 	r.EndRegion(g)
 }
 
 func WriteKeyedStruct(w *nino.Writer, v KeyedStruct) {
 	g := w.BeginRegion()
-	e := w.BeginEntry(1792377636)
+	e := w.BeginMember(1792377636)
 	w.I32(v.A)
-	w.EndEntry(e)
-	e = w.BeginEntry(-589499809)
+	w.EndMember(e)
+	e = w.BeginMember(-589499809)
 	w.F64(v.B)
-	w.EndEntry(e)
+	w.EndMember(e)
 	w.EndRegion(g)
 }
 
@@ -4606,7 +4606,7 @@ func readKeyedV1Body(r *nino.Reader, v *KeyedV1) {
 	var seen uint64
 	for r.More() {
 		key := r.I32()
-		e := r.BeginEntry()
+		e := r.BeginMember()
 		switch key {
 		case -1717475487:
 			if r.KeyedSeen(&seen, 0) {
@@ -4625,28 +4625,28 @@ func readKeyedV1Body(r *nino.Reader, v *KeyedV1) {
 				v.Score = r.I64()
 			}
 		default:
-			r.SkipEntry(e)
+			r.SkipMember(e)
 			continue
 		}
-		r.EndEntry(e)
+		r.EndMember(e)
 	}
 	r.EndRegion(g)
 }
 
 func writeKeyedV1Body(w *nino.Writer, v *KeyedV1) {
 	g := w.BeginRegion()
-	e := w.BeginEntry(-1717475487)
+	e := w.BeginMember(-1717475487)
 	w.I32(v.Health)
-	w.EndEntry(e)
-	e = w.BeginEntry(814068706)
+	w.EndMember(e)
+	e = w.BeginMember(814068706)
 	w.StringPtr(v.Name)
-	w.EndEntry(e)
-	e = w.BeginEntry(-592928685)
+	w.EndMember(e)
+	e = w.BeginMember(-592928685)
 	nino.WritePrimitives[int32](w, v.Items)
-	w.EndEntry(e)
-	e = w.BeginEntry(72003917)
+	w.EndMember(e)
+	e = w.BeginMember(72003917)
 	w.I64(v.Score)
-	w.EndEntry(e)
+	w.EndMember(e)
 	w.EndRegion(g)
 }
 
@@ -4742,7 +4742,7 @@ func readKeyedV2Body(r *nino.Reader, v *KeyedV2) {
 	var seen uint64
 	for r.More() {
 		key := r.I32()
-		e := r.BeginEntry()
+		e := r.BeginMember()
 		switch key {
 		case 72003917:
 			if r.KeyedSeen(&seen, 0) {
@@ -4761,28 +4761,28 @@ func readKeyedV2Body(r *nino.Reader, v *KeyedV2) {
 				v.Level = r.I32()
 			}
 		default:
-			r.SkipEntry(e)
+			r.SkipMember(e)
 			continue
 		}
-		r.EndEntry(e)
+		r.EndMember(e)
 	}
 	r.EndRegion(g)
 }
 
 func writeKeyedV2Body(w *nino.Writer, v *KeyedV2) {
 	g := w.BeginRegion()
-	e := w.BeginEntry(72003917)
+	e := w.BeginMember(72003917)
 	w.I64(v.Score)
-	w.EndEntry(e)
-	e = w.BeginEntry(814068706)
+	w.EndMember(e)
+	e = w.BeginMember(814068706)
 	w.StringPtr(v.Name)
-	w.EndEntry(e)
-	e = w.BeginEntry(-1586416211)
+	w.EndMember(e)
+	e = w.BeginMember(-1586416211)
 	w.I32(v.Hp)
-	w.EndEntry(e)
-	e = w.BeginEntry(-358083429)
+	w.EndMember(e)
+	e = w.BeginMember(-358083429)
 	w.I32(v.Level)
-	w.EndEntry(e)
+	w.EndMember(e)
 	w.EndRegion(g)
 }
 
@@ -10114,7 +10114,7 @@ func readV0(r *nino.Reader) []nino.Entry[string, DictTree] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func writeV1(w *nino.Writer, v []nino.Entry[string, DictTree]) {
@@ -10252,7 +10252,7 @@ func readV10(r *nino.Reader) []nino.Entry[int32, *float64] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func writeV11(w *nino.Writer, v []nino.Entry[int32, *float64]) {
@@ -10354,7 +10354,7 @@ func writeV19(w *nino.Writer, v []*Bag) {
 }
 
 func readV20(r *nino.Reader) []int32 {
-	return nino.UniqueValues(r, nino.ReadPrimitives[int32](r))
+	return nino.CheckUniqueValues(r, nino.ReadPrimitives[int32](r))
 }
 
 func readintoV21(r *nino.Reader, p *[]*string) {
@@ -10395,7 +10395,7 @@ func readV22(r *nino.Reader) []*string {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueStrings(r, v)
+	return nino.CheckUniqueStrings(r, v)
 }
 
 func readintoV23(r *nino.Reader, p *[]*Point) {
@@ -10440,7 +10440,7 @@ func readV24(r *nino.Reader) []nino.Entry[string, *string] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readV25(r *nino.Reader) []nino.Entry[string, *Point] {
@@ -10458,7 +10458,7 @@ func readV25(r *nino.Reader) []nino.Entry[string, *Point] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readV26(r *nino.Reader) []nino.Entry[int32, []*string] {
@@ -10476,7 +10476,7 @@ func readV26(r *nino.Reader) []nino.Entry[int32, []*string] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readV27(r *nino.Reader) []nino.Entry[int32, *string] {
@@ -10494,7 +10494,7 @@ func readV27(r *nino.Reader) []nino.Entry[int32, *string] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readV28(r *nino.Reader) []nino.Entry[string, int32] {
@@ -10512,7 +10512,7 @@ func readV28(r *nino.Reader) []nino.Entry[string, int32] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func readintoV29(r *nino.Reader, p *[][]int32) {
@@ -10952,7 +10952,7 @@ func readV63(r *nino.Reader) []nino.Entry[int32, *int32] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func writeV64(w *nino.Writer, v *int64) {
@@ -11232,7 +11232,7 @@ func readV93(r *nino.Reader) []nino.Entry[int32, *TrackedNode] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func writeV94(w *nino.Writer, v []*TrackedNode) {
@@ -11389,7 +11389,7 @@ func readV101(r *nino.Reader) []nino.Entry[string, Animal] {
 		}
 		v = append(v, e)
 	}
-	return nino.UniqueEntries(r, v)
+	return nino.CheckUniqueKeys(r, v)
 }
 
 func writeV102(w *nino.Writer, v []Animal) {

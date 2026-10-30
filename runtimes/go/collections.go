@@ -407,15 +407,15 @@ func (w *Writer) WriteShape(dims ...int) {
 // CodeDuplicateKey, as .NET's HashSet and SortedSet do when filled from empty. Unlike [ReadSet], writing the slice
 // back gives the same bytes.
 func ReadUnique[T comparable](r *Reader, minSize int, read func(*Reader) T) []T {
-	return UniqueValues(r, ReadSlice(r, minSize, read))
+	return CheckUniqueValues(r, ReadSlice(r, minSize, read))
 }
 
-// UniqueValues returns v, the elements of a set read in the order of the data, unless two of them are equal: then
+// CheckUniqueValues returns v, the elements of a set read in the order of the data, unless two of them are equal: then
 // it fails r with CodeDuplicateKey (as .NET's HashSet and SortedSet do when filled from empty) and returns nil. It
 // returns nil for nil and after r failed. Generated code reads the elements with direct calls, then checks them
-// once here, as [UniqueEntries] does for a dictionary's keys. Numbers and strings are compared as .NET compares them
+// once here, as [CheckUniqueKeys] does for a dictionary's keys. Numbers and strings are compared as .NET compares them
 // (a NaN equals every NaN), without a map; other values as Go compares them (unique.go).
-func UniqueValues[T comparable](r *Reader, v []T) []T {
+func CheckUniqueValues[T comparable](r *Reader, v []T) []T {
 	if v == nil || r.err != nil {
 		return nil
 	}
@@ -427,9 +427,9 @@ func UniqueValues[T comparable](r *Reader, v []T) []T {
 	return v
 }
 
-// UniqueStrings is [UniqueValues] for a set of nullable strings (a HashSet<string> as nino-gen's Go holds it): two
-// equal strings, or two nulls, fail r with CodeDuplicateKey.
-func UniqueStrings(r *Reader, v []*string) []*string {
+// CheckUniqueStrings is [CheckUniqueValues] for a set of nullable strings (a HashSet<string> as nino-gen's Go holds
+// it): two equal strings, or two nulls, fail r with CodeDuplicateKey.
+func CheckUniqueStrings(r *Reader, v []*string) []*string {
 	if v == nil || r.err != nil {
 		return nil
 	}
@@ -443,14 +443,14 @@ func UniqueStrings(r *Reader, v []*string) []*string {
 // ReadUniqueEntries reads a dictionary as its pairs in the order of the data (nil for null): a key read twice
 // fails with CodeDuplicateKey, as .NET's dictionaries do when filled from empty.
 func ReadUniqueEntries[K comparable, V any](r *Reader, minSize int, readKey func(*Reader) K, readValue func(*Reader) V) []Entry[K, V] {
-	return UniqueEntries(r, ReadEntries(r, minSize, readKey, readValue))
+	return CheckUniqueKeys(r, ReadEntries(r, minSize, readKey, readValue))
 }
 
-// UniqueEntries returns e, the pairs of a dictionary read in the order of the data, unless two of its keys are equal:
+// CheckUniqueKeys returns e, the pairs of a dictionary read in the order of the data, unless two of its keys are equal:
 // then it fails r with CodeDuplicateKey (as .NET's dictionaries do when filled from empty) and returns nil. It
 // returns nil for nil and after r failed. Generated code reads the pairs with direct calls, then checks them once
-// here. Keys are compared as [UniqueValues] compares elements.
-func UniqueEntries[K comparable, V any](r *Reader, e []Entry[K, V]) []Entry[K, V] {
+// here. Keys are compared as [CheckUniqueValues] compares elements.
+func CheckUniqueKeys[K comparable, V any](r *Reader, e []Entry[K, V]) []Entry[K, V] {
 	if e == nil || r.err != nil {
 		return nil
 	}
