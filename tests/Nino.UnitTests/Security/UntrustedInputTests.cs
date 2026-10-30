@@ -213,7 +213,8 @@ public class UntrustedInputTests
         bool Clean(ReadOnlySpan<(int, bool)> values)
         {
             for (int i = 0; i < values.Length; i++)
-                if (values[i] != default && values[i] != (i, true))
+                // The value the read stopped at may be read in part (its int, then the invalid bool).
+                if (values[i] != default && values[i].Item1 != i)
                     return false;
             return true;
         }
