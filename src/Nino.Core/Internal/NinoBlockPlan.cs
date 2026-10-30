@@ -488,21 +488,23 @@ namespace Nino.Core.Internal
             public static readonly bool Checks = Plan != null && typeof(TDirection) == typeof(NinoReads) &&
                                                  Bools != null && !Shuffles && !ReadPlan<NinoPhase0>.Enabled;
 
-            /// <summary>For each vector of <see cref="Checks"/>, 0xFE at the bools of the values in it.</summary>
-            public static readonly Vector256<byte>[] BoolMasks32 = BoolMasks<Vector256<byte>>(32);
+            /// <summary>
+            /// For each vector of <see cref="Checks"/>, 0xFE at the bools of the values in it: fields, so that the JIT
+            /// reads each where it is used (vpand's memory operand on x64) and leaves the registers to the shuffles.
+            /// </summary>
+            public static readonly Vector256<byte> Bools32A = BoolMask<Vector256<byte>>(0, 32),
+                Bools32B = BoolMask<Vector256<byte>>(1, 32), Bools32C = BoolMask<Vector256<byte>>(2, 32),
+                Bools32D = BoolMask<Vector256<byte>>(3, 32);
 
-            /// <inheritdoc cref="BoolMasks32"/>
-            public static readonly Vector128<byte>[] BoolMasks16 = BoolMasks<Vector128<byte>>(16);
+            /// <inheritdoc cref="Bools32A"/>
+            public static readonly Vector128<byte> Bools16A = BoolMask<Vector128<byte>>(0, 16),
+                Bools16B = BoolMask<Vector128<byte>>(1, 16), Bools16C = BoolMask<Vector128<byte>>(2, 16),
+                Bools16D = BoolMask<Vector128<byte>>(3, 16);
 
-            private static TVector[] BoolMasks<TVector>(int width) where TVector : struct
-            {
-                var masks = new TVector[4];
-                if (!Checks || Plan.Width != width)
-                    return masks;
-                for (int v = 0; v < 4; v++)
-                    masks[v] = Unsafe.ReadUnaligned<TVector>(ref Plan.Bools(v, Bools, NinoBlock.Size<T, TFormatter>())[0]);
-                return masks;
-            }
+            private static TVector BoolMask<TVector>(int vector, int width) where TVector : struct =>
+                Checks && Plan.Width == width
+                    ? Unsafe.ReadUnaligned<TVector>(ref Plan.Bools(vector, Bools, NinoBlock.Size<T, TFormatter>())[0])
+                    : default;
 
             private static int Get(int index) => Plan == null ? 0 : Plan.Windows[index];
 
