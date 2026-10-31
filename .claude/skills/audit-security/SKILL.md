@@ -74,7 +74,12 @@ the runtime it targets.
 - A loop whose work grows faster than the input (nested lengths, quadratic rehashing, deferred sections re-read).
 - A new built-in type or collection without its malicious cases and fuzz shapes.
 - An exception other than `NinoDataException` escaping a read (`IndexOutOfRange`, `Overflow`, `OutOfMemory`,
-  `ArgumentException` from a BCL constructor fed raw data).
+  `ArgumentException` from a BCL constructor fed raw data). Check a limit the target's own setter or constructor
+  enforces before allocating and before calling it, and test it where the real type runs: Unity's `Gradient` holds
+  at most 8 color and 8 alpha keys, so `GradientFormatter` rejects a count above 8 (round 103; the stub's setters throw
+  above 8 too, `UnityTypesTests.GradientKeyCountsAboveUnitysLimitThrow` in .NET and in the Unity project, where
+  `HostileValuesReachUnitysSettersWithoutOtherExceptions` feeds Unity's setters zero keys, NaN, unsorted keys and
+  enum values no member has). `AnimationCurve` and `RectOffset` have no such limit.
 - Settings that weaken a check by default.
 
 ## Proof
