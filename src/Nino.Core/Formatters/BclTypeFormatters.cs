@@ -222,7 +222,10 @@ namespace Nino.Core
         }
     }
 
-    /// <summary><c>CultureInfo</c>: its name (null for null; "" is the invariant culture), read back read-only.</summary>
+    /// <summary>
+    /// <c>CultureInfo</c>: its name (null for null; "" is the invariant culture), read back read-only. On .NET 8 and
+    /// later only the cultures the runtime ships read back (see <see cref="GetCulture"/>).
+    /// </summary>
     public struct CultureInfoFormatter : INinoFormatter<CultureInfo>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -235,12 +238,30 @@ namespace Nino.Core
             value = name == null ? null : GetCulture(name);
         }
 
+        /// <summary>
+        /// The culture of <paramref name="name"/>. With ICU (.NET 5 and later, the net8.0 and net10.0 builds), the
+        /// runtime makes a culture of any well-formed name and keeps every one it makes for the life of the process
+        /// (CultureData's cache and GetCultureInfo's, neither ever trimmed): names from the data could grow the heap
+        /// without bound (200,000 names such as "en-x0001", 160 MB). So only the cultures the runtime ships read back
+        /// there (GetCultureInfo's predefinedOnly, a bounded set), and only by names without a singleton subtag: with
+        /// one ("en-US-u-ca-buddhist", "en-US-x-anything"), even predefinedOnly accepts and keeps every distinct name.
+        /// Custom cultures and names with such extensions are invalid data. The other builds (.NET Framework, Mono,
+        /// Unity) know only the cultures of their own tables, and keep their own checks.
+        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static CultureInfo GetCulture(string name)
         {
             try
             {
+#if NET8_0_OR_GREATER
+                if (name.Length == 0)
+                    return CultureInfo.InvariantCulture;
+                if (InvariantGlobalization || HasSingleton(name))
+                    throw new CultureNotFoundException(nameof(name), name, "not a culture this runtime ships.");
+                return CultureInfo.GetCultureInfo(name, predefinedOnly: true);
+#else
                 return CultureInfo.GetCultureInfo(name);
+#endif
             }
             catch (CultureNotFoundException e)
             {
@@ -248,6 +269,35 @@ namespace Nino.Core
                 return null;
             }
         }
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Whether globalization runs in invariant mode, where predefinedOnly is not checked and GetCultureInfo makes
+        /// (and keeps) a culture of any name when PredefinedCulturesOnly is turned off: only the invariant culture
+        /// reads back there.
+        /// </summary>
+        private static readonly bool InvariantGlobalization =
+            AppContext.TryGetSwitch("System.Globalization.Invariant", out bool invariant)
+                ? invariant
+                : Environment.GetEnvironmentVariable("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT") is { } value &&
+                  (value == "1" || value.Equals("true", StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>Whether a subtag of <paramref name="name"/> is one character: an extension or private use.</summary>
+        private static bool HasSingleton(string name)
+        {
+            int start = 0;
+            for (int i = 0; i <= name.Length; i++)
+            {
+                if (i < name.Length && name[i] != '-' && name[i] != '_')
+                    continue;
+                if (i - start == 1)
+                    return true;
+                start = i + 1;
+            }
+
+            return false;
+        }
+#endif
     }
 
     /// <summary>

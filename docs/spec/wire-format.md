@@ -236,7 +236,7 @@ local time outside `DateTime`'s range. The .NET reader does both (`Nino: invalid
 | `Version` | `i32 major`. If major is `-1`, the value is null and nothing follows. Otherwise `i32 minor, i32 build, i32 revision`. An undefined build or revision is `-1`. |
 | `BitArray` | `i32` bit count `n` (`-1` = null), then `ceil(n/8)` bytes. Bit `i` is bit `i % 8` (LSB first) of byte `i / 8`. Writers MUST zero the unused high bits of the last byte. |
 | `Uri` | its `OriginalString` as a string (§4). Null is a null string. |
-| `CultureInfo` | its `Name` as a string. The invariant culture is `""`. |
+| `CultureInfo` | its `Name` as a string. The invariant culture is `""`. A reader that creates cultures by name MUST accept only a bounded set of names (.NET 8+: the cultures the runtime ships, by names without a singleton subtag such as `-u-` or `-x-`; custom cultures are invalid data), since .NET keeps every culture it creates for the life of the process. |
 | `StringBuilder` | a string, always in the UTF-16 form (§4.1, even header), even when Latin-1 would fit. An empty builder is the empty string (`01`), since a UTF-16 header of `0` is null. Readers MUST accept both forms. |
 | `TimeZoneInfo` | the `Id` as a string (null = null zone, and nothing follows), then a second string: null for a zone the system knows (`FindSystemTimeZoneById`), otherwise .NET's `ToSerializedString()` of the custom zone. |
 

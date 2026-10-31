@@ -258,6 +258,38 @@ public class UntrustedInputTests
     }
 
     /// <summary>
+    /// Culture names from the data cannot grow the process: with ICU, .NET makes a culture of any well-formed name and
+    /// keeps each for good (200,000 names held 160 MB), so the net8.0 and net10.0 builds read back only the cultures
+    /// the runtime ships, by names without extensions. Every one of those still reads back, aliases (zh-CN) included.
+    /// </summary>
+    [TestMethod]
+    public void CultureNamesFromTheDataCannotGrowTheProcess()
+    {
+        foreach (var culture in System.Globalization.CultureInfo.GetCultures(System.Globalization.CultureTypes.AllCultures)
+                     .Append(System.Globalization.CultureInfo.InvariantCulture))
+            Assert.AreEqual(culture.Name,
+                NinoDeserializer.Deserialize<System.Globalization.CultureInfo>(NinoSerializer.Serialize(culture)).Name);
+        if (System.Globalization.CultureInfo.GetCultures(System.Globalization.CultureTypes.AllCultures).Length > 1)
+            foreach (string alias in new[] { "zh-CN", "zh-TW", "en-us" })
+                Assert.AreEqual(System.Globalization.CultureInfo.GetCultureInfo(alias).Name,
+                    NinoDeserializer.Deserialize<System.Globalization.CultureInfo>(NinoSerializer.Serialize(alias)).Name);
+
+#if !NINO_CORE_NETSTANDARD
+        // Custom cultures and names with an extension or private use subtag: the runtime would keep each.
+        foreach (string name in new[] { "en-x0001", "en-US-u-ca-buddhist", "en-US-x-mine", "x-mine", "de-DE_phoneb" })
+            Invalid<System.Globalization.CultureInfo>(NinoSerializer.Serialize(name));
+        long before = GC.GetTotalMemory(true);
+        for (int i = 0; i < 50_000; i++)
+            Assert.ThrowsExactly<NinoDataException>(() =>
+                NinoDeserializer.Deserialize<System.Globalization.CultureInfo>(
+                    NinoSerializer.Serialize("en-x" + i.ToString("x8"))));
+        // Kept, these would hold about 40 MB.
+        long grew = GC.GetTotalMemory(true) - before;
+        Assert.IsTrue(grew < 8 << 20, $"{grew} bytes kept");
+#endif
+    }
+
+    /// <summary>
     /// The most a read of data claiming more elements than it holds may allocate per byte: up to 16 bytes per byte
     /// left ahead of the elements (NinoElements.Amplification), then at most 4 times the memory of the elements
     /// actually read (here 520 bytes for 516 on the wire), plus the exception.
