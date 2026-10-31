@@ -46,12 +46,18 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   returned 403). Pin `cliVersion` on every game-ci action that runs the game-ci CLI (unity-test-runner 4.4+,
   unity-builder 6+; all to one release): its default `latest` asks the GitHub API on every run, and a 403 from the rate
   limit failed a job. Dependabot bumps the action, never that input: on a game-ci major, read its `action.yml` at the
-  new SHA for inputs it ignores (unity-builder 6.0.0's `unityVersion` reaches the CLI as `--engineVersion`) and keep
-  the editor chosen by `customImage`. A custom `buildMethod` under unity-builder 6 prints the CLI's build summary
+  new SHA for inputs it ignores (unity-builder 6.0.0's `action.yml` calls `unityVersion` ignored, yet it reaches the
+  CLI as `--engineVersion`) and keep the editor chosen by `customImage`; prove it from the job's log
+  (`Initialize engine version: 6000.3.27f1` in the 6000.3 WebGL job of 4db6bcc4). Compare the pin with the CLI's newest
+  tag (`git ls-remote --tags https://github.com/game-ci/cli`; v0.1.72 was the newest in round 103). A custom `buildMethod` under unity-builder 6 prints the CLI's build summary
   (a `# Build results #` banner, `Errors: 0`, then a `Size:` line, as `WebGLBenchBuild` does): the CLI parses the log
   for it and failed the WebGL job of a build Unity reported as succeeded (4.8.2 never looked).
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
-  runs only the sections the release's tree has.
+  runs only the sections the release's tree has. A job that checks out the release's tag (report.yml's bench jobs,
+  `unity.yml` called with `ref`, ab-bench.yml's `head/`) runs this commit's workflow on that tag's files: it uses
+  actions and scripts by their pinned SHA, never `./.github/actions/...` or a script the tag may lack (tags up to
+  v4.0.0-rc.7 have no `.github/actions/setup-dotnet`); steps such a workflow repeats across its jobs share one YAML
+  anchor instead (`unity.yml`'s `&setup-dotnet` and `&build-dlls`, with the job's `NINO_CONFIG`).
 - **Concurrency budget**: every matrix that can grow with a request or a file has `max-parallel` (`runtime-ab.yml`
   10, `dotnet-ab.yml` 8, `report.yml`'s bench 12, `ab-bench.yml` and ci.yml's pull-request benchmark 6 (shards.json),
   `unity.yml` 1), and request caps keep a run's job count bounded (8 runtime lines, 3 .NET lines). A push to main
@@ -64,7 +70,9 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
 ## Look for
 
 - Jobs that wait on others without needing their output; steps repeated across jobs that a composite action
-  (`.github/actions/setup-dotnet`) or a script would share; caches that never hit; matrix entries that test the same
+  (`.github/actions/setup-dotnet`), a script or a YAML anchor (on a tag's tree, "Releases and reports") would share;
+  scripts that run only in `report.yml` or `release.yml` (`benchmarks/*.py`, `.github/scripts/*.py`), whose break
+  shows only at a release; caches that never hit; matrix entries that test the same
   thing twice; jobs that run on paths they do not read.
 - The slowest job of each workflow (`gh run view --json jobs` or the API): what dominates it, and whether it can be
   sharded or cached.
