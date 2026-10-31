@@ -52,7 +52,7 @@ func body(c)
     $o = $o + "function read" + $n + $tp + "(r: NinoReader" + c.codecs + ", v: " + $t + " = new " + $new + "()): " + $t + " {\n"
     if c.nests
       $o = $o + "  const depth = r.depth;\n" + $track + "  if (depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
-      $o = $o + "  r.depth = depth + 1;\n  readBody$" + $n + "(r, v" + $ca + ");\n  r.exit(depth);\n"
+      $o = $o + "  r.depth = depth + 1;\n  readBody$" + $n + "(r, v" + $ca + ");\n  r.exitBody(depth);\n"
     else
       $o = $o + $track + "  if (r.depth >= 128) return r." + c.later + "(v, " + $readBody + ");\n"
       $o = $o + "  readBody$" + $n + "(r, v" + $ca + ");\n"
@@ -61,7 +61,7 @@ func body(c)
     $o = $o + "function write" + $n + $tp + "(w: NinoWriter, v: " + $t + c.codecs + "): void {\n"
     if c.nests
       $o = $o + "  const depth = w.depth;\n  if (depth >= 128) {\n    w." + c.later + "(v, " + $writeBody + ");\n    return;\n  }\n"
-      $o = $o + "  w.depth = depth + 1;\n  writeBody$" + $n + "(w, v" + $ca + ");\n  w.exit(depth);\n"
+      $o = $o + "  w.depth = depth + 1;\n  writeBody$" + $n + "(w, v" + $ca + ");\n  w.exitBody(depth);\n"
     else
       $o = $o + "  if (w.depth >= 128) w." + c.later + "(v, " + $writeBody + ");\n  else writeBody$" + $n + "(w, v" + $ca + ");\n"
     end
@@ -79,7 +79,7 @@ func body(c)
   if c.format == "keyed"
     # Members by key, in any order; a known member's value fills its entry exactly, a key this version does not know
     # is skipped.
-    $o = $o + "  const end = r.region();\n" + $elements + "  while (r.pos < end) {\n    const key = r.i32(), member = r.region();\n    switch (key) {\n"
+    $o = $o + "  const end = r.beginRegion();\n" + $elements + "  while (r.pos < end) {\n    const key = r.i32(), member = r.beginRegion();\n    switch (key) {\n"
     for $m in c.members
       for $key in $m.model.all_keys
         $o = $o + "      case " + $key + ":\n"
@@ -89,7 +89,7 @@ func body(c)
     $o = $o + "    }\n    r.endRegion(member);\n  }\n  r.endRegion(end);\n"
   else if c.format == "tolerant"
     # Members written by an older version end early; those of a newer one are skipped.
-    $o = $o + $elements + "  const end = r.region();\n"
+    $o = $o + $elements + "  const end = r.beginRegion();\n"
     for $m in c.members
       $o = $o + "  if (r.pos < end) v." + $m.name + " = " + read_into($m.shape, "v." + $m.name) + ";\n"
     end
@@ -128,12 +128,12 @@ func body(c)
     $o = $o + $elements
   end
   if c.format != "positional"
-    $o = $o + "  const start = w.region();\n"
+    $o = $o + "  const start = w.beginRegion();\n"
   end
   if c.format == "keyed"
     $o = $o + $elements
     for $m in c.members
-      $o = $o + "  w.i32(" + $m.model.key + ");\n  const " + $m.name + "$ = w.region();\n  " + stmt(write($m.shape, "v." + $m.name)) + "\n  w.endRegion(" + $m.name + "$);\n"
+      $o = $o + "  w.i32(" + $m.model.key + ");\n  const " + $m.name + "$ = w.beginRegion();\n  " + stmt(write($m.shape, "v." + $m.name)) + "\n  w.endRegion(" + $m.name + "$);\n"
     end
   else
     # Each run of fixed-size members reserves its bytes at once and writes them at their offsets.

@@ -94,7 +94,7 @@ describe("malicious data", () => {
       assert.throws(() => reader().numbers(BigUint64Array), NinoError);
       assert.throws(() => new NinoReader(Uint8Array.from(strHeader(2 * count))).string(), NinoError);
       assert.throws(() => new NinoReader(Uint8Array.from(strHeader(2 * count + 1))).string(), NinoError);
-      assert.throws(() => reader().region(), NinoError);
+      assert.throws(() => reader().beginRegion(), NinoError);
       assert.throws(() => reader().take(count), NinoError);
     }
     for (const count of [-2, -100, -0x80000000]) {
@@ -103,7 +103,7 @@ describe("malicious data", () => {
       assert.throws(() => reader().bytes(), NinoError);
       assert.throws(() => reader().numbers(Float32Array), NinoError);
       assert.throws(() => reader().length(), NinoError);
-      assert.throws(() => reader().region(), NinoError);
+      assert.throws(() => reader().beginRegion(), NinoError);
     }
   });
 
@@ -144,7 +144,7 @@ describe("malicious data", () => {
 
   it("rejects a member that runs past the end of its region", () => {
     const r = new NinoReader(hex("02000000 01020304"));
-    const end = r.region();
+    const end = r.beginRegion();
     r.i32();
     assert.throws(() => r.endRegion(end), NinoError);
   });
@@ -153,9 +153,9 @@ describe("malicious data", () => {
     // Keyed { int A (key 1); string B (key 2) }, read as generated code reads it.
     const read = (data: number[]) => {
       const r = new NinoReader(Uint8Array.from(data)), v = { a: 0, b: null as string | null };
-      const end = r.region();
+      const end = r.beginRegion();
       while (r.pos < end) {
-        const key = r.i32(), member = r.region();
+        const key = r.i32(), member = r.beginRegion();
         switch (key) {
           case 1:
             v.a = r.i32();

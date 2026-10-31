@@ -93,7 +93,7 @@ function readBag<T>(r: NinoReader, c: Bag$Codecs<T>, v: Bag<T> = new Bag<T>()): 
   if (depth >= 128) return r.defer(v, (r, v) => readBody$Bag(r, v, c));
   r.depth = depth + 1;
   readBody$Bag(r, v, c);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -105,11 +105,11 @@ function writeBag<T>(w: NinoWriter, v: Bag<T>, c: Bag$Codecs<T>): void {
   }
   w.depth = depth + 1;
   writeBody$Bag(w, v, c);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$Bag<T>(r: NinoReader, v: Bag<T>, c: Bag$Codecs<T>): void {
-  const end = r.region();
+  const end = r.beginRegion();
   if (r.pos < end) v.items = (v.items == null ? read$0(r, c) : readInto$1(r, c, v.items));
   if (r.pos < end) v.byName = (v.byName == null ? read$2(r, c) : readInto$3(r, c, v.byName));
   if (r.pos < end) v.array = (v.array == null ? read$0(r, c) : readInto$1(r, c, v.array));
@@ -121,7 +121,7 @@ function readBody$Bag<T>(r: NinoReader, v: Bag<T>, c: Bag$Codecs<T>): void {
 }
 
 function writeBody$Bag<T>(w: NinoWriter, v: Bag<T>, c: Bag$Codecs<T>): void {
-  const start = w.region();
+  const start = w.beginRegion();
   write$6(w, v.items, c);
   write$7(w, v.byName, c);
   write$6(w, v.array, c);
@@ -142,7 +142,7 @@ function readBox<T>(r: NinoReader, c: Box$Codecs<T>, v: Box<T> = new Box<T>()): 
   if (depth >= 128) return r.defer(v, (r, v) => readBody$Box(r, v, c));
   r.depth = depth + 1;
   readBody$Box(r, v, c);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -154,7 +154,7 @@ function writeBox<T>(w: NinoWriter, v: Box<T>, c: Box$Codecs<T>): void {
   }
   w.depth = depth + 1;
   writeBody$Box(w, v, c);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$Box<T>(r: NinoReader, v: Box<T>, c: Box$Codecs<T>): void {
@@ -212,7 +212,7 @@ function readHolder(r: NinoReader, v: Holder = new Holder()): Holder {
   if (depth >= 128) return r.defer(v, readBody$Holder);
   r.depth = depth + 1;
   readBody$Holder(r, v);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -224,7 +224,7 @@ function writeHolder(w: NinoWriter, v: Holder): void {
   }
   w.depth = depth + 1;
   writeBody$Holder(w, v);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$Holder(r: NinoReader, v: Holder): void {
@@ -272,7 +272,7 @@ function readKeys<T>(r: NinoReader, c: Keys$Codecs<T>, v: Keys<T> = new Keys<T>(
   if (depth >= 128) return r.defer(v, (r, v) => readBody$Keys(r, v, c));
   r.depth = depth + 1;
   readBody$Keys(r, v, c);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -284,7 +284,7 @@ function writeKeys<T>(w: NinoWriter, v: Keys<T>, c: Keys$Codecs<T>): void {
   }
   w.depth = depth + 1;
   writeBody$Keys(w, v, c);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$Keys<T>(r: NinoReader, v: Keys<T>, c: Keys$Codecs<T>): void {
@@ -387,7 +387,7 @@ function readNode<T>(r: NinoReader, c: Node$Codecs<T>, v: Node<T> = new Node<T>(
   if (depth >= 128) return r.defer(v, (r, v) => readBody$Node(r, v, c));
   r.depth = depth + 1;
   readBody$Node(r, v, c);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -399,13 +399,13 @@ function writeNode<T>(w: NinoWriter, v: Node<T>, c: Node$Codecs<T>): void {
   }
   w.depth = depth + 1;
   writeBody$Node(w, v, c);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$Node<T>(r: NinoReader, v: Node<T>, c: Node$Codecs<T>): void {
-  const end = r.region();
+  const end = r.beginRegion();
   while (r.pos < end) {
-    const key = r.i32(), member = r.region();
+    const key = r.i32(), member = r.beginRegion();
     switch (key) {
       case -1015864514:
         v.value = (v.value == null ? c.p0.read(r) : r.into(c.p0, v.value));
@@ -422,13 +422,13 @@ function readBody$Node<T>(r: NinoReader, v: Node<T>, c: Node$Codecs<T>): void {
 }
 
 function writeBody$Node<T>(w: NinoWriter, v: Node<T>, c: Node$Codecs<T>): void {
-  const start = w.region();
+  const start = w.beginRegion();
   w.i32(-1015864514);
-  const value$ = w.region();
+  const value$ = w.beginRegion();
   c.p0.write(w, v.value);
   w.endRegion(value$);
   w.i32(-911863494);
-  const next$ = w.region();
+  const next$ = w.beginRegion();
   c.self.write(w, v.next);
   w.endRegion(next$);
   w.endRegion(start);
@@ -448,7 +448,7 @@ function readOpen<T>(r: NinoReader, c: Open$Codecs<T>, v: Open<T> = new c.type()
   if (depth >= 128) return r.defer(v, (r, v) => readBody$Open(r, v, c));
   r.depth = depth + 1;
   readBody$Open(r, v, c);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -460,7 +460,7 @@ function writeOpen<T>(w: NinoWriter, v: Open<T>, c: Open$Codecs<T>): void {
   }
   w.depth = depth + 1;
   writeBody$Open(w, v, c);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$Open<T>(r: NinoReader, v: Open<T>, c: Open$Codecs<T>): void {
@@ -482,7 +482,7 @@ function readOpenHolder<T>(r: NinoReader, c: OpenHolder$Codecs<T>, v: OpenHolder
   if (depth >= 128) return r.defer(v, (r, v) => readBody$OpenHolder(r, v, c));
   r.depth = depth + 1;
   readBody$OpenHolder(r, v, c);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -494,7 +494,7 @@ function writeOpenHolder<T>(w: NinoWriter, v: OpenHolder<T>, c: OpenHolder$Codec
   }
   w.depth = depth + 1;
   writeBody$OpenHolder(w, v, c);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$OpenHolder<T>(r: NinoReader, v: OpenHolder<T>, c: OpenHolder$Codecs<T>): void {
@@ -517,7 +517,7 @@ function readOpenHolderUse(r: NinoReader, v: OpenHolderUse = new OpenHolderUse()
   if (depth >= 128) return r.defer(v, readBody$OpenHolderUse);
   r.depth = depth + 1;
   readBody$OpenHolderUse(r, v);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -529,7 +529,7 @@ function writeOpenHolderUse(w: NinoWriter, v: OpenHolderUse): void {
   }
   w.depth = depth + 1;
   writeBody$OpenHolderUse(w, v);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$OpenHolderUse(r: NinoReader, v: OpenHolderUse): void {
@@ -550,7 +550,7 @@ function readOpenUse(r: NinoReader, v: OpenUse = new OpenUse()): OpenUse {
   if (depth >= 128) return r.defer(v, readBody$OpenUse);
   r.depth = depth + 1;
   readBody$OpenUse(r, v);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -562,7 +562,7 @@ function writeOpenUse(w: NinoWriter, v: OpenUse): void {
   }
   w.depth = depth + 1;
   writeBody$OpenUse(w, v);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$OpenUse(r: NinoReader, v: OpenUse): void {
@@ -615,9 +615,9 @@ function writeRenamed(w: NinoWriter, v: Renamed): void {
 }
 
 function readBody$Renamed(r: NinoReader, v: Renamed): void {
-  const end = r.region();
+  const end = r.beginRegion();
   while (r.pos < end) {
-    const key = r.i32(), member = r.region();
+    const key = r.i32(), member = r.beginRegion();
     switch (key) {
       case -1400823602:
       case 1263340021:
@@ -635,13 +635,13 @@ function readBody$Renamed(r: NinoReader, v: Renamed): void {
 }
 
 function writeBody$Renamed(w: NinoWriter, v: Renamed): void {
-  const start = w.region();
+  const start = w.beginRegion();
   w.i32(-1400823602);
-  const newName$ = w.region();
+  const newName$ = w.beginRegion();
   w.i32(v.newName);
   w.endRegion(newName$);
   w.i32(1300856177);
-  const other$ = w.region();
+  const other$ = w.beginRegion();
   w.string(v.other);
   w.endRegion(other$);
   w.endRegion(start);
@@ -732,7 +732,7 @@ function readUnhashedKeys(r: NinoReader, v: UnhashedKeys = new UnhashedKeys()): 
   if (depth >= 128) return r.defer(v, readBody$UnhashedKeys);
   r.depth = depth + 1;
   readBody$UnhashedKeys(r, v);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -744,7 +744,7 @@ function writeUnhashedKeys(w: NinoWriter, v: UnhashedKeys): void {
   }
   w.depth = depth + 1;
   writeBody$UnhashedKeys(w, v);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$UnhashedKeys(r: NinoReader, v: UnhashedKeys): void {
@@ -783,7 +783,7 @@ function readUses(r: NinoReader, v: Uses = new Uses()): Uses {
   if (depth >= 128) return r.defer(v, readBody$Uses);
   r.depth = depth + 1;
   readBody$Uses(r, v);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -795,7 +795,7 @@ function writeUses(w: NinoWriter, v: Uses): void {
   }
   w.depth = depth + 1;
   writeBody$Uses(w, v);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$Uses(r: NinoReader, v: Uses): void {
@@ -859,7 +859,7 @@ function readMoreOpen<T>(r: NinoReader, c: MoreOpen$Codecs<T>, v: MoreOpen<T> = 
   if (depth >= 128) return r.defer(v, (r, v) => readBody$MoreOpen(r, v, c));
   r.depth = depth + 1;
   readBody$MoreOpen(r, v, c);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -871,7 +871,7 @@ function writeMoreOpen<T>(w: NinoWriter, v: MoreOpen<T>, c: MoreOpen$Codecs<T>):
   }
   w.depth = depth + 1;
   writeBody$MoreOpen(w, v, c);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$MoreOpen<T>(r: NinoReader, v: MoreOpen<T>, c: MoreOpen$Codecs<T>): void {

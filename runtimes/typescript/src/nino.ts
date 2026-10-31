@@ -1128,7 +1128,7 @@ export class NinoReader {
    * A version tolerant or keyed body (or a keyed member): its byte length. Returns the offset where its members end
    * (a section of deferred bodies may follow them).
    */
-  region(): number {
+  beginRegion(): number {
     const length = this.i32();
     this.regions++;
     if (length >= 0 && length <= this.end - this.pos) return this.pos + length;
@@ -1137,7 +1137,7 @@ export class NinoReader {
 
   /**
    * A region whose length has `sectionFlag` set: where its members end, before the section and its offset. Checks the
-   * section as .NET, Go and Rust do, before any member is read: only the outermost region holds one (`region` has
+   * section as .NET, Go and Rust do, before any member is read: only the outermost region holds one (`beginRegion` has
    * counted it already), and its entries `(int32 key, int32 length, body)` fill it exactly, at least one, keyed in
    * increasing order by positions no later than the entry itself (where the body deferred to it would have begun: in
    * the members, at most at their end, or in the body of an earlier entry).
@@ -1215,7 +1215,7 @@ export class NinoReader {
   }
 
   /** Generated code: closes a class body opened when `depth` bodies were open; at 0, reads the deferred bodies. */
-  exit(depth: number): void {
+  exitBody(depth: number): void {
     this.depth = depth;
     if (depth === 0 && this.deferrals !== null) this.readTop();
   }
@@ -1794,7 +1794,7 @@ export class NinoWriter {
   }
 
   /** Starts a version tolerant or keyed body (or a keyed member): returns where its length goes. */
-  region(): number {
+  beginRegion(): number {
     this.regions++;
     return this.reserve(4);
   }
@@ -1837,7 +1837,7 @@ export class NinoWriter {
   }
 
   /** Generated code: closes a class body opened when `depth` bodies were open; at 0, writes the deferred bodies. */
-  exit(depth: number): void {
+  exitBody(depth: number): void {
     this.depth = depth;
     if (depth === 0 && this.deferrals !== null) this.writeTop();
   }
