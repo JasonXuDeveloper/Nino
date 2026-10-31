@@ -83,7 +83,24 @@ runtime: `optimize`, "Prefetch"). How to measure on runners is `benchmark` (runt
   mask-to-offset chain (`umaxv`, `bits`' `uzp` ladder, `umov`, `ONES`) the next string's stores wait on, so a vector
   step wins only from ~32-48 chars a string. simdutf agrees: its UTF-8→UTF-16 `convert_valid` runs vectors only over
   80 bytes or more and leaves shorter input to scalar code. Before another vector attempt at short text on Arm64, model
-  it with llvm-mca against the scalar loop; the research is in the round's notes (arm-strings-research.md).
+  it against the scalar loop over the executed instruction stream (next bullet); the research is in the round's notes
+  (arm-strings-research.md).
+- Give each arm of a Rust per-char decoder its own end check and back edge, and read bytes as `i8` (ASCII `>= 0`, its
+  unit the sign-extended byte; `& 0x1F`-style masks drop the sign bits; class bounds `-0x3C`, `-0x20`, `-0x10`). Why:
+  one loop with if/else arms and a shared `p += k; if p == end` tail lets LLVM sink the increments into a phi of
+  constants (`mov w, #k; add`) and turns `b < 0x80` into `ldrsb` + `and #0xff` + `tbz`: `short_wide_inline` took 9
+  instructions an ASCII char and 15 a two-byte one on aarch64, now 6 and 11. Evidence (runtime A/B run 41206038132,
+  Neoverse-N2, n=15, floors within 0.15 %): strings-mixed-1000 serialize -7.7 %, text write 16-24 chars -4 to -13.5 %,
+  everything else on par. Modeled first, and the model ranked the candidates right: run the aarch64 build (musl,
+  rust-lld) under `qemu-aarch64 -one-insn-per-tb -d nochain,exec`, map the PCs inside the function to `llvm-objdump`
+  text, and give a window of that executed stream to `llvm-mca -mcpu=neoverse-n2 -iterations=1` (it then sees the
+  loop-carried chains and the overlap between strings, which one loop body's block throughput does not; main
+  modeled 29.5 cycles a mixed string against ~31-37 measured). It predicted -23 % for this change (7.7 % measured: a
+  ceiling, not a forecast) and ruled out, before any runner time: an 8-byte ASCII shortcut sized by `trailing_zeros`
+  of the high bits (simdutf's scalar shortcut made branch-free; +30 % modeled, the next char waits on load, rbit, clz
+  and shift where a predicted branch makes it an add), a stack copy with a 0xFF sentinel to drop the end checks
+  (+10 %, LLVM merged the tails again and added four induction variables), and Höhrmann/Wellons table decoders (a
+  load on every char's chain). Scripts and numbers: round 104's notes (rust-scalar/research.md).
 - Rust strings-mixed serialize trails rmp-serde on every CPU by design: the competitors copy UTF-8 with memcpy, and
   Nino's wire format is Latin-1 or UTF-16, so mixed text is transcoded. Narrow it in the kernels; do not expect to
   pass a copy.
