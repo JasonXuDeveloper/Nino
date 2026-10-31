@@ -264,9 +264,11 @@ namespace Nino.Core
     /// <summary>
     /// The formatter of a type that can hold itself through collections (<see cref="NinoNesting"/>): each read
     /// counts toward <see cref="NinoSettings.MaxDepth"/>, as a class body does, so data nested deeper throws instead of
-    /// overflowing the stack. Each level of such data passes through here: a type reached again inside its own
-    /// formatter is read through <see cref="CachedFormatter{T}"/> (the generator's and the resolver's rule), and
-    /// <see cref="StructType"/> is null, so the resolver does not inline the formatter as an element's. Writes count
+    /// overflowing the stack. The resolver reads a type reached again inside its own formatter through
+    /// <see cref="CachedFormatter{T}"/>, so each level of such data passes through here, and <see cref="StructType"/>
+    /// is null, so it does not inline the formatter as an element's. Generated code counts each level in a struct of
+    /// its own instead (the generator's nesting formatter: <c>EnterStruct</c>, then this formatter's
+    /// <typeparamref name="TFormatter"/>, which names that struct for its elements), a direct call. Writes count
     /// too (<see cref="Writer.EnterStruct"/>): an object graph nested too deep, or a collection that holds itself,
     /// throws <see cref="InvalidOperationException"/> instead of overflowing the stack.
     /// </summary>

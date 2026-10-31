@@ -162,6 +162,19 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 : EquatableArray<string>.Empty)
             .WithTrackingName("LayoutTypes");
 
+        // The nesting formatters of the types that hold themselves (FormatterResolver.Nesting), declared once: one per
+        // name, whose body models built in different compilations may have resolved differently (both correct).
+        var nesting = Merge(usages, CollectAll(models, static m => m.Registrations.Nesting), static u => u.Nesting,
+                static all => all.GroupBy(static n => n.Name)
+                    .Select(static g => g.OrderBy(static n => n.Body, StringComparer.Ordinal).First())
+                    .OrderBy(static n => n.Name, StringComparer.Ordinal))
+            .WithTrackingName("Nesting");
+        context.RegisterImplementationSourceOutput(nesting.Combine(enabled), static (spc, x) =>
+        {
+            if (x.Right && x.Left.Length != 0)
+                spc.AddSource("NinoGen.Nesting.g.cs", NestingEmitter.Emit(x.Left));
+        });
+
         context.RegisterImplementationSourceOutput(
             registrations.Combine(factories).Combine(generics).Combine(layouts).Combine(enabled),
             static (spc, x) =>
@@ -393,7 +406,11 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var formatter = facts.Resolver.Resolve(type, false);
         bool registered = formatter is { Registered: true } && !facts.Raw.IsRawUnmanaged(type) &&
                           facts.Visibility.CanName(type);
-        if (!registered && generics.Count == 0 && layouts.Count == 0)
+        // The nesting formatters the registration, the closed generics or the interceptor (the same formatter) name.
+        var nesting = formatter is { } named
+            ? facts.Resolver.Nesting(generics.Select(static g => g.Formatter).Append(named.Code.ToString()))
+            : EquatableArray<NestingModel>.Empty;
+        if (!registered && generics.Count == 0 && layouts.Count == 0 && nesting.Length == 0)
             return null;
         return new UsageRegistration(
             registered
@@ -401,7 +418,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 : null,
             registered ? formatter!.Value.Factories : EquatableArray<FactoryRegistration>.Empty,
             new EquatableArray<TypeRegistration>(generics.Distinct()),
-            LayoutTypes.ToArray(layouts));
+            LayoutTypes.ToArray(layouts), nesting);
     }
 
     private static RegistryEntry ToEntry(TypeModel model) =>

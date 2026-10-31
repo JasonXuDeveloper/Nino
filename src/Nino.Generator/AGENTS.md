@@ -48,7 +48,8 @@ PoolHooks.cs                 the partial methods a [NinoPooled] class implements
 
 ```
 NinoGenerator.cs             the IIncrementalGenerator: one formatter file per [NinoType], NinoGen.Registry.g.cs,
-                             NinoGen.Usages.g.cs, NinoGen.Dispatch.g.cs, NinoGen.Interceptors.g.cs
+                             NinoGen.Usages.g.cs, NinoGen.Dispatch.g.cs, NinoGen.Interceptors.g.cs,
+                             NinoGen.Nesting.g.cs
 ProjectFacts.cs              what is read from the whole compilation in one step (enabled, options, referenced NinoTypes)
 AssemblyReferences.cs        the assemblies an assembly references (only those referencing Nino.Core matter)
 InheritedCandidates.cs       types that may inherit [NinoType], found from syntax without binding
@@ -64,7 +65,8 @@ ModelCache.cs                reuses TypeModels across compilations while nothing
 MemberCollector.cs           the serialized members in wire order, and the findings about their annotations
 MemberCache.cs               MemberCollector's results memoized per compilation
 ConstructionPlanner.cs       how a type is instantiated when read: reused, a constructor, or a factory
-FormatterResolver.cs         the formatter (as C#) for a member type: built-ins, then [NinoFormatter] registrations
+FormatterResolver.cs         the formatter (as C#) for a member type: built-ins, then [NinoFormatter] registrations;
+                             the nesting formatters of types that hold themselves (class Tree : List<Tree>)
 FormatterRules.cs            the [assembly: NinoFormatter] registrations visible to a compilation, indexed
 FormatterRef.cs              a formatter name kept in parts (twins, type parameters), rendered when written
 FormatterTraits.cs           flags of what a formatter is and how it reads and writes, decided once from symbols
@@ -96,6 +98,7 @@ AccessorEmitter.cs           non-public member access: [UnsafeAccessor] (.NET 8+
 DispatchEmitter.cs           per-assembly subtype dispatch of base formatters (type checks on write, id switch on read)
 RegistryEmitter.cs           the assembly registry and the registrations of built-in formatters it uses
 LayoutEmitter.cs             the [assembly: NinoTypeLayout] of a type
+NestingEmitter.cs            the nesting formatters: a struct per type that holds itself, counting each level
 FormatterNames.cs            file-local using aliases for long formatter names
 GeneratedCode.cs             the header and aliases every generated file shares
 Signature.cs                 the signatures of the formatter methods generated code implements

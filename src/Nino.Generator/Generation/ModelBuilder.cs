@@ -93,7 +93,7 @@ internal static class ModelBuilder
             Pooled: pooled,
             Partial: partial,
             // The analyzer needs none of the types the registry names.
-            Registrations: BuildRegistrations(type, kind, generic, built, factories, facts,
+            Registrations: BuildRegistrations(type, kind, generic, built, collection?.Code, factories, facts,
                 namesTypes: diagnostics == null),
             FixedSize: fixedSize,
             Block: !rawStruct && facts.IsBlock(type),
@@ -263,11 +263,12 @@ internal static class ModelBuilder
 
     /// <summary>
     /// What the assembly registers for the type (<see cref="RegistrationModel"/>): the built-in formatters and
-    /// creators its members use, and, when <paramref name="namesTypes"/>, the closed generic <c>[NinoType]</c>s and
-    /// the measured structs it names.
+    /// creators its members use, and, when <paramref name="namesTypes"/>, the closed generic <c>[NinoType]</c>s, the
+    /// measured structs and the nesting formatters (its members' and <paramref name="collection"/>'s) it names.
     /// </summary>
     private static RegistrationModel BuildRegistrations(INamedTypeSymbol type, FormatterKind kind, bool generic,
-        MemberSet members, List<FactoryRegistration> factories, TypeFacts facts, bool namesTypes)
+        MemberSet members, FormatterRef? collection, List<FactoryRegistration> factories, TypeFacts facts,
+        bool namesTypes)
     {
         var used = new List<FormatterRegistration>();
         if (!generic && kind != FormatterKind.Polymorphic)
@@ -309,7 +310,12 @@ internal static class ModelBuilder
                     .OrderBy(f => f.TypeName, System.StringComparer.Ordinal)),
             GenericTypes: new EquatableArray<TypeRegistration>(genericTypes.Distinct()
                 .OrderBy(g => g.TypeName, System.StringComparer.Ordinal)),
-            LayoutTypes: LayoutTypes.ToArray(layoutTypes));
+            LayoutTypes: LayoutTypes.ToArray(layoutTypes),
+            Nesting: namesTypes
+                ? facts.Resolver.Nesting(members.Models.Select(static m => m.Formatter.ToString())
+                    .Concat(genericTypes.Select(static g => g.Formatter))
+                    .Concat(collection != null ? new[] { collection.ToString() } : System.Array.Empty<string>()))
+                : EquatableArray<NestingModel>.Empty);
     }
 
     /// <summary>
