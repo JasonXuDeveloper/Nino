@@ -249,6 +249,70 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
+        /// The write groups of <see cref="GroupWords"/> values loaded from 64-byte boundaries
+        /// (<see cref="NinoBlock"/>.WriteAligned, Ice Lake): for each place of the group's first value in a 64-byte line
+        /// (4-byte steps) and each vector of blocks, the aligned memory vector it starts at and one or two word permutes.
+        /// A vector of blocks draws on 128 bytes of memory at most (<see cref="GroupMasks"/>), which lie in two or three
+        /// aligned vectors: from two, one permute (Inner); from three, Inner of the first two, then Outer keeps its words
+        /// or takes one of the third. Its own class, so that only CPUs that take the path build the tables.
+        /// </summary>
+        internal static class Aligned
+        {
+            /// <summary>Per alignment and vector of blocks: Inner, then Outer (default when two vectors do).</summary>
+            public static readonly Vector512<byte>[] Tables = Build(out Spans);
+
+            /// <summary>
+            /// Per alignment and vector of blocks: the byte offset of its first aligned memory vector from the group's
+            /// aligned start, plus 1 when it draws on three.
+            /// </summary>
+            public static readonly int[] Spans;
+
+            /// <summary>Bytes from a group's aligned start that its loads reach, at most (two vectors past the blocks').</summary>
+            public static readonly int Reach = (GroupVectors + 2) * 64;
+
+            private static Vector512<byte>[] Build(out int[] spans)
+            {
+                spans = null;
+                if (!GroupWords || Group * Unsafe.SizeOf<T>() % 64 != 0)
+                    return null;
+                var tables = new Vector512<byte>[16 * 4 * 2];
+                spans = new int[16 * 4];
+                var inner = new int[16];
+                var outer = new int[16];
+                for (int shift = 0; shift < 64; shift += 4)
+                {
+                    for (int vector = 0; vector < GroupVectors; vector++)
+                    {
+                        int low = int.MaxValue, high = 0;
+                        for (int word = 0; word < 16; word++)
+                        {
+                            int at = shift + Bytes.MemoryAt(vector * 64 + word * 4);
+                            low = Math.Min(low, at / 64);
+                            high = Math.Max(high, at / 64);
+                        }
+
+                        if (high - low > 2)
+                            return null;
+                        for (int word = 0; word < 16; word++)
+                        {
+                            int at = shift + Bytes.MemoryAt(vector * 64 + word * 4);
+                            int from = at / 64 - low, index = at % 64 / 4;
+                            inner[word] = from < 2 ? from * 16 + index : 0;
+                            outer[word] = from < 2 ? word : 16 + index;
+                        }
+
+                        int slot = shift / 4 * 4 + vector;
+                        tables[slot * 2] = Vector512.Create(inner).AsByte();
+                        tables[slot * 2 + 1] = high - low == 2 ? Vector512.Create(outer).AsByte() : default;
+                        spans[slot] = low * 64 + (high - low == 2 ? 1 : 0);
+                    }
+                }
+
+                return tables;
+            }
+        }
+
+        /// <summary>
         /// Values read a group at a time (<see cref="Groups"/> the other way, with AVX-512): each 64-byte vector of
         /// memory is one two-source permute of the two vectors of blocks it draws on, stored at an aligned address.
         /// Its vectors start <typeparamref name="TPhase"/> bytes into a value: arrays are only 8-byte aligned, so
