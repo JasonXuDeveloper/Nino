@@ -1,0 +1,1 @@
+Added: Renamed before 4.0: `Nino.Core.NinoPolymorphic<TBase>` (4.0.0-rc.7), the subtype registry generated code calls, is now `Nino.Core.CompilerServices.NinoSubtypes<TBase>`; the user API `NinoPolymorphic.Register` keeps its name.
