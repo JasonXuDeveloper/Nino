@@ -46,7 +46,7 @@ from the file name (`Nino.Benchmark.SimpleTest-report-github.md`), so keep that 
 Each of the two `SimpleTest` runners builds `v3/` and runs its half of it directly before the same half of v4, with the
 same settings; the workflow adds a
 **📊 v3 3.3.13 vs v4 (same machine)** section to the release notes, in front of the Performance Report: the
-`compare.py` table and the v3 runners (the v3 report, both halves merged, is attached). The documentation site takes its v4-vs-v3 ratios from that
+`compare_v3.py` table and the v3 runners (the v3 report, both halves merged, is attached). The documentation site takes its v4-vs-v3 ratios from that
 section of the newest v4 release. A v3 failure only leaves the section out; re-running the workflow for the tag
 adds whichever section is missing.
 

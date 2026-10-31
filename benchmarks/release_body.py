@@ -80,7 +80,7 @@ def v3_section(v3, x64, repo, tag, settings):
                              stdout=subprocess.PIPE, encoding="utf-8")
     table = compare.stdout
     if compare.returncode:
-        table += "compare.py could not read the reports.\n"
+        table += "compare_v3.py could not read the reports.\n"
     lines = open(v3, encoding="utf-8").read().splitlines()
     first = next((i for i, line in enumerate(lines) if line.startswith("|")), len(lines))
     # The environment block of the first half (the docs site names its machine from it), then the runner of each half.

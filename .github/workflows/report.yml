@@ -325,7 +325,7 @@ jobs:
       # benchmark classes: benchmarks/shards.json, read in the Merge the reports step.
 
     steps:
-      # This workflow's commit, for its scripts (merge_reports.py, compare.py, readme.py), whichever tag was measured.
+      # This workflow's commit, for its scripts (merge_reports.py, release_body.py, readme.py), whichever tag was measured.
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
