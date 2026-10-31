@@ -950,7 +950,7 @@ internal sealed class BodyEmitter
             // Data written by an older version may end before any member (the rest keep their current or default
             // value); members appended by a newer one are skipped with the region. A run of raw members that is
             // all there (always, but for older data) is read as one block, under one check.
-            _w.Open($"if ((uint){r}.Remaining >= (uint)({block.Total}))");
+            _w.Open($"if ((uint){r}.Remaining >= {(block.IsConstant ? block.Total : $"(uint)({block.Total})")})");
             EmitRawBlockRead(group, block, r, inPlace);
             _w.Close();
             _w.Open("else");

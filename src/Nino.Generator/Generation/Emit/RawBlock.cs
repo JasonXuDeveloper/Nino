@@ -27,6 +27,9 @@ internal sealed class RawBlock
     /// <summary>Total size expression.</summary>
     public string Total => Sum(0);
 
+    /// <summary>Whether <see cref="Total"/> is a number (no struct's size in it).</summary>
+    public bool IsConstant => _symbolic.Count == 0;
+
     /// <summary>Size expression of the block followed by <paramref name="extra"/> more bytes.</summary>
     public string Plus(int extra) => Sum(extra);
 
