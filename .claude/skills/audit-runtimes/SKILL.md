@@ -35,9 +35,10 @@ No input may panic, throw an unexpected error, read out of bounds, recurse witho
 proportion (Go: sticky errors, no `recover`; Rust: the crate's lints, `unsafe` only in `src/simd.rs` with SAFETY
 comments and Miri; TypeScript: bounds before allocating, `Map` for keys from the data). Fuzzers run on every change
 to a read path. Rust has two fuzzers: the corpus mutation in `cargo test` (stable, CI) and coverage-guided
-`runtimes/rust/fuzz` (cargo-fuzz, nightly, local): run the second for a read-path change too, with `-detect_leaks=0`,
-since a cyclic `Shared` graph is an `Rc` cycle (README, "Reference tracking"). Round 103's first cargo-fuzz run found
-only that leak (9.3 million inputs in 15 minutes on the hand-written codecs, nothing).
+`runtimes/rust/fuzz` (cargo-fuzz, nightly, local): run the second for a read-path change too, with LeakSanitizer on
+(a leak is a finding: `audit-security`, cyclic graphs). Round 103: its first run found that a cyclic `Shared` graph
+leaked; after the arena per read, 11.1 million inputs of nino-gen's code and 6.3 million of the hand-written codecs,
+nothing.
 
 ## Speed
 
