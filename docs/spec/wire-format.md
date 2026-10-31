@@ -1134,6 +1134,13 @@ carry members this one lacks.
 Note: the .NET reader currently treats any negative build as undefined (and any negative revision, when the build is
 defined), not only `-1`.
 
+A reader that creates a `CultureInfo` from its name MUST accept only a bounded set of names (§3.5): .NET keeps
+every culture it creates for the life of the process, so names from the data could otherwise grow it without bound.
+**.NET:** done in the net8.0 and net10.0 builds: `""` is the invariant culture, a name with a one-character subtag
+(`-u-`, `-t-`, `-x-`, `i-`) is rejected, and any other name must be a culture the runtime ships
+(`GetCultureInfo(name, predefinedOnly: true)`); in invariant globalization mode only `""` reads back. The
+netstandard builds (.NET Framework, Mono, Unity) read the names their own culture tables know.
+
 ### 9.11 Unused bits
 
 Readers SHOULD reject a `BitArray` whose bits past the count are not zero, padding bytes in raw values that are not
