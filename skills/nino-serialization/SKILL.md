@@ -252,9 +252,10 @@ public sealed class BalanceChange
   AOT Settings for x64 players. Without Burst, IL2CPP and Mono players take Nino's scalar paths (the same bytes);
   WebGL players built with WebAssembly SIMD get the same kernels from `Nino.WebGL` with no setup.
 - IL2CPP and Native AOT: no reflection at serialization time; types must appear in code the generator sees (a member
-  type or a `Serialize`/`Deserialize` type argument). Native AOT on x64 takes Nino's SSSE3 paths on CPUs that have
-  SSSE3; its AVX2 and AVX-512 paths need `<IlcInstructionSet>` (`x86-64-v3`, `x86-64-v4` or `native`), which makes the
-  app require those CPUs. HybridCLR: `Assembly.Load` is enough, no init call;
+  type, the type argument of a `NinoSerializer`/`NinoDeserializer` call, or the `typeof` argument of `SerializeBoxed`,
+  `DeserializeBoxed` or `IsSupported`; a `Type` known only at run time registers nothing). Native AOT on x64 takes
+  Nino's SSSE3 paths on CPUs that have SSSE3; its AVX2 and AVX-512 paths need `<IlcInstructionSet>` (`x86-64-v3`,
+  `x86-64-v4` or `native`), which makes the app require those CPUs. HybridCLR: `Assembly.Load` is enough, no init call;
   `NinoRegistry.EnsureInitialized(asm)` / `EnsureAllInitialized()` only to pay the registry load on a loading screen.
 - Godot 4 .NET: a normal NuGet project; engine objects (`Node`, `Resource`) are not serialized, math structs are raw.
 

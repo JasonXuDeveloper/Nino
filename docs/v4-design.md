@@ -829,9 +829,11 @@ CompilationProvider.Select(ProjectFacts)  ────────────�
 * Each type is emitted into its own file. Editing a member of `Foo` re-emits only `Foo.g.cs`.
 * The registry stage consumes only formatter names, so it only re-runs when types are added, removed or
   renamed.
-* A separate syntax provider finds `NinoSerializer`/`NinoDeserializer` calls whose type argument is a
-  built-in generic (e.g. `ImmutableArray<T>`, `List<MyStruct>`) and registers those closed formatters, so
-  AOT runtimes never need `MakeGenericType` for them.
+* A separate syntax provider finds `NinoSerializer`/`NinoDeserializer` calls that name a type (the type
+  argument of `Serialize`, `Deserialize` and `GetFixedSize<T>`, the `typeof` argument of `SerializeBoxed`,
+  `DeserializeBoxed` and `IsSupported`) and registers the closed formatters and generic `[NinoType]`s it
+  reaches (e.g. `ImmutableArray<T>`, `List<MyStruct>`, `Box<int>`), so AOT runtimes never need
+  `MakeGenericType` for them.
 * The v3 generator combined everything with `CompilationProvider`, scanned every generic type syntax in
   the project and every `using` directive in every file, and re-emitted all types on every keystroke.
 
