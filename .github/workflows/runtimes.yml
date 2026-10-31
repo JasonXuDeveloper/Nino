@@ -75,7 +75,7 @@ jobs:
           python3 .github/scripts/changed_paths.py "$BASE" \
             --all-if '^\.github/(workflows/runtimes\.yml|scripts/changed_paths\.py|actions/apt-install/)' \
             'rust=^runtimes/rust/|^conformance/corpus/' \
-            'miri=^runtimes/rust/(src/|build\.rs$|Cargo\.(toml|lock)$)' \
+            'miri=^runtimes/rust/(src/|tests/shared\.rs$|build\.rs$|Cargo\.(toml|lock)$)' \
             'go=^runtimes/go/|^conformance/corpus/' \
             'typescript=^runtimes/typescript/|^conformance/corpus/' | tee -a "$GITHUB_OUTPUT"
 
@@ -156,6 +156,12 @@ jobs:
             echo "::group::$name"; cat "$RUNNER_TEMP/$name.txt"; echo "::endgroup::"
           done
           exit $status
+
+      # Reference tracking's one unsafe block (src/shared.rs, Shared::get on a link inside a read's arena): the graph
+      # tests, cycles, deferred bodies and a Drop that reads another object, once (it has no per-target code).
+      - name: Test reference tracking under Miri
+        if: matrix.target.name == 'x86_64 SSE2'
+        run: cargo +nightly miri test -p nino-serialization --locked --target "$TRIPLE" --test shared
 
   # Format, lints, the tests with every feature, and the MSRV. The tests without features are a job of their own:
   # the debug build's simd tests take over three minutes, and the two runs one after the other took eight.
