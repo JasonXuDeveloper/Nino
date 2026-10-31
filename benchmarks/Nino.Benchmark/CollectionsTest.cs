@@ -18,7 +18,9 @@ namespace Nino.Benchmark;
 /// Collections of the base class library with 1,000 elements each, serialized to a reused buffer writer and
 /// deserialized into new instances: a list of tuples (packed by Nino, copied with padding by MemoryPack), an array
 /// of key-value pairs, a dictionary of ints, and the hashed, queued, linked, sorted and concurrent collections, whose fast paths depend on
-/// the runtime's collection layouts and on SIMD. Against MemoryPack, MessagePack and protobuf-net.
+/// the runtime's collection layouts and on SIMD. Against MemoryPack, MessagePack and protobuf-net. Also a list that
+/// holds itself (<see cref="SelfTree"/>, 5,461 lists), which counts the depth at every level: against MemoryPack only
+/// (MessagePack fails to read it back, protobuf-net has no list of lists).
 /// </summary>
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
@@ -42,6 +44,8 @@ public class CollectionsTest
         new SortedDictionary<int, int>(Enumerable.Range(0, N).ToDictionary(i => i * 7, i => i));
     private static readonly SortedList<int, int> SortedList = new SortedList<int, int>(Enumerable.Range(0, N).ToDictionary(i => i, i => i * 7));
     private static readonly ConcurrentDictionary<int, int> ConcurrentDictionary = new ConcurrentDictionary<int, int>(Enumerable.Range(0, N).ToDictionary(i => i, i => i * 7));
+
+    private static readonly SelfTree SelfTree = SelfTree.Create(6, 4);
 
     private static readonly byte[] NinoTupleListBytes = NinoSerializer.Serialize(TupleList);
     private static readonly byte[] MessagePackTupleListBytes = MessagePackSerializer.Serialize(TupleList);
@@ -83,6 +87,9 @@ public class CollectionsTest
     private static readonly byte[] MessagePackConcurrentDictionaryBytes = MessagePackSerializer.Serialize(ConcurrentDictionary);
     private static readonly byte[] ProtobufConcurrentDictionaryBytes = ProtobufModel.Serialize(ConcurrentDictionary);
     private static readonly byte[] MemoryPackConcurrentDictionaryBytes = MemoryPackSerializer.Serialize(ConcurrentDictionary);
+
+    private static readonly byte[] NinoSelfTreeBytes = NinoSerializer.Serialize(SelfTree);
+    private static readonly byte[] MemoryPackSelfTreeBytes = MemoryPackSerializer.Serialize(SelfTree);
 
     private NinoArrayBufferWriter _ninoBuffer;
     private ArrayBufferWriter<byte> _memoryPackBuffer;
@@ -129,6 +136,8 @@ public class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSortedList), ProtobufSortedListBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeConcurrentDictionary), MessagePackConcurrentDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeConcurrentDictionary), ProtobufConcurrentDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSelfTree), NinoSelfTreeBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSelfTree), MemoryPackSelfTreeBytes.Length);
     }
 
     private readonly ArrayBufferWriter<byte> _messagePackBuffer = new(1 << 16);
@@ -619,4 +628,40 @@ public class CollectionsTest
     [Benchmark, BenchmarkCategory("ConcurrentDictionaryDeserialize")]
     public ConcurrentDictionary<int, int> ProtobufDeserializeConcurrentDictionary() =>
         Serializer.Deserialize<ConcurrentDictionary<int, int>>(new ReadOnlySpan<byte>(ProtobufConcurrentDictionaryBytes));
+
+    [Benchmark(Baseline = true), BenchmarkCategory("SelfTreeSerialize")]
+    public int NinoSerializeSelfTree()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(SelfTree, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("SelfTreeSerialize")]
+    public int MemoryPackSerializeSelfTree()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, SelfTree);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("SelfTreeDeserialize")]
+    public SelfTree NinoDeserializeSelfTree() => NinoDeserializer.Deserialize<SelfTree>(NinoSelfTreeBytes);
+
+    [Benchmark, BenchmarkCategory("SelfTreeDeserialize")]
+    public SelfTree MemoryPackDeserializeSelfTree() => MemoryPackSerializer.Deserialize<SelfTree>(MemoryPackSelfTreeBytes);
+}
+
+/// <summary>A list that holds itself, with no [NinoType] body between its levels (CollectionsTest).</summary>
+[MemoryPackable(GenerateType.Collection)]
+public sealed partial class SelfTree : List<SelfTree>
+{
+    /// <summary>A tree <paramref name="depth"/> levels deep, every inner list holding <paramref name="width"/>.</summary>
+    public static SelfTree Create(int depth, int width)
+    {
+        var tree = new SelfTree();
+        for (int i = 0; depth > 0 && i < width; i++)
+            tree.Add(Create(depth - 1, width));
+        return tree;
+    }
 }
