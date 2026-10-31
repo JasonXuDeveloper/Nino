@@ -442,3 +442,140 @@ pub(crate) unsafe fn utf16(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usiz
         super::utf16_words(units, k, n, dst, o).1
     }
 }
+
+/// The one-pass writer a window of 16 bytes at a time, for short text (see `x86::wide_sse41`, which this follows
+/// step for step, and [`wide`], which takes 32): most strings in a list are one or two such windows, where [`wide`]'s
+/// 32-byte steps (two windows built, two halves packed) and its call cost more than they save. Latin-1 while no byte
+/// is above 0xC3, else UTF-16 from the start; a four-byte char ends a step before it and is written alone, as a
+/// surrogate pair. The header is written last; `ONE`: the text is under 64 bytes, so the header is one byte.
+///
+/// The text is at most `WIDE_MAX` bytes (under 64 with `ONE`): the caller's check.
+#[inline(always)]
+pub(crate) fn wide16<const ONE: bool>(out: &mut Vec<u8>, text: &str) {
+    let (src, len) = (text.as_ptr(), text.len());
+    // UTF-16 takes at most two bytes per byte of UTF-8, Latin-1 one; a step stores up to 32 bytes from where its
+    // output starts. `len <= i32::MAX`: no sum below wraps.
+    let room = if ONE { 1 } else { super::kernel_room(len) };
+    out.reserve(len.wrapping_mul(2).wrapping_add(room).wrapping_add(32));
+    let at = out.len();
+    // Invariants: `i <= len` is a char boundary of the valid UTF-8 at `src`, and `o <= i` bytes (Latin-1) or
+    // `o <= 2 * i` (UTF-16) are written after the header, so each store (8 or 16 bytes at `o`, at most 32 from where
+    // the step started) ends within the room reserved: `room + 2 * len + 32` bytes from `at`.
+    // SAFETY: as just said.
+    let dst = unsafe { out.as_mut_ptr().add(at).add(room) };
+    let (mut i, mut o) = (0usize, 0usize);
+    // The chars that end in the window at `i` (a bit set of lanes): all that start there at the text's end; else
+    // those before the last char start in it, or all when the byte after it starts a char.
+    let span = |i: usize, starts: u32, rest: usize| -> usize {
+        if rest <= 16 {
+            rest
+        // SAFETY: `i + 16 < len`.
+        } else if unsafe { src.add(i.wrapping_add(16)).read() } as i8 >= -64 {
+            16
+        } else {
+            // A char starts in the first 13 bytes: the next window takes it.
+            31usize.wrapping_sub(starts.leading_zeros() as usize)
+        }
+    };
+    // SAFETY: NEON, and every access is as the comment beside it says.
+    unsafe {
+        let zero = vdupq_n_u8(0);
+        let starts = |v: uint8x16_t| bits(vcgeq_s8(vreinterpretq_s8_u8(v), vdupq_n_s8(-64)));
+        'latin1: {
+            while i < len {
+                // `i < len`.
+                let v = window(src, len, i);
+                if vmaxvq_u8(v) > 0xC3 {
+                    break 'latin1;
+                }
+                let s = starts(v);
+                let q = span(i, s, len.wrapping_sub(i));
+                // A two-byte char's code point: its lead byte's two low bits, then its continuation byte's six.
+                let two = vorrq_u8(vshlq_n_u8::<6>(v), vandq_u8(vextq_u8::<1>(v, zero), vdupq_n_u8(0x3F)));
+                let chars = vbslq_u8(vcltzq_s8(vreinterpretq_s8_u8(v)), two, v);
+                let keep = s & 1u32.wrapping_shl(q as u32).wrapping_sub(1);
+                let (k0, k1) = ((keep & 0xFF) as usize, ((keep >> 8) & 0xFF) as usize);
+                // `k0, k1 < 256`; the stores end within the room (the invariants).
+                vst1_u8(dst.add(o), vget_low_u8(vqtbl1q_u8(chars, row(&KEEP8, k0))));
+                o = o.wrapping_add(ones(k0));
+                vst1_u8(dst.add(o), vget_low_u8(vqtbl1q_u8(vextq_u8::<8>(chars, zero), row(&KEEP8, k1))));
+                o = o.wrapping_add(ones(k1));
+                i = i.wrapping_add(q);
+            }
+            // The header's room is reserved at `at`, and `o` bytes after it written.
+            super::finish::<ONE>(out, at, room, o, true);
+            return;
+        }
+        // A char above U+00FF: UTF-16 from the start, over what was written.
+        (i, o) = (0, 0);
+        while i < len {
+            let rest = len.wrapping_sub(i);
+            // `i < len`.
+            let v = window(src, len, i);
+            let max = vmaxvq_u8(v);
+            if max < 0x80 {
+                // ASCII: each byte widened, 32 bytes stored (within the room), as many as the window holds kept.
+                vst1q_u8(dst.add(o), vzip1q_u8(v, zero));
+                vst1q_u8(dst.add(o).add(16), vzip2q_u8(v, zero));
+                let n = rest.min(16);
+                i = i.wrapping_add(n);
+                o = o.wrapping_add(n.wrapping_mul(2));
+                continue;
+            }
+            let s = starts(v);
+            let q = span(i, s, rest);
+            // Lead bytes of four-byte chars among the chars taken: the step ends before the first.
+            let four = if max < 0xF0 {
+                0
+            } else {
+                bits(vcgeq_u8(v, vdupq_n_u8(0xF0))) & 1u32.wrapping_shl(q as u32).wrapping_sub(1)
+            };
+            let q = if four == 0 {
+                q
+            } else if four & 1 == 0 {
+                four.trailing_zeros() as usize
+            } else {
+                // A four-byte char at `i`: a surrogate pair. Valid UTF-8 has its four bytes, and it takes four
+                // bytes of output.
+                let b = |k: usize| u32::from(src.add(i.wrapping_add(k)).read());
+                let c = ((b(0) & 0x07) << 18) | ((b(1) & 0x3F) << 12) | ((b(2) & 0x3F) << 6) | (b(3) & 0x3F);
+                let u = c.wrapping_sub(0x1_0000);
+                let pair = (0xD800 | (u >> 10)) | ((0xDC00 | (u & 0x3FF)) << 16);
+                dst.add(o).cast::<[u8; 4]>().write_unaligned(pair.to_le_bytes());
+                i = i.wrapping_add(4);
+                o = o.wrapping_add(4);
+                continue;
+            };
+            // By the window's longest char (four-byte chars are not among those kept).
+            let (low, high) = if max < 0xE0 { halves::<2>(v, zero) } else { halves::<3>(v, zero) };
+            let keep = s & 1u32.wrapping_shl(q as u32).wrapping_sub(1);
+            let (k0, k1) = ((keep & 0xFF) as usize, ((keep >> 8) & 0xFF) as usize);
+            // `k0, k1 < 256`; the stores end within the room (the invariants).
+            vst1q_u8(dst.add(o), vqtbl1q_u8(vreinterpretq_u8_u16(low), row(&KEEP16, k0)));
+            o = o.wrapping_add(ones(k0).wrapping_mul(2));
+            vst1q_u8(dst.add(o), vqtbl1q_u8(vreinterpretq_u8_u16(high), row(&KEEP16, k1)));
+            o = o.wrapping_add(ones(k1).wrapping_mul(2));
+            i = i.wrapping_add(q);
+        }
+        // The header's room is reserved at `at`, and `o` bytes after it written (`o / 2` code units, at most `len`).
+        super::finish::<ONE>(out, at, room, o, false);
+    }
+}
+
+/// Writes strings from the start of `values` (a list's) while each is under 64 bytes: ASCII of up to `SHORT` bytes
+/// through `ascii_short`, other text through [`wide16`] inlined into the loop (as `x86::strings_sse41` does); returns
+/// how many it wrote.
+#[inline(always)]
+pub(crate) fn strings(out: &mut Vec<u8>, values: &[String]) -> usize {
+    for (k, v) in values.iter().enumerate() {
+        let len = v.len();
+        if len <= super::SHORT && super::ascii_short(out, v.as_bytes()) {
+            continue;
+        }
+        if len >= 64 {
+            return k;
+        }
+        wide16::<true>(out, v);
+    }
+    values.len()
+}

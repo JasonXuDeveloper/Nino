@@ -1309,11 +1309,17 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
         }
         return true;
     }
-    // Arm64: short text stays with `short_wide`, which beats the 32-byte windows' setup there (Neoverse-N2).
+    // Arm64: text under 64 bytes a window of 16 bytes at a time (one-byte header), longer text 32 (`neon::wide`).
     #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
-    if text.len() > SHORT_WIDE && text.len() <= WIDE_MAX {
-        neon::wide(out, text);
-        return true;
+    {
+        if text.len() < 64 {
+            neon::wide16::<true>(out, text);
+            return true;
+        }
+        if text.len() <= WIDE_MAX {
+            neon::wide(out, text);
+            return true;
+        }
     }
     wide_short(out, text)
 }
@@ -1419,7 +1425,9 @@ pub(crate) fn strings(out: &mut Vec<u8>, values: &[String]) -> usize {
             x86::Tier::Sse2 | x86::Tier::Ssse3 => strings_short(out, values),
         }
     }
-    #[cfg(not(target_arch = "x86_64"))]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+    return neon::strings(out, values);
+    #[cfg(not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little"))))]
     strings_short(out, values)
 }
 
@@ -1427,6 +1435,7 @@ pub(crate) fn strings(out: &mut Vec<u8>, values: &[String]) -> usize {
 /// `values` while each is at most [`SHORT`] bytes, ASCII through [`ascii_short`] and other text through
 /// [`short_wide`]'s body inlined; returns how many it wrote.
 #[inline]
+#[cfg_attr(all(target_arch = "aarch64", target_endian = "little", not(test)), allow(dead_code))] // neon::strings there
 fn strings_short(out: &mut Vec<u8>, values: &[String]) -> usize {
     for (k, v) in values.iter().enumerate() {
         if v.len() > SHORT {
@@ -1440,11 +1449,13 @@ fn strings_short(out: &mut Vec<u8>, values: &[String]) -> usize {
     values.len()
 }
 
-/// [`wide`] for text of up to [`SHORT`] bytes: [`short_wide`] directly on every target but x86_64 (where [`wide`]
-/// takes such text to it), so the writer's inlined path is that call alone.
+/// [`wide`] for text of up to [`SHORT`] bytes: on little-endian Arm64 `neon::wide16` directly, on other targets but
+/// x86_64 [`short_wide`] (on x86_64 [`wide`] takes such text to its kernel), so the writer's inlined path is that alone.
 #[inline(always)]
 pub(crate) fn wide_short_text(out: &mut Vec<u8>, text: &str) {
-    #[cfg(not(target_arch = "x86_64"))]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+    neon::wide16::<true>(out, text);
+    #[cfg(not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_endian = "little"))))]
     short_wide(out, text);
     #[cfg(target_arch = "x86_64")]
     wide(out, text);
@@ -2370,7 +2381,17 @@ mod tests {
             }
         }
         #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
-        kernels.push(("neon", neon::wide));
+        {
+            kernels.push(("neon", neon::wide));
+            kernels.push(("neon16", |out, text| {
+                if text.len() < 64 {
+                    neon::wide16::<true>(out, text)
+                } else {
+                    neon::wide16::<false>(out, text)
+                }
+            }));
+            kernels.push(("neon16 (any length)", neon::wide16::<false>));
+        }
         kernels
     }
 
@@ -2746,6 +2767,8 @@ mod tests {
                 ways.push(("avx-512", |out, values| unsafe { x86::strings_avx512(out, values) }, 63));
             }
         }
+        #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+        ways.push(("neon", neon::strings, 63));
         ways
     }
 
