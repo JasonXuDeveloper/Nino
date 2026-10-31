@@ -118,18 +118,21 @@ namespace UnityEngine
         private GradientColorKey[] _colorKeys = { new GradientColorKey(new Color(1, 1, 1, 1), 0), new GradientColorKey(new Color(1, 1, 1, 1), 1) };
         private GradientAlphaKey[] _alphaKeys = { new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 1) };
 
-        // Unity copies the keys in and out.
+        // Unity copies the keys in and out, and holds at most 8 of each kind.
         public GradientColorKey[] colorKeys
         {
             get => (GradientColorKey[])_colorKeys.Clone();
-            set => _colorKeys = (GradientColorKey[])value.Clone();
+            set => _colorKeys = (GradientColorKey[])Limit(value).Clone();
         }
 
         public GradientAlphaKey[] alphaKeys
         {
             get => (GradientAlphaKey[])_alphaKeys.Clone();
-            set => _alphaKeys = (GradientAlphaKey[])value.Clone();
+            set => _alphaKeys = (GradientAlphaKey[])Limit(value).Clone();
         }
+
+        private static T[] Limit<T>(T[] keys) =>
+            keys.Length <= 8 ? keys : throw new System.ArgumentException("Gradient: at most 8 keys of each kind.");
 
         public GradientMode mode { get; set; }
     }

@@ -143,4 +143,29 @@ public class UnityTypesTests
         var bytes = new byte[] { 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0 };
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Gradient>(bytes));
     }
+
+    [TestMethod]
+    public void GradientKeyCountsAboveUnitysLimitThrow()
+    {
+        // Unity holds at most 8 color and 8 alpha keys: 8 round-trip, 9 of either kind is invalid data, rejected
+        // before Unity's setters see it (they throw ArgumentException).
+        Assert.AreEqual(8, NinoDeserializer.Deserialize<Gradient>(GradientBytes(8, 8)).colorKeys.Length);
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Gradient>(GradientBytes(9, 1)));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Gradient>(GradientBytes(1, 9)));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Gradient>(GradientBytes(int.MaxValue / 20, 1)));
+    }
+
+    /// <summary>A gradient's bytes with these key counts (zeroed keys, mode Blend), as far as the data reaches.</summary>
+    private static byte[] GradientBytes(int colorKeys, int alphaKeys)
+    {
+        var bytes = new System.Collections.Generic.List<byte>(BitConverter.GetBytes(colorKeys));
+        if (colorKeys <= 64)
+        {
+            bytes.AddRange(new byte[colorKeys * 20]);
+            bytes.AddRange(BitConverter.GetBytes(alphaKeys));
+            bytes.AddRange(new byte[alphaKeys * 8 + 4]);
+        }
+
+        return bytes.ToArray();
+    }
 }

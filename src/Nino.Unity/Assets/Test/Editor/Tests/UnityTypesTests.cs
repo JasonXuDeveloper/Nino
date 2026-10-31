@@ -1,6 +1,9 @@
 using Nino.Core;
 using NUnit.Framework;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace Test.Editor.Tests
 {
@@ -86,6 +89,66 @@ namespace Test.Editor.Tests
             Assert.AreEqual(gradient.alphaKeys, back.alphaKeys);
             Assert.AreEqual(gradient.Evaluate(0.4f), back.Evaluate(0.4f));
             Assert.IsNull(RoundTrip((Gradient)null));
+        }
+
+        /// <summary>A gradient's bytes with these key counts (zeroed keys) and this mode.</summary>
+        private static byte[] GradientBytes(int colorKeys, int alphaKeys, int mode = 0)
+        {
+            var bytes = new List<byte>(BitConverter.GetBytes(colorKeys));
+            bytes.AddRange(new byte[colorKeys * 20]);
+            bytes.AddRange(BitConverter.GetBytes(alphaKeys));
+            bytes.AddRange(new byte[alphaKeys * 8]);
+            bytes.AddRange(BitConverter.GetBytes(mode));
+            return bytes.ToArray();
+        }
+
+        [Test]
+        public void GradientKeyCountsAboveUnitysLimitThrow()
+        {
+            // Unity holds at most 8 keys of each kind: 8 round-trip, 9 is invalid data, rejected before Unity's
+            // setters (which throw their own exception or cut the keys) see it.
+            var eight = NinoDeserializer.Deserialize<Gradient>(GradientBytes(8, 8));
+            Assert.AreEqual(8, eight.colorKeys.Length);
+            Assert.AreEqual(8, eight.alphaKeys.Length);
+            Assert.Throws<NinoDataException>(() => NinoDeserializer.Deserialize<Gradient>(GradientBytes(9, 2)));
+            Assert.Throws<NinoDataException>(() => NinoDeserializer.Deserialize<Gradient>(GradientBytes(2, 9)));
+            var existing = Gradient();
+            Assert.Throws<NinoDataException>(() => NinoDeserializer.Deserialize(GradientBytes(9, 9), ref existing));
+        }
+
+        [Test]
+        public void HostileValuesReachUnitysSettersWithoutOtherExceptions()
+        {
+            // Values no Unity object writes but the bytes can hold: Unity's setters must take them (or Nino must
+            // reject them as NinoDataException). Unity may log about them; only exceptions count here.
+            LogAssert.ignoreFailingMessages = true;
+            AcceptedOrInvalid(() => NinoDeserializer.Deserialize<Gradient>(GradientBytes(0, 0)));
+            AcceptedOrInvalid(() => NinoDeserializer.Deserialize<Gradient>(GradientBytes(1, 1, 12345)));
+            AcceptedOrInvalid(() => NinoDeserializer.Deserialize<Gradient>(GradientBytes(2, 2, -1)));
+
+            // Unsorted and repeated times, NaN and infinity, and weighted and wrap modes no enum member has.
+            var bytes = new List<byte>(BitConverter.GetBytes(5));
+            foreach (var (time, weightedMode) in new[] { (1f, 0), (1f, 3), (float.NaN, 0), (float.PositiveInfinity, 77), (-1f, -2) })
+            {
+                foreach (float f in new[] { time, float.NaN, float.NegativeInfinity, 1e30f, -0f, float.NaN })
+                    bytes.AddRange(BitConverter.GetBytes(f));
+                bytes.AddRange(BitConverter.GetBytes(weightedMode));
+            }
+
+            bytes.AddRange(BitConverter.GetBytes(999));
+            bytes.AddRange(BitConverter.GetBytes(-5));
+            AcceptedOrInvalid(() => NinoDeserializer.Deserialize<AnimationCurve>(bytes.ToArray()));
+
+            static void AcceptedOrInvalid(Action read)
+            {
+                try
+                {
+                    read();
+                }
+                catch (NinoDataException)
+                {
+                }
+            }
         }
 
         [Test]
