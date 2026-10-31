@@ -55,6 +55,12 @@ is a finding, and so is a page that teaches a feature before the one it builds o
 
 - **One owner per explanation**: other pages say it in a sentence and link. README, the site, `docs/` and the public
   skill do not repeat each other's long sections; README summarizes and links the site.
+  For code generation: the site's codegen page owns the user guide (options and their naming rules, type mapping,
+  per-language usage, generics, reference tracking, untrusted data, what is not generated); each `runtimes/*/README.md`
+  owns its install, API reference and implementation notes and links the guide; `docs/codegen.md` is for
+  contributors (pipeline, why each target writes what it does, adding a type, regenerating, tests). Before cutting a
+  copy, move every fact only it has to its owner (round 102 moved the camel/snake rules, Go slot marker methods and
+  Rust `RawNullables` to the site).
 - **Copies that must exist agree**: README / README.zh.md, the site's index and comparison pages, the analyzers page
   and `docs/diagnostics.md`, `docs/spec/wire-format.md` and the site's wire-format page, the public skill, the
   runtimes' READMEs and the codegen page.
@@ -74,14 +80,19 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   entry, check the old name shipped: `git grep -n <old> <last tag>`. An API that is new in the release under audit is
   described as it is released; renames made while it was unreleased go at most into one entry for code written
   against `main`. Evidence: rc.8's Go `BeginEntry`, function-value helpers and Rust `PREFETCH` had three entries for names no
-  release had (the Go and Rust runtimes first shipped in rc.8).
+  release had (the Go and Rust runtimes first shipped in rc.8). The same holds for speed: a runtime or API new in the release gets no
+  "N% faster" entries against `main` before it; fold what it achieves into the entry that introduces it, against
+  competitors only through the synced data (rc.8's 14 Go and Rust Performance entries became two sentences in the
+  runtimes' entry, round 102).
 - **Chinese terms**: one per concept, from the glossary in nino.docs' `WRITING.md` (Tone: Chinese); grep the
   variants it lists across both repositories (README.zh.md too) in every pass.
 - **Renaming a site page's slug**: the old URL and its `.md` copy get a 301 in `public/_redirects` and an entry in
   `public/_routes.json`'s `exclude` (paths a function handles never reach the redirects); `git mv` its
   `scripts/csharp-check/Context/<slug>.cs` and change its `namespace Docs.Page_<slug>` (the check reports the page's
   types as missing otherwise); update links in v2/v3 pages that point at v4 and in Nino's README.md/README.zh.md
-  (perf -> benchmarks, round 101).
+  (perf -> benchmarks, round 101; perf-runtimes and perf-unity -> benchmarks-runtimes and benchmarks-unity, round
+  102). Also grep `src/` and `scripts/` for the slug: page URLs built in code (`bench-data.tsx` builds the Unity
+  page's link) are not caught by the link checker.
 
 - The code standard (`audit-code`: DRY, decoupled, clear) applies to these files, and redundancy in them
   (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is
