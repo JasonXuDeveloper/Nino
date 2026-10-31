@@ -121,8 +121,7 @@ func (r *Reader) Skip(n int) {
 	r.buf = r.buf[n:]
 }
 
-// Bool reads a bool. A byte other than 0 or 1 fails with CodeInvalidData (the specification's SHOULD; .NET reads
-// any byte but 0 as true).
+// Bool reads a bool. A byte other than 0 or 1 fails with CodeInvalidData, as in every runtime (specification §9.3).
 func (r *Reader) Bool() bool { return r.flag() }
 
 // flag reads a byte that must be 0 or 1.
@@ -141,7 +140,7 @@ func (r *Reader) flag() bool {
 }
 
 // BoolAt decodes a bool byte taken from a raw block (a raw struct's field): it fails for anything but 0 or 1, as
-// [Reader.Bool] does (.NET copies such bytes as they are).
+// [Reader.Bool] does (.NET copies such bytes as they are unless NinoSettings.Untrusted is set, specification §9.11).
 func (r *Reader) BoolAt(b byte) bool {
 	if b > 1 {
 		r.Fail(CodeInvalidData, "invalid bool "+strconv.Itoa(int(b)))
@@ -216,8 +215,7 @@ func (r *Reader) F32() float32 { return math.Float32frombits(r.U32()) }
 func (r *Reader) F64() float64 { return math.Float64frombits(r.U64()) }
 
 // Present reads the presence byte of a nullable value, a Tuple or a sealed class: true when the value follows. A
-// byte other than 0 or 1 fails with CodeInvalidData (as the TypeScript runtime; .NET reads any byte but 0 as
-// present).
+// byte other than 0 or 1 fails with CodeInvalidData, as in every runtime (specification §9.3).
 func (r *Reader) Present() bool { return r.flag() }
 
 // TypeID reads the type id in front of a polymorphic value (0 for null).
