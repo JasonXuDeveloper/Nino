@@ -255,6 +255,21 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   from 8 bytes past a line: 430 ns, aligned 222, Memmove 160; 64-byte: 377 and 190): a probe kernel with fixed
   alignments does not predict the case, whose list and buffer land where the process puts them. MemoryPack's copy
   there is bimodal by alignment (117 or 250 ns in the probe, 112 in the case).
+- Before probing kernels for a gap on one CPU, research that microarchitecture (Intel's optimization manual,
+  uops.info, Agner Fog, Travis Downs, Chips and Cheese) and read the code both sides run, IL and asm, instruction by
+  instruction: a probe then confirms a cost model instead of searching (the owner: "you keep guessing"). The Ice Lake
+  TupleList gap (round 103): MemoryPack writes
+  the raw 16-byte `(int, long)`s with one `CopyBlockUnaligned`, which .NET hands to glibc past 2 KB and glibc runs as
+  one `rep movsb` past 2,112 bytes on FSRM CPUs (destination aligned, so its time depends on the source's offset to
+  it: 117 or 247 ns); Nino packs 16 to 12 bytes with 4 loads, 3 `vpermt2d` and 3 destination-aligned 64-byte stores
+  per 16 values, and its loads split two lines unless the list's group starts on one: the 234 / 162 ns modes. On a
+  Xeon 8573C (run 41180010041, `TupleCostProbe`): 188 split 64-byte stores 142 ns against 59 aligned, 250 split
+  loads 97 against 80, 188 `vpermt2d` 59, the clock 4.0 GHz scalar and 3.1 under zmm code; Nino's own write 74 to 144
+  ns by the list's place (identical code both sides). On Ice Lake (Xeon 8370C) Nino's write groups therefore load from the
+  line below each group (`NinoBlock.WriteAligned`, tables per place in the line, a second `vpermt2d` for the vector of
+  blocks that spans three lines): 1,000 `(int, long)` serialized in 0.917 of the time (235 to 221 ns, every round
+  0.85-0.96, n=24, run 41181295487) and the `Dictionary<int, int>` entries in 0.809 (250 to 200 ns); other CPUs fold
+  the gate (listings identical to main). Less than the 0.65 the model gave: the rest is the stores and the clock.
 - Rust's fixed-size blocks: `optimize-runtimes`, "Fixed-size blocks in Rust".
 
 ## Unity kernels and IL2CPP

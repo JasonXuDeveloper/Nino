@@ -70,7 +70,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    says `##[notice] ... does not match`), and queue the line again for a CPU it missed. The pool rarely draws a Xeon
    8370C (Ice Lake): four runs in round 101 drew none, so an Ice Lake probe takes several runs; three lines with
    `cpu='Xeon|Neoverse'` (24 x64 slots, a note per copy) drew one on the first run (41159851472), and an A/B whose third
-   line is `cpu='Xeon'` drew one on its first too (41164356389). Confirm a probe's verdict with the case itself before
+   line is `cpu='Xeon'` drew one on its first too (41164356389). Build `benchmarks/Nino.Benchmark` in Release before pushing a probe (warnings are errors): run 41179183815's probe failed CS8618 on every Xeon job it drew, two of them 8370C. Confirm a probe's verdict with the case itself before
    landing: on the 8370C a kernel that won 0.77 in `TuplePackProbe` lost 4.5 % in `NinoSerializeTupleList` (`optimize`). Never put a space in
    the `cpu=` filter (`'EPYC|Xeon 8370C'`): the workflow splits the line on whitespace, and run 41123157579's line
    failed on all 8 slots with git exit 128; match on a word (`'8370C'`). Read the CPU flags in the job log too: the same model differs by VM (some EPYC 9V74
