@@ -219,7 +219,9 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   loads split two lines unless source and destination sit alike in a line. Xeon 8370C (run 41188054612, n=12):
   1,000 `KeyValuePair<int, int>` serialize 151 -> 128 ns (median 0.846; head 60 or 128 ns by process, base 106, 151
   or 181), a `Queue<int>` of 1,000 94 -> 74 (0.783; head 43 or 74, base 61 or 94), TupleList (not a copy) 1.015; the
-  floor line drew no 8370C. Not on other CPUs: AMD's rep movsb lost to the loop 2-30 times up to 16 KB, and other C
+  floor line drew no 8370C. Confirmed with a floor (run 41203402942, n=24, base rounds against each other as the floor):
+  `KeyValuePair<int, int>` 0.844 (head 128 ns in 22 of 24 rounds; base 105, 151 or 182; floor median 1.006), `Queue<int>`
+  0.690 (head 74 or 43, base 93-109 or 58; floor 0.999). Not on other CPUs: AMD's rep movsb lost to the loop 2-30 times up to 16 KB, and other C
   runtimes' memmove was not measured.
 - Allocate a new array uninitialized only where the read writes every byte of it, padding included
   (`NinoElements.CopiedWhole`), or it hands stale heap memory to `MemoryMarshal.AsBytes` or a raw re-serializer: block
@@ -276,7 +278,23 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   second `vpermt2d` for the vector of blocks that spans three lines): 1,000 `(int, long)` serialized in 0.917 of the
   time (235 to 221 ns, every round 0.85-0.96, n=24, run 41181295487) and the `Dictionary<int, int>` entries in 0.809
   (250 to 200 ns); other CPUs fold the gate (listings identical to main). Less than the 0.65 the model gave: the rest is
-  the stores and the clock.
+  the stores and the clock. Confirmed against main before it with a floor (run 41203402942, two 8370C jobs, n=24,
+  base round against base round in the same jobs as the floor, `benchmark`): TupleList 0.925 (235 to 222 ns, every
+  round 0.84-0.97; floor 1.001, 0.93-1.08), the dictionary 0.797 (every round below 0.93; floor 0.994), MemoryPack
+  (same code both sides) 0.998.
+- Do not retry the remaining Ice Lake TupleList gap (Nino 222 ns, MemoryPack 114 on the 8370C) with these; each loses by
+  the model, so none was built (round 104). The gap is the store path: 12 bytes a value (the wire format) are at least
+  188 64-byte lines, and the 8370C writes lines with vector stores at about 0.76 ns each (16,000 bytes copied with
+  aligned 64-byte vectors in 190 ns, r102) but with `rep movsb` at about 0.46 (MemoryPack's 16,000 bytes in 112-117):
+  188 lines cost about 143 ns before any permute. 256-bit aligned groups (vpermt2d ymm): `vpermt2d zmm` and 512-bit
+  loads and stores are light AVX-512, which costs Ice Lake server parts at most about 200 MHz all-core (Intel in
+  golang.org/issue/43925; Phoronix measured about 175 MHz on a Xeon 8380 under heavy AVX-512), so 256-bit code wins
+  back at most about 6 %, while it needs 375 stores and about 525 permutes against 188 and 235, and the 8370C's 32-byte
+  aligned copy already lost to the 64-byte one (222 against 190 ns); locally (Emerald Rapids, `TupleGroupProbe`) they
+  took 1.7-1.9 times the time at every source shift. Non-temporal stores: they evict the reused buffer and run at
+  memory bandwidth (188 64-byte ones 757 ns locally against 68 cached). `rep movsb` with packing, either way round
+  (pack into scratch then `rep movsb` it, or `rep movsb` the raw values then compact): two passes, at least the current
+  pass plus about 85 ns.
 - Rust's fixed-size blocks: `optimize-runtimes`, "Fixed-size blocks in Rust".
 
 ## Unity kernels and IL2CPP
