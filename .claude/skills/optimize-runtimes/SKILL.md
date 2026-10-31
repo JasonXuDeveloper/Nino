@@ -75,7 +75,15 @@ runtime: `optimize`, "Prefetch"). How to measure on runners is `benchmark` (runt
   40753062510, 40756504471, 40761692830).
 - Rust Arm64 keeps scalar `short_wide_inline` for text up to 64 bytes: routing short non-ASCII text to `neon::wide`
   (test branch 0fced91, dda2c89; run 40734299173, n=15 on Neoverse-N2) made strings-mixed-1000 50 % slower, text
-  mixed/16 112 %, cjk/16 75 %, cyrillic/16 18 % and latin1/16 9 %; only latin1/24 (-25 %) and cjk/24 (-12 %) gained.
+  mixed/16 112 %, cjk/16 75 %, cyrillic/16 18 % and latin1/16 9 %; only latin1/24 (-25 %) and cjk/24 (-12 %) gained. A
+  16-byte port of `x86::wide_sse41` inlined in the list loop (`neon::wide16`, as x86's `strings_sse41`; test branch
+  182d5123, round 103) was still 13.3 % slower on strings-mixed-1000 serialize on Neoverse-N2 (run 41189492851, n=10,
+  floor -0.3 %). Why (llvm-mca 18, `-mcpu=neoverse-n2`, on the compiled loops): the scalar loop costs 2.5 cycles a
+  Latin-1 char and 3.0-3.3 a UTF-16 one; a 16-byte window ~11-13 cycles of ASIMD throughput (two 128-bit pipes) plus a
+  mask-to-offset chain (`umaxv`, `bits`' `uzp` ladder, `umov`, `ONES`) the next string's stores wait on, so a vector
+  step wins only from ~32-48 chars a string. simdutf agrees: its UTF-8→UTF-16 `convert_valid` runs vectors only over
+  80 bytes or more and leaves shorter input to scalar code. Before another vector attempt at short text on Arm64, model
+  it with llvm-mca against the scalar loop; the research is in the round's notes (arm-strings-research.md).
 - Rust strings-mixed serialize trails rmp-serde on every CPU by design: the competitors copy UTF-8 with memcpy, and
   Nino's wire format is Latin-1 or UTF-16, so mixed text is transcoded. Narrow it in the kernels; do not expect to
   pass a copy.
