@@ -81,7 +81,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
   [Nino.Codegen](https://nino.xgamedev.net/en/docs/v4/advanced/codegen) writes your types and their codecs as TypeScript, Go or Rust after each build (or from a built
   assembly with the `nino-gen` tool, Nino.Codegen.Tool), so browsers, Node, Go services and Rust programs read and
   write the same bytes as .NET, with the runtimes in `runtimes/`.
-- **Mistakes caught while you type.** 27 analyzer diagnostics (NINO001–NINO027), many with a one-click fix.
+- **Mistakes caught while you type.** 28 analyzer diagnostics (NINO001–NINO028), many with a one-click fix.
 
 ## Built for
 
@@ -285,7 +285,7 @@ New in v4:
 - **Integrations**: Nino.AspNetCore (MVC formatters, Minimal API `NinoBody<T>` and `NinoResults`) and Nino.Codegen
   (your types and codecs in TypeScript, Go or Rust, generated after each build; or from a built assembly with
   Nino.Codegen.Tool's `nino-gen`).
-- **Tooling**: an incremental generator and 27 analyzers (NINO001–NINO027) with code fixes, in Unity too.
+- **Tooling**: an incremental generator and 28 analyzers (NINO001–NINO028) with code fixes, in Unity too.
 
 See [what's new](https://nino.xgamedev.net/en/docs/v4/whats-new), the
 [changelog](https://nino.xgamedev.net/en/docs/v4/changelog) and the

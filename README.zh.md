@@ -68,7 +68,7 @@
   提供 MVC 格式化器以及 Minimal API 的请求体和结果；[Nino.Codegen](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen) 在每次构建后把你的类型和编解码器生成为
   TypeScript、Go 或 Rust 代码（也可用 `nino-gen` 工具 Nino.Codegen.Tool 从构建好的程序集生成），浏览器、Node、Go 服务和
   Rust 程序读写的字节与 .NET 相同，配合 `runtimes/` 中的运行时使用。
-- **写代码时就发现错误。** 27 条分析器诊断（NINO001–NINO027），许多带一键修复。
+- **写代码时就发现错误。** 28 条分析器诊断（NINO001–NINO028），许多带一键修复。
 
 ## 适用场景
 
@@ -258,7 +258,7 @@ v4 新增：
 - **集成**：Nino.AspNetCore（MVC 格式化器，Minimal API 的 `NinoBody<T>` 和 `NinoResults`）和 Nino.Codegen
   （每次构建后把你的类型和编解码器生成为 TypeScript、Go 或 Rust 代码；也可用 Nino.Codegen.Tool 的 `nino-gen` 从构建好的
   程序集生成）。
-- **工具**：增量生成器，以及 27 条带代码修复的分析器（NINO001–NINO027），Unity 中同样可用。
+- **工具**：增量生成器，以及 28 条带代码修复的分析器（NINO001–NINO028），Unity 中同样可用。
 
 详见 [v4 新特性](https://nino.xgamedev.net/zh/docs/v4/whats-new)、
 [更新日志](https://nino.xgamedev.net/zh/docs/v4/changelog)和

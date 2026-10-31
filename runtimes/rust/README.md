@@ -7,8 +7,8 @@ with the NuGet packages (`cargo add nino-serialization@=4.0.0-rc.8`, `features =
 
 - Edition 2021, MSRV 1.88.
 - `#![deny(unsafe_code)]`: the only `unsafe` code is `src/simd.rs` and its submodules (`simd/x86.rs`, `simd/neon.rs`),
-  checked under Miri: the string writer's transcoding, and the reader's decoding of text into a `String` it builds.
-  The reader's bounds checks are safe code.
+  checked under Miri: the string writer's transcoding, and the reader's decoding of text into a `String` it builds;
+  and one block in `Shared::get` ([Reference tracking](#reference-tracking)). The reader's bounds checks are safe code.
 - No required dependencies. Every integration is an opt-in feature.
 
 How to generate Rust code from your `[NinoType]`s, the options, the C# to Rust type mapping, what nino-gen writes and
