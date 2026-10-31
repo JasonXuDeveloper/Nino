@@ -54,9 +54,13 @@ the runtime it targets.
   "4096", ... took 117 times as long as other numeric strings in Node 22 (round 103), so string keys take the guard
   too (`NinoKeyGuard.string`, which hashes only such strings). A new collection of number, `bigint` or string keys in
   generated TypeScript takes the guard (`TsShape.Guard`); Go and Rust tables are seeded (maphash, `RandomState`).
-- A graph the data can make cyclic in a runtime without a tracing GC: Rust's `Shared` is an `Rc`, so a cycle read from
-  the data (which .NET accepts) is never freed; the leak is bounded per read but adds up across reads. Documented in
-  the Rust README; changing it (weak back references, an arena per read, or rejecting cycles) is the owner's call.
+- A graph the data can make cyclic in a runtime without a tracing GC must still be freed: memory a read leaves behind
+  adds up across reads however small each leak is. Rust's `Shared` was an `Rc`, and every read of a cycle (which .NET
+  writes and reads; corpus case `references-shared`) leaked its objects, a failed read too (round 103's cargo-fuzz
+  run found it at its first seed). The owner's fix: an arena per read that owns its objects; a `Shared` the reader
+  stores inside a tracked object is weak, every other one and every clone holds the arena (`src/shared.rs`). Prove such
+  a fix with a count of live objects (`tests/shared.rs`, a `Drop` counter per thread: cycles, deferred bodies, every
+  truncation), Miri on its `unsafe`, and the cargo-fuzz targets with LeakSanitizer on.
 - A recursive path without depth counting (a struct holding a collection of itself, polymorphic slots, tuples,
   `object` members, reference tracking's back references).
 - A loop whose work grows faster than the input (nested lengths, quadratic rehashing, deferred sections re-read).
