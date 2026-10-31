@@ -53,8 +53,8 @@ internal static class FormatterEmitter
         {
             // Behind a reference header, subtypes are dispatched without one of their own.
             if (m.TrackReferences)
-                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoPolymorphic<{t}>.SerializeReferenced(value, ref writer)",
-                    $"{CoreCompilerServices}NinoPolymorphic<{t}>.DeserializeReferenced(reader.UnsafeRead<int>(), ref value, ref reader)");
+                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoSubtypes<{t}>.SerializeReferenced(value, ref writer)",
+                    $"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeReferenced(reader.UnsafeRead<int>(), ref value, ref reader)");
             else
                 EmitDispatchingEntryPoints(w, m, names, ownId: false);
             w.Line();
@@ -432,10 +432,10 @@ internal static class FormatterEmitter
             rootType = m.Need(m.Inheritance.DispatchRoot, nameof(m.Inheritance.DispatchRoot));
         }
 
-        string write = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoPolymorphic<{t}>.Serialize(value, ref writer)"
+        string write = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer)"
             : root ? "__WriteSubtype(value, ref writer)"
             : $"{rootFormatter}.__WriteSubtype(value, ref writer)";
-        string read = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);"
+        string read = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref value, ref reader);"
             : root ? "__ReadSubtype(id, ref value, ref reader);"
             : $"{rootFormatter}.__ReadSubtype(id, ref {CoreCompilerServices}NinoObject.AsBaseSlot<{t}, {rootType}>(ref value), ref reader); {CoreCompilerServices}NinoObject.EnsureSubtype<{t}>(value);";
         w.Line(names.Inline);

@@ -512,7 +512,7 @@ and readers never lock. A registered formatter never changes, except when its as
 `NinoRegistry.Remove(assembly)` lets a collectible `AssemblyLoadContext` unload an assembly with generated code
 (issue #199). Every static cache keyed by `Type` (the registries, the resolver's scanned assemblies and
 `[assembly: NinoFormatter]` rules, `NinoFormatterCache` registrations, boxed formatters, type ids, raw layouts and
-the `NinoPolymorphic<TBase>` tables) drops the entries whose type mentions the assembly, including arrays and
+the `NinoSubtypes<TBase>` tables) drops the entries whose type mentions the assembly, including arrays and
 generics built from its types. Generic statics closed over its types (`NinoFormatterCache<T>.Instance`) belong to
 the collectible loader allocator and go with it. The net8.0/net10.0 builds of Nino.Core call `Remove` from the
 context's `Unloading` event, hooked when the assembly registers; the netstandard builds cannot reference
@@ -520,9 +520,9 @@ context's `Unloading` event, hooked when the assembly registers; the netstandard
 
 ### Polymorphism
 
-Every `[NinoType]` registers one handler, once, in the global (`NinoPolymorphic<object>`) registry, from the
+Every `[NinoType]` registers one handler, once, in the global (`NinoSubtypes<object>`) registry, from the
 generated code of its own assembly. Registration is decentralized, so the generator never scans referenced
-assemblies. Each base type (non-sealed class or interface) has its own `NinoPolymorphic<TBase>` table, which
+assemblies. Each base type (non-sealed class or interface) has its own `NinoSubtypes<TBase>` table, which
 adopts a subtype from the global registry on its first lookup after checking that it derives from `TBase`.
 Registering per type instead of per (base, subtype) pair keeps generated code linear in the number of types
 rather than in the sum of hierarchy depths, and avoids one generic instantiation per pair.
@@ -1005,7 +1005,7 @@ Generated formatters call Nino.Core directly: `Writer`/`Reader`, the built-in fo
 (and Nino's own packages: Nino.Immutable, Nino.UnityTypes) live in the namespace `Nino.Core.CompilerServices`, folder
 `CompilerServices/`: `NinoObject`, `NinoDirect`, `NinoUnsafe`, `INinoBodyFormatter<T>`, `INinoTopFormatter<T>`,
 `INinoRawBodyFormatter<T>`, `INinoFixedSizeFormatter<T>`, `INinoBlockFormatter<T>` with `NinoBlockMap` and `NinoBlocks`,
-`INinoRawFormatter`, `NinoBodyTraits`, `NinoPolymorphic<TBase>`
+`INinoRawFormatter`, `NinoBodyTraits`, `NinoSubtypes<TBase>`
 and the `NinoSubtypeHandler` it returns, `[NinoGenerated]`, `INinoRegistry` and `NinoEffectiveSettings`. The name
 says who calls them: user code never needs a `using` for it, generated code names them with `global::`, and a
 namespace of their own keeps them out of completion lists and away from user types of the same name (Nino.AspNetCore's

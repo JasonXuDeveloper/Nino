@@ -390,7 +390,7 @@ namespace Nino.UnitTests
             // Nothing has written or resolved GenericSub<DateTimeKind>: the id is mapped by the generated registry.
             int id = NinoTypeId.Of(typeof(GenericSub<DateTimeKind>));
             Assert.IsFalse(NinoFormatterCache<GenericSub<DateTimeKind>>.IsRegistered);
-            Assert.AreEqual(typeof(GenericSub<DateTimeKind>), NinoPolymorphic<NonGenericBase>.Find(id)?.Type);
+            Assert.AreEqual(typeof(GenericSub<DateTimeKind>), NinoSubtypes<NonGenericBase>.Find(id)?.Type);
 
             // Bytes as another process writes them: type id, then the body (Id, then Payload).
             var bytes = NinoSerializer.Serialize(new GenericSub<DateTimeKind> { Id = 9, Payload = DateTimeKind.Utc });
@@ -412,7 +412,7 @@ namespace Nino.UnitTests
                          (typeof(ISlotHolder<SlotArg>), typeof(SlotHolder<SlotArg>)),
                      })
             {
-                var find = typeof(NinoPolymorphic<>).MakeGenericType(slot).GetMethod("Find", new[] { typeof(int) })!;
+                var find = typeof(NinoSubtypes<>).MakeGenericType(slot).GetMethod("Find", new[] { typeof(int) })!;
                 var found = find.Invoke(null, new object[] { NinoTypeId.Of(type) });
                 Assert.IsNotNull(found, type.Name);
                 Assert.AreEqual(type, found.GetType().GetProperty("Type")!.GetValue(found), type.Name);
@@ -439,9 +439,9 @@ namespace Nino.UnitTests
             // An instantiation no code names: unknown until registered (or written).
             var type = typeof(GenericSub<>).MakeGenericType(typeof(ConsoleColor));
             int id = NinoTypeId.Of(type);
-            Assert.IsNull(NinoPolymorphic<NonGenericBase>.Find(id));
+            Assert.IsNull(NinoSubtypes<NonGenericBase>.Find(id));
             Assert.IsTrue(NinoPolymorphic.Register(type));
-            Assert.AreEqual(type, NinoPolymorphic<NonGenericBase>.Find(id)?.Type);
+            Assert.AreEqual(type, NinoSubtypes<NonGenericBase>.Find(id)?.Type);
             Assert.IsTrue(NinoPolymorphic.Register<GenericSub<ConsoleColor>>(), "idempotent");
 
             // Not polymorphic: abstract, open, or not a [NinoType].

@@ -421,7 +421,7 @@ namespace Nino.Core.CompilerServices
             where TFormatter : struct, INinoBodyFormatter<T>
         {
             if (!TryWriteOwn<T, TFormatter>(value, ref writer))
-                NinoPolymorphic<T>.Serialize(value, ref writer);
+                NinoSubtypes<T>.Serialize(value, ref writer);
         }
 
         /// <summary><see cref="Serialize{T,TFormatter}"/> of a class whose body is one raw block.</summary>
@@ -431,7 +431,7 @@ namespace Nino.Core.CompilerServices
             where TFormatter : struct, INinoRawBodyFormatter<T>
         {
             if (!TryWriteOwnRaw<T, TFormatter>(value, ref writer))
-                NinoPolymorphic<T>.Serialize(value, ref writer);
+                NinoSubtypes<T>.Serialize(value, ref writer);
         }
 
         /// <summary>Non-sealed class: reads what <see cref="Serialize{T,TFormatter}"/> wrote.</summary>
@@ -442,7 +442,7 @@ namespace Nino.Core.CompilerServices
         {
             int id = reader.UnsafeRead<int>();
             if (!TryReadOwn<T, TFormatter>(id, ref value, ref reader))
-                NinoPolymorphic<T>.Deserialize(id, ref value, ref reader);
+                NinoSubtypes<T>.Deserialize(id, ref value, ref reader);
         }
 
         /// <summary>
@@ -457,7 +457,7 @@ namespace Nino.Core.CompilerServices
         {
             if (value.GetType() != typeof(T))
             {
-                NinoPolymorphic<T>.SerializeReferenced(value, ref writer);
+                NinoSubtypes<T>.SerializeReferenced(value, ref writer);
                 return;
             }
 
@@ -473,7 +473,7 @@ namespace Nino.Core.CompilerServices
         {
             int id = reader.UnsafeRead<int>();
             if (!TryReadOwn<T, TFormatter>(id, ref value, ref reader))
-                NinoPolymorphic<T>.DeserializeReferenced(id, ref value, ref reader);
+                NinoSubtypes<T>.DeserializeReferenced(id, ref value, ref reader);
         }
 
         /// <summary>Sealed class: 1-byte null flag, then the body.</summary>

@@ -61,7 +61,7 @@ NinoDirect.cs                the top-level calls with the formatter the generato
                              ...Prefetched for arrays and lists of INinoPrefetchFormatter classes)
 NinoBlockMap.cs              NinoBlockMap (where a block's bytes lie in a value's memory) and NinoBlocks (constrained
                              calls on block formatters)
-NinoPolymorphicOf.cs         NinoPolymorphic<TBase>: the registry of a base type's subtypes by type id
+NinoSubtypes.cs              NinoSubtypes<TBase>: the registry of a base type's subtypes by type id
 NinoRegistration.cs          [NinoGenerated] on an assembly and INinoRegistry (lazy registration by type id)
 NinoSubtypeHandler.cs        NinoSubtypeHandler: writes and reads one registered type; the registry's entry
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)

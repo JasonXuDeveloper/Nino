@@ -267,7 +267,7 @@ internal sealed record TypeModel(
 
     /// <summary>
     /// Whether the formatter dispatches its subtypes through generated code (<c>__WriteSubtype</c> and
-    /// <c>__ReadSubtype</c>, emitted with the registry) before falling back to <c>NinoPolymorphic</c>.
+    /// <c>__ReadSubtype</c>, emitted with the registry) before falling back to <c>NinoSubtypes</c>.
     /// </summary>
     public bool DispatchesSubtypes => TypeRules.DispatchesSubtypes(Kind, TrackReferences);
 

@@ -176,7 +176,7 @@ namespace Nino.Core
         [EditorBrowsable(EditorBrowsableState.Never)]
         public static void Register<TSub, TFormatter>(int id) where TFormatter : struct, INinoBodyFormatter<TSub>
         {
-            NinoPolymorphic<object>.Register(new SubtypeHandler<TSub, TFormatter>(id));
+            NinoSubtypes<object>.Register(new SubtypeHandler<TSub, TFormatter>(id));
         }
 
         /// <summary>
@@ -188,7 +188,7 @@ namespace Nino.Core
             where TSub : class
             where TFormatter : struct, INinoBodyFormatter<TSub>
         {
-            NinoPolymorphic<object>.Register(new TrackedSubtypeHandler<TSub, TFormatter>(id));
+            NinoSubtypes<object>.Register(new TrackedSubtypeHandler<TSub, TFormatter>(id));
         }
 
         /// <summary>Registers <typeparamref name="T"/> for polymorphic use; see <see cref="Register(Type)"/>.</summary>
@@ -213,12 +213,12 @@ namespace Nino.Core
                 throw new ArgumentNullException(nameof(type));
             if (type.IsAbstract || type.IsInterface || type.ContainsGenericParameters)
                 return false;
-            if (NinoPolymorphic<object>.FindRegistered(type) != null)
+            if (NinoSubtypes<object>.FindRegistered(type) != null)
                 return true;
 
             // Non-generic [NinoType]s, and the closed generics the generator saw, are registered by generated code.
             NinoRegistry.RegisterType(type);
-            if (NinoPolymorphic<object>.FindRegistered(type) != null)
+            if (NinoSubtypes<object>.FindRegistered(type) != null)
                 return true;
             if (!type.IsGenericType)
                 return false;
@@ -248,7 +248,7 @@ namespace Nino.Core
             var handler = !type.IsValueType && NinoReflection.IsTracked(type)
                 ? typeof(TrackedSubtypeHandler<,>)
                 : typeof(SubtypeHandler<,>);
-            NinoPolymorphic<object>.Register((NinoSubtypeHandler)Activator.CreateInstance(
+            NinoSubtypes<object>.Register((NinoSubtypeHandler)Activator.CreateInstance(
                 handler.MakeGenericType(type, formatter), NinoTypeId.Of(type)));
             return true;
         }

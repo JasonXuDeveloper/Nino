@@ -9,7 +9,7 @@ namespace Nino.Generator.Generation.Emit;
 /// Emits, for each base formatter that dispatches subtypes, the dispatch to the subtypes declared in this assembly:
 /// on write a chain of exact runtime type checks (one method table compare each), on read a switch on the type id,
 /// each writing the subtype's id and body, or calling a method of the base formatter that reads that subtype. Anything
-/// else (subtypes in other assemblies, generic subtypes, tracked types) falls back to <c>NinoPolymorphic&lt;T&gt;</c>.
+/// else (subtypes in other assemblies, generic subtypes, tracked types) falls back to <c>NinoSubtypes&lt;T&gt;</c>.
 /// A generic base dispatches each of its closed instances that subtypes here derive from in the same way.
 /// Only calls are emitted, never subtype bodies, so the size is two lines and a one-line method per (base, subtype)
 /// pair.
@@ -74,14 +74,14 @@ internal static class DispatchEmitter
             {
                 for (int i = 0; i < closed.Count; i++)
                     w.Line($$"""if (typeof({{t}}) == typeof({{closed[i]}})) { {{classes[i]}}.__WriteSubtype({{CoreCompilerServices}}NinoObject.SameType<{{closed[i]}}>(value), ref writer); return; }""");
-                w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.Serialize(value, ref writer);");
+                w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer);");
             });
             w.Line();
             w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref {Core}Reader reader)", () =>
             {
                 for (int i = 0; i < closed.Count; i++)
                     w.Line($$"""if (typeof({{t}}) == typeof({{closed[i]}})) { {{classes[i]}}.__ReadSubtype(id, ref {{CoreCompilerServices}}NinoObject.SameTypeSlot<{{t}}, {{closed[i]}}>(ref value), ref reader); return; }""");
-                w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);");
+                w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref value, ref reader);");
             });
             w.Close();
             w.Line();
@@ -137,14 +137,14 @@ internal static class DispatchEmitter
             // subtype costs about 2.5% more compile time on a workload of hierarchies.
             foreach (var s in subtypes.Count <= MaxWriteChain ? subtypes : new List<DispatchEntry>())
                 w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{CoreCompilerServices}}NinoObject.{{(s.RawBody ? "WriteExactRaw" : "WriteExact")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
-            w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.Serialize(value, ref writer);");
+            w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer);");
         });
         w.Line();
         w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref {Core}Reader reader)", () =>
         {
             if (subtypes.Count != 0)
                 EmitReadSwitch(w, subtypes);
-            w.Line($"{CoreCompilerServices}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);");
+            w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref value, ref reader);");
         });
 
         // Each subtype's instance check and body, out of line in a method of this non-generic struct, where
