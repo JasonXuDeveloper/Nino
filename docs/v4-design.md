@@ -228,7 +228,7 @@ at any depth.
 
 * One length per object, whatever the depth of the hierarchy (earlier v4 builds wrote one length per level:
   `header | { int32 levelLength | level members... } per level`). Example, a sealed `Leaf : Base` with
-  `Base { int A; }` and `Leaf { int B; }`, `A = 1, B = 7` (after the not-null flag `01`):
+  `Base { int A; }` and `Leaf { int B; }`, `A = 1, B = 7` (after the presence byte `01`):
 
   ```
   per level (old):   01 | 04000000 01000000 | 04000000 07000000

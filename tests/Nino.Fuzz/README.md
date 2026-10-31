@@ -34,7 +34,7 @@ For each input, the fuzzer:
     loops). These catch collections Nino builds from their internals;
   - `STALE`: data rejected while read into an existing value left freed heap memory in it (`StaleMemory.cs`).
     Large arrays of unmanaged values are allocated uninitialized; one that takes its slot before a check that can
-    still reject the data (a `bool`, a has-value byte, an `Untrusted` check) leaves the value holding whatever the
+    still reject the data (a `bool`, a presence byte, an `Untrusted` check) leaves the value holding whatever the
     memory held, which reads as valid values. So a target marked `Poisoned` (`Stale`, `StaleUntrusted`) reads each
     rejected input again over freed memory filled with a pattern tied to the address, and fails when any array of
     unmanaged values the existing value reaches (through private fields too) holds 16 or more bytes of a 64-byte line

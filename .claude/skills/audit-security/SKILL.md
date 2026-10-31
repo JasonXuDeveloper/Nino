@@ -38,7 +38,7 @@ the runtime it targets.
 ## Look for
 
 - A new array allocated uninitialized (`NinoUnsafe.NewArray`, `CopiedWhole`) stored in the caller's slot before a
-  read that can still reject the data (bools, has-value bytes, Untrusted checks): reading into an existing value
+  read that can still reject the data (bools, presence bytes, Untrusted checks): reading into an existing value
   then left it stale heap memory. Blocks with a bool (`NinoBlock<T, TFormatter>.Rejects`) are read by
   `NinoBlock.ReadRejecting`, a try/finally that clears the values when the read throws; the raw formatters (T?[],
   List<T?>, bool lists, Untrusted checks) store a new array once filled (`NinoElements.NewOrSame`, `Publish`);

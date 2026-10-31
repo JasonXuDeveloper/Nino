@@ -21,7 +21,7 @@
 [**对比 MemoryPack**](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack) ·
 [**English**](https://github.com/JasonXuDeveloper/Nino/blob/main/README.md)
 
-序列化比 MemoryPack **最高快 <!--bench:ser.max-->6.8<!--/bench--> 倍**，原地反序列化**最高快 <!--bench:reuse.inplace-->8.7<!--/bench--> 倍**<br>
+序列化比 MemoryPack **最高快 <!--bench:ser.max-->6.8<!--/bench--> 倍**，复用反序列化**最高快 <!--bench:reuse.inplace-->8.7<!--/bench--> 倍**<br>
 热路径 **零 GC 分配** · 编译比 v3 **快 221 倍**
 
 </div>
