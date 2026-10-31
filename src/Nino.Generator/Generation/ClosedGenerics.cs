@@ -7,7 +7,7 @@ namespace Nino.Generator.Generation;
 
 /// <summary>
 /// Finds the closed generic <c>[NinoType]</c>s a compilation names (<c>Box&lt;int&gt;</c> as a member type, a base type,
-/// a type argument of a top-level call, or a member of one of those), so the registry can register them by type id.
+/// the type a top-level call names, or a member of one of those), so the registry can register them by type id.
 /// Generic <c>[NinoType]</c>s have one formatter definition and no registration of their own: without this, a
 /// polymorphic read would have no way to map the id of <c>Box&lt;int&gt;</c> back to the type, and AOT runtimes would
 /// have to close the formatter with <c>MakeGenericType</c>. Instantiations created only at run time (from type

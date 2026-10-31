@@ -402,6 +402,48 @@ public class MadeList : System.Collections.Generic.List<Made> { }
     }
 
     [TestMethod]
+    public void EveryCallThatNamesATypeRegistersIt()
+    {
+        // Native AOT cannot close a generic formatter at run time: every call that names a closed type, by type
+        // argument or by typeof, registers it, not only Serialize and Deserialize. A Type known only at run time
+        // names nothing, and a method of another class is not Nino's.
+        var compilation = Create(
+            ("Pair.cs", Usings + "[NinoType] public record struct Pair<TKey, TValue>(TKey Key, TValue Value);\n}"),
+            ("Calls.cs", Usings + @"using System;
+using System.Collections.Generic;
+using static Nino.Core.NinoSerializer;
+public static class Calls
+{
+    public static int Fixed() => NinoSerializer.GetFixedSize<Pair<int, short>>();
+    public static byte[] Boxed(object o) => NinoSerializer.SerializeBoxed(o, typeof(Pair<int, long>));
+    public static object Read(byte[] b) => NinoDeserializer.DeserializeBoxed(b, typeof(Pair<byte, int>));
+    public static void ReadInto(byte[] b, ref object o) => NinoDeserializer.DeserializeBoxed(b, ref o, type: typeof(List<Pair<int, int>>));
+    public static bool Supported() => IsSupported(typeof(Pair<short, short>));
+    public static byte[] Runtime(object o) => NinoSerializer.SerializeBoxed(o, o.GetType());
+    public static bool Open() => NinoSerializer.IsSupported(typeof(Pair<,>));
+    public static int NotNino() => Other.GetFixedSize<Pair<long, long>>();
+}
+public static class Other { public static int GetFixedSize<T>() => 0; }
+}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
+        string Usages() => driver.GetRunResult().Results[0].GeneratedSources
+            .Single(s => s.HintName == "NinoGen.Usages.g.cs").SourceText.ToString();
+        foreach (var registered in new[] { "Pair<int, short>", "Pair<int, long>", "Pair<byte, int>", "Pair<int, int>", "Pair<short, short>" })
+            StringAssert.Contains(Usages(), "NinoPolymorphic.Register<global::Inc." + registered);
+        StringAssert.Contains(Usages(), "NinoFormatterCache<global::System.Collections.Generic.List<global::Inc.Pair<int, int>>>");
+        Assert.IsFalse(Usages().Contains("Pair<long, long>"), Usages());
+
+        // The call is cached by position, method and the type it names: an edit of the typeof argument is seen.
+        compilation = Edit(compilation, "Calls.cs", "typeof(Pair<int, long>)", "typeof(Pair<long, int>)");
+        driver = driver.RunGenerators(compilation);
+        StringAssert.Contains(Usages(), "NinoPolymorphic.Register<global::Inc.Pair<long, int>");
+        Assert.IsFalse(Usages().Contains("Pair<int, long>"), Usages());
+    }
+
+    [TestMethod]
     public void InsertingATypeEmitsOnlyItsFormatter()
     {
         // Roslyn matches the models to the previous run's by position: the types after the inserted one (in its file

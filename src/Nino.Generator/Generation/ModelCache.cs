@@ -19,7 +19,7 @@ namespace Nino.Generator.Generation;
 /// <para>
 /// The top-level <c>NinoSerializer</c>/<c>NinoDeserializer</c> calls are bound again on every change too, and are
 /// cached the same way by file and position (<see cref="GetOrBuildCall"/>): what a call registers and how it is
-/// intercepted depends on its own tree (its location), the method it binds to, and the trees of its type argument.
+/// intercepted depends on its own tree (its location), the method it binds to, and the trees of the type it names.
 /// </para>
 /// </summary>
 internal static class ModelCache
@@ -36,10 +36,10 @@ internal static class ModelCache
         /// <summary>The tree of the call: the same instance means the same text, location and parse options.</summary>
         public SyntaxTree Tree = null!;
 
-        /// <summary>The method it binds to, with its type arguments (<see cref="CallIdentity"/>).</summary>
+        /// <summary>The method it binds to, with the type it names (<see cref="CallIdentity"/>).</summary>
         public string Method = "";
 
-        /// <summary>The trees declaring the source types its type arguments reach.</summary>
+        /// <summary>The trees declaring the source types the type it names reaches.</summary>
         public SyntaxTree[] Trees = null!;
 
         public TopLevelCall? Call;
@@ -138,17 +138,18 @@ internal static class ModelCache
     }
 
     /// <summary>
-    /// The result of the top-level call <paramref name="call"/>, bound to <paramref name="method"/>: the one built for
-    /// the same call before, while its tree, the method and the trees of its type arguments are the same; otherwise
+    /// The result of the top-level call <paramref name="call"/>, bound to <paramref name="method"/> and naming
+    /// <paramref name="type"/> (its type argument, or its <c>typeof</c> argument): the one built for the same call
+    /// before, while its tree, the method, the type and the trees the type reaches are the same; otherwise
     /// <paramref name="build"/>'s.
     /// </summary>
-    public static TopLevelCall? GetOrBuildCall(SyntaxNode call, IMethodSymbol method, Compilation compilation,
-        System.Func<TopLevelCall?> build)
+    public static TopLevelCall? GetOrBuildCall(SyntaxNode call, IMethodSymbol method, ITypeSymbol type,
+        Compilation compilation, System.Func<TopLevelCall?> build)
     {
         var state = GetState(compilation);
         var tree = call.SyntaxTree;
         var key = (tree.FilePath, call.SpanStart);
-        string identity = CallIdentity(method);
+        string identity = CallIdentity(method, type);
         lock (Lock)
         {
             if (state.Calls.TryGetValue(key, out var entry) && entry.Tree == tree && entry.Method == identity &&
@@ -157,12 +158,10 @@ internal static class ModelCache
         }
 
         var result = build();
-        var trees = new HashSet<SyntaxTree>();
-        foreach (var argument in method.TypeArguments)
-            trees.UnionWith(Dependencies(argument, compilation));
+        var trees = Dependencies(type, compilation);
         lock (Lock)
         {
-            state.Calls[key] = new CallEntry { Tree = tree, Method = identity, Trees = trees.ToArray(), Call = result };
+            state.Calls[key] = new CallEntry { Tree = tree, Method = identity, Trees = trees, Call = result };
             if (state.Calls.Count >= state.CallSweepAt)
             {
                 // Calls whose file changed are bound again under their new positions: drop the old ones.
@@ -176,10 +175,9 @@ internal static class ModelCache
         return result;
     }
 
-    /// <summary>The method a call binds to, as a string: its definition and its type arguments.</summary>
-    private static string CallIdentity(IMethodSymbol method) =>
-        method.OriginalDefinition.ToDisplayString() + "<" +
-        string.Join(", ", method.TypeArguments.Select(TypeNames.Global)) + ">";
+    /// <summary>The method a call binds to and the type it names, as a string.</summary>
+    private static string CallIdentity(IMethodSymbol method, ITypeSymbol type) =>
+        method.OriginalDefinition.ToDisplayString() + "<" + TypeNames.Global(type) + ">";
 
     /// <summary>The preprocessor symbols of <paramref name="options"/>, as one string (memoized per instance).</summary>
     public static string SymbolKey(ParseOptions? options) =>

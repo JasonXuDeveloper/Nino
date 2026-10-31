@@ -437,7 +437,8 @@ internal sealed record FactoryRegistration(string TypeName, string Creator, int 
 internal sealed record TypeRegistration(string TypeName, string Formatter, int Id, int NameId, bool Concrete,
     bool Tracked, bool Top = false, bool Fixed = false);
 
-// A top-level NinoSerializer/NinoDeserializer call: the formatter of its type and the creators that formatter needs
+// A top-level NinoSerializer/NinoDeserializer call: the formatter of the type it names (its type argument, or the
+// typeof argument of a boxed call or IsSupported) and the creators that formatter needs
 // (null when the type is a [NinoType]), and the closed generic [NinoType]s its type names.
 internal sealed record UsageRegistration(FormatterRegistration? Formatter, EquatableArray<FactoryRegistration> Factories,
     EquatableArray<TypeRegistration> GenericTypes, EquatableArray<string> LayoutTypes);
