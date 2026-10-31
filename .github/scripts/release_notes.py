@@ -21,6 +21,10 @@ indented lines:
   Fixed: a user-visible bug that is fixed                         -> "Fixes"
 Each entry gets the issues the commit closes ("Closes #202" in its body, outside the trailer block) unless it names
 them already. A release without such trailers has no highlights.
+
+A trailer that landed wrong is corrected without rewriting history: a git note on that commit in refs/notes/release
+replaces all four of its highlight trailers (the note holds the corrected trailer lines; an empty note drops them):
+  git notes --ref=release add -f -m "Added: the corrected text" <sha> && git push origin refs/notes/release
 """
 import argparse, fnmatch, json, os, re, subprocess, sys
 from collections import OrderedDict
@@ -107,6 +111,29 @@ def commits(rng):
                         closes=list(dict.fromkeys(CLOSES.findall(body))),
                         highlights={key: [n.strip() for n in note.split("\x1d") if n.strip()]
                                     for (key, _), note in zip(HIGHLIGHTS, notes)}))
+    corrections = release_notes_overrides()
+    for c in out:
+        if c["sha"] in corrections:
+            c["highlights"] = corrections[c["sha"]]
+    return out
+
+
+def release_notes_overrides():
+    """{sha: highlights} from the notes in refs/notes/release, each parsed as a trailer block; {} when there are none."""
+    if subprocess.run(["git", "rev-parse", "-q", "--verify", "refs/notes/release"], capture_output=True).returncode:
+        return {}
+    out = {}
+    for line in sh("git", "notes", "--ref=release", "list").splitlines():
+        _, sha = line.split()
+        text = sh("git", "notes", "--ref=release", "show", sha)
+        parsed = subprocess.run(["git", "interpret-trailers", "--parse", "--unfold"], input="\n" + text, text=True,
+                                capture_output=True, check=True).stdout
+        found = {key: [] for key, _ in HIGHLIGHTS}
+        for trailer in parsed.splitlines():
+            key, _, value = trailer.partition(":")
+            if key.strip() in found and value.strip():
+                found[key.strip()].append(value.strip())
+        out[sha] = found
     return out
 
 

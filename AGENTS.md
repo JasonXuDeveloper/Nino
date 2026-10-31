@@ -162,7 +162,9 @@ reusing is written down before the task ends, in the same series of commits as t
   from trailers in the last paragraph, next to `Co-Authored-By`: `Wire-Format:` (bytes that change, for which
   types), `Added:` (API, attribute, behavior), `Performance:` (what, which types, how much, runner numbers),
   `Fixed:` (a user-visible bug). One or two sentences of Markdown for users; `Closes #N` in the body above them. Tests,
-  CI, docs and refactors get none. The docs site's changelog is written from the same trailers (`audit-docs`).
+  CI, docs and refactors get none. A trailer that landed wrong is fixed by a git note, never by rewriting `main`:
+  `git notes --ref=release add -f -m "Added: ..." <sha> && git push origin refs/notes/release` (the note replaces
+  that commit's highlight trailers). The docs site's changelog is written from the same trailers (`audit-docs`).
 - **Landing**: `main` moves only by fast-forward
   (`git fetch -q origin main && git merge-base --is-ancestor origin/main HEAD && git push -q origin HEAD:refs/heads/main`);
   the test branch only by merge. No force push, no pull request unless the owner asks, never trigger a release.

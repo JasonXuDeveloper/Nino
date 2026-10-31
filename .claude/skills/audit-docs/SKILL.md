@@ -106,8 +106,10 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   `INLINE_DEPTH`/`MAX_DEPTH` got no migration row (round 103). Name the old API as that release shipped it,
   namespace included: rc.8's entry called the registry `Nino.Core.CompilerServices.NinoPolymorphic<TBase>`, but rc.7
   had it in `Nino.Core` (it moved and was renamed within rc.8), and said TypeScript's `notNull` and `flagAt` became
-  `present` and `presentAt` when rc.7 had only `notNull` (round 103 final pass). Commit trailers cannot be corrected
-  once they land, so the site's changelog and migration table are where such a slip gets fixed.
+  `present` and `presentAt` when rc.7 had only `notNull` (round 103 final pass). A trailer that landed wrong is corrected
+  with a git note in `refs/notes/release`, never by rewriting `main` (the owner's choice, round 104): the note
+  replaces that commit's highlight trailers in the release body (`release_notes.py`), and the site's changelog and
+  migration table get the same fix.
   The same holds for speed: a runtime or API new in the release gets no
   "N% faster" entries against `main` before it; fold what it achieves into the entry that introduces it, against
   competitors only through the synced data (rc.8's 14 Go and Rust Performance entries became two sentences in the
