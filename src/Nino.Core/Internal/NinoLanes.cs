@@ -59,12 +59,19 @@ namespace Nino.Core.Internal
             {
                 if (!partial)
                     return null;
+                // Arm64 tries the grid first and keeps it on a tie, where its windows load once into consecutive
+                // registers (Gridded): two Waypoints a step (15-byte blocks of 24-byte values) from three loads on the
+                // grid, at the same cost here as three loads anywhere, wrote 1,000 of them in 0.76 times the time on
+                // GitHub's Neoverse-N2 runners (430 to 325 ns, .NET A/B run 41164356389).
                 NinoLanes best = null;
                 for (int vectors = 1; vectors <= 4; vectors++)
-                for (int grid = 0; grid < (width == 32 ? 2 : 1); grid++)
+                for (int pass = 0; pass < (width == 32 || tables ? 2 : 1); pass++)
                 {
+                    bool grid = tables ? pass == 0 : pass == 1;
                     int values = vectors * width / target;
-                    var each = values < 2 ? null : Plan(width, bytes, writes, tables, values, grid == 1);
+                    var each = values < 2 ? null : Plan(width, bytes, writes, tables, values, grid);
+                    if (tables && grid && each?.Gridded() == false)
+                        each = null;
                     if (each != null && (best == null || (each.Cost() + 3) * best.Group < (best.Cost() + 3) * values))
                         best = each;
                 }
