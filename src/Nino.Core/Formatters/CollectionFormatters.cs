@@ -36,7 +36,12 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
                 return;
 
-            var collection = value ??= NinoActivator<TCollection>.Create();
+            // The runtime's own collections with new, a direct call; anything else by its creator, a delegate.
+            var collection = value ??= typeof(TCollection) == typeof(SortedSet<T>)
+                ? Unsafe.As<TCollection>(new SortedSet<T>())
+                : typeof(TCollection) == typeof(LinkedList<T>)
+                    ? Unsafe.As<TCollection>(new LinkedList<T>())
+                    : NinoActivator<TCollection>.Create();
 
             if (collection.IsReadOnly)
                 NinoThrow.ReadOnlyCollection(collection.GetType());
@@ -518,7 +523,10 @@ namespace Nino.Core
             }
 
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
-            var collection = value ??= NinoActivator<TCollection>.Create();
+            // A bag with new, a direct call; anything else by its creator, a delegate.
+            var collection = value ??= typeof(TCollection) == typeof(ConcurrentBag<T>)
+                ? Unsafe.As<TCollection>(new ConcurrentBag<T>())
+                : NinoActivator<TCollection>.Create();
             NinoRecycler.DrainAndDiscard(collection);
 
             for (int i = 0; i < length; i++)

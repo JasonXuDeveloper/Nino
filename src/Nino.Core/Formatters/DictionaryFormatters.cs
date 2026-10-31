@@ -552,7 +552,12 @@ namespace Nino.Core
                     return;
             }
 
-            var dictionary = value ??= NinoActivator<TDictionary>.Create();
+            // The runtime's own dictionaries with new, a direct call; anything else by its creator, a delegate.
+            var dictionary = value ??= typeof(TDictionary) == typeof(SortedDictionary<TKey, TValue>)
+                ? Unsafe.As<TDictionary>(new SortedDictionary<TKey, TValue>())
+                : typeof(TDictionary) == typeof(SortedList<TKey, TValue>)
+                    ? Unsafe.As<TDictionary>(new SortedList<TKey, TValue>())
+                    : NinoActivator<TDictionary>.Create();
             if (dictionary.IsReadOnly)
                 NinoThrow.ReadOnlyCollection(dictionary.GetType());
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
