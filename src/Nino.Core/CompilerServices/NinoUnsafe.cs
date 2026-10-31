@@ -541,6 +541,13 @@ namespace Nino.Core.CompilerServices
         internal static readonly bool Wide512 = X86Base.IsSupported && (IsAmd() || !IsIceLake());
 
         /// <summary>
+        /// An Intel CPU of the Sunny Cove generation (<see cref="IsIceLake"/>): on GitHub's Xeon Platinum 8370C a 64-byte
+        /// load across two cache lines costs about twice an aligned one, so its block writes load memory vectors from
+        /// 64-byte boundaries (<see cref="NinoBlock"/>.WriteAligned).
+        /// </summary>
+        internal static readonly bool IceLake = X86Base.IsSupported && !IsAmd() && IsIceLake();
+
+        /// <summary>
         /// An Intel CPU of the Sunny Cove generation and its client relatives (Ice Lake server and client, Tiger Lake,
         /// Rocket Lake), by family 6 and model: the first cores with AVX-512 VBMI, whose 64-byte permutes and masked
         /// copies ran slower than 32-byte ones on GitHub's Xeon Platinum 8370C.

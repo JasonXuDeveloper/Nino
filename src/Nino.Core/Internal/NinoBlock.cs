@@ -179,6 +179,10 @@ namespace Nino.Core.Internal
                 i = skip;
             }
 
+            // Ice Lake: the groups whose memory lies inside the values loaded from 64-byte boundaries.
+            if (NinoUnsafe.IceLake && NinoBlock<T, TFormatter>.GroupWords)
+                i = WriteAligned<T, TFormatter>(ref source, ref destination, i, count);
+
             if (i <= last)
             {
                 // Cursors bumped a group at a time and a count down, not two multiplications per group.
@@ -241,6 +245,105 @@ namespace Nino.Core.Internal
             }
 
             return i;
+        }
+
+        /// <summary>
+        /// Groups from value <paramref name="i"/> (a group start) with every memory vector loaded from a 64-byte
+        /// boundary (<see cref="NinoBlock{T, TFormatter}.Aligned"/>): on GitHub's Xeon Platinum 8370C (Ice Lake) a
+        /// 64-byte load across two cache lines costs about twice an aligned one (16,000 bytes copied from 8 bytes past
+        /// a line in 377 ns, from a line 190), and the groups' loads start wherever the values do. Groups that would
+        /// load before the first value or past the last are left to the caller. Returns the next group start.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static unsafe int WriteAligned<T, TFormatter>(ref byte source, ref byte destination, int i, int count)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            var tables = NinoBlock<T, TFormatter>.Aligned.Tables;
+            int[] spans = NinoBlock<T, TFormatter>.Aligned.Spans;
+            int shift = (int)(((nuint)Unsafe.AsPointer(ref source) + (nuint)i * (nuint)Unsafe.SizeOf<T>()) & 63);
+            if (tables == null || (shift & 3) != 0)
+                return i;
+            int size = NinoBlock<T, TFormatter>.Size;
+            int group = NinoBlock<T, TFormatter>.Group;
+            int vectors = NinoBlock<T, TFormatter>.GroupVectors;
+            // The first group whose aligned start is not before the values (those before it unaligned, as the
+            // caller's), the last whose loads end inside them.
+            int first = i;
+            while ((long)first * Unsafe.SizeOf<T>() < shift)
+                first += group;
+            long end = (long)count * Unsafe.SizeOf<T>() + shift - NinoBlock<T, TFormatter>.Aligned.Reach;
+            if (end < (long)first * Unsafe.SizeOf<T>())
+                return i;
+            for (; i < first; i += group)
+                WriteGroup<T, TFormatter>(ref source, ref destination, i, size);
+            int n = (int)((end / Unsafe.SizeOf<T>() - i) / group) + 1;
+
+            int slot = shift / 4 * 4;
+            // Everything per vector of blocks out of the loop: its tables, its first memory vector, two or three.
+            var inner0 = tables[slot * 2];
+            var outer0 = tables[slot * 2 + 1];
+            int span0 = spans[slot];
+            Vector512<byte> inner1 = default, outer1 = default, inner2 = default, outer2 = default, inner3 = default,
+                outer3 = default;
+            int span1 = 0, span2 = 0, span3 = 0;
+            if (vectors > 1)
+            {
+                inner1 = tables[slot * 2 + 2];
+                outer1 = tables[slot * 2 + 3];
+                span1 = spans[slot + 1];
+            }
+
+            if (vectors > 2)
+            {
+                inner2 = tables[slot * 2 + 4];
+                outer2 = tables[slot * 2 + 5];
+                span2 = spans[slot + 2];
+            }
+
+            if (vectors > 3)
+            {
+                inner3 = tables[slot * 2 + 6];
+                outer3 = tables[slot * 2 + 7];
+                span3 = spans[slot + 3];
+            }
+
+            nuint low0 = (nuint)(span0 & ~1), low1 = (nuint)(span1 & ~1), low2 = (nuint)(span2 & ~1),
+                low3 = (nuint)(span3 & ~1);
+            bool three0 = (span0 & 1) != 0, three1 = (span1 & 1) != 0, three2 = (span2 & 1) != 0,
+                three3 = (span3 & 1) != 0;
+            ref byte from = ref Unsafe.Add(ref source, (nint)i * Unsafe.SizeOf<T>() - shift);
+            ref byte to = ref Unsafe.Add(ref destination, (nint)i * size);
+            i += n * group;
+            do
+            {
+                AlignedVector(ref from, low0, three0, inner0, outer0).StoreUnsafe(ref to);
+                if (vectors > 1)
+                    AlignedVector(ref from, low1, three1, inner1, outer1).StoreUnsafe(ref to, 64);
+                if (vectors > 2)
+                    AlignedVector(ref from, low2, three2, inner2, outer2).StoreUnsafe(ref to, 128);
+                if (vectors > 3)
+                    AlignedVector(ref from, low3, three3, inner3, outer3).StoreUnsafe(ref to, 192);
+                from = ref Unsafe.Add(ref from, (nint)group * Unsafe.SizeOf<T>());
+                to = ref Unsafe.Add(ref to, (nint)group * size);
+            } while (--n != 0);
+
+            return i;
+        }
+
+        /// <summary>
+        /// One vector of blocks of <see cref="WriteAligned{T, TFormatter}"/>, from the aligned memory vector
+        /// <paramref name="low"/> bytes past the group's aligned start, and the next two when <paramref name="three"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector512<byte> AlignedVector(ref byte at, nuint low, bool three, Vector512<byte> inner,
+            Vector512<byte> outer)
+        {
+            var vector = Avx512F.PermuteVar16x32x2(Vector512.LoadUnsafe(ref at, low).AsInt32(), inner.AsInt32(),
+                Vector512.LoadUnsafe(ref at, low + 64).AsInt32());
+            if (three)
+                vector = Avx512F.PermuteVar16x32x2(vector, outer.AsInt32(),
+                    Vector512.LoadUnsafe(ref at, low + 128).AsInt32());
+            return vector.AsByte();
         }
 
         /// <summary>The group of values from value <paramref name="i"/> (<see cref="Permute64x2{T, TFormatter}"/>).</summary>
