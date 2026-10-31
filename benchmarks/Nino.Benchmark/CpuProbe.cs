@@ -450,3 +450,294 @@ public unsafe class TupleCostProbe
         return x.GetElement(0);
     }
 }
+
+/// <summary>
+/// Experiment (round 104): the (int, long) write groups of Ice Lake (NinoBlockCollections.WriteAligned: memory loaded
+/// from 64-byte lines, one vpermt2d per vector of blocks, two when its bytes span three loads) on 64-byte vectors
+/// against the same on 32-byte ones (vpermt2d ymm, loads from 32-byte boundaries, twice as many stores and more
+/// permutes, but no 512-bit instruction for the AVX-512 frequency license to slow), over 992 values
+/// <see cref="SourceShift"/> bytes past a line into a 64-byte aligned buffer.
+/// </summary>
+[Config(typeof(SingleProbeConfig))]
+public unsafe class TupleGroupProbe
+{
+    private const int Groups = 62; // 16 values each
+
+    [Params(0, 8, 16, 24, 32, 40, 48, 56)]
+    public int SourceShift;
+
+    private static readonly byte* Source = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
+    private static readonly byte* Destination = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
+
+    // Per vector of blocks: the first aligned load (in vectors from the group's aligned start), the permute of it and
+    // the next, and when its dwords reach a third load, the permute that brings those in (-1: none).
+    private Vector512<int>[] _zFirst = new Vector512<int>[3], _zSecond = new Vector512<int>[3];
+    private int[] _zAt = new int[3];
+    private bool[] _zThree = new bool[3];
+    private Vector256<int>[] _yFirst = new Vector256<int>[6], _ySecond = new Vector256<int>[6];
+    private int[] _yAt = new int[6];
+    private bool[] _yThree = new bool[6];
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        for (int i = 0; i < Groups * 16 + 64; i++)
+        {
+            ((long*)(Source + SourceShift))[i * 2] = i;
+            ((long*)(Source + SourceShift))[i * 2 + 1] = i * 31L;
+        }
+
+        Plan(16, _zAt, _zThree, (o, a, b) => { _zFirst[o] = Vector512.Create(a); _zSecond[o] = Vector512.Create(b); });
+        Plan(8, _yAt, _yThree, (o, a, b) => { _yFirst[o] = Vector256.Create(a); _ySecond[o] = Vector256.Create(b); });
+        // The kernels must write Nino's bytes: 4 of the int, 8 of the long per value.
+        if (!System.Runtime.Intrinsics.X86.Avx512F.VL.IsSupported) return;
+        foreach (var kernel in new Action[] { () => Wide(), () => Narrow() })
+        {
+            new Span<byte>(Destination, 192 * Groups).Clear();
+            kernel();
+            for (int v = 0; v < Groups * 16; v++)
+                if (*(int*)(Destination + v * 12) != v || *(long*)(Destination + v * 12 + 4) != v * 31L)
+                    throw new InvalidOperationException($"value {v} wrong at shift {SourceShift}");
+        }
+    }
+
+    /// <summary>Tables per vector of <paramref name="width"/> dwords: output dword j holds memory dword m(j).</summary>
+    private void Plan(int width, int[] at, bool[] three, Action<int, int[], int[]> set)
+    {
+        int s = SourceShift / 4;
+        for (int o = 0; o < 48 / width; o++)
+        {
+            var d = new int[width];
+            for (int k = 0; k < width; k++)
+            {
+                int j = o * width + k, v = j / 3, p = j % 3;
+                d[k] = v * 4 + (p == 0 ? 0 : p + 1) + s;
+            }
+
+            int lo = System.Linq.Enumerable.Min(d), hi = System.Linq.Enumerable.Max(d), a = lo / width;
+            at[o] = a;
+            three[o] = hi >= (a + 2) * width;
+            var first = new int[width];
+            var second = new int[width];
+            for (int k = 0; k < width; k++)
+            {
+                int r = d[k] - a * width;
+                first[k] = r < 2 * width ? r : 0;
+                second[k] = r < 2 * width ? k : width + r - 2 * width;
+            }
+
+            set(o, first, second);
+        }
+    }
+
+    [Benchmark(Baseline = true)]
+    public int Wide()
+    {
+        if (!System.Runtime.Intrinsics.X86.Avx512F.IsSupported) return 0;
+        byte* from = Source, to = Destination;
+        var f0 = _zFirst[0]; var f1 = _zFirst[1]; var f2 = _zFirst[2];
+        var s0 = _zSecond[0]; var s1 = _zSecond[1]; var s2 = _zSecond[2];
+        nint a0 = _zAt[0] * 64, a1 = _zAt[1] * 64, a2 = _zAt[2] * 64;
+        bool t0 = _zThree[0], t1 = _zThree[1], t2 = _zThree[2];
+        for (int g = 0; g < Groups; g++)
+        {
+            Z(from + a0, f0, s0, t0).Store((int*)to);
+            Z(from + a1, f1, s1, t1).Store((int*)(to + 64));
+            Z(from + a2, f2, s2, t2).Store((int*)(to + 128));
+            from += 256;
+            to += 192;
+        }
+
+        return Groups;
+    }
+
+    [Benchmark]
+    public int Narrow()
+    {
+        if (!System.Runtime.Intrinsics.X86.Avx512F.VL.IsSupported) return 0;
+        byte* from = Source, to = Destination;
+        var f0 = _yFirst[0]; var f1 = _yFirst[1]; var f2 = _yFirst[2];
+        var f3 = _yFirst[3]; var f4 = _yFirst[4]; var f5 = _yFirst[5];
+        var s0 = _ySecond[0]; var s1 = _ySecond[1]; var s2 = _ySecond[2];
+        var s3 = _ySecond[3]; var s4 = _ySecond[4]; var s5 = _ySecond[5];
+        nint a0 = _yAt[0] * 32, a1 = _yAt[1] * 32, a2 = _yAt[2] * 32, a3 = _yAt[3] * 32, a4 = _yAt[4] * 32,
+            a5 = _yAt[5] * 32;
+        bool t0 = _yThree[0], t1 = _yThree[1], t2 = _yThree[2], t3 = _yThree[3], t4 = _yThree[4], t5 = _yThree[5];
+        for (int g = 0; g < Groups; g++)
+        {
+            Y(from + a0, f0, s0, t0).Store((int*)to);
+            Y(from + a1, f1, s1, t1).Store((int*)(to + 32));
+            Y(from + a2, f2, s2, t2).Store((int*)(to + 64));
+            Y(from + a3, f3, s3, t3).Store((int*)(to + 96));
+            Y(from + a4, f4, s4, t4).Store((int*)(to + 128));
+            Y(from + a5, f5, s5, t5).Store((int*)(to + 160));
+            from += 256;
+            to += 192;
+        }
+
+        return Groups;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static Vector512<int> Z(byte* at, Vector512<int> first, Vector512<int> second, bool three)
+    {
+        var v = System.Runtime.Intrinsics.X86.Avx512F.PermuteVar16x32x2(Vector512.Load((int*)at), first,
+            Vector512.Load((int*)(at + 64)));
+        if (three)
+            v = System.Runtime.Intrinsics.X86.Avx512F.PermuteVar16x32x2(v, second, Vector512.Load((int*)(at + 128)));
+        return v;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static Vector256<int> Y(byte* at, Vector256<int> first, Vector256<int> second, bool three)
+    {
+        var v = System.Runtime.Intrinsics.X86.Avx512F.VL.PermuteVar8x32x2(Vector256.Load((int*)at), first,
+            Vector256.Load((int*)(at + 32)));
+        if (three)
+            v = System.Runtime.Intrinsics.X86.Avx512F.VL.PermuteVar8x32x2(v, second, Vector256.Load((int*)(at + 64)));
+        return v;
+    }
+}
+
+/// <summary>
+/// Experiment (round 104): the cost of writing 12,000 bytes (1,000 (int, long) blocks) on one CPU, whatever produces
+/// them: 188 aligned 64-byte copies (loads and stores, no permutes), 376 aligned 32-byte copies, one rep movsb
+/// (glibc's memmove past 2,112 bytes with FSRM, source and destination alike in a line), stores alone (64 and
+/// 32 bytes, and non-temporal 64-byte ones with the fence), and the core clock on scalar, 32- and 64-byte vector code.
+/// </summary>
+[Config(typeof(SingleProbeConfig))]
+public unsafe class StorePathProbe
+{
+    private const int Bytes = 188 * 64;
+    private static readonly byte* Source = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
+    private static readonly byte* Destination = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
+
+    [Benchmark(Baseline = true)]
+    public int Copy64()
+    {
+        if (!System.Runtime.Intrinsics.X86.Avx512F.IsSupported) return 0;
+        for (int k = 0; k < Bytes; k += 128)
+        {
+            var a = Vector512.Load(Source + k);
+            var b = Vector512.Load(Source + k + 64);
+            a.Store(Destination + k);
+            b.Store(Destination + k + 64);
+        }
+
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int Copy32()
+    {
+        for (int k = 0; k < Bytes; k += 64)
+        {
+            var a = Vector256.Load(Source + k);
+            var b = Vector256.Load(Source + k + 32);
+            a.Store(Destination + k);
+            b.Store(Destination + k + 32);
+        }
+
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int RepMovsb()
+    {
+        Buffer.MemoryCopy(Source, Destination, Bytes, Bytes);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int Stores64()
+    {
+        if (!System.Runtime.Intrinsics.X86.Avx512F.IsSupported) return 0;
+        var v = Vector512.Create((byte)1);
+        for (int k = 0; k < Bytes; k += 128)
+        {
+            v.Store(Destination + k);
+            v.Store(Destination + k + 64);
+        }
+
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int Stores32()
+    {
+        var v = Vector256.Create((byte)1);
+        for (int k = 0; k < Bytes; k += 64)
+        {
+            v.Store(Destination + k);
+            v.Store(Destination + k + 32);
+        }
+
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int StoresNonTemporal()
+    {
+        if (!System.Runtime.Intrinsics.X86.Avx512F.IsSupported) return 0;
+        var v = Vector512.Create((byte)1);
+        for (int k = 0; k < Bytes; k += 128)
+        {
+            System.Runtime.Intrinsics.X86.Avx512F.StoreAlignedNonTemporal(Destination + k, v);
+            System.Runtime.Intrinsics.X86.Avx512F.StoreAlignedNonTemporal(Destination + k + 64, v);
+        }
+
+        System.Runtime.Intrinsics.X86.Sse.StoreFence();
+        return Bytes;
+    }
+
+    /// <summary>10,000 dependent scalar adds: 10,000 cycles, so 10,000 / ns is the core clock in GHz.</summary>
+    [Benchmark]
+    public long ClockScalar()
+    {
+        long x = Bytes;
+        for (int k = 0; k < 2500; k++)
+        {
+            x += k;
+            x ^= 1;
+            x += 3;
+            x ^= 2;
+        }
+
+        return x;
+    }
+
+    /// <summary>ClockScalar on 32-byte vectors (vpaddd ymm, latency 1).</summary>
+    [Benchmark]
+    public int ClockYmm()
+    {
+        var x = Vector256.Create(Bytes);
+        var one = Vector256.Create(1);
+        for (int k = 0; k < 2500; k++)
+        {
+            x += one;
+            x ^= one;
+            x += one;
+            x ^= one;
+        }
+
+        return x.GetElement(0);
+    }
+
+    /// <summary>ClockScalar on 64-byte vectors (vpaddd zmm, latency 1): the clock under AVX-512.</summary>
+    [Benchmark]
+    public int ClockZmm()
+    {
+        if (!System.Runtime.Intrinsics.X86.Avx512F.IsSupported) return 0;
+        var x = Vector512.Create(Bytes);
+        var one = Vector512.Create(1);
+        for (int k = 0; k < 2500; k++)
+        {
+            x += one;
+            x ^= one;
+            x += one;
+            x ^= one;
+        }
+
+        return x.GetElement(0);
+    }
+}
