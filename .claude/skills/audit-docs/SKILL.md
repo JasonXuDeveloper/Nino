@@ -44,7 +44,10 @@ is a finding, and so is a page that teaches a feature before the one it builds o
 3. **Examples compile and are exemplary**: every C# fence compiles against the current source (until a fence checker
    exists, paste the fences of the pages you touch into a scratch project that references `src/`), no NINO warning,
    models a real domain (game state, messages, saves), and uses the recommended form; byte examples match what
-   Nino writes now (`wire-format`).
+   Nino writes now (`wire-format`). Name the page's own helpers without the `Nino` prefix, which is the library's:
+   a reader cannot tell `NinoStream.Read<T>` from an API (adapters named after the format, `NinoKafkaSerializer`,
+   stay); grep the site for the new name first (round 103: `FrameStream` was already another page's class, so the
+   streams helper became `StreamFrames`).
 4. **Numbers**: never typed. Runtime numbers only through `BenchValue`, `RuntimeTable`, `ResultsTable`,
    `BenchmarkChart`, `RuntimesTables`, `UnityTables` from the synced data; within 5 % is on par and is written so; the
    docs never call Nino "slower"; v3 means 3.3.13.
@@ -60,7 +63,9 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   owns its install, API reference and implementation notes and links the guide; `docs/codegen.md` is for
   contributors (pipeline, why each target writes what it does, adding a type, regenerating, tests). Before cutting a
   copy, move every fact only it has to its owner (round 102 moved the camel/snake rules, Go slot marker methods and
-  Rust `RawNullables` to the site).
+  Rust `RawNullables` to the site), keep the cut section's anchor and point the inbound links at the owner's anchor,
+  so readers do not land on the summary (round 103: the platforms page's binary format and SIMD sections became
+  summaries; about 30 links moved to `wire-format#strings` and `simd#dotnet`).
 - **Copies that must exist agree**: README / README.zh.md, the site's index and comparison pages, the analyzers page
   and `docs/diagnostics.md`, `docs/spec/wire-format.md` and the site's wire-format page, the public skill, the
   runtimes' READMEs and the codegen page.
@@ -71,7 +76,8 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   facing items only, "Wire Format" first, then "New", "Performance", fixes; each entry checked against the source,
   linking its issue and its page. Bring it in line with Nino at the start of any docs work (nino.docs AGENTS.md has
   the steps: releases, `git log <tag>..origin/main` with the trailers). A user-facing commit without a trailer
-  needs a follow-up commit that carries one.
+  needs a follow-up commit that carries one. The migration page's "Upgrading from an Earlier Release Candidate"
+  table follows the same rule: a row only for a name the previous release shipped.
 - **The public skill** (`skills/nino-serialization/SKILL.md`) holds what users' agents need to write correct, fast Nino code: the
   recommended forms, the fast forms, the pitfalls and the diagnostics, matching the pages.
 - Stale names: grep the old names of every rename across both repositories; history pages (changelog, migration,
@@ -80,12 +86,18 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   entry, check the old name shipped: `git grep -n <old> <last tag>`. An API that is new in the release under audit is
   described as it is released; renames made while it was unreleased go at most into one entry for code written
   against `main`. Evidence: rc.8's Go `BeginEntry`, function-value helpers and Rust `PREFETCH` had three entries for names no
-  release had (the Go and Rust runtimes first shipped in rc.8). The same holds for speed: a runtime or API new in the release gets no
+  release had (the Go and Rust runtimes first shipped in rc.8); rc.8's entry said TypeScript's `region` and `exit`
+  became `beginRegion` and `exitBody`, but rc.7 had only `region` (`exit` came after it), and Rust's
+  `INLINE_DEPTH`/`MAX_DEPTH` got no migration row (round 103).
+  The same holds for speed: a runtime or API new in the release gets no
   "N% faster" entries against `main` before it; fold what it achieves into the entry that introduces it, against
   competitors only through the synced data (rc.8's 14 Go and Rust Performance entries became two sentences in the
   runtimes' entry, round 102).
 - **Chinese terms**: one per concept, from the glossary in nino.docs' `WRITING.md` (Tone: Chinese); grep the
-  variants it lists across both repositories (README.zh.md too) in every pass.
+  variants it lists across both repositories (README.zh.md too) in every pass. After replacing a term, grep for the
+  spacing it leaves (a space before the CJK word, none after inline code: `的 存在字节`, `` `bool`或 ``; round 103
+  found four), and read each hit of a variant before replacing it: 原地反序列化 meant reuse deserialization in
+  README.zh.md but "read from the segment without a copy" on the streams and ASP.NET Core pages.
 - **Renaming a site page's slug**: the old URL and its `.md` copy get a 301 in `public/_redirects` and an entry in
   `public/_routes.json`'s `exclude` (paths a function handles never reach the redirects); `git mv` its
   `scripts/csharp-check/Context/<slug>.cs` and change its `namespace Docs.Page_<slug>` (the check reports the page's
