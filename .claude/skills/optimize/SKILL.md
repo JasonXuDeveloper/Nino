@@ -214,6 +214,13 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   array on Intel (Xeon 8370C, 160,000 bytes: 3.18 µs instead of 3.51) and loses there on Zen 5 (EPYC 9V45: 1.81
   against 1.67), while on AMD it beats Memmove into a new uninitialized array (9V45 and 9V74: 0.93 to 0.95 times the
   time). `NinoUnsafe.CopyOver64` (zeroed or existing memory) takes it on Intel only, `CopyToNew` on AMD only.
+  From 2,112 bytes to 32 KB, Ice Lake under Linux takes Memmove instead of the 64-byte loop
+  (`NinoUnsafe.IceLakeMemmove`): glibc runs it as one rep movsb from an aligned destination (FSRM), while the loop's
+  loads split two lines unless source and destination sit alike in a line. Xeon 8370C (run 41188054612, n=12):
+  1,000 `KeyValuePair<int, int>` serialize 151 -> 128 ns (median 0.846; head 60 or 128 ns by process, base 106, 151
+  or 181), a `Queue<int>` of 1,000 94 -> 74 (0.783; head 43 or 74, base 61 or 94), TupleList (not a copy) 1.015; the
+  floor line drew no 8370C. Not on other CPUs: AMD's rep movsb lost to the loop 2-30 times up to 16 KB, and other C
+  runtimes' memmove was not measured.
 - Allocate a new array uninitialized only where the read writes every byte of it, padding included
   (`NinoElements.CopiedWhole`), or it hands stale heap memory to `MemoryMarshal.AsBytes` or a raw re-serializer: block
   reads write a padded value's padding as zero (`NinoBlockCollections.ReadOne` clears a value before `ReadBlock`;
