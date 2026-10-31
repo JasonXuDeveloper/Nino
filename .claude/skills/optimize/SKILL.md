@@ -122,8 +122,11 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   NativeAOT, a `VirtualActionInvoker` on IL2CPP, a virtual call on Mono; locally under NativeAOT 1,000 classes of
   another assembly as an array member serialized in 1.5 times and read in 1.37 times the time of the same class
   declared in the calling assembly, on par under the JIT (local numbers, to choose only). The direct form names the
-  other assembly's formatter, which is `internal`: making generated formatters public is the owner's decision (users'
-  public API, PublicAPI analyzers, two assemblies with one type name). The benchmark suite has no such member (its DLL
+  other assembly's formatter, which is `internal`. The owner decided to keep it (round 104): `InternalsVisibleTo`
+  needs the referenced assembly to name its referencers, so it helps only one author's assemblies, never a library;
+  public formatters would add generated types to every user's public API; and nothing reaches a type from an
+  assembly loaded at run time (HybridCLR hot updates), which only polymorphism or the registry sees. The docs site's
+  build configuration page advises declaring heavily serialized types in the serializing assembly instead. The benchmark suite has no such member (its DLL
   names `CachedFormatter` nowhere). (2) Shared generic code where a formatter's type argument holds a class
   (`NinoElements.ReadEach` over `Box<(class, int)>`): the element's `Deserialize` is found in the generic dictionary,
   a fat-pointer call per element on NativeAOT, `call rax` at Tier1, `il2cpp_rgctx_method` on IL2CPP: no direct form.
