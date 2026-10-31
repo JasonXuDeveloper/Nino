@@ -19,6 +19,10 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   (`Box<Action>`, anywhere in a member's type) is NINO007 with "writing a value of it throws", because its formatter
   takes `CachedFormatter<Action>`; the generator keeps the member, so the bytes stay (the owner's call, round 101).
   Only type parameters a serialized member uses count (`Tag<Action>` writes fine).
+- An attribute that cannot do what it says is reported, not left to a rule whose message would be wrong:
+  `[NinoMember]` on a static, constant, indexer, get-only computed property or backing field was NINO010 ("collected
+  already") with autoCollect and nothing without it, while nothing was written; NINO028 now reports it alone, with
+  the reason (`MemberCollector.NotSerializable`, the one test that decides membership too).
 - Every pattern that works but costs (a member that defeats raw copying, a format that adds bytes nobody needs, a
   pooled type without its hooks) gets a Warning that names the cheaper form.
 - Mistakes from the FAQ and the pitfalls pages (`docs/pitfalls.md`, the site's FAQ) that no rule catches are findings.
@@ -48,7 +52,8 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
 
 ## Tests: every rule, every edge
 
-`tests/Nino.UnitTests/Generator/AnalyzerTests.cs` and `CodeFixTests.cs`:
+`tests/Nino.UnitTests/Generator/AnalyzerTests.cs` and `CodeFixTests.cs` (locations as markup, `{|#0:Name|}` and
+`.WithLocation(0)`, never line and column spans):
 - each NINO id appears in a test that expects it and one that expects it not to fire; each code fix has a case per
   form it rewrites, its output compiles and reports nothing, and applying it twice changes nothing;
 - edge cases where they apply: generic, nested and partial types, records and structs, inheritance across

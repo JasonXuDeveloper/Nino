@@ -34,7 +34,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   `SizeOf<T>()` calls made the PolymorphicFooBase dispatch inline every subtype's `BodySize` (x64 76 stack accesses
   to 1, Arm64 57 to 9), yet PolymorphicClass and PolymorphicClassArray serialize measured 1.2-2.1% slower on EPYC
   7763 and Neoverse-N2 in two runner A/Bs, so the sum stayed. Take the decision from runners, not the listing.
-- **Parentheses only where precedence needs them**; layout as a formatter would leave it.
+- **Parentheses only where precedence needs them**; layout as a formatter would leave it. Blank lines are
+  `CodeWriter`'s: an emitter asks for one with `Line()` between the things it writes, and the writer drops it after an
+  opening brace, before a closing one and next to another (round 103: 65 of 533 unit-test files had one there,
+  mostly interface formatters whose body is only their entry points). A cast of a constant is the constant
+  (`Remaining >= 8`, not `>= (uint)(8)`; the parenthesized form stays for a size with `SizeOf<T>()` in it).
 - **Names a reader can follow**: locals after the member they hold.
 - **Generate once, refer to it**: a form that needs code another file generates names that code instead of copying
   it; a family that differs only by type comes from one template.
@@ -72,7 +76,9 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 
 - Text only (names, aliases, parentheses, layout): the IL of the generated methods is identical between base and
   head: build `benchmarks/Nino.Benchmark` (and `tests/Nino.UnitTests -f net10.0` for shapes the benchmark lacks, such
-  as keyed types) on both, `ilspycmd -il <dll> > side.il` (a dotnet tool), and `diff`: empty. (`-p:DebugType=none`
+  as keyed types) on both, `ilspycmd -il <dll> > side.il` (a dotnet tool), and `diff`: empty. The test DLL holds the
+  tests too, so drop the `// Method begins at RVA` lines and compare the IL of each `NinoGen` class; a changed
+  test moves every RVA after it. `diff -rB` of the two `generated/` folders shows what changed beyond blank lines. (`-p:DebugType=none`
   to compare the DLLs' bytes fails: Nino.Core embeds its sources.) Save the base side's `.il`, generated files and
   `asm.py dump` JSON once, then compare each commit against them.
 - IL changes: the Tier1 listings of the benchmark types identical or better (`asm.py compare`), else runner A/B

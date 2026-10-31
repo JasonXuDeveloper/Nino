@@ -21,7 +21,7 @@ dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.1
 dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoRegularCalls=true        # interceptors off
 dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoGeneratorBuild=4.8       # the .NET 8 SDK generator
 DOTNET_EnableHWIntrinsic=0 dotnet test tests/Nino.UnitTests -c Release     # no SIMD (also AVX512=0, AVX2=0 for vector code)
-dotnet test tests/Nino.AspNetCore.Tests tests/Nino.Codegen.Tests tests/Nino.Codegen.Integration.Tests
+for p in Nino.AspNetCore.Tests Nino.Codegen.Tests Nino.Codegen.Integration.Tests; do dotnet test tests/$p; done  # one project per call (MSB1008)
 ```
 
 - Runtime internals on every runtime a change to `CollectionViews`, mirrors or retyping reaches (`runtime-internals`,
