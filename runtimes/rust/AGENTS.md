@@ -3,9 +3,10 @@
 > Read when: reading or changing the Rust runtime (runtimes/rust: crates nino-serialization and nino-serialization-derive), its SIMD kernels, tests or benchmarks.
 
 A Cargo workspace: the crate `nino-serialization` (lib `nino`, MSRV 1.88, edition 2021, no required dependencies;
-`#![deny(unsafe_code)]` outside `src/simd*`), the derive crate and the benchmarks. README.md documents the API,
-attributes and the "Stricter than .NET" list. nino-gen's Rust target (`src/Nino.Codegen`) writes code in the shape
-of `tests/conformance/types.rs`. `audit-runtimes` audits it, `audit-security` its read paths.
+`#![deny(unsafe_code)]` outside `src/simd*` and one block of `src/shared.rs`), the derive crate and the benchmarks.
+README.md documents the API, attributes and the "Stricter than .NET" list. nino-gen's Rust target
+(`src/Nino.Codegen`) writes code in the shape of `tests/conformance/types.rs`. `audit-runtimes` audits it,
+`audit-security` its read paths.
 
 ```
 Cargo.toml                   the crate and the workspace (., bench, nino-derive); optional features uuid,
@@ -26,12 +27,13 @@ src/
   impls.rs                   NinoRead / NinoWrite for primitives, strings, Option, Box, tuples, std collections
   types.rs                   the .NET value types as plain Rust types keeping their exact bits
   strings.rs                 string headers and the default encoding's writer
-  simd.rs                    the only unsafe module: string transcoding into a Vec's spare capacity and Latin-1 /
+  simd.rs                    the unsafe module: string transcoding into a Vec's spare capacity and Latin-1 /
                              UTF-16 decoding into a String; its tests compare every kernel with a plain one
   simd/x86.rs                x86_64 kernels (SSSE3, SSE4.1, AVX2, AVX-512) picked at run time
   simd/neon.rs               Arm64 NEON kernels
   defer.rs                   deferred class bodies (spec §7.10): bounded stack whatever the depth
-  shared.rs                  reference tracking (spec §7.9)
+  shared.rs                  reference tracking (spec §7.9): each read's objects in an arena freed with it, cycles
+                             included (one unsafe block, Shared::get on a weak link)
   convert.rs                 conversions to uuid, rust_decimal, chrono, num-bigint, indexmap types (features)
   serde_impls.rs             serde for Nino's value types (feature serde)
 nino-derive/                 nino-serialization-derive: #[derive(NinoRead, NinoWrite)], the same code as the templates;
@@ -55,6 +57,7 @@ tests/
   spec.rs                    the specification's worked examples (Appendix A, §7.10), byte for byte, over samples/
   samples/mod.rs             hand-written sample types of the specification's examples
   values.rs                  each built-in value: bytes, round trip, errors
+  shared.rs                  reference tracking's memory: cyclic graphs freed, deferred bodies, failed reads (Miri)
 ```
 
 Generated files: `tests/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests`,
@@ -65,11 +68,13 @@ Generated files: `tests/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 do
 - Security: the reader takes hostile input. No input may panic it, read out of bounds, recurse without a bound or
   allocate out of proportion to the data. The crate is `#![deny(unsafe_code)]` and denies `indexing_slicing`,
   `unwrap_used`, `expect_used`, `panic` and `arithmetic_side_effects` (lib.rs): use `get`, `checked_*`/`wrapping_*` with
-  a comment saying why it cannot wrap, and errors. The one module allowed `unsafe` is `src/simd.rs` (with its submodules
+  a comment saying why it cannot wrap, and errors. The module allowed `unsafe` is `src/simd.rs` (with its submodules
   `simd/x86.rs` and `simd/neon.rs`, a kernel per instruction set): the string writer's transcoding, and the reader's
   decoding of Latin-1 and UTF-16 into a `String`'s spare capacity (`from_utf8_unchecked` only on what the decoder itself
-  writes from code units, so valid UTF-8 by construction; unpaired surrogates become U+FFFD). The reader's bounds checks
-  stay safe code: an unsafe decoder takes a `&[u8]` already taken from the input. Every block has a `// SAFETY:`
+  writes from code units, so valid UTF-8 by construction; unpaired surrogates become U+FFFD). Besides it,
+  `src/shared.rs` has one block: `Shared::get` on a weak link inside a read's arena (its SAFETY comment;
+  `tests/shared.rs` under Miri: cycles, deferred bodies and a `Drop` that reads another object). The reader's bounds
+  checks stay safe code: an unsafe decoder takes a `&[u8]` already taken from the input. Every block has a `// SAFETY:`
   comment, its tests compare every block kind and decoder with a plain one for every length up to 256 and random input,
   and the `rust-miri` job in `.github/workflows/runtimes.yml` runs them under Miri (x86_64 with SSE2 only, SSSE3,
   SSE4.1, AVX2 and AVX-512, Arm64, s390x). A kernel for an instruction set stays only where it measured faster on the

@@ -13,9 +13,10 @@
 //! ```
 //!
 //! Guarantees: no input makes the reader panic, read out of bounds, allocate more than the data could fill, or
-//! recurse without bound; a read either returns the whole value or an [`Error`]. The only `unsafe` code is `simd.rs`
+//! recurse without bound; a read either returns the whole value or an [`Error`]. The `unsafe` code is `simd.rs`
 //! (checked under Miri): the string writer's transcoding, and the reader's decoding of text into a `String` it
-//! builds, from bytes the reader's safe code has already bounds-checked.
+//! builds, from bytes the reader's safe code has already bounds-checked; and one block in `shared.rs`, reading an
+//! object through a weak link inside a read's graph (checked under Miri by `tests/shared.rs`).
 
 #![deny(unsafe_code)]
 #![deny(

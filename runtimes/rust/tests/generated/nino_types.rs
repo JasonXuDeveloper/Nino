@@ -7797,11 +7797,11 @@ impl NinoRead for TrackedRef {
         }
         if header > 0 {
             let any = r.back_ref(header)?;
-            if let Some(v) = nino::Shared::<Tracked>::downcast(&any) {
+            if let Some(v) = r.shared_from::<Tracked>(&any) {
                 *slot = Some(Self::Tracked(v));
                 return Ok(());
             }
-            if let Some(v) = nino::Shared::<TrackedLeaf>::downcast(&any) {
+            if let Some(v) = r.shared_from::<TrackedLeaf>(&any) {
                 *slot = Some(Self::TrackedLeaf(v));
                 return Ok(());
             }
