@@ -29,6 +29,13 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   pipefail` by default). Flaky is not a root cause: find it. A step that downloads has a bound: Ubuntu packages go
   through `.github/actions/apt-install` (a time limit per try, three tries, the .deb files cached), never a bare
   `apt-get`.
+- **Scripts only a release runs are checked on push.** `benchmarks/*.py` and `.github/scripts/*.py` run in
+  `report.yml` and `release.yml`, so a broken one showed only at a release: agents.yml's job (path filter on
+  `benchmarks/**` and `.github/scripts/**`) runs `python3 -m py_compile` over both folders and
+  `python3 -m unittest discover -s benchmarks -p 'test_*.py'` (under a second). Give a new release-time script a
+  `test_*.py` in `benchmarks/` on its fixtures, and a script in a new folder a line in that step and its path filter.
+  Do not discover in `.github/scripts`: it has no tests (`test_shards.py` is ci.yml's shard checker), and unittest
+  exits 5 on "NO TESTS RAN" since Python 3.12.
 - **Pinned**: every action by commit SHA with its version in a comment (`uses: actions/checkout@<sha> # v7.0.1`);
   Dependabot updates both, grouped.
 - **Least privilege**: `permissions: contents: read` unless a job writes; no ref taken from an input runs code in
@@ -87,8 +94,8 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
 
 - Jobs that wait on others without needing their output; steps repeated across jobs that a composite action
   (`.github/actions/setup-dotnet`), a script or a YAML anchor (on a tag's tree, "Releases and reports") would share;
-  scripts that run only in `report.yml` or `release.yml` (`benchmarks/*.py`, `.github/scripts/*.py`), whose break
-  shows only at a release; caches that never hit; matrix entries that test the same
+  scripts that run only in `report.yml` or `release.yml` without a test agents.yml runs (Rules, "Scripts only a
+  release runs"); caches that never hit; matrix entries that test the same
   thing twice; jobs that run on paths they do not read.
 - The slowest job of each workflow (`gh run view --json jobs` or the API): what dominates it, and whether it can be
   sharded or cached.
