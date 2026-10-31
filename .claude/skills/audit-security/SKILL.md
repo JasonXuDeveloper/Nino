@@ -49,8 +49,14 @@ the runtime it targets.
 - A hash table filled from the data whose hash the data can predict. In other runtimes the language's own table may
   be unseeded: V8 hashes number and `bigint` keys of `Map`/`Set` without a seed (8,000 crafted ints took 40 times as
   long as ordinary ones in Node 22), which `NinoKeyGuard` in `nino.ts` bounds by counting the buckets of the table V8 ends with; it is exact for
-  V8 only (JavaScriptCore and SpiderMonkey hash their own way). A new collection of number or `bigint` keys in
+  V8 only (JavaScriptCore and SpiderMonkey hash their own way). V8 also hashes a string that is an array index
+  ("0" to "4294967294", no leading zero) by its value (`MakeArrayIndexHash`), not its seed: 4,000 keys "0", "2048",
+  "4096", ... took 117 times as long as other numeric strings in Node 22 (round 103), so string keys take the guard
+  too (`NinoKeyGuard.string`, which hashes only such strings). A new collection of number, `bigint` or string keys in
   generated TypeScript takes the guard (`TsShape.Guard`); Go and Rust tables are seeded (maphash, `RandomState`).
+- A graph the data can make cyclic in a runtime without a tracing GC: Rust's `Shared` is an `Rc`, so a cycle read from
+  the data (which .NET accepts) is never freed; the leak is bounded per read but adds up across reads. Documented in
+  the Rust README; changing it (weak back references, an arena per read, or rejecting cycles) is the owner's call.
 - A recursive path without depth counting (a struct holding a collection of itself, polymorphic slots, tuples,
   `object` members, reference tracking's back references).
 - A loop whose work grows faster than the input (nested lengths, quadratic rehashing, deferred sections re-read).

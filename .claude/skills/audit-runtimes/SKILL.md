@@ -17,6 +17,7 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
 - Stricter than .NET is allowed, looser never; each stricter check is listed in the runtime's README.
 - A C# feature users can declare is supported by each runtime and by nino-gen's templates, or reported as NINOGEN002
   naming the type, never generated code that reads differently.
+- A rename of a runtime's API that no release carries gets no alias (`audit-naming`, "Output and applying").
 - Each runtime offers .NET's API shapes in its own idiom, under the same concept names: a new value
   (`Serialize`), memory the caller owns and reuses (`Serialize(value, bufferWriter)` with a `NinoArrayBufferWriter`:
   TypeScript `serializeInto` with a `NinoWriter` and `reset`, or a `Uint8Array`; Go `Append` and `Writer.Reset`; Rust
@@ -33,7 +34,10 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
 No input may panic, throw an unexpected error, read out of bounds, recurse without a bound or allocate out of
 proportion (Go: sticky errors, no `recover`; Rust: the crate's lints, `unsafe` only in `src/simd.rs` with SAFETY
 comments and Miri; TypeScript: bounds before allocating, `Map` for keys from the data). Fuzzers run on every change
-to a read path.
+to a read path. Rust has two fuzzers: the corpus mutation in `cargo test` (stable, CI) and coverage-guided
+`runtimes/rust/fuzz` (cargo-fuzz, nightly, local): run the second for a read-path change too, with `-detect_leaks=0`,
+since a cyclic `Shared` graph is an `Rc` cycle (README, "Reference tracking"). Round 103's first cargo-fuzz run found
+only that leak (9.3 million inputs in 15 minutes on the hand-written codecs, nothing).
 
 ## Speed
 
