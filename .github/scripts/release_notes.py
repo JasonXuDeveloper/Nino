@@ -24,7 +24,10 @@ them already. A release without such trailers has no highlights.
 
 A trailer that landed wrong is corrected without rewriting history: a git note on that commit in refs/notes/release
 replaces all four of its highlight trailers (the note holds the corrected trailer lines; an empty note drops them):
-  git notes --ref=release add -f -m "Added: the corrected text" <sha> && git push origin refs/notes/release
+  git fetch origin release-notes:refs/notes/release; git notes --ref=release add -f -m "Added: the corrected text" <sha>
+  git push origin refs/notes/release:refs/heads/release-notes
+The notes live on the branch release-notes (a plain branch pushes where a refs/notes ref may not); release.yml
+fetches it into refs/notes/release.
 """
 import argparse, fnmatch, json, os, re, subprocess, sys
 from collections import OrderedDict
