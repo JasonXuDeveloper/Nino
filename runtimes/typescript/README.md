@@ -1,13 +1,13 @@
 # Nino for TypeScript
 
 `src/nino.ts` is the TypeScript runtime of Nino: it reads and writes the bytes Nino writes in .NET (the format is
-[docs/spec/wire-format.md](../../docs/spec/wire-format.md)). By default `nino-gen` writes it next to the classes
-and codecs it generates for a project's `[NinoType]`s, after each build with the Nino.Codegen package
-(`<NinoCodegen Include="typescript" />`) or from a built assembly with the Nino.Codegen.Tool command
-(`nino-gen --lang ts`); see [docs/codegen.md](../../docs/codegen.md). Each release also publishes it to npm as
-`nino-serialization`, with Nino's version: generate with `Runtime="nino-serialization"` (`--runtime
-nino-serialization`) to import it from the package instead (`npm install nino-serialization`). The user
-documentation is on the [docs site](https://nino.xgamedev.net/en/docs/v4/advanced/typescript).
+[docs/spec/wire-format.md](../../docs/spec/wire-format.md)). nino-gen writes it next to the classes and codecs it
+generates for a project's `[NinoType]`s; each release also publishes it to npm as `nino-serialization`, with Nino's
+version, which generated code imports instead with `Runtime="nino-serialization"` (`npm install nino-serialization`).
+How to generate the code, the options, the type mapping, the generated API and what untrusted data may do are in the
+guide: [TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#typescript). This file is the
+runtime's reference: its API, its implementation notes, tests and benchmarks (how nino-gen works:
+[docs/codegen.md](../../docs/codegen.md)).
 
 ```ts
 import { deserialize, serialize } from "./nino";
@@ -53,75 +53,41 @@ returns (a browser `WebSocket.send`, `fs.writeSync`), or wait until the write is
 
 ## Typed arrays
 
-With nino-gen's `--numeric-arrays typed` (`NumericArrays="typed"`), an array or list of a fixed-size number (`sbyte`,
-`byte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `nint`, `nuint`, `float`, `double`) is a typed array in
-generated code (`Int8Array` to `Float64Array`, `BigInt64Array` for 64-bit integers; `byte` sequences are always
-`Uint8Array`); by default it is `number[]` or `bigint[]`. Its bytes on the wire are the typed array's own
-little-endian bytes, so `NinoReader.numbers(Int32Array)` and `NinoWriter.numbers(values)` copy those over 64 bytes in
-one block, with no loop over the elements (a big-endian engine swaps each element's bytes after the copy); shorter
-ones are read element by element. The reader copies from an aligned view
-of the data when the data is aligned to the elements, else from its bytes. What it returns never refers to the data:
-typed arrays of 65 bytes to 8 KB are views of a shared 64 KB buffer (as Node's small `Buffer`s share a pool, since an
-`ArrayBuffer` for each costs more than the copy), so read them by `byteOffset` and `length`, and `slice()` one you
-transfer or keep long after the rest. `bool`, `char`, `decimal`, `TimeSpan` and enum sequences stay arrays, and sets
-stay `Set`s. Serialize is faster in Node and Chromium, and deserialize faster in Node; Chromium deserializes numeric
-arrays of a few KB 2 to 3 times slower than into arrays, since each typed array needs a backing store of its own.
+With nino-gen's `NumericArrays="typed"` (the option, its types and its trade-off per engine are in the guide's
+[Typed Arrays](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#typed-arrays)), generated code reads and writes
+sequences of fixed-size numbers through `NinoReader.numbers(Int32Array)` and `NinoWriter.numbers(values)`. Their bytes
+on the wire are the typed array's own little-endian bytes, so those over 64 bytes are copied in one block, with no loop
+over the elements (a big-endian engine swaps each element's bytes after the copy); shorter ones are read element by
+element. The reader copies from an aligned view of the data when the data is aligned to the elements, else from its
+bytes. What it returns never refers to the data: typed arrays of 65 bytes to 8 KB are views of a shared 64 KB buffer
+(as Node's small `Buffer`s share a pool, since an `ArrayBuffer` for each costs more than the copy).
 
 ## Guarantees
 
-The reader takes untrusted input, as the .NET, Go and Rust readers do. Any data that is not a value of the type read
-throws a `NinoError`, never another exception, and never reads out of bounds, recurses without a bound or allocates
-more than the data holds:
+The reader takes untrusted input: what every runtime guarantees (bounds, depth, type ids, strict bytes, trailing bytes)
+is in the guide's [Untrusted Data](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#untrusted-data), and each
+check is in the specification's §9. Every failure is a `NinoError`, never another exception. Specific to this runtime:
 
-- Every read is bounds-checked, and a length or count is checked against the bytes left before anything is
-  allocated for it.
-- Class bodies nested past 128 are deferred, as in .NET, so deep data costs a bounded stack; bodies that cannot be
-  deferred, and structs that hold themselves, fail past 512.
-- A slot written behind a type id reads only the ids of the types allowed there.
-- Reference tracking (`trackReferences`, §7.9): a reference header other than -1, 0 or the number of an object read so
-  far is rejected, as is a back reference to an object the slot does not allow, and a header of 0 after a type id
-  (null is a type id of 0). Each object takes at least its 4 header bytes, so the table of objects grows with the
-  data. The reader records an object as it creates it, before its body, so a body can hold it (a cycle); the writer
-  numbers objects by identity.
-- Maps are read into `Map`s, never plain objects, so keys such as `__proto__` are data.
-- `bool`s and presence bytes are 0 or 1; UTF-8 strings are strict UTF-8 of the char count given.
-- A section of deferred bodies is checked when its region is opened, before any member is read: only the outermost
-  region holds one, with at least one entry, and its entries fill it exactly, keyed in increasing order by positions
-  no later than the entry itself (§7.10.3).
-- A member that runs past the end of its region, and a known keyed member whose value leaves bytes in its entry, are
-  rejected (§7.6, §9.5).
-- A key or element repeated in a map or set is rejected, as .NET's dictionaries and sets do (§9.8). The check is one
-  size comparison after the map or set is read. Keys are compared as `Map` and `Set` compare them: numbers, `bigint`s,
-  strings, booleans and null by value; keys read as objects (`DateTime` as a `Date`, structs, tuples) and `decimal`s
-  that differ only in scale are not compared.
-- Keys built to share a hash bucket (hash flooding) cannot make reading a map or set quadratic, as
-  `NinoSettings.MaxHashCollisions` ensures in .NET (§9.8). V8 hashes strings with a per-process seed but numbers and
-  `bigint`s without one, so for a map or set of more than 128 number or `bigint` keys, generated code passes each key
-  through `NinoKeyGuard`, which counts the keys of each bucket of the table V8 ends with and throws a `NinoError` when
-  a key would find more than 100 keys in its bucket (the smaller tables on the way stay within O(n log n) probes). The guard is exact for V8 (Node, Chromium, Deno); JavaScriptCore (Safari, Bun) and
-  SpiderMonkey (Firefox) hash numbers their own way, where it bounds V8's buckets, not theirs. A map or set of 128
-  keys or fewer is not guarded: no key there costs more than 128 probes.
-- Bytes after the value are left unread, as .NET does by default (§9.12).
-
-A `DateTime` is read as a `Date`, which has no kind: the ticks are taken as UTC whatever the kind, so a value written
-with `DateTimeKind.Unspecified` (or `Local`) reads as the UTC time with the same clock reading, and is written back
-with `DateTimeKind.Utc`.
+- A tracked class in a slot that does not track must not have a reference header of 0 after its type id (null is a
+  type id of 0). The reader records an object as it creates it, before its body; the writer numbers objects by
+  identity.
+- A section of deferred bodies is checked when its region is opened, before any member is read (§7.10.3).
+- A repeated key or element in a map or set (§9.8) is found with one size comparison after it is read.
+- Hash flooding (§9.8): V8 hashes strings with a per-process seed but numbers and `bigint`s without one, so for a map
+  or set of more than 128 number or `bigint` keys, generated code passes each key through `NinoKeyGuard`, which counts
+  the keys of each bucket of the table V8 ends with and throws when a key would find more than 100 keys in its bucket
+  (the smaller tables on the way stay within O(n log n) probes). JavaScriptCore (Safari, Bun) and SpiderMonkey
+  (Firefox) hash numbers their own way, where it bounds V8's buckets, not theirs. A map or set of 128 keys or fewer is
+  not guarded: no key there costs more than 128 probes.
 
 ## Text in browsers: WebAssembly
 
-Strings are most of the work of reading and writing many values. In Node (and Bun, and Deno with Node's `Buffer`) the
-runtime moves them with `Buffer`'s native Latin-1 and UTF-16 methods. Elsewhere (browsers, Deno) it uses a small
-WebAssembly module embedded in `nino.ts` (built from `wasm/text.wat`, about 1.3 KB) for the text JavaScript is slow
-at, up to 4096 chars: UTF-16 text of more than 24 chars and Latin-1 text of 33 to 128 chars read, and text of more
-than 64 chars written (ASCII of more than 1024 is left to `TextEncoder`). It reads and writes JavaScript strings through the JS String Builtins (`wasm:js-string`) and moves their
-chars 8 or 16 at a time in SIMD registers, in one page of memory that never grows; the bytes are the same as the
-JavaScript paths', which every other case takes.
-
-The module is compiled synchronously the first time it is needed. An engine without WebAssembly SIMD, GC or the JS
-String Builtins (Chromium before 130, Firefox before 134, Node 20 and older), or a page whose Content Security Policy
-does not allow compiling WebAssembly (`'wasm-unsafe-eval'`), keeps the JavaScript paths without an error; a browser
-may still report the blocked compilation as a CSP violation. `useWasm(false)` turns the module off, `useWasm(true)`
-back on, and `useWasm()` tells whether text goes through it.
+In browsers and Deno, `nino.ts` moves longer text through a small WebAssembly module embedded in it (built from
+`wasm/text.wat`), which reads and writes JavaScript strings through the JS String Builtins (`wasm:js-string`); in Node
+it uses `Buffer`'s native methods. Which text takes it, the engines that support it, the Content Security Policy it
+needs and `useWasm` are in the guide's [Text in Browsers](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#text-in-browsers).
+The module is compiled synchronously the first time it is needed, and its paths write the same bytes as the
+JavaScript ones.
 
 `npm run build:wasm` assembles `wasm/text.wat` with [wasm-tools](https://github.com/bytecodealliance/wasm-tools)
 (`wasm-tools parse`, then `strip --all`) and writes the module into `nino.ts`, with the SHA-256 of the `text.wat` it

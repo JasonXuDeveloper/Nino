@@ -11,6 +11,11 @@ with the NuGet packages (`cargo add nino-serialization@=4.0.0-rc.8`, `features =
   The reader's bounds checks are safe code.
 - No required dependencies. Every integration is an opt-in feature.
 
+How to generate Rust code from your `[NinoType]`s, the options, the C# to Rust type mapping, what nino-gen writes and
+untrusted data are in the guide: [TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#rust).
+This file is the crate's reference: its API, the derive, serde, implementation notes, tests and benchmarks (how
+nino-gen works: [docs/codegen.md](../../docs/codegen.md)).
+
 ```rust
 let bytes = nino::serialize(&vec![1i32, 2])?;
 let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
@@ -30,29 +35,16 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 | `type_id(name)` | The type id of a .NET full name: FNV-1a over its UTF-16 code units, as a `const fn`. |
 | `Error`, `ErrorKind` | Every failure. `ErrorKind` is `#[non_exhaustive]`. |
 
-How C# types map to Rust types:
-
-| C# | Rust |
-| --- | --- |
-| `sbyte` … `ulong`, `Int128`, `UInt128`, `float`, `double`, `bool` | `i8` … `u64`, `i128`, `u128`, `f32`, `f64`, `bool` |
-| `char` | `u16`, a UTF-16 code unit. A Rust `char` is a `Rune`. |
-| `string` | `Option<String>`, or `Option<WideString>`, or `Option<Utf8>` for `[NinoUtf8]`. See "Strings" below. |
-| `T?` (a struct), a class | `Option<T>`; `Option<Box<T>>` for a recursive class |
-| `T[]`, `List<T>`, `Queue<T>`, … | `Option<Vec<T>>`, `VecDeque<T>` |
-| `HashSet<T>`, `SortedSet<T>` | `HashSet<T>`, `BTreeSet<T>`, `IndexSet<T>` |
-| `Dictionary<K, V>`, `SortedDictionary<K, V>` | `HashMap<K, V>`, `BTreeMap<K, V>`, `IndexMap<K, V>` |
-| `ValueTuple<…>` (1 to 7 items) | tuples |
-| `T[,]` and other multi-dimensional arrays | `Grid<T, R>` |
-| `T?[]` of raw structs (written as raw memory) | `RawNullables<T>` |
-| `decimal`, `Guid`, `DateTime`, `DateTimeOffset`, `TimeSpan`, `DateOnly`, `TimeOnly`, `Half`, `Rune`, `Version`, `BigInteger`, `BitArray` | types of the same names. `DateTimeKind` is the `DateTime` kind. |
-
+How C# types map to Rust types (`String`, `WideString` and `Utf8` for strings, `Grid<T, R>`, `RawNullables<T>`, the
+value types of the same names as .NET's) is the guide's [Types](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#rust-types).
 A polymorphic declared type (an abstract class, an interface, or a class that is not sealed) becomes a Rust enum with
 one variant per concrete type. The reader rejects any type id that is not one of the variants
 (`ErrorKind::UnknownTypeId`).
 
 ## Guarantees
 
-The reader assumes the input may be hostile. For any input:
+The reader assumes the input may be hostile. What every runtime guarantees is in the guide's
+[Untrusted Data](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#untrusted-data); for this crate, for any input:
 
 - It never panics, never reads out of bounds, and returns either the whole value or an `Error`. A panic is a bug,
   whatever the input.
@@ -88,29 +80,17 @@ every mode, some only with `NinoSettings.Untrusted` set, and the rest not at all
 
 ### Reference tracking
 
-A type declared with `trackReferences=true` is held as a [`Shared<T>`](src/shared.rs): one object any number of
-places hold (a clone is the same object), which may hold itself; it compares by identity, and
-`Shared::empty` then `fill` builds a cycle. The code nino-gen writes uses it (`Option<nino::Shared<Node>>`), through
-`Reader::read_shared`, `ref_header`, `back_ref`, `read_shared_new`, `read_shared_after_id` and their writer
-counterparts; the derive does not take `trackReferences` yet. As .NET does, the reader records each object as it
-creates it, before its body (a deferred body waits in the queue until the bodies inside it are read), and rejects a
-header other than -1, 0 or the number of an object read so far, and a back reference to an object of a type the slot
-does not allow (`ErrorKind::InvalidReference`). Every object takes at least its 4 header bytes, so the table of
-objects grows with the input.
+A type declared with `trackReferences=true` is held as a [`Shared<T>`](src/shared.rs)
+([Reference Tracking](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#reference-tracking)). The code nino-gen
+writes uses it (`Option<nino::Shared<Node>>`), through `Reader::read_shared`, `ref_header`, `back_ref`,
+`read_shared_new`, `read_shared_after_id` and their writer counterparts; the derive does not take `trackReferences`
+yet. A deferred body waits in the queue until the bodies inside it are read; a bad header or back reference is
+`ErrorKind::InvalidReference`.
 
 ## Strings
 
-The wire has three string forms:
-
-A header's first byte gives its size, as MessagePack's string markers do: the value itself up to 0x7F (strings of up
-to 63 chars), else 0x80 and a little-endian `u16`, else 0x81 and a `u32` (1, 3 or 5 bytes), minimal; the reader
-rejects one cut short, not minimal or with another first byte, as .NET does.
-
-- **Null:** the header is 0.
-- **Latin-1:** the header is `2n + 1` (written when every character is ≤ U+00FF; 1 is the empty string), followed by
-  n bytes.
-- **UTF-16:** the header is `2n`, followed by n code units.
-- **`[NinoUtf8]`:** the char count plus one (0 null, 1 empty), then the byte count, then the bytes.
+The wire's string forms (a null, Latin-1, UTF-16 or `[NinoUtf8]` header, then the text) are in the specification's §4;
+the reader rejects a header cut short, not minimal or with another first byte, as .NET does.
 
 How each Rust type handles them:
 

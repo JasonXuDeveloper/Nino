@@ -9,6 +9,11 @@ through a reflection-built plan.
 Go 1.22 or later. Its versions are Nino's: each release tags the module `runtimes/go/vX.Y.Z`
 (`go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4@v4.0.0-rc.8`).
 
+How to generate Go code from your `[NinoType]`s, the options, what nino-gen writes and how to use it, strings and
+untrusted data are in the guide: [TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#go).
+This file is the runtime's reference: its API, struct tags, implementation notes, tests and benchmarks (how nino-gen
+works: [docs/codegen.md](../../docs/codegen.md)).
+
 ## How code uses it
 
 A type's codec is a read and a write function per type, generated (or written by hand in the same style:
@@ -82,6 +87,10 @@ tracked objects are read new. On a failure the value holds what was read before 
 | Errors | `*nino.Error` (`Code`, `Offset`, `Detail`), `errors.Is(err, nino.ErrTooDeep)`... |
 
 ## Guarantees
+
+What every runtime guarantees on untrusted data is in the guide's
+[Untrusted Data](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#untrusted-data); this is how the Go runtime
+does it.
 
 - **No panics.** Reading never panics on any input and never reads outside the data. This is by construction, not
   by `recover`: every read checks its bounds, and errors are sticky. After the first failure the reader drops
@@ -233,46 +242,27 @@ goes through its bits, as a conversion through `float64` would lose a signaling 
 ## Tags on generated structs
 
 Generated Go structs carry the same tags as hand-tagged ones, so the two have the same shape and either path reads
-either's data. `nino-gen --lang go` (docs/codegen.md; `--tags`, `--tag-names`; in a build, the Nino.Codegen package's
-`<NinoCodegen Include="go" Tags="..." TagNames="..." />`) emits, for every `[NinoType]`:
-
-- **the `nino` tag first** on every serialized field: the member's position (`nino:"3"`) for positional and
-  version-tolerant types, the C# member name (`nino:"Health"`) for keyed ones, plus `,utf8` for a `[NinoUtf8]`
-  string. A hand-tagged struct may add `,former=Old` for each `[NinoFormerName]`; nino-gen leaves it out, since a
-  layout carries only the former names' hashes, which `NinoLayout()` keeps. The `nino` name is the C# name as is; the naming policy
-  below never applies to it.
-- **extra tags**, configurable, by default `json` and `yaml`, with the member name under a naming policy:
-  - `camel` (default): the leading run of capitals lower-cased, keeping the last one when a lower-case letter
-    follows: `Health` → `health`, `ID` → `id`, `URLPath` → `urlPath`, `I128` → `i128`, `Utf8A` → `utf8A`;
-  - `snake`: words joined by `_`, lower-case, digits kept with the word before them: `IntList` → `int_list`,
-    `URLPath` → `url_path`, `I128` → `i128`, `Utf8A` → `utf8_a`;
-  - `original`: the C# name as is.
-  Tag order: `nino`, then the extra tags in the configured order: ``Health int32 `nino:"Health" json:"health" yaml:"health"` ``.
-- **`NinoLayout()`** returning the layout string .NET publishes for the type, unchanged (its `deferrable=` part
-  included). A closed generic type (layout `typeId=0`) written by hand gets `NinoTypeID()` returning `TypeID` of
-  its .NET name. nino-gen generates a generic `[NinoType]` as a generic struct (`Box[T any]`) whose codec is built
-  from the codecs of its type arguments (`BoxCodec[T any](p0 NinoArg[T]) NinoArg[*Box[T]]`), and a member
-  `Box<int>` as `*Box[int32]`. A generic type written behind a type id is an interface per definition
-  (`Shelf[T]`, with marker methods its implementations have) and a member `Shelf<int>` a field `Shelf[int32]`
-  (docs/codegen.md, "Generic types behind a type id").
-- **an `Elements` field first** on a `[NinoType]` collection (`class Bag : List<int>`), tagged `nino:"-"`
-  (`$elements` in the extra tags): the elements are read and written by the generated functions, before the members.
-- **`NinoTypeID()`** on the pointer type of every class that can sit behind a type id.
-- **`NinoTypeName()`** returning the .NET full name.
+either's data: the `nino` tag first on every serialized field (the position for positional and version-tolerant types,
+the C# member name, as is, for keyed ones; `,utf8` for a `[NinoUtf8]` string), then the tags of nino-gen's `Tags`
+option named by its `TagNames` policy, and a `NinoLayout()` method returning the layout .NET publishes. nino-gen
+leaves out `,former=`, since a layout carries only the former names' hashes, which `NinoLayout()` keeps. What else a
+generated struct has (`NinoTypeID()`, `NinoTypeName()`, an `Elements` field on a `[NinoType]` collection, generic
+types and their codecs, interfaces for slots) is in the guide's
+[Generated Code](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#go-generated-code) and
+[Generic Types](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#generics); the tag policies are under
+[Options](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#options). A closed generic type written by hand
+(layout `typeId=0`) implements `NinoTypeID()` returning `TypeID` of its .NET name.
 
 Reference tracking (`trackReferences`) and `[NinoType]` collections are read and written by generated code only: their
 layouts are an error for struct tags (`*TagError`), so the tagged path reads none of their data.
 
 ### Reference tracking in generated code
 
-A tracked class is a pointer, the same pointer for every reference to it in the data, which may hold itself. The
-generated functions build it from `refs.go`: `ReadTracked`/`WriteTracked` (a tracked class without subtypes),
-`Reader.Ref`, `Back[T]` and `ReadTrackedNew` (a tracked slot: the header, then the type id), and
-`ReadTrackedClass`/`WriteTypedTracked`/`TrackedClassType` (a tracked class in a slot that does not track: the type id,
-then the header). A reader records each object as it creates it, before its body (deferred bodies too); a writer
-numbers objects by pointer. A header other than -1, 0 or the number of an object read so far, and a back reference to
-an object the slot does not allow, fail with `CodeInvalidData`; each object takes at least its 4 header bytes, so the
-table grows with the data.
+Generated code builds tracked classes ([Reference Tracking](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#reference-tracking))
+from `refs.go`: `ReadTracked`/`WriteTracked` (a tracked class without subtypes), `Reader.Ref`, `Back[T]` and
+`ReadTrackedNew` (a tracked slot: the header, then the type id), and `ReadTrackedClass`/`WriteTypedTracked`/
+`TrackedClassType` (a tracked class in a slot that does not track: the type id, then the header). The writer numbers
+objects by pointer; a bad header or back reference fails with `CodeInvalidData`.
 
 `internal/sample` follows these conventions (camel policy, `json` and `yaml`); its `layouts.go` is what the
 generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen's output for the corpus's types (and
@@ -280,14 +270,10 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
 
 ## Strings
 
-- **Default encoding.** Latin-1 or UTF-16, as .NET writes it. It is read into a Go string as **WTF-8**: UTF-8,
-  except that an unpaired surrogate (which .NET strings may hold, and which the spec says readers MUST keep) is
-  stored in the 3-byte form UTF-8 would give it. Writing such a string back gives the same code units. Use
-  `Reader.UTF16` for the code units themselves.
-- **Reading.** Short strings (up to 128 bytes of UTF-8) are converted into a block the reader keeps (at most 2 KiB,
-  and never more than the data left can fill), one after another: one allocation for many strings, as substrings
-  share their string's. A string kept keeps its block alive; copy it (`strings.Clone`) to keep it alone. Likewise
-  `StringPtr` and `UTF8Ptr` (generated code's `*string`) point into a block of up to 32 strings the reader keeps.
+How strings read into Go (WTF-8, null as `""` unless read into a `*string`, the reader's blocks of short strings) is
+in the guide's [Strings](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#go-strings); `Reader.UTF16` returns the
+code units themselves.
+
 - **Writing.** A string is written as Latin-1 when every char is at most U+00FF, else as UTF-16 (what .NET writes).
   WTF-8 surrogates are written back as the code units they stand for. A byte that is not UTF-8 is written as U+FFFD.
   The text is converted into the writer's buffer eight bytes at a time (Latin-1 beyond ASCII a char at a time), in one
@@ -306,9 +292,6 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
   other platform use the Go loops (whose long runs of ASCII are copied or widened 16 bytes at a time with SSE2 or
   NEON): the same bytes, which the tests compare with every kernel the machine has (lengths 0 to 256, every kind of
   char at every position, invalid WTF-8, surrogates, text ending at a page boundary).
-- **Null.** A `string` has no null: `String` (and a `string` field of a tagged struct) reads a null string as `""`,
-  and `""` is written back, not null. Read into a `*string` (`StringPtr`, `NullableString`; generated structs use
-  `*string` for C# strings) to tell null from empty.
 - **`[NinoUtf8]` strings** are read as strict UTF-8 (no overlong forms, no surrogates, nothing above U+10FFFF), with
   the char count checked against the bytes. When written, anything that is not a scalar value becomes U+FFFD, as
   .NET's encoder does.
