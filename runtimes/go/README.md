@@ -14,6 +14,9 @@ untrusted data are in the guide: [TypeScript, Go and Rust](https://nino.xgamedev
 This file is the runtime's reference: its API, struct tags, implementation notes, tests and benchmarks (how nino-gen
 works: [docs/codegen.md](../../docs/codegen.md)).
 
+Build settings that make it faster (PGO with `default.pgo`, `GOAMD64`, no `purego` tag): [Recommended Build
+Configuration](https://nino.xgamedev.net/en/docs/v4/advanced/build-configuration#go).
+
 ## How code uses it
 
 A type's codec is a read and a write function per type, generated (or written by hand in the same style:

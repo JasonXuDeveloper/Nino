@@ -16,6 +16,9 @@ untrusted data are in the guide: [TypeScript, Go and Rust](https://nino.xgamedev
 This file is the crate's reference: its API, the derive, serde, implementation notes, tests and benchmarks (how
 nino-gen works: [docs/codegen.md](../../docs/codegen.md)).
 
+Build settings that make it faster (`lto`, `codegen-units`, `target-cpu` and what each changes here): [Recommended
+Build Configuration](https://nino.xgamedev.net/en/docs/v4/advanced/build-configuration#rust).
+
 ```rust
 let bytes = nino::serialize(&vec![1i32, 2])?;
 let back: Vec<i32> = nino::deserialize_exact(&bytes)?;

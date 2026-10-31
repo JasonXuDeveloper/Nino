@@ -9,6 +9,9 @@ guide: [TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/c
 runtime's reference: its API, its implementation notes, tests and benchmarks (how nino-gen works:
 [docs/codegen.md](../../docs/codegen.md)).
 
+Engines, Content Security Policy and bundler settings that keep it fast: [Recommended Build
+Configuration](https://nino.xgamedev.net/en/docs/v4/advanced/build-configuration#typescript).
+
 ```ts
 import { deserialize, serialize } from "./nino";
 import { PlayerCodec } from "./MyGame";

@@ -135,6 +135,9 @@ NinoDeserializer.Deserialize(bytes, ref copy);               // reuse: fills cop
   message, send `WrittenSpan`, `Dispose()` at the end (returns its array to the pool). `new
   NinoArrayBufferWriter(capacity, pool)` rents from your own `ArrayPool<byte>`. Nino writes into it in place; any other
   `IBufferWriter<byte>` (a `PipeWriter`) costs one copy. Call `Serialize(value)` only when an API needs a `byte[]`.
+- Build settings: Release, tiered compilation and Dynamic PGO left on (never `TieredCompilation` false), Native AOT
+  with `<IlcInstructionSet>` for AVX2/AVX-512, Unity IL2CPP Release/Master with Burst; Rust, Go and TypeScript in
+  https://nino.xgamedev.net/en/docs/v4/advanced/build-configuration.
 - Several values in one buffer: `var w = new Writer(buffer);` then `NinoSerializer.Serialize(a, ref w)`..., then
   `w.Flush(); w.ReleaseReferences();`; read with `var r = new Reader(span);`, `Deserialize<T>(ref r)`, then
   `r.ReleaseReferences()`. Release once per logical message.

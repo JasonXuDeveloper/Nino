@@ -45,6 +45,15 @@ is a finding, and so is a page that teaches a feature before the one it builds o
    re-checked whenever that surface grows: grep the runtime READMEs, crate docs, the codegen page and the changelog
    for it (round 103: Rust's reference tracking added one `unsafe` block in `Shared::get`; the README's own first
    bullet, the codegen page and rc.8's entry still said only the SIMD module was unsafe).
+   A claim about a tool outside Nino (a compiler flag, a runtime setting, an engine version) cites that tool's
+   official docs or source in the commit body, and says only what the setting changes in Nino's code; a claim about
+   Nino's own behavior is grepped first, even an obvious one: the build-configuration page's draft said Nino finds
+   nothing through reflection in IL2CPP, but `NinoRegistry` reads assembly attributes (it now says only what the
+   unity page states: registries are kept by `[RuntimeInitializeOnLoadMethod]`). Unity's Manual moved to
+   docs.unity.com and many old docs.unity3d.com Manual URLs 404 or redirect; its ScriptReference pages (enum values
+   such as `Il2CppCompilerConfiguration`) still answer with curl. Settings guidance by platform has one owner,
+   `advanced/build-configuration`, which points to the owners of each detail (`IlcInstructionSet`: platforms; Burst
+   targets and WebGL SIMD: unity; the wasm text module and `--numeric-arrays`: codegen).
 3. **Examples compile and are exemplary**: every C# fence compiles against the current source (until a fence checker
    exists, paste the fences of the pages you touch into a scratch project that references `src/`), no NINO warning,
    models a real domain (game state, messages, saves), and uses the recommended form; byte examples match what
