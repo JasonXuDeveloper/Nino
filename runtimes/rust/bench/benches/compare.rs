@@ -225,6 +225,78 @@ fn mixed_strings() -> Vec<String> {
         .collect()
 }
 
+/// `[NinoType(trackReferences: true)] class Node { int Value; Node Next; Node Other; }`: no other serializer here
+/// has shared references, so the case is Nino's alone.
+#[derive(Default)]
+pub struct Node {
+    pub value: i32,
+    pub next: Option<nino::Shared<Node>>,
+    pub other: Option<nino::Shared<Node>>,
+}
+
+impl NinoReadBody for Node {
+    fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_into(&mut self.value)?;
+        r.read_member_into(&mut self.next, nino::field!(Self, next))?;
+        r.read_member_into(&mut self.other, nino::field!(Self, other))
+    }
+}
+
+impl NinoWriteBody for Node {
+    fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        w.write(&self.value)?;
+        w.write(&self.next)?;
+        w.write(&self.other)
+    }
+}
+
+/// 1,000 tracked nodes in a list, each the next of the one before it and the other of every tenth: the bytes of a
+/// ring of `n` nodes (each node's next the one after, the last one's the first), written from a chain built by hand
+/// (no cycle) whose last next is then a back reference to the first.
+fn tracked_nodes(n: i32) -> Vec<u8> {
+    const LAST: i32 = 0x5A5A_5A5A;
+    let mut nodes: Vec<nino::Shared<Node>> = Vec::new();
+    let mut next = None;
+    for i in (0..n).rev() {
+        let value = if i == n - 1 { LAST } else { i };
+        let other = nodes.get(((n - 1 - i) as usize / 10) * 10).cloned();
+        let node = nino::Shared::new(Node { value, next, other });
+        nodes.push(node.clone());
+        next = Some(node);
+    }
+    nodes.reverse();
+    let list: Vec<Option<nino::Shared<Node>>> = nodes.into_iter().map(Some).collect();
+    let mut bytes = nino::serialize(&list).unwrap();
+    let at = bytes.windows(4).position(|w| w == LAST.to_le_bytes()).unwrap();
+    bytes[at..at + 4].copy_from_slice(&(n - 1).to_le_bytes());
+    assert_eq!(bytes[at + 4..at + 8], 0i32.to_le_bytes());
+    bytes[at + 4..at + 8].copy_from_slice(&1i32.to_le_bytes());
+    bytes
+}
+
+/// The tracked graph: read (and dropped, which frees it) and written.
+fn tracked(c: &mut Criterion) {
+    type Graph = Vec<Option<nino::Shared<Node>>>;
+    let bytes = tracked_nodes(1000);
+    let value: Graph = nino::deserialize(&bytes).unwrap();
+    assert_eq!(nino::serialize(&value).unwrap(), bytes);
+    eprintln!("tracked-1000: {} bytes nino", bytes.len());
+    let mut g = c.benchmark_group("tracked-1000");
+    g.throughput(Throughput::Elements(1000));
+    let mut out = Vec::with_capacity(bytes.len());
+    g.bench_function(BenchmarkId::new("serialize", "nino"), |b| {
+        b.iter(|| {
+            out.clear();
+            nino::serialize_into(black_box(&value), &mut out).unwrap();
+            black_box(out.len())
+        })
+    });
+    g.bench_function(BenchmarkId::new("deserialize", "nino"), |b| {
+        b.iter(|| black_box(nino::deserialize::<Graph>(black_box(&bytes)).unwrap()))
+    });
+    g.finish();
+}
+
 // ---------------------------------------------------------------------------------------------- the harness
 
 /// Nino alone on `$value`: for a case whose bytes differ only in Nino from one `formats!` already measures (the
@@ -412,6 +484,7 @@ fn benches(c: &mut Criterion) {
         mixed_strings().into_iter().map(nino::Utf8).collect(),
         Vec<nino::Utf8>
     );
+    tracked(c);
 }
 
 criterion_group! {
