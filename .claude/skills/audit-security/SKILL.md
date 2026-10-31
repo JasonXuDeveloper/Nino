@@ -42,8 +42,8 @@ the runtime it targets.
   then left it stale heap memory. Blocks with a bool (`NinoBlock<T, TFormatter>.Rejects`) are read by
   `NinoBlock.ReadRejecting`, a try/finally that clears the values when the read throws; the raw formatters (T?[],
   List<T?>, bool lists, Untrusted checks) store a new array once filled (`NinoElements.NewOrSame`, `Publish`);
-  `UntrustedInputTests.ARejectedReadKeepsNewArraysOutOfTheSlot` covers each, over 0xCD-filled freed memory. The fuzzer's reuse reads did not see it: stale bytes
-  are valid values.
+  `UntrustedInputTests.ARejectedReadKeepsNewArraysOutOfTheSlot` covers each, over 0xCD-filled freed memory. A new
+  read of that kind gets a member in the fuzzer's `Stale` type (below).
 - A read that allocates from a count before checking it against the bytes left (collections, strings, multi-dim
   arrays, `BigInteger`, `BitArray`, `StringBuilder`, custom formatters' helpers).
 - A hash table filled from the data whose hash the data can predict. In other runtimes the language's own table may
@@ -63,6 +63,15 @@ the runtime it targets.
 
 - `tests/Nino.Fuzz` (`tests/Nino.Fuzz/README.md`): `selftest`, then a timed run with and without
   `DOTNET_EnableHWIntrinsic=0`; a finding becomes a regression test and, when it is about the bytes, a malicious case.
+- Catch a bug whose symptom is a valid value with an invariant that makes it invalid: poison what the bug would leak,
+  then look for the poison. Stale heap memory left by a rejected read reads as ordinary bools and ints, so the
+  fuzzer's plain reuse reads never saw fd9d92f0 / 1f4cdc21; its `Poisoned` targets (`Stale`, `StaleUntrusted`: every
+  input read into a value of one-element arrays and null lists) read each rejected input again after filling freed
+  memory with an 8-byte pattern tied to the address (`StaleMemory.Poison`), and report `STALE` when an unmanaged
+  array the value reaches, private fields included, holds 16 bytes or more of a 64-byte line of it. Make such arrays
+  large-object-heap sized (11,000 elements): freed memory there is reused as it is, and with both fixes undone
+  every member was found within seconds; the gen0 allocator clears 8 KB ahead, so 8 KB lists were never found in
+  120 s and 16 KB ones once in 800 rejected inputs. The selftest plants one (`SelfTestStale`).
 - The hostile-input unit tests: `StrictReadTests`, `HashFloodingTests`, `UntrustedModeTests`, `SettingsTests`, the
   nesting tests (`tests/Nino.UnitTests/Security`).
 - The conformance corpus in .NET, Go, Rust and TypeScript; the runtimes' own fuzzers (`FuzzReader`, `FuzzDecode`,
