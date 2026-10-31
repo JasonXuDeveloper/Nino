@@ -5185,9 +5185,10 @@ function read$54(r: NinoReader): Map<string | null, number> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<string | null, number>();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.string();
-    map.set(key, r.i32());
+    map.set(guard === null ? key : guard.string(key), r.i32());
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;
@@ -5198,9 +5199,10 @@ function readInto$55(r: NinoReader, cur: Map<string | null, number>): Map<string
   if (length < 0) return null;
   const map = cur;
   map.clear();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.string();
-    map.set(key, r.i32());
+    map.set(guard === null ? key : guard.string(key), r.i32());
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;
@@ -5223,7 +5225,8 @@ function read$57(r: NinoReader): Set<string | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Set<string | null>();
-  for (let i = 0; i < length; i++) values.add(r.string());
+  const guard = r.keyGuard(length);
+  for (let i = 0; i < length; i++) values.add(guard === null ? r.string() : guard.string(r.string()));
   if (values.size !== length) throw r.duplicateKey();
   return values;
 }
@@ -5233,7 +5236,8 @@ function readInto$58(r: NinoReader, cur: Set<string | null>): Set<string | null>
   if (length < 0) return null;
   const values = cur;
   values.clear();
-  for (let i = 0; i < length; i++) values.add(r.string());
+  const guard = r.keyGuard(length);
+  for (let i = 0; i < length; i++) values.add(guard === null ? r.string() : guard.string(r.string()));
   if (values.size !== length) throw r.duplicateKey();
   return values;
 }
@@ -5515,9 +5519,10 @@ function read$87(r: NinoReader): Map<string | null, Animal | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<string | null, Animal | null>();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.string();
-    map.set(key, AnimalCodec.read(r));
+    map.set(guard === null ? key : guard.string(key), AnimalCodec.read(r));
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;
@@ -5528,9 +5533,10 @@ function readInto$88(r: NinoReader, cur: Map<string | null, Animal | null>): Map
   if (length < 0) return null;
   const map = cur;
   map.clear();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.string();
-    map.set(key, AnimalCodec.read(r));
+    map.set(guard === null ? key : guard.string(key), AnimalCodec.read(r));
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;

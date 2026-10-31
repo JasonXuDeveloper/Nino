@@ -1409,9 +1409,10 @@ function read$2<T>(r: NinoReader, c: Bag$Codecs<T>): Map<string | null, T> | nul
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<string | null, T>();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.string();
-    map.set(key, c.p0.read(r));
+    map.set(guard === null ? key : guard.string(key), c.p0.read(r));
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;
@@ -1422,9 +1423,10 @@ function readInto$3<T>(r: NinoReader, c: Bag$Codecs<T>, cur: Map<string | null, 
   if (length < 0) return null;
   const map = cur;
   map.clear();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.string();
-    map.set(key, c.p0.read(r));
+    map.set(guard === null ? key : guard.string(key), c.p0.read(r));
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;
@@ -1585,7 +1587,8 @@ function read$18(r: NinoReader): Set<string | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Set<string | null>();
-  for (let i = 0; i < length; i++) values.add(r.string());
+  const guard = r.keyGuard(length);
+  for (let i = 0; i < length; i++) values.add(guard === null ? r.string() : guard.string(r.string()));
   if (values.size !== length) throw r.duplicateKey();
   return values;
 }
@@ -1595,7 +1598,8 @@ function readInto$19(r: NinoReader, cur: Set<string | null>): Set<string | null>
   if (length < 0) return null;
   const values = cur;
   values.clear();
-  for (let i = 0; i < length; i++) values.add(r.string());
+  const guard = r.keyGuard(length);
+  for (let i = 0; i < length; i++) values.add(guard === null ? r.string() : guard.string(r.string()));
   if (values.size !== length) throw r.duplicateKey();
   return values;
 }
@@ -1768,9 +1772,10 @@ function read$35(r: NinoReader): Map<string | null, Pair<number, number>> | null
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<string | null, Pair<number, number>>();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.string();
-    map.set(key, codec$14.read(r));
+    map.set(guard === null ? key : guard.string(key), codec$14.read(r));
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;
@@ -1781,9 +1786,10 @@ function readInto$36(r: NinoReader, cur: Map<string | null, Pair<number, number>
   if (length < 0) return null;
   const map = cur;
   map.clear();
+  const guard = r.keyGuard(length);
   for (let i = 0; i < length; i++) {
     const key = r.string();
-    map.set(key, codec$14.read(r));
+    map.set(guard === null ? key : guard.string(key), codec$14.read(r));
   }
   if (map.size !== length) throw r.duplicateKey();
   return map;
