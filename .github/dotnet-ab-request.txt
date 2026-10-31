@@ -157,6 +157,10 @@
 # done (run 41180010041, drew Xeon 8573C only, no 8370C): cpu='Xeon' 4db6bcc4 45f3f025 1 *TupleCostProbe* # r103-perf diagnostic probe, again (45f3f025 = ab277e4e + compiling probe); ref origin/ab/r103-perf1
 # done (run 41180010041, drew Xeon 8573C only, no 8370C): cpu='Xeon' 4db6bcc4 45f3f025 12 *CollectionsTest.NinoSerializeTupleList* *CollectionsTest.MemoryPackSerializeTupleList* *CollectionsTest.NinoSerializeIntDictionary* # r103-perf aligned loads on the case, again
 # done (run 41180010041, drew Xeon 8573C only, no 8370C): cpu='Xeon' 4db6bcc4 45f3f025 12 *CollectionsTest.NinoSerializeTupleList* *CollectionsTest.MemoryPackSerializeTupleList* *CollectionsTest.NinoSerializeIntDictionary* # r103-perf aligned loads on the case, copy 2, again
-cpu='8370C' 4db6bcc4 45f3f025 1 *TupleCostProbe* # r103-perf diagnostic probe, Ice Lake only (last try); ref origin/ab/r103-perf1
-cpu='8370C' 4db6bcc4 45f3f025 12 *CollectionsTest.NinoSerializeTupleList* *CollectionsTest.MemoryPackSerializeTupleList* *CollectionsTest.NinoSerializeIntDictionary* # r103-perf aligned loads on the case, Ice Lake only
-cpu='8370C' 4db6bcc4 45f3f025 12 *CollectionsTest.NinoSerializeTupleList* *CollectionsTest.MemoryPackSerializeTupleList* *CollectionsTest.NinoSerializeIntDictionary* # r103-perf aligned loads on the case, Ice Lake only, copy 2
+# done (run 41181295487): cpu='8370C' 4db6bcc4 45f3f025 1 *TupleCostProbe* # r103-perf diagnostic probe, Ice Lake only (last try); ref origin/ab/r103-perf1
+# done (run 41181295487): cpu='8370C' 4db6bcc4 45f3f025 12 *CollectionsTest.NinoSerializeTupleList* *CollectionsTest.MemoryPackSerializeTupleList* *CollectionsTest.NinoSerializeIntDictionary* # r103-perf aligned loads on the case, Ice Lake only
+# done (run 41181295487): cpu='8370C' 4db6bcc4 45f3f025 12 *CollectionsTest.NinoSerializeTupleList* *CollectionsTest.MemoryPackSerializeTupleList* *CollectionsTest.NinoSerializeIntDictionary* # r103-perf aligned loads on the case, Ice Lake only, copy 2
+# r103-copy: Ice Lake (Linux) copies 2-32 KB raw blocks with Memmove (957cd5de); 557b5e44 adds RawCopyProbe; ref origin/ab/r103-copy1
+cpu='8370C' 488f6d4c 557b5e44 12 *CollectionsTest.NinoSerializeKeyValuePairs* *CollectionsTest.NinoSerializeQueue* *CollectionsTest.NinoSerializeTupleList* # r103-copy: Memmove on Ice Lake, the cases (TupleList a control)
+cpu='8370C' 488f6d4c 488f6d4c 12 *CollectionsTest.NinoSerializeKeyValuePairs* *CollectionsTest.NinoSerializeQueue* *CollectionsTest.NinoSerializeTupleList* # r103-copy floor on main 488f6d4c, 8370C
+cpu='8370C' 488f6d4c 557b5e44 1 *RawCopyProbe* # r103-copy probe: NinoUnsafe.Copy against Memmove per source shift
