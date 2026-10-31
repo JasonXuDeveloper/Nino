@@ -565,7 +565,7 @@ impl NinoRead for {{ x.name }} {
             let any = r.back_ref(header)?;
 {{~ for a in x.allowed ~}}
 {{~ if a.shared ~}}
-            if let Some(v) = nino::Shared::<{{ variant_type(a) }}>::downcast(&any) {
+            if let Some(v) = r.shared_from::<{{ variant_type(a) }}>(&any) {
                 *slot = Some(Self::{{ a.name }}(v));
                 return Ok(());
             }
