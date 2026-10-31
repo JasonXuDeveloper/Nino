@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Codegen.Model;
+using Nino.Core.Internal;
 
 namespace Nino.Codegen.Tests
 {
@@ -21,7 +22,7 @@ namespace Nino.Codegen.Tests
             var integers = Type(model, "Conformance.Integers");
             Assert.AreEqual(BodyFormat.Positional, integers.Format);
             Assert.AreEqual(HeaderKind.NullFlag, integers.Header);
-            Assert.AreEqual(TypeNames.Hash("Conformance.Integers"), integers.TypeId);
+            Assert.AreEqual(NinoHash.Compute("Conformance.Integers"), integers.TypeId);
             Assert.AreEqual(BodyFormat.VersionTolerant, Type(model, "Conformance.TolerantV2").Format);
             Assert.AreEqual(BodyFormat.Keyed, Type(model, "Conformance.KeyedV2").Format);
             Assert.AreEqual(HeaderKind.TypeId, Type(model, "Conformance.Animal").Header);
@@ -36,8 +37,8 @@ namespace Nino.Codegen.Tests
         {
             using var model = Load(GeneratedFilesTests.Conformance);
             var hp = Type(model, "Conformance.KeyedV2").Members.Single(m => m.Name == "Hp");
-            Assert.AreEqual(TypeNames.Hash("Hp"), hp.Key);
-            CollectionAssert.AreEqual(new[] { TypeNames.Hash("Health") }, hp.FormerKeys);
+            Assert.AreEqual(NinoHash.Compute("Hp"), hp.Key);
+            CollectionAssert.AreEqual(new[] { NinoHash.Compute("Health") }, hp.FormerKeys);
         }
 
         [TestMethod]
@@ -167,7 +168,7 @@ namespace Nino.Codegen.Tests
             // A closed type no code names is not one (the corpus's malicious case generic-not-in-use).
             CollectionAssert.DoesNotContain(names, "Conformance.Box<System.Guid>");
             var box = model.ClosedTypes.Single(c => c.RuntimeName == "Conformance.Box<System.Int32>");
-            Assert.AreEqual(TypeNames.Hash("Conformance.Box<System.Int32>"), box.TypeId);
+            Assert.AreEqual(NinoHash.Compute("Conformance.Box<System.Int32>"), box.TypeId);
             Assert.AreEqual("Conformance.Box`1", box.Definition.FullName);
             CollectionAssert.Contains(Type(model, "Conformance.Animal").ClosedAssignable, box);
             CollectionAssert.DoesNotContain(Type(model, "Conformance.IShape").ClosedAssignable, box);

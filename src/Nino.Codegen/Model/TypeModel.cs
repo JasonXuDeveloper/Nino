@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Nino.Codegen.Layouts;
+using Nino.Core.Internal;
 
 namespace Nino.Codegen.Model
 {
@@ -232,7 +233,7 @@ namespace Nino.Codegen.Model
             Clr = clr;
             Value = value;
             RuntimeName = TypeNames.Runtime(clr);
-            TypeId = TypeNames.Hash(RuntimeName);
+            TypeId = NinoHash.Compute(RuntimeName);
         }
 
         public Type Clr { get; }

@@ -35,6 +35,8 @@
         <EmbeddedResource Include="Templates\**\*.sbn" LogicalName="templates/%(RecursiveDir)%(Filename)%(Extension)"/>
         <EmbeddedResource Include="..\..\runtimes\typescript\src\nino.ts" LogicalName="nino.ts" Link="Runtime\nino.ts"/>
         <None Include="build\Nino.Codegen.targets" Pack="true" PackagePath="build\"/>
+        <!-- The type id hash of Nino.Core (and Nino.Generator), so the ids nino-gen writes cannot drift from them. -->
+        <Compile Include="..\Nino.Core\Internal\NinoHash.cs" Link="Shared\NinoHash.cs"/>
     </ItemGroup>
 
     <ItemGroup>

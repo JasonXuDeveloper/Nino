@@ -147,19 +147,6 @@ namespace Nino.Codegen.Model
         internal static string Closed(Type type) => Joined(new string(Simple(type).Replace("[", "Array_")
             .Where(c => char.IsAsciiLetterOrDigit(c) || c == '_').ToArray()));
 
-        /// <summary>FNV-1a over the UTF-16 code units, 0 mapped to 1 (wire-format spec, appendix B.1).</summary>
-        public static int Hash(string name)
-        {
-            uint h = 0x811C9DC5;
-            foreach (char c in name)
-            {
-                h = unchecked((h ^ (uint)(c & 0xFF)) * 0x01000193);
-                h = unchecked((h ^ (uint)(c >> 8)) * 0x01000193);
-            }
-
-            return unchecked((int)(h == 0 ? 1 : h));
-        }
-
         /// <summary><c>0x1234ABCD</c>.</summary>
         public static string Hex(int value) => "0x" + value.ToString("X8", CultureInfo.InvariantCulture);
     }

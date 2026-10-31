@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Nino.Codegen.Model;
+using Nino.Core.Internal;
 
 namespace Nino.Codegen.Targets
 {
@@ -251,7 +252,7 @@ namespace Nino.Codegen.Targets
         }
 
         /// <summary>The type id a type is written behind: its published one, or (a closed generic) its name's.</summary>
-        internal static int IdOf(TypeModel type) => type.TypeId != 0 ? type.TypeId : TypeNames.Hash(type.RuntimeName);
+        internal static int IdOf(TypeModel type) => type.TypeId != 0 ? type.TypeId : NinoHash.Compute(type.RuntimeName);
 
         /// <summary>
         /// The shape of a member of <paramref name="owner"/>: in a generic definition, the values holding its type
