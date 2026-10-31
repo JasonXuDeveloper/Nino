@@ -52,6 +52,22 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   tag (`git ls-remote --tags https://github.com/game-ci/cli`; v0.1.72 was the newest in round 103). A custom `buildMethod` under unity-builder 6 prints the CLI's build summary
   (a `# Build results #` banner, `Errors: 0`, then a `Size:` line, as `WebGLBenchBuild` does): the CLI parses the log
   for it and failed the WebGL job of a build Unity reported as succeeded (4.8.2 never looked).
+- **Bound every Unity launch inside its container**, with `ENGINE_LAUNCH_WRAPPER: timeout -k 60 <N>m` in the env
+  of each game-ci step (CLI v0.1.72 prefixes every `unity-editor` call of activation, tests and builds with it, read
+  from the action's environment like `UNITY_EMAIL`; the license return is not wrapped), and give each such step a
+  `timeout-minutes` above that bound as the backstop. Why: the Unity 2022.3 editor hangs now and then in batch mode
+  right after loading the project (its log ends at `Unloading 3 Unused Serialized files`, where a normal launch goes
+  on to `Unloading 45 unused Assets` and quits; licensing had connected and resolved, so it waits on nothing
+  external), and a hung launch held the seat for the job's 100 minutes and kept the other Unity jobs from running
+  (runs 41082628657, editmode launch, and 41172149972, COMBINE_RESULTS launch). `timeout` lets the container's script
+  go on and return the license; a cancelled or timed-out step does not (the script is the container's PID 1 and gets
+  no signal it handles). Size bounds from the jobs' step durations (`gh api .../runs/<id>/jobs`, steps'
+  `started_at`/`completed_at`) at five to ten times the normal maximum. Run the editor's tests as two steps
+  (`testMode: playmode`, then `editmode`), never `testMode: all`: `all` adds a third launch, COMBINE_RESULTS (the
+  editor with `-quit`, for the Code Coverage package to merge results), and the project has no such package, so it
+  did nothing ("Coverage results directory does not exist") but give the editor another chance to hang. To see where
+  a hung launch stopped, read `<platform>.log` in the job's uploaded `test-results-unity-<version>` artifact: the
+  job's own log prints the editor's log only after the editor exits.
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
   runs only the sections the release's tree has. A job that checks out the release's tag (report.yml's bench jobs,
   `unity.yml` called with `ref`, ab-bench.yml's `head/`) runs this commit's workflow on that tag's files: it uses

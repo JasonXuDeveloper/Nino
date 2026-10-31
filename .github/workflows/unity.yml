@@ -175,18 +175,36 @@ jobs:
             echo "::warning::pulling $UNITY_IMAGE failed; the test step pulls it again"
           fi
 
-      # Edit mode and play mode tests in the editor (Mono, Burst's JIT).
-      - name: Run the editor's tests
+      # Unity can hang in batch mode: the 2022.3 editor stopped twice after loading the project, its log ending at
+      # "Unloading 3 Unused Serialized files" where a normal launch goes on to "Unloading 45 unused Assets" and quits
+      # (runs 41082628657 and 41172149972, each a later launch in its container, licensing already done), and the job
+      # held the license seat until its 100-minute timeout. So every Unity launch is bounded inside the container:
+      # game-ci CLI v0.1.72 prefixes each `unity-editor` call (activation, tests, builds; not the license return) with
+      # ENGINE_LAUNCH_WRAPPER, read from the action's environment. `timeout` kills the editor's process group (SIGKILL a
+      # minute after SIGTERM), the step fails, and the container's script still returns the license. The step's own
+      # timeout-minutes is only the backstop: a cancelled step never returns the seat (the script in the container
+      # runs as PID 1 and gets no signal it handles), and the next step would start Unity beside the hung one. Bounds
+      # are some five to ten times the normal durations (run 41169746541 and the nine runs before it: both editor test
+      # launches together at most 2.7 minutes, a player step 3.5, a WebGL build 8.5).
+      #
+      # Edit mode and play mode tests in the editor (Mono, Burst's JIT), one step each: `testMode: all` adds a third
+      # launch (COMBINE_RESULTS: the editor opened with -quit, for the Code Coverage package to merge its results),
+      # and the project has no such package, so that launch did nothing ("Coverage results directory does not exist")
+      # but take another 10 seconds and another chance to hang. The edit mode step runs after a failure of the play
+      # mode one too, so one run shows both.
+      - name: Run the editor's play mode tests
         if: env.BENCHMARK != 'true'
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
-        id: editor-tests
+        id: playmode-tests
+        timeout-minutes: 25
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          ENGINE_LAUNCH_WRAPPER: timeout -k 60 15m
         with:
           projectPath: ./src/Nino.Unity
-          testMode: all
+          testMode: playmode
           artifactsPath: artifacts/editor
           customImage: ${{ env.UNITY_IMAGE }}
           # No githubToken: posting the results as a check run calls the GitHub API, and a timeout there failed a run
@@ -195,21 +213,44 @@ jobs:
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
 
-      # The play mode tests in a Linux player built with IL2CPP (ProjectSettings: Standalone scripting backend 1) and
-      # Burst AOT, where the paths through the runtime's own collections and the Burst function pointers run as they do
-      # on devices. It runs after a failure of the editor's tests too, so one run shows both; the steps run one after
-      # the other, so the job still holds one seat at a time.
-      # With the benchmark, -ninoBenchmark builds the player without the Development flag and with the benchmark in it
-      # (Test.Editor.Burst.BenchmarkPlayerBuild). Code coverage stays on: it instruments only the editor's code, but
-      # game-ci CLI v0.1.72 rejects the --no-coverageEnabled that coverageEnabled: false passes to it.
-      - name: Run the IL2CPP player's tests
-        if: success() || steps.editor-tests.conclusion == 'failure'
+      - name: Run the editor's edit mode tests
+        if: env.BENCHMARK != 'true' && (success() || steps.playmode-tests.conclusion == 'failure')
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
-        id: player-tests
+        id: editmode-tests
+        timeout-minutes: 25
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          ENGINE_LAUNCH_WRAPPER: timeout -k 60 15m
+        with:
+          projectPath: ./src/Nino.Unity
+          testMode: editmode
+          artifactsPath: artifacts/editor
+          customImage: ${{ env.UNITY_IMAGE }}
+          unityVersion: ${{ matrix.unity }}
+          cliVersion: 'v0.1.72'
+
+      # The play mode tests in a Linux player built with IL2CPP (ProjectSettings: Standalone scripting backend 1) and
+      # Burst AOT, where the paths through the runtime's own collections and the Burst function pointers run as they do
+      # on devices. It runs after a failure of the editor's tests too, so one run shows both; the steps run one after
+      # the other, so the job still holds one seat at a time. The player itself runs outside ENGINE_LAUNCH_WRAPPER (under
+      # xvfb-run), bounded only by the step's timeout.
+      # With the benchmark, -ninoBenchmark builds the player without the Development flag and with the benchmark in it
+      # (Test.Editor.Burst.BenchmarkPlayerBuild). Code coverage stays on: it instruments only the editor's code, but
+      # game-ci CLI v0.1.72 rejects the --no-coverageEnabled that coverageEnabled: false passes to it.
+      - name: Run the IL2CPP player's tests
+        if: >-
+          success() || steps.playmode-tests.conclusion == 'failure' || steps.editmode-tests.conclusion == 'failure'
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        id: player-tests
+        # The benchmark's run adds a few minutes of timing to the player.
+        timeout-minutes: 35
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          ENGINE_LAUNCH_WRAPPER: timeout -k 60 20m
         with:
           projectPath: ./src/Nino.Unity
           testMode: standalone
@@ -261,9 +302,7 @@ jobs:
         continue-on-error: true
         with:
           name: test-results-unity-${{ matrix.unity }}
-          path: |
-            ./artifacts
-            ${{ steps.editor-tests.outputs.coveragePath }}
+          path: ./artifacts
           retention-days: 30
 
       - name: Check the benchmark ran
@@ -313,12 +352,15 @@ jobs:
           sed -i "s|^  additionalIl2CppArgs:.*|  additionalIl2CppArgs: $ARGS|" src/Nino.Unity/ProjectSettings/ProjectSettings.asset
           grep -q "additionalIl2CppArgs: $ARGS" src/Nino.Unity/ProjectSettings/ProjectSettings.asset
 
+      # Each Unity launch bounded, as in unity-tests (ENGINE_LAUNCH_WRAPPER there).
       - name: Build the WebGL player
         uses: game-ci/unity-builder@eb1b9fba120c6e62c9fb7a7a81d6c107ce004c45 # v6.0.0
+        timeout-minutes: 40
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          ENGINE_LAUNCH_WRAPPER: timeout -k 60 25m
         with:
           projectPath: ./src/Nino.Unity
           targetPlatform: WebGL
@@ -333,6 +375,7 @@ jobs:
           cliVersion: 'v0.1.72'
 
       - name: Run the player in headless Chrome
+        timeout-minutes: 10
         run: |
           sudo chmod -R a+rX src/Nino.Unity/Build
           (cd src/Nino.Unity/Build/WebGL && python3 -m http.server 8123 > "$RUNNER_TEMP/http.log" 2>&1 &)

@@ -56,7 +56,9 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
 - Each job activates the Unity license, which has few seats: the matrix (Unity 2022.3.62f2 and 6000.3.27f1) runs
   with `max-parallel: 1`, every run shares the concurrency group `unity-license` and is never cancelled while it runs
   (a cancelled job keeps its seat). Pull requests from forks and Dependabot get no secrets and skip it.
-- Per version: the editor's tests (`testMode: all`), then an IL2CPP Linux player and its tests (`standalone`).
+- Per version: the editor's play mode tests, then its edit mode tests (one step each, `testMode: playmode` and
+  `editmode`, never `all`: see `audit-ci`), then an IL2CPP Linux player and its tests (`standalone`). Every Unity
+  launch is bounded by `ENGINE_LAUNCH_WRAPPER` (`timeout`), every Unity step by `timeout-minutes`.
   report.yml calls it with `benchmark: true` for a release: editor tests skipped, the player built as a release
   build with BurstBenchmark, its results uploaded as `unity-bench-<version>` for `benchmarks/unity_report.py`.
 - Then per version a WebGL player with SIMD (`webgl` job, after the tests, also `max-parallel: 1`), run in headless
