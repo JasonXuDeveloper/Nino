@@ -104,7 +104,7 @@ namespace Nino.Fuzz
             sb.AppendLine($"machine:   {Environment()}");
             sb.AppendLine();
             sb.AppendLine("Reproduce (from the repository root, with the same DOTNET_* variables as above):");
-            sb.AppendLine($"  dotnet run -c Release --project tests/Nino.Fuzz -- repro {c.Target} {Path.Combine(dir, repro)} {ReproArgs(c, dir)}");
+            sb.AppendLine($"  dotnet run -c Release -f net{System.Environment.Version.Major}.0 --project tests/Nino.Fuzz -- repro {c.Target} {Path.Combine(dir, repro)} {ReproArgs(c, dir)}");
             sb.AppendLine();
             var shown = minimized ?? c.Data;
             if (shown.Length <= 4096) { sb.AppendLine($"{repro} as hex (for a unit test):"); sb.AppendLine(Convert.ToHexString(shown)); sb.AppendLine(); }

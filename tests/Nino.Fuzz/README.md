@@ -59,10 +59,10 @@ signature in `findings/<target>/<kind>-<hash>/` (a crash whose signature is alre
 From the repository root:
 
 ```sh
-dotnet run -c Release --project tests/Nino.Fuzz -- fuzz --seconds 300
+dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- fuzz --seconds 300
 ```
 
-The time is shared by all targets. Useful options (`dotnet run --project tests/Nino.Fuzz -- help` lists them all):
+The time is shared by all targets. Useful options (`dotnet run -f net10.0 --project tests/Nino.Fuzz -- help` lists them all):
 
 - `--targets Colls,Imm` runs only these targets (`list` shows them and what each covers);
 - `--seed 7` changes the inputs: the same seed, target and start produce the same inputs on any machine;
@@ -73,9 +73,9 @@ The time is shared by all targets. Useful options (`dotnet run --project tests/N
 Run it with each SIMD level, as CI does, since every vector path is its own code:
 
 ```sh
-DOTNET_EnableHWIntrinsic=0 dotnet run -c Release --project tests/Nino.Fuzz -- fuzz
-DOTNET_EnableAVX512=0      dotnet run -c Release --project tests/Nino.Fuzz -- fuzz
-DOTNET_EnableAVX2=0        dotnet run -c Release --project tests/Nino.Fuzz -- fuzz
+DOTNET_EnableHWIntrinsic=0 dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- fuzz
+DOTNET_EnableAVX512=0      dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- fuzz
+DOTNET_EnableAVX2=0        dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- fuzz
 ```
 
 `selftest` checks the fuzzer itself: hidden `SelfTest` targets with planted bugs must yield a stack overflow, an
@@ -88,7 +88,7 @@ The exit code is 0 without findings and 1 with findings or a failed probe.
 Run the command from its `info.txt`, with the same `DOTNET_*` variables:
 
 ```sh
-dotnet run -c Release --project tests/Nino.Fuzz -- repro Colls tests/Nino.Fuzz/findings/Colls/exception-0123456789/min.bin --placement end
+dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- repro Colls tests/Nino.Fuzz/findings/Colls/exception-0123456789/min.bin --placement end
 ```
 
 `repro` runs the input once with the same checks and prints the outcome with the full exception; a crash kills the

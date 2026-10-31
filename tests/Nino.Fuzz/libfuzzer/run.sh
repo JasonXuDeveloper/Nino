@@ -8,7 +8,7 @@
 # Nino.Immutable and the generated formatters with SharpFuzz, and runs each target for the given time (default 60 s),
 # starting from its seed inputs (through Launcher/, which explains why). Inputs that crash are saved to
 # $NINO_LIBFUZZER_WORK/findings/<target>/crash-*; reproduce one with
-#   dotnet run -c Release --project tests/Nino.Fuzz -- repro <target> <file> --placement end   (start for an odd length)
+#   dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- repro <target> <file> --placement end   (start for an odd length)
 # Exit code: 0 when no target found anything.
 set -euo pipefail
 
