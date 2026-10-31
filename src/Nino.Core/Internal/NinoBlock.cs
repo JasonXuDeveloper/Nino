@@ -172,7 +172,8 @@ namespace Nino.Core.Internal
             // group, by one more group each, unaligned, over values the aligned groups also write (the same bytes):
             // one at a time, up to a group less one at each end took up to a fifth of the time (1,000 (int, long):
             // 123 to 149 ns by the alignment of the blocks, 100 to 125 with the two groups).
-            int skip = FirstAligned((nuint)Unsafe.AsPointer(ref destination), size, 0, group, 63);
+            int skip = FirstAligned((nuint)Unsafe.AsPointer(ref destination), size, 0, group,
+                (nuint)NinoBlock<T, TFormatter>.GroupWidth - 1);
             if (skip > 0)
             {
                 WriteGroup<T, TFormatter>(ref source, ref destination, 0, size);
@@ -643,12 +644,19 @@ namespace Nino.Core.Internal
         /// <summary>
         /// One group of values (<see cref="NinoBlock{T, TFormatter}.Groups"/>) with AVX-512: vector k of blocks is one
         /// two-source permute (<see cref="Pair{T, TFormatter}"/>) of memory vectors k and k + 1, each memory vector
-        /// loaded once.
+        /// loaded once; 32-byte vectors where <see cref="NinoBlock{T, TFormatter}.GroupWidth"/> is 32
+        /// (<see cref="Permute32x2{T, TFormatter}"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Permute64x2<T, TFormatter>(ref byte source, nuint from, ref byte destination, nuint to)
             where TFormatter : struct, INinoFormatter<T>
         {
+            if (NinoBlock<T, TFormatter>.GroupWidth == 32)
+            {
+                Permute32x2<T, TFormatter>(ref source, from, ref destination, to);
+                return;
+            }
+
             int vectors = NinoBlock<T, TFormatter>.GroupVectors;
             var a = Vector512.LoadUnsafe(ref source, from);
             var b = Vector512.LoadUnsafe(ref source, from + 64);
@@ -667,6 +675,29 @@ namespace Nino.Core.Internal
             Pair<T, TFormatter>(d, NinoBlock<T, TFormatter>.Group3, e).StoreUnsafe(ref destination, to + 192);
         }
 
+        /// <summary><see cref="Permute64x2{T, TFormatter}"/> with 32-byte vectors (AVX-512VL), the indices the low halves.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Permute32x2<T, TFormatter>(ref byte source, nuint from, ref byte destination, nuint to)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int vectors = NinoBlock<T, TFormatter>.GroupVectors;
+            var a = Vector256.LoadUnsafe(ref source, from);
+            var b = Vector256.LoadUnsafe(ref source, from + 32);
+            Pair32<T, TFormatter>(a, NinoBlock<T, TFormatter>.Group0.GetLower(), b).StoreUnsafe(ref destination, to);
+            if (vectors < 2)
+                return;
+            var c = Vector256.LoadUnsafe(ref source, from + 64);
+            Pair32<T, TFormatter>(b, NinoBlock<T, TFormatter>.Group1.GetLower(), c).StoreUnsafe(ref destination, to + 32);
+            if (vectors < 3)
+                return;
+            var d = Vector256.LoadUnsafe(ref source, from + 96);
+            Pair32<T, TFormatter>(c, NinoBlock<T, TFormatter>.Group2.GetLower(), d).StoreUnsafe(ref destination, to + 64);
+            if (vectors < 4)
+                return;
+            var e = Vector256.LoadUnsafe(ref source, from + 128);
+            Pair32<T, TFormatter>(d, NinoBlock<T, TFormatter>.Group3.GetLower(), e).StoreUnsafe(ref destination, to + 96);
+        }
+
         /// <summary>
         /// The two-source permute of a write group: 4-byte words (vpermt2d, AVX-512F) where every block moves whole
         /// words (<see cref="NinoBlock{T, TFormatter}.GroupWords"/>), else bytes (vpermt2b, AVX-512 VBMI).
@@ -678,6 +709,15 @@ namespace Nino.Core.Internal
             Avx512F.IsSupported && NinoBlock<T, TFormatter>.GroupWords
                 ? Avx512F.PermuteVar16x32x2(low.AsInt32(), mask.AsInt32(), high.AsInt32()).AsByte()
                 : Avx512Vbmi.PermuteVar64x8x2(low, mask, high);
+
+        /// <summary><see cref="Pair{T, TFormatter}"/> of 32-byte vectors.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector256<byte> Pair32<T, TFormatter>(Vector256<byte> low, Vector256<byte> mask,
+            Vector256<byte> high)
+            where TFormatter : struct, INinoFormatter<T> =>
+            Avx512F.VL.IsSupported && NinoBlock<T, TFormatter>.GroupWords
+                ? Avx512F.VL.PermuteVar8x32x2(low.AsInt32(), mask.AsInt32(), high.AsInt32()).AsByte()
+                : Avx512Vbmi.VL.PermuteVar32x8x2(low, mask, high);
 
         /// <summary>
         /// The first of the <paramref name="count"/> values from <paramref name="from"/>, <paramref name="stride"/>

@@ -152,6 +152,15 @@ namespace Nino.Core.Internal
             count - Math.Max((width + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>(), (width + size - 1) / size);
 
         /// <summary>
+        /// The vector width of the groups: 64 bytes where they beat 32 (<see cref="NinoUnsafe.Wide512"/>), else 32
+        /// (AVX-512VL's vpermt2d / vpermt2b of 32-byte vectors). GitHub's Xeon Platinum 8370C (Ice Lake) wrote
+        /// 1,000 (int, long) as 12-byte blocks in 220 to 226 ns with 64-byte groups and 167 to 173 with 32-byte ones,
+        /// where Granite Rapids took 101 against 139 (.NET A/B run 41159851472, TuplePackProbe). Declared before
+        /// <see cref="Groups"/>, whose masks read it (static fields initialize in order).
+        /// </summary>
+        public static readonly int GroupWidth = NinoUnsafe.Wide512 ? 64 : 32;
+
+        /// <summary>
         /// Whether values are written <see cref="Group"/> at a time as <see cref="GroupVectors"/> full vectors of
         /// blocks, each one two-source permute of two consecutive vectors of their memory: blocks are smaller than
         /// values (padding left out), so a value at a time stores a vector for fewer bytes, while a group stores each
@@ -162,25 +171,25 @@ namespace Nino.Core.Internal
         /// <see cref="LanePlan{TDirection}"/>.
         public static readonly bool Groups = Map != null && !IsMemory &&
                                              NinoBlock.Size<T, TFormatter>() < Unsafe.SizeOf<T>() &&
-                                             Avx512F.IsSupported && GroupMasks() is { } masks &&
-                                             (Avx512Vbmi.IsSupported || Words(masks));
+                                             Avx512F.VL.IsSupported && GroupMasks() is { } masks &&
+                                             (Avx512Vbmi.VL.IsSupported || Words(masks));
 
         /// <summary>
-        /// Whether the 64-byte vectors of blocks move whole 4-byte words (vpermt2d): one micro-op at one a cycle on
+        /// Whether the vectors of blocks move whole 4-byte words (vpermt2d): one micro-op at one a cycle on
         /// Intel, where vpermt2b takes three and issues every other cycle (1,000 12-byte blocks of 16-byte values on an
         /// AVX-512 Xeon: 121 ns with words, 150 to 190 with bytes, 123 for a copy of their memory).
         /// </summary>
         public static readonly bool GroupWords = Groups && Words(GroupMasks());
 
         /// <summary>Values per group: the fewest whose blocks fill whole vectors.</summary>
-        public static readonly int Group = Groups ? 64 / NinoLanes.Gcd(NinoBlock.Size<T, TFormatter>(), 64) : 0;
+        public static readonly int Group = Groups ? GroupWidth / NinoLanes.Gcd(NinoBlock.Size<T, TFormatter>(), GroupWidth) : 0;
 
         /// <summary>Vectors of blocks per group (1 to 4); one memory vector more is read.</summary>
-        public static readonly int GroupVectors = Groups ? Group * NinoBlock.Size<T, TFormatter>() / 64 : 0;
+        public static readonly int GroupVectors = Groups ? Group * NinoBlock.Size<T, TFormatter>() / GroupWidth : 0;
 
         /// <summary>
         /// The permute indices of each vector of blocks in a group: bytes, or for <see cref="GroupWords"/> one int per
-        /// word (0 to 31).
+        /// word (0 to 31, or 0 to 15 for 32-byte groups, which use the low half).
         /// </summary>
         public static readonly Vector512<byte> Group0 = GroupMask(0), Group1 = GroupMask(1), Group2 = GroupMask(2),
             Group3 = GroupMask(3);
@@ -188,36 +197,37 @@ namespace Nino.Core.Internal
         /// <summary>The last of <paramref name="count"/> values a group may start at: its reads stay inside the values.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int LastGroup(int count) =>
-            count - Math.Max(Group, ((GroupVectors + 1) * 64 + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>());
+            count - Math.Max(Group, ((GroupVectors + 1) * GroupWidth + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>());
 
         private static Vector512<byte> GroupMask(int vector)
         {
             if (!Groups || vector >= GroupVectors)
                 return default;
+            int width = GroupWidth;
             var masks = GroupMasks();
             var mask = new byte[64];
             if (GroupWords)
             {
                 // Words: the byte index of a word's first byte, over 4.
-                for (int word = 0; word < 16; word++)
-                    Unsafe.WriteUnaligned(ref mask[word * 4], masks[vector * 64 + word * 4] / 4);
+                for (int word = 0; word < width / 4; word++)
+                    Unsafe.WriteUnaligned(ref mask[word * 4], masks[vector * width + word * 4] / 4);
             }
             else
             {
-                Array.Copy(masks, vector * 64, mask, 0, 64);
+                Array.Copy(masks, vector * width, mask, 0, width);
             }
 
             return Vector512.Create(mask);
         }
 
         /// <summary>
-        /// For each byte of each 64-byte vector of blocks in a group, the byte of
+        /// For each byte of each <see cref="GroupWidth"/>-byte vector of blocks in a group, the byte of
         /// memory vectors k and k + 1 it comes from; null when a group would take more than four vectors or a vector of
         /// blocks draws on other memory vectors.
         /// </summary>
         private static byte[] GroupMasks()
         {
-            const int width = 64;
+            int width = GroupWidth;
             int size = NinoBlock.Size<T, TFormatter>();
             int group = width / NinoLanes.Gcd(size, width), vectors = group * size / width;
             if (vectors > 4)
