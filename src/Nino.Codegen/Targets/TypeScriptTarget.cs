@@ -905,8 +905,8 @@ namespace Nino.Codegen.Targets
         /// <summary>
         /// How a set's element or a map's key of this shape passes through <c>NinoKeyGuard</c> (the runtime's bound on
         /// hash flooding for the keys V8 hashes without a seed): <c>int</c> (an int32 value), <c>number</c>,
-        /// <c>bigint</c>, <c>key</c> (a nullable one, checked by its type at run time), or null for keys it does not
-        /// guard (strings, objects).
+        /// <c>bigint</c>, <c>string</c> (V8 hashes an array index such as "42" by its value), <c>key</c> (a nullable
+        /// number or bigint, checked by its type at run time), or null for keys it does not guard (objects).
         /// </summary>
         public string? Guard => Kind switch
         {
@@ -917,6 +917,7 @@ namespace Nino.Codegen.Targets
                 "i64" or "u64" or "timeSpan" => "bigint",
                 _ => null,
             },
+            "string" or "utf8" => "string",
             "enum" => Inner?.Guard,
             "nullable" or "rawnullable" => Inner?.Guard == null ? null : "key",
             _ => null,

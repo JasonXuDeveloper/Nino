@@ -1,10 +1,12 @@
-// Hash flooding (NinoKeyGuard): keys chosen to share one of V8's hash buckets, which V8 computes for numbers and
-// bigints without a seed. A map or set of them must be rejected with a NinoError before it grows quadratic, through
+// Hash flooding (NinoKeyGuard): keys chosen to share one of V8's hash buckets, which V8 computes for numbers,
+// bigints and strings that are array indices ("42", hashed by their value) without a seed. A map or set of them must be rejected with a NinoError before it grows quadratic, through
 // generated code and the runtime's own readers, while ordinary keys of the same count read as before.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { deserialize, deserializeInto, NinoError, serialize, type NinoCodec } from "../src/nino.ts";
-import { IntMap, IntMapCodec, IntSet, IntSetCodec } from "./generated/Nino.Conformance.ts";
+import {
+  IntMap, IntMapCodec, IntSet, IntSetCodec, StringMap, StringMapCodec, StringSet, StringSetCodec,
+} from "./generated/Nino.Conformance.ts";
 
 // V8's ComputeUnseededHash and ComputeLongHash (src/numbers/hash-seed / utils), written from V8's source with 64-bit
 // BigInts, independent of nino.ts's 32-bit halves.
@@ -81,5 +83,25 @@ describe("hash flooding", () => {
     assert.throws(() => deserialize(LongSetCodec, serialize(LongSetCodec, new Set(bigints))), flooded);
     const ordinary = new Set(Array.from({ length: n }, (_, i) => BigInt(i) * 1_000_003n));
     assert.deepEqual(deserialize(LongSetCodec, serialize(LongSetCodec, ordinary)), ordinary);
+  });
+
+  it("rejects strings that are array indices V8 would put in one bucket, and reads other numeric strings", () => {
+    // V8 hashes "0" to "4294967294" by their value: multiples of 512 share 9 low bits, as do those past 2^31.
+    const indices = Array.from({ length: n }, (_, i) => String(i * 512));
+    const set = Object.assign(new StringSet(), { Values: new Set<string | null>([...indices, null]) });
+    assert.throws(() => deserialize(StringSetCodec, serialize(StringSetCodec, set)), flooded);
+    const map = Object.assign(new StringMap(), { Values: new Map(indices.map((k, i) => [k, i] as [string, number])) });
+    assert.throws(() => deserialize(StringMapCodec, serialize(StringMapCodec, map)), flooded);
+    const high = new Set(Array.from({ length: n }, (_, i) => String(4_000_000_000 + i * 512)));
+    const stringSet: NinoCodec<Set<string | null> | null> = {
+      read: (r) => r.set((r) => r.string()), write: (w, v) => w.set(v, (w, x) => w.string(x)),
+    };
+    assert.throws(() => deserialize(stringSet, serialize(stringSet, high)), flooded);
+    // Not array indices (V8 hashes them with its seed): a leading zero, past 4294967294, a sign, other text.
+    for (const key of [(i: number) => "0" + i * 512, (i: number) => String(4294967295 + i * 512),
+      (i: number) => String(-i * 512), (i: number) => `k${i * 512}`]) {
+      const other = Object.assign(new StringSet(), { Values: new Set<string | null>(Array.from({ length: n }, (_, i) => key(i))) });
+      assert.deepEqual(deserialize(StringSetCodec, serialize(StringSetCodec, other)), other);
+    }
   });
 });

@@ -317,9 +317,10 @@ const guardedKeys = 128;
 /**
  * Bounds what keys read from the data cost a `Map` or `Set` (hash flooding), as `NinoSettings.MaxHashCollisions`
  * does in .NET. V8 hashes strings with a per-process seed, but numbers and bigints without one (its
- * `ComputeUnseededHash` and `ComputeLongHash`), so data can choose keys that share a bucket, and each insert then
- * scans every key before it: 8,000 such ints took 40 times as long as ordinary ones in Node 22, and the read grows
- * with the square of their count. The guard counts the keys of each bucket of the table V8 ends with
+ * `ComputeUnseededHash` and `ComputeLongHash`), and a string that is an array index ("0" to "4294967294") by its
+ * value (`MakeArrayIndexHash`), so data can choose keys that share a bucket, and each insert then scans every key
+ * before it: 8,000 such ints took 40 times as long as ordinary ones in Node 22, 4,000 such strings 117 times, and
+ * the read grows with the square of their count. The guard counts the keys of each bucket of the table V8 ends with
  * (`OrderedHashTable`: a power of two from 4 that holds them all, half as many buckets, a bucket by the hash's low
  * bits) and throws a `NinoError` when a key would find more than `maxHashCollisions` keys in its bucket. The smaller
  * tables V8 fills on the way are not counted (that would cost twice as much per key): one of `b` buckets holds at most
@@ -327,7 +328,7 @@ const guardedKeys = 128;
  * `maxHashCollisions` times the ratio of the two tables' sizes, which keeps a read within O(n log n) probes. It is
  * exact for V8 (Node, Chromium, Deno); other engines (JavaScriptCore in Safari and Bun, SpiderMonkey in Firefox) hash
  * differently, and there it bounds V8's buckets, not theirs. Generated code makes one for a map or set of more than
- * `guardedKeys` number or bigint keys (`NinoReader.keyGuard`) and passes each key through it before adding it.
+ * `guardedKeys` number, bigint or string keys (`NinoReader.keyGuard`) and passes each key through it before adding it.
  */
 export class NinoKeyGuard {
   // Keys per bucket of the final table.
@@ -364,6 +365,20 @@ export class NinoKeyGuard {
     return key;
   }
 
+  /** A string key, after checking its bucket when V8 hashes it by its value (an array index, `arrayIndexHash`). */
+  string<S extends string | null>(key: S): S {
+    if (key !== null && key.length <= 10) {
+      const first = key.charCodeAt(0);
+      if (first >= 0x30 && first <= 0x39) this.index(key, key.length);
+    }
+    return key;
+  }
+
+  private index(key: string, length: number): void {
+    const hash = arrayIndexHash(key, length);
+    if (hash >= 0) this.add(hash);
+  }
+
   private add(hash: number): void {
     if (this.counts[hash & this.mask]++ === maxHashCollisions + 1) throw flooded();
   }
@@ -389,6 +404,22 @@ function bigintHash(key: bigint): number {
 
 const keyBits = new Float64Array(1);
 const keyWords = new Uint32Array(keyBits.buffer);
+
+/**
+ * V8's hash of a string that is an array index (`StringHasher::MakeArrayIndexHash`: its value and its length, no
+ * seed), or -1 for any other string of up to 10 chars starting with a digit (those V8 hashes with its seed).
+ */
+function arrayIndexHash(key: string, length: number): number {
+  if (length > 1 && key.charCodeAt(0) === 0x30) return -1;
+  let value = 0;
+  for (let i = 0; i < length; i++) {
+    const digit = key.charCodeAt(i) - 0x30;
+    if (digit < 0 || digit > 9) return -1;
+    value = value * 10 + digit;
+  }
+  if (value > 4294967294) return -1;
+  return (((value << 2) | (length << 26)) >>> 2) & 0x3FFFFFFF;
+}
 
 /** V8's `ComputeUnseededHash`, of a 32-bit key (in int32 arithmetic, the same bits). */
 function unseededHash(key: number): number {
@@ -431,10 +462,11 @@ function longHash(hi: number, lo: number): number {
   return l & 0x3FFFFFFF;
 }
 
-/** A key of a type known only at run time through `guard`: numbers and bigints (the keys V8 hashes unseeded). */
+/** A key of a type known only at run time through `guard`: numbers, bigints and strings (see `NinoKeyGuard`). */
 function guardKey<K>(guard: NinoKeyGuard, key: K): K {
   if (typeof key === "number") guard.number(key);
   else if (typeof key === "bigint") guard.bigint(key);
+  else if (typeof key === "string") guard.string(key);
   return key;
 }
 
@@ -800,7 +832,7 @@ export class NinoReader {
     if (b > 1) throw new NinoError(`invalid bool byte ${b}.`);
     return b === 1;
   }
-  /** The has-value flag of a nullable at `at` (0 or 1, as `boolAt`). */
+  /** The presence byte of a nullable at `at`: true when a value follows (0 or 1, as `boolAt`). */
   presentAt(at: number): boolean {
     const b = this.view.getUint8(at);
     if (b > 1) throw new NinoError(`invalid presence byte ${b}.`);
@@ -1077,8 +1109,8 @@ export class NinoReader {
   }
 
   /**
-   * The guard against hash flooding (`NinoKeyGuard`) for a map or set of `length` number or bigint keys read from the
-   * data, or null for one of up to 128 keys, which cannot be flooded far.
+   * The guard against hash flooding (`NinoKeyGuard`) for a map or set of `length` number, bigint or string keys read
+   * from the data, or null for one of up to 128 keys, which cannot be flooded far.
    */
   keyGuard(length: number): NinoKeyGuard | null {
     return length > guardedKeys ? new NinoKeyGuard(length) : null;
@@ -1117,7 +1149,7 @@ export class NinoReader {
     return codec.readInto === undefined ? codec.read(this) : codec.readInto(this, value);
   }
 
-  /** A presence byte: true when a value follows. */
+  /** The presence byte of a nullable, `Tuple` or sealed class: true when a value follows (0 or 1). */
   present(): boolean {
     const flag = this.u8();
     if (flag > 1) throw new NinoError(`invalid presence byte ${flag}.`);
