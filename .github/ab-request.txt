@@ -1169,3 +1169,5 @@ typescript 4db6bcc4 30c2074b string-set # r103-rt NinoKeyGuard.string
 typescript 4db6bcc4 4db6bcc4 string-set # r103-rt floor
 rust 4d817c95 be2de580 (tracked|records-1000) # r103-rt arena per read
 rust 4d817c95 4d817c95 (tracked|records-1000) # r103-rt floor
+rust 75acd217 182d5123 (strings|records-1000) # r103-rt neon wide16
+rust 75acd217 75acd217 (strings|records-1000) # r103-rt floor
