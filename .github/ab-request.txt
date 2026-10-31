@@ -1167,3 +1167,5 @@ rust 9064fa6eaf66860147350dc9f69a33dfacd2e775 e3e9bee64829521998a2aeb59036f35a97
 typescript 179af9674bbe4693213a0dec89d28cafe99d42b1 884a99b988c423b22add9aa0d5d291aecc098592 int-set # r101-runtimes TS set from array (base: NinoKeyGuard commit)
 typescript 4db6bcc4 30c2074b string-set # r103-rt NinoKeyGuard.string
 typescript 4db6bcc4 4db6bcc4 string-set # r103-rt floor
+rust 4d817c95 be2de580 (tracked|records-1000) # r103-rt arena per read
+rust 4d817c95 4d817c95 (tracked|records-1000) # r103-rt floor
