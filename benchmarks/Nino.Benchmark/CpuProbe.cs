@@ -450,3 +450,35 @@ public unsafe class TupleCostProbe
         return x.GetElement(0);
     }
 }
+
+/// <summary>
+/// Experiment (round 103): NinoUnsafe.Copy (what raw arrays, unpadded structs and strings are written with) against
+/// Memmove, from a source <see cref="SourceShift"/> bytes past a 64-byte line into a buffer 4 bytes past one (a
+/// collection after its length): on Ice Lake its 64-byte loads split two lines unless the shift is 0.
+/// </summary>
+[Config(typeof(SingleProbeConfig))]
+public unsafe class RawCopyProbe
+{
+    [Params(4000, 8000, 16000)]
+    public int Bytes = 8000;
+
+    [Params(0, 8, 16, 24, 32, 40, 48, 56)]
+    public int SourceShift;
+
+    private static readonly byte* SourceBase = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
+    private static readonly byte* Destination = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64) + 2048 + 4;
+
+    [Benchmark(Baseline = true)]
+    public int NinoCopy()
+    {
+        NinoUnsafe.Copy(ref *Destination, ref *(SourceBase + SourceShift), (uint)Bytes);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int Memmove()
+    {
+        Buffer.MemoryCopy(SourceBase + SourceShift, Destination, Bytes, Bytes);
+        return Bytes;
+    }
+}
