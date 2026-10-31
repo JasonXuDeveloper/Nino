@@ -23,8 +23,8 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   pull request's base; everything runs when that is unknown, on a schedule and when the workflow changes):
   runtimes.yml per runtime (Miri only for the crate's library code), codeql.yml per language (every language
   weekly).
-- **Green**: never push a change whose workflow was not run locally in its parts (`verify`); `actionlint` (1.7.8 or newer: 1.7.7 rejects
-  the YAML anchors of the path filters with "must be sequence node but got alias node"; `go install
+- **Green**: never push a change whose workflow was not run locally in its parts (`verify`); `actionlint` (1.7.12 or newer: 1.7.7 and 1.7.8
+  reject the YAML anchors of the path filters with "must be sequence node but got alias node"; `go install
   github.com/rhysd/actionlint/cmd/actionlint@latest`) with `.github/actionlint.yaml` after any workflow edit; a step that pipes a command keeps its failure (`bash -eo
   pipefail` by default). Flaky is not a root cause: find it. A step that downloads has a bound: Ubuntu packages go
   through `.github/actions/apt-install` (a time limit per try, three tries, the .deb files cached), never a bare
@@ -43,7 +43,11 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   `add_repo` with push access): to run unity.yml on an experiment, push a branch whose own unity.yml adds it to
   `on.push.branches`, check first that no Unity run is queued (a newer pending run in the `unity-license` group replaces
   an older pending one), and name the branch in the report: the session cannot delete it either (`git push --delete`
-  returned 403).
+  returned 403). Pin `cliVersion` on every game-ci action that runs the game-ci CLI (unity-test-runner 4.4+,
+  unity-builder 6+; all to one release): its default `latest` asks the GitHub API on every run, and a 403 from the rate
+  limit failed a job. Dependabot bumps the action, never that input: on a game-ci major, read its `action.yml` at the
+  new SHA for inputs it ignores (unity-builder 6.0.0's `unityVersion` reaches the CLI as `--engineVersion`) and keep
+  the editor chosen by `customImage`.
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
   runs only the sections the release's tree has.
 - **Concurrency budget**: every matrix that can grow with a request or a file has `max-parallel` (`runtime-ab.yml`
