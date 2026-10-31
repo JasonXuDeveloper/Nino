@@ -41,6 +41,10 @@ is a finding, and so is a page that teaches a feature before the one it builds o
 2. **True to the code**: every API, attribute, option, default, limit and exception named exists today and behaves as
    written; check a doubtful claim with a throwaway test. Names match the code exactly. No API that is not in the
    source (the site's rule).
+   A claim about the code's whole surface ("the reader is safe code", "the only `unsafe` is the SIMD module") is
+   re-checked whenever that surface grows: grep the runtime READMEs, crate docs, the codegen page and the changelog
+   for it (round 103: Rust's reference tracking added one `unsafe` block in `Shared::get`; the README's own first
+   bullet, the codegen page and rc.8's entry still said only the SIMD module was unsafe).
 3. **Examples compile and are exemplary**: every C# fence compiles against the current source (until a fence checker
    exists, paste the fences of the pages you touch into a scratch project that references `src/`), no NINO warning,
    models a real domain (game state, messages, saves), and uses the recommended form; byte examples match what
@@ -73,7 +77,9 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   for its rules, the platforms page if it is platform-specific, the public skill, README's feature list when users
   choose Nino for it, the changelog.
 - **Changelog** (`changelog.mdx` / `.zh.mdx`): one section per v4 release (prereleases included), newest first; user-
-  facing items only, "Wire Format" first, then "New", "Performance", fixes; each entry checked against the source,
+  facing items only, "Wire Format" first, then "New", "Performance", fixes; within a subsection, entries of one area
+  stay together (.NET, then its integrations, then TypeScript, Go and Rust), since agents append in commit order
+  (round 103 regrouped six rc.8 fixes, keeping English and Chinese in the same order); each entry checked against the source,
   linking its issue and its page. Bring it in line with Nino at the start of any docs work (nino.docs AGENTS.md has
   the steps: releases, `git log <tag>..origin/main` with the trailers). A user-facing commit without a trailer
   needs a follow-up commit that carries one. The migration page's "Upgrading from an Earlier Release Candidate"
@@ -88,7 +94,11 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   against `main`. Evidence: rc.8's Go `BeginEntry`, function-value helpers and Rust `PREFETCH` had three entries for names no
   release had (the Go and Rust runtimes first shipped in rc.8); rc.8's entry said TypeScript's `region` and `exit`
   became `beginRegion` and `exitBody`, but rc.7 had only `region` (`exit` came after it), and Rust's
-  `INLINE_DEPTH`/`MAX_DEPTH` got no migration row (round 103).
+  `INLINE_DEPTH`/`MAX_DEPTH` got no migration row (round 103). Name the old API as that release shipped it,
+  namespace included: rc.8's entry called the registry `Nino.Core.CompilerServices.NinoPolymorphic<TBase>`, but rc.7
+  had it in `Nino.Core` (it moved and was renamed within rc.8), and said TypeScript's `notNull` and `flagAt` became
+  `present` and `presentAt` when rc.7 had only `notNull` (round 103 final pass). Commit trailers cannot be corrected
+  once they land, so the site's changelog and migration table are where such a slip gets fixed.
   The same holds for speed: a runtime or API new in the release gets no
   "N% faster" entries against `main` before it; fold what it achieves into the entry that introduces it, against
   competitors only through the synced data (rc.8's 14 Go and Rust Performance entries became two sentences in the
