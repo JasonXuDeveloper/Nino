@@ -52,7 +52,7 @@ using Nino.Core;
 public class OuterClass
 {
     [NinoType]
-    private protected class TestClass
+    private protected class {|#0:TestClass|}
     {
         public int Value { get; set; }
     }
@@ -70,8 +70,7 @@ public class OuterClass
     }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO001", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(7, 29, 7, 38);
+        var diagnostic = VerifyCF.Diagnostic("NINO001").WithLocation(0).WithArguments("OuterClass.TestClass");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
     }
@@ -87,7 +86,7 @@ internal class Outer
     class Middle
     {
         [NinoType]
-        class TestClass
+        class {|#0:TestClass|}
         {
             public int Value { get; set; }
         }
@@ -109,8 +108,7 @@ internal class Outer
     }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO001", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(9, 15, 9, 24);
+        var diagnostic = VerifyCF.Diagnostic("NINO001").WithLocation(0).WithArguments("Outer.Middle.TestClass");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
     }
@@ -124,7 +122,7 @@ using Nino.Core;
 public class OuterClass
 {
     [NinoType]
-    private class TestClass
+    private class {|#0:TestClass|}
     {
         public int Value { get; set; }
     }
@@ -142,8 +140,7 @@ public class OuterClass
     }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO001", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(7, 19, 7, 28);
+        var diagnostic = VerifyCF.Diagnostic("NINO001").WithLocation(0).WithArguments("OuterClass.TestClass");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
     }
@@ -157,7 +154,7 @@ using Nino.Core;
 public class OuterClass
 {
     [NinoType]
-    private record TestRecord(int Value);
+    private record {|#0:TestRecord|}(int Value);
 }";
 
         var fixedCode = @"
@@ -169,8 +166,7 @@ public class OuterClass
     public record TestRecord(int Value);
 }";
 
-        var diagnostic = new DiagnosticResult("NINO001", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(7, 20, 7, 30);
+        var diagnostic = VerifyCF.Diagnostic("NINO001").WithLocation(0).WithArguments("OuterClass.TestRecord");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
     }
@@ -287,7 +283,7 @@ using Nino.Core;
 public class Outer
 {
     [NinoType(includeNonPublicMembers: true)]
-    public class TestClass
+    public class {|#0:TestClass|}
     {
         private int _value;
         public int Value => _value;
@@ -307,8 +303,7 @@ public partial class Outer
     }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO002", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(7, 18, 7, 27)
+        var diagnostic = VerifyCF.Diagnostic("NINO002").WithLocation(0)
             .WithArguments("Outer.TestClass");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
@@ -551,7 +546,7 @@ using Nino.Core;
 [NinoType]
 public class TestClass
 {
-    public Action Callback;
+    public Action {|#0:Callback|};
     public int Value;
 }";
 
@@ -567,8 +562,7 @@ public class TestClass
     public int Value;
 }";
 
-        var diagnostic = new DiagnosticResult("NINO007", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
-            .WithSpan(8, 19, 8, 27)
+        var diagnostic = VerifyCF.Diagnostic("NINO007").WithLocation(0)
             .WithArguments("Callback", "System.Action", "TestClass", "", "the member is skipped");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
@@ -657,7 +651,7 @@ using Nino.Core;
 public class TestClass
 {
     [NinoMember(0)]
-    private int A { get; set; }
+    private int {|#0:A|} { get; set; }
 }";
 
         var fixedCode = @"
@@ -669,8 +663,7 @@ public class TestClass
     private int A { get; set; }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO009", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(8, 17, 8, 18)
+        var diagnostic = VerifyCF.Diagnostic("NINO009").WithLocation(0)
             .WithArguments("A", "TestClass");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
@@ -686,7 +679,7 @@ using Nino.Core;
 public partial class TestClass
 {
     [NinoMember(0)]
-    private int A { get; set; }
+    private int {|#0:A|} { get; set; }
 }";
 
         var fixedCode = @"
@@ -699,8 +692,7 @@ public partial class TestClass
     private int A { get; set; }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO009", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(8, 17, 8, 18)
+        var diagnostic = VerifyCF.Diagnostic("NINO009").WithLocation(0)
             .WithArguments("A", "TestClass");
 
         var test = SetUpCodeFixTest(code, fixedCode, diagnostic);
@@ -800,6 +792,41 @@ public class {|#0:TestClass|}
 
     #endregion
 
+    #region NINO028 - Remove a [NinoMember] that has no effect
+
+    [TestMethod]
+    public async Task NINO028_RemoveNinoMemberOfAMemberThatIsNeverSerialized()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(autoCollect: false)]
+public class TestClass
+{
+    [NinoMember(0)] public int A;
+    [NinoMember(1)] public static int {|#0:Shared|};
+    [NinoMember(2), NinoUtf8] public string {|#1:Name|} => ""n"";
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType(autoCollect: false)]
+public class TestClass
+{
+    [NinoMember(0)] public int A;
+    public static int Shared;
+    [NinoUtf8] public string Name => ""n"";
+}";
+
+        await SetUpCodeFixTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO028").WithLocation(0).WithArguments("Shared", "TestClass", "it is static"),
+            VerifyCF.Diagnostic("NINO028").WithLocation(1)
+                .WithArguments("Name", "TestClass", "it has no setter, and no constructor takes it")).RunAsync();
+    }
+
+    #endregion
+
     #region NINO010 - Remove redundant [NinoMember]
 
     [TestMethod]
@@ -812,7 +839,7 @@ using Nino.Core;
 public class TestClass
 {
     [NinoMember(0)]
-    public int A { get; set; }
+    public int {|#0:A|} { get; set; }
 }";
 
         var fixedCode = @"
@@ -824,8 +851,7 @@ public class TestClass
     public int A { get; set; }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO010", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
-            .WithSpan(8, 16, 8, 17)
+        var diagnostic = VerifyCF.Diagnostic("NINO010").WithLocation(0)
             .WithArguments("A", "TestClass");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
@@ -841,10 +867,10 @@ using Nino.Core;
 public class TestClass
 {
     [NinoMember(0)]
-    public int A { get; set; }
+    public int {|#0:A|} { get; set; }
 
     [NinoMember(1)]
-    public int B { get; set; }
+    public int {|#1:B|} { get; set; }
 }";
 
         var fixedCode = @"
@@ -858,12 +884,10 @@ public class TestClass
     public int B { get; set; }
 }";
 
-        var diagnostic1 = new DiagnosticResult("NINO010", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
-            .WithSpan(8, 16, 8, 17)
+        var diagnostic1 = VerifyCF.Diagnostic("NINO010").WithLocation(0)
             .WithArguments("A", "TestClass");
 
-        var diagnostic2 = new DiagnosticResult("NINO010", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
-            .WithSpan(11, 16, 11, 17)
+        var diagnostic2 = VerifyCF.Diagnostic("NINO010").WithLocation(1)
             .WithArguments("B", "TestClass");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic1, diagnostic2).RunAsync();
@@ -879,20 +903,20 @@ using Nino.Core;
 public class TestClass1
 {
     [NinoMember(0)]
-    public int A { get; set; }
+    public int {|#0:A|} { get; set; }
 
     [NinoMember(1)]
-    public int B { get; set; }
+    public int {|#1:B|} { get; set; }
 }
 
 [NinoType(autoCollect: true)]
 public class TestClass2
 {
     [NinoMember(0)]
-    public int X { get; set; }
+    public int {|#2:X|} { get; set; }
 
     [NinoMember(1)]
-    public int Y { get; set; }
+    public int {|#3:Y|} { get; set; }
 }";
 
         var fixedCode = @"
@@ -914,20 +938,16 @@ public class TestClass2
     public int Y { get; set; }
 }";
 
-        var diagnostic1 = new DiagnosticResult("NINO010", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
-            .WithSpan(8, 16, 8, 17)
+        var diagnostic1 = VerifyCF.Diagnostic("NINO010").WithLocation(0)
             .WithArguments("A", "TestClass1");
 
-        var diagnostic2 = new DiagnosticResult("NINO010", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
-            .WithSpan(11, 16, 11, 17)
+        var diagnostic2 = VerifyCF.Diagnostic("NINO010").WithLocation(1)
             .WithArguments("B", "TestClass1");
 
-        var diagnostic3 = new DiagnosticResult("NINO010", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
-            .WithSpan(18, 16, 18, 17)
+        var diagnostic3 = VerifyCF.Diagnostic("NINO010").WithLocation(2)
             .WithArguments("X", "TestClass2");
 
-        var diagnostic4 = new DiagnosticResult("NINO010", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
-            .WithSpan(21, 16, 21, 17)
+        var diagnostic4 = VerifyCF.Diagnostic("NINO010").WithLocation(3)
             .WithArguments("Y", "TestClass2");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic1, diagnostic2, diagnostic3, diagnostic4).RunAsync();
@@ -1038,7 +1058,7 @@ using Nino.Core;
 public class TestClass
 {
     [NinoIgnore]
-    public int A { get; set; }
+    public int {|#0:A|} { get; set; }
 }";
 
         var fixedCode = @"
@@ -1050,8 +1070,7 @@ public class TestClass
     public int A { get; set; }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO011", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
-            .WithSpan(8, 16, 8, 17)
+        var diagnostic = VerifyCF.Diagnostic("NINO011").WithLocation(0)
             .WithArguments("A", "TestClass");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
@@ -1104,7 +1123,7 @@ public class TestClass
 {
     [NinoMember(0)]
     [NinoIgnore]
-    public int A { get; set; }
+    public int {|#0:A|} { get; set; }
 }";
 
         // After removing [NinoMember], [NinoIgnore] triggers NINO011 and gets removed too
@@ -1118,8 +1137,7 @@ public class TestClass
     public int A { get; set; }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO012", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(9, 16, 9, 17)
+        var diagnostic = VerifyCF.Diagnostic("NINO012").WithLocation(0)
             .WithArguments("A", "TestClass");
 
         var test = SetUpCodeFixTest(code, fixedCode, diagnostic);
@@ -1145,7 +1163,7 @@ public class TestClass
 {
     [NinoMember(0)]
     [NinoIgnore]
-    public int A { get; set; }
+    public int {|#0:A|} { get; set; }
 }";
 
         var fixedCode = @"
@@ -1158,8 +1176,7 @@ public class TestClass
     public int A { get; set; }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO012", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(9, 16, 9, 17)
+        var diagnostic = VerifyCF.Diagnostic("NINO012").WithLocation(0)
             .WithArguments("A", "TestClass");
 
         var test = SetUpCodeFixTest(code, fixedCode, diagnostic);
@@ -1178,7 +1195,7 @@ public class TestClass
 {
     [NinoMember(0)]
     [NinoIgnore]
-    public int A { get; set; }
+    public int {|#0:A|} { get; set; }
 }";
 
         var fixedCode = @"
@@ -1190,8 +1207,7 @@ public class TestClass
     public int A { get; set; }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO012", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(9, 16, 9, 17)
+        var diagnostic = VerifyCF.Diagnostic("NINO012").WithLocation(0)
             .WithArguments("A", "TestClass");
 
         var test = SetUpCodeFixTest(code, fixedCode, diagnostic);
@@ -1244,7 +1260,7 @@ public class TestClass
     public int A { get; set; }
 
     [NinoMember(0)]
-    public int B { get; set; }
+    public int {|#0:B|} { get; set; }
 }";
 
         var fixedCode = @"
@@ -1260,8 +1276,7 @@ public class TestClass
     public int B { get; set; }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO013", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(11, 16, 11, 17)
+        var diagnostic = VerifyCF.Diagnostic("NINO013").WithLocation(0)
             .WithArguments("TestClass", "B", "TestClass", "A");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
@@ -1283,7 +1298,7 @@ public class TestClass
     public int B { get; set; }
 
     [NinoMember(2)]
-    public int C { get; set; }
+    public int {|#0:C|} { get; set; }
 }";
 
         var fixedCode = @"
@@ -1302,8 +1317,7 @@ public class TestClass
     public int C { get; set; }
 }";
 
-        var diagnostic = new DiagnosticResult("NINO013", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(14, 16, 14, 17)
+        var diagnostic = VerifyCF.Diagnostic("NINO013").WithLocation(0)
             .WithArguments("TestClass", "C", "TestClass", "B");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
@@ -1322,7 +1336,7 @@ public class TestClass
     public int A { get; set; }
 
     [NinoMember(0)]
-    public int B { get; set; }
+    public int {|#0:B|} { get; set; }
 
     [NinoMember(1)]
     public int C { get; set; }
@@ -1344,8 +1358,7 @@ public class TestClass
     public int C { get; set; }
 }";
 
-        var diagnostic1 = new DiagnosticResult("NINO013", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(11, 16, 11, 17)
+        var diagnostic1 = VerifyCF.Diagnostic("NINO013").WithLocation(0)
             .WithArguments("TestClass", "B", "TestClass", "A");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic1).RunAsync();
@@ -1366,13 +1379,13 @@ public class TestClass
     public int A { get; set; }
 
     [NinoMember(0)]
-    public int B { get; set; }
+    public int {|#0:B|} { get; set; }
 
     [NinoMember(1)]
     public int C { get; set; }
 
     [NinoMember(1)]
-    public int D { get; set; }
+    public int {|#1:D|} { get; set; }
 }";
 
         var fixedCode = @"
@@ -1395,10 +1408,8 @@ public class TestClass
 }";
 
         await SetUpCodeFixTest(code, fixedCode,
-            new DiagnosticResult("NINO013", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-                .WithSpan(11, 16, 11, 17).WithArguments("TestClass", "B", "TestClass", "A"),
-            new DiagnosticResult("NINO013", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-                .WithSpan(17, 16, 17, 17).WithArguments("TestClass", "D", "TestClass", "C")).RunAsync();
+            VerifyCF.Diagnostic("NINO013").WithLocation(0).WithArguments("TestClass", "B", "TestClass", "A"),
+            VerifyCF.Diagnostic("NINO013").WithLocation(1).WithArguments("TestClass", "D", "TestClass", "C")).RunAsync();
     }
 
     [TestMethod]
@@ -1491,7 +1502,7 @@ public class TestClass
 using Nino.Core;
 
 [NinoType(trackReferences: true)]
-public struct TestStruct
+public struct {|#0:TestStruct|}
 {
     public int Value;
 }";
@@ -1505,8 +1516,7 @@ public struct TestStruct
     public int Value;
 }";
 
-        var diagnostic = new DiagnosticResult("NINO015", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
-            .WithSpan(5, 15, 5, 25)
+        var diagnostic = VerifyCF.Diagnostic("NINO015").WithLocation(0)
             .WithArguments("TestStruct");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();

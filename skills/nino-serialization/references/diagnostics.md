@@ -33,6 +33,7 @@ warning here usually means data is dropped. Full text: https://nino.xgamedev.net
 | NINO025 | Warning | `[NinoFactory]` on a type created through `[NinoConstructor]` is never called | Remove one of the two |
 | NINO026 | Error | More than one `[NinoFormerName]` on a type | Keep the name the stored data used |
 | NINO027 | Warning | `[NinoFormerName]` on a generic type written with its type id: all instantiations share one id | Remove it, or use it on non-generic types only |
+| NINO028 | Warning | `[NinoMember]` on a member never serialized (static, constant, indexer, a property without a setter no constructor takes, a backing field) | Remove it 🔧, or give a constructor a parameter for a get-only auto-property |
 
 `NinoSuppressor` also hides CS0169/CS0414/CS0649 and IDE0051/IDE0052/IDE0044 for private members Nino serializes.
 

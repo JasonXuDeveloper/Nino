@@ -15,7 +15,7 @@ NINO004 | Nino | Error | No usable constructor
 NINO005 | Nino | Error | Constructor parameter matches no member
 NINO006 | Nino | Warning | Member cannot be deserialized
 NINO007 | Nino | Warning | Member type cannot be serialized
-NINO008 | Nino | Error | Invalid custom formatter type
+NINO008 | Nino | Error | Invalid [NinoMemberFormatter]
 NINO009 | Nino | Error | Non-public member is not serialized
 NINO010 | Nino | Warning | Redundant [NinoMember]
 NINO011 | Nino | Warning | Redundant [NinoIgnore]
@@ -28,8 +28,8 @@ NINO017 | Nino | Error | Invalid [NinoFactory]
 NINO018 | Nino | Error | Type cannot be pooled
 NINO019 | Nino | Error | Pool hooks not implemented
 NINO020 | Nino | Error | Invalid formatter registration
-NINO021 | Nino | Error | NinoConstructor is not accessible
+NINO021 | Nino | Error | [NinoConstructor] is not accessible
 NINO022 | Nino | Warning | Hidden member cannot be serialized
 NINO023 | Nino | Error | Struct serializes no member
 NINO024 | Nino | Warning | [NinoFormerName] on a member has no effect in a positional type
-NINO025 | Nino | Warning | NinoFactory ignored because of NinoConstructor
+NINO025 | Nino | Warning | [NinoFactory] ignored because of [NinoConstructor]

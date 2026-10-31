@@ -27,18 +27,25 @@ internal enum MemberFindingKind
 
     /// <summary>NINO013: the member's index is already used by <see cref="MemberFinding.Other"/>.</summary>
     DuplicateIndex,
+
+    /// <summary>
+    /// NINO028: <c>[NinoMember]</c> on a member that is never serialized, whatever the type's options, for
+    /// <see cref="MemberFinding.Reason"/>.
+    /// </summary>
+    NotSerializable,
 }
 
 /// <summary>
 /// A finding about a member declared by the collected type. <see cref="Formatter"/> is set for
 /// <see cref="MemberFindingKind.InvalidCustomFormatter"/>, <see cref="Other"/> for
-/// <see cref="MemberFindingKind.DuplicateIndex"/>.
+/// <see cref="MemberFindingKind.DuplicateIndex"/>, <see cref="Reason"/> for <see cref="MemberFindingKind.NotSerializable"/>.
 /// </summary>
 internal readonly record struct MemberFinding(
     MemberFindingKind Kind,
     ISymbol Member,
     INamedTypeSymbol? Formatter = null,
-    ISymbol? Other = null);
+    ISymbol? Other = null,
+    string? Reason = null);
 
 /// <summary>
 /// The serialized members of a type, root level first. A level is the type itself or one of its [NinoType] base
@@ -130,8 +137,8 @@ internal static class MemberCollector
                     : null;
 
                 if (inspect)
-                    Inspect(member, attr, known, ninoMember != null, ignored, memberIndex, customFormatter, findings!,
-                        indices, ref duplicated);
+                    Inspect(member, attr, known, ninoMember != null, ignored, memberIndex, customFormatter,
+                        constructorNames, findings!, indices, ref duplicated);
 
                 if (!candidate || (autoCollect && ignored))
                     continue;
@@ -185,9 +192,17 @@ internal static class MemberCollector
 
     // The findings about one member the type declares, in the order the analyzer reports them.
     private static void Inspect(ISymbol member, NinoTypeOptions attr, NinoSymbols known, bool annotated, bool ignored,
-        int? index, AttributeData? customFormatter, List<MemberFinding> findings, Dictionary<int, ISymbol>? indices,
-        ref HashSet<int>? duplicated)
+        int? index, AttributeData? customFormatter, HashSet<string> constructorNames, List<MemberFinding> findings,
+        Dictionary<int, ISymbol>? indices, ref HashSet<int>? duplicated)
     {
+        // A member no option makes serializable: this is the only finding about its [NinoMember], whose other
+        // findings (accessibility, index) would only lead to a change that still serializes nothing.
+        if (annotated && NotSerializable(member, constructorNames) is { } reason)
+        {
+            findings.Add(new MemberFinding(MemberFindingKind.NotSerializable, member, Reason: reason));
+            return;
+        }
+
         if (customFormatter is { ConstructorArguments: { Length: > 0 } args } &&
             args[0].Value is INamedTypeSymbol formatter && MemberType(member) is { } memberType &&
             !known.IsCustomFormatterOf(formatter, memberType))
@@ -274,23 +289,36 @@ internal static class MemberCollector
         return names;
     }
 
-    private static bool IsCandidate(ISymbol member, bool containNonPublic, HashSet<string> constructorNames)
+    private static bool IsCandidate(ISymbol member, bool containNonPublic, HashSet<string> constructorNames) =>
+        member is IFieldSymbol or IPropertySymbol &&
+        (containNonPublic || member.DeclaredAccessibility == Accessibility.Public) &&
+        NotSerializable(member, constructorNames) == null;
+
+    /// <summary>
+    /// Why a field or property is never serialized, whatever its accessibility and the type's options (the end of
+    /// the sentence "[NinoMember] has no effect: ..."); null when it can be.
+    /// </summary>
+    private static string? NotSerializable(ISymbol member, HashSet<string> constructorNames)
     {
-        if (member.IsStatic || !(containNonPublic || member.DeclaredAccessibility == Accessibility.Public))
-            return false;
+        if (member.IsStatic)
+            return member is IFieldSymbol { IsConst: true } ? "it is a constant" : "it is static";
         return member switch
         {
             // Backing fields: their properties are the members (from metadata, only the name tells them apart).
-            IFieldSymbol field => !field.IsImplicitlyDeclared && !field.IsConst && !field.IsFixedSizeBuffer &&
-                                  field.AssociatedMember() == null,
+            IFieldSymbol { IsFixedSizeBuffer: true } => "it is a fixed-size buffer",
+            IFieldSymbol field when field.IsImplicitlyDeclared || field.AssociatedMember() != null =>
+                "it is the backing field of a property or event; mark the property instead",
             // Explicit interface implementations belong to the interface, which serializes them if it is a
             // [NinoType]; they have no name generated code could use on the type. The only implicit properties with
             // a setter are a record's positional ones (EqualityContract has none).
-            IPropertySymbol property => !property.IsIndexer && property.GetMethod != null &&
-                                        property.ExplicitInterfaceImplementations.IsEmpty &&
-                                        (property.SetMethod != null ||
-                                         IsGetOnlyAutoProperty(property) && constructorNames.Contains(property.Name)),
-            _ => false,
+            IPropertySymbol { IsIndexer: true } => "it is an indexer",
+            IPropertySymbol { GetMethod: null } => "it has no getter",
+            IPropertySymbol { ExplicitInterfaceImplementations.IsEmpty: false } =>
+                "it implements an interface member explicitly",
+            IPropertySymbol { SetMethod: null } property when
+                !(IsGetOnlyAutoProperty(property) && constructorNames.Contains(property.Name)) =>
+                "it has no setter, and no constructor takes it",
+            _ => null,
         };
     }
 

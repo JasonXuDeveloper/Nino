@@ -16,7 +16,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO005](#nino005) | Error | A `[NinoConstructor]` parameter matches no member |
 | [NINO006](#nino006) | Warning | Read-only member is not restored 🔧 |
 | [NINO007](#nino007) | Warning | Member type cannot be serialized 🔧 |
-| [NINO008](#nino008) | Error | Custom formatter does not match the member type |
+| [NINO008](#nino008) | Error | `[NinoMemberFormatter]` does not match the member type |
 | [NINO009](#nino009) | Error | Non-public `[NinoMember]` in a type that does not allow non-public members 🔧 |
 | [NINO010](#nino010) | Warning | Redundant `[NinoMember]` 🔧 |
 | [NINO011](#nino011) | Warning | Redundant `[NinoIgnore]` 🔧 |
@@ -36,6 +36,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO025](#nino025) | Warning | `[NinoFactory]` on a type created through `[NinoConstructor]` 🔧 |
 | [NINO026](#nino026) | Error | More than one `[NinoFormerName]` on a type |
 | [NINO027](#nino027) | Warning | `[NinoFormerName]` on a generic type written with its type id |
+| [NINO028](#nino028) | Warning | `[NinoMember]` on a member that is never serialized 🔧 |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -166,6 +167,15 @@ read back: collection counts are checked against the bytes left, so that hostile
 allocations, and every element must take at least one byte. Serialize a member, or mark the struct
 `NinoFormat.VersionTolerant` or `NinoFormat.Keyed` (each instance then writes its 4-byte length). A struct without any instance field is
 written as its raw memory (1 byte) and is not reported.
+
+### NINO028
+
+`[NinoMember]` on a member Nino never serializes, whatever the type's options: a static field or property, a
+constant, an indexer, a fixed-size buffer, a property without a getter or implemented explicitly for an interface,
+a property without a setter that no constructor takes (`int Sum => A + B;`, or `int Id { get; }` without a
+constructor parameter `id`), or a backing field (`[field: NinoMember]`; mark the property). Nothing is written for
+it. This is the only diagnostic about that `[NinoMember]` (not NINO009, NINO010 or NINO013). To serialize a get-only
+auto-property, give a constructor a parameter of its name; otherwise 🔧 remove `[NinoMember]`.
 
 ## Features
 

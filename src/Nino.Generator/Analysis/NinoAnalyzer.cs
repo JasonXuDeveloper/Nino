@@ -101,7 +101,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     /// <summary>
     /// The type's <c>[NinoFormerName]</c>s. Its type id comes from one: the generator would take the first,
     /// <c>NinoTypeId.Of</c> would throw. And one name gives every instantiation of a generic type the same id, which
-    /// collides once two of them are written with their id (<c>NinoPolymorphic</c> registers each by it): a type with
+    /// collides once two of them are written with their id (<c>NinoSubtypes</c> registers each by it): a type with
     /// a <c>[NinoType]</c> base or interface, or one that has subtypes (an interface, an abstract or unsealed class).
     /// </summary>
     private static void ReportFormerNames(DiagnosticSink sink, INamedTypeSymbol type, NinoSymbols known)
@@ -124,7 +124,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         {
             case MemberFindingKind.InvalidCustomFormatter:
                 sink.Report(NinoDiagnostics.InvalidCustomFormatter, member, finding.Formatter!.ToDisplayString(),
-                    MemberCollector.MemberType(member)!.ToDisplayString());
+                    MemberCollector.MemberType(member)!.ToDisplayString(), member.Name, type.Name);
                 break;
             case MemberFindingKind.NonPublicMember:
                 sink.Report(NinoDiagnostics.PrivateMember, member, member.Name, type.Name);
@@ -134,6 +134,11 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
                 break;
             case MemberFindingKind.RedundantIgnore:
                 sink.Report(NinoDiagnostics.RedundantIgnore, member, member.Name, type.Name);
+                break;
+            case MemberFindingKind.NotSerializable:
+                // [field: NinoMember] on an auto-property or event: reported on what the user declared.
+                var declared = (member as IFieldSymbol)?.AssociatedMember() ?? member;
+                sink.Report(NinoDiagnostics.NotSerializableMember, declared, declared.Name, type.Name, finding.Reason!);
                 break;
             case MemberFindingKind.AmbiguousMember:
                 sink.Report(NinoDiagnostics.AmbiguousMember, member, member.Name, type.Name);
@@ -153,7 +158,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     {
         if (type.TypeKind is TypeKind.Class or TypeKind.Struct or TypeKind.Interface &&
             type.NinoAncestors().FirstOrDefault() is { } ancestor)
-            sink.Report(NinoDiagnostics.SubTypeWithoutNinoType, type, type.Name, ancestor.Name);
+            sink.Report(NinoDiagnostics.SubtypeWithoutNinoType, type, type.Name, ancestor.Name);
     }
 
     private static void AnalyzeMethod(SymbolAnalysisContext context, INamedTypeSymbol attribute)

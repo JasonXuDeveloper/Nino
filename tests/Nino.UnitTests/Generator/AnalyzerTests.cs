@@ -284,7 +284,7 @@ public partial class TestClass
     }
 
     [TestMethod]
-    public async Task NINO003_SubTypeWithoutNinoType()
+    public async Task NINO003_SubtypeWithoutNinoType()
     {
         var code = @"
 using Nino.Core;
@@ -1059,8 +1059,8 @@ public class TestClass
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("StringFormatter", "int"),
-            Verify.Diagnostic("NINO008").WithLocation(1).WithArguments("NotAFormatter", "int")).RunAsync();
+            Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("StringFormatter", "int", "A", "TestClass"),
+            Verify.Diagnostic("NINO008").WithLocation(1).WithArguments("NotAFormatter", "int", "B", "TestClass")).RunAsync();
     }
 
     [TestMethod]
@@ -1121,11 +1121,11 @@ public class TestClass
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("NullableIntFormatter", "int"),
-            Verify.Diagnostic("NINO008").WithLocation(1).WithArguments("IntFormatter", "int?"),
-            Verify.Diagnostic("NINO008").WithLocation(2).WithArguments("IntFormatter", "long"),
-            Verify.Diagnostic("NINO008").WithLocation(3).WithArguments("ClassIntFormatter", "int"),
-            Verify.Diagnostic("NINO008").WithLocation(4).WithArguments("GenericFormatter<>", "int")).RunAsync();
+            Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("NullableIntFormatter", "int", "Nullable", "TestClass"),
+            Verify.Diagnostic("NINO008").WithLocation(1).WithArguments("IntFormatter", "int?", "NullableMember", "TestClass"),
+            Verify.Diagnostic("NINO008").WithLocation(2).WithArguments("IntFormatter", "long", "WrongType", "TestClass"),
+            Verify.Diagnostic("NINO008").WithLocation(3).WithArguments("ClassIntFormatter", "int", "Class", "TestClass"),
+            Verify.Diagnostic("NINO008").WithLocation(4).WithArguments("GenericFormatter<>", "int", "Open", "TestClass")).RunAsync();
     }
 
     [TestMethod]
@@ -1264,6 +1264,55 @@ public class TestClass2
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO010").WithLocation(0).WithArguments("A", "TestClass"),
             Verify.Diagnostic("NINO010").WithLocation(1).WithArguments("B", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO028_NinoMemberOnAMemberThatIsNeverSerialized()
+    {
+        // NINO028 alone, whatever else the [NinoMember] would be: redundant (NINO010 with autoCollect), non-public
+        // (NINO009) or a duplicate index (NINO013). Not for members Nino serializes: settable properties, fields
+        // and a get-only auto-property a constructor takes.
+        var code = @"
+using System;
+using Nino.Core;
+
+[NinoType]
+public class Collected
+{
+    [NinoMember(0)] public static int {|#0:Shared|};
+    [NinoMember(1)] public const int {|#1:Constant|} = 1;
+    [NinoMember(2)] public int {|#2:Sum|} => 1;
+    [NinoMember(3)] private static int {|#3:Hidden|};
+    public int A { get; set; }
+}
+
+[NinoType(autoCollect: false)]
+public partial class OptedIn
+{
+    [NinoMember(0)] public int A;
+    [NinoMember(0)] public static int {|#4:Repeats|};
+    [NinoMember(1)] public int {|#5:this|}[int i] => i;
+    [NinoMember(2)] public int {|#6:GetOnly|} { get; }
+    [field: NinoMember(3)] public int {|#7:Backed|} { get; set; }
+    [NinoMember(4)] public int Taken { get; }
+    [NinoMember(5)] public int Settable { get; private set; }
+
+    public OptedIn(int taken) => Taken = taken;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO028").WithLocation(0).WithArguments("Shared", "Collected", "it is static"),
+            Verify.Diagnostic("NINO028").WithLocation(1).WithArguments("Constant", "Collected", "it is a constant"),
+            Verify.Diagnostic("NINO028").WithLocation(2)
+                .WithArguments("Sum", "Collected", "it has no setter, and no constructor takes it"),
+            Verify.Diagnostic("NINO028").WithLocation(3).WithArguments("Hidden", "Collected", "it is static"),
+            Verify.Diagnostic("NINO028").WithLocation(4).WithArguments("Repeats", "OptedIn", "it is static"),
+            Verify.Diagnostic("NINO028").WithLocation(5).WithArguments("this[]", "OptedIn", "it is an indexer"),
+            Verify.Diagnostic("NINO028").WithLocation(6)
+                .WithArguments("GetOnly", "OptedIn", "it has no setter, and no constructor takes it"),
+            Verify.Diagnostic("NINO028").WithLocation(7).WithArguments("Backed", "OptedIn",
+                "it is the backing field of a property or event; mark the property instead")).RunAsync();
     }
 
     [TestMethod]

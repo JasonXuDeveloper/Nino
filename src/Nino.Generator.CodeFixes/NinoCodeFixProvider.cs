@@ -58,7 +58,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                 n => !Type(n).Modifiers.Any(m => m.IsKind(SyntaxKind.StaticKeyword))),
         },
         [NinoDiagnostics.NotPartial.Id] = new[] { new Fix("Make type partial", "MakePartial", MakePartial) },
-        [NinoDiagnostics.SubTypeWithoutNinoType.Id] = new[] { new Fix("Add [NinoType]", "AddNinoType", (e, n) => AddAttribute(e, Type(n), NinoType)) },
+        [NinoDiagnostics.SubtypeWithoutNinoType.Id] = new[] { new Fix("Add [NinoType]", "AddNinoType", (e, n) => AddAttribute(e, Type(n), NinoType)) },
         [NinoDiagnostics.ReadOnlyMember.Id] = new[] { AddIgnoreFix() },
         [NinoDiagnostics.UnserializableMember.Id] = new[] { AddIgnoreFix() },
         [NinoDiagnostics.PrivateMember.Id] = new[]
@@ -68,6 +68,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                 (e, n) => SetTypeArgument(e, n, "includeNonPublicMembers", true)),
         },
         [NinoDiagnostics.RedundantMember.Id] = new[] { RemoveAttributeFix(NinoMember) },
+        [NinoDiagnostics.NotSerializableMember.Id] = new[] { RemoveAttributeFix(NinoMember) },
         [NinoDiagnostics.RedundantIgnore.Id] = new[] { RemoveAttributeFix(NinoIgnore) },
         [NinoDiagnostics.AmbiguousMember.Id] = new[]
         {
