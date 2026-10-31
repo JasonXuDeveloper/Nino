@@ -14,9 +14,9 @@ namespace Nino.Core.Internal
 {
 #if NET8_0_OR_GREATER
     /// <summary>
-    /// How <see cref="NinoBlock{T, TFormatter}.LanePlan{TDirection}"/> moves a group: worked out once, read into its
-    /// constants. Each vector is the bytes of one or two loads, each load two 16-byte windows of the source (one per
-    /// lane of a 32-byte vector; one window for 16-byte vectors), shuffled within each lane.
+    /// How <see cref="NinoBlockPlan{T, TFormatter}.LanePlan{TDirection}"/> moves a group: worked out once, read into
+    /// its constants. Each vector is the bytes of one or two loads, each load two 16-byte windows of the source (one
+    /// per lane of a 32-byte vector; one window for 16-byte vectors), shuffled within each lane.
     /// </summary>
     internal sealed class NinoLanes
     {
@@ -29,8 +29,8 @@ namespace Nino.Core.Internal
         public readonly int[] Windows = new int[16];
 
         /// <summary>
-        /// Where lane <paramref name="lane"/> of load <paramref name="load"/> of vector <paramref name="vector"/> starts:
-        /// its slot in <see cref="Windows"/>, laid out as LanePlan's W0 to W15.
+        /// Where lane <paramref name="lane"/> of load <paramref name="load"/> of vector <paramref name="vector"/>
+        /// starts: its slot in <see cref="Windows"/>, laid out as LanePlan's W0 to W15.
         /// </summary>
         private ref int Window(int vector, int load, int lane) => ref Windows[vector * 4 + load * 2 + lane];
 
@@ -206,7 +206,8 @@ namespace Nino.Core.Internal
             return true;
         }
 
-        /// <summary>For <see cref="Gridded"/> plans, the 16-byte windows a group loads (bit k: bytes 16k to 16k + 15).</summary>
+        /// <summary>For <see cref="Gridded"/> plans, the 16-byte windows a group loads (bit k: bytes 16k to 16k +
+        /// 15).</summary>
         public int GridLoads()
         {
             int loads = 0;
@@ -220,8 +221,8 @@ namespace Nino.Core.Internal
             return loads;
         }
 
-        /// <summary>Whether the windows <paramref name="low"/> and <paramref name="high"/> of a 32-byte load are lanes of
-        /// loads on the 32-byte grid, permuted (vperm2i128): both on the 16-byte grid, not one load.</summary>
+        /// <summary>Whether the windows <paramref name="low"/> and <paramref name="high"/> of a 32-byte load are lanes
+        /// of loads on the 32-byte grid, permuted (vperm2i128): both on the 16-byte grid, not one load.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Paired(int low, int high) => high != low + 16 && low % 16 == 0 && high % 16 == 0;
 
@@ -351,7 +352,8 @@ namespace Nino.Core.Internal
             return true;
         }
 
-        /// <summary>Moves lane 0's window to 16 bytes before lane 1's when it still covers lane 0's bytes there.</summary>
+        /// <summary>Moves lane 0's window to 16 bytes before lane 1's when it still covers lane 0's bytes
+        /// there.</summary>
         private static void Align(int[] sources, int[] windows)
         {
             int wanted = windows[1] - 16;

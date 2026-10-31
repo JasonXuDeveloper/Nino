@@ -37,13 +37,13 @@ the runtime it targets.
 
 ## Look for
 
-- A new array allocated uninitialized (`NinoUnsafe.NewArray`, `CopiedWhole`) stored in the caller's slot before a
-  read that can still reject the data (bools, presence bytes, Untrusted checks): reading into an existing value
-  then left it stale heap memory. Blocks with a bool (`NinoBlock<T, TFormatter>.Rejects`) are read by
-  `NinoBlock.ReadRejecting`, a try/finally that clears the values when the read throws; the raw formatters (T?[],
-  List<T?>, bool lists, Untrusted checks) store a new array once filled (`NinoElements.NewOrSame`, `Publish`);
-  `UntrustedInputTests.ARejectedReadKeepsNewArraysOutOfTheSlot` covers each, over 0xCD-filled freed memory. A new
-  read of that kind gets a member in the fuzzer's `Stale` type (below).
+- A new array allocated uninitialized (`NinoUnsafe.NewArray`, `CopiedWhole`) stored in the caller's slot before a read
+  that can still reject the data (bools, presence bytes, Untrusted checks): reading into an existing value then left it
+  stale heap memory. Blocks with a bool (`NinoBlockPlan<T, TFormatter>.Rejects`) are read by
+  `NinoBlockCollections.ReadRejecting`, a try/finally that clears the values when the read throws; the raw formatters
+  (T?[], List<T?>, bool lists, Untrusted checks) store a new array once filled (`NinoElements.NewOrSame`, `Publish`);
+  `UntrustedInputTests.ARejectedReadKeepsNewArraysOutOfTheSlot` covers each, over 0xCD-filled freed memory. A new read
+  of that kind gets a member in the fuzzer's `Stale` type (below).
 - A read that allocates from a count before checking it against the bytes left (collections, strings, multi-dim
   arrays, `BigInteger`, `BitArray`, `StringBuilder`, custom formatters' helpers).
 - A hash table filled from the data whose hash the data can predict. In other runtimes the language's own table may

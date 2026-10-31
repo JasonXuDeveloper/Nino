@@ -13,7 +13,8 @@ namespace Nino.Core.Internal
     /// </summary>
     internal static class CollectionFields
     {
-        /// <summary>An entry of <see cref="HashSet{T}"/> (HashCode, Next, Value; hashCode, next, value elsewhere).</summary>
+        /// <summary>An entry of <see cref="HashSet{T}"/> (HashCode, Next, Value; hashCode, next, value
+        /// elsewhere).</summary>
         internal struct SetEntry<T>
         {
 #pragma warning disable CS0649 // read through Unsafe.As
@@ -36,8 +37,8 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// The raw value of a <see cref="SetEntry{T}"/> as a block (<see cref="INinoBlockFormatter{T}"/>), so that a
-        /// set's entries are written by <see cref="NinoBlock.WriteAll{T, TFormatter}"/>: several entries at a time,
-        /// their values packed out of the strided entries by vector permutes (or the registered kernels in the
+        /// set's entries are written by <see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/>: several entries at
+        /// a time, their values packed out of the strided entries by vector permutes (or the registered kernels in the
         /// netstandard builds), one at a time where there are none or the value has padding. Writes only.
         /// </summary>
         internal struct SetEntryBlock<T> : INinoFormatter<SetEntry<T>>, INinoBlockFormatter<SetEntry<T>>

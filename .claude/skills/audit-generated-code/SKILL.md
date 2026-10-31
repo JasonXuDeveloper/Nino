@@ -45,7 +45,7 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   One act is one member, taking a struct by reference: a block struct's collections and its top-level and member
   writes all call `WriteFixed(in T value, ref byte destination)` (`INinoBlockFormatter` extends
   `INinoFixedSizeFormatter`; round 101 merged `BlockSize`/`WriteBlock` into it). A by-value `WriteFixed` that the
-  block write forwarded to made the block loops load every field before storing any (`NinoBlock.WriteValue`,
+  block write forwarded to made the block loops load every field before storing any (`NinoBlockCollections.WriteValue`,
   `WriteEach` of Waypoints changed); by reference, the listings are the old by-reference `WriteBlock`'s.
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
   GeneratorBenchmark and the package size of a sample.

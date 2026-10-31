@@ -174,8 +174,8 @@ public class BlockStructTests
 
     /// <summary>
     /// Every bool of <paramref name="create"/>'s blocks (at <paramref name="bools"/> in a block of
-    /// <paramref name="size"/> bytes) set to each invalid byte in the first, a middle and the last value: rejected in an
-    /// array and a list, whichever path (vectors, one at a time) reads that value.
+    /// <paramref name="size"/> bytes) set to each invalid byte in the first, a middle and the last value: rejected in
+    /// an array and a list, whichever path (vectors, one at a time) reads that value.
     /// </summary>
     private static void RejectsBools<T>(Func<int, T> create, int size, params int[] bools)
     {
@@ -209,9 +209,9 @@ public class BlockStructTests
 
 #if NET8_0_OR_GREATER && !NINO_CORE_NETSTANDARD
     /// <summary>
-    /// Ice Lake's write groups that load memory from 64-byte boundaries (NinoBlock.WriteAligned), called directly so
-    /// that every CPU with AVX-512 runs them: from each place of the values in a line, the blocks they write are those
-    /// of the values one at a time, and they load nothing before the first value or past the last.
+    /// Ice Lake's write groups that load memory from 64-byte boundaries (NinoBlockCollections.WriteAligned), called
+    /// directly so that every CPU with AVX-512 runs them: from each place of the values in a line, the blocks they
+    /// write are those of the values one at a time, and they load nothing before the first value or past the last.
     /// </summary>
     [TestMethod]
     public void AlignedWriteGroups()
@@ -227,9 +227,9 @@ public class BlockStructTests
     private static unsafe void AlignedGroups<T, TFormatter>(Func<int, T> create)
         where T : unmanaged where TFormatter : struct, INinoFormatter<T>
     {
-        int size = Core.Internal.NinoBlock.Size<T, TFormatter>(), group = Core.Internal.NinoBlock<T, TFormatter>.Group;
+        int size = Core.Internal.NinoBlockCollections.FixedSize<T, TFormatter>(), group = Core.Internal.NinoBlockPlan<T, TFormatter>.Group;
         Assert.AreEqual(12, size, typeof(T).Name);
-        Assert.IsTrue(Core.Internal.NinoBlock<T, TFormatter>.GroupWords, typeof(T).Name);
+        Assert.IsTrue(Core.Internal.NinoBlockPlan<T, TFormatter>.GroupWords, typeof(T).Name);
         foreach (int count in new[] { 0, 1, 16, 20, 21, 40, 100, 1000 })
         {
             var values = Enumerable.Range(0, count).Select(create).ToArray();
@@ -246,7 +246,7 @@ public class BlockStructTests
                     for (int start = 0; start < 2 * group; start += group / 4)
                     {
                         var blocks = new byte[count * size + 1];
-                        int end = Core.Internal.NinoBlock.WriteAligned<T, TFormatter>(ref *at, ref blocks[0], start,
+                        int end = Core.Internal.NinoBlockCollections.WriteAligned<T, TFormatter>(ref *at, ref blocks[0], start,
                             count);
                         string what = $"{typeof(T).Name}[{count}] at {shift} from {start}";
                         Assert.IsTrue(end >= start && (end - start) % group == 0, what);
@@ -255,7 +255,7 @@ public class BlockStructTests
                         // Every group from start written; the aligned ones load inside the values.
                         int first = (int)((nuint)(at + start * sizeof(T)) % 64);
                         Assert.IsTrue((end - group) * sizeof(T) - first +
-                            Core.Internal.NinoBlock<T, TFormatter>.Aligned.Reach <= count * sizeof(T), what);
+                            Core.Internal.NinoBlockPlan<T, TFormatter>.Aligned.Reach <= count * sizeof(T), what);
                         CollectionAssert.AreEqual(expected.AsSpan(start * size, (end - start) * size).ToArray(),
                             blocks.AsSpan(start * size, (end - start) * size).ToArray(), what);
                         Assert.IsTrue(blocks.AsSpan(0, start * size).IndexOfAnyExcept((byte)0) < 0, what);

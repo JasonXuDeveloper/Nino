@@ -62,7 +62,8 @@ NinoDirect.cs                the top-level calls with the formatter the generato
 NinoBlockMap.cs              NinoBlockMap (where a block's bytes lie in a value's memory) and NinoBlocks (constrained
                              calls on block formatters)
 NinoSubtypes.cs              NinoSubtypes<TBase>: the registry of a base type's subtypes by type id
-NinoRegistration.cs          [NinoGenerated] on an assembly and INinoRegistry (lazy registration by type id)
+NinoGeneratedAttribute.cs    [NinoGenerated]: marks an assembly with generated code, names its registry
+INinoRegistry.cs             INinoRegistry: an assembly's generated registry (lazy registration by type id)
 NinoSubtypeHandler.cs        NinoSubtypeHandler: writes and reads one registered type; the registry's entry
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
 NinoUnsafe.cs                unaligned little-endian memory access, block copies (vector loops, paired loads),
@@ -161,8 +162,8 @@ NinoPrefetch.cs              software prefetch for long top-level collections of
                              length against the last-level cache, allocation order sampled), the loops in runs, the
                              out-of-line helper per run
 NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
-NinoBlock.cs                 collections of INinoBlockFormatter values: whole-block reads and writes, vector groups
-NinoBlockPlan.cs             NinoBlock<T, TFormatter>: the per-type block plan (ReadPlan, LanePlan, KernelTables)
+NinoBlockCollections.cs      collections of INinoBlockFormatter values: whole-block reads and writes, vector groups
+NinoBlockPlan.cs             NinoBlockPlan<T, TFormatter>: the per-type block plan (ReadPlan, LanePlan, KernelTables)
 NinoBlockBytes.cs            a value's bytes matched to its block's, built once per type for the plans
 NinoLanes.cs                 how LanePlan moves a group: shuffles within 16-byte lanes (SSSE3, AVX2, Arm64, Wasm)
 NinoStrings.cs               the default string encoding (header, then Latin-1 or UTF-16 chars), FastAllocateString;

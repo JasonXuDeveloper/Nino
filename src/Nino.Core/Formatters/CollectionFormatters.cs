@@ -77,7 +77,7 @@ namespace Nino.Core
                 var entries = CollectionViews.HashSet ? CollectionFields.Entries(value, count) : null;
                 if (entries != null && count != 0 && count <= entries.Length)
                     // Several entries at a time where the CPU permutes vectors, each value packed out of its entry.
-                    NinoBlock.WriteAll<CollectionFields.SetEntry<T>, CollectionFields.SetEntryBlock<T>>(ref elements,
+                    NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>, CollectionFields.SetEntryBlock<T>>(ref elements,
                         ref entries[0], count, size);
                 else if (count != 0)
                     WriteEnumerated(value, ref elements, count);
@@ -99,7 +99,8 @@ namespace Nino.Core
                 WriteEach(value, ref writer);
         }
 
-        /// <summary>The <paramref name="count"/> raw elements of a set with free entries, in enumeration order.</summary>
+        /// <summary>The <paramref name="count"/> raw elements of a set with free entries, in enumeration
+        /// order.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void WriteEnumerated(TSet value, ref byte elements, int count)
         {

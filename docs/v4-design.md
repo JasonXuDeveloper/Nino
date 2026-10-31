@@ -909,7 +909,7 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   `INinoBlockFormatter<T>`, which extends `INinoFixedSizeFormatter<T>` with `BlockMap()` and `ReadBlock` (the model's
   `TypeModel.Block`, `TypeFacts.IsBlock`), as the tuple and pair formatters of Nino.Core do (their `FixedSize` is -1
   when an item is not raw). One write serves both: a block is the bytes of `WriteFixed`. Arrays, lists and spans of it then take the
-  paths of `NinoBlock<T, TFormatter>`: one bounds check for the collection, and where the block map gives every wire
+  paths of `NinoBlockPlan<T, TFormatter>`: one bounds check for the collection, and where the block map gives every wire
   byte one memory byte (`NinoBlockMap.Runs`) the vector shuffles and permutes (AVX-512 VBMI groups and 64-byte
   permutes, AVX2 or SSSE3 lanes, Arm64 `tbl`, WebAssembly's swizzle; with VBMI, values of more than 16 bytes in
   memory, which its groups and permutes do not take, are written in the AVX2 lane plan's partial groups); elsewhere (no SIMD, a map that overlaps, Mono,
@@ -922,16 +922,16 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   byte, so they are not of fixed size. The bytes are those of the values written one at a time.
 * Reads of blocks keep every check a value's own read makes. The `bool` offsets of a block (`NinoBlockMap`, from its
   `bool` items) are checked over the whole collection before the vector paths move the bytes (`NinoChecks.Bools` with
-  the block's stride, out of line, `NinoBlock.CheckBools`): the shuffles copy bytes without looking at them, so a
+  the block's stride, out of line, `NinoBlockCollections.CheckBools`): the shuffles copy bytes without looking at them, so a
   `(bool, int)[]` read as blocks accepted a bool byte of 2 on the vector paths and rejected it on the scalar ones.
   With `NinoSettings.Untrusted`, a block with values to check (`NinoLayout<T>.Checks`, a `DateTime` member) is read
-  one value at a time through its formatter (`NinoBlock<T, TFormatter>.ReadSize` is -1), as raw structs are.
+  one value at a time through its formatter (`NinoBlockPlan<T, TFormatter>.ReadSize` is -1), as raw structs are.
 * **Native AOT.** ILC compiles x64 code for its baseline (SSE2) and emits a later instruction set only inside that
   set's `IsSupported` test, which it compiles to a check at run time for the sets it may use when present (SSSE3 and
   SSE4.1 among them) and to false for the others (AVX and later), unless `IlcInstructionSet` raises the baseline. The plans of
-  `NinoBlock<T, TFormatter>` are chosen at run time from `Ssse3.IsSupported`, `Avx2.IsSupported` and so on, so every
+  `NinoBlockPlan<T, TFormatter>` are chosen at run time from `Ssse3.IsSupported`, `Avx2.IsSupported` and so on, so every
   instruction a plan leads to is written as that set's own intrinsic under its own test
-  (`NinoBlock<T, TFormatter>.Shuffle`: `Ssse3.Shuffle`, `AdvSimd.Arm64.VectorTableLookup`, `PackedSimd.Swizzle`),
+  (`NinoBlockPlan<T, TFormatter>.Shuffle`: `Ssse3.Shuffle`, `AdvSimd.Arm64.VectorTableLookup`, `PackedSimd.Swizzle`),
   never as a cross-platform API whose form ILC picks from the baseline: `Vector128.ShuffleNative` was compiled to its
   software form while the plan said SSSE3. The JIT folds each test to a constant, so its code is the same either way.
   `tests/Nino.AotTests` checks that the shuffle is `pshufb` under Native AOT. The AVX2 and AVX-512 paths run there

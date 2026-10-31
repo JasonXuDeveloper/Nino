@@ -5,9 +5,10 @@ namespace Nino.Core.Internal
 {
     /// <summary>
     /// The bytes of a value and of its block matched one to one, from a block map
-    /// (<see cref="CompilerServices.NinoBlockMap"/>, from <see cref="CompilerServices.INinoBlockFormatter{T}.BlockMap"/>: memory offset, block offset, size triples). Built once per type,
-    /// off the hot paths: every shuffle mask, permute index and lane plan of <see cref="NinoBlock{T, TFormatter}"/>
-    /// and <see cref="NinoLanes"/> is read from it.
+    /// (<see cref="CompilerServices.NinoBlockMap"/>, from
+    /// <see cref="CompilerServices.INinoBlockFormatter{T}.BlockMap"/>: memory offset, block offset, size triples).
+    /// Built once per type, off the hot paths: every shuffle mask, permute index and lane plan of
+    /// <see cref="NinoBlockPlan{T, TFormatter}"/> and <see cref="NinoLanes"/> is read from it.
     /// </summary>
     internal sealed class NinoBlockBytes
     {
@@ -46,7 +47,8 @@ namespace Nino.Core.Internal
             return memory < 0 ? -1 : wire / Size * MemorySize + memory;
         }
 
-        /// <summary>The byte of consecutive blocks that holds byte <paramref name="memory"/> of their values (-1: padding).</summary>
+        /// <summary>The byte of consecutive blocks that holds byte <paramref name="memory"/> of their values (-1:
+        /// padding).</summary>
         public int WireAt(int memory)
         {
             int wire = _wireOf[memory % MemorySize];
@@ -54,9 +56,9 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// For each byte <paramref name="toWire"/> writes (blocks: <see cref="MemoryAt"/>; memory: <see cref="WireAt"/>)
-        /// of the first <paramref name="values"/> values, the byte it comes from, as an index of a byte shuffle or
-        /// permute (0x80: none, a zero), in <paramref name="length"/> bytes.
+        /// For each byte <paramref name="toWire"/> writes (blocks: <see cref="MemoryAt"/>; memory:
+        /// <see cref="WireAt"/>) of the first <paramref name="values"/> values, the byte it comes from, as an index of
+        /// a byte shuffle or permute (0x80: none, a zero), in <paramref name="length"/> bytes.
         /// </summary>
         public byte[] Indices(bool toWire, int values, int length)
         {

@@ -11,14 +11,14 @@ namespace Nino.Core.Internal
         /// <summary>
         /// Whether elements read into a new array write every byte of it, padding included, and leave none of it as it
         /// was when they reject the data: raw elements copied as one block (NinoUnsafe.CopyToNew), and blocks
-        /// (NinoBlock.ReadAll, which writes padding as 0 and clears the values when a bool rejects the data); only then
-        /// is it allocated uninitialized. Raw values not copied as they are (bools, Untrusted mode's checks) take a
-        /// zeroed array: stored in its slot before the read, an uninitialized one left an existing object holding
-        /// stale heap memory when the data was rejected. Nothing of this is in the formatters, which recurse through
-        /// nested collections: a test and a call there grew their Debug frames past a 1 MB stack. Elements read value
-        /// by value (DateTimeOffsets, values Untrusted mode checks a field at a time) keep a zeroed array too: the
-        /// clearing brings its lines into the cache, where such stores into fresh lines first read each one
-        /// (workstation GC, AVX-512 Xeon: 1,000 DateTimeOffsets in 3.7 to 3.8 µs zeroed against 5.0 to 5.6). A
+        /// (NinoBlockCollections.ReadAll, which writes padding as 0 and clears the values when a bool rejects the
+        /// data); only then is it allocated uninitialized. Raw values not copied as they are (bools, Untrusted mode's
+        /// checks) take a zeroed array: stored in its slot before the read, an uninitialized one left an existing
+        /// object holding stale heap memory when the data was rejected. Nothing of this is in the formatters, which
+        /// recurse through nested collections: a test and a call there grew their Debug frames past a 1 MB stack.
+        /// Elements read value by value (DateTimeOffsets, values Untrusted mode checks a field at a time) keep a zeroed
+        /// array too: the clearing brings its lines into the cache, where such stores into fresh lines first read each
+        /// one (workstation GC, AVX-512 Xeon: 1,000 DateTimeOffsets in 3.7 to 3.8 µs zeroed against 5.0 to 5.6). A
         /// JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -46,10 +46,10 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// The fewest bytes an element takes on the wire, to check a length against the bytes left before allocating:
-        /// <see cref="BlockSize{T,TFormatter}"/> for elements read as one block, else 1. A new array read as one block
-        /// is allocated uninitialized (<see cref="CopiedWhole{T,TFormatter}"/>): checked against 1 byte an element,
-        /// data claiming more elements than its bytes hold left an array of stale heap memory in the caller's object
-        /// when the copy then failed (Deserialize with an existing value). A JIT-time constant.
+        /// <see cref="BlockStride{T,TFormatter}"/> for elements read as one block, else 1. A new array read as one
+        /// block is allocated uninitialized (<see cref="CopiedWhole{T,TFormatter}"/>): checked against 1 byte an
+        /// element, data claiming more elements than its bytes hold left an array of stale heap memory in the caller's
+        /// object when the copy then failed (Deserialize with an existing value). A JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int MinWireSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
@@ -185,16 +185,16 @@ namespace Nino.Core.Internal
         // out, and kept its reader in memory).
         private static class Traits<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
         {
-            // Block reads write every byte of a value, padding as 0 (NinoBlock.ReadEach); values read a field at a
-            // time (ReadSize -1, Untrusted mode) leave their padding as it was.
+            // Block reads write every byte of a value, padding as 0 (NinoBlockCollections.ReadEach); values read a
+            // field at a time (ReadSize -1, Untrusted mode) leave their padding as it was.
             public static readonly bool CopiedWhole = RawFormatter.Is<T, TFormatter>()
                 ? NinoLayout<T>.CopiesAsIs
-                : NinoBlock.ReadSize<T, TFormatter>() > 0;
+                : NinoBlockCollections.ReadSize<T, TFormatter>() > 0;
 
             public static readonly bool ReadOverwrites = RawFormatter.Is<T, TFormatter>() ||
-                typeof(TFormatter) == typeof(DateTimeOffsetFormatter) || NinoBlock.Size<T, TFormatter>() > 0;
+                typeof(TFormatter) == typeof(DateTimeOffsetFormatter) || NinoBlockCollections.FixedSize<T, TFormatter>() > 0;
 
-            public static readonly int MinWireSize = Math.Max(BlockSize<T, TFormatter>(), 1);
+            public static readonly int MinWireSize = Math.Max(BlockStride<T, TFormatter>(), 1);
         }
 
         /// <summary>
@@ -250,10 +250,10 @@ namespace Nino.Core.Internal
         public static void Write<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            // Elements of a fixed size (BlockSize): one capacity check for the block, none per element. Raw elements
+            // Elements of a fixed size (BlockStride): one capacity check for the block, none per element. Raw elements
             // too, as the unmanaged formatters write them: an interface, Stack or Queue of them, or any collection
             // whose formatter is not specialized for them, would otherwise check the capacity per element.
-            int block = BlockSize<T, TFormatter>();
+            int block = BlockStride<T, TFormatter>();
             if (block > 0)
             {
                 if (!values.IsEmpty)
@@ -295,12 +295,13 @@ namespace Nino.Core.Internal
         /// (unmanaged values and raw [NinoType] structs), DateTimeOffsets and tuples of raw items. A JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int BlockSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+        public static int BlockStride<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             RawFormatter.Is<T, TFormatter>() ? Unsafe.SizeOf<T>()
             : typeof(TFormatter) == typeof(DateTimeOffsetFormatter) ? NinoWire.DateTimeOffsetSize
-            : NinoBlock.Size<T, TFormatter>();
+            : NinoBlockCollections.FixedSize<T, TFormatter>();
 
-        /// <summary>Writes <paramref name="values"/> (not empty) as one block of <see cref="BlockSize"/> bytes each.</summary>
+        /// <summary>Writes <paramref name="values"/> (not empty) as one block of <see cref="BlockStride"/> bytes
+        /// each.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteBlock<T, TFormatter>(ref byte destination, ReadOnlySpan<T> values)
             where TFormatter : struct, INinoFormatter<T>
@@ -312,8 +313,8 @@ namespace Nino.Core.Internal
                 DateTimeOffsetFormatter.WriteAll(ref destination,
                     ref Unsafe.As<T, DateTimeOffset>(ref MemoryMarshal.GetReference(values)), values.Length);
             else
-                NinoBlock.WriteAll<T, TFormatter>(ref destination, ref MemoryMarshal.GetReference(values),
-                    values.Length, NinoBlock.Size<T, TFormatter>());
+                NinoBlockCollections.WriteAll<T, TFormatter>(ref destination, ref MemoryMarshal.GetReference(values),
+                    values.Length, NinoBlockCollections.FixedSize<T, TFormatter>());
         }
 
         /// <summary>
@@ -324,7 +325,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int SizedBytes<T, TFormatter>(int count) where TFormatter : struct, INinoFormatter<T>
         {
-            int block = BlockSize<T, TFormatter>();
+            int block = BlockStride<T, TFormatter>();
             if (block <= 0)
                 return -1;
             long size = NinoWire.LengthSize + (long)Math.Max(count, 0) * block;
@@ -374,10 +375,10 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            int block = NinoBlock.ReadSize<T, TFormatter>();
+            int block = NinoBlockCollections.ReadSize<T, TFormatter>();
             if (block > 0)
             {
-                NinoBlock.ReadAll<T, TFormatter>(ref reader.ReadElements(values.Length, block),
+                NinoBlockCollections.ReadAll<T, TFormatter>(ref reader.ReadElements(values.Length, block),
                     ref MemoryMarshal.GetReference(values), values.Length, block);
                 return;
             }

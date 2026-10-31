@@ -83,8 +83,9 @@ namespace Nino.Core.CompilerServices
     {
         /// <summary>
         /// Writes <paramref name="value"/> as a whole payload at the end of <paramref name="buffer"/> with a writer of
-        /// its own, then commits it (the writer's <see cref="Writer.Flush"/> and <see cref="Writer.ReleaseReferences"/>).
-        /// The same bytes as <see cref="INinoFormatter{T}.Serialize"/> with a new writer.
+        /// its own, then commits it (the writer's <see cref="Writer.Flush"/> and
+        /// <see cref="Writer.ReleaseReferences"/>). The same bytes as <see cref="INinoFormatter{T}.Serialize"/> with a
+        /// new writer.
         /// </summary>
         void Write(T value, NinoArrayBufferWriter buffer);
 
@@ -123,11 +124,12 @@ namespace Nino.Core.CompilerServices
 
     /// <summary>
     /// Formatters whose values a collection moves as blocks when their
-    /// <see cref="INinoFixedSizeFormatter{T}.FixedSize"/> is not -1: value tuples and pairs of raw items, and generated <c>[NinoType]</c> structs of a
-    /// fixed size that are not raw. A collection of them reserves or bounds-checks its whole block once and writes
-    /// (<see cref="INinoFixedSizeFormatter{T}.WriteFixed"/>) or reads (<see cref="ReadBlock"/>) each value at its
-    /// position with no check of its own; where <see cref="BlockMap"/> says where each byte of a block lies in a
-    /// value's memory, several values at a time by vector shuffles and permutes (<c>NinoBlock</c>).
+    /// <see cref="INinoFixedSizeFormatter{T}.FixedSize"/> is not -1: value tuples and pairs of raw items, and generated
+    /// <c>[NinoType]</c> structs of a fixed size that are not raw. A collection of them reserves or bounds-checks its
+    /// whole block once and writes (<see cref="INinoFixedSizeFormatter{T}.WriteFixed"/>) or reads
+    /// (<see cref="ReadBlock"/>) each value at its position with no check of its own; where <see cref="BlockMap"/> says
+    /// where each byte of a block lies in a value's memory, several values at a time by vector shuffles and permutes
+    /// (<c>NinoBlockPlan</c>).
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public interface INinoBlockFormatter<T> : INinoFixedSizeFormatter<T>

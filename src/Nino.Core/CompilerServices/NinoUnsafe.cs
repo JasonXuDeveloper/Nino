@@ -237,7 +237,8 @@ namespace Nino.Core.CompilerServices
                     (uint)Unsafe.SizeOf<T>());
         }
 
-        /// <summary><see cref="WriteIn{T}(ref byte, in T)"/> at <paramref name="destination"/> + <paramref name="offset"/>.</summary>
+        /// <summary><see cref="WriteIn{T}(ref byte, in T)"/> at <paramref name="destination"/> +
+        /// <paramref name="offset"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteIn<T>(ref byte destination, int offset, in T value)
         {
@@ -248,7 +249,8 @@ namespace Nino.Core.CompilerServices
                     ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), (uint)Unsafe.SizeOf<T>());
         }
 
-        /// <summary><see cref="WriteValue{T}"/> from a reference (see <see cref="WriteIn{T}(ref byte, in T)"/>).</summary>
+        /// <summary><see cref="WriteValue{T}"/> from a reference (see
+        /// <see cref="WriteIn{T}(ref byte, in T)"/>).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteValueIn<T>(ref byte destination, int offset, in T value)
         {
@@ -532,18 +534,18 @@ namespace Nino.Core.CompilerServices
         }
 
         /// <summary>
-        /// An x64 CPU whose 64-byte vector work beats 32-byte vectors where the two disagree: AMD's (Zen 4 and later) and
-        /// Intel's other than the Sunny Cove generation (<see cref="IsIceLake"/>), where both kernels below lost. Not by
-        /// AVX512-FP16 (Sapphire Rapids and later): Azure's Xeon Platinum 8573C (Emerald Rapids) does not report it,
-        /// and with 32-byte masks there it wrote 1,000 8-byte structs with a padding byte in 92 ns instead of 60
+        /// An x64 CPU whose 64-byte vector work beats 32-byte vectors where the two disagree: AMD's (Zen 4 and later)
+        /// and Intel's other than the Sunny Cove generation (<see cref="IsIceLake"/>), where both kernels below lost.
+        /// Not by AVX512-FP16 (Sapphire Rapids and later): Azure's Xeon Platinum 8573C (Emerald Rapids) does not report
+        /// it, and with 32-byte masks there it wrote 1,000 8-byte structs with a padding byte in 92 ns instead of 60
         /// (.NET A/B run 41020623184). Two CPUIDs at startup.
         /// </summary>
         internal static readonly bool Wide512 = X86Base.IsSupported && (IsAmd() || !IsIceLake());
 
         /// <summary>
-        /// An Intel CPU of the Sunny Cove generation (<see cref="IsIceLake"/>): on GitHub's Xeon Platinum 8370C a 64-byte
-        /// load across two cache lines costs about twice an aligned one, so its block writes load memory vectors from
-        /// 64-byte boundaries (<see cref="NinoBlock"/>.WriteAligned).
+        /// An Intel CPU of the Sunny Cove generation (<see cref="IsIceLake"/>): on GitHub's Xeon Platinum 8370C a
+        /// 64-byte load across two cache lines costs about twice an aligned one, so its block writes load memory
+        /// vectors from 64-byte boundaries (<see cref="NinoBlockCollections"/>.WriteAligned).
         /// </summary>
         internal static readonly bool IceLake = X86Base.IsSupported && !IsAmd() && IsIceLake();
 
@@ -561,9 +563,10 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>
         /// An x64 CPU with AVX-512 VBMI whose two-source 64-byte byte permute (vpermt2b) writes values of more than 16
-        /// bytes faster than lane groups of 32-byte vectors (<see cref="NinoBlock"/>.WritePairs), <see cref="Wide512"/>.
-        /// Measured on GitHub's runners, 1,000 values of 24 bytes as 15-byte blocks (.NET 10): Xeon Platinum 8573C 0.65
-        /// and EPYC 9V45 0.76 times the time of lane groups, Xeon Platinum 8370C (Ice Lake) 1.44 times.
+        /// bytes faster than lane groups of 32-byte vectors (<see cref="NinoBlockCollections"/>.WritePairs),
+        /// <see cref="Wide512"/>. Measured on GitHub's runners, 1,000 values of 24 bytes as 15-byte blocks (.NET 10):
+        /// Xeon Platinum 8573C 0.65 and EPYC 9V45 0.76 times the time of lane groups, Xeon Platinum 8370C (Ice Lake)
+        /// 1.44 times.
         /// </summary>
         internal static readonly bool PairPermutes = Avx512Vbmi.IsSupported && Wide512;
 
@@ -571,12 +574,13 @@ namespace Nino.Core.CompilerServices
         /// <summary>
         /// <see cref="Copy"/> into memory that may have just been allocated (a read into a new array): Memmove from
         /// <see cref="MinUninitializedArrayBytes"/>, where a new array is uninitialized and vector stores read each of
-        /// its lines from memory first (Memmove's rep movsb writes whole lines without reading them). Below, where a new
-        /// array was zeroed into the cache, as <see cref="Copy"/>. Measured on an AVX-512 Xeon (.NET 10): 1,000 ints
-        /// read into a new uninitialized array in 470 to 710 ns with Memmove, 760 to 830 with vector stores; into an existing
-        /// array of 250, 14 ns instead of 23 with vector stores. Out of line: a size that is not a constant takes every
-        /// branch of Copy, and inlined into each raw list and array read that code slowed the reads around it (a list
-        /// of 8 classes holding a List&lt;int&gt; each, read in place: 680 to 710 ns inline, 570 to 610 out of line).
+        /// its lines from memory first (Memmove's rep movsb writes whole lines without reading them). Below, where a
+        /// new array was zeroed into the cache, as <see cref="Copy"/>. Measured on an AVX-512 Xeon (.NET 10): 1,000
+        /// ints read into a new uninitialized array in 470 to 710 ns with Memmove, 760 to 830 with vector stores; into
+        /// an existing array of 250, 14 ns instead of 23 with vector stores. Out of line: a size that is not a constant
+        /// takes every branch of Copy, and inlined into each raw list and array read that code slowed the reads around
+        /// it (a list of 8 classes holding a List&lt;int&gt; each, read in place: 680 to 710 ns inline, 570 to 610 out
+        /// of line).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void CopyToNew(ref byte destination, ref byte source, uint size)
@@ -604,9 +608,9 @@ namespace Nino.Core.CompilerServices
 #if NET8_0_OR_GREATER
         /// <summary>
         /// Largest copy done with 64-byte vectors by <see cref="CopyVectors{TVector}"/>; Memmove (the C library's from
-        /// 2 KB) beyond. Measured on an AVX-512 Xeon (.NET 10, the destination 4 bytes past a 64-byte boundary):
-        /// 16,000 bytes in 111 ns instead of 145, 32,000 in 249 instead of 283, on par at 64,000, slower beyond (160,000:
-        /// 3.2 µs instead of 2.9).
+        /// 2 KB) beyond. Measured on an AVX-512 Xeon (.NET 10, the destination 4 bytes past a 64-byte boundary): 16,000
+        /// bytes in 111 ns instead of 145, 32,000 in 249 instead of 283, on par at 64,000, slower beyond (160,000: 3.2
+        /// µs instead of 2.9).
         /// </summary>
         private const uint MaxVectorCopy = 32 * 1024;
 
@@ -660,7 +664,8 @@ namespace Nino.Core.CompilerServices
 
 #if NET8_0_OR_GREATER
         /// <summary>
-        /// Largest copy done by <see cref="CopyPairs"/> on Arm64 instead of Memmove; above it the two take the same time.
+        /// Largest copy done by <see cref="CopyPairs"/> on Arm64 instead of Memmove; above it the two take the same
+        /// time.
         /// </summary>
         private const uint MaxArm64VectorCopy = 64 * 1024;
 
@@ -669,10 +674,10 @@ namespace Nino.Core.CompilerServices
         /// out of line, so Copy inlined into every read and write gains only this call): the first 16 bytes, then from
         /// the first 16-byte aligned source address 64 bytes a step through cursors, four 16-byte loads and stores that
         /// the JIT pairs into two ldp and two stp of q registers, then the last 64 bytes, overlapping. Measured on
-        /// GitHub's Arm64 runners (Neoverse N2, .NET 10, the destination 4 bytes past a 64-byte boundary, the source 0, 4
-        /// or 8 bytes past one) against the C library's memcpy: 128 bytes in 0.80 to 0.84 of its time, 1,024 in 0.73 to
-        /// 0.91, 8,000 in 0.76 to 1.00, 64,000 and more the same. Without aligning the loads the loop was faster than
-        /// memcpy from an aligned source but up to 1.31 times slower from one 4 bytes past it.
+        /// GitHub's Arm64 runners (Neoverse N2, .NET 10, the destination 4 bytes past a 64-byte boundary, the source 0,
+        /// 4 or 8 bytes past one) against the C library's memcpy: 128 bytes in 0.80 to 0.84 of its time, 1,024 in 0.73
+        /// to 0.91, 8,000 in 0.76 to 1.00, 64,000 and more the same. Without aligning the loads the loop was faster
+        /// than memcpy from an aligned source but up to 1.31 times slower from one 4 bytes past it.
         /// </summary>
         // Fully optimized from the first call (see NinoMask.CopyVectors).
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
@@ -727,7 +732,8 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>
         /// Allocates an array whose contents are not zeroed when the runtime supports it and it is large enough for
-        /// that to be cheaper (<see cref="NewArray{T}"/>). Only use when every element is overwritten before being read.
+        /// that to be cheaper (<see cref="NewArray{T}"/>). Only use when every element is overwritten before being
+        /// read.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T[] AllocateUninitializedArray<T>(int length) => NewArray<T>(length, uninitialized: true);
@@ -790,7 +796,8 @@ namespace Nino.Core.CompilerServices
         }
 #endif
 
-        /// <summary>Whether <paramref name="type"/> is an unmanaged type (no references anywhere in its layout).</summary>
+        /// <summary>Whether <paramref name="type"/> is an unmanaged type (no references anywhere in its
+        /// layout).</summary>
         // Reached from the runtime resolver (dynamic code only) and the netstandard2.0 build.
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070",
             Justification = NinoLayout.FieldsJustification)]

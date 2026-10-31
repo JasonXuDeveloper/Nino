@@ -93,7 +93,8 @@ namespace Nino.Core
             return (int)pos;
         }
 
-        /// <summary>Writes the <paramref name="count"/> raw pairs at <paramref name="pairs"/> (after the count).</summary>
+        /// <summary>Writes the <paramref name="count"/> raw pairs at <paramref name="pairs"/> (after the
+        /// count).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void WriteRaw(Dictionary<TKey, TValue> value, ref byte pairs, int count)
         {
@@ -110,11 +111,12 @@ namespace Nino.Core
 
             // Several entries at a time where the CPU permutes vectors, each key and value packed out of its entry.
             if (count != 0)
-                NinoBlock.WriteAll<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryBlock<TKey, TValue>>(
+                NinoBlockCollections.WriteAll<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryBlock<TKey, TValue>>(
                     ref pairs, ref entries[0], count, pairSize);
         }
 
-        /// <summary>The <paramref name="count"/> raw pairs of a dictionary with free entries, in enumeration order.</summary>
+        /// <summary>The <paramref name="count"/> raw pairs of a dictionary with free entries, in enumeration
+        /// order.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void WriteEnumerated(Dictionary<TKey, TValue> value, ref byte pairs, int count)
         {
@@ -183,7 +185,8 @@ namespace Nino.Core
 
         private static readonly bool HeavyKeys = NinoElements.Heavy(Unsafe.SizeOf<TKey>(), MinPairSize);
 
-        /// <summary>Recycles and clears an existing dictionary before it is refilled with <paramref name="length"/> pairs.</summary>
+        /// <summary>Recycles and clears an existing dictionary before it is refilled with <paramref name="length"/>
+        /// pairs.</summary>
         public static void Reset(Dictionary<TKey, TValue> dictionary, int length, int remaining)
         {
             NinoRecycler.DiscardPairs<TKey, TValue>(dictionary);
@@ -275,7 +278,8 @@ namespace Nino.Core
             return true;
         }
 
-        /// <summary>Removes (and recycles) the entries whose key is not among the <paramref name="count"/> read.</summary>
+        /// <summary>Removes (and recycles) the entries whose key is not among the <paramref name="count"/>
+        /// read.</summary>
         private static void RemoveStale(Dictionary<TKey, TValue> dictionary, TKey[] keys, int count)
         {
             // A key read twice is one key (the last value won).

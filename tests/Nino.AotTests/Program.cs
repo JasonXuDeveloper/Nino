@@ -338,7 +338,7 @@ public static class Program
         // gives a zero from 16 on.
         if (Ssse3.IsSupported)
         {
-            var shuffled = NinoBlock<int, UnmanagedFormatter<int>>.Shuffle(
+            var shuffled = NinoBlockPlan<int, UnmanagedFormatter<int>>.Shuffle(
                 Vector128.Create((byte)0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15), Vector128.Create((byte)0x11));
             Check(shuffled.GetElement(0) == 1, "block shuffles by SSSE3 (pshufb)");
         }
