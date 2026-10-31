@@ -17,7 +17,7 @@
     <!-- The test host of each framework's ASP.NET Core. -->
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.TestHost" Condition="'$(TargetFramework)' == 'net10.0'"/>
-        <PackageReference Include="Microsoft.AspNetCore.TestHost" VersionOverride="8.0.32"
+        <PackageReference Include="Microsoft.AspNetCore.TestHost" VersionOverride="8.0.33"
                           Condition="'$(TargetFramework)' == 'net8.0'"/>
     </ItemGroup>
 

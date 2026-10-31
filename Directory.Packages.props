@@ -40,13 +40,13 @@
         <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing.MSTest" Version="1.1.2"/>
         <PackageVersion Include="PolySharp" Version="1.16.0"/>
         <PackageVersion Include="UniTask" Version="2.5.11"/>
-        <!-- net10.0; the net8.0 build of Nino.AspNetCore.Tests takes 8.0.32 (VersionOverride). -->
-        <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.13"/>
+        <!-- net10.0; the net8.0 build of Nino.AspNetCore.Tests takes 8.0.33 (VersionOverride). -->
+        <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14"/>
         <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3"/>
         <!-- The patched version of a package the Roslyn test libraries bring in (security advisory): never
              referenced, it pins the transitive dependency in Nino.UnitTests (CentralPackageTransitivePinningEnabled
              there). -->
-        <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13"/>
+        <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.14"/>
     </ItemGroup>
 
     <!-- Benchmarks. -->
