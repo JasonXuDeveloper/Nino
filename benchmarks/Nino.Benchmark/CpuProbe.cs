@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.X86;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -292,7 +293,7 @@ public unsafe class TuplePackProbe
 {
     private const int Count = 1000;
 
-    [Params(8, 40)]
+    [Params(0, 8, 40)]
     public int SourceShift;
 
     private static readonly List<(int, long)> List = Enumerable.Range(0, Count).Select(i => (i, (long)i * 31)).ToList();
@@ -371,6 +372,39 @@ public unsafe class TuplePackProbe
     public int Memmove16K()
     {
         Buffer.MemoryCopy(Source, Destination, 16000, 16000);
+        return 16000;
+    }
+
+    /// <summary>16,000 bytes by 64-byte loads and aligned 64-byte stores: whether 64-byte vectors cost on this CPU.</summary>
+    [Benchmark]
+    public int Copy512()
+    {
+        if (!Avx512F.IsSupported) return 0;
+        byte* s = Source, d = Destination + 60; // 64-byte aligned
+        for (int k = 0; k < 250; k += 2)
+        {
+            var a = Vector512.Load(s + k * 64);
+            var b = Vector512.Load(s + k * 64 + 64);
+            a.Store(d + k * 64);
+            b.Store(d + k * 64 + 64);
+        }
+
+        return 16000;
+    }
+
+    /// <summary>Copy512 with 32-byte vectors.</summary>
+    [Benchmark]
+    public int Copy256()
+    {
+        byte* s = Source, d = Destination + 60;
+        for (int k = 0; k < 500; k += 2)
+        {
+            var a = Vector256.Load(s + k * 32);
+            var b = Vector256.Load(s + k * 32 + 32);
+            a.Store(d + k * 32);
+            b.Store(d + k * 32 + 32);
+        }
+
         return 16000;
     }
 
@@ -519,7 +553,7 @@ public unsafe class WaypointPackProbe
         fixed (Waypoint* p = Values)
             Buffer.MemoryCopy(p, Source, Count * Memory, Count * Memory);
         var expected = NinoSerializer.Serialize(Values).AsSpan(4);
-        foreach (var kernel in new Func<int>[] { Four512, Two256, Two256x2 })
+        foreach (var kernel in new Func<int>[] { Four512, Two256, Two256x2, ArmGrid2, ArmGrid2x2, ArmGrid4, ArmScalar, ArmLane })
         {
             new Span<byte>(Destination, Count * Size).Clear();
             if (kernel() != 0 && !new ReadOnlySpan<byte>(Destination, Count * Size).SequenceEqual(expected))
@@ -601,6 +635,161 @@ public unsafe class WaypointPackProbe
 
         for (int i = n * 4; i < Count; i++)
             WriteOne(Source + i * Memory, Destination + i * Size);
+        return Count;
+    }
+
+    // Arm64 (Neoverse-N2, where Nino's four-value lane groups of windows anywhere took 0.90 of MemoryPack's copy).
+    // Indices of output vector k of a group into the 16-byte windows from window w (two to three tables); 0x80 past
+    // the group's blocks.
+    private static Vector128<byte> ArmIndices(int k, int w, int values)
+    {
+        var x = new byte[16];
+        for (int b = 0; b < 16; b++)
+        {
+            int wire = 16 * k + b;
+            x[b] = wire < values * Size ? (byte)(MemoryAt(wire) - 16 * w) : (byte)0x80;
+        }
+
+        return Vector128.Create(x);
+    }
+
+    private static readonly Vector128<byte> G2A = ArmIndices(0, 0, 2), G2B = ArmIndices(1, 1, 2);
+    private static readonly Vector128<byte> G4A = ArmIndices(0, 0, 4), G4B = ArmIndices(1, 1, 4),
+        G4C = ArmIndices(2, 3, 4), G4D = ArmIndices(3, 4, 4);
+
+    [Benchmark]
+    public int Memmove24K()
+    {
+        Buffer.MemoryCopy(Source, Destination, Count * Memory, Count * Memory);
+        return Count * Memory;
+    }
+
+    /// <summary>Two values a step: three 16-byte loads on the grid, two 2-register lookups, two stores (30 bytes).</summary>
+    [Benchmark]
+    public int ArmGrid2()
+    {
+        if (!AdvSimd.Arm64.IsSupported) return 0;
+        Vector128<byte> a = G2A, b = G2B;
+        byte* s = Source, d = Destination;
+        int n = (Count - 2) / 2;
+        for (int k = n; k != 0; k--)
+        {
+            var w0 = Vector128.Load(s);
+            var w1 = Vector128.Load(s + 16);
+            var w2 = Vector128.Load(s + 32);
+            var v0 = AdvSimd.Arm64.VectorTableLookup((w0, w1), a);
+            var v1 = AdvSimd.Arm64.VectorTableLookup((w1, w2), b);
+            v0.Store(d);
+            v1.Store(d + 16);
+            s += 2 * Memory;
+            d += 2 * Size;
+        }
+
+        for (int i = n * 2; i < Count; i++)
+            WriteOne(Source + i * Memory, Destination + i * Size);
+        return Count;
+    }
+
+    /// <summary>ArmGrid2 twice a step.</summary>
+    [Benchmark]
+    public int ArmGrid2x2()
+    {
+        if (!AdvSimd.Arm64.IsSupported) return 0;
+        Vector128<byte> a = G2A, b = G2B;
+        byte* s = Source, d = Destination;
+        int n = (Count - 2) / 4;
+        for (int k = n; k != 0; k--)
+        {
+            var w0 = Vector128.Load(s);
+            var w1 = Vector128.Load(s + 16);
+            var w2 = Vector128.Load(s + 32);
+            var w3 = Vector128.Load(s + 48);
+            var w4 = Vector128.Load(s + 64);
+            var w5 = Vector128.Load(s + 80);
+            var v0 = AdvSimd.Arm64.VectorTableLookup((w0, w1), a);
+            var v1 = AdvSimd.Arm64.VectorTableLookup((w1, w2), b);
+            var v2 = AdvSimd.Arm64.VectorTableLookup((w3, w4), a);
+            var v3 = AdvSimd.Arm64.VectorTableLookup((w4, w5), b);
+            v0.Store(d);
+            v1.Store(d + 16);
+            v2.Store(d + 30);
+            v3.Store(d + 46);
+            s += 4 * Memory;
+            d += 4 * Size;
+        }
+
+        for (int i = n * 4; i < Count; i++)
+            WriteOne(Source + i * Memory, Destination + i * Size);
+        return Count;
+    }
+
+    /// <summary>Four values a step from six grid loads: three 2-register lookups and one 3-register lookup, 64 bytes stored.</summary>
+    [Benchmark]
+    public int ArmGrid4()
+    {
+        if (!AdvSimd.Arm64.IsSupported) return 0;
+        Vector128<byte> a = G4A, b = G4B, c = G4C, e = G4D;
+        byte* s = Source, d = Destination;
+        int n = (Count - 2) / 4;
+        for (int k = n; k != 0; k--)
+        {
+            var w0 = Vector128.Load(s);
+            var w1 = Vector128.Load(s + 16);
+            var w2 = Vector128.Load(s + 32);
+            var w3 = Vector128.Load(s + 48);
+            var w4 = Vector128.Load(s + 64);
+            var w5 = Vector128.Load(s + 80);
+            var v0 = AdvSimd.Arm64.VectorTableLookup((w0, w1), a);
+            var v1 = AdvSimd.Arm64.VectorTableLookup((w1, w2, w3), b);
+            var v2 = AdvSimd.Arm64.VectorTableLookup((w3, w4), c);
+            var v3 = AdvSimd.Arm64.VectorTableLookup((w4, w5), e);
+            v0.Store(d);
+            v1.Store(d + 16);
+            v2.Store(d + 32);
+            v3.Store(d + 48);
+            s += 4 * Memory;
+            d += 4 * Size;
+        }
+
+        for (int i = n * 4; i < Count; i++)
+            WriteOne(Source + i * Memory, Destination + i * Size);
+        return Count;
+    }
+
+    /// <summary>A value a step without vectors: two 8-byte loads and a byte, the bool put over byte 14, 16 bytes stored.</summary>
+    [Benchmark]
+    public int ArmScalar()
+    {
+        if (!AdvSimd.Arm64.IsSupported) return 0;
+        byte* s = Source, d = Destination;
+        for (int k = Count - 1; k != 0; k--)
+        {
+            ulong x = *(ulong*)s, y = *(ulong*)(s + 8);
+            y = (y & 0x0000FFFFFFFFFFFFUL) | ((ulong)s[16] << 48);
+            *(ulong*)d = x;
+            *(ulong*)(d + 8) = y;
+            s += Memory;
+            d += Size;
+        }
+
+        WriteOne(Source + (Count - 1) * Memory, Destination + (Count - 1) * Size);
+        return Count;
+    }
+
+    /// <summary>A value a step: one 16-byte load, the bool loaded into byte 14 (ld1 lane), one 16-byte store.</summary>
+    [Benchmark]
+    public int ArmLane()
+    {
+        if (!AdvSimd.Arm64.IsSupported) return 0;
+        byte* s = Source, d = Destination;
+        for (int k = Count - 1; k != 0; k--)
+        {
+            AdvSimd.LoadAndInsertScalar(Vector128.Load(s), 14, s + 16).Store(d);
+            s += Memory;
+            d += Size;
+        }
+
+        WriteOne(Source + (Count - 1) * Memory, Destination + (Count - 1) * Size);
         return Count;
     }
 
