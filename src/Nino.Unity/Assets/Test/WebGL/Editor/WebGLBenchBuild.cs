@@ -40,6 +40,16 @@ namespace Test.Editor.WebGL
             };
             var report = BuildPipeline.BuildPlayer(options);
             Debug.Log($"NINO_WEBGL_BUILD|result={report.summary.result}|wasm2023={wasm2023}|timing={timing}|size={report.summary.totalSize}");
+            // game-ci/unity-builder 6 (its CLI) fails the step unless the log has its default build script's summary:
+            // a "# Build results #" banner, then "Errors: 0" before a "Size:" line.
+            Console.WriteLine(
+                "\n###########################\n" +
+                "#      Build results      #\n" +
+                "###########################\n\n" +
+                $"Duration: {report.summary.totalTime}\n" +
+                $"Warnings: {report.summary.totalWarnings}\n" +
+                $"Errors: {report.summary.totalErrors}\n" +
+                $"Size: {report.summary.totalSize} bytes\n");
             if (report.summary.result != BuildResult.Succeeded)
                 EditorApplication.Exit(1);
         }

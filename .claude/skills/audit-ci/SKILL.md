@@ -47,7 +47,9 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   unity-builder 6+; all to one release): its default `latest` asks the GitHub API on every run, and a 403 from the rate
   limit failed a job. Dependabot bumps the action, never that input: on a game-ci major, read its `action.yml` at the
   new SHA for inputs it ignores (unity-builder 6.0.0's `unityVersion` reaches the CLI as `--engineVersion`) and keep
-  the editor chosen by `customImage`.
+  the editor chosen by `customImage`. A custom `buildMethod` under unity-builder 6 prints the CLI's build summary
+  (a `# Build results #` banner, `Errors: 0`, then a `Size:` line, as `WebGLBenchBuild` does): the CLI parses the log
+  for it and failed the WebGL job of a build Unity reported as succeeded (4.8.2 never looked).
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
   runs only the sections the release's tree has.
 - **Concurrency budget**: every matrix that can grow with a request or a file has `max-parallel` (`runtime-ab.yml`
