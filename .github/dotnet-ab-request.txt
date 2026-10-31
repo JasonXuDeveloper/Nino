@@ -176,5 +176,8 @@
 # done (run 41211412057): cpu='EPYC|Xeon|Neoverse' 39d97fa1 4a7fc8e0 12 *CollectionsTest.NinoDeserializeLinkedList* *CollectionsTest.NinoDeserializeSortedSet* *CollectionsTest.NinoDeserializeSortedDictionary* *CollectionsTest.NinoDeserializeSortedList* *CollectionsTest.NinoDeserializeConcurrentDictionary* # aot-devirt: BCL collections created with new; ref origin/ab/aot-devirt (owner: aot-devirt worker)
 # done (run 41211412057): cpu='EPYC|Xeon|Neoverse' 39d97fa1 39d97fa1 12 *CollectionsTest.NinoDeserializeLinkedList* *CollectionsTest.NinoDeserializeSortedSet* *CollectionsTest.NinoDeserializeSortedDictionary* *CollectionsTest.NinoDeserializeSortedList* *CollectionsTest.NinoDeserializeConcurrentDictionary* # aot-devirt floor on main 39d97fa1 (owner: aot-devirt worker)
 # aot-devirt, second run: LinkedList read 1.02 on EPYC 7763, 9V45 and 9V74 in run 41211412057 (floor 0.99-1.01); repeat for a verdict
-cpu='EPYC' 39d97fa1 4a7fc8e0 12 *CollectionsTest.NinoDeserializeLinkedList* *CollectionsTest.NinoDeserializeSortedSet* *CollectionsTest.NinoDeserializeSortedDictionary* # aot-devirt again
-cpu='EPYC' 39d97fa1 39d97fa1 12 *CollectionsTest.NinoDeserializeLinkedList* *CollectionsTest.NinoDeserializeSortedSet* *CollectionsTest.NinoDeserializeSortedDictionary* # aot-devirt floor again
+# done (run 41216990263): cpu='EPYC' 39d97fa1 4a7fc8e0 12 *CollectionsTest.NinoDeserializeLinkedList* *CollectionsTest.NinoDeserializeSortedSet* *CollectionsTest.NinoDeserializeSortedDictionary* # aot-devirt again
+# done (run 41216990263): cpu='EPYC' 39d97fa1 39d97fa1 12 *CollectionsTest.NinoDeserializeLinkedList* *CollectionsTest.NinoDeserializeSortedSet* *CollectionsTest.NinoDeserializeSortedDictionary* # aot-devirt floor again
+# selftree: a generated nesting struct per level of a collection that holds itself (70fe1544) against its bench base d238080d (main + the SelfTree case); MemoryPack rows are the null control (owner: selftree worker)
+cpu='EPYC|Xeon|Neoverse' d238080d 70fe1544 12 *CollectionsTest.*SelfTree* # selftree
+cpu='EPYC|Xeon|Neoverse' d238080d d238080d 12 *CollectionsTest.*SelfTree* # selftree floor on d238080d
