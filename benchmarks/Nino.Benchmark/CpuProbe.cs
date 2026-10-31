@@ -273,3 +273,180 @@ public unsafe class Copy128Probe
         e.Store(d + end + 48);
     }
 }
+
+/// <summary>
+/// Experiment (round 103): what 1,000 (int, long) cost on one CPU, taken apart. The values sit
+/// <see cref="SourceShift"/> bytes past a 64-byte line (arrays of them are 8-byte aligned, so every shift that is a
+/// multiple of 8 occurs); Nino's blocks and MemoryPack's copy write into reused buffers. Beside them, kernels of the
+/// same size that isolate one cost each: 250 64-byte loads of the values (split across lines unless the shift is 0),
+/// 188 64-byte stores to a line boundary or 4 bytes past one, 188 independent vpermt2d, and the core clock from
+/// chains of 10,000 dependent adds, scalar and on 64-byte vectors (the AVX-512 frequency license).
+/// </summary>
+[Config(typeof(SingleProbeConfig))]
+public unsafe class TupleCostProbe
+{
+    private const int Count = 1000;
+
+    [Params(0, 8, 16, 24, 32, 40, 48, 56)]
+    public int SourceShift;
+
+    private static readonly byte* Base = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
+    private static readonly byte* Stores = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
+    private (int, long)[] _values;
+    private readonly NinoArrayBufferWriter _nino = new(1 << 16);
+    private readonly System.Buffers.ArrayBufferWriter<byte> _memoryPack = new(1 << 16);
+
+    static TupleCostProbe()
+    {
+        // What the C library chose for copies on this machine (Buffer.Memmove calls memmove past 2 KB on x64), and where
+        // CollectionsTest's list lands: printed once per process into the job log.
+        try
+        {
+            var start = new System.Diagnostics.ProcessStartInfo("/lib64/ld-linux-x86-64.so.2", "--list-diagnostics")
+                { RedirectStandardOutput = true };
+            using var process = System.Diagnostics.Process.Start(start);
+            foreach (var line in process!.StandardOutput.ReadToEnd().Split('\n'))
+                if (line.Contains("rep_movsb") || line.Contains("non_temporal") || line.Contains("rep_stosb") ||
+                    line.Contains("cpu_features.basic") || line.Contains("preferred"))
+                    Console.WriteLine("// probe glibc " + line);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("// probe glibc diagnostics: " + e.Message);
+        }
+
+        var list = new System.Collections.Generic.List<(int, long)>(Count);
+        for (int i = 0; i < Count; i++)
+            list.Add((i, i * 31L));
+        fixed ((int, long)* at = CollectionsMarshal.AsSpan(list))
+            Console.WriteLine($"// probe a new list's values at {(nuint)at % 64} past a line; X86Base " +
+                              $"{System.Runtime.Intrinsics.X86.X86Base.CpuId(1, 0).Eax:X}");
+    }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        // Pinned arrays until one starts SourceShift bytes past a line.
+        var keep = new System.Collections.Generic.List<(int, long)[]>();
+        while (true)
+        {
+            var values = GC.AllocateUninitializedArray<(int, long)>(Count, pinned: true);
+            if ((nuint)Unsafe.AsPointer(ref values[0]) % 64 == (nuint)SourceShift)
+            {
+                _values = values;
+                break;
+            }
+
+            keep.Add(values);
+        }
+
+        for (int i = 0; i < Count; i++)
+        {
+            _values[i] = (i, i * 31L);
+            ((long*)Base)[i * 2] = i;
+            ((long*)Base)[i * 2 + 1] = i * 31L;
+        }
+    }
+
+    [Benchmark(Baseline = true)]
+    public int Nino()
+    {
+        _nino.ResetWrittenCount();
+        NinoSerializer.Serialize(_values, _nino);
+        return _nino.WrittenCount;
+    }
+
+    [Benchmark]
+    public int MemoryPack()
+    {
+        _memoryPack.ResetWrittenCount();
+        global::MemoryPack.MemoryPackSerializer.Serialize(_memoryPack, _values);
+        return _memoryPack.WrittenCount;
+    }
+
+    /// <summary>250 64-byte loads of the values, as Nino's groups load them (split across lines unless shift 0).</summary>
+    [Benchmark]
+    public int Loads()
+    {
+        if (!System.Runtime.Intrinsics.X86.Avx512F.IsSupported) return 0;
+        byte* s = Base + SourceShift;
+        Vector512<byte> a = default, b = default;
+        for (int k = 0; k < 248; k += 2)
+        {
+            a |= Vector512.Load(s + k * 64);
+            b |= Vector512.Load(s + k * 64 + 64);
+        }
+
+        return (a | b).GetElement(0);
+    }
+
+    /// <summary>188 64-byte stores to a line boundary (shift 0) or <see cref="SourceShift"/> past one.</summary>
+    [Benchmark]
+    public int Stores64()
+    {
+        if (!System.Runtime.Intrinsics.X86.Avx512F.IsSupported) return 0;
+        byte* d = Stores + SourceShift;
+        var v = Vector512.Create((byte)SourceShift);
+        for (int k = 0; k < 188; k += 2)
+        {
+            v.Store(d + k * 64);
+            v.Store(d + k * 64 + 64);
+        }
+
+        return 188;
+    }
+
+    /// <summary>188 vpermt2d of 64 bytes (independent: throughput, port 5 on Intel).</summary>
+    [Benchmark]
+    public int Permutes()
+    {
+        if (!System.Runtime.Intrinsics.X86.Avx512F.IsSupported) return 0;
+        var x = Vector512.Create(SourceShift);
+        var y = Vector512.Create(3);
+        var i0 = Vector512.Create(0, 17, 2, 19, 4, 21, 6, 23, 8, 25, 10, 27, 12, 29, 14, 31);
+        Vector512<int> a = x, b = y, c = x, d = y;
+        for (int k = 0; k < 188; k += 4)
+        {
+            a = System.Runtime.Intrinsics.X86.Avx512F.PermuteVar16x32x2(x, i0, a);
+            b = System.Runtime.Intrinsics.X86.Avx512F.PermuteVar16x32x2(y, i0, b);
+            c = System.Runtime.Intrinsics.X86.Avx512F.PermuteVar16x32x2(x, i0, c);
+            d = System.Runtime.Intrinsics.X86.Avx512F.PermuteVar16x32x2(y, i0, d);
+        }
+
+        return (a + b + c + d).GetElement(1);
+    }
+
+    /// <summary>10,000 dependent scalar adds: 10,000 cycles, so 10,000 / ns is the core clock in GHz.</summary>
+    [Benchmark]
+    public long ClockScalar()
+    {
+        long x = SourceShift;
+        for (int k = 0; k < 2500; k++)
+        {
+            x += k;
+            x ^= 1;
+            x += 3;
+            x ^= 2;
+        }
+
+        return x;
+    }
+
+    /// <summary>ClockScalar on 64-byte vectors (vpaddd zmm, latency 1): the clock under AVX-512.</summary>
+    [Benchmark]
+    public int ClockZmm()
+    {
+        if (!System.Runtime.Intrinsics.X86.Avx512F.IsSupported) return 0;
+        var x = Vector512.Create(SourceShift);
+        var one = Vector512.Create(1);
+        for (int k = 0; k < 2500; k++)
+        {
+            x += one;
+            x ^= one;
+            x += one;
+            x ^= one;
+        }
+
+        return x.GetElement(0);
+    }
+}
