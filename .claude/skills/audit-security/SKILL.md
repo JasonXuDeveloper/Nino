@@ -57,6 +57,14 @@ the runtime it targets.
 - A graph the data can make cyclic in a runtime without a tracing GC: Rust's `Shared` is an `Rc`, so a cycle read from
   the data (which .NET accepts) is never freed; the leak is bounded per read but adds up across reads. Documented in
   the Rust README; changing it (weak back references, an arena per read, or rejecting cycles) is the owner's call.
+- A value looked up by a name from the data in a cache the runtime never trims: every distinct name the lookup
+  accepts stays in memory for good, so a stream of messages grows the heap without bound although each read is small.
+  Accept only a bounded set of names, and test that many distinct names keep nothing. With ICU (.NET 5+),
+  `CultureInfo.GetCultureInfo` and `new CultureInfo` accept any well-formed name and keep each (CultureData's cache:
+  200,000 names such as `en-x0001` held 160 MB), and `predefinedOnly: true` still keeps names with a singleton subtag
+  (`en-US-x-<n>`: 31 MB per 50,000), so `CultureInfoFormatter` reads shipped cultures only, by names without one
+  (`CultureNamesFromTheDataCannotGrowTheProcess`, round 103). Checked and bounded: `TimeZoneInfo.FindSystemTimeZoneById`
+  (keeps found zones only; 20,000 unknown ids and case variants kept under 20 KB), `NinoUnknownIds` (1,024 ids).
 - A recursive path without depth counting (a struct holding a collection of itself, polymorphic slots, tuples,
   `object` members, reference tracking's back references).
 - A loop whose work grows faster than the input (nested lengths, quadratic rehashing, deferred sections re-read).
