@@ -474,9 +474,10 @@ namespace Nino.Core.CompilerServices
                         return;
                     }
                 }
-                else if (Vector512.IsHardwareAccelerated
-                             ? size <= (AmdCopy ? MaxVectorCopy : MaxVector256Copy)
-                             : size - 256 <= MaxVector256Copy - 256)
+                else if ((Vector512.IsHardwareAccelerated
+                              ? size <= (AmdCopy ? MaxVectorCopy : MaxVector256Copy)
+                              : size - 256 <= MaxVector256Copy - 256) &&
+                         !(IceLakeMemmove && size - MinIceLakeMemmove <= MaxVectorCopy - MinIceLakeMemmove))
                 {
                     // With 64-byte vectors up to MaxVectorCopy, then on Intel 32-byte ones up to MaxVector256Copy:
                     // beyond 32 KB the 64-byte loop lost to Memmove, the 32-byte one still beats it there (GitHub's
@@ -546,6 +547,19 @@ namespace Nino.Core.CompilerServices
         /// 64-byte boundaries (<see cref="NinoBlock"/>.WriteAligned).
         /// </summary>
         internal static readonly bool IceLake = X86Base.IsSupported && !IsAmd() && IsIceLake();
+
+        /// <summary>
+        /// Ice Lake on Linux: <see cref="CopyOver64"/> leaves blocks from <see cref="MinIceLakeMemmove"/> to
+        /// <see cref="MaxVectorCopy"/> to Memmove, which glibc runs there as one rep movsb from a 64-byte aligned
+        /// destination (FSRM; rep_movsb_threshold 2,112). Nino's vector loop stores aligned but loads wherever the
+        /// source is, and on GitHub's Xeon Platinum 8370C a 64-byte load across two lines costs about twice an aligned
+        /// one (16,000 bytes: 190 ns from a line, 377 from 8 bytes past one; rep movsb 117 to 247). Linux only: other C
+        /// runtimes' memmove was not measured there.
+        /// </summary>
+        private static readonly bool IceLakeMemmove = IceLake && OperatingSystem.IsLinux();
+
+        /// <summary>The smallest block <see cref="IceLakeMemmove"/> hands to Memmove: glibc's rep movsb threshold with FSRM.</summary>
+        private const uint MinIceLakeMemmove = 2112;
 
         /// <summary>
         /// An Intel CPU of the Sunny Cove generation and its client relatives (Ice Lake server and client, Tiger Lake,
