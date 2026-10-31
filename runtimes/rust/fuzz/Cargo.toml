@@ -1,0 +1,37 @@
+# Coverage-guided fuzzing of the reader with cargo-fuzz (libFuzzer; nightly Rust): `cargo +nightly fuzz run <target>`.
+# Its own workspace, outside the crate's: it needs nightly and the sanitizer flags cargo-fuzz passes.
+[package]
+name = "nino-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+nino = { package = "nino-serialization", path = "..", features = ["indexmap"] }
+indexmap = "2.14.2"
+serde = "1.0.229"
+serde_json = { version = "1.0.154", features = ["unbounded_depth"] }
+
+[workspace]
+
+[[bin]]
+name = "conformance"
+path = "fuzz_targets/conformance.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "generated"
+path = "fuzz_targets/generated.rs"
+test = false
+doc = false
+bench = false
+
+# tests/conformance/types.rs derives serde under the crate's own feature, which this package does not have.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("serde"))'] }

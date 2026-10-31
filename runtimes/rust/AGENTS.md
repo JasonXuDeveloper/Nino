@@ -14,6 +14,8 @@ Cargo.lock                   the workspace's resolved versions
 rustfmt.toml                 max_width 120
 build.rs                     sets cfg nino_avx512 when the compiler has the AVX-512 intrinsics (Rust 1.89+)
 .gitignore                   target/
+fuzz/                        cargo-fuzz targets (own workspace, nightly): conformance and generated read coverage-guided
+                             input as the corpus types (fuzz_targets/check.rs); seeds.py writes the corpus as seeds
 README.md                    the API, derive attributes, guarantees, "Stricter than .NET", tests, benchmarks
 src/
   lib.rs                     crate root: modules, re-exports, the deny lints
