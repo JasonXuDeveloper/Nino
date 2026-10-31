@@ -97,19 +97,44 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   0.99-1.01); a
   scratch program shows the same for any `static readonly` base-class field read with `??`. Find them with
   `call [rax+0x..]Nino...:Serialize` after a `cmp qword ptr [rdi], <method table>` in a Tier1 listing.
-- No virtual dispatch on a serialize or deserialize path where a direct form exists (the owner's rule): formatters
-  are structs passed as constrained type arguments, generated code names them directly, collections test their
-  concrete types (`List<T>`, `T[]`) before their interfaces, and the one indirect call a polymorphic or
-  user-extensible point needs (an unknown subtype through `NinoSubtypeHandler`, a recycler or `[NinoFactory]`
-  delegate, a user collection's enumerator) sits behind the generated exact-type checks, out of line. What is left
-  in the Tier1 listings and why is the inventory of the 6d711cb round: subtype handlers after the exact-type
-  dispatch (cold), `NinoActivator<T>` delegates for user-derived collection types only (BCL types are created with
-  `new`), BCL internals (`ArrayPool`, string comparers inside `Dictionary`), calls through a shared generic's
-  dictionary (`T` a class: `CORINFO_HELP_RUNTIMEHANDLE_METHOD` then `call rax`), and the enumerator of a collection
-  declared as an interface whose object is neither a list nor an array. IL2CPP, Mono and NativeAOT do not devirtualize
-  `static readonly` fields: there `CachedFormatter<T>` (a method's type parameter, another assembly's `[NinoType]`, a
-  type that holds itself) and the top-level calls without interceptors (Unity's Roslyn 4.3) stay one virtual call
-  per value of that type; generic `[NinoType]`s do not use it (Unity kernels and IL2CPP).
+- No virtual dispatch on a serialize or deserialize path where a direct form exists (the owner's rule): formatters are
+  structs passed as constrained type arguments, generated code names them directly, collections test their concrete
+  types (`List<T>`, `T[]`) before their interfaces, and the one indirect call a polymorphic or user-extensible point
+  needs (an unknown subtype through `NinoSubtypeHandler`, a recycler or `[NinoFactory]` delegate, a user collection's
+  enumerator) sits behind the generated exact-type checks, out of line. What is left in the Tier1 listings and why is
+  the inventory of the 6d711cb round: subtype handlers after the exact-type dispatch (cold), `NinoActivator<T>`
+  delegates for user-derived collection types only, BCL internals (`ArrayPool`, string comparers inside `Dictionary`),
+  calls through a shared generic's dictionary (`T` a class: `CORINFO_HELP_RUNTIMEHANDLE_METHOD` then `call rax`), and
+  the enumerator of a collection declared as an interface whose object is neither a list nor an array. `SortedSet`,
+  `LinkedList`, `SortedDictionary`, `SortedList` and `ConcurrentBag` read into null are created by the activator's
+  delegate (`Func<T>.Invoke` once per collection; `HashSet`, `Queue`, `Stack`, `List` and `Dictionary` test their type
+  and call `new`). Creating them with `new` behind `typeof(TCollection) == typeof(SortedSet<T>)` (`Unsafe.As` back,
+  since a cast is a `CORINFO_HELP_CHKCASTANY` call in shared code; 4a7fc8e0) was measured and not landed: the sorted
+  and concurrent reads were on par, but 1,000-node `LinkedList<int>` reads, about 8 us of allocation, took 1.023 and
+  1.027 times as long on EPYC 7763 in two runs (n=48 each, floors 0.995 and 0.994) and 1.022 and 1.012 on 9V45 (floors
+  1.009 and 0.984): .NET A/B runs 41211412057 and 41216990263. The one delegate call per collection is worth less than
+  that; try again only with the creation out of the method that reads the elements. Under NativeAOT, IL2CPP and Mono a
+  `static readonly` field is a load, not a constant (ILC does not preinitialize `NinoTopFormatter<T>.Formatter`: its
+  initializer runs the registry), so the call through it is virtual. The round 104 inventory beyond the JIT's
+  (NativeAOT listings of the whole suite, `Reading the listings`; IL2CPP C++ of unity.yml run 40969941689): per value,
+  (1) `CachedFormatter<T>` of a `[NinoType]` generated in another assembly, or of a collection that holds itself
+  without a `[NinoType]` body (`SelfTree : List<SelfTree>`, counted by `NestingFormatter`): a virtual call on
+  NativeAOT, a `VirtualActionInvoker` on IL2CPP, a virtual call on Mono; locally under NativeAOT 1,000 classes of
+  another assembly as an array member serialized in 1.5 times and read in 1.37 times the time of the same class
+  declared in the calling assembly, on par under the JIT (local numbers, to choose only). The direct form names the
+  other assembly's formatter, which is `internal`: making generated formatters public is the owner's decision (users'
+  public API, PublicAPI analyzers, two assemblies with one type name). The benchmark suite has no such member (its DLL
+  names `CachedFormatter` nowhere). (2) Shared generic code where a formatter's type argument holds a class
+  (`NinoElements.ReadEach` over `Box<(class, int)>`): the element's `Deserialize` is found in the generic dictionary,
+  a fat-pointer call per element on NativeAOT, `call rax` at Tier1, `il2cpp_rgctx_method` on IL2CPP: no direct form.
+  (3) The netstandard builds' block loops (`NinoBlockCollections.WriteValue`/`ReadValue` through
+  `NinoBlockPlan.Formatter`): one interface call per element where no Burst kernel runs (IL2CPP, Mono, .NET
+  Framework); the direct form puts the loop in the formatter, which the owner declined. (4) The user-extensible points
+  above. Per top-level call, not per value: calls the interceptors leave alone (generic methods, another assembly's
+  types, Unity's Roslyn 4.3, raw values and arrays of raw elements) read `NinoTopFormatter<T>`, `NinoRaw<T>` and
+  `NinoRawArray<T>` as loads, so an array of raw elements is one `INinoRawArrayFormatter` interface call per call
+  under NativeAOT, and the dead virtual branches stay in the code; generic `[NinoType]`s use no `CachedFormatter`
+  (Unity kernels and IL2CPP).
 - Do not inline a generic method that needs a runtime lookup into shared code on a hot path.
 - Past the JIT's tracking limit, locals are zeroed in the prolog: rare paths out of line also keep the local count
   down.
@@ -373,6 +398,16 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
 ## Reading the listings
 
 - x64: `--asm` of `benchmarks/asm.py`, once per ISA (`DOTNET_EnableAVX512=0`, `DOTNET_EnableAVX2=0`).
+- NativeAOT: ILC compiles with the JIT, which takes the same options as `--codegenopt`: publish
+  `benchmarks/Nino.Benchmark -r linux-x64` with `PublishAot` set in a props file passed as
+  `-p:CustomBeforeMicrosoftCommonProps=` (conditioned on the project name, or the netstandard references get it) and
+  `<IlcArg Include="--codegenopt:JitDisasm=*" />`, `--codegenopt:JitStdOutFile=<file>` and `--parallelism:1` in one
+  passed as `-p:CustomAfterMicrosoftCommonTargets=`, with `<TrimmerRootAssembly Include="Nino.Benchmark" />` (7
+  minutes, 570 MB of listings for `*`; `IlcGenerateMapFile`/`IlcGenerateMstatFile` add the map). Direct calls show as
+  `call Name(...)`; `call [rax+0x..]Type:Method` is virtual, `call [r11]Iface:Method` an interface dispatch cell,
+  `test reg, 2` before `call [reg-0x02]` a fat pointer of shared generic code, and `lea rax, [(reloc ..)]` then
+  `call rax` a helper. Walk the direct calls from each case to find what it reaches. Its `--verify` stops in
+  MessagePack's setup (not AOT-safe), so time a scratch program instead.
 - Arm64 from an x64 machine: `benchmarks/cross-jit.sh` installs the other architecture's JIT, and
   `DISASM=1 benchmarks/members/run.sh` writes both listings for the member cases (that JIT only lists: with
   `DOTNET_AltJit='*'` around `asm.py`, the build and the benchmark died with SIGSEGV); or build for `linux-arm64` and
