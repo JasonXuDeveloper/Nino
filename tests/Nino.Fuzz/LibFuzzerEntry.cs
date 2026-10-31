@@ -20,6 +20,7 @@ namespace Nino.Fuzz
         public static int Run(string targetName)
         {
             var target = Targets.Find(targetName);
+            target.Configure();
             if (Environment.GetEnvironmentVariable("__LIBFUZZER_SHM_ID") == null)
             {
                 Console.Error.WriteLine("libfuzzer: not started by a libFuzzer driver (libfuzzer/run.sh). To run one input, use: repro <target> <file>");

@@ -22,6 +22,19 @@ namespace Nino.Fuzz
         /// <summary>A new value to read into.</summary>
         public Func<object> Fresh;
         public Func<object, byte[]> Write;
+        /// <summary>
+        /// Every input is read into an existing value, and one Nino rejects is read again over poisoned freed memory:
+        /// the value must not hold any of it (<see cref="StaleMemory"/>). Costs a collection per rejected input.
+        /// </summary>
+        public bool Poisoned;
+        /// <summary>Read with <see cref="NinoSettings.Untrusted"/> on (set by <see cref="Configure"/>, before Nino's first use in the process).</summary>
+        public bool Untrusted;
+
+        /// <summary>Sets what the target reads with; called once per process, before anything is read.</summary>
+        public void Configure()
+        {
+            if (Untrusted) NinoSettings.Untrusted = true;
+        }
     }
 
     /// <summary>
@@ -50,11 +63,12 @@ namespace Nino.Fuzz
             Make<Shape>("Shape", "polymorphic chain of an abstract base", Samples.Shapes),
             Make<TNode>("TNode", "reference tracking: cycles and shared nodes", Samples.Tracked),
             Make("Nest", "nesting through lists, arrays, dictionaries and structs", Samples.Nest),
+            Stale("Stale", false),
+            Stale("StaleUntrusted", true),
         };
 
         public static Target Find(string name) =>
-            string.Equals(name, SelfTest.Target.Name, StringComparison.OrdinalIgnoreCase) ? SelfTest.Target :
-            All.FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase))
+            SelfTest.All.Concat(All).FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase))
             ?? throw new ArgumentException($"unknown target '{name}'; targets: {string.Join(", ", All.Select(t => t.Name))}");
 
         static Target Make<T>(string name, string covers, params Func<T>[] samples) where T : class => new Target
@@ -72,6 +86,22 @@ namespace Nino.Fuzz
             Fresh = () => samples[0](),
             Write = value => NinoSerializer.Serialize((T)value),
         };
+
+        /// <summary>
+        /// Large arrays allocated uninitialized whose read can reject the data after the allocation, read into a value
+        /// of small ones over poisoned memory (<see cref="Target.Poisoned"/>).
+        /// </summary>
+        static Target Stale(string name, bool untrusted)
+        {
+            var target = Make(name, untrusted
+                    ? "Stale in Untrusted mode, which also rejects DateTime and decimal values"
+                    : "rejected reads into an existing value leave no freed memory in it: blocks with a bool, T?, bools, raw structs with a bool, dictionary and set entries",
+                () => Samples.Stale(11_000));
+            target.Fresh = Samples.StaleExisting;
+            target.Poisoned = true;
+            target.Untrusted = untrusted;
+            return target;
+        }
 
         static Target Golden() => new Target
         {

@@ -20,8 +20,8 @@ For each input, the fuzzer:
 - places it against an inaccessible guard page, at the end or at the start (`mmap`/`mprotect` on Linux and macOS,
   `VirtualAlloc`/`VirtualProtect` on Windows; plain arrays elsewhere), so reading one byte outside the input crashes
   the worker. A third of the inputs go in plain arrays;
-- reads it fresh, or (a quarter of them) into an existing value, either a fresh sample or the value read from
-  another input (`prime.bin` in the finding);
+- reads it fresh, or (a quarter of them; every one for the `Stale` targets) into an existing value, either a fresh
+  sample or the value read from another input (`prime.bin` in the finding);
 - treats as findings:
   - `EXCEPTION`: any exception other than Nino's documented one;
   - `CRASH`: a stack overflow, an access violation (a read past a guard page) or another fatal error;
@@ -32,6 +32,13 @@ For each input, the fuzzer:
   - `INVARIANT`: a collection in the result that breaks its own invariants through its public API (`Invariants.cs`:
     Count against enumeration, every item found again by lookup, sorted collections in order, linked lists without
     loops). These catch collections Nino builds from their internals;
+  - `STALE`: data rejected while read into an existing value left freed heap memory in it (`StaleMemory.cs`).
+    Large arrays of unmanaged values are allocated uninitialized; one that takes its slot before a check that can
+    still reject the data (a `bool`, a has-value byte, an `Untrusted` check) leaves the value holding whatever the
+    memory held, which reads as valid values. So a target marked `Poisoned` (`Stale`, `StaleUntrusted`) reads each
+    rejected input again over freed memory filled with a pattern tied to the address, and fails when any array of
+    unmanaged values the existing value reaches (through private fields too) holds 16 or more bytes of a 64-byte line
+    of it;
   - `WRITE`, `REREAD`, `REWRITE`, `ROUNDTRIP`: Nino cannot write what it read, or what it reads back differs. The
     comparison is of the bytes, then, when they differ, of the values with the items of hash sets and dictionaries
     sorted: a rebuilt `ConcurrentDictionary` enumerates in another order (it depends on its growth), and that is
@@ -71,8 +78,8 @@ DOTNET_EnableAVX512=0      dotnet run -c Release --project tests/Nino.Fuzz -- fu
 DOTNET_EnableAVX2=0        dotnet run -c Release --project tests/Nino.Fuzz -- fuzz
 ```
 
-`selftest` checks the fuzzer itself: a hidden `SelfTest` target with planted bugs must yield a stack overflow, an
-access violation, a hang and an exception. CI runs it first.
+`selftest` checks the fuzzer itself: hidden `SelfTest` targets with planted bugs must yield a stack overflow, an
+access violation, a hang, an exception and stale memory. CI runs it first.
 
 The exit code is 0 without findings and 1 with findings or a failed probe.
 
@@ -116,6 +123,11 @@ bug coming back. Every other probe (nesting through a list, a struct array, a di
    the generic type definition; it is found by name).
 5. Run `fuzz --targets Name` for a few minutes, with and without SIMD. The worker first checks that every seed reads
    back, writes and reads again unchanged.
+
+A collection or value whose read allocates its array uninitialized (`NinoUnsafe.NewArray`, from 6 KB) and can still
+reject the data after that is a member of `Stale` in `Types.cs` (with its elements in `Samples.Stale`, an empty or
+one-element value in `Samples.StaleExisting`), not a new target: a poisoned target costs a collection per rejected
+input. `StaleUntrusted` reads the same type with `NinoSettings.Untrusted` on (`Target.Untrusted`).
 
 A problem that needs a precise input instead of mutations (thousands of nesting levels, crafted hashes) is a probe:
 add it to `Probes.All` in `Probes.cs`.

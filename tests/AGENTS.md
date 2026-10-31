@@ -29,8 +29,9 @@ Nino.Codegen.Integration.Tests/  build/Nino.Codegen.targets in real builds (Buil
                              TypeScript (TypeScriptTests, harness.ts under Node), Go and Rust (GoTests, RustTests in
                              GenericSamples.cs) against the bytes .NET writes for Samples.cs
 Nino.Fuzz/                   the deserializer fuzzer (README.md): fuzz (mutations under a supervisor, guard pages,
-                             Invariants.cs), probes (deep nesting, colliding keys), selftest, repro, list, libfuzzer/
-                             (SharpFuzz driver, run.sh); Golden/ seeds it from GoldenBytesTests; findings/ is ignored
+                             Invariants.cs, StaleMemory.cs: freed memory left by rejected reads), probes (deep nesting,
+                             colliding keys), selftest, repro, list, libfuzzer/ (SharpFuzz driver, run.sh); Golden/
+                             seeds it from GoldenBytesTests; findings/ is ignored
 Shared/                      RepositoryFiles.cs + .props: the repository root as assembly metadata, for tests that check
                              committed files (Nino.UnitTests, Nino.Codegen.Tests, Nino.Codegen.Integration.Tests)
 ```

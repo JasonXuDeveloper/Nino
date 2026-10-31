@@ -42,6 +42,7 @@ namespace Nino.Fuzz
 
         public static int Run(Target target, Options o)
         {
+            target.Configure();
             var limits = o.Limits;
             List<byte[]> seeds;
             try { seeds = target.Seeds(); }
@@ -100,9 +101,12 @@ namespace Nino.Fuzz
                 {
                     Target = target.Name, Seed = o.Seed, Iteration = it, Data = data,
                     Placement = (Placement)(it % 3),
-                    Reuse = o.Reuse && target.ReadInto != null && rng.Next(4) == 0,
+                    // A quarter of the inputs, or all of them for a poisoned target (its check is of reuse reads).
+                    Reuse = o.Reuse && target.ReadInto != null && (rng.Next(4) == 0 || target.Poisoned),
                 };
-                if (c.Reuse && rng.Next(2) == 0) c.Prime = pool[rng.Next(pool.Count)];
+                // Into the value of another input (else a fresh one): half the time, a quarter for a poisoned target,
+                // whose fresh value's arrays differ in length from the data's (a new array is allocated).
+                if (c.Reuse && rng.Next(target.Poisoned ? 4 : 2) == 0) c.Prime = pool[rng.Next(pool.Count)];
                 current.Record(c);
                 Interlocked.Exchange(ref runningSince, Stopwatch.GetTimestamp());
                 Volatile.Write(ref running, c);

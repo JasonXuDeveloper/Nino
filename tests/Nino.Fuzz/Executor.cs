@@ -86,7 +86,7 @@ namespace Nino.Fuzz
             }
             catch (Exception e) when (IsRejection(e))
             {
-                return Outcome.Rejected;
+                return reuse && target.Poisoned ? StaleAfterRejection(target, data, placement, prime) : Outcome.Rejected;
             }
             catch (Exception e)
             {
@@ -143,6 +143,40 @@ namespace Nino.Fuzz
             }
 
             return new Outcome { Kind = OutcomeKind.Ok, Value = value, Milliseconds = ms, Allocated = allocated };
+        }
+
+        /// <summary>
+        /// Reads rejected data into a new existing value again, over freed memory filled with a pattern
+        /// (<see cref="StaleMemory"/>): a STALE finding when the value then holds any of it, a new array that took its
+        /// slot before a check rejected the data. Stale bytes are valid values; no other check sees them.
+        /// </summary>
+        static Outcome StaleAfterRejection(Target target, byte[] data, Placement placement, byte[] prime)
+        {
+            object existing;
+            try { existing = prime == null ? target.Fresh() : target.Read(prime); }
+            catch (Exception e) when (IsRejection(e)) { existing = target.Fresh(); }
+            StaleMemory.Poison();
+            var span = Guard.Place(data, placement);
+            try
+            {
+                target.ReadInto(span, existing);
+                return Outcome.Rejected; // Not rejected this time: nothing to check.
+            }
+            catch (Exception e) when (IsRejection(e))
+            {
+            }
+            catch (Exception e)
+            {
+                return Finding("EXCEPTION " + Describe(e), e);
+            }
+
+            string stale = StaleMemory.Find(existing);
+            return stale == null ? Outcome.Rejected : new Outcome
+            {
+                Kind = OutcomeKind.Finding,
+                Signature = "STALE " + Regex.Replace(stale.Substring(0, stale.IndexOf(" (", StringComparison.Ordinal)), @"-?\d+", "#"),
+                Details = "the data was rejected after a new array took its slot in the existing value, which now holds freed memory: " + stale,
+            };
         }
 
         /// <summary>
