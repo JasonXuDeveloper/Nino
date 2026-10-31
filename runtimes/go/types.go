@@ -696,7 +696,7 @@ func (r *Reader) Version() *Version {
 // Version writes a Version: nil is null. One .NET cannot hold fails with CodeInvalidValue.
 func (w *Writer) Version(v *Version) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	if v.Major < 0 || v.Minor < 0 || v.Build < -1 || v.Revision < -1 || (v.Build == -1 && v.Revision != -1) {

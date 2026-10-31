@@ -449,7 +449,7 @@ func readTrees(r *nino.Reader) []Tree {
 
 func writeAnimals(w *nino.Writer, v []Animal) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -460,7 +460,7 @@ func writeAnimals(w *nino.Writer, v []Animal) {
 
 func writeEmptyStructs(w *nino.Writer, v []EmptyStruct) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -471,7 +471,7 @@ func writeEmptyStructs(w *nino.Writer, v []EmptyStruct) {
 
 func writeEmpties(w *nino.Writer, v []*Empty) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -482,7 +482,7 @@ func writeEmpties(w *nino.Writer, v []*Empty) {
 
 func writeI32I32Entries(w *nino.Writer, v []nino.Entry[int32, int32]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -494,7 +494,7 @@ func writeI32I32Entries(w *nino.Writer, v []nino.Entry[int32, int32]) {
 
 func writeI32NullableInt32Entries(w *nino.Writer, v []nino.Entry[int32, *int32]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -506,7 +506,7 @@ func writeI32NullableInt32Entries(w *nino.Writer, v []nino.Entry[int32, *int32])
 
 func writeI32StringListEntries(w *nino.Writer, v []nino.Entry[int32, []*string]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -518,7 +518,7 @@ func writeI32StringListEntries(w *nino.Writer, v []nino.Entry[int32, []*string])
 
 func writeI32StringPtrEntries(w *nino.Writer, v []nino.Entry[int32, *string]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -530,7 +530,7 @@ func writeI32StringPtrEntries(w *nino.Writer, v []nino.Entry[int32, *string]) {
 
 func writeKeyedV1s(w *nino.Writer, v []*KeyedV1) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -541,7 +541,7 @@ func writeKeyedV1s(w *nino.Writer, v []*KeyedV1) {
 
 func writeLabels(w *nino.Writer, v []Label) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -552,7 +552,7 @@ func writeLabels(w *nino.Writer, v []Label) {
 
 func writeMixeds(w *nino.Writer, v []Mixed) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -568,7 +568,7 @@ func writeMixeds(w *nino.Writer, v []Mixed) {
 
 func writePaddeds(w *nino.Writer, v []Padded) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -584,7 +584,7 @@ func writePaddeds(w *nino.Writer, v []Padded) {
 
 func writePoints(w *nino.Writer, v []*Point) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -595,7 +595,7 @@ func writePoints(w *nino.Writer, v []*Point) {
 
 func writeInt32Lists(w *nino.Writer, v [][]int32) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -606,7 +606,7 @@ func writeInt32Lists(w *nino.Writer, v [][]int32) {
 
 func writeShapes(w *nino.Writer, v []Shape) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -617,7 +617,7 @@ func writeShapes(w *nino.Writer, v []Shape) {
 
 func writeStrideInt32s(w *nino.Writer, v []*int32) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -633,7 +633,7 @@ func writeStrideInt32s(w *nino.Writer, v []*int32) {
 
 func writeStrideInt64s(w *nino.Writer, v []*int64) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -649,7 +649,7 @@ func writeStrideInt64s(w *nino.Writer, v []*int64) {
 
 func writeStridePaddeds(w *nino.Writer, v []*Padded) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -665,7 +665,7 @@ func writeStridePaddeds(w *nino.Writer, v []*Padded) {
 
 func writeStringAnimalEntries(w *nino.Writer, v []nino.Entry[string, Animal]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -677,7 +677,7 @@ func writeStringAnimalEntries(w *nino.Writer, v []nino.Entry[string, Animal]) {
 
 func writeStringDictTreeEntries(w *nino.Writer, v []nino.Entry[string, DictTree]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -689,7 +689,7 @@ func writeStringDictTreeEntries(w *nino.Writer, v []nino.Entry[string, DictTree]
 
 func writeStringI32Entries(w *nino.Writer, v []nino.Entry[string, int32]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -701,7 +701,7 @@ func writeStringI32Entries(w *nino.Writer, v []nino.Entry[string, int32]) {
 
 func writeStringPointEntries(w *nino.Writer, v []nino.Entry[string, *Point]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -713,7 +713,7 @@ func writeStringPointEntries(w *nino.Writer, v []nino.Entry[string, *Point]) {
 
 func writeStringStringPtrEntries(w *nino.Writer, v []nino.Entry[string, *string]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -725,7 +725,7 @@ func writeStringStringPtrEntries(w *nino.Writer, v []nino.Entry[string, *string]
 
 func writeTreeNodes(w *nino.Writer, v []*TreeNode) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -736,7 +736,7 @@ func writeTreeNodes(w *nino.Writer, v []*TreeNode) {
 
 func writeTrees(w *nino.Writer, v []Tree) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))

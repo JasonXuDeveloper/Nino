@@ -63,7 +63,7 @@ func ReadUtf8Strings(r *nino.Reader) []string {
 
 func WriteUtf8Strings(w *nino.Writer, v []string) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))

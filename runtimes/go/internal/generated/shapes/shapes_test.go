@@ -184,7 +184,7 @@ func le32(v int32) []byte { return []byte{byte(v), byte(v >> 8), byte(v >> 16), 
 // writeEach writes v one element at a time with write (nil is null): the reference the block writes are compared with.
 func writeEach[T any](w *nino.Writer, v []T, write func(*nino.Writer, T)) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))

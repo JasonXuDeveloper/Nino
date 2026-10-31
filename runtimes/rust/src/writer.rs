@@ -223,7 +223,7 @@ impl<'a> Writer<'a> {
     }
 
     /// A string in the default encoding from its UTF-16 code units (unpaired surrogates included).
-    pub fn wide_string(&mut self, value: Option<&[u16]>) -> Result<()> {
+    pub fn utf16(&mut self, value: Option<&[u16]>) -> Result<()> {
         let Some(units) = value else {
             self.buf.push(crate::strings::NULL_HEADER);
             return Ok(());

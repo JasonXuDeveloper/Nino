@@ -10,7 +10,7 @@ import "unsafe"
 // [writeEntries] where the order of the bytes matters.
 func writeMap[K comparable, V any](w *Writer, m map[K]V, writeKey func(*Writer, K), writeValue func(*Writer, V)) {
 	if m == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(m))
@@ -46,7 +46,7 @@ func readSet[T comparable](r *Reader, minSize int, read func(*Reader) T) map[T]s
 // writeSet writes a set in Go's map order: nil is null.
 func writeSet[T comparable](w *Writer, s map[T]struct{}, write func(*Writer, T)) {
 	if s == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(s))

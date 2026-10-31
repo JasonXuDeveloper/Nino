@@ -32,7 +32,6 @@ depth.go                     class bodies (Class, ReadClass, WriteClass), region
 poly.go                      polymorphism: TypeID (FNV-1a), Subtype, TypeSet, ReadAny / WriteAny (allowed ids only)
 refs.go                      reference tracking (wire-format spec §7.9): reference headers, Track, Back
 layout.go                    layout strings: a type's NinoLayout in the [NinoTypeLayout] grammar (spec §8), parsed
-deprecated.go                the old Reader / Writer method names, each inlining to the new one
 strings.go                   strings: the default encoding's header, Latin-1 / UTF-16 / [NinoUtf8], the readers
 strings_write.go             writing strings straight into the buffer, eight bytes at a time
 strings_wire.go              what the string paths' Go code and kernels share (constants for go_asm.h)

@@ -31,7 +31,7 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 | `NinoRead`, `NinoWrite` | A type's whole encoding. Implemented here for the types in the table below, and by generated or derived code for each `[NinoType]`. |
 | `NinoReadBody`, `NinoWriteBody` | A class's body, behind its presence byte or type id. They carry `TYPE_ID` (0 when it has none) and `DEFERRABLE` (whether .NET may defer it, spec §10.5). |
 | `Reader`, `Writer` | What the codecs call: primitives, lengths, the three string encodings, classes (`read_sealed`, `read_sealed_boxed`, `read_class`, `write_sealed`, `write_class`; `sealed_read!` and `sealed_write!` write a sealed class's `NinoRead` and `NinoWrite` methods), structs (`enter_struct`/`exit_struct`), version-tolerant and keyed regions (`begin_region`, `end_region`, `end_member`), and deferral (`mark`, `trail`, `Step`, `field!`). |
-| `fixed_size`, `decode_next`, `encode_next` | What a struct of fixed-size members (generated or derived) states its `FIXED_SIZE` with, and reads or writes each member from its bytes with, so that a list of it is one block. |
+| `sum_fixed_sizes`, `decode_member`, `encode_member` | What a struct of fixed-size members (generated or derived) states its `FIXED_SIZE` with, and reads or writes each member from its bytes with, so that a list of it is one block. |
 | `type_id(name)` | The type id of a .NET full name: FNV-1a over its UTF-16 code units, as a `const fn`. |
 | `Error`, `ErrorKind` | Every failure. `ErrorKind` is `#[non_exhaustive]`. |
 
@@ -158,7 +158,7 @@ Type attributes:
 
 | Attribute | Meaning |
 | --- | --- |
-| `format = "positional" \| "version_tolerant" \| "keyed"` | `NinoFormat.Positional`, `VersionTolerant` or `Keyed` (`"plain"` and `"tolerant"` are accepted for the first two). The default is positional. |
+| `format = "positional" \| "version_tolerant" \| "keyed"` | `NinoFormat.Positional`, `VersionTolerant` or `Keyed`. The default is positional. |
 | `kind = "class" \| "open" \| "struct" \| "raw"` | The type's header (defaults to `class`): <ul><li>`class`: a sealed class, written behind a presence byte.</li><li>`open`: a class that is not sealed, written behind its type id.</li><li>`struct`: no header.</li><li>`raw`: an unmanaged struct written as its memory. It takes `pack = n` and `size = n`, as `[StructLayout]` does.</li></ul> |
 | `id = "Full.Name"` or `id = 0x…` | The type id: a .NET full name, hashed at compile time, or the number itself. 0 is rejected. |
 | `deferrable = false` | Marks a type .NET never defers (a record, a type built through a constructor taking its members). Taken from the layout's `deferrable=` when not given. |

@@ -107,14 +107,14 @@ func fixed_size(t, trait)
   for $m in t.members
     $sizes = array.add $sizes ("<" + rtype($m.shape) + " as " + trait + ">::FIXED_SIZE")
   end
-  ret "    const FIXED_SIZE: usize = nino::fixed_size(&[" + (array.join $sizes ", ") + "]);"
+  ret "    const FIXED_SIZE: usize = nino::sum_fixed_sizes(&[" + (array.join $sizes ", ") + "]);"
 end
 
-# Reading a member into its current value in `self` (NinoRead::read_into): through read_into_in when a class body
+# Reading a member into its current value in `self` (NinoRead::read_into): through read_member_into when a class body
 # inside may be deferred.
 func read(m)
   if m.shape.may_defer
-    ret "r.read_into_in(&mut self." + m.name + ", nino::field!(Self, " + m.name + "))?"
+    ret "r.read_member_into(&mut self." + m.name + ", nino::field!(Self, " + m.name + "))?"
   end
   ret "r.read_into(&mut self." + m.name + ")?"
 end
@@ -454,7 +454,7 @@ impl{{ t.impl_generics }} NinoRead for {{ t.name }}{{ t.generics }} {
     fn decode_fixed(mut b: &[u8]) -> nino::Result<Self> {
         let mut v = Self::default();
 {{~ for m in t.members ~}}
-        v.{{ m.name }} = nino::decode_next(&mut b)?;
+        v.{{ m.name }} = nino::decode_member(&mut b)?;
 {{~ end ~}}
         Ok(v)
     }
@@ -485,7 +485,7 @@ impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
 
     fn encode_fixed(&self, mut out: &mut [u8]) {
 {{~ for m in t.members ~}}
-        nino::encode_next(&self.{{ m.name }}, &mut out);
+        nino::encode_member(&self.{{ m.name }}, &mut out);
 {{~ end ~}}
     }
 
@@ -581,7 +581,7 @@ impl NinoRead for {{ x.name }} {
             return Ok(());
         }
 {{~ end ~}}
-        let mark = r.mark();
+        let mark = r.defer_mark();
 {{~ reusable = false ~}}
 {{~ for a in x.allowed ~}}
 {{~ if a.is_value_type || !a.shared ~}}
@@ -625,7 +625,7 @@ impl NinoRead for {{ x.name }} {
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
-        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<{{ x.name }}>()?.body())));
+        r.defer_trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<{{ x.name }}>()?.body())));
         Ok(())
     }
 }

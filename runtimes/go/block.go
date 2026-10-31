@@ -45,7 +45,7 @@ func ReadBlock[T BlockValue](r *Reader) []T {
 // would reject fails with CodeInvalidValue, after the elements before it, as writing them one by one does.
 func WriteBlock[T BlockValue](w *Writer, v []T) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	if i, _ := invalidAt(v); i >= 0 {

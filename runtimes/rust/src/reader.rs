@@ -278,7 +278,7 @@ impl<'d> Reader<'d> {
     }
 
     /// A string in the default encoding: a header of 0 (null), `2n + 1` then `n` Latin-1 bytes (1 is empty), or `2n`
-    /// then `n` UTF-16 code units. Unpaired surrogates become U+FFFD; [`Reader::wide_string`] keeps them. Always
+    /// then `n` UTF-16 code units. Unpaired surrogates become U+FFFD; [`Reader::utf16`] keeps them. Always
     /// inlined (the text is decoded out of line): returned through memory, `Result<Option<String>>` is read back in
     /// pieces that span the stores that wrote it, which stalls.
     #[inline(always)]
@@ -335,7 +335,7 @@ impl<'d> Reader<'d> {
     }
 
     /// A string in the default encoding as its UTF-16 code units, unpaired surrogates included (lossless).
-    pub fn wide_string(&mut self) -> Result<Option<Vec<u16>>> {
+    pub fn utf16(&mut self) -> Result<Option<Vec<u16>>> {
         let header = self.header()?;
         let count = (header >> 1) as usize;
         if header & 1 != 0 {
@@ -424,13 +424,13 @@ impl<'d> Reader<'d> {
     /// Reads a member that may hold deferred bodies (generated code passes the step from its type to the member,
     /// see [`crate::field`]); for other members it is [`Reader::read`].
     #[inline]
-    pub fn read_in<T: NinoRead>(&mut self, step: fn(&mut dyn Any) -> Option<&mut dyn Any>) -> Result<T> {
+    pub fn read_member<T: NinoRead>(&mut self, step: fn(&mut dyn Any) -> Option<&mut dyn Any>) -> Result<T> {
         if !T::MAY_DEFER {
             return T::read(self);
         }
-        let mark = self.mark();
+        let mark = self.defer_mark();
         let value = T::read(self)?;
-        self.trail(mark, Step::Field(step));
+        self.defer_trail(mark, Step::Field(step));
         Ok(value)
     }
 
@@ -440,9 +440,9 @@ impl<'d> Reader<'d> {
         value.read_into(self)
     }
 
-    /// [`Reader::read_into`] for a member that may hold deferred bodies (see [`Reader::read_in`]).
+    /// [`Reader::read_into`] for a member that may hold deferred bodies (see [`Reader::read_member`]).
     #[inline]
-    pub fn read_into_in<T: NinoRead>(
+    pub fn read_member_into<T: NinoRead>(
         &mut self,
         value: &mut T,
         step: fn(&mut dyn Any) -> Option<&mut dyn Any>,
@@ -450,15 +450,15 @@ impl<'d> Reader<'d> {
         if !T::MAY_DEFER {
             return value.read_into(self);
         }
-        let mark = self.mark();
+        let mark = self.defer_mark();
         value.read_into(self)?;
-        self.trail(mark, Step::Field(step));
+        self.defer_trail(mark, Step::Field(step));
         Ok(())
     }
 
-    /// The deferral mark before reading a value that may hold deferred bodies (see [`Reader::trail`]).
+    /// The deferral mark before reading a value that may hold deferred bodies (see [`Reader::defer_trail`]).
     #[inline]
-    pub fn mark(&self) -> usize {
+    pub fn defer_mark(&self) -> usize {
         match &self.defer {
             Some(d) => d.pending_len(),
             None => 0,
@@ -469,7 +469,7 @@ impl<'d> Reader<'d> {
     /// object or container it was read into, so the bodies can be put in place later. Cheap when nothing was
     /// deferred.
     #[inline]
-    pub fn trail(&mut self, mark: usize, step: Step) {
+    pub fn defer_trail(&mut self, mark: usize, step: Step) {
         if let Some(d) = &mut self.defer {
             d.trail(mark, step);
         }
@@ -686,7 +686,7 @@ impl<'d> Reader<'d> {
             section,
             section_at: at.saturating_add(members.len()),
             members_at: at,
-            pending_start: self.mark(),
+            pending_start: self.defer_mark(),
             log_start: self.defer.as_ref().map_or(0, |d| d.log_len()),
         };
         self.regions = self.regions.saturating_add(1);

@@ -10,7 +10,7 @@ import (
 )
 
 // The [NinoUtf8] paths against the plain ones they replace: oldUtf8Units validates rune by rune, oldUtf8 writes
-// char by char (what Writer.Utf8 wrote before the one-pass scan).
+// char by char (what Writer.UTF8 wrote before the one-pass scan).
 
 func oldUtf8Units(b []byte, units int) bool {
 	n := 0
@@ -80,9 +80,9 @@ func checkUtf8(t testing.TB, s string) {
 		}
 	}
 	w := NewWriter(0)
-	w.Utf8(s)
+	w.UTF8(s)
 	if got := w.Bytes(); w.Err() != nil || !bytes.Equal(got, oldUtf8(s)) {
-		t.Fatalf("Utf8(% x) wrote % x (%v), want % x", b, got, w.Err(), oldUtf8(s))
+		t.Fatalf("UTF8(% x) wrote % x (%v), want % x", b, got, w.Err(), oldUtf8(s))
 	}
 }
 
@@ -147,9 +147,9 @@ func TestUtf8FastPath(t *testing.T) {
 			continue
 		}
 		w := NewWriter(0)
-		w.Utf8(s)
+		w.UTF8(s)
 		r := NewReader(w.Bytes())
-		if got := r.Utf8(); got != s || r.Err() != nil {
+		if got := r.UTF8(); got != s || r.Err() != nil {
 			t.Fatalf("% x read back as % x (%v)", s, got, r.Err())
 		}
 	}

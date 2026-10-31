@@ -178,7 +178,7 @@ impl Reader<'_> {
         if depth == 0 && self.regions == 0 {
             crate::defer::flush_top(self, &mut value)?;
         }
-        if self.mark() > mark {
+        if self.defer_mark() > mark {
             // Bodies inside it were deferred: it waits for them in the queue.
             return self.deferrals().hold(position, mark, log_mark, value).map(|()| shared);
         }

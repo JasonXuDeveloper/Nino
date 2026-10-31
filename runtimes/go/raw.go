@@ -43,7 +43,7 @@ func readPrimitivesInto[T Primitive](r *Reader, dst []T) {
 // WritePrimitives writes an array or list of primitives: length, then one block (nil is null).
 func WritePrimitives[T Primitive](w *Writer, v []T) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -185,7 +185,7 @@ func boolBytes(b []byte) bool {
 // WriteBools writes a bool[] or List<bool> (nil is null).
 func WriteBools(w *Writer, v []bool) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -250,7 +250,7 @@ func WritePrimitiveEntries[K, V Primitive](w *Writer, e []Entry[K, V]) {
 		return
 	}
 	if e == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(e))
@@ -295,7 +295,7 @@ func ReadPrimitiveMap[K, V Primitive](r *Reader) map[K]V {
 // as one block, each key and value stored at a constant offset in it.
 func WritePrimitiveMap[K, V Primitive](w *Writer, m map[K]V) {
 	if m == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	var k K

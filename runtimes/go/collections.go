@@ -41,7 +41,7 @@ func readSlice[T any](r *Reader, minSize int, read func(*Reader) T) []T {
 // writeSlice writes a sequence: nil is null.
 func writeSlice[T any](w *Writer, v []T, write func(*Writer, T)) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -103,7 +103,7 @@ func readEntries[K, V any](r *Reader, minSize int, readKey func(*Reader) K, read
 // writeEntries writes a dictionary as its pairs, in order: nil is null.
 func writeEntries[K, V any](w *Writer, e []Entry[K, V], writeKey func(*Writer, K), writeValue func(*Writer, V)) {
 	if e == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(e))
@@ -142,7 +142,7 @@ func readFixed[T any](r *Reader, size int, decode func(r *Reader, b []byte) T) [
 // bytes, cleared first (padding is written as zeros). nil is null.
 func writeFixed[T any](w *Writer, v []T, size int, encode func(b []byte, e T)) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -227,7 +227,7 @@ func WriteRaw[T any](w *Writer, v []T, size int, asIs bool, bools, pads []int, e
 		return
 	}
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))

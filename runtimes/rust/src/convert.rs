@@ -367,9 +367,9 @@ mod indexmap_impl {
         for i in 0..count {
             let key = read_key::<K>(r)?;
             let value = if V::MAY_DEFER {
-                let mark = r.mark();
+                let mark = r.defer_mark();
                 let value = V::read(r)?;
-                r.trail(mark, Step::Index(map_value::<K, V, S>, i));
+                r.defer_trail(mark, Step::Index(map_value::<K, V, S>, i));
                 value
             } else {
                 V::read(r)?

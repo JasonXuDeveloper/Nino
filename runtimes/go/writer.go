@@ -137,8 +137,8 @@ func (w *Writer) F32(v float32) { w.U32(math.Float32bits(v)) }
 // F64 writes a double, its bits kept.
 func (w *Writer) F64(v float64) { w.U64(math.Float64bits(v)) }
 
-// Null writes the null length (-1) of a string, array or collection.
-func (w *Writer) Null() { w.buf = append(w.buf, 0xFF, 0xFF, 0xFF, 0xFF) }
+// NullLength writes the null length (-1) of an array or collection (.NET's WriteNullLength).
+func (w *Writer) NullLength() { w.buf = append(w.buf, 0xFF, 0xFF, 0xFF, 0xFF) }
 
 // Present writes the presence byte of a nullable value, a Tuple or a sealed class.
 func (w *Writer) Present(present bool) { w.Bool(present) }
@@ -158,7 +158,7 @@ func (w *Writer) Length(n int) {
 // ByteArray writes a byte[]: nil is null.
 func (w *Writer) ByteArray(b []byte) {
 	if b == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(b))

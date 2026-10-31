@@ -67,7 +67,7 @@ pub struct BlueLink {
 impl NinoReadBody for BlueLink {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         r.read_into(&mut self.value)?;
-        r.read_into_in(&mut self.next, field!(Self, next))?;
+        r.read_member_into(&mut self.next, field!(Self, next))?;
         r.read_into(&mut self.note)?;
         Ok(())
     }
@@ -215,7 +215,7 @@ pub struct Chain {
 impl NinoReadBody for Chain {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         r.read_into(&mut self.value)?;
-        r.read_into_in(&mut self.next, field!(Self, next))?;
+        r.read_member_into(&mut self.next, field!(Self, next))?;
         Ok(())
     }
 }
@@ -327,11 +327,11 @@ impl NinoReadBody for Collections {
         r.read_into(&mut self.chars)?;
         r.read_into(&mut self.strings)?;
         r.read_into(&mut self.string_set)?;
-        r.read_into_in(&mut self.points, field!(Self, points))?;
-        r.read_into_in(&mut self.point_list, field!(Self, point_list))?;
+        r.read_member_into(&mut self.points, field!(Self, points))?;
+        r.read_member_into(&mut self.point_list, field!(Self, point_list))?;
         r.read_into(&mut self.int_map)?;
         r.read_into(&mut self.string_map)?;
-        r.read_into_in(&mut self.point_map, field!(Self, point_map))?;
+        r.read_member_into(&mut self.point_map, field!(Self, point_map))?;
         r.read_into(&mut self.list_map)?;
         r.read_into(&mut self.sorted_ints)?;
         r.read_into(&mut self.sorted_strings)?;
@@ -517,10 +517,10 @@ pub struct Empties {
 
 impl NinoReadBody for Empties {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        r.read_into_in(&mut self.class, field!(Self, class))?;
+        r.read_member_into(&mut self.class, field!(Self, class))?;
         r.read_into(&mut self.r#struct)?;
         r.read_into(&mut self.structs)?;
-        r.read_into_in(&mut self.classes, field!(Self, classes))?;
+        r.read_member_into(&mut self.classes, field!(Self, classes))?;
         Ok(())
     }
 }
@@ -747,7 +747,7 @@ impl NinoReadBody for Inner {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         r.read_into(&mut self.value)?;
         r.read_into(&mut self.text)?;
-        r.read_into_in(&mut self.point, field!(Self, point))?;
+        r.read_member_into(&mut self.point, field!(Self, point))?;
         Ok(())
     }
 }
@@ -880,7 +880,7 @@ impl NinoReadBody for KeyedChain {
             let member = r.begin_region()?;
             match key as u32 {
                 0xC373233E => r.read_into(&mut self.value)?,
-                0xC9A6113A => r.read_into_in(&mut self.next, field!(Self, next))?,
+                0xC9A6113A => r.read_member_into(&mut self.next, field!(Self, next))?,
                 _ => {
                     r.end_region(member, self)?;
                     continue;
@@ -943,9 +943,9 @@ pub struct KeyedHolder {
 
 impl NinoReadBody for KeyedHolder {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        r.read_into_in(&mut self.keyed, field!(Self, keyed))?;
+        r.read_member_into(&mut self.keyed, field!(Self, keyed))?;
         r.read_into(&mut self.r#struct)?;
-        r.read_into_in(&mut self.array, field!(Self, array))?;
+        r.read_member_into(&mut self.array, field!(Self, array))?;
         Ok(())
     }
 }
@@ -1283,9 +1283,9 @@ pub struct Middle {
 
 impl NinoReadBody for Middle {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        r.read_into_in(&mut self.first, field!(Self, first))?;
-        r.read_into_in(&mut self.second, field!(Self, second))?;
-        r.read_into_in(&mut self.inner, field!(Self, inner))?;
+        r.read_member_into(&mut self.first, field!(Self, first))?;
+        r.read_member_into(&mut self.second, field!(Self, second))?;
+        r.read_member_into(&mut self.inner, field!(Self, inner))?;
         Ok(())
     }
 }
@@ -1426,8 +1426,8 @@ pub struct Outer {
 impl NinoReadBody for Outer {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         r.read_into(&mut self.name)?;
-        r.read_into_in(&mut self.point, field!(Self, point))?;
-        r.read_into_in(&mut self.middle, field!(Self, middle))?;
+        r.read_member_into(&mut self.point, field!(Self, point))?;
+        r.read_member_into(&mut self.middle, field!(Self, middle))?;
         Ok(())
     }
 }
@@ -1610,7 +1610,7 @@ impl NinoReadBody for RecordChain {
 
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         r.read_into(&mut self.value)?;
-        r.read_into_in(&mut self.next, field!(Self, next))?;
+        r.read_member_into(&mut self.next, field!(Self, next))?;
         Ok(())
     }
 }
@@ -1659,7 +1659,7 @@ pub struct RedLink {
 impl NinoReadBody for RedLink {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         r.read_into(&mut self.value)?;
-        r.read_into_in(&mut self.next, field!(Self, next))?;
+        r.read_member_into(&mut self.next, field!(Self, next))?;
         Ok(())
     }
 }
@@ -2019,7 +2019,7 @@ pub struct TAnimalSlot {
 
 impl NinoReadBody for TAnimalSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        r.read_into_in(&mut self.value, field!(Self, value))?;
+        r.read_member_into(&mut self.value, field!(Self, value))?;
         Ok(())
     }
 }
@@ -2234,7 +2234,7 @@ pub struct TDogSlot {
 
 impl NinoReadBody for TDogSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        r.read_into_in(&mut self.value, field!(Self, value))?;
+        r.read_member_into(&mut self.value, field!(Self, value))?;
         Ok(())
     }
 }
@@ -2578,7 +2578,7 @@ pub struct TObjectSlot {
 
 impl NinoReadBody for TObjectSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        r.read_into_in(&mut self.value, field!(Self, value))?;
+        r.read_member_into(&mut self.value, field!(Self, value))?;
         Ok(())
     }
 }
@@ -2664,7 +2664,7 @@ pub struct TPointList {
 
 impl NinoReadBody for TPointList {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        r.read_into_in(&mut self.values, field!(Self, values))?;
+        r.read_member_into(&mut self.values, field!(Self, values))?;
         Ok(())
     }
 }
@@ -2707,7 +2707,7 @@ pub struct TShapeSlot {
 
 impl NinoReadBody for TShapeSlot {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        r.read_into_in(&mut self.value, field!(Self, value))?;
+        r.read_member_into(&mut self.value, field!(Self, value))?;
         Ok(())
     }
 }
@@ -3097,7 +3097,7 @@ impl NinoReadBody for TolerantChain {
             r.read_into(&mut self.value)?;
         }
         if r.has_more() {
-            r.read_into_in(&mut self.next, field!(Self, next))?;
+            r.read_member_into(&mut self.next, field!(Self, next))?;
         }
         r.end_region(body, self)?;
         Ok(())
@@ -3191,9 +3191,9 @@ pub struct TolerantHolder {
 
 impl NinoReadBody for TolerantHolder {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        r.read_into_in(&mut self.first, field!(Self, first))?;
-        r.read_into_in(&mut self.polymorphic, field!(Self, polymorphic))?;
-        r.read_into_in(&mut self.empty, field!(Self, empty))?;
+        r.read_member_into(&mut self.first, field!(Self, first))?;
+        r.read_member_into(&mut self.polymorphic, field!(Self, polymorphic))?;
+        r.read_member_into(&mut self.empty, field!(Self, empty))?;
         r.read_into(&mut self.after)?;
         Ok(())
     }
@@ -3305,7 +3305,7 @@ impl NinoReadBody for TolerantRoot {
             r.read_into(&mut self.name)?;
         }
         if r.has_more() {
-            r.read_into_in(&mut self.chain, field!(Self, chain))?;
+            r.read_member_into(&mut self.chain, field!(Self, chain))?;
         }
         if r.has_more() {
             r.read_into(&mut self.after)?;
@@ -3482,8 +3482,8 @@ pub struct TreeHolder {
 
 impl NinoReadBody for TreeHolder {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        r.read_into_in(&mut self.tree, field!(Self, tree))?;
-        r.read_into_in(&mut self.dict_tree, field!(Self, dict_tree))?;
+        r.read_member_into(&mut self.tree, field!(Self, tree))?;
+        r.read_member_into(&mut self.dict_tree, field!(Self, dict_tree))?;
         Ok(())
     }
 }
@@ -3530,7 +3530,7 @@ pub struct TreeNode {
 impl NinoReadBody for TreeNode {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         r.read_into(&mut self.value)?;
-        r.read_into_in(&mut self.children, field!(Self, children))?;
+        r.read_member_into(&mut self.children, field!(Self, children))?;
         Ok(())
     }
 }
@@ -3583,15 +3583,15 @@ pub struct Zoo {
 
 impl NinoReadBody for Zoo {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        r.read_into_in(&mut self.star, field!(Self, star))?;
-        r.read_into_in(&mut self.dog, field!(Self, dog))?;
-        r.read_into_in(&mut self.animals, field!(Self, animals))?;
-        r.read_into_in(&mut self.cages, field!(Self, cages))?;
-        r.read_into_in(&mut self.shape, field!(Self, shape))?;
-        r.read_into_in(&mut self.shapes, field!(Self, shapes))?;
-        r.read_into_in(&mut self.plain, field!(Self, plain))?;
-        r.read_into_in(&mut self.anything, field!(Self, anything))?;
-        r.read_into_in(&mut self.by_name, field!(Self, by_name))?;
+        r.read_member_into(&mut self.star, field!(Self, star))?;
+        r.read_member_into(&mut self.dog, field!(Self, dog))?;
+        r.read_member_into(&mut self.animals, field!(Self, animals))?;
+        r.read_member_into(&mut self.cages, field!(Self, cages))?;
+        r.read_member_into(&mut self.shape, field!(Self, shape))?;
+        r.read_member_into(&mut self.shapes, field!(Self, shapes))?;
+        r.read_member_into(&mut self.plain, field!(Self, plain))?;
+        r.read_member_into(&mut self.anything, field!(Self, anything))?;
+        r.read_member_into(&mut self.by_name, field!(Self, by_name))?;
         Ok(())
     }
 }
@@ -3699,7 +3699,7 @@ pub struct BoxOfListOfPoint {
 impl NinoReadBody for BoxOfListOfPoint {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         r.read_into(&mut self.name)?;
-        r.read_into_in(&mut self.value, field!(Self, value))?;
+        r.read_member_into(&mut self.value, field!(Self, value))?;
         Ok(())
     }
 }
@@ -3876,7 +3876,7 @@ impl NinoRead for AnimalRef {
             *slot = None;
             return Ok(());
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let reused = match slot {
             Some(Self::Dog(v)) if id == Dog::TYPE_ID => {
                 r.read_class_into(&mut **v)?;
@@ -3920,7 +3920,7 @@ impl NinoRead for AnimalRef {
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
-        r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<AnimalRef>()?.body())));
+        r.defer_trail(mark, Step::Field(|p| Some(p.downcast_mut::<AnimalRef>()?.body())));
         Ok(())
     }
 }
@@ -4021,7 +4021,7 @@ impl NinoRead for DogRef {
             *slot = None;
             return Ok(());
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let reused = match slot {
             Some(Self::Dog(v)) if id == Dog::TYPE_ID => {
                 r.read_class_into(&mut **v)?;
@@ -4040,7 +4040,7 @@ impl NinoRead for DogRef {
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
-        r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<DogRef>()?.body())));
+        r.defer_trail(mark, Step::Field(|p| Some(p.downcast_mut::<DogRef>()?.body())));
         Ok(())
     }
 }
@@ -4116,7 +4116,7 @@ impl NinoRead for IShapeRef {
             *slot = None;
             return Ok(());
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let reused = match slot {
             Some(Self::Square(v)) if id == Square::TYPE_ID => {
                 r.read_class_into(&mut **v)?;
@@ -4135,7 +4135,7 @@ impl NinoRead for IShapeRef {
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
-        r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<IShapeRef>()?.body())));
+        r.defer_trail(mark, Step::Field(|p| Some(p.downcast_mut::<IShapeRef>()?.body())));
         Ok(())
     }
 }
@@ -4209,7 +4209,7 @@ impl NinoRead for CircleRef {
             *slot = None;
             return Ok(());
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let reused = match slot {
             Some(Self::Circle(v)) if id == Circle::TYPE_ID => {
                 r.read_class_into(&mut **v)?;
@@ -4223,7 +4223,7 @@ impl NinoRead for CircleRef {
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
-        r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<CircleRef>()?.body())));
+        r.defer_trail(mark, Step::Field(|p| Some(p.downcast_mut::<CircleRef>()?.body())));
         Ok(())
     }
 }
@@ -4292,7 +4292,7 @@ impl NinoRead for PlainRef {
             *slot = None;
             return Ok(());
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let reused = match slot {
             Some(Self::Plain(v)) if id == Plain::TYPE_ID => {
                 r.read_class_into(&mut **v)?;
@@ -4306,7 +4306,7 @@ impl NinoRead for PlainRef {
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
-        r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<PlainRef>()?.body())));
+        r.defer_trail(mark, Step::Field(|p| Some(p.downcast_mut::<PlainRef>()?.body())));
         Ok(())
     }
 }
@@ -4377,7 +4377,7 @@ impl NinoRead for TolerantBaseRef {
             *slot = None;
             return Ok(());
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let reused = match slot {
             Some(Self::TolerantBase(v)) if id == TolerantBase::TYPE_ID => {
                 r.read_class_into(&mut **v)?;
@@ -4396,7 +4396,7 @@ impl NinoRead for TolerantBaseRef {
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
-        r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<TolerantBaseRef>()?.body())));
+        r.defer_trail(mark, Step::Field(|p| Some(p.downcast_mut::<TolerantBaseRef>()?.body())));
         Ok(())
     }
 }
@@ -4472,7 +4472,7 @@ impl NinoRead for LinkRef {
             *slot = None;
             return Ok(());
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let reused = match slot {
             Some(Self::RedLink(v)) if id == RedLink::TYPE_ID => {
                 r.read_class_into(&mut **v)?;
@@ -4491,7 +4491,7 @@ impl NinoRead for LinkRef {
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
-        r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<LinkRef>()?.body())));
+        r.defer_trail(mark, Step::Field(|p| Some(p.downcast_mut::<LinkRef>()?.body())));
         Ok(())
     }
 }
@@ -4705,7 +4705,7 @@ impl NinoRead for AnyObject {
             *slot = None;
             return Ok(());
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let reused = match slot {
             Some(Self::BigValues(v)) if id == BigValues::TYPE_ID => {
                 r.read_class_into(&mut **v)?;
@@ -5069,7 +5069,7 @@ impl NinoRead for AnyObject {
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
-        r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<AnyObject>()?.body())));
+        r.defer_trail(mark, Step::Field(|p| Some(p.downcast_mut::<AnyObject>()?.body())));
         Ok(())
     }
 }

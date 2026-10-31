@@ -150,7 +150,7 @@ func ReadSimpleClassesInto(r *nino.Reader, p *[]*SimpleClass) {
 
 func WriteSimpleClasses(w *nino.Writer, v []*SimpleClass) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -216,7 +216,7 @@ func readMap1(r *nino.Reader) map[int32]string {
 
 func writeMap1(w *nino.Writer, m map[int32]string) {
 	if m == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(m))

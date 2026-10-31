@@ -246,25 +246,25 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for Bag<T> {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
-            r.read_into_in(&mut self.items, nino::field!(Self, items))?;
+            r.read_member_into(&mut self.items, nino::field!(Self, items))?;
         }
         if r.has_more() {
-            r.read_into_in(&mut self.by_name, nino::field!(Self, by_name))?;
+            r.read_member_into(&mut self.by_name, nino::field!(Self, by_name))?;
         }
         if r.has_more() {
-            r.read_into_in(&mut self.array, nino::field!(Self, array))?;
+            r.read_member_into(&mut self.array, nino::field!(Self, array))?;
         }
         if r.has_more() {
-            r.read_into_in(&mut self.inner, nino::field!(Self, inner))?;
+            r.read_member_into(&mut self.inner, nino::field!(Self, inner))?;
         }
         if r.has_more() {
-            r.read_into_in(&mut self.pair, nino::field!(Self, pair))?;
+            r.read_member_into(&mut self.pair, nino::field!(Self, pair))?;
         }
         if r.has_more() {
-            r.read_into_in(&mut self.boxes, nino::field!(Self, boxes))?;
+            r.read_member_into(&mut self.boxes, nino::field!(Self, boxes))?;
         }
         if r.has_more() {
-            r.read_into_in(&mut self.tuple, nino::field!(Self, tuple))?;
+            r.read_member_into(&mut self.tuple, nino::field!(Self, tuple))?;
         }
         r.end_region(body, self)?;
         Ok(())
@@ -334,7 +334,7 @@ pub struct BoxType<T> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for BoxType<T> {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_into_in(&mut self.value, nino::field!(Self, value))?;
+        r.read_member_into(&mut self.value, nino::field!(Self, value))?;
         Ok(())
     }
 }
@@ -382,7 +382,7 @@ pub struct ForestHolder {
 
 impl NinoReadBody for ForestHolder {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_into_in(&mut self.forest, nino::field!(Self, forest))?;
+        r.read_member_into(&mut self.forest, nino::field!(Self, forest))?;
         Ok(())
     }
 }
@@ -445,12 +445,12 @@ pub struct Holder {
 
 impl NinoReadBody for Holder {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_into_in(&mut self.thing, nino::field!(Self, thing))?;
-        r.read_into_in(&mut self.things, nino::field!(Self, things))?;
+        r.read_member_into(&mut self.thing, nino::field!(Self, thing))?;
+        r.read_member_into(&mut self.things, nino::field!(Self, things))?;
         r.read_into(&mut self.tree)?;
-        r.read_into_in(&mut self.inner, nino::field!(Self, inner))?;
-        r.read_into_in(&mut self.left_item, nino::field!(Self, left_item))?;
-        r.read_into_in(&mut self.right_item, nino::field!(Self, right_item))?;
+        r.read_member_into(&mut self.inner, nino::field!(Self, inner))?;
+        r.read_member_into(&mut self.left_item, nino::field!(Self, left_item))?;
+        r.read_member_into(&mut self.right_item, nino::field!(Self, right_item))?;
         r.read_into(&mut self.flags)?;
         r.read_into(&mut self.gaps)?;
         r.read_into(&mut self.names)?;
@@ -458,7 +458,7 @@ impl NinoReadBody for Holder {
         r.read_into(&mut self.pair)?;
         r.read_into(&mut self.entry)?;
         r.read_into(&mut self.maybe)?;
-        r.read_into_in(&mut self.keywords, nino::field!(Self, keywords))?;
+        r.read_member_into(&mut self.keywords, nino::field!(Self, keywords))?;
         Ok(())
     }
 }
@@ -546,8 +546,8 @@ pub struct Keys<T: Eq + core::hash::Hash> {
 
 impl<T: NinoRead + NinoWrite + Default + Eq + core::hash::Hash + Clone + 'static> NinoReadBody for Keys<T> {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_into_in(&mut self.set, nino::field!(Self, set))?;
-        r.read_into_in(&mut self.by_key, nino::field!(Self, by_key))?;
+        r.read_member_into(&mut self.set, nino::field!(Self, set))?;
+        r.read_member_into(&mut self.by_key, nino::field!(Self, by_key))?;
         Ok(())
     }
 }
@@ -675,8 +675,8 @@ pub struct MoreOpen<T> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for MoreOpen<T> {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_into_in(&mut self.value, nino::field!(Self, value))?;
-        r.read_into_in(&mut self.extra, nino::field!(Self, extra))?;
+        r.read_member_into(&mut self.value, nino::field!(Self, value))?;
+        r.read_member_into(&mut self.extra, nino::field!(Self, extra))?;
         Ok(())
     }
 }
@@ -750,8 +750,8 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for Node<T> {
             let key = r.i32()?;
             let member = r.begin_region()?;
             match key as u32 {
-                0xC373233E => r.read_into_in(&mut self.value, nino::field!(Self, value))?,
-                0xC9A6113A => r.read_into_in(&mut self.next, nino::field!(Self, next))?,
+                0xC373233E => r.read_member_into(&mut self.value, nino::field!(Self, value))?,
+                0xC9A6113A => r.read_member_into(&mut self.next, nino::field!(Self, next))?,
                 _ => {
                     r.end_region(member, self)?;
                     continue;
@@ -819,7 +819,7 @@ pub struct Open<T> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for Open<T> {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_into_in(&mut self.value, nino::field!(Self, value))?;
+        r.read_member_into(&mut self.value, nino::field!(Self, value))?;
         Ok(())
     }
 }
@@ -861,8 +861,8 @@ impl<T: Default, S0> Default for OpenHolder<T, S0> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static, S0: NinoRead + NinoWrite + 'static> NinoReadBody for OpenHolder<T, S0> {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_into_in(&mut self.inner, nino::field!(Self, inner))?;
-        r.read_into_in(&mut self.all, nino::field!(Self, all))?;
+        r.read_member_into(&mut self.inner, nino::field!(Self, inner))?;
+        r.read_member_into(&mut self.all, nino::field!(Self, all))?;
         Ok(())
     }
 }
@@ -911,7 +911,7 @@ pub struct OpenHolderUse {
 
 impl NinoReadBody for OpenHolderUse {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_into_in(&mut self.holder, nino::field!(Self, holder))?;
+        r.read_member_into(&mut self.holder, nino::field!(Self, holder))?;
         Ok(())
     }
 }
@@ -961,7 +961,7 @@ pub struct OpenUse {
 
 impl NinoReadBody for OpenUse {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_into_in(&mut self.open, nino::field!(Self, open))?;
+        r.read_member_into(&mut self.open, nino::field!(Self, open))?;
         Ok(())
     }
 }
@@ -1042,8 +1042,8 @@ impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrit
     const DEFERRABLE: bool = false;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_into_in(&mut self.key, nino::field!(Self, key))?;
-        r.read_into_in(&mut self.value, nino::field!(Self, value))?;
+        r.read_member_into(&mut self.key, nino::field!(Self, key))?;
+        r.read_member_into(&mut self.value, nino::field!(Self, value))?;
         Ok(())
     }
 }
@@ -1061,13 +1061,13 @@ impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrit
 impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrite + Default + 'static> NinoRead for Pair<TKey, TValue> {
     const MAY_DEFER: bool = <TKey as NinoRead>::MAY_DEFER || <TValue as NinoRead>::MAY_DEFER;
 
-    const FIXED_SIZE: usize = nino::fixed_size(&[<TKey as NinoRead>::FIXED_SIZE, <TValue as NinoRead>::FIXED_SIZE]);
+    const FIXED_SIZE: usize = nino::sum_fixed_sizes(&[<TKey as NinoRead>::FIXED_SIZE, <TValue as NinoRead>::FIXED_SIZE]);
 
     #[allow(clippy::field_reassign_with_default)]
     fn decode_fixed(mut b: &[u8]) -> nino::Result<Self> {
         let mut v = Self::default();
-        v.key = nino::decode_next(&mut b)?;
-        v.value = nino::decode_next(&mut b)?;
+        v.key = nino::decode_member(&mut b)?;
+        v.value = nino::decode_member(&mut b)?;
         Ok(v)
     }
 
@@ -1101,11 +1101,11 @@ impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrit
         self.value.prefetch_members();
     }
 
-    const FIXED_SIZE: usize = nino::fixed_size(&[<TKey as NinoWrite>::FIXED_SIZE, <TValue as NinoWrite>::FIXED_SIZE]);
+    const FIXED_SIZE: usize = nino::sum_fixed_sizes(&[<TKey as NinoWrite>::FIXED_SIZE, <TValue as NinoWrite>::FIXED_SIZE]);
 
     fn encode_fixed(&self, mut out: &mut [u8]) {
-        nino::encode_next(&self.key, &mut out);
-        nino::encode_next(&self.value, &mut out);
+        nino::encode_member(&self.key, &mut out);
+        nino::encode_member(&self.value, &mut out);
     }
 
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
@@ -1132,8 +1132,8 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for RawPair<T> {
     const DEFERRABLE: bool = false;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_into_in(&mut self.a, nino::field!(Self, a))?;
-        r.read_into_in(&mut self.b, nino::field!(Self, b))?;
+        r.read_member_into(&mut self.a, nino::field!(Self, a))?;
+        r.read_member_into(&mut self.b, nino::field!(Self, b))?;
         Ok(())
     }
 }
@@ -1151,13 +1151,13 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for RawPair<T> {
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for RawPair<T> {
     const MAY_DEFER: bool = <T as NinoRead>::MAY_DEFER;
 
-    const FIXED_SIZE: usize = nino::fixed_size(&[<T as NinoRead>::FIXED_SIZE, <T as NinoRead>::FIXED_SIZE]);
+    const FIXED_SIZE: usize = nino::sum_fixed_sizes(&[<T as NinoRead>::FIXED_SIZE, <T as NinoRead>::FIXED_SIZE]);
 
     #[allow(clippy::field_reassign_with_default)]
     fn decode_fixed(mut b: &[u8]) -> nino::Result<Self> {
         let mut v = Self::default();
-        v.a = nino::decode_next(&mut b)?;
-        v.b = nino::decode_next(&mut b)?;
+        v.a = nino::decode_member(&mut b)?;
+        v.b = nino::decode_member(&mut b)?;
         Ok(v)
     }
 
@@ -1191,11 +1191,11 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for RawPair<T> {
         self.b.prefetch_members();
     }
 
-    const FIXED_SIZE: usize = nino::fixed_size(&[<T as NinoWrite>::FIXED_SIZE, <T as NinoWrite>::FIXED_SIZE]);
+    const FIXED_SIZE: usize = nino::sum_fixed_sizes(&[<T as NinoWrite>::FIXED_SIZE, <T as NinoWrite>::FIXED_SIZE]);
 
     fn encode_fixed(&self, mut out: &mut [u8]) {
-        nino::encode_next(&self.a, &mut out);
-        nino::encode_next(&self.b, &mut out);
+        nino::encode_member(&self.a, &mut out);
+        nino::encode_member(&self.b, &mut out);
     }
 
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
@@ -1604,25 +1604,25 @@ pub struct Uses {
 
 impl NinoReadBody for Uses {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        r.read_into_in(&mut self.number, nino::field!(Self, number))?;
-        r.read_into_in(&mut self.text, nino::field!(Self, text))?;
-        r.read_into_in(&mut self.pair, nino::field!(Self, pair))?;
-        r.read_into_in(&mut self.nested, nino::field!(Self, nested))?;
-        r.read_into_in(&mut self.mixed, nino::field!(Self, mixed))?;
-        r.read_into_in(&mut self.boxes, nino::field!(Self, boxes))?;
-        r.read_into_in(&mut self.bag, nino::field!(Self, bag))?;
-        r.read_into_in(&mut self.chain, nino::field!(Self, chain))?;
-        r.read_into_in(&mut self.thing, nino::field!(Self, thing))?;
-        r.read_into_in(&mut self.array, nino::field!(Self, array))?;
-        r.read_into_in(&mut self.complex, nino::field!(Self, complex))?;
-        r.read_into_in(&mut self.pairs, nino::field!(Self, pairs))?;
-        r.read_into_in(&mut self.raw, nino::field!(Self, raw))?;
-        r.read_into_in(&mut self.tuple, nino::field!(Self, tuple))?;
-        r.read_into_in(&mut self.maybe, nino::field!(Self, maybe))?;
-        r.read_into_in(&mut self.entry, nino::field!(Self, entry))?;
-        r.read_into_in(&mut self.set, nino::field!(Self, set))?;
-        r.read_into_in(&mut self.int_keys, nino::field!(Self, int_keys))?;
-        r.read_into_in(&mut self.string_keys, nino::field!(Self, string_keys))?;
+        r.read_member_into(&mut self.number, nino::field!(Self, number))?;
+        r.read_member_into(&mut self.text, nino::field!(Self, text))?;
+        r.read_member_into(&mut self.pair, nino::field!(Self, pair))?;
+        r.read_member_into(&mut self.nested, nino::field!(Self, nested))?;
+        r.read_member_into(&mut self.mixed, nino::field!(Self, mixed))?;
+        r.read_member_into(&mut self.boxes, nino::field!(Self, boxes))?;
+        r.read_member_into(&mut self.bag, nino::field!(Self, bag))?;
+        r.read_member_into(&mut self.chain, nino::field!(Self, chain))?;
+        r.read_member_into(&mut self.thing, nino::field!(Self, thing))?;
+        r.read_member_into(&mut self.array, nino::field!(Self, array))?;
+        r.read_member_into(&mut self.complex, nino::field!(Self, complex))?;
+        r.read_member_into(&mut self.pairs, nino::field!(Self, pairs))?;
+        r.read_member_into(&mut self.raw, nino::field!(Self, raw))?;
+        r.read_member_into(&mut self.tuple, nino::field!(Self, tuple))?;
+        r.read_member_into(&mut self.maybe, nino::field!(Self, maybe))?;
+        r.read_member_into(&mut self.entry, nino::field!(Self, entry))?;
+        r.read_member_into(&mut self.set, nino::field!(Self, set))?;
+        r.read_member_into(&mut self.int_keys, nino::field!(Self, int_keys))?;
+        r.read_member_into(&mut self.string_keys, nino::field!(Self, string_keys))?;
         Ok(())
     }
 }
@@ -1770,7 +1770,7 @@ impl NinoRead for IThingRef {
             *slot = None;
             return Ok(());
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let reused = match slot {
             Some(Self::ThingClass(v)) if id == ThingClass::TYPE_ID => {
                 r.read_class_into(&mut **v)?;
@@ -1789,7 +1789,7 @@ impl NinoRead for IThingRef {
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
-        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<IThingRef>()?.body())));
+        r.defer_trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<IThingRef>()?.body())));
         Ok(())
     }
 }
@@ -1859,7 +1859,7 @@ impl NinoRead for OpenInt32Ref {
             *slot = None;
             return Ok(());
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let reused = match slot {
             Some(Self::MoreOpenInt32(v)) if id == -1765026582 => {
                 r.read_class_into(&mut **v)?;
@@ -1878,7 +1878,7 @@ impl NinoRead for OpenInt32Ref {
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
-        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<OpenInt32Ref>()?.body())));
+        r.defer_trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<OpenInt32Ref>()?.body())));
         Ok(())
     }
 }
@@ -1948,7 +1948,7 @@ impl NinoRead for OpenInt64Ref {
             *slot = None;
             return Ok(());
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let reused = match slot {
             Some(Self::MoreOpenInt64(v)) if id == -355893823 => {
                 r.read_class_into(&mut **v)?;
@@ -1967,7 +1967,7 @@ impl NinoRead for OpenInt64Ref {
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
-        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<OpenInt64Ref>()?.body())));
+        r.defer_trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<OpenInt64Ref>()?.body())));
         Ok(())
     }
 }
