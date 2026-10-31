@@ -83,7 +83,7 @@ namespace Nino.Core
         /// stored one at a time, which the CPU cannot forward). For generated code.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public readonly void CopyTo(ref Writer target)
         {
             target._owner = _owner;

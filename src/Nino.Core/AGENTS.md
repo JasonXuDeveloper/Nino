@@ -93,8 +93,9 @@ CollectionFormatters.cs      ICollection<T>, HashSet, Queue, Stack, IProducerCon
                              NinoCollectionViews (reads into a Stack's or Queue's backing array)
 DictionaryFormatters.cs      Dictionary and derived, any IDictionary, dictionary interfaces, KeyValuePair
 InterfaceFormatters.cs       IEnumerable/IList/ICollection/IReadOnly* (read as List<T>), ISet/IReadOnlySet (HashSet<T>)
-BclCollectionPaths.cs        BclCollections / BclDictionaries: the runtime's own collections through their methods or
-                             fields (CollectionViews), with the general path's bytes; ReadLinked (LinkedList ring)
+BclCollections.cs            BclCollections: the runtime's own collections through their methods or fields
+                             (CollectionViews), with the general path's bytes; ReadLinked (LinkedList ring)
+BclDictionaries.cs           BclDictionaries: the runtime's own dictionaries likewise (Concurrent, Sorted*)
 BclTypeFormatters.cs         BigInteger, Uri, Version, StringBuilder, BitArray, CultureInfo, TimeZoneInfo, Lazy,
                              Memory / ReadOnlyMemory / ReadOnlySequence, IGrouping, ILookup, BlockingCollection
 PriorityQueueFormatter.cs    PriorityQueue (net8.0 and net10.0 builds only)

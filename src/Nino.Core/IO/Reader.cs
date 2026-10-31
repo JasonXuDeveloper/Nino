@@ -109,7 +109,7 @@ namespace Nino.Core
         /// to reach the cache, about 15 cycles for each copy. For generated code.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public readonly void CopyTo(ref Reader target)
         {
 #if NET8_0_OR_GREATER

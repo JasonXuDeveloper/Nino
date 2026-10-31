@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -36,7 +37,7 @@ namespace Nino.Core
         /// Used by generated code: users declare formatters with <c>[assembly: NinoFormatter]</c> or
         /// <c>[NinoMemberFormatter]</c> instead.
         /// </summary>
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public static bool TryRegister<TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             Volatile.Read(ref _instance) == null && TryPublish(new StructFormatter<T, TFormatter>());
 
@@ -44,7 +45,7 @@ namespace Nino.Core
         /// <see cref="TryRegister{TFormatter}"/> for a formatter of fixed size, which the regular byte array call
         /// uses to write into an array of that size. Used by generated code.
         /// </summary>
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public static bool TryRegisterFixed<TFormatter>() where TFormatter : struct, INinoFixedSizeFormatter<T> =>
             Volatile.Read(ref _instance) == null && TryPublish(new FixedStructFormatter<T, TFormatter>());
 
@@ -52,7 +53,7 @@ namespace Nino.Core
         /// <see cref="TryRegister{TFormatter}"/> for a formatter with a <c>__Top</c> twin, which the regular top-level
         /// calls write through (see <see cref="INinoTopFormatter{T}"/>). Used by generated code.
         /// </summary>
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public static bool TryRegisterTop<TFormatter, TTop>()
             where TFormatter : struct, INinoFormatter<T>
             where TTop : struct, INinoTopFormatter<T> =>

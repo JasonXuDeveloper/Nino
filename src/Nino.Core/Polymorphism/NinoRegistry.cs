@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -62,7 +63,7 @@ namespace Nino.Core
         private static INinoRegistry[] _registries = Array.Empty<INinoRegistry>();
 
         /// <summary>Adds an assembly's generated registry. Called by its static constructor.</summary>
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public static void Add(INinoRegistry registry)
         {
             lock (Lock)
