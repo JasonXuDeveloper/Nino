@@ -446,7 +446,7 @@ namespace Nino.Core.Internal
         /// <paramref name="current"/> when it has that length, else a new one allocated uninitialized
         /// (<see cref="NinoUnsafe.NewArray{T}"/>), which the caller stores with <see cref="Publish{T}"/> once the read
         /// has filled it, so that data the read rejects half way never leaves stale heap memory in the caller's object
-        /// (a has-value byte, a raw bool, a value <see cref="NinoSettings.Untrusted"/> mode checks).
+        /// (a presence byte, a raw bool, a value <see cref="NinoSettings.Untrusted"/> mode checks).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T[] NewOrSame<T>(T[] current, int length) =>

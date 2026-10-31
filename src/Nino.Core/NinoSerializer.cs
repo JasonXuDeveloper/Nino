@@ -48,7 +48,7 @@ namespace Nino.Core
         /// The number of bytes <see cref="Serialize{T}(in T)"/> returns for every value of <typeparamref name="T"/>
         /// when that number is the same for all of them, else -1. Fixed are raw values and generated structs and
         /// sealed classes whose members are all unmanaged values or such structs (not version tolerant, keyed or
-        /// tracked); a null instance of such a sealed class is 1 byte (its null flag), every other one this size.
+        /// tracked); a null instance of such a sealed class is 1 byte (its presence byte), every other one this size.
         /// </summary>
         public static int GetFixedSize<T>()
         {

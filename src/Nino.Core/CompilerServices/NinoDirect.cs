@@ -40,7 +40,7 @@ namespace Nino.Core.CompilerServices
             // Bytes are written little-endian, as Writer does (which rejects other hosts); a JIT-time constant.
             if (!BitConverter.IsLittleEndian)
                 NinoThrow.BigEndianHost();
-            // A null sealed class: its null flag (0), which a new array holds.
+            // A null sealed class: its presence byte (0), which a new array holds.
             if (value == null)
                 return new byte[1];
             var bytes = new byte[default(TFormatter).FixedSize];

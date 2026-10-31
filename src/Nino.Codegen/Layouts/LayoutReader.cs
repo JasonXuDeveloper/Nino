@@ -14,7 +14,7 @@ namespace Nino.Codegen.Layouts
         public Type Type = null!;
         /// <summary>0 positional, 1 version tolerant, 2 keyed (<c>NinoFormat</c>).</summary>
         public int Format;
-        /// <summary>0 none (struct), 1 null flag (sealed class), 2 type id (<c>NinoHeader</c>).</summary>
+        /// <summary>0 none (struct), 1 presence byte (sealed class), 2 type id (<c>NinoHeader</c>).</summary>
         public int Header;
         public bool TrackReferences;
         public bool Raw;

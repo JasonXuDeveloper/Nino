@@ -152,7 +152,7 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoNullables<T>.Stride, out int length))
                 return;
 
-            // Uninitialized only for a block copy, after which the has-value bytes are checked: a new list takes the
+            // Uninitialized only for a block copy, after which the presence bytes are checked: a new list takes the
             // slot once filled (see NinoElements.CopiedWhole).
             var list = value ?? ListAccess.CreateOverwritten<TList, T?>(length, NinoNullables<T>.Raw);
             var span = ListAccess.Open(list, length, overwritten: true, out var buffer);

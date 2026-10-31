@@ -53,8 +53,8 @@ namespace Nino.Core.CompilerServices
 
     /// <summary>
     /// Generated formatters of classes whose body is one block of raw members (<see cref="BodySize"/> bytes, a
-    /// JIT-time constant). The type id or null flag in front of it is written into the same reservation (one capacity
-    /// check rather than two: see <see cref="NinoObject"/>'s <c>...Raw</c> methods).
+    /// JIT-time constant). The type id or presence byte in front of it is written into the same reservation (one
+    /// capacity check rather than two: see <see cref="NinoObject"/>'s <c>...Raw</c> methods).
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public interface INinoRawBodyFormatter<T> : INinoBodyFormatter<T>
@@ -110,7 +110,7 @@ namespace Nino.Core.CompilerServices
     {
         /// <summary>
         /// The bytes <see cref="INinoFormatter{T}.Serialize"/> writes for any value (any non-null one: a null
-        /// sealed class is its 1-byte null flag), or -1 for a block formatter whose values vary in size (a tuple
+        /// sealed class is its presence byte), or -1 for a block formatter whose values vary in size (a tuple
         /// holding a string). A JIT-time constant.
         /// </summary>
         int FixedSize { get; }

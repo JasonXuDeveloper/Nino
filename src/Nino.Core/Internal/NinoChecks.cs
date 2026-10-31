@@ -42,7 +42,7 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Throws if a has-value byte of the <paramref name="count"/> raw nullables at <paramref name="first"/>,
+        /// Throws if a presence byte of the <paramref name="count"/> raw nullables at <paramref name="first"/>,
         /// <paramref name="stride"/> bytes apart, is neither 0 nor 1.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]

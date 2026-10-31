@@ -11,7 +11,7 @@ internal enum FormatterKind
     /// <summary>Value type: body only.</summary>
     Struct,
 
-    /// <summary>Sealed class: 1-byte null flag, then body.</summary>
+    /// <summary>Sealed class: a presence byte, then body.</summary>
     SealedClass,
 
     /// <summary>Non-sealed instantiable class: type id, then body (subtypes dispatched through the registry).</summary>
@@ -352,8 +352,8 @@ internal sealed record TypeModel(
 
     /// <summary>
     /// Whether the body of a class is one block of raw members (positional, not tracked, not a collection): the
-    /// formatter implements <c>INinoRawBodyFormatter</c>, so the type id or null flag in front of the body is written
-    /// into the same reservation (one capacity check instead of two).
+    /// formatter implements <c>INinoRawBodyFormatter</c>, so the type id or presence byte in front of the body is
+    /// written into the same reservation (one capacity check instead of two).
     /// </summary>
     public bool RawBody => Kind is FormatterKind.Class or FormatterKind.SealedClass && !RawStruct && !VersionTolerant &&
                            !Keyed && !TrackReferences && !IsCollection && Members.Length != 0 &&

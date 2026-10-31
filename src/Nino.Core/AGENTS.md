@@ -55,8 +55,8 @@ FormatterInterfaces.cs       INinoBodyFormatter<T> (+ NinoBodyTraits), INinoRawB
                              INinoPrefetchFormatter (classes whose long collections prefetch, in a
                              project built with NinoPrefetchLargeCollections)
 NinoPrefetched.cs            NinoPrefetched.At: the prefetch generated INinoPrefetchFormatter.PrefetchMembers calls
-NinoObject.cs                header handling of generated class formatters: presence byte / type id / reference header, then
-                             the body; the ...Raw forms write header and raw body into one reservation
+NinoObject.cs                header handling of generated class formatters: presence byte / type id / reference header,
+                             then the body; the ...Raw forms write header and raw body into one reservation
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;
                              ...Prefetched for arrays and lists of INinoPrefetchFormatter classes)
 NinoBlockMap.cs              NinoBlockMap (where a block's bytes lie in a value's memory) and NinoBlocks (constrained

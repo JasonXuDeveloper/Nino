@@ -654,7 +654,7 @@ namespace Nino.Core
         public void Read<T>(out T? value) where T : unmanaged => value = ReadNullableRaw<T>();
 
         /// <summary>
-        /// Reads what <see cref="Writer.WriteNullableRaw{T}"/> wrote: the has-value byte and the value with one bounds
+        /// Reads what <see cref="Writer.WriteNullableRaw{T}"/> wrote: the presence byte and the value with one bounds
         /// check where both fit in the remaining bytes, else (near the end, where a null takes only its byte) one each.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -749,7 +749,7 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Reads the 1-byte null flag of a sealed class (or tuple, or nullable value): false for null, after
+        /// Reads the presence byte of a sealed class (or tuple, or nullable value): false for null, after
         /// dropping the instance in <paramref name="value"/> (<see cref="NinoRecycler.Discard{T}"/>); true when the
         /// body follows.
         /// </summary>
@@ -763,7 +763,7 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Reads a presence byte (a null flag): true for 1, a value follows; false for 0, null. Any other byte is
+        /// Reads a presence byte: true for 1, a value follows; false for 0, null. Any other byte is
         /// invalid data. The common case, a value, takes one compare.
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]

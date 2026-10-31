@@ -320,13 +320,13 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(in T value) where T : unmanaged => WriteValue(in value);
 
-        /// <summary>Writes a nullable unmanaged value: a has-value byte, then the value if present.</summary>
+        /// <summary>Writes a nullable unmanaged value: a presence byte, then the value if present.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(T? value) where T : unmanaged => WriteNullableRaw(value);
 
         /// <summary>
         /// <see cref="Write{T}(T?)"/> of a value whose memory is its wire layout (unmanaged values, raw structs): the
-        /// has-value byte and the value in one reservation.
+        /// presence byte and the value in one reservation.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void WriteNullableRaw<T>(T? value) where T : struct
@@ -364,7 +364,7 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Writes the 1-byte null flag of a sealed class (or tuple), and returns whether <paramref name="value"/> is
+        /// Writes the presence byte of a sealed class (or tuple), and returns whether <paramref name="value"/> is
         /// present: its body follows then.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -171,7 +171,7 @@ namespace Nino.Core
         public void Deserialize(ref string value, ref Reader reader) => value = reader.ReadUtf8(value);
     }
 
-    /// <summary>Writes a nullable value: a has-value byte, then the value.</summary>
+    /// <summary>Writes a nullable value: a presence byte, then the value.</summary>
     public struct NullableFormatter<T, TFormatter> : INinoFormatter<T?>
         where T : struct
         where TFormatter : struct, INinoFormatter<T>

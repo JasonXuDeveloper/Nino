@@ -54,7 +54,7 @@ namespace Nino.Core
         }
     }
 
-    /// <summary><c>Tuple&lt;T1&gt;</c>: 1-byte null flag, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1&gt;</c>: a presence byte, then the items in order.</summary>
     public struct TupleFormatter<T1, TF1> : INinoFormatter<Tuple<T1>>
         where TF1 : struct, INinoFormatter<T1>
     {
@@ -145,7 +145,7 @@ namespace Nino.Core
         }
     }
 
-    /// <summary><c>Tuple&lt;T1, T2&gt;</c>: 1-byte null flag, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1, T2&gt;</c>: a presence byte, then the items in order.</summary>
     public struct TupleFormatter<T1, T2, TF1, TF2> : INinoFormatter<Tuple<T1, T2>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
@@ -248,7 +248,7 @@ namespace Nino.Core
         }
     }
 
-    /// <summary><c>Tuple&lt;T1, T2, T3&gt;</c>: 1-byte null flag, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1, T2, T3&gt;</c>: a presence byte, then the items in order.</summary>
     public struct TupleFormatter<T1, T2, T3, TF1, TF2, TF3> : INinoFormatter<Tuple<T1, T2, T3>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
@@ -363,7 +363,7 @@ namespace Nino.Core
         }
     }
 
-    /// <summary><c>Tuple&lt;T1, T2, T3, T4&gt;</c>: 1-byte null flag, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1, T2, T3, T4&gt;</c>: a presence byte, then the items in order.</summary>
     public struct TupleFormatter<T1, T2, T3, T4, TF1, TF2, TF3, TF4> : INinoFormatter<Tuple<T1, T2, T3, T4>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
@@ -490,7 +490,7 @@ namespace Nino.Core
         }
     }
 
-    /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5&gt;</c>: 1-byte null flag, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5&gt;</c>: a presence byte, then the items in order.</summary>
     public struct TupleFormatter<T1, T2, T3, T4, T5, TF1, TF2, TF3, TF4, TF5> : INinoFormatter<Tuple<T1, T2, T3, T4, T5>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
@@ -629,7 +629,7 @@ namespace Nino.Core
         }
     }
 
-    /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5, T6&gt;</c>: 1-byte null flag, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5, T6&gt;</c>: a presence byte, then the items in order.</summary>
     public struct TupleFormatter<T1, T2, T3, T4, T5, T6, TF1, TF2, TF3, TF4, TF5, TF6> : INinoFormatter<Tuple<T1, T2, T3, T4, T5, T6>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
@@ -780,7 +780,7 @@ namespace Nino.Core
         }
     }
 
-    /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5, T6, T7&gt;</c>: 1-byte null flag, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5, T6, T7&gt;</c>: a presence byte, then the items in order.</summary>
     public struct TupleFormatter<T1, T2, T3, T4, T5, T6, T7, TF1, TF2, TF3, TF4, TF5, TF6, TF7> : INinoFormatter<Tuple<T1, T2, T3, T4, T5, T6, T7>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>

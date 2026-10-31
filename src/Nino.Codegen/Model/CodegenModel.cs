@@ -721,7 +721,7 @@ namespace Nino.Codegen.Model
 
         /// <summary>
         /// The element of a <c>T?[]</c> or <c>List&lt;T?&gt;</c> with a raw <c>T</c>, as <c>NullableArrayFormatter</c>
-        /// writes it (wire-format spec §6.2): the has-value byte, padding to <c>T</c>'s canonical alignment <c>A</c>,
+        /// writes it (wire-format spec §6.2): the presence byte, padding to <c>T</c>'s canonical alignment <c>A</c>,
         /// then <c>T</c>, a stride of <c>A + size(T)</c>; null when <paramref name="type"/> is not such a <c>T?</c>.
         /// </summary>
         private string? NullableStride(Type type)

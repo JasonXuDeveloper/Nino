@@ -476,7 +476,7 @@ namespace Nino.Core.CompilerServices
                 NinoSubtypes<T>.DeserializeReferenced(id, ref value, ref reader);
         }
 
-        /// <summary>Sealed class: 1-byte null flag, then the body.</summary>
+        /// <summary>Sealed class: a presence byte, then the body.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SerializeSealed<T, TFormatter>(T value, ref Writer writer)
             where T : class

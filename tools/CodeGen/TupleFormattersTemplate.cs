@@ -185,7 +185,7 @@ namespace Nino.CodeGen
         private static void AppendTuple(StringBuilder sb, int arity)
         {
             string type = $"Tuple<{List(arity, "T{0}")}>";
-            sb.Append($"    /// <summary><c>Tuple&lt;{List(arity, "T{0}")}&gt;</c>: 1-byte null flag, then the items in order.</summary>\n");
+            sb.Append($"    /// <summary><c>Tuple&lt;{List(arity, "T{0}")}&gt;</c>: a presence byte, then the items in order.</summary>\n");
             sb.Append($"    public struct TupleFormatter<{TypeParameters(arity)}> : INinoFormatter<{type}>\n");
             AppendConstraints(sb, arity);
             sb.Append("    {\n");

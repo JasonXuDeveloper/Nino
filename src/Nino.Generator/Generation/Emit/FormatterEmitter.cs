@@ -280,7 +280,7 @@ internal static class FormatterEmitter
         w.Line($"public {m.TypeName} Create() => default({m.Self}).Create();");
     }
 
-    /// <summary>A twin's <c>Serialize</c>: the null flag, then the body with no depth check.</summary>
+    /// <summary>A twin's <c>Serialize</c>: the presence byte, then the body with no depth check.</summary>
     private static string SerializeTop(TypeModel m, string twin) => m.RawBody
         ? $"{CoreCompilerServices}NinoObject.SerializeTopRaw<{m.TypeName}, {m.Self}>(value, ref writer)"
         : $"{CoreCompilerServices}NinoObject.SerializeTop<{m.TypeName}, {twin}>(value, ref writer)";
@@ -304,7 +304,7 @@ internal static class FormatterEmitter
         w.Line($"{Signature.ReadBody(m.TypeName)} => {body ?? $"default({m.Self}).ReadBody"}(ref value, ref reader);");
     }
 
-    /// <summary>The null flag and the body of <c>value</c>, on the local writer <c>__w</c>.</summary>
+    /// <summary>The presence byte and the body of <c>value</c>, on the local writer <c>__w</c>.</summary>
     private static void EmitTopWrite(CodeWriter w)
     {
         w.Line("if (value == null)");

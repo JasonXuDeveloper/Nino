@@ -382,7 +382,7 @@ namespace Nino.Core
     }
 
     /// <summary>
-    /// <c>Lazy&lt;T&gt;</c>: a has-value byte (0 = null), then the value, which serializing creates if it was not yet.
+    /// <c>Lazy&lt;T&gt;</c>: a presence byte (0 = null), then the value, which serializing creates if it was not yet.
     /// Read back as an already created <c>Lazy&lt;T&gt;</c>.
     /// </summary>
     public struct LazyFormatter<
