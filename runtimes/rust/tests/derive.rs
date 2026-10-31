@@ -908,7 +908,7 @@ pub struct VariablePlain {
 
 /// Fixed-size members, but version-tolerant: its body has a size header, so it is not fixed-size.
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(kind = "struct", format = "tolerant")]
+#[nino(kind = "struct", format = "version_tolerant")]
 pub struct TolerantFixed {
     pub id: i32,
 }

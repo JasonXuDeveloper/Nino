@@ -28,9 +28,9 @@ fn read_into_vec<T: NinoRead>(
     let mut values = Vec::with_capacity(r.capacity::<T>(count));
     for i in 0..count {
         if T::MAY_DEFER {
-            let mark = r.mark();
+            let mark = r.defer_mark();
             values.push(T::read(r)?);
-            r.trail(mark, Step::Index(index, i));
+            r.defer_trail(mark, Step::Index(index, i));
         } else {
             values.push(T::read(r)?);
         }
@@ -55,9 +55,9 @@ pub(crate) fn read_each_into<T: NinoRead>(r: &mut Reader<'_>, count: usize, valu
     values.truncate(count);
     for (i, v) in values.iter_mut().enumerate() {
         if T::MAY_DEFER {
-            let mark = r.mark();
+            let mark = r.defer_mark();
             v.read_into(r)?;
-            r.trail(mark, Step::Index(vec_item::<T>, i));
+            r.defer_trail(mark, Step::Index(vec_item::<T>, i));
         } else {
             v.read_into(r)?;
         }
@@ -67,9 +67,9 @@ pub(crate) fn read_each_into<T: NinoRead>(r: &mut Reader<'_>, count: usize, valu
     values.reserve(r.capacity::<T>(count.wrapping_sub(have)));
     for i in have..count {
         if T::MAY_DEFER {
-            let mark = r.mark();
+            let mark = r.defer_mark();
             values.push(T::read(r)?);
-            r.trail(mark, Step::Index(vec_item::<T>, i));
+            r.defer_trail(mark, Step::Index(vec_item::<T>, i));
         } else {
             values.push(T::read(r)?);
         }
@@ -197,9 +197,9 @@ pub(crate) fn read_key<T: NinoRead>(r: &mut Reader<'_>) -> Result<T> {
     if !T::MAY_DEFER {
         return T::read(r);
     }
-    let mark = r.mark();
+    let mark = r.defer_mark();
     let value = T::read(r)?;
-    if r.mark() != mark {
+    if r.defer_mark() != mark {
         return Err(Error::of(ErrorKind::Unsupported));
     }
     Ok(value)
@@ -635,9 +635,9 @@ impl<T: NinoRead> NinoRead for Option<T> {
         if !T::MAY_DEFER {
             return T::read_option(r);
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let value = T::read_option(r)?;
-        r.trail(mark, Step::Field(option_inner::<T>));
+        r.defer_trail(mark, Step::Field(option_inner::<T>));
         Ok(value)
     }
 
@@ -646,9 +646,9 @@ impl<T: NinoRead> NinoRead for Option<T> {
         if !T::MAY_DEFER {
             return T::read_option_into(self, r);
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         T::read_option_into(self, r)?;
-        r.trail(mark, Step::Field(option_inner::<T>));
+        r.defer_trail(mark, Step::Field(option_inner::<T>));
         Ok(())
     }
 }
@@ -686,9 +686,9 @@ impl<T: NinoRead> NinoRead for Box<T> {
         if !T::MAY_DEFER {
             return T::read_boxed(r);
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let value = T::read_boxed(r)?;
-        r.trail(mark, Step::Field(box_inner::<T>));
+        r.defer_trail(mark, Step::Field(box_inner::<T>));
         Ok(value)
     }
 
@@ -697,9 +697,9 @@ impl<T: NinoRead> NinoRead for Box<T> {
         if !T::MAY_DEFER {
             return T::read_boxed_option(r);
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let value = T::read_boxed_option(r)?;
-        r.trail(mark, Step::Field(box_inner::<T>));
+        r.defer_trail(mark, Step::Field(box_inner::<T>));
         Ok(value)
     }
 
@@ -708,9 +708,9 @@ impl<T: NinoRead> NinoRead for Box<T> {
         if !T::MAY_DEFER {
             return T::read_boxed_into(self, r);
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         T::read_boxed_into(self, r)?;
-        r.trail(mark, Step::Field(box_inner::<T>));
+        r.defer_trail(mark, Step::Field(box_inner::<T>));
         Ok(())
     }
 
@@ -719,9 +719,9 @@ impl<T: NinoRead> NinoRead for Box<T> {
         if !T::MAY_DEFER {
             return T::read_boxed_option_into(slot, r);
         }
-        let mark = r.mark();
+        let mark = r.defer_mark();
         T::read_boxed_option_into(slot, r)?;
-        r.trail(mark, Step::Field(box_inner::<T>));
+        r.defer_trail(mark, Step::Field(box_inner::<T>));
         Ok(())
     }
 }
@@ -877,9 +877,9 @@ fn refill_deque<T: NinoRead>(queue: &mut VecDeque<T>, r: &mut Reader<'_>, count:
     }
     for i in 0..count {
         if T::MAY_DEFER {
-            let mark = r.mark();
+            let mark = r.defer_mark();
             queue.push_back(T::read(r)?);
-            r.trail(mark, Step::Index(deque_item::<T>, i));
+            r.defer_trail(mark, Step::Index(deque_item::<T>, i));
         } else {
             queue.push_back(T::read(r)?);
         }
@@ -1092,11 +1092,11 @@ where
     for _ in 0..count {
         let key = read_key::<K>(r)?;
         let value = if V::MAY_DEFER {
-            let mark = r.mark();
+            let mark = r.defer_mark();
             let value = V::read(r)?;
-            if r.mark() != mark {
+            if r.defer_mark() != mark {
                 let at = key.clone();
-                r.trail(
+                r.defer_trail(
                     mark,
                     dyn_step(move |m| Some(m.downcast_mut::<HashMap<K, V, S>>()?.get_mut(&at)? as &mut dyn Any)),
                 );
@@ -1174,11 +1174,11 @@ where
     for _ in 0..count {
         let key = read_key::<K>(r)?;
         let value = if V::MAY_DEFER {
-            let mark = r.mark();
+            let mark = r.defer_mark();
             let value = V::read(r)?;
-            if r.mark() != mark {
+            if r.defer_mark() != mark {
                 let at = key.clone();
-                r.trail(
+                r.defer_trail(
                     mark,
                     dyn_step(move |m| Some(m.downcast_mut::<BTreeMap<K, V>>()?.get_mut(&at)? as &mut dyn Any)),
                 );
@@ -1269,7 +1269,7 @@ macro_rules! tuple {
             #[inline]
             fn read(r: &mut Reader<'_>) -> Result<Self> {
                 Ok(($(
-                    r.read_in::<$name>(|p| Some(&mut p.downcast_mut::<Self>()?.$index as &mut dyn Any))?,
+                    r.read_member::<$name>(|p| Some(&mut p.downcast_mut::<Self>()?.$index as &mut dyn Any))?,
                 )+))
             }
         }

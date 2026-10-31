@@ -2,7 +2,7 @@
 // into a reused writer or a caller's array.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deserialize, NinoError, NinoReader, NinoRegistry, NinoWriter, serialize, serializeInto, type NinoCodec } from "../src/nino.ts";
+import { deserialize, NinoError, NinoReader, NinoSubtypes, NinoWriter, serialize, serializeInto, type NinoCodec } from "../src/nino.ts";
 import { chain, ChainCodec, hex, int32, toHex, strHeader, values } from "./codecs.ts";
 
 const i32: NinoCodec<number> = { read: (r) => r.i32(), write: (w, v) => w.i32(v) };
@@ -145,7 +145,7 @@ describe("registry", () => {
     lives = 0;
   }
   class Stray {}
-  const types = new NinoRegistry();
+  const types = new NinoSubtypes();
   types.add(10, Dog, (r) => Object.assign(new Dog(), { name: r.string() }), (w, v) => w.string(v.name));
   types.add(-20, Cat, (r) => Object.assign(new Cat(), { lives: r.i32() }), (w, v) => w.i32(v.lives));
 

@@ -378,7 +378,7 @@ func (c *bagCodec[T]) readD0(r *nino.Reader) []T {
 
 func (c *bagCodec[T]) writeD0(w *nino.Writer, v []T) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -407,7 +407,7 @@ func (c *bagCodec[T]) readD1(r *nino.Reader) []nino.Entry[string, T] {
 
 func (c *bagCodec[T]) writeD1(w *nino.Writer, v []nino.Entry[string, T]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -436,7 +436,7 @@ func (c *bagCodec[T]) readD4(r *nino.Reader) []*Box[T] {
 
 func (c *bagCodec[T]) writeD4(w *nino.Writer, v []*Box[T]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -977,7 +977,7 @@ func (c *keysCodec[T]) readD0(r *nino.Reader) []T {
 
 func (c *keysCodec[T]) writeD0(w *nino.Writer, v []T) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -1006,7 +1006,7 @@ func (c *keysCodec[T]) readD1(r *nino.Reader) []nino.Entry[T, int32] {
 
 func (c *keysCodec[T]) writeD1(w *nino.Writer, v []nino.Entry[T, int32]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -1531,7 +1531,7 @@ func (c *openHolderCodec[T]) readD0(r *nino.Reader) []OpenType[T] {
 
 func (c *openHolderCodec[T]) writeD0(w *nino.Writer, v []OpenType[T]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -2827,7 +2827,7 @@ func readV0(r *nino.Reader) (v []Forest) {
 
 func writeV1(w *nino.Writer, v []Forest) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -2856,7 +2856,7 @@ func readV2(r *nino.Reader) []nino.Entry[int32, *string] {
 
 func writeV3(w *nino.Writer, v []nino.Entry[int32, *string]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -2994,7 +2994,7 @@ func readV16(r *nino.Reader) nino.Entry[*string, int32] {
 
 func writeV17(w *nino.Writer, v []IThing) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -3045,7 +3045,7 @@ func readintoV21(r *nino.Reader, p *[]Recursive) {
 
 func writeV22(w *nino.Writer, v []Recursive) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -3106,7 +3106,7 @@ func readV26(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
 
 func writeV27(w *nino.Writer, v []*Box[int32]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -3117,7 +3117,7 @@ func writeV27(w *nino.Writer, v []*Box[int32]) {
 
 func writeV28(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))

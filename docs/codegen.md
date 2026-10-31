@@ -73,7 +73,7 @@ The generated API of each language is on the site; these are the decisions behin
   - the shape is the one `runtimes/rust/tests/conformance/gen.py` proved on the whole corpus (and which the derive
     generates), so the performance and safety rules of runtimes/rust hold: one bounds check per run of fixed-size
     members, collections reserve through `r.capacity`, structs count depth through `enter_struct`/`exit_struct`, raw
-    structs check padding, and a struct whose members are all of fixed size has a `FIXED_SIZE` (`nino::fixed_size` of
+    structs check padding, and a struct whose members are all of fixed size has a `FIXED_SIZE` (`nino::sum_fixed_sizes` of
     theirs), so a list of it is one block.
 
   A generic type's impls are bounded `impl<T: NinoRead + NinoWrite + Default + 'static>`.

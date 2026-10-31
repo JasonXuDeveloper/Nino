@@ -48,7 +48,7 @@ pub use error::{Error, ErrorKind, Result};
 pub use impls::dyn_step;
 pub use reader::{Reader, Region, INLINE_DEPTH, MAX_DEPTH};
 pub use shared::Shared;
-pub use traits::{decode_next, encode_next, fixed_size, NinoRead, NinoReadBody, NinoWrite, NinoWriteBody};
+pub use traits::{decode_member, encode_member, sum_fixed_sizes, NinoRead, NinoReadBody, NinoWrite, NinoWriteBody};
 pub use types::{
     BigInteger, BitArray, DateOnly, DateTime, DateTimeKind, DateTimeOffset, Decimal, Grid, Guid, Half, Raw,
     RawNullables, Rune, TimeOnly, TimeSpan, Utf8, Version, WideString, MAX_TICKS, TICKS_PER_DAY, UNIX_EPOCH_TICKS,
@@ -150,8 +150,8 @@ const fn fnv_unit(hash: u32, unit: u32) -> u32 {
     (hash ^ (unit >> 8)).wrapping_mul(0x0100_0193)
 }
 
-/// A [`Step::Field`] from a type to one of its members, for [`Reader::read_in`]:
-/// `self.next = r.read_in(nino::field!(Self, next))?`.
+/// A [`Step::Field`] from a type to one of its members, for [`Reader::read_member`]:
+/// `self.next = r.read_member(nino::field!(Self, next))?`.
 #[macro_export]
 macro_rules! field {
     ($t:ty, $($member:tt)+) => {

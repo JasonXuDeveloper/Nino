@@ -526,7 +526,7 @@ func (b *builder) slice(c *codec, variant uint8) error {
 		}
 		c.write = func(w *Writer, v reflect.Value) {
 			if v.IsNil() {
-				w.Null()
+				w.NullLength()
 				return
 			}
 			w.ByteArray(v.Bytes())
@@ -569,7 +569,7 @@ func (b *builder) slice(c *codec, variant uint8) error {
 		}
 		c.write = func(w *Writer, v reflect.Value) {
 			if v.IsNil() {
-				w.Null()
+				w.NullLength()
 				return
 			}
 			n := v.Len()
@@ -626,7 +626,7 @@ func (b *builder) slice(c *codec, variant uint8) error {
 	}
 	c.write = func(w *Writer, v reflect.Value) {
 		if v.IsNil() {
-			w.Null()
+			w.NullLength()
 			return
 		}
 		n := v.Len()
@@ -678,7 +678,7 @@ func (b *builder) stride(c *codec, e *codec) error {
 	}
 	c.write = func(w *Writer, v reflect.Value) {
 		if v.IsNil() {
-			w.Null()
+			w.NullLength()
 			return
 		}
 		n := v.Len()
@@ -766,7 +766,7 @@ func (b *builder) mapCodec(c *codec) error {
 	}
 	c.write = func(w *Writer, v reflect.Value) {
 		if v.IsNil() {
-			w.Null()
+			w.NullLength()
 			return
 		}
 		w.Length(v.Len())
@@ -832,7 +832,7 @@ func blockSlice[T any](read func(*Reader) []T, write func(*Writer, []T)) (func(*
 			}
 		}, func(w *Writer, v reflect.Value) {
 			if v.IsNil() {
-				w.Null()
+				w.NullLength()
 				return
 			}
 			write(w, unsafe.Slice((*T)(v.UnsafePointer()), v.Len()))

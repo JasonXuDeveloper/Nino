@@ -275,7 +275,7 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Type:
                     return TypeShape(value.Type!);
                 case ValueKind.Parameter:
-                    // A type parameter: its argument's NinoRead decides (read_in asks it whether it may defer); a
+                    // A type parameter: its argument's NinoRead decides (read_member asks it whether it may defer); a
                     // parameter a map key or set element holds is bound by Eq + Hash, and checked where it is closed.
                     return new RustShape("param") { Parameter = value.ParameterName, MayDefer = true, Hashable = true };
                 case ValueKind.Generic:
@@ -669,7 +669,7 @@ namespace Nino.Codegen.Targets
         /// <summary>Whether it is <c>Eq + Hash</c>: a set element or map key.</summary>
         public bool Hashable { get; internal set; }
 
-        /// <summary>Whether reading it may defer a class body: read through <c>read_in</c>.</summary>
+        /// <summary>Whether reading it may defer a class body: read through <c>read_member</c>.</summary>
         public bool MayDefer { get; internal set; }
 
         /// <summary>A string as <c>nino::WideString</c>.</summary>

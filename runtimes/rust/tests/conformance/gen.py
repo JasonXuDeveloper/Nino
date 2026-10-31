@@ -424,7 +424,7 @@ class Gen:
 
         def read(m):
             if self.may_defer(m["rust"]):
-                return f"r.read_into_in(&mut self.{m['field']}, field!(Self, {m['field']}))?"
+                return f"r.read_member_into(&mut self.{m['field']}, field!(Self, {m['field']}))?"
             return f"r.read_into(&mut self.{m['field']})?"
 
         if fmt == "Positional":
@@ -616,7 +616,7 @@ class Gen:
         o.append("            *slot = None;")
         o.append("            return Ok(());")
         o.append("        }")
-        o.append("        let mark = r.mark();")
+        o.append("        let mark = r.defer_mark();")
         o.append("        let reused = match slot {")
         for s in subtypes:
             o.append(f"            Some(Self::{ident(s)}(v)) if id == {ident(s)}::TYPE_ID => {{")
@@ -632,7 +632,7 @@ class Gen:
         o.append("                _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),")
         o.append("            });")
         o.append("        }")
-        o.append(f"        r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<{rust}>()?.body())));")
+        o.append(f"        r.defer_trail(mark, Step::Field(|p| Some(p.downcast_mut::<{rust}>()?.body())));")
         o.append("        Ok(())")
         o.append("    }")
         o.append("}")

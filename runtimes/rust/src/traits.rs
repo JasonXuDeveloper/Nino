@@ -133,12 +133,7 @@ pub trait NinoWrite {
     /// at least 512 values with some, whose estimated data (the elements and these bytes) outgrows the last-level
     /// cache, is written prefetching ahead ([`NinoWrite::prefetch`], [`NinoWrite::prefetch_members`]). Set by
     /// `#[derive(NinoWrite)]` and nino-gen to the sum of the members'.
-    #[allow(deprecated)]
-    const PREFETCH_BYTES: usize = Self::PREFETCH;
-
-    /// The old name of [`NinoWrite::PREFETCH_BYTES`]: an impl that sets it sets that (unless it sets both).
-    #[deprecated(since = "4.0.0", note = "set `PREFETCH_BYTES` instead")]
-    const PREFETCH: usize = 0;
+    const PREFETCH_BYTES: usize = 0;
 
     /// Prefetches the memory the value points to (a `String`'s text, a `Box`'s target, a struct's members' targets).
     /// Nothing by default.
@@ -208,7 +203,7 @@ pub trait NinoWrite {
 /// The [`NinoRead::FIXED_SIZE`] (or [`NinoWrite::FIXED_SIZE`]) of a value made of items of these sizes one after
 /// another, a tuple or a plain struct: their sum, or 0 (not of fixed size) when one of them is 0 or there are none.
 /// Generated and derived code states a plain struct's size with it.
-pub const fn fixed_size(mut sizes: &[usize]) -> usize {
+pub const fn sum_fixed_sizes(mut sizes: &[usize]) -> usize {
     let mut sum = 0usize;
     while let [size, rest @ ..] = sizes {
         if *size == 0 {
@@ -223,7 +218,7 @@ pub const fn fixed_size(mut sizes: &[usize]) -> usize {
 /// Decodes the next item of a fixed-size value ([`NinoRead::decode_fixed`] on its first [`NinoRead::FIXED_SIZE`]
 /// bytes) and moves `bytes` past it: how generated and derived code reads a plain struct's members from its bytes.
 #[inline]
-pub fn decode_next<T: NinoRead>(bytes: &mut &[u8]) -> Result<T> {
+pub fn decode_member<T: NinoRead>(bytes: &mut &[u8]) -> Result<T> {
     let (item, rest) = bytes.split_at_checked(T::FIXED_SIZE).ok_or_else(Error::end)?;
     *bytes = rest;
     T::decode_fixed(item)
@@ -232,7 +227,7 @@ pub fn decode_next<T: NinoRead>(bytes: &mut &[u8]) -> Result<T> {
 /// Encodes the next item of a fixed-size value ([`NinoWrite::encode_fixed`] into the first [`NinoWrite::FIXED_SIZE`]
 /// bytes of `out`) and moves `out` past it: how generated and derived code writes a plain struct's members.
 #[inline]
-pub fn encode_next<T: NinoWrite + ?Sized>(value: &T, out: &mut &mut [u8]) {
+pub fn encode_member<T: NinoWrite + ?Sized>(value: &T, out: &mut &mut [u8]) {
     if let Some((item, rest)) = core::mem::take(out).split_at_mut_checked(T::FIXED_SIZE) {
         value.encode_fixed(item);
         *out = rest;

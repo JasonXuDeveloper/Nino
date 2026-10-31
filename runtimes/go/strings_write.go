@@ -552,7 +552,7 @@ func utf16Tail(dst unsafe.Pointer, j int, s string, i int) int {
 // a loop of [Writer.String] writes, many strings in one call where the platform has a vector path.
 func WriteStrings(w *Writer, v []string) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -577,7 +577,7 @@ func WriteStrings(w *Writer, v []string) {
 // as): nil is null, and so is each nil element.
 func WriteStringPtrs(w *Writer, v []*string) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))

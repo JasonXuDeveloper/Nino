@@ -242,7 +242,7 @@ func helper_body(h)
     end
     # One reservation, cleared (padding is written as zeros), then each element's bytes from a cursor.
     $z = $s.element.size
-    $o = $o + "\tif v == nil {\n\t\tw.Null()\n\t\treturn\n\t}\n\tw.Length(len(v))\n\tb := w.ExtendZero(len(v) * " + $z + ")\n\tif len(b) != len(v)*" + $z + " {\n\t\treturn\n\t}\n"
+    $o = $o + "\tif v == nil {\n\t\tw.NullLength()\n\t\treturn\n\t}\n\tw.Length(len(v))\n\tb := w.ExtendZero(len(v) * " + $z + ")\n\tif len(b) != len(v)*" + $z + " {\n\t\treturn\n\t}\n"
     ret $o + "\tfor _, e := range v {\n\t\t" + encode_fn($s.element) + "(b[:" + $z + ":" + $z + "], e)\n\t\tb = b[" + $z + ":]\n\t}\n}\n"
   else if $s.element.block
     ret $o + "\tnino.WritePrimitives(w, v)\n}\n"
@@ -282,7 +282,7 @@ end
 
 # The rest of a sequence's write helper: null for nil, else its length and each element `e`, written by `each`.
 func write_loop(each)
-  ret "\tif v == nil {\n\t\tw.Null()\n\t\treturn\n\t}\n\tw.Length(len(v))\n\tfor _, e := range v {\n\t\t" + each + "\n\t}\n}\n"
+  ret "\tif v == nil {\n\t\tw.NullLength()\n\t\treturn\n\t}\n\tw.Length(len(v))\n\tfor _, e := range v {\n\t\t" + each + "\n\t}\n}\n"
 end
 
 # A slot's dispatch: the type id, then the body of one of the types the declared type allows. `read` and `write`
@@ -859,7 +859,7 @@ if uses_grid
   "func readGrid[T any](r *nino.Reader, rank, minSize int) *NinoGrid[T] {\n\ts, ok := r.ReadShape(rank, minSize)\n\tif !ok {\n\t\treturn nil\n\t}\n"
   "\t// ReadShape checked the element count against the bytes left.\n\treturn &NinoGrid[T]{Lengths: append([]int(nil), s.Dims[:rank]...), Items: make([]T, s.Total)}\n}\n"
   "\n// writeGrid writes a grid's shape (null for nil): whether the caller writes its items next.\n"
-  "func writeGrid[T any](w *nino.Writer, g *NinoGrid[T], rank int) bool {\n\tif g == nil {\n\t\tw.Null()\n\t\treturn false\n\t}\n"
+  "func writeGrid[T any](w *nino.Writer, g *NinoGrid[T], rank int) bool {\n\tif g == nil {\n\t\tw.NullLength()\n\t\treturn false\n\t}\n"
   "\ttotal := 1\n\tfor _, n := range g.Lengths {\n\t\tif n < 0 {\n\t\t\ttotal = -1\n\t\t\tbreak\n\t\t}\n\t\ttotal *= n\n\t}\n"
   "\tif len(g.Lengths) != rank || total != len(g.Items) {\n\t\tw.Fail(nino.CodeInvalidValue, \"grid lengths do not match its items\")\n\t\treturn false\n\t}\n"
   "\tw.WriteShape(g.Lengths...)\n\treturn true\n}\n"

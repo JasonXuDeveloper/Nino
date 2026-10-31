@@ -134,7 +134,7 @@ func ReadRecordsInto(r *nino.Reader, p *[]*Record) {
 
 func WriteRecords(w *nino.Writer, v []*Record) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))

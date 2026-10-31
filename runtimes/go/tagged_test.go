@@ -813,7 +813,7 @@ func TestTagMaps(t *testing.T) {
 			writeSorted(w, v.LongLong, (*Writer).I64, (*Writer).I64)
 			writeSorted(w, v.StrInt, (*Writer).String, (*Writer).I32)
 			writeSorted(w, v.Named, func(w *Writer, k tagWord) { w.String(string(k)) }, (*Writer).I32)
-			w.Null()
+			w.NullLength()
 			w.Length(0)
 		})
 		if err != nil {

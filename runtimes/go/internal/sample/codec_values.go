@@ -497,7 +497,7 @@ func readGrid[T any](r *nino.Reader, minSize int) *Grid[T] {
 // match them).
 func writeGrid[T any](w *nino.Writer, g *Grid[T]) bool {
 	if g == nil {
-		w.Null()
+		w.NullLength()
 		return false
 	}
 	if g.Lengths[0] < 0 || g.Lengths[1] < 0 || len(g.Items) != g.Lengths[0]*g.Lengths[1] {

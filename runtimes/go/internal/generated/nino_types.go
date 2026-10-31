@@ -5062,7 +5062,7 @@ func (c *listShelfCodec[T]) readD0(r *nino.Reader) []T {
 
 func (c *listShelfCodec[T]) writeD0(w *nino.Writer, v []T) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10119,7 +10119,7 @@ func readV0(r *nino.Reader) []nino.Entry[string, DictTree] {
 
 func writeV1(w *nino.Writer, v []nino.Entry[string, DictTree]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10136,7 +10136,7 @@ func readV2(r *nino.Reader) (v []Tree) {
 
 func writeV3(w *nino.Writer, v []Tree) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10169,7 +10169,7 @@ func readV4(r *nino.Reader) []*int32 {
 
 func writeV5(w *nino.Writer, v []*int32) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10190,7 +10190,7 @@ func readV6(r *nino.Reader) (v []*int32) {
 
 func writeV7(w *nino.Writer, v []*int32) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10223,7 +10223,7 @@ func readV8(r *nino.Reader) []*Vec2 {
 
 func writeV9(w *nino.Writer, v []*Vec2) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10257,7 +10257,7 @@ func readV10(r *nino.Reader) []nino.Entry[int32, *float64] {
 
 func writeV11(w *nino.Writer, v []nino.Entry[int32, *float64]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10274,7 +10274,7 @@ func readV12(r *nino.Reader) (v []nino.Entry[int32, *string]) {
 
 func writeV13(w *nino.Writer, v []nino.Entry[int32, *string]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10290,7 +10290,7 @@ func readV14(r *nino.Reader) (v []nino.Entry[*string, *int32]) {
 
 func writeV15(w *nino.Writer, v []nino.Entry[*string, *int32]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10306,7 +10306,7 @@ func readV16(r *nino.Reader) (v []*Point) {
 
 func writeV17(w *nino.Writer, v []*Point) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10344,7 +10344,7 @@ func readintoV18(r *nino.Reader, p *[]*Bag) {
 
 func writeV19(w *nino.Writer, v []*Bag) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10581,7 +10581,7 @@ func writeV34(w *nino.Writer, v []*string) {
 
 func writeV35(w *nino.Writer, v []nino.Entry[string, *string]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10593,7 +10593,7 @@ func writeV35(w *nino.Writer, v []nino.Entry[string, *string]) {
 
 func writeV36(w *nino.Writer, v []nino.Entry[string, *Point]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10605,7 +10605,7 @@ func writeV36(w *nino.Writer, v []nino.Entry[string, *Point]) {
 
 func writeV37(w *nino.Writer, v []nino.Entry[int32, []*string]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10617,7 +10617,7 @@ func writeV37(w *nino.Writer, v []nino.Entry[int32, []*string]) {
 
 func writeV38(w *nino.Writer, v []nino.Entry[int32, *string]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10629,7 +10629,7 @@ func writeV38(w *nino.Writer, v []nino.Entry[int32, *string]) {
 
 func writeV39(w *nino.Writer, v []nino.Entry[string, int32]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10641,7 +10641,7 @@ func writeV39(w *nino.Writer, v []nino.Entry[string, int32]) {
 
 func writeV40(w *nino.Writer, v [][]int32) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10721,7 +10721,7 @@ func readintoV44(r *nino.Reader, p *[]*Empty) {
 
 func writeV45(w *nino.Writer, v []EmptyStruct) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10732,7 +10732,7 @@ func writeV45(w *nino.Writer, v []EmptyStruct) {
 
 func writeV46(w *nino.Writer, v []*Empty) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10767,7 +10767,7 @@ func readintoV47(r *nino.Reader, p *[]Shelf[int32]) {
 
 func writeV48(w *nino.Writer, v []Shelf[int32]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -10805,7 +10805,7 @@ func readintoV49(r *nino.Reader, p *[]*KeyedV1) {
 
 func writeV50(w *nino.Writer, v []*KeyedV1) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -11013,7 +11013,7 @@ func writeV71(w *nino.Writer, v *Label) {
 
 func writeV72(w *nino.Writer, v []*int64) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -11029,7 +11029,7 @@ func writeV72(w *nino.Writer, v []*int64) {
 
 func writeV73(w *nino.Writer, v []*Padded) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -11045,7 +11045,7 @@ func writeV73(w *nino.Writer, v []*Padded) {
 
 func writeV74(w *nino.Writer, v []nino.Entry[int32, *int32]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -11129,7 +11129,7 @@ func writeV84(w *nino.Writer, v []Mixed) {
 
 func writeV85(w *nino.Writer, v []Label) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -11184,7 +11184,7 @@ func readintoV90(r *nino.Reader, p *[]TrackedType) {
 
 func writeV91(w *nino.Writer, v []TrackedType) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -11237,7 +11237,7 @@ func readV93(r *nino.Reader) []nino.Entry[int32, *TrackedNode] {
 
 func writeV94(w *nino.Writer, v []*TrackedNode) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -11248,7 +11248,7 @@ func writeV94(w *nino.Writer, v []*TrackedNode) {
 
 func writeV95(w *nino.Writer, v []nino.Entry[int32, *TrackedNode]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -11311,7 +11311,7 @@ func readintoV97(r *nino.Reader, p *[]*TreeNode) {
 
 func writeV98(w *nino.Writer, v []*TreeNode) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -11394,7 +11394,7 @@ func readV101(r *nino.Reader) []nino.Entry[string, Animal] {
 
 func writeV102(w *nino.Writer, v []Animal) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -11405,7 +11405,7 @@ func writeV102(w *nino.Writer, v []Animal) {
 
 func writeV103(w *nino.Writer, v []IShape) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -11416,7 +11416,7 @@ func writeV103(w *nino.Writer, v []IShape) {
 
 func writeV104(w *nino.Writer, v []nino.Entry[string, Animal]) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -11627,7 +11627,7 @@ func readGrid[T any](r *nino.Reader, rank, minSize int) *NinoGrid[T] {
 // writeGrid writes a grid's shape (null for nil): whether the caller writes its items next.
 func writeGrid[T any](w *nino.Writer, g *NinoGrid[T], rank int) bool {
 	if g == nil {
-		w.Null()
+		w.NullLength()
 		return false
 	}
 	total := 1

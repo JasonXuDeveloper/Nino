@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import fc from "fast-check";
-import { deserialize, deserializeExact, NinoError, NinoReader, NinoRegistry, serialize, type NinoCodec } from "../src/nino.ts";
+import { deserialize, deserializeExact, NinoError, NinoReader, NinoSubtypes, serialize, type NinoCodec } from "../src/nino.ts";
 import { chain, ChainCodec, hex, int32, strHeader } from "./codecs.ts";
 import { Dog, StringMap, StringMapCodec, Zoo, ZooCodec } from "./generated/Nino.Conformance.ts";
 
@@ -120,11 +120,11 @@ describe("malicious data", () => {
 
   it("rejects presence bytes other than 0 and 1", () => {
     for (let flag = 2; flag < 256; flag += 17) {
-      assert.throws(() => new NinoReader(Uint8Array.of(flag)).notNull(), NinoError);
+      assert.throws(() => new NinoReader(Uint8Array.of(flag)).present(), NinoError);
       assert.throws(() => deserialize(ChainCodec, Uint8Array.of(flag, 0, 0, 0, 0, 0)), NinoError);
       assert.throws(() => new NinoReader(Uint8Array.of(flag)).bool(), NinoError);
       assert.throws(() => new NinoReader(Uint8Array.of(0, flag)).boolAt(1), NinoError);
-      assert.throws(() => new NinoReader(Uint8Array.of(flag, 7, 0, 0, 0)).flagAt(0), NinoError);
+      assert.throws(() => new NinoReader(Uint8Array.of(flag, 7, 0, 0, 0)).presentAt(0), NinoError);
     }
     assert.equal(new NinoReader(Uint8Array.of(1)).bool(), true);
     assert.equal(new NinoReader(Uint8Array.of(0)).bool(), false);
@@ -133,7 +133,7 @@ describe("malicious data", () => {
   it("rejects type ids it does not know, and type ids of types not allowed there", () => {
     class A {}
     class B {}
-    const types = new NinoRegistry();
+    const types = new NinoSubtypes();
     types.add(1, A, () => new A(), () => {});
     types.add(2, B, () => new B(), () => {});
     for (const id of [3, -1, 0x7fffffff, -0x80000000])

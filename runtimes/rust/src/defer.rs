@@ -9,7 +9,7 @@
 //! 1. Where a body is deferred, the slot gets `T::default()` (a placeholder) and the reader queues how to read the
 //!    body later ([`Pending`]).
 //! 2. Each container the value is read into (a member, an element, an `Option`, a `Box`) logs one [`Step`] for the
-//!    deferrals made inside it, as one entry for all of them ([`Reader::trail`]): the steps lead from the object
+//!    deferrals made inside it, as one entry for all of them ([`Reader::defer_trail`]): the steps lead from the object
 //!    that owns the queue (the outermost class, or the region's object) down to each placeholder. One entry per
 //!    container read, not per deferral, so memory stays proportional to the data.
 //! 3. When the queue is read (after the outermost body, or at the end of the outermost region), every body is read

@@ -59,7 +59,7 @@ runtime: `optimize`, "Prefetch"). How to measure on runners is `benchmark` (runt
   block path itself: derived plain structs (derive and nino-gen) had no `FIXED_SIZE`, and giving them one took
   `Vec<{i32, f32}>` 80-91 % and `Vec<{i64, bool, i32}>` 61-88 % faster on every runner CPU (runtime A/B run
   40868354821). Keep tuples on their own macro and `bool::decode_fixed` as `match`: routing tuples through
-  `decode_next` and testing a bool as `b <= 1` made `(i64, bool)` reads 2-29 % slower (Xeon 8573C +29 %, EPYC 7763
+  `decode_member` and testing a bool as `b <= 1` made `(i64, bool)` reads 2-29 % slower (Xeon 8573C +29 %, EPYC 7763
   +11 %, run 40829803604); with both kept, tuples were on par.
 
 ## Strings outside .NET

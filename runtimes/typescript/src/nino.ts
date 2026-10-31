@@ -801,7 +801,7 @@ export class NinoReader {
     return b === 1;
   }
   /** The has-value flag of a nullable at `at` (0 or 1, as `boolAt`). */
-  flagAt(at: number): boolean {
+  presentAt(at: number): boolean {
     const b = this.view.getUint8(at);
     if (b > 1) throw new NinoError(`invalid presence byte ${b}.`);
     return b === 1;
@@ -1109,7 +1109,7 @@ export class NinoReader {
 
   /** A nullable value, `Tuple` or sealed class: a presence byte, then the value if present. */
   nullable<T>(read: (reader: NinoReader) => T): T | null {
-    return this.notNull() ? read(this) : null;
+    return this.present() ? read(this) : null;
   }
 
   /** Reads a value with `codec` into `value` when the codec can (`NinoCodec.readInto`), else a new one. */
@@ -1118,7 +1118,7 @@ export class NinoReader {
   }
 
   /** A presence byte: true when a value follows. */
-  notNull(): boolean {
+  present(): boolean {
     const flag = this.u8();
     if (flag > 1) throw new NinoError(`invalid presence byte ${flag}.`);
     return flag === 1;
@@ -1931,7 +1931,7 @@ interface NinoEntry {
  * The [NinoType]s written behind a type id (non-sealed classes, interfaces, `object`): the generated code adds every
  * type it declares, by its `NinoTypeId`.
  */
-export class NinoRegistry {
+export class NinoSubtypes {
   private readonly byId = new Map<number, NinoEntry>();
   private readonly byType = new Map<Function, NinoEntry>();
 
