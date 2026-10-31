@@ -94,7 +94,8 @@ internal static class FormatterEmitter
                     $"{CoreCompilerServices}NinoObject.DeserializeSealed<{t}, {self}, {self}{Shallow}>(ref value, ref reader, {m.Depth.Bound})");
                 break;
             case FormatterKind.SealedClass:
-                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoObject.SerializeSealed{Raw(m)}<{t}, {self}>(value, ref writer)",
+                EmitEntryPoints(w, m, names,
+                    $"{CoreCompilerServices}NinoObject.{(m.RawBody ? "SerializeSealedRaw" : "SerializeSealed")}<{t}, {self}>(value, ref writer)",
                     $"{CoreCompilerServices}NinoObject.DeserializeSealed<{t}, {self}>(ref value, ref reader)");
                 break;
             case FormatterKind.Class when m.TrackReferences:
@@ -105,7 +106,8 @@ internal static class FormatterEmitter
                 EmitDispatchingEntryPoints(w, m, names, ownId: true);
                 break;
             default:
-                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoObject.Serialize{Raw(m)}<{t}, {self}>(value, ref writer)",
+                EmitEntryPoints(w, m, names,
+                    $"{CoreCompilerServices}NinoObject.{(m.RawBody ? "SerializeRaw" : "Serialize")}<{t}, {self}>(value, ref writer)",
                     $"{CoreCompilerServices}NinoObject.Deserialize<{t}, {self}>(ref value, ref reader)");
                 break;
         }
@@ -351,9 +353,6 @@ internal static class FormatterEmitter
         w.Close();
     }
 
-    /// <summary>The suffix of the <c>NinoObject</c> methods for a body that is one raw block (<see cref="TypeModel.RawBody"/>).</summary>
-    private static string Raw(TypeModel m) => m.RawBody ? "Raw" : "";
-
     private static void EmitTypeId(CodeWriter w, TypeModel m)
     {
         if (m.IsGeneric)
@@ -442,7 +441,7 @@ internal static class FormatterEmitter
         w.Line(names.Inline);
         w.Line($"{Signature.Serialize(t)}");
         w.Indented(() => w.Line(ownId
-            ? $$"""{ if (!{{CoreCompilerServices}}NinoObject.TryWriteOwn{{Raw(m)}}<{{t}}, {{self}}>(value, ref writer)) {{write}}; }"""
+            ? $$"""{ if (!{{CoreCompilerServices}}NinoObject.{{(m.RawBody ? "TryWriteOwnRaw" : "TryWriteOwn")}}<{{t}}, {{self}}>(value, ref writer)) {{write}}; }"""
             : $$"""{ if (value == null) writer.UnsafeWrite({{NinoWire.NullTypeId}}); else {{write}}; }"""));
         w.Line();
         w.Line(names.Inline);
