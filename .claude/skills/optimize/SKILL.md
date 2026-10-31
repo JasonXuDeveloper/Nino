@@ -202,7 +202,14 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   unmeasured.
 - On Arm64, move values over 8 bytes in partial lane groups (`NinoLanes.Solve` with `partial`), as x64 without VBMI
   does: one at a time they took 1.44 µs for 1,000 `Waypoint`s on Neoverse-N2, in lane groups 0.43 (MemoryPack's copy
-  of their memory 0.39).
+  of their memory 0.39). Take the partial groups' windows on the 16-byte grid there (the grid pass first, kept on a
+  tie): two `Waypoint`s a step from `ldp` + `ldr` at 0, 16 and 32 and two 2-register lookups, against loads anywhere
+  (0, 9, 25; a 2- and a 1-register lookup) at the same `Cost`, wrote 1,000 in 0.757 of the time (430 to 325 ns, floor
+  1.002, .NET A/B run 41164356389; every other case on par). Measured and not taken (`WaypointPackProbe`, run
+  41159851472, against the old groups on Neoverse-N2): four values a step from six grid loads with a 3-register lookup
+  0.62-0.67 and the grid pair twice a step 0.61-0.66 (no clear gain over the pair's 0.66-0.70, and two groups a step
+  cost `HashSet<int>` writes before), a scalar pair of 8-byte loads with the bool put in by `bfi` 1.34, a 16-byte load
+  with the bool loaded into lane 14 (`ld1` lane) 1.20.
 - Copy long blocks per vendor and per destination: past 32 KB a 32-byte vector loop beats Memmove into a new zeroed
   array on Intel (Xeon 8370C, 160,000 bytes: 3.18 µs instead of 3.51) and loses there on Zen 5 (EPYC 9V45: 1.81
   against 1.67), while on AMD it beats Memmove into a new uninitialized array (9V45 and 9V74: 0.93 to 0.95 times the
@@ -240,7 +247,14 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   ns with 64-byte vectors and 83 with 32-byte ones (MemoryPack 88). Its 64-byte kernels on 8,000 bytes (aligned
   stores 145 ns, a zero-masking load `Avx512BW.MaskLoad` instead of the `vpand` 147, unaligned 167-287) ran no faster
   than 32-byte ones (144) and slower than Memmove (122) (`MaskKernelProbe`, run 40935400095): a zero-masking load
-  buys nothing there, nor locally on Emerald Rapids (1.06 against 1.07 of Memmove).
+  buys nothing there, nor locally on Emerald Rapids (1.06 against 1.07 of Memmove). Keep the 64-byte write groups
+  (`Permute64x2`, vpermt2d) on Ice Lake: 32-byte ones (vpermt2d ymm, AVX-512VL) took 0.76-0.79 of their time in a
+  native-buffer probe there (`TuplePackProbe`, run 41159851472: 167-173 ns against 220-226), yet in the benchmark
+  1,000 `(int, long)` serialized 4.5 % slower on the 8370C (234 to 245 ns, n=12, every round above 1.0; run
+  41164356389). Ice Lake's VM there pays heavily for loads across cache lines (a 32-byte copy loop of 16,000 bytes
+  from 8 bytes past a line: 430 ns, aligned 222, Memmove 160; 64-byte: 377 and 190): a probe kernel with fixed
+  alignments does not predict the case, whose list and buffer land where the process puts them. MemoryPack's copy
+  there is bimodal by alignment (117 or 250 ns in the probe, 112 in the case).
 - Rust's fixed-size blocks: `optimize-runtimes`, "Fixed-size blocks in Rust".
 
 ## Unity kernels and IL2CPP

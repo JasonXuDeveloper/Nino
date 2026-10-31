@@ -97,7 +97,10 @@ Why the qemu flags:
   emulates wrong. With or without Nino's code, runs crashed (`ToImmutableDictionary`), or a static field written by
   `Volatile.Write` read as never written elsewhere; `DOTNET_TieredCompilation=0` moves the failures, it does not
   avoid them. Nino.Benchmark under qemu-aarch64 also needs the arm64 `libssl.so.3` and `libcrypto.so.3` in
-  `/usr/aarch64-linux-gnu/lib`, else it aborts with "No usable version of libssl" (round 101).
+  `/usr/aarch64-linux-gnu/lib`, else it aborts with "No usable version of libssl" (round 101). For Tier1 listings
+  with tiering on under qemu, the jitwarm hook's 8 rounds of 200 ms reach no Tier1 at all (every listing Tier0):
+  give it about 30 rounds of 1.5 s, and skip classes whose static constructor throws, as `BclTypesTest` does under
+  `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` (`en-us`), which otherwise aborts the process (round 102).
 
 ## Unity and IL2CPP
 
