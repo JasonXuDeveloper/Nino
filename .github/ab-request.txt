@@ -1175,3 +1175,11 @@ typescript 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 85ba7e8f80a95e7b2af5346e5ad9
 typescript 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 int-set # ts-intset gap check 2
 typescript 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 int-set # ts-intset gap check 3
 typescript 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 string-set # ts-intset gap check
+rust 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 62e33f5402c57fa735db262b94a8ec34efc8dfcd (strings|records-1000) # rust-scalar head 1
+rust 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 62e33f5402c57fa735db262b94a8ec34efc8dfcd (strings|records-1000) # rust-scalar head 2
+rust 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 62e33f5402c57fa735db262b94a8ec34efc8dfcd (strings|records-1000) # rust-scalar head 3
+rust 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 (strings|records-1000) # rust-scalar floor 1
+rust 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 (strings|records-1000) # rust-scalar floor 2
+rust 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 (strings|records-1000) # rust-scalar floor 3
+rust:text 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 62e33f5402c57fa735db262b94a8ec34efc8dfcd write/(latin1|cyrillic|cjk|mixed)/(16|24|64) # rust-scalar text head
+rust:text 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 write/(latin1|cyrillic|cjk|mixed)/(16|24|64) # rust-scalar text floor
