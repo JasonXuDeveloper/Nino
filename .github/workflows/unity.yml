@@ -101,6 +101,8 @@ jobs:
     env:
       # The image with the Linux IL2CPP module, which the player step below needs: one image for both steps.
       UNITY_IMAGE: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
+      # Debug builds for the tests (their assertions), Release for the benchmark (what the package ships).
+      NINO_CONFIG: ${{ inputs.benchmark && 'Release' || 'Debug' }}
 
     steps:
       - name: Checkout code
@@ -118,12 +120,13 @@ jobs:
           nohup bash -c 'docker pull -q "$UNITY_IMAGE" > "$RUNNER_TEMP/pull.log" 2>&1; echo $? > "$RUNNER_TEMP/pull.status"' \
             > /dev/null 2>&1 &
 
-      - name: Setup .NET
+      # setup-dotnet itself, not ./.github/actions/setup-dotnet: report.yml calls this workflow on a release tag's
+      # tree, and tags up to v4.0.0-rc.7 have no such action.
+      - &setup-dotnet
+        name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
-            10.0.x
+          dotnet-version: 10.0.x
 
       - name: Cache NuGet packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -134,22 +137,21 @@ jobs:
             nuget-${{ runner.os }}-${{ runner.arch }}-unity-
             nuget-${{ runner.os }}-${{ runner.arch }}-
 
-      # Debug builds for the tests (their assertions), Release for the benchmark (what the package ships).
-      - name: Build the DLLs Unity loads
-        env:
-          CONFIG: ${{ env.BENCHMARK == 'true' && 'Release' || 'Debug' }}
+      # The commit's code over the DLLs committed in the package, in the job's NINO_CONFIG.
+      - &build-dlls
+        name: Build the DLLs Unity loads
         run: |
-          dotnet build src/Nino.Core/Nino.Core.csproj -c "$CONFIG" -f netstandard2.1
-          dotnet build src/Nino.Generator/Nino.Generator.csproj -c "$CONFIG"
-          dotnet build src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj -c "$CONFIG"
-          dotnet build src/Nino.UnityTypes/Nino.UnityTypes.csproj -c "$CONFIG"
-          cp "./src/Nino.Core/bin/$CONFIG/netstandard2.1/Nino.Core.dll" ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
+          dotnet build src/Nino.Core/Nino.Core.csproj -c "$NINO_CONFIG" -f netstandard2.1
+          dotnet build src/Nino.Generator/Nino.Generator.csproj -c "$NINO_CONFIG"
+          dotnet build src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj -c "$NINO_CONFIG"
+          dotnet build src/Nino.UnityTypes/Nino.UnityTypes.csproj -c "$NINO_CONFIG"
+          runtime=./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime
+          cp "./src/Nino.Core/bin/$NINO_CONFIG/netstandard2.1/Nino.Core.dll" "$runtime/"
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
-          cp "./src/Nino.Generator/bin/$CONFIG/netstandard2.0/Nino.Generator.dll" ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+          cp "./src/Nino.Generator/bin/$NINO_CONFIG/netstandard2.0/Nino.Generator.dll" "$runtime/"
           # Code fixes, for Rider and Visual Studio: Unity lists RoslynAnalyzer DLLs in the projects it generates.
-          cp "./src/Nino.Generator.CodeFixes/bin/$CONFIG/netstandard2.0/Nino.Generator.CodeFixes.dll" ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.CodeFixes.dll
-          cp "./src/Nino.UnityTypes/bin/$CONFIG/netstandard2.1/Nino.UnityTypes.dll" ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
-          echo "NINO_CONFIG=$CONFIG" >> "$GITHUB_ENV"
+          cp "./src/Nino.Generator.CodeFixes/bin/$NINO_CONFIG/netstandard2.0/Nino.Generator.CodeFixes.dll" "$runtime/"
+          cp "./src/Nino.UnityTypes/bin/$NINO_CONFIG/netstandard2.1/Nino.UnityTypes.dll" "$runtime/"
 
       # Keyed by the project's sources, not by the DLLs the step above built into Packages: those differ in every
       # commit, so every run missed the key and saved another 800 MB per version, which pushed the other caches out
@@ -279,6 +281,9 @@ jobs:
     needs: unity-tests
     runs-on: ubuntu-26.04
     timeout-minutes: 60
+    env:
+      # The player as it ships.
+      NINO_CONFIG: Release
     strategy:
       fail-fast: false
       # One version after the other, as unity-tests: the build activates the license.
@@ -296,19 +301,9 @@ jobs:
           ref: ${{ inputs.ref || '' }}
           persist-credentials: false
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: 10.0.x
+      - *setup-dotnet
 
-      - name: Build the DLLs Unity loads
-        run: |
-          dotnet build src/Nino.Core/Nino.Core.csproj -c Release -f netstandard2.1
-          dotnet build src/Nino.Generator/Nino.Generator.csproj -c Release
-          dotnet build src/Nino.UnityTypes/Nino.UnityTypes.csproj -c Release
-          cp ./src/Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
-          cp ./src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
-          cp ./src/Nino.UnityTypes/bin/Release/netstandard2.1/Nino.UnityTypes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
+      - *build-dlls
 
       - name: Set the IL2CPP arguments
         if: matrix.il2cpp_args != ''
