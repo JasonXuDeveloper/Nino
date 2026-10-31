@@ -301,60 +301,11 @@ mod indexmap_impl {
         Some(m.downcast_mut::<IndexMap<K, V, S>>()?.get_index_mut(i)?.1 as &mut dyn Any)
     }
 
-    /// A dictionary in wire order (so writing it back gives the same bytes): its length, then each key and value.
-    /// A repeated key is rejected.
-    impl<K, V, S> NinoRead for IndexMap<K, V, S>
-    where
-        K: NinoRead + Eq + Hash,
-        V: NinoRead,
-        S: BuildHasher + Default + 'static,
-    {
-        const MAY_DEFER: bool = V::MAY_DEFER;
-        const MIN_SIZE: usize = 4;
-
-        fn read(r: &mut Reader<'_>) -> Result<Self> {
-            Self::read_option(r)?.ok_or_else(Error::null)
-        }
-
-        fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
-            let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
-            let mut map = IndexMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
-            fill_map(&mut map, r, count)?;
-            Ok(Some(map))
-        }
-
-        /// Cleared and refilled, keeping its buffer.
-        fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
-            let count = r.length_not_null(K::MIN_SIZE.saturating_add(V::MIN_SIZE))?;
-            refill_map(self, r, count)
-        }
-
-        fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
-            let Some(map) = slot else {
-                *slot = Self::read_option(r)?;
-                return Ok(());
-            };
-            match r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? {
-                None => *slot = None,
-                Some(count) => refill_map(map, r, count)?,
-            }
-            Ok(())
-        }
-    }
-
-    /// Empties `map` and reads `count` entries into it, keeping its buffer when it has room.
-    fn refill_map<K, V, S>(map: &mut IndexMap<K, V, S>, r: &mut Reader<'_>, count: usize) -> Result<()>
-    where
-        K: NinoRead + Eq + Hash,
-        V: NinoRead,
-        S: BuildHasher + Default + 'static,
-    {
-        map.clear();
-        if map.capacity() < count {
-            map.reserve(r.capacity::<(K, V)>(count));
-        }
-        fill_map(map, r, count)
-    }
+    crate::impls::map!(
+        /// A dictionary in wire order (so writing it back gives the same bytes): its length, then each key and
+        /// value. A repeated key is rejected.
+        IndexMap, fill_map, Eq + Hash
+    );
 
     /// Reads `count` entries into `map` (empty); a key read twice is an error.
     #[inline]

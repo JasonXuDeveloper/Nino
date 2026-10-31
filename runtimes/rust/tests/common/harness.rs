@@ -97,6 +97,21 @@ pub fn unhex(s: &str) -> Vec<u8> {
     (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect()
 }
 
+/// Checks the bytes a valid case `name` was `written` back as: its own `bytes`, or its `reencoded` ones when the case
+/// does not round-trip. `None` when they match, else the failure to report.
+pub fn written_back(name: &str, case: &Value, bytes: &[u8], written: &[u8]) -> Option<String> {
+    let expected = if case["roundTrip"] == true { bytes.to_vec() } else { unhex(case["reencoded"].as_str().unwrap()) };
+    if written == expected {
+        return None;
+    }
+    let at = written.iter().zip(&expected).position(|(a, b)| a != b).unwrap_or(written.len().min(expected.len()));
+    Some(format!(
+        "{name}: written back differently ({} bytes, {} expected, first difference at {at})",
+        written.len(),
+        expected.len()
+    ))
+}
+
 // ---------------------------------------------------------------------------------------------- mutations
 
 /// xorshift64*: deterministic, so a failure reproduces from its seed and iteration.

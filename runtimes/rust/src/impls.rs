@@ -1009,59 +1009,65 @@ pub(crate) fn fill_set<T: NinoRead, S: FillSet<T>>(set: &mut S, r: &mut Reader<'
 set!(HashSet, Eq + Hash);
 set!(BTreeSet, Ord);
 
-/// A dictionary: its length, then each key and value. A repeated key is rejected.
-impl<K, V, S> NinoRead for HashMap<K, V, S>
-where
-    K: NinoRead + Eq + Hash + Clone,
-    V: NinoRead,
-    S: BuildHasher + Default + 'static,
-{
-    const MAY_DEFER: bool = V::MAY_DEFER;
-    const MIN_SIZE: usize = 4;
+/// `NinoRead` for a hash map type `$map<K, V, S>` whose keys have `$bound`: its length, then each key and value, read
+/// into an empty map by `$fill(map, r, count)` (which rejects a repeated key); read into an existing map, it is cleared
+/// and refilled, keeping its buffer. One body for `HashMap` and `IndexMap` (convert.rs).
+macro_rules! map {
+    ($(#[$doc:meta])* $map:ident, $fill:ident, $($bound:tt)*) => {
+        $(#[$doc])*
+        impl<K, V, S> NinoRead for $map<K, V, S>
+        where
+            K: NinoRead + $($bound)*,
+            V: NinoRead,
+            S: BuildHasher + Default + 'static,
+        {
+            const MAY_DEFER: bool = V::MAY_DEFER;
+            const MIN_SIZE: usize = 4;
 
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        Self::read_option(r)?.ok_or_else(Error::null)
-    }
+            fn read(r: &mut Reader<'_>) -> Result<Self> {
+                Self::read_option(r)?.ok_or_else(Error::null)
+            }
 
-    fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
-        let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
-        let mut map = HashMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
-        fill_hash_map(&mut map, r, count)?;
-        Ok(Some(map))
-    }
+            fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
+                let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
+                let mut map = $map::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
+                $fill(&mut map, r, count)?;
+                Ok(Some(map))
+            }
 
-    /// Cleared and refilled, keeping its buffer.
-    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        let count = r.length_not_null(K::MIN_SIZE.saturating_add(V::MIN_SIZE))?;
-        refill_hash_map(self, r, count)
-    }
+            /// Cleared and refilled, keeping its buffer.
+            fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+                let count = r.length_not_null(K::MIN_SIZE.saturating_add(V::MIN_SIZE))?;
+                $crate::impls::map!(@refill self, r, count, $fill)
+            }
 
-    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
-        let Some(map) = slot else {
-            *slot = Self::read_option(r)?;
-            return Ok(());
-        };
-        match r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? {
-            None => *slot = None,
-            Some(count) => refill_hash_map(map, r, count)?,
+            fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+                let Some(map) = slot else {
+                    *slot = Self::read_option(r)?;
+                    return Ok(());
+                };
+                match r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? {
+                    None => *slot = None,
+                    Some(count) => $crate::impls::map!(@refill map, r, count, $fill)?,
+                }
+                Ok(())
+            }
         }
-        Ok(())
-    }
+    };
+    (@refill $map:expr, $r:expr, $count:expr, $fill:ident) => {{
+        $map.clear();
+        if $map.capacity() < $count {
+            $map.reserve($r.capacity::<(K, V)>($count));
+        }
+        $fill($map, $r, $count)
+    }};
 }
+pub(crate) use map;
 
-/// Empties `map` and reads `count` entries into it, keeping its buffer when it has room.
-fn refill_hash_map<K, V, S>(map: &mut HashMap<K, V, S>, r: &mut Reader<'_>, count: usize) -> Result<()>
-where
-    K: NinoRead + Eq + Hash + Clone,
-    V: NinoRead,
-    S: BuildHasher + Default + 'static,
-{
-    map.clear();
-    if map.capacity() < count {
-        map.reserve(r.capacity::<(K, V)>(count));
-    }
-    fill_hash_map(map, r, count)
-}
+map!(
+    /// A dictionary: its length, then each key and value. A repeated key is rejected.
+    HashMap, fill_hash_map, Eq + Hash + Clone
+);
 
 /// Reads `count` entries into `map` (empty); a key read twice is an error.
 #[inline]

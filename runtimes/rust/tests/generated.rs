@@ -21,7 +21,7 @@ mod shapes;
 #[path = "common/harness.rs"]
 mod harness;
 
-use harness::{allowance, corpus, corpus_or_skip, measured, on_large_stack, read_json, unhex, Rng};
+use harness::{allowance, corpus, corpus_or_skip, measured, on_large_stack, read_json, written_back, Rng};
 
 use nino::{NinoRead, NinoWrite};
 use nino_types::{with_nino_type, NinoVisit};
@@ -85,19 +85,8 @@ fn run() {
         match result {
             Err(e) => failures.push(format!("{name}: read or write failed: {e:?}")),
             Ok(written) => {
-                let expected =
-                    if case["roundTrip"] == true { bytes.clone() } else { unhex(case["reencoded"].as_str().unwrap()) };
-                if written != expected {
-                    let at = written
-                        .iter()
-                        .zip(&expected)
-                        .position(|(a, b)| a != b)
-                        .unwrap_or(written.len().min(expected.len()));
-                    failures.push(format!(
-                        "{name}: written back differently ({} bytes, {} expected, first difference at {at})",
-                        written.len(),
-                        expected.len()
-                    ));
+                if let Some(failure) = written_back(name, &case, &bytes, &written) {
+                    failures.push(failure);
                     continue;
                 }
                 passed += 1;
