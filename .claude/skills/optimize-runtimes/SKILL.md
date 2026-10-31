@@ -170,6 +170,17 @@ runtime: `optimize`, "Prefetch"). How to measure on runners is `benchmark` (runt
   `HashSet<int>` of 1,000 4-9 % in deserialize on runners (run 41042990902, Node and Chromium). Keep a loop of `add`
   for a fresh set: reading the elements into an array and building `new Set(elements)` was 10 % faster locally and
   0.87-0.99 of the time in Chromium, but 1.06-1.15 in Node 24 on every CPU (run 41067631023), so it was not landed.
+  Why Chromium differs: its V8 compresses pointers, so Smis are 31-bit and an int32 at or above 2^30 is a heap
+  number, while Node's are 32-bit. `Set.prototype.add` is slow on keys that mix Smis and heap numbers (the bench's
+  `rng.Next()` values, half of them past 2^30), and the constructor's loop over a double array is not. Locally, 20
+  sets of 1,000 (Chromium 141, the runners' Playwright 1.56.1, and 153 alike): `add` loop 1,340 us mixed, 1,050 all
+  past 2^30, 800 all under it; `new Set(array)` 1,000-1,040 in all three, so it loses 30 % on small ints, which most
+  real sets hold. Node 24 (all Smis): the constructor 1,060 against 810. Making it pay would take an engine check
+  (no JavaScript semantics show the Smi width) plus a per-set range check, for a win in Chromium on this data only,
+  so the `add` loop stays. Main against msgpackr (run 41198256082, medians of jobs, msgpackr time over Nino's):
+  Chromium 1.05 EPYC 7763, 0.96 9V45, 1.00 9V74, 0.95 Xeon 6973P (one job), 1.00 8370C, 1.07 Neoverse-N2; Node
+  1.07-1.14 on every CPU; StringSet 1.16-1.28 in both engines. msgpackr reads an array and the bench makes it a Set
+  with the constructor, so in Chromium it gets the fast path on exactly this data.
 - Rust: a sealed class's forwarding methods with `#[inline]` (`nino::sealed_read!` / `sealed_write!`, as the derive
   had them and the template did not) read records-1000 2.0-4.3 % and wrote it 2.0-9.2 % faster on EPYC 7763, 9V45 and
   Neoverse-N2 (run 41042990902; floor -2.1 to +0.7 %).
