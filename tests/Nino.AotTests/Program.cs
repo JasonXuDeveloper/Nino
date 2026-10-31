@@ -184,6 +184,18 @@ public class Frozen
     public ImmutableSortedDictionary<int, string> SortedMap;
 }
 
+// Collections that hold themselves: each level is the generated nesting formatter, a direct call that counts the depth.
+public sealed class SelfTree : List<SelfTree> { }
+
+public sealed class SelfMap : Dictionary<string, SelfMap> { }
+
+[NinoType]
+public sealed class SelfHolder
+{
+    public SelfTree Tree;
+    public SelfMap Map;
+}
+
 public static class Program
 {
     private static int _failures;
@@ -294,6 +306,25 @@ public static class Program
         var boxed = NinoSerializer.SerializeBoxed(new Circle { Radius = 6 }, typeof(Shape));
         var ub = NinoDeserializer.DeserializeBoxed(boxed, typeof(Shape));
         Check(ub is Circle { Radius: 6 }, "boxed serialize/deserialize");
+
+        var tree = new SelfTree { new SelfTree { new SelfTree() }, new SelfTree() };
+        var self = NinoDeserializer.Deserialize<SelfHolder>(Ser(new SelfHolder
+            { Tree = tree, Map = new SelfMap { ["a"] = new SelfMap { ["b"] = new SelfMap() } } }));
+        var topTree = NinoDeserializer.Deserialize<SelfTree>(Ser(tree));
+        Check(self.Tree.Count == 2 && self.Tree[0][0].Count == 0 && self.Map["a"]["b"].Count == 0 &&
+              topTree[0].Count == 1, "collections that hold themselves");
+        var deep = new byte[4 * 100_000 + 4];
+        for (int i = 0; i < 100_000; i++)
+            deep[4 * i] = 1;
+        try
+        {
+            NinoDeserializer.Deserialize<SelfTree>(deep);
+            Check(false, "self-holding collection nested past MaxDepth throws");
+        }
+        catch (NinoDataException)
+        {
+            Check(true, "self-holding collection nested past MaxDepth throws");
+        }
 
         var lst = NinoDeserializer.Deserialize<List<Dictionary<string, int[]>>>(Ser(new List<Dictionary<string, int[]>> { new() { ["q"] = new[] { 1 } } }));
         Check(lst[0]["q"][0] == 1, "top-level nested built-in collections");

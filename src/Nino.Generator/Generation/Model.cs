@@ -196,7 +196,9 @@ internal sealed record RegistrationModel(
     // Closed generic [NinoType]s the type names (member types, base types), registered by type id.
     EquatableArray<TypeRegistration> GenericTypes,
     // Unmanaged structs whose layout the runtime measures (LayoutTypes), for the registry's [DynamicDependency].
-    EquatableArray<string> LayoutTypes);
+    EquatableArray<string> LayoutTypes,
+    // The nesting formatters its formatters name (FormatterResolver.Nesting), declared once per assembly.
+    EquatableArray<NestingModel> Nesting);
 
 internal sealed record TypeModel(
     // Fully qualified type, e.g. "global::Ns.Outer.Box<T>".
@@ -440,7 +442,12 @@ internal sealed record TypeRegistration(string TypeName, string Formatter, int I
 // A top-level NinoSerializer/NinoDeserializer call: the formatter of its type and the creators that formatter needs
 // (null when the type is a [NinoType]), and the closed generic [NinoType]s its type names.
 internal sealed record UsageRegistration(FormatterRegistration? Formatter, EquatableArray<FactoryRegistration> Factories,
-    EquatableArray<TypeRegistration> GenericTypes, EquatableArray<string> LayoutTypes);
+    EquatableArray<TypeRegistration> GenericTypes, EquatableArray<string> LayoutTypes,
+    EquatableArray<NestingModel> Nesting);
+
+// The formatter of a type that holds itself through collections (FormatterResolver.NestingFormatter): the struct
+// Name (in NinoGen) counts a level of TypeName and calls Body, which names Name again for the elements.
+internal sealed record NestingModel(string Name, string TypeName, string Body);
 
 // A generated formatter, as the registry lists it. Arity: its number of type parameters (0 if not generic).
 // Registration: how the registry registers it (non-generic types only, else null).
