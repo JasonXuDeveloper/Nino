@@ -26,8 +26,9 @@ Nino.Codegen.Tests/          nino-gen: the IR (ModelTests), targets and command 
                              contract, and GeneratedFilesTests: the files committed under runtimes/ are what nino-gen
                              writes (NINO_UPDATE_GENERATED=1 rewrites them); Shapes.cs: shapes the corpus lacks
 Nino.Codegen.Integration.Tests/  build/Nino.Codegen.targets in real builds (BuildTests), and the generated
-                             TypeScript (TypeScriptTests, harness.ts under Node), Go and Rust (GoTests, RustTests in
-                             GenericSamples.cs) against the bytes .NET writes for Samples.cs
+                             TypeScript (TypeScriptTests, harness.ts under Node), Go (GoTests) and Rust (RustTests)
+                             against the bytes .NET writes for Samples.cs; GenericSamples.cs: the generic values and
+                             the helpers the Go and Rust tests share
 Nino.Fuzz/                   the deserializer fuzzer (README.md): fuzz (mutations under a supervisor, guard pages,
                              Invariants.cs, StaleMemory.cs: freed memory left by rejected reads), probes (deep nesting,
                              colliding keys), selftest, repro, list, libfuzzer/ (SharpFuzz driver, run.sh); Golden/
