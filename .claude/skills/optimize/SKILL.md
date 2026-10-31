@@ -299,6 +299,14 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   call. The .NET 8+ FullOpts listings stayed identical (1,048 methods). No call at all needs the loop inside the
   formatter (a public `INinoBlockFormatter` member, the owner's decision).
 
+- Leave the one indirect call a top-level call makes in shared generic code (T a class, the caller not inlined with T
+  exact: `NinoDeserializer.Deserialize<__Canon>`'s `INinoRawArrayFormatter.Read`, `NinoTopFormatter<T>.Formatter`'s
+  virtual members): which formatter runs is known only from the generic dictionary there, so every form (an interface,
+  a virtual on an abstract class, a `delegate*` in a static field) is an indirect call, once per top-level call and not
+  per element, and callers with T exact (interceptors, Tier1 code that inlines the call) read the `static readonly`
+  field as its exact type and inline it. A per-element or per-value interface or virtual call where the type is known
+  is the one to remove (round 103: kept after review; no form without an indirect call exists).
+
 - Hold native kernels as function pointers in static fields, never behind a virtual base: `NinoKernels` is a table of
   `delegate* unmanaged[Cdecl]` that `Register` copies into `NinoKernelHook`'s static fields, a missing pointer leaves
   its threshold at `int.MaxValue`, so a call site is one static load, a compare and a `calli` (IL2CPP: a C function
