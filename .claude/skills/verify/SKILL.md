@@ -9,6 +9,9 @@ metadata:
 
 Run what the change touches; before a release, all of it. Every command runs under `flock -o /tmp/nino-heavy.lock`
 when other agents share the machine, after `export PATH=$HOME/.dotnet:$HOME/go/bin:$PATH DOTNET_ROOT=$HOME/.dotnet`.
+With the lock shared, run a long series as one detached script (`setsid nohup script.sh &`, each step under the
+lock, an exit line per step in a log, a done file at the end) and wait on the done file: a background task is killed
+at its time limit while it still waits for the lock (round 103 lost a fuzz series and a test run that way).
 
 ## .NET
 
