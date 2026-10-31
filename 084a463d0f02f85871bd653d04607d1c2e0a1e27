@@ -1,0 +1,1 @@
+Added: TypeScript (breaking): the `NinoReader` method generated code calls to read a presence byte is `present` (was `notNull`), with `presentAt` for a presence byte at a given offset, and the subtype registry is `NinoSubtypes` (was `NinoRegistry`); regenerate code an earlier nino-gen or Nino.TypeScript wrote.
