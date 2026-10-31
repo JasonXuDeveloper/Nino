@@ -292,7 +292,7 @@ public unsafe class TupleCostProbe
 
     private static readonly byte* Base = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
     private static readonly byte* Stores = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
-    private (int, long)[] _values;
+    private (int, long)[] _values = Array.Empty<(int, long)>();
     private readonly NinoArrayBufferWriter _nino = new(1 << 16);
     private readonly System.Buffers.ArrayBufferWriter<byte> _memoryPack = new(1 << 16);
 
