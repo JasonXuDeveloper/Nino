@@ -2,7 +2,7 @@
 
 use crate::defer::WriteDeferrals;
 use crate::error::{Error, ErrorKind, Result};
-use crate::reader::{DEPTH_INLINE, DEPTH_MAX};
+use crate::reader::{INLINE_DEPTH, MAX_DEPTH};
 use crate::traits::{NinoWrite, NinoWriteBody};
 
 /// Writes values in Nino's format into a growing buffer (amortized doubling, as `Vec` grows), with no allocation
@@ -283,7 +283,7 @@ impl<'a> Writer<'a> {
     #[inline]
     pub fn write_class<T: NinoWriteBody>(&mut self, value: &'a T) -> Result<()> {
         let depth = self.depth;
-        if depth >= DEPTH_INLINE {
+        if depth >= INLINE_DEPTH {
             return self.write_class_deep(value);
         }
         self.write_body_at(value, depth)
@@ -297,7 +297,7 @@ impl<'a> Writer<'a> {
             let (position, regions) = (self.position(), self.regions);
             return self.defer.get_or_insert_with(Default::default).defer(value, position, regions);
         }
-        if depth >= DEPTH_MAX {
+        if depth >= MAX_DEPTH {
             return Err(Error::of(ErrorKind::TooDeep));
         }
         self.write_body_at(value, depth)

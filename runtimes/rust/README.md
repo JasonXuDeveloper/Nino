@@ -49,7 +49,7 @@ The reader assumes the input may be hostile. What every runtime guarantees is in
 - It never panics, never reads out of bounds, and returns either the whole value or an `Error`. A panic is a bug,
   whatever the input.
 - It recurses at most 128 class bodies deep. Deeper bodies are deferred onto a heap work list, as .NET defers them.
-  It stops at 512 nested bodies (`DEPTH_MAX`, `ErrorKind::TooDeep`).
+  It stops at 512 nested bodies (`MAX_DEPTH`, `ErrorKind::TooDeep`).
 - Memory is bounded by the input:
   - Up-front allocation for collections comes from one budget per read: 16 bytes per input byte, plus 4 KiB.
   - A collection whose count the remaining input cannot fill fails before it allocates (`InvalidLength`).

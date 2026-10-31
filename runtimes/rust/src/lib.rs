@@ -46,7 +46,7 @@ mod writer;
 pub use defer::Step;
 pub use error::{Error, ErrorKind, Result};
 pub use impls::dyn_step;
-pub use reader::{Reader, Region, DEPTH_INLINE, DEPTH_MAX};
+pub use reader::{Reader, Region, INLINE_DEPTH, MAX_DEPTH};
 pub use shared::Shared;
 pub use traits::{decode_next, encode_next, fixed_size, NinoRead, NinoReadBody, NinoWrite, NinoWriteBody};
 pub use types::{

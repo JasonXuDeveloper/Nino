@@ -12,9 +12,9 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::traits::{NinoRead, NinoReadBody};
 
 /// Open class bodies after which the next deferrable one is deferred (`NinoDepth.Inline`).
-pub const DEPTH_INLINE: u32 = 128;
+pub const INLINE_DEPTH: u32 = 128;
 /// Open bodies after which reading or writing fails, for types that cannot be deferred (`NinoDepth.Max`).
-pub const DEPTH_MAX: u32 = 512;
+pub const MAX_DEPTH: u32 = 512;
 /// Bytes of memory collections may allocate up front per byte of input.
 const PREALLOCATION: usize = 16;
 /// Set in the length of a region followed by a section of deferred bodies.
@@ -480,7 +480,7 @@ impl<'d> Reader<'d> {
     #[inline]
     pub fn read_class<T: NinoReadBody>(&mut self) -> Result<T> {
         let depth = self.depth;
-        if depth >= DEPTH_INLINE {
+        if depth >= INLINE_DEPTH {
             return self.read_class_deep();
         }
         self.read_body_at(depth)
@@ -496,7 +496,7 @@ impl<'d> Reader<'d> {
             self.deferrals().defer::<T>(position, regions);
             return Ok(T::default());
         }
-        if depth.saturating_add(self.structs) >= DEPTH_MAX {
+        if depth.saturating_add(self.structs) >= MAX_DEPTH {
             return Err(Error::of(ErrorKind::TooDeep));
         }
         self.read_body_at(depth)
@@ -517,7 +517,7 @@ impl<'d> Reader<'d> {
     #[inline]
     pub fn read_class_into<T: NinoReadBody>(&mut self, value: &mut T) -> Result<()> {
         let depth = self.depth;
-        if depth >= DEPTH_INLINE {
+        if depth >= INLINE_DEPTH {
             *value = self.read_class_deep()?;
             return Ok(());
         }
@@ -582,7 +582,7 @@ impl<'d> Reader<'d> {
     #[inline]
     fn read_class_boxed<T: NinoReadBody>(&mut self) -> Result<Box<T>> {
         let depth = self.depth;
-        if depth >= DEPTH_INLINE {
+        if depth >= INLINE_DEPTH {
             return self.read_class_deep().map(Box::new);
         }
         let mut value = Box::<T>::default();
@@ -636,7 +636,7 @@ impl<'d> Reader<'d> {
     #[inline]
     pub fn enter_struct(&mut self) -> Result<()> {
         self.structs = self.structs.saturating_add(1);
-        if self.structs.saturating_add(self.depth) > DEPTH_MAX {
+        if self.structs.saturating_add(self.depth) > MAX_DEPTH {
             return Err(Error::of(ErrorKind::TooDeep));
         }
         Ok(())

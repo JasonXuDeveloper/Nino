@@ -20,7 +20,7 @@ use core::any::Any;
 use std::rc::Rc;
 
 use crate::error::{Error, ErrorKind, Result};
-use crate::reader::{take_i32, Reader, Region, DEPTH_INLINE};
+use crate::reader::{take_i32, Reader, Region, INLINE_DEPTH};
 use crate::shared::Shared;
 use crate::traits::{NinoReadBody, NinoWriteBody};
 use crate::writer::Writer;
@@ -210,7 +210,7 @@ impl ReadDeferrals {
 
 /// The depth a body from a section is read and written at (`NinoDepth.Deferred`).
 fn section_depth(depth: u32) -> u32 {
-    depth.min(DEPTH_INLINE.saturating_sub(1)).saturating_add(1)
+    depth.min(INLINE_DEPTH.saturating_sub(1)).saturating_add(1)
 }
 
 /// Reads the body of pending item `i` with `read` (which positions the reader), and records the deferrals made

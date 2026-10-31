@@ -76,7 +76,7 @@ Generated files: `tests/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 do
 - Allocation: a collection reserves `r.capacity::<T>(count)`, never `count` itself: the per-read budget (16 bytes per
   input byte plus 4 KiB) stops nested collections each pre-allocating against the same bytes (the fuzz found that).
   Check a count against the bytes left (`length(min_size)`) before reading elements.
-- Depth: class bodies recurse up to `DEPTH_INLINE` and are deferred past it, as .NET does; structs count toward the
+- Depth: class bodies recurse up to `INLINE_DEPTH` and are deferred past it, as .NET does; structs count toward the
   limit through `enter_struct`/`exit_struct`. Never add a recursive path that skips them.
 - Stricter than .NET, never looser: reject what .NET never writes (bools other than 0/1, out-of-range dates, decimal
   flags, non-minimal BigInteger, raw padding, duplicate keys, malformed sections), and read everything it writes.

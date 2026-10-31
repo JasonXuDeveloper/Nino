@@ -24,7 +24,7 @@ use core::fmt;
 use std::rc::Rc;
 
 use crate::error::{Error, ErrorKind, Result};
-use crate::reader::{Reader, DEPTH_INLINE, DEPTH_MAX};
+use crate::reader::{Reader, INLINE_DEPTH, MAX_DEPTH};
 use crate::traits::{NinoRead, NinoReadBody, NinoWrite, NinoWriteBody};
 use crate::writer::Writer;
 
@@ -156,13 +156,13 @@ impl Reader<'_> {
         let any: Rc<dyn Any> = shared.0.clone();
         self.deferrals().refs.push(any);
         let depth = self.depth;
-        if depth >= DEPTH_INLINE {
+        if depth >= INLINE_DEPTH {
             if T::DEFERRABLE {
                 let position = self.position();
                 self.deferrals().defer_shared::<T>(position);
                 return Ok(shared);
             }
-            if depth.saturating_add(self.structs) >= DEPTH_MAX {
+            if depth.saturating_add(self.structs) >= MAX_DEPTH {
                 return Err(Error::of(ErrorKind::TooDeep));
             }
         }
