@@ -117,8 +117,7 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   `static readonly` field is a load, not a constant (ILC does not preinitialize `NinoTopFormatter<T>.Formatter`: its
   initializer runs the registry), so the call through it is virtual. The round 104 inventory beyond the JIT's
   (NativeAOT listings of the whole suite, `Reading the listings`; IL2CPP C++ of unity.yml run 40969941689): per value,
-  (1) `CachedFormatter<T>` of a `[NinoType]` generated in another assembly, or of a collection that holds itself
-  without a `[NinoType]` body (`SelfTree : List<SelfTree>`, counted by `NestingFormatter`): a virtual call on
+  (1) `CachedFormatter<T>` of a `[NinoType]` generated in another assembly: a virtual call on
   NativeAOT, a `VirtualActionInvoker` on IL2CPP, a virtual call on Mono; locally under NativeAOT 1,000 classes of
   another assembly as an array member serialized in 1.5 times and read in 1.37 times the time of the same class
   declared in the calling assembly, on par under the JIT (local numbers, to choose only). The direct form names the
@@ -127,7 +126,18 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   public formatters would add generated types to every user's public API; and nothing reaches a type from an
   assembly loaded at run time (HybridCLR hot updates), which only polymorphism or the registry sees. The docs site's
   build configuration page advises declaring heavily serialized types in the serializing assembly instead. The benchmark suite has no such member (its DLL
-  names `CachedFormatter` nowhere). (2) Shared generic code where a formatter's type argument holds a class
+  names `CachedFormatter` nowhere). A collection that holds itself without a `[NinoType]` body (`SelfTree : List<SelfTree>`,
+  `Map : Dictionary<string, Map>`) was in this row too and is fixed: the generator writes a struct per such type
+  (`NinoGen.Nesting.g.cs`, `FormatterResolver.NestingFormatter`: `EnterStruct`, the type's formatter, `ExitStruct`),
+  and that formatter's elements name the struct, since a named struct can name itself where a type argument cannot.
+  `CachedFormatter<T>` was not devirtualized by the JIT there either: `T` is a class, so
+  `ListFormatter<__Canon, __Canon, CachedFormatter<__Canon>>` is shared code everywhere, a dictionary call per
+  element (`call [r12-2]`), the generic static base helper and a virtual jump, and `RawFormatter.Is` /
+  `FixedSize` stayed calls per list; NativeAOT's level went from 826 bytes with four indirect calls to one 309-byte
+  method calling itself directly. On runners (.NET A/B run 41253800850, `CollectionsTest.*SelfTree`, 5,461
+  lists, head 70fe1544 against its bench base, base-vs-base floors 0.99-1.01, MemoryPack's rows 0.99-1.01 as the null
+  control) serialize took 0.35 (EPYC 7763, n=36) to 0.42 (Xeon 8573C) of the time and deserialize 0.52 (Neoverse-N2)
+  to 0.58 (EPYC 9V74), the JIT included. (2) Shared generic code where a formatter's type argument holds a class
   (`NinoElements.ReadEach` over `Box<(class, int)>`): the element's `Deserialize` is found in the generic dictionary,
   a fat-pointer call per element on NativeAOT, `call rax` at Tier1, `il2cpp_rgctx_method` on IL2CPP: no direct form.
   (3) The netstandard builds' block loops (`NinoBlockCollections.WriteValue`/`ReadValue` through
