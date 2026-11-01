@@ -15,6 +15,11 @@ them is deliberate, complete in one landing, and called out.
 - Ask whether the owner wants it: a wire-format change nobody asked for is the owner's decision.
 - Compare candidate encodings by size and speed in every runtime (a decoder that is fast in .NET but branchy in Go or
   TypeScript is not a win), and keep the format canonical: one encoding per value, so readers can reject the rest.
+- Never give a type whose size depends on the host an encoding: refuse it, in the analyzer and at run time, and
+  document a fixed-size form instead (the owner's rule). No bytes of it read everywhere: a 32-byte draft encoding of
+  `System.Numerics.Vector<T>` (16, 32 or 64 bytes, chosen by the CPU) made x64 data unreadable on Arm64 and in Unity,
+  so it is refused (NINO029, `NotSupportedException`) and the fixed-lane form is in docs/pitfalls.md
+  (`tests/Nino.UnitTests.Subset/VectorLanes.cs`). How to test each width is `platforms`'.
 
 ## Everything that changes with it
 

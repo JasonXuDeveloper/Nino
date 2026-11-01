@@ -64,7 +64,30 @@ is a finding, and so is a page that teaches a feature before the one it builds o
 4. **Numbers**: never typed. Runtime numbers only through `BenchValue`, `RuntimeTable`, `ResultsTable`,
    `BenchmarkChart`, `RuntimesTables`, `UnityTables` from the synced data; within 5 % is on par and is written so; the
    docs never call Nino "slower"; v3 means 3.3.13.
-5. **Chinese**: the same content and structure as English, written natively (`WRITING.md`, Tone: Chinese), headings
+5. **Form: the most efficient one, prose last** (the owner: "docs must be intuitive, not necessarily many words").
+   Rewrite every section a table, a support matrix (`<Matrix>`), a byte figure (`<Bytes>`), a Mermaid diagram,
+   `<Steps>`, code-block tabs, a `TypeTable` or a `Files` tree shows faster; keep prose for why, trade-offs and
+   caveats. Readers scan, and a paragraph of facts hides the one they look for. Round 105: the security page's list
+   of rejected inputs became one default-versus-`Untrusted` matrix, the evolving-data and vs-memorypack ✓/✗ tables
+   matrices, an ASCII `length | Id | CustomerId` comment a v1/v2 byte figure. How each form is written is nino.docs'
+   `WRITING.md`, "Visual forms".
+   - **Re-read Fumadocs' component and MDX-plugin list for the site's version in every docs pass** (fumadocs-ui and
+     fumadocs-core in its package.json, their `dist/components` and `dist/mdx-plugins`) and adopt what fits a
+     prerendered site with Markdown copies: most of the value was installed and unused (round 105, 16.17.3: code-block
+     tabs replaced 34 `<Tabs>` that only wrapped fences; `remarkSteps` was rejected because it runs after
+     `remarkHeading`, whose ids and TOC keep the `[step]` tag).
+   - **Colour only in byte figures and matrices**: the five calm category tints (`--nino-cat-1` to `-5`, light and
+     dark, fixed meanings) are allowed there and nowhere else, where the single accent stays (the owner's decision,
+     round 105); a page's meaning never depends on colour alone (the Markdown copy has none).
+   - **Diagrams are Mermaid, drawn at build time** (EasyEcs docs' way: `rehypeMermaid` in Playwright's Chromium,
+     cached per page by sha256 of Mermaid's version, the options and the diagrams, in memory and in
+     `node_modules/.cache/mermaid`; the page loads no Mermaid, the Markdown copy keeps the source): small flowcharts,
+     Chinese labels on Chinese pages, never hand-drawn SVG. The cache is what keeps local builds fast; Cloudflare
+     Pages keeps no `node_modules/.cache` for a React Router site, so its builds draw every diagram (measured in
+     round 105: nino.docs AGENTS.md, Build & Deploy).
+   - **Byte figures come from the specification's worked examples** (Appendix A, dumps of a real run) or from its
+     rules checked against them, never from memory.
+6. **Chinese**: the same content and structure as English, written natively (`WRITING.md`, Tone: Chinese), headings
    with the English id (`## 键控成员 [#keyed-members]`), links with the same anchors.
 
 ## 3. Across pages and repositories
@@ -73,7 +96,10 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   skill do not repeat each other's long sections; README summarizes and links the site. Within `docs/`, the page that
   explains a pitfall owns its example: the `Vector<T>` fixed-lane class was copied whole into diagnostics.md, layouts.md
   and the public skill; pitfalls.md keeps it, the others a sentence and a link, and the public skill, installed without
-  the repository, one compact form of it and a link to the site.
+  the repository, one compact form of it and a link to the site. A list of per-host facts has one home too: which host
+  has which `Vector<T>` width is only in the spec's §3; every other page says "16, 32 or 64 bytes, chosen by the
+  CPU" and links it (round 105 found three different lists, one of them "16 or 32"), and the measured BCL layouts are
+  only in docs/layouts.md and the site's struct-layouts page.
   For code generation: the site's codegen page owns the user guide (options and their naming rules, type mapping,
   per-language usage, generics, reference tracking, untrusted data, what is not generated); each `runtimes/*/README.md`
   owns its install, API reference and implementation notes and links the guide; `docs/codegen.md` is for
