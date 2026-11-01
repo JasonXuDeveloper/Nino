@@ -50,7 +50,7 @@ namespace Nino.Codegen.Model
                         },
                     };
                 // Vector<T> and reference types have no canonical layout.
-                return type.IsValueType && !IsVariableVector(type) ? NinoLeaf.None : NinoLeaf.Unsupported;
+                return type.IsValueType && !CodegenModel.IsVariableVector(type) ? NinoLeaf.None : NinoLeaf.Unsupported;
             }
 
             public bool Struct(Type type, List<KeyValuePair<Type, int>> fields, out LayoutKind kind, out int pack,
@@ -108,9 +108,6 @@ namespace Nino.Codegen.Model
                         _ => 0,
                     }
                     : 0;
-
-            private static bool IsVariableVector(Type type) =>
-                type.IsGenericType && type.GetGenericTypeDefinition().FullName == "System.Numerics.Vector`1";
         }
     }
 }

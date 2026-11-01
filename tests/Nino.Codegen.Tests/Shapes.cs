@@ -1,6 +1,11 @@
 using System.Collections.Generic;
 using Nino.Core;
 
+// A layout as a Nino generator before spec 4.4 could publish it for a member of Vector<T>, which no runtime reads
+// since (Vector<T> is not serializable: spec 3): nino-gen leaves the type out (Shapes.OldVector).
+[assembly: NinoTypeLayout(typeof(Shapes.OldVector), NinoFormat.Positional, NinoHeader.NullFlag, false, false, 0x0BADF00D,
+    "Lanes:System.Numerics.Vector<int>:raw(16){_00:ulong@0:raw(8),_01:ulong@8:raw(8)}")]
+
 // Shapes of types the conformance corpus does not declare, generated into every language (runtimes/go/internal/
 // generated/shapes, runtimes/rust/tests/generated/shapes.rs, runtimes/typescript/test/generated) so each runtime's
 // build compiles them: names each language reserves, collisions, a struct holding itself, a struct in a polymorphic
@@ -149,6 +154,15 @@ namespace Shapes
     {
         public int Id;
         public System.Runtime.Intrinsics.Vector256<int> Lanes;
+    }
+
+    /// <summary>
+    /// Not a [NinoType]: its layout is the hand-written one above, which no target may write code for (Vector&lt;T&gt;
+    /// is as wide as the CPU's vectors).
+    /// </summary>
+    public sealed class OldVector
+    {
+        public System.Numerics.Vector<int> Lanes;
     }
 
     public static class Outer
