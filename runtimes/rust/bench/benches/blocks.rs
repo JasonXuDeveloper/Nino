@@ -1,5 +1,5 @@
 //! Nino's reader and writer on blocks of fixed-size elements other than numbers: `bool`, dates, decimals, GUIDs, a raw
-//! struct as nino-gen generates it, plain structs as `#[derive]` writes them, tuples, nullable values and a dictionary, 10,000 of each (1,000 entries for the
+//! struct as nino-gen generates it, plain structs as `#[derive]` writes them, tuples, nullable values (`Vec<Option<T>>` and the raw `T?[]` form, `RawNullables`) and a dictionary, 10,000 of each (1,000 entries for the
 //! dictionary). For comparing changes to the block paths back to back on one machine; not part of the published
 //! comparison (`compare.rs`).
 //!
@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::hint::black_box;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use nino::{DateOnly, DateTime, DateTimeKind, Decimal, Guid, NinoRead, NinoWrite};
+use nino::{DateOnly, DateTime, DateTimeKind, Decimal, Guid, NinoRead, NinoWrite, RawNullables};
 
 /// `[NinoType] struct Point { int X; int Y; }` (raw), as nino-gen's Rust templates generate it.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -83,6 +83,10 @@ fn benches(c: &mut Criterion) {
     case(c, "tuple-i32-i32", (0..N).map(|i| (i, -i)).collect::<Vec<(i32, i32)>>());
     case(c, "tuple-i64-bool", (0..N).map(|i| (i64::from(i), i % 2 == 0)).collect::<Vec<(i64, bool)>>());
     case(c, "option-i32", (0..N).map(|i| (i % 4 != 0).then_some(i)).collect::<Vec<Option<i32>>>());
+    let present = |i: i32| i % 4 != 0;
+    case(c, "raw-nullables-i32", RawNullables((0..N).map(|i| present(i).then_some(i)).collect()));
+    case(c, "raw-nullables-i64", RawNullables((0..N).map(|i| present(i).then_some(i64::from(i) * 7919)).collect()));
+    case(c, "raw-nullables-point", RawNullables((0..N).map(|i| present(i).then_some(Point { x: i, y: -i })).collect()));
     case(c, "map-i32-i32", (0..1000).map(|i| (i, i * 7)).collect::<HashMap<i32, i32>>());
 }
 
