@@ -9,15 +9,16 @@ namespace Nino.Codegen.Model
 {
     /// <summary>
     /// The canonical layout (wire-format spec §5.2) of a type of the loaded assembly, by Nino.Core's own algorithm
-    /// (<see cref="NinoLayoutCore"/>, linked source) with the parameters Nino.Core's wire layout uses: what a layout
-    /// does not publish (a raw type's alignment, which a <c>T?</c> element's stride depends on).
+    /// (<see cref="NinoLayoutCore"/>, linked source) under <see cref="NinoLayoutModel.Canonical"/>, as Nino.Core's
+    /// wire layout: what a layout does not publish (a raw type's alignment, which a <c>T?</c> element's stride
+    /// depends on).
     /// </summary>
     internal static class CanonicalLayout
     {
         /// <summary>The canonical alignment of <paramref name="type"/>; 0 when it has no canonical layout.</summary>
         public static int Align(Type type) =>
-            NinoLayoutCore.Measure(default(View), type, 8, 8, 8, 0, new List<NinoLayoutCore.Leaf>(), out _,
-                out int align, null, 16, 8, 8)
+            NinoLayoutCore.Measure(default(View), type, NinoLayoutModel.Canonical, 0, new List<NinoLayoutCore.Leaf>(),
+                out _, out int align)
                 ? align
                 : 0;
 
@@ -38,7 +39,7 @@ namespace Nino.Codegen.Model
                         PrimitiveKind.Decimal => NinoLeaf.Decimal,
                         PrimitiveKind.Guid => NinoLeaf.Guid,
                         PrimitiveKind.DateTime => NinoLeaf.DateTime,
-                        PrimitiveKind.I128 or PrimitiveKind.U128 => NinoLeaf.Wide,
+                        PrimitiveKind.I128 or PrimitiveKind.U128 => NinoLeaf.Int128,
                         PrimitiveKind.NInt => NinoLeaf.SignedPointer,
                         PrimitiveKind.NUInt => NinoLeaf.Pointer,
                         _ => CodegenModel.PrimitiveSize(primitive) switch
@@ -50,10 +51,10 @@ namespace Nino.Codegen.Model
                         },
                     };
                 // Vector<T> and reference types have no canonical layout.
-                return type.IsValueType && !CodegenModel.IsVariableVector(type) ? NinoLeaf.None : NinoLeaf.Unsupported;
+                return type.IsValueType && !CodegenModel.IsHostSizedVector(type) ? NinoLeaf.None : NinoLeaf.Unsupported;
             }
 
-            public bool Struct(Type type, List<KeyValuePair<Type, int>> fields, out LayoutKind kind, out int pack,
+            public bool TryGetFields(Type type, List<KeyValuePair<Type, int>> fields, out LayoutKind kind, out int pack,
                 out int minSize)
             {
                 pack = minSize = 0;
@@ -88,9 +89,9 @@ namespace Nino.Codegen.Model
                 return true;
             }
 
-            public bool Primitive(Type type) => type.IsPrimitive || type.IsEnum || type.IsPointer;
+            public bool IsAutoPrimitive(Type type) => type.IsPrimitive || type.IsEnum || type.IsPointer;
 
-            public bool Vector(Type type, out int size, out int align)
+            public bool TryGetVector(Type type, out int size, out int align)
             {
                 // x64 CoreCLR's: each aligned to its size.
                 size = align = VectorSize(type);

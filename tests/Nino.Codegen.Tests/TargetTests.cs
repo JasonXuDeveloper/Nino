@@ -78,7 +78,7 @@ namespace Nino.Codegen.Tests
         }
 
         [TestMethod]
-        public void EveryTargetLeavesOutVariableVectors()
+        public void EveryTargetLeavesOutHostSizedVectors()
         {
             foreach (var (lang, file) in new[] { ("go", "nino_types.go"), ("rust", "nino_types.rs"), ("ts", "Nino.Codegen.Tests.ts") })
             {

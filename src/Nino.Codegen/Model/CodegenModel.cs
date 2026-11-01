@@ -517,16 +517,17 @@ namespace Nino.Codegen.Model
         /// <c>System.Numerics.Vector&lt;T&gt;</c>: as wide as the CPU's vectors, so not serializable (wire-format spec §3).
         /// A current generator publishes no layout with one (NINO029); one from an older build is refused here.
         /// </summary>
-        internal static bool IsVariableVector(Type type) => Generic(type) == "System.Numerics.Vector`1";
+        internal static bool IsHostSizedVector(Type type) => Generic(type) == "System.Numerics.Vector`1";
 
-        private static ValueModel VariableVector(Type clr, string encoding) =>
-            Unsupported(clr, encoding, "System.Numerics.Vector<T> is not serializable: its width is the CPU's vectors");
+        private static ValueModel HostSizedVector(Type clr, string encoding) =>
+            Unsupported(clr, encoding,
+                "System.Numerics.Vector<T> is not serializable: 16, 32 or 64 bytes by the CPU (wire-format spec §3)");
 
         /// <summary>A member's encoding resolved against its type.</summary>
         private ValueModel Value(WireEncoding e, Type clr)
         {
-            if (IsVariableVector(clr))
-                return VariableVector(clr, e.Source);
+            if (IsHostSizedVector(clr))
+                return HostSizedVector(clr, e.Source);
             switch (e.Kind)
             {
                 case "raw":
@@ -775,8 +776,8 @@ namespace Nino.Codegen.Model
         /// <summary>A value copied as raw memory: a primitive, an enum, or a struct in its canonical layout.</summary>
         private ValueModel Raw(WireEncoding e, Type clr)
         {
-            if (IsVariableVector(clr))
-                return VariableVector(clr, e.Source);
+            if (IsHostSizedVector(clr))
+                return HostSizedVector(clr, e.Source);
             if (clr.IsEnum)
             {
                 var model = EnumOf(clr);

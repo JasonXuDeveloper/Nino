@@ -24,7 +24,7 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
   32. Pin such a value against bytes .NET writes (`Shapes.Strides`: ModelTests, and each runtime's shapes test), not
   a round trip, which agrees with itself.
 - nino-gen refuses what Nino.Core no longer serializes even in a layout an older build published
-  (`System.Numerics.Vector<T>`: `CodegenModel.IsVariableVector`, `Shapes.OldVector`).
+  (`System.Numerics.Vector<T>`: `CodegenModel.IsHostSizedVector`, `Shapes.OldVector`).
 - A C# feature users can declare is supported by each runtime and by nino-gen's templates, or reported as NINOGEN002
   naming the type, never generated code that reads differently.
 - A rename of a runtime's API that no release carries gets no alias (`audit-naming`, "Output and applying").
