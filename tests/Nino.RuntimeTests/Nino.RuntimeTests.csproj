@@ -29,5 +29,12 @@
         <ProjectReference Include="..\..\src\Nino.Immutable\Nino.Immutable.csproj" Condition="'$(TargetFramework)' != 'net472'"/>
     </ItemGroup>
 
+    <!-- CoreCLR x64's bytes for BclStructs and the types they are of, shared with Unity's BclLayoutTests: they live in
+         the Unity project, which compiles only files under its Assets folder. -->
+    <ItemGroup>
+        <Compile Include="..\..\src\Nino.Unity\Assets\Test\Runtime\BclFixtures.cs" Link="BclFixtures.cs"/>
+        <Compile Include="..\..\src\Nino.Unity\Assets\Test\Runtime\BclFixtureTypes.cs" Link="BclFixtureTypes.cs"/>
+    </ItemGroup>
+
     <Import Project="..\..\build\UseNinoGenerator.props"/>
 </Project>
