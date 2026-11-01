@@ -27,6 +27,7 @@ Model/                       the IR: language-neutral, built once, read by every
   CodegenModel.cs            the assembly's [NinoType]s (and those of its references), encodings resolved to ValueModels
   TypeModel.cs               TypeModel, MemberModel, ClosedTypeModel; BodyFormat, HeaderKind
   ValueModel.cs              ValueModel (what a value is on the wire), SlotModel, RawStructModel, EnumModel
+  CanonicalLayout.cs         the canonical alignment a layout does not publish, by Nino.Core's NinoLayoutCore (linked)
   TypeNames.cs               .NET type and member names (and the forms every target names a type with), the
                              FNV-1a hash of ids and keys
 Targets/                     what each language can express and how (NINOGEN002 for what it cannot)

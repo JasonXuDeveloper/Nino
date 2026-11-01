@@ -15,6 +15,16 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
 - The same bytes for every value (the conformance corpus round-trips), the same rejections (every malicious case and
   truncation), the same depth counting and deferral, the same caps on lengths and allocations (`audit-security`).
 - Stricter than .NET is allowed, looser never; each stricter check is listed in the runtime's README.
+- Take what a layout does not publish about the canonical layout (spec §5.2: a raw type's alignment, which sets a
+  `T?[]` element's padding, §6.2) from Nino.Core's own algorithm, never from a rule of nino-gen's or a guess from
+  offsets: nino-gen links `NinoLayoutCore.cs` (`Model/CanonicalLayout.cs`, `RawStructModel.Align`), and Rust's
+  `nino::Raw::ALIGN` is that alignment (Int128 16). Why: r104 found a sequential-only rule and an offset guess capped
+  at 8 that missed value tuples' auto layout and Int128: `Box<Cell?[]>` of a struct holding a `(byte, short)` wrote a
+  14-byte stride where .NET writes 16 in all three languages, and Rust's `RawNullables<i128>` 24 where .NET writes
+  32. Pin such a value against bytes .NET writes (`Shapes.Strides`: ModelTests, and each runtime's shapes test), not
+  a round trip, which agrees with itself.
+- nino-gen refuses what Nino.Core no longer serializes even in a layout an older build published
+  (`System.Numerics.Vector<T>`: `CodegenModel.IsVariableVector`, `Shapes.OldVector`).
 - A C# feature users can declare is supported by each runtime and by nino-gen's templates, or reported as NINOGEN002
   naming the type, never generated code that reads differently.
 - A rename of a runtime's API that no release carries gets no alias (`audit-naming`, "Output and applying").
