@@ -15,15 +15,17 @@ corpus/
   index.json                 corpusVersion and the names of every valid and malicious case
   valid/<case>.bin, .json    a value .NET writes, and its type, features, layouts, value and round-trip bytes
   malicious/<case>.bin, .json  an input no writer produces: category, what it exercises, expected (error or
-                             error-or-value) and what .NET does today
+                             error-or-value), untrusted (rejected only in a reader's untrusted mode) and what .NET
+                             does today (dotnet; dotnetUntrusted with NinoSettings.Untrusted)
   malicious/truncations.json   valid cases whose every strict prefix must be rejected (prefixes derived, not stored)
 Nino.Conformance/            the net10.0 program that writes (--out) and checks (--verify) the corpus
   Types.cs                   the sample types (namespace Conformance); renaming or reordering changes the corpus
   ValidCases.cs              the valid cases
   MaliciousCases.cs          the malicious cases
-  Probe.cs                   runs an input in a child process (512 MB heap limit) and records what .NET did
+  Probe.cs                   runs an input in a child process (512 MB heap limit), with or without
+                             NinoSettings.Untrusted (--probe-untrusted), and records what .NET did
   Json.cs                    values as the corpus's lossless JSON; the layouts of the sample types
-  Program.cs                 --out <dir> / --verify <dir>
+  Program.cs                 --out <dir> / --verify <dir>; --probe and --probe-untrusted for Probe's children
 ```
 
 ## Who reads it
@@ -48,3 +50,7 @@ Nino.Conformance/            the net10.0 program that writes (--out) and checks 
   removed only with a reason in the commit. `corpusVersion` changes only with an incompatible change of the file
   layout or the JSON schema.
 - A new malicious category that every runtime must reject goes into `docs/spec/wire-format.md` §9 too.
+- A check .NET makes only with `NinoSettings.Untrusted` (raw blocks, value ranges, trailing bytes) gets its cases
+  through `AddUntrusted` in `MaliciousCases.cs`: `untrusted: true`, and `--out` fails unless the untrusted mode rejects
+  them (`dotnetUntrusted`). Never record such an input as a plain `error` case .NET returns from: README.md's
+  "Known .NET gaps" lists real gaps only.

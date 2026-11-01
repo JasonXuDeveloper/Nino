@@ -4,11 +4,16 @@
   "category": "trailing",
   "expected": "error",
   "exercises": "A valid Point followed by one more byte: the input must be consumed exactly.",
+  "untrusted": true,
   "size": 10,
   "layouts": {
     "Conformance.Point": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x964B64BA; deferrable=true; members=X:int:raw(4);Y:int:raw(4)"
   },
   "dotnet": {
     "outcome": "returned"
+  },
+  "dotnetUntrusted": {
+    "outcome": "error",
+    "exception": "NinoDataException"
   }
 }

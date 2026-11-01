@@ -4,11 +4,16 @@
   "category": "datetime",
   "expected": "error",
   "exercises": "A DateTime whose ticks are past DateTime.MaxValue (the low 62 bits).",
+  "untrusted": true,
   "size": 35,
   "layouts": {
     "Conformance.Dates": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x004F73C1; deferrable=true; members=Utc:System.DateTime:raw(8);Local:System.DateTime:raw(8);Unspecified:System.DateTime:raw(8);Offset:System.DateTimeOffset:datetimeoffset"
   },
   "dotnet": {
     "outcome": "returned"
+  },
+  "dotnetUntrusted": {
+    "outcome": "error",
+    "exception": "NinoDataException"
   }
 }

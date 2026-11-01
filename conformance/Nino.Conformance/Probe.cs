@@ -109,11 +109,17 @@ namespace Conformance
 
         // ------------------------------------------------------------------ in the parent
 
-        public static List<Outcome> InChildren(List<(Type Type, string File)> inputs)
+        /// <summary>
+        /// What .NET does with each input, each in a child process; with <paramref name="untrusted"/>, in children that
+        /// set <see cref="NinoSettings.Untrusted"/> first (<see cref="Program"/>, <c>--probe-untrusted</c>). Null
+        /// entries are skipped (null results).
+        /// </summary>
+        public static List<Outcome> InChildren(List<(Type Type, string File)> inputs, bool untrusted = false)
         {
             var results = new Outcome[inputs.Count];
             Parallel.For(0, inputs.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) },
-                i => results[i] = Child("--probe", Layouts.Name(inputs[i].Type), inputs[i].File, Outcome.Parse,
+                i => results[i] = inputs[i].File == null ? null : Child(untrusted ? "--probe-untrusted" : "--probe",
+                    Layouts.Name(inputs[i].Type), inputs[i].File, Outcome.Parse,
                     (kind, reason) => new Outcome { Kind = kind, Reason = reason }));
             return results.ToList();
         }
