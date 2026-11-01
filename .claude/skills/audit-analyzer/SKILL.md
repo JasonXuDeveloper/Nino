@@ -32,7 +32,7 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   formatter there is searched, so the user's own `Vector<T>` formatter, a collection formatter over it and unrelated
   generics that take a `Vector<T>` fire nothing (`NINO029_FormattersMadeByHand`, `NINO029_NotForOtherFormattersByHand`).
   One predicate decides it for the analyzer, the generator's resolver, `RawRules.IsRawUnmanaged`, the call transform (no registration, no
-  interceptor) and, mirrored, Nino.Core (`RawRules.HostSizedVectorIn` / `NinoReflection.VariableVectorIn`). It never
+  interceptor) and, mirrored, Nino.Core (`RawRules.HostSizedVectorIn` / `NinoReflection.HostSizedVectorIn`). It never
   fires where Nino writes nothing (`[NinoIgnore]`, get-only properties, ref structs, which stay NINO007) or the user
   writes the bytes (`[NinoMemberFormatter]`), and a struct of such members gets NINO029 alone, not NINO023 too
   (`AnalyzerTests.NINO029_*`). Walk everything a formatter would write, base types included: a type holding the
