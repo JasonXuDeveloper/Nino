@@ -30,6 +30,40 @@ const (
 	FlagsB    Flags = 1099511627776
 )
 
+// DateTimeOffset is `System.DateTimeOffset`, copied as raw memory (16 bytes).
+type DateTimeOffset struct {
+	DateTime      nino.DateTime `nino:"0" json:"dateTime" yaml:"dateTime"`
+	OffsetMinutes int32         `nino:"1" json:"offsetMinutes" yaml:"offsetMinutes"`
+}
+
+func decodeDateTimeOffset(r *nino.Reader, b []byte) DateTimeOffset {
+	_ = b[15]
+	var v DateTimeOffset
+	v.DateTime = dateTimeAt(r, b[8:])
+	v.OffsetMinutes = int32(le.Uint32(b))
+	return v
+}
+
+func encodeDateTimeOffset(b []byte, v DateTimeOffset) {
+	_ = b[15]
+	le.PutUint64(b[8:], uint64(v.DateTime))
+	le.PutUint32(b, uint32(v.OffsetMinutes))
+}
+
+func readDateTimeOffset(r *nino.Reader) DateTimeOffset {
+	var v DateTimeOffset
+	if b := r.Take(16); len(b) == 16 {
+		v = decodeDateTimeOffset(r, b)
+	}
+	return v
+}
+
+func writeDateTimeOffset(w *nino.Writer, v DateTimeOffset) {
+	if b := w.ExtendZero(16); len(b) == 16 {
+		encodeDateTimeOffset(b, v)
+	}
+}
+
 // Gappy is `Shapes.Gappy`, copied as raw memory (8 bytes).
 type Gappy struct {
 	Small uint8 `nino:"0" json:"small" yaml:"small"`
@@ -66,6 +100,58 @@ func readGappy(r *nino.Reader) Gappy {
 func writeGappy(w *nino.Writer, v Gappy) {
 	if b := w.ExtendZero(8); len(b) == 8 {
 		encodeGappy(b, v)
+	}
+}
+
+// HostLeaves is `Shapes.HostLeaves`, copied as raw memory (64 bytes).
+type HostLeaves struct {
+	A        uint8       `nino:"0" json:"a" yaml:"a"`
+	Wide     nino.Int128 `nino:"1" json:"wide" yaml:"wide"`
+	Signed   int64       `nino:"2" json:"signed" yaml:"signed"`
+	Unsigned uint64      `nino:"3" json:"unsigned" yaml:"unsigned"`
+	Pointer  uint64      `nino:"4" json:"pointer" yaml:"pointer"`
+}
+
+func decodeHostLeaves(r *nino.Reader, b []byte) HostLeaves {
+	_ = b[63]
+	var v HostLeaves
+	v.A = b[0]
+	v.Wide = nino.Int128{Lo: le.Uint64(b[16:]), Hi: le.Uint64(b[24:])}
+	v.Signed = int64(le.Uint64(b[32:]))
+	v.Unsigned = le.Uint64(b[40:])
+	v.Pointer = le.Uint64(b[48:])
+	return v
+}
+
+func encodeHostLeaves(b []byte, v HostLeaves) {
+	_ = b[63]
+	b[0] = byte(v.A)
+	le.PutUint64(b[16:], v.Wide.Lo)
+	le.PutUint64(b[24:], v.Wide.Hi)
+	le.PutUint64(b[32:], uint64(v.Signed))
+	le.PutUint64(b[40:], uint64(v.Unsigned))
+	le.PutUint64(b[48:], uint64(v.Pointer))
+}
+
+// asIsHostLeaves: whether HostLeaves's memory is its bytes (on a little-endian host), for arrays copied as one block.
+const asIsHostLeaves = unsafe.Sizeof(HostLeaves{}) == 64 &&
+	unsafe.Offsetof(HostLeaves{}.A) == 0 &&
+	unsafe.Offsetof(HostLeaves{}.Wide) == 16 &&
+	unsafe.Offsetof(HostLeaves{}.Signed) == 32 &&
+	unsafe.Offsetof(HostLeaves{}.Unsigned) == 40 &&
+	unsafe.Offsetof(HostLeaves{}.Pointer) == 48
+
+func readHostLeaves(r *nino.Reader) HostLeaves {
+	var v HostLeaves
+	if b := r.Take(64); len(b) == 64 {
+		v = decodeHostLeaves(r, b)
+	}
+	return v
+}
+
+func writeHostLeaves(w *nino.Writer, v HostLeaves) {
+	if b := w.ExtendZero(64); len(b) == 64 {
+		encodeHostLeaves(b, v)
 	}
 }
 
@@ -115,6 +201,40 @@ func readMarked(r *nino.Reader) Marked {
 func writeMarked(w *nino.Writer, v Marked) {
 	if b := w.ExtendZero(8); len(b) == 8 {
 		encodeMarked(b, v)
+	}
+}
+
+// OffsetLeaf is `Shapes.OffsetLeaf`, copied as raw memory (24 bytes).
+type OffsetLeaf struct {
+	A  int16          `nino:"0" json:"a" yaml:"a"`
+	At DateTimeOffset `nino:"1" json:"at" yaml:"at"`
+}
+
+func decodeOffsetLeaf(r *nino.Reader, b []byte) OffsetLeaf {
+	_ = b[23]
+	var v OffsetLeaf
+	v.A = int16(le.Uint16(b))
+	v.At = decodeDateTimeOffset(r, b[8:24])
+	return v
+}
+
+func encodeOffsetLeaf(b []byte, v OffsetLeaf) {
+	_ = b[23]
+	le.PutUint16(b, uint16(v.A))
+	encodeDateTimeOffset(b[8:24], v.At)
+}
+
+func readOffsetLeaf(r *nino.Reader) OffsetLeaf {
+	var v OffsetLeaf
+	if b := r.Take(24); len(b) == 24 {
+		v = decodeOffsetLeaf(r, b)
+	}
+	return v
+}
+
+func writeOffsetLeaf(w *nino.Writer, v OffsetLeaf) {
+	if b := w.ExtendZero(24); len(b) == 24 {
+		encodeOffsetLeaf(b, v)
 	}
 }
 
@@ -250,8 +370,10 @@ var (
 	floatKeysClass       nino.Class[FloatKeys]
 	forestHolderClass    nino.Class[ForestHolder]
 	holderClass          nino.Class[Holder]
+	hostHolderClass      nino.Class[HostHolder]
 	keywordsClass        nino.Class[Keywords]
 	ninoGridTypeClass    nino.Class[NinoGridType]
+	offsetHolderClass    nino.Class[OffsetHolder]
 	openHolderUseClass   nino.Class[OpenHolderUse]
 	openUseClass         nino.Class[OpenUse]
 	outerInnerClass      nino.Class[OuterInner]
@@ -296,8 +418,10 @@ func init() {
 	floatKeysClass = nino.Class[FloatKeys]{Read: readFloatKeysBody, Write: writeFloatKeysBody, Deferrable: true}
 	forestHolderClass = nino.Class[ForestHolder]{Read: readForestHolderBody, Write: writeForestHolderBody, Deferrable: true}
 	holderClass = nino.Class[Holder]{Read: readHolderBody, Write: writeHolderBody, Deferrable: true}
+	hostHolderClass = nino.Class[HostHolder]{Read: readHostHolderBody, Write: writeHostHolderBody, Deferrable: true}
 	keywordsClass = nino.Class[Keywords]{Read: readKeywordsBody, Write: writeKeywordsBody, Deferrable: true}
 	ninoGridTypeClass = nino.Class[NinoGridType]{Read: readNinoGridTypeBody, Write: writeNinoGridTypeBody, Deferrable: true}
+	offsetHolderClass = nino.Class[OffsetHolder]{Read: readOffsetHolderBody, Write: writeOffsetHolderBody, Deferrable: true}
 	openHolderUseClass = nino.Class[OpenHolderUse]{Read: readOpenHolderUseBody, Write: writeOpenHolderUseBody, Deferrable: true}
 	openUseClass = nino.Class[OpenUse]{Read: readOpenUseBody, Write: writeOpenUseBody, Deferrable: true}
 	outerInnerClass = nino.Class[OuterInner]{Read: readOuterInnerBody, Write: writeOuterInnerBody, Deferrable: true}
@@ -914,6 +1038,101 @@ func writeHolderBody(w *nino.Writer, v *Holder) {
 	WriteKeywords(w, v.Keywords)
 }
 
+// HostHolder is `Shapes.HostHolder`.
+type HostHolder struct {
+	Leaves HostLeaves     `nino:"0" json:"leaves" yaml:"leaves"`
+	Gaps   []*nino.Int128 `nino:"1" json:"gaps" yaml:"gaps"`
+}
+
+func (HostHolder) NinoLayout() string {
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73E57D3F; deferrable=true; members=Leaves:Shapes.HostLeaves:raw(64){A:byte@0:raw(1),Wide:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},Signed:System.IntPtr@32:raw(8),Unsigned:System.UIntPtr@40:raw(8),Pointer:int*@48:raw(8)};Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})"
+}
+
+func (HostHolder) NinoTypeName() string {
+	return "Shapes.HostHolder"
+}
+
+func (*HostHolder) NinoTypeID() int32 {
+	return 1944419647
+}
+
+func ReadHostHolder(r *nino.Reader) *HostHolder {
+	if !r.Present() {
+		return nil
+	}
+	v := new(HostHolder)
+	if d, ok := r.EnterBody(); ok {
+		readHostHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &hostHolderClass)
+	}
+	return v
+}
+
+func WriteHostHolder(w *nino.Writer, v *HostHolder) {
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeHostHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &hostHolderClass)
+	}
+}
+
+// ReadHostHolderInto reads a value into *v, the object it points to read in place (DeserializeInto).
+func ReadHostHolderInto(r *nino.Reader, v **HostHolder) {
+	if !r.Present() {
+		*v = nil
+		return
+	}
+	if *v == nil {
+		*v = new(HostHolder)
+	}
+	if d, ok := r.EnterBody(); ok {
+		readHostHolderBody(r, *v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, *v, &hostHolderClass)
+	}
+}
+
+// readHostHolderClass reads the body of a HostHolder (after its type id) into a new instance.
+func readHostHolderClass(r *nino.Reader) *HostHolder {
+	v := new(HostHolder)
+	if d, ok := r.EnterBody(); ok {
+		readHostHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &hostHolderClass)
+	}
+	return v
+}
+
+// writeHostHolderClass writes the body of v (not nil, after its type id).
+func writeHostHolderClass(w *nino.Writer, v *HostHolder) {
+	if d, ok := w.EnterBody(); ok {
+		writeHostHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &hostHolderClass)
+	}
+}
+
+func readHostHolderBody(r *nino.Reader, v *HostHolder) {
+	v.Leaves = readHostLeaves(r)
+	v.Gaps = readV25(r)
+}
+
+func writeHostHolderBody(w *nino.Writer, v *HostHolder) {
+	writeHostLeaves(w, v.Leaves)
+	writeV26(w, v.Gaps)
+}
+
 // IThing is a value of a slot declared as `Shapes.IThing`.
 type IThing interface {
 	nino.Typed
@@ -1472,6 +1691,98 @@ func (c *nodeCodec[T]) writeBody(w *nino.Writer, v *Node[T]) {
 	w.EndRegion(g)
 }
 
+// OffsetHolder is `Shapes.OffsetHolder`.
+type OffsetHolder struct {
+	Leaf OffsetLeaf `nino:"0" json:"leaf" yaml:"leaf"`
+}
+
+func (OffsetHolder) NinoLayout() string {
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x36E5D592; deferrable=true; members=Leaf:Shapes.OffsetLeaf:raw(24){A:short@0:raw(2),At:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}}"
+}
+
+func (OffsetHolder) NinoTypeName() string {
+	return "Shapes.OffsetHolder"
+}
+
+func (*OffsetHolder) NinoTypeID() int32 {
+	return 921032082
+}
+
+func ReadOffsetHolder(r *nino.Reader) *OffsetHolder {
+	if !r.Present() {
+		return nil
+	}
+	v := new(OffsetHolder)
+	if d, ok := r.EnterBody(); ok {
+		readOffsetHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &offsetHolderClass)
+	}
+	return v
+}
+
+func WriteOffsetHolder(w *nino.Writer, v *OffsetHolder) {
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeOffsetHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &offsetHolderClass)
+	}
+}
+
+// ReadOffsetHolderInto reads a value into *v, the object it points to read in place (DeserializeInto).
+func ReadOffsetHolderInto(r *nino.Reader, v **OffsetHolder) {
+	if !r.Present() {
+		*v = nil
+		return
+	}
+	if *v == nil {
+		*v = new(OffsetHolder)
+	}
+	if d, ok := r.EnterBody(); ok {
+		readOffsetHolderBody(r, *v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, *v, &offsetHolderClass)
+	}
+}
+
+// readOffsetHolderClass reads the body of a OffsetHolder (after its type id) into a new instance.
+func readOffsetHolderClass(r *nino.Reader) *OffsetHolder {
+	v := new(OffsetHolder)
+	if d, ok := r.EnterBody(); ok {
+		readOffsetHolderBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &offsetHolderClass)
+	}
+	return v
+}
+
+// writeOffsetHolderClass writes the body of v (not nil, after its type id).
+func writeOffsetHolderClass(w *nino.Writer, v *OffsetHolder) {
+	if d, ok := w.EnterBody(); ok {
+		writeOffsetHolderBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &offsetHolderClass)
+	}
+}
+
+func readOffsetHolderBody(r *nino.Reader, v *OffsetHolder) {
+	v.Leaf = readOffsetLeaf(r)
+}
+
+func writeOffsetHolderBody(w *nino.Writer, v *OffsetHolder) {
+	writeOffsetLeaf(w, v.Leaf)
+}
+
 // Open is `Shapes.Generic.Open<T>`.
 type Open[T any] struct {
 	Value T `nino:"0" json:"value" yaml:"value"`
@@ -2012,7 +2323,7 @@ func ReadRecursiveInto(r *nino.Reader, v *Recursive) {
 		return
 	}
 	v.Value = r.I32()
-	readintoV25(r, &v.Children)
+	readintoV27(r, &v.Children)
 	r.ExitStruct()
 }
 
@@ -2021,7 +2332,7 @@ func WriteRecursive(w *nino.Writer, v Recursive) {
 		return
 	}
 	w.I32(v.Value)
-	writeV26(w, v.Children)
+	writeV28(w, v.Children)
 	w.ExitStruct()
 }
 
@@ -2428,7 +2739,7 @@ func readStampsBody(r *nino.Reader, v *Stamps) {
 	v.Ids = nino.ReadBlock[nino.Guid](r)
 	v.Signed = nino.ReadBlock[nino.Int128](r)
 	v.Unsigned = nino.ReadBlock[nino.UInt128](r)
-	v.Marks = readV27(r)
+	v.Marks = readV29(r)
 }
 
 func writeStampsBody(w *nino.Writer, v *Stamps) {
@@ -2439,7 +2750,7 @@ func writeStampsBody(w *nino.Writer, v *Stamps) {
 	nino.WriteBlock[nino.Guid](w, v.Ids)
 	nino.WriteBlock[nino.Int128](w, v.Signed)
 	nino.WriteBlock[nino.UInt128](w, v.Unsigned)
-	writeV28(w, v.Marks)
+	writeV30(w, v.Marks)
 }
 
 // Strides is `Shapes.Strides`.
@@ -2888,13 +3199,13 @@ func readUsesBody(r *nino.Reader, v *Uses) {
 	v.Pair = codecV5.Read(r)
 	v.Nested = codecV6.Read(r)
 	v.Mixed = codecV8.Read(r)
-	readintoV29(r, &v.Boxes)
+	readintoV31(r, &v.Boxes)
 	v.Bag = codecV9.Read(r)
 	v.Chain = codecV10.Read(r)
 	v.Thing = codecV11.Read(r)
 	v.Array = codecV12.Read(r)
 	v.Complex = codecV13.Read(r)
-	v.Pairs = readV30(r)
+	v.Pairs = readV32(r)
 	v.Raw = codecV15.Read(r)
 	v.Tuple = codecV16.Read(r)
 	v.Maybe = codecV17.Read(r)
@@ -2910,13 +3221,13 @@ func writeUsesBody(w *nino.Writer, v *Uses) {
 	codecV5.Write(w, v.Pair)
 	codecV6.Write(w, v.Nested)
 	codecV8.Write(w, v.Mixed)
-	writeV31(w, v.Boxes)
+	writeV33(w, v.Boxes)
 	codecV9.Write(w, v.Bag)
 	codecV10.Write(w, v.Chain)
 	codecV11.Write(w, v.Thing)
 	codecV12.Write(w, v.Array)
 	codecV13.Write(w, v.Complex)
-	writeV32(w, v.Pairs)
+	writeV34(w, v.Pairs)
 	codecV15.Write(w, v.Raw)
 	codecV16.Write(w, v.Tuple)
 	codecV17.Write(w, v.Maybe)
@@ -3054,7 +3365,7 @@ func readV4(r *nino.Reader) []*TupleCell {
 	var e *TupleCell
 	v := make([]*TupleCell, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for len(b) >= 16 {
-		e = decodeV33(r, b[:16:16])
+		e = decodeV35(r, b[:16:16])
 		if r.Failed() {
 			return nil
 		}
@@ -3075,7 +3386,7 @@ func writeV5(w *nino.Writer, v []*TupleCell) {
 		return
 	}
 	for _, e := range v {
-		encodeV34(b[:16:16], e)
+		encodeV36(b[:16:16], e)
 		b = b[16:]
 	}
 }
@@ -3260,7 +3571,45 @@ func writeV24(w *nino.Writer, v nino.Entry[*string, int32]) {
 	w.I32(v.Value)
 }
 
-func readintoV25(r *nino.Reader, p *[]Recursive) {
+func readV25(r *nino.Reader) []*nino.Int128 {
+	n := r.Length(32)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 32)
+	if len(b) != n*32 {
+		return nil
+	}
+	var e *nino.Int128
+	v := make([]*nino.Int128, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for len(b) >= 32 {
+		e = decodeV37(r, b[:32:32])
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+		b = b[32:]
+	}
+	return v
+}
+
+func writeV26(w *nino.Writer, v []*nino.Int128) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	b := w.ExtendZero(len(v) * 32)
+	if len(b) != len(v)*32 {
+		return
+	}
+	for _, e := range v {
+		encodeV38(b[:32:32], e)
+		b = b[32:]
+	}
+}
+
+func readintoV27(r *nino.Reader, p *[]Recursive) {
 	n := r.Length(8)
 	if n < 0 {
 		*p = nil
@@ -3287,7 +3636,7 @@ func readintoV25(r *nino.Reader, p *[]Recursive) {
 	*p = v
 }
 
-func writeV26(w *nino.Writer, v []Recursive) {
+func writeV28(w *nino.Writer, v []Recursive) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -3298,15 +3647,15 @@ func writeV26(w *nino.Writer, v []Recursive) {
 	}
 }
 
-func readV27(r *nino.Reader) []Marked {
+func readV29(r *nino.Reader) []Marked {
 	return nino.ReadRaw(r, 8, asIsMarked, []int{4}, decodeMarked)
 }
 
-func writeV28(w *nino.Writer, v []Marked) {
+func writeV30(w *nino.Writer, v []Marked) {
 	nino.WriteRaw(w, v, 8, asIsMarked, []int{4}, nil, encodeMarked)
 }
 
-func readintoV29(r *nino.Reader, p *[]*Box[int32]) {
+func readintoV31(r *nino.Reader, p *[]*Box[int32]) {
 	n := r.Length(1)
 	if n < 0 {
 		*p = nil
@@ -3330,7 +3679,7 @@ func readintoV29(r *nino.Reader, p *[]*Box[int32]) {
 	*p = v
 }
 
-func readV30(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
+func readV32(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
 	n := r.Length(1)
 	if n < 0 {
 		return nil
@@ -3348,7 +3697,7 @@ func readV30(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
 	return nino.CheckUniqueKeys(r, v)
 }
 
-func writeV31(w *nino.Writer, v []*Box[int32]) {
+func writeV33(w *nino.Writer, v []*Box[int32]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -3359,7 +3708,7 @@ func writeV31(w *nino.Writer, v []*Box[int32]) {
 	}
 }
 
-func writeV32(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
+func writeV34(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -3371,7 +3720,7 @@ func writeV32(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
 	}
 }
 
-func decodeV33(r *nino.Reader, b []byte) *TupleCell {
+func decodeV35(r *nino.Reader, b []byte) *TupleCell {
 	_ = b[15]
 	if !r.BoolAt(b[0]) {
 		return nil
@@ -3380,12 +3729,31 @@ func decodeV33(r *nino.Reader, b []byte) *TupleCell {
 	return &x
 }
 
-func encodeV34(b []byte, v *TupleCell) {
+func encodeV36(b []byte, v *TupleCell) {
 	_ = b[15]
 	if v != nil {
 		b[0] = 1
 		x := *v
 		encodeTupleCell(b[4:16], x)
+	}
+}
+
+func decodeV37(r *nino.Reader, b []byte) *nino.Int128 {
+	_ = b[31]
+	if !r.BoolAt(b[0]) {
+		return nil
+	}
+	x := nino.Int128{Lo: le.Uint64(b[16:]), Hi: le.Uint64(b[24:])}
+	return &x
+}
+
+func encodeV38(b []byte, v *nino.Int128) {
+	_ = b[31]
+	if v != nil {
+		b[0] = 1
+		x := *v
+		le.PutUint64(b[16:], x.Lo)
+		le.PutUint64(b[24:], x.Hi)
 	}
 }
 
@@ -3496,6 +3864,8 @@ func NinoCodecOf(name string) (NinoCodec, bool) {
 		return codecOf(ReadGappy, ReadGappyInto, WriteGappy), true
 	case "Shapes.Holder":
 		return codecOf(ReadHolder, ReadHolderInto, WriteHolder), true
+	case "Shapes.HostHolder":
+		return codecOf(ReadHostHolder, ReadHostHolderInto, WriteHostHolder), true
 	case "Shapes.IThing":
 		return codecOf(ReadIThing, ReadIThingInto, WriteIThing), true
 	case "Shapes.Keywords":
@@ -3504,6 +3874,8 @@ func NinoCodecOf(name string) (NinoCodec, bool) {
 		return codecOf(ReadMarked, ReadMarkedInto, WriteMarked), true
 	case "Shapes.NinoGrid":
 		return codecOf(ReadNinoGridType, ReadNinoGridTypeInto, WriteNinoGridType), true
+	case "Shapes.OffsetHolder":
+		return codecOf(ReadOffsetHolder, ReadOffsetHolderInto, WriteOffsetHolder), true
 	case "Shapes.Generic.OpenHolderUse":
 		return codecOf(ReadOpenHolderUse, ReadOpenHolderUseInto, WriteOpenHolderUse), true
 	case "Shapes.Generic.OpenUse":

@@ -804,6 +804,9 @@ namespace Nino.Codegen.Model
                 return value;
             }
 
+            // A pointer is 8 bytes, zero-extended, as nuint (spec §5.2).
+            if (clr.IsPointer)
+                return new ValueModel(ValueKind.Primitive, clr, e.Source) { Primitive = PrimitiveKind.NUInt, Size = 8 };
             if (!clr.IsValueType)
                 return Unsupported(clr, e.Source, NoForm(clr, e.Source));
             if (e.Fields.Count == 0)
@@ -974,6 +977,15 @@ namespace Nino.Codegen.Model
 
         private static Type? FieldType(Type type, string name)
         {
+            // DateTimeOffset's layout publishes its canonical fields (spec §5.2: .NET 10's, the minutes an int at 0, the
+            // UTC ticks at 8), which a runtime declares its own way (.NET 8 holds a short, Mono puts it at 8).
+            if (type.FullName == "System.DateTimeOffset")
+                return name switch
+                {
+                    "offsetMinutes" => type.Assembly.GetType("System.Int32"),
+                    "dateTime" => type.Assembly.GetType("System.DateTime"),
+                    _ => null,
+                };
             const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
             return (type.GetField(name, flags) ?? type.GetField($"<{name}>k__BackingField", flags))?.FieldType;
         }

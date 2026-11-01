@@ -12,6 +12,67 @@ impl Flags {
     pub const B: i64 = 1099511627776;
 }
 
+/// `System.DateTimeOffset`: raw, 16 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct DateTimeOffset {
+    pub date_time: nino::DateTime,
+    pub offset_minutes: i32,
+}
+
+impl nino::Raw for DateTimeOffset {
+    const SIZE: usize = 16;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..16).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [4, 5, 6, 7].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            date_time: <nino::DateTime as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+            offset_minutes: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.date_time, o);
+        }
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.offset_minutes, o);
+        }
+    }
+}
+
+impl NinoRead for DateTimeOffset {
+    const MIN_SIZE: usize = 16;
+    const FIXED_SIZE: usize = 16;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
+    }
+}
+
+impl NinoWrite for DateTimeOffset {
+    const FIXED_SIZE: usize = 16;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 16];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
 /// `Shapes.Gappy`: raw, 8 bytes.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -80,6 +141,82 @@ impl Gappy {
     pub const NINO_TYPE_NAME: &str = "Shapes.Gappy";
     /// The layout this code was generated from (`NinoTypeLayout`).
     pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x82B9FBC0; deferrable=false; members=raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)}";
+}
+
+/// `Shapes.HostLeaves`: raw, 64 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct HostLeaves {
+    pub a: u8,
+    pub wide: i128,
+    pub signed: i64,
+    pub unsigned: u64,
+    pub pointer: u64,
+}
+
+impl nino::Raw for HostLeaves {
+    const SIZE: usize = 64;
+    const ALIGN: usize = 16;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..64).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 56, 57, 58, 59, 60, 61, 62, 63].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            a: <u8 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            wide: <i128 as nino::Raw>::decode_raw(b.get(16..).unwrap_or_default())?,
+            signed: <i64 as nino::Raw>::decode_raw(b.get(32..).unwrap_or_default())?,
+            unsigned: <u64 as nino::Raw>::decode_raw(b.get(40..).unwrap_or_default())?,
+            pointer: <u64 as nino::Raw>::decode_raw(b.get(48..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.a, o);
+        }
+        if let Some(o) = out.get_mut(16..) {
+            nino::Raw::encode_raw(&self.wide, o);
+        }
+        if let Some(o) = out.get_mut(32..) {
+            nino::Raw::encode_raw(&self.signed, o);
+        }
+        if let Some(o) = out.get_mut(40..) {
+            nino::Raw::encode_raw(&self.unsigned, o);
+        }
+        if let Some(o) = out.get_mut(48..) {
+            nino::Raw::encode_raw(&self.pointer, o);
+        }
+    }
+}
+
+impl NinoRead for HostLeaves {
+    const MIN_SIZE: usize = 64;
+    const FIXED_SIZE: usize = 64;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<64>()?)
+    }
+}
+
+impl NinoWrite for HostLeaves {
+    const FIXED_SIZE: usize = 64;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 64];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
 }
 
 /// `Shapes.Marked`: raw, 8 bytes.
@@ -157,6 +294,67 @@ impl Marked {
     pub const NINO_TYPE_NAME: &str = "Shapes.Marked";
     /// The layout this code was generated from (`NinoTypeLayout`).
     pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0xA8246323; deferrable=false; members=raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)}";
+}
+
+/// `Shapes.OffsetLeaf`: raw, 24 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OffsetLeaf {
+    pub a: i16,
+    pub at: DateTimeOffset,
+}
+
+impl nino::Raw for OffsetLeaf {
+    const SIZE: usize = 24;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..24).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [2, 3, 4, 5, 6, 7].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            a: <i16 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            at: <DateTimeOffset as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.a, o);
+        }
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.at, o);
+        }
+    }
+}
+
+impl NinoRead for OffsetLeaf {
+    const MIN_SIZE: usize = 24;
+    const FIXED_SIZE: usize = 24;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<24>()?)
+    }
+}
+
+impl NinoWrite for OffsetLeaf {
+    const FIXED_SIZE: usize = 24;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 24];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
 }
 
 /// `Shapes.ThingStruct`: raw, 16 bytes.
@@ -728,6 +926,59 @@ impl Holder {
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x839907D7; deferrable=true; members=Thing:Shapes.IThing:type(Shapes.IThing);Things:System.Collections.Generic.List<Shapes.IThing>:seq(type(Shapes.IThing));Tree:Shapes.Recursive:type(Shapes.Recursive);Inner:Shapes.Outer.Inner:type(Shapes.Outer.Inner);LeftItem:Shapes.Left.Item:type(Shapes.Left.Item);RightItem:Shapes.Right.Item:type(Shapes.Right.Item);Flags:Shapes.Flags:raw(8);Gaps:Shapes.Gappy[]:seq(raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)});Names:System.Collections.Generic.Dictionary<int, string>:map(raw(4),string);Tags:System.Collections.Generic.HashSet<string>:seq(string);Pair:System.ValueTuple<int, string>:tuple(raw(4),string);Entry:System.Collections.Generic.KeyValuePair<string, int>:pair(string,raw(4));Maybe:System.Nullable<int>:nullable(raw(4));Keywords:Shapes.Keywords:type(Shapes.Keywords)";
 }
 
+/// `Shapes.HostHolder`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct HostHolder {
+    pub leaves: HostLeaves,
+    pub gaps: Option<nino::RawNullables<i128>>,
+}
+
+impl NinoReadBody for HostHolder {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.leaves)?;
+        r.read_into(&mut self.gaps)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for HostHolder {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.leaves)?;
+        w.write(&self.gaps)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for HostHolder {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for HostHolder {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<nino::RawNullables<i128>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.gaps.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.gaps.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl HostHolder {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x73E57D3Fu32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Shapes.HostHolder";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73E57D3F; deferrable=true; members=Leaves:Shapes.HostLeaves:raw(64){A:byte@0:raw(1),Wide:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},Signed:System.IntPtr@32:raw(8),Unsigned:System.UIntPtr@40:raw(8),Pointer:int*@48:raw(8)};Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})";
+}
+
 /// `Shapes.Generic.Keys<T>`: Positional, header NullFlag.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -1000,6 +1251,45 @@ impl<T> Node<T> {
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Node<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
     pub const NINO_LAYOUT: &str = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T):key=0xC373233E;Next:Shapes.Generic.Node<T>:type(Shapes.Generic.Node<T>):key=0xC9A6113A";
+}
+
+/// `Shapes.OffsetHolder`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OffsetHolder {
+    pub leaf: OffsetLeaf,
+}
+
+impl NinoReadBody for OffsetHolder {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.leaf)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for OffsetHolder {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.leaf)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for OffsetHolder {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for OffsetHolder {
+    nino::sealed_write!();
+}
+
+impl OffsetHolder {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x36E5D592u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Shapes.OffsetHolder";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x36E5D592; deferrable=true; members=Leaf:Shapes.OffsetLeaf:raw(24){A:short@0:raw(2),At:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}}";
 }
 
 /// `Shapes.Generic.Open<T>`: Positional, header TypeId.
@@ -2290,11 +2580,13 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Shapes.Generic.OpenUse" => f.visit::<Option<Box<OpenUse>>>(),
         "Shapes.Generic.Uses" => f.visit::<Option<Box<Uses>>>(),
         "Shapes.Holder" => f.visit::<Option<Box<Holder>>>(),
+        "Shapes.HostHolder" => f.visit::<Option<Box<HostHolder>>>(),
         "Shapes.IThing" => f.visit::<Option<IThingRef>>(),
         "Shapes.Keywords" => f.visit::<Option<Box<Keywords>>>(),
         "Shapes.Left.Item" => f.visit::<Option<Box<ShapesLeftItem>>>(),
         "Shapes.Marked" => f.visit::<Marked>(),
         "Shapes.NinoGrid" => f.visit::<Option<Box<NinoGrid>>>(),
+        "Shapes.OffsetHolder" => f.visit::<Option<Box<OffsetHolder>>>(),
         "Shapes.Outer+Inner" => f.visit::<Option<Box<OuterInner>>>(),
         "Shapes.Recursive" => f.visit::<Recursive>(),
         "Shapes.Renamed" => f.visit::<Option<Box<Renamed>>>(),

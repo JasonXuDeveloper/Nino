@@ -145,6 +145,41 @@ namespace Shapes
     }
 
     /// <summary>
+    /// The BCL leaves whose layout differs by runtime, inside a raw struct, in the canonical layout (wire-format spec
+    /// §5.2): Int128 aligned to 16, nint sign-extended, nuint and pointers zero-extended to 8 bytes.
+    /// </summary>
+    public unsafe struct HostLeaves
+    {
+        public byte A;
+        public System.Int128 Wide;
+        public nint Signed;
+        public nuint Unsigned;
+        public int* Pointer;
+    }
+
+    /// <summary>DateTimeOffset inside a raw struct: its canonical fields, the minutes (an int) at 0, the ticks at 8.</summary>
+    public struct OffsetLeaf
+    {
+        public short A;
+        public System.DateTimeOffset At;
+    }
+
+    /// <summary>Raw structs holding <see cref="HostLeaves"/>, and Int128? at a stride of 32 (the value at 16).</summary>
+    [NinoType]
+    public sealed class HostHolder
+    {
+        public HostLeaves Leaves;
+        public System.Int128?[] Gaps;
+    }
+
+    /// <summary>Not written to TypeScript, whose DateTime is a Date (milliseconds, written as UTC).</summary>
+    [NinoType]
+    public sealed class OffsetHolder
+    {
+        public OffsetLeaf Leaf;
+    }
+
+    /// <summary>
     /// A SIMD vector of fixed size (Vector256: 32 bytes aligned to 32 in the canonical layout), which no target
     /// expresses: every target leaves the type out, with a warning. (Vector&lt;T&gt; is not serializable at all:
     /// NINO029.)
