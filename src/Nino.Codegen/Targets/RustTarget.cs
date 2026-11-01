@@ -489,16 +489,9 @@ namespace Nino.Codegen.Targets
                             $"{model.FullName}.{f.Name} ({f.Value.Encoding}) has no Rust form inside a raw struct")).ToList();
                     if (!_rawStructs.Contains(model))
                         _rawStructs.Add(model);
-                    int align = 1;
-                    int largest = fields.Select(f => f.Align).DefaultIfEmpty(1).Max();
-                    // The largest alignment every field's offset allows, as gen.py derives a struct's ALIGN.
-                    foreach (int a in new[] { 1, 2, 4, 8 })
-                        if (a <= largest && model.Fields.Select((f, i) => f.Offset % Math.Min(fields[i].Align, a) == 0)
-                                .All(ok => ok))
-                            align = a;
                     return RawShapes[model] = new RustShape("rawstruct")
                     {
-                        Struct = model, Size = model.Empty ? 1 : model.Size, Align = align,
+                        Struct = model, Size = model.Empty ? 1 : model.Size, Align = model.Align,
                         Hashable = fields.All(f => f.Hashable),
                     };
                 }
@@ -519,6 +512,7 @@ namespace Nino.Codegen.Targets
             PrimitiveKind.I16 or PrimitiveKind.U16 or PrimitiveKind.F16 or PrimitiveKind.Char => 2,
             PrimitiveKind.I32 or PrimitiveKind.U32 or PrimitiveKind.F32 or PrimitiveKind.DateOnly or PrimitiveKind.Guid
                 or PrimitiveKind.Rune => 4,
+            PrimitiveKind.I128 or PrimitiveKind.U128 => 16,
             _ => 8,
         };
 

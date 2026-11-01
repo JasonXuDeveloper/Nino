@@ -112,10 +112,37 @@ namespace Shapes
         public Dictionary<float, int> Map;
     }
 
+    /// <summary>A plain struct holding a value tuple: (byte, short) is the short, then the byte, aligned to 4.</summary>
+    public struct TupleInside
+    {
+        public byte A;
+        public (byte, short) T;
+    }
+
+    /// <summary>A raw struct aligned to 4 by the auto layout of the tuple it holds (wire-format spec §5.2).</summary>
+    [NinoType]
+    public struct TupleCell
+    {
+        public byte A;
+        public TupleInside Inside;
+    }
+
     /// <summary>
-    /// A SIMD vector of fixed size, aligned per runtime (Vector256 at 32 on x64, 16 on Arm64; Nino.Core's layout), which
-    /// no target expresses: every target leaves the type out, with a warning. (Vector&lt;T&gt; is not serializable at
-    /// all: NINO029.)
+    /// Nullables of raw values at a fixed stride: the presence byte, padding to the value's canonical alignment, then
+    /// the value (wire-format spec §6.2); as a member (its layout publishes the stride) and as a type argument (nino-gen
+    /// works it out).
+    /// </summary>
+    [NinoType]
+    public sealed class Strides
+    {
+        public TupleCell?[] Cells;
+        public Generic.Box<TupleCell?[]> Boxed;
+    }
+
+    /// <summary>
+    /// A SIMD vector of fixed size (Vector256: 32 bytes aligned to 32 in the canonical layout), which no target
+    /// expresses: every target leaves the type out, with a warning. (Vector&lt;T&gt; is not serializable at all:
+    /// NINO029.)
     /// </summary>
     [NinoType]
     public sealed class Simd

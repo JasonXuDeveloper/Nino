@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Codegen.Model;
+using Nino.Core;
 using Nino.Core.Internal;
 
 namespace Nino.Codegen.Tests
@@ -60,6 +61,28 @@ namespace Nino.Codegen.Tests
             Assert.AreEqual(8, gappy.Size);
             Assert.IsFalse(gappy.Packed);
             CollectionAssert.AreEqual(new[] { 0, 4 }, gappy.Fields.Select(f => f.Offset).ToList());
+        }
+
+        [TestMethod]
+        public void NullableStridesAreThoseNinoCoreWrites()
+        {
+            using var model = Load(GeneratedFilesTests.Shapes);
+            var strides = Type(model, "Shapes.Strides");
+            ValueModel Member(string name) => strides.Members.Single(m => m.Name == name).Value;
+            ValueModel Element(string name) =>
+                (name == "Boxed" ? Member(name).Arguments.Single() : Member(name)).Element!;
+            // One element after the four-byte count: the stride .NET writes, the value after the flag's padding.
+            void Check(string member, byte[] bytes, int valueSize)
+            {
+                var element = Element(member);
+                Assert.AreEqual(ValueKind.RawNullable, element.Kind, member);
+                Assert.AreEqual(bytes.Length - 4, element.Size, member);
+                Assert.AreEqual(bytes.Length - 4 - valueSize, element.ValueOffset, member);
+            }
+
+            var cells = NinoSerializer.Serialize(new Shapes.TupleCell?[] { default(Shapes.TupleCell) });
+            Check("Cells", cells, 12);
+            Check("Boxed", cells, 12);
         }
 
         [TestMethod]

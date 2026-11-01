@@ -229,6 +229,198 @@ impl ThingStruct {
     pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x254C375C; deferrable=false; members=raw(16){Id:int@0:raw(4),Extra:long@8:raw(8)}";
 }
 
+/// `Shapes.TupleCell`: raw, 12 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TupleCell {
+    pub a: u8,
+    pub inside: TupleInside,
+}
+
+impl nino::Raw for TupleCell {
+    const SIZE: usize = 12;
+    const ALIGN: usize = 4;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..12).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [1, 2, 3].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            a: <u8 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            inside: <TupleInside as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.a, o);
+        }
+        if let Some(o) = out.get_mut(4..) {
+            nino::Raw::encode_raw(&self.inside, o);
+        }
+    }
+}
+
+impl NinoRead for TupleCell {
+    const MIN_SIZE: usize = 12;
+    const FIXED_SIZE: usize = 12;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<12>()?)
+    }
+}
+
+impl NinoWrite for TupleCell {
+    const FIXED_SIZE: usize = 12;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 12];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+impl TupleCell {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0x794AD791u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Shapes.TupleCell";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x794AD791; deferrable=false; members=raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}";
+}
+
+/// `Shapes.TupleInside`: raw, 8 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TupleInside {
+    pub a: u8,
+    pub t: ValueTupleByteInt16,
+}
+
+impl nino::Raw for TupleInside {
+    const SIZE: usize = 8;
+    const ALIGN: usize = 4;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..8).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [1, 2, 3].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            a: <u8 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            t: <ValueTupleByteInt16 as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.a, o);
+        }
+        if let Some(o) = out.get_mut(4..) {
+            nino::Raw::encode_raw(&self.t, o);
+        }
+    }
+}
+
+impl NinoRead for TupleInside {
+    const MIN_SIZE: usize = 8;
+    const FIXED_SIZE: usize = 8;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
+    }
+}
+
+impl NinoWrite for TupleInside {
+    const FIXED_SIZE: usize = 8;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 8];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `System.ValueTuple<System.Byte,System.Int16>`: raw, 4 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ValueTupleByteInt16 {
+    pub item1: u8,
+    pub item2: i16,
+}
+
+impl nino::Raw for ValueTupleByteInt16 {
+    const SIZE: usize = 4;
+    const ALIGN: usize = 4;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..4).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [3].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            item1: <u8 as nino::Raw>::decode_raw(b.get(2..).unwrap_or_default())?,
+            item2: <i16 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(2..) {
+            nino::Raw::encode_raw(&self.item1, o);
+        }
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.item2, o);
+        }
+    }
+}
+
+impl NinoRead for ValueTupleByteInt16 {
+    const MIN_SIZE: usize = 4;
+    const FIXED_SIZE: usize = 4;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<4>()?)
+    }
+}
+
+impl NinoWrite for ValueTupleByteInt16 {
+    const FIXED_SIZE: usize = 4;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 4];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
 /// `Shapes.Generic.Bag<T>`: VersionTolerant, header NullFlag.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -1524,6 +1716,62 @@ impl Stamps {
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xB5FF2A7F; deferrable=true; members=Times:System.DateTime[]:seq(raw(8));Days:System.Collections.Generic.List<System.DateOnly>:seq(raw(4));Clocks:System.TimeOnly[]:seq(raw(8));Prices:decimal[]:seq(raw(16));Ids:System.Collections.Generic.List<System.Guid>:seq(raw(16));Signed:System.Int128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Unsigned:System.UInt128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Marks:Shapes.Marked[]:seq(raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)})";
 }
 
+/// `Shapes.Strides`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Strides {
+    pub cells: Option<nino::RawNullables<TupleCell>>,
+    pub boxed: Option<Box<BoxType<Option<nino::RawNullables<TupleCell>>>>>,
+}
+
+impl NinoReadBody for Strides {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.cells)?;
+        r.read_member_into(&mut self.boxed, nino::field!(Self, boxed))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for Strides {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.cells)?;
+        w.write(&self.boxed)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for Strides {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for Strides {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<nino::RawNullables<TupleCell>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<nino::RawNullables<TupleCell>>>>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.cells.prefetch();
+        self.boxed.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.cells.prefetch_members();
+        self.boxed.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl Strides {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0xBF48C221u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Shapes.Strides";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xBF48C221; deferrable=true; members=Cells:System.Nullable<Shapes.TupleCell>[]:seq(raw(16){hasValue:bool@0:raw(1),value:Shapes.TupleCell@4:raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}});Boxed:Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>:type(Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>)";
+}
+
 /// `Shapes.ThingClass`: Positional, header NullFlag.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -2052,8 +2300,10 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Shapes.Renamed" => f.visit::<Option<Box<Renamed>>>(),
         "Shapes.Right.Item" => f.visit::<Option<Box<ShapesRightItem>>>(),
         "Shapes.Stamps" => f.visit::<Option<Box<Stamps>>>(),
+        "Shapes.Strides" => f.visit::<Option<Box<Strides>>>(),
         "Shapes.ThingClass" => f.visit::<Option<Box<ThingClass>>>(),
         "Shapes.ThingStruct" => f.visit::<ThingStruct>(),
+        "Shapes.TupleCell" => f.visit::<TupleCell>(),
         _ => return None,
     })
 }

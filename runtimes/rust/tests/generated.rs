@@ -312,6 +312,27 @@ fn fixed_size_shapes_as_blocks() {
     assert_eq!(nino::deserialize_exact::<Vec<RawPair<i32>>>(&bytes).unwrap(), raw);
 }
 
+/// The bytes .NET writes for Shapes.Strides (a `T?[]` of a raw struct aligned to 4 by the auto layout of the tuple
+/// it holds: the flag, three bytes of padding, then the value), as a member and as a type argument.
+const STRIDES: &str = "01 02000000 01000000 01000000 02000000 FCFF0300 00000000000000000000000000000000 \
+    01 02000000 00000000000000000000000000000000 01000000 01000000 02000000 FCFF0300";
+
+#[test]
+fn nullable_strides_as_dotnet_writes_them() {
+    use shapes::{BoxType, Strides, TupleCell, TupleInside, ValueTupleByteInt16};
+    let cell = TupleCell { a: 1, inside: TupleInside { a: 2, t: ValueTupleByteInt16 { item1: 3, item2: -4 } } };
+    let strides = Strides {
+        cells: Some(nino::RawNullables(vec![Some(cell), None])),
+        boxed: Some(Box::new(BoxType { value: Some(nino::RawNullables(vec![None, Some(cell)])) })),
+    };
+    let expected: Vec<u8> = STRIDES
+        .split_whitespace()
+        .flat_map(|w| (0..w.len()).step_by(2).map(move |i| u8::from_str_radix(&w[i..i + 2], 16).unwrap()))
+        .collect();
+    assert_eq!(nino::serialize(&Some(Box::new(strides.clone()))).unwrap(), expected);
+    assert_eq!(nino::deserialize_exact::<Option<Box<Strides>>>(&expected).unwrap(), Some(Box::new(strides)));
+}
+
 #[test]
 fn generated_fuzz() {
     on_large_stack(fuzz);

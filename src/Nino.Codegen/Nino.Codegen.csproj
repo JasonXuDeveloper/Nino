@@ -37,6 +37,8 @@
         <None Include="build\Nino.Codegen.targets" Pack="true" PackagePath="build\"/>
         <!-- The type id hash of Nino.Core (and Nino.Generator), so the ids nino-gen writes cannot drift from them. -->
         <Compile Include="..\Nino.Core\Internal\NinoHash.cs" Link="Shared\NinoHash.cs"/>
+        <!-- Nino.Core's struct layout algorithm, for the canonical alignment a layout does not publish. -->
+        <Compile Include="..\Nino.Core\Internal\NinoLayoutCore.cs" Link="Shared\NinoLayoutCore.cs"/>
     </ItemGroup>
 
     <ItemGroup>

@@ -997,7 +997,7 @@ pub struct ValueTupleByteGuid {
 
 impl nino::Raw for ValueTupleByteGuid {
     const SIZE: usize = 24;
-    const ALIGN: usize = 4;
+    const ALIGN: usize = 8;
 
     fn decode_raw(b: &[u8]) -> nino::Result<Self> {
         let b = b.get(..24).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
@@ -1058,7 +1058,7 @@ pub struct ValueTupleByteInt16 {
 
 impl nino::Raw for ValueTupleByteInt16 {
     const SIZE: usize = 4;
-    const ALIGN: usize = 2;
+    const ALIGN: usize = 4;
 
     fn decode_raw(b: &[u8]) -> nino::Result<Self> {
         let b = b.get(..4).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;

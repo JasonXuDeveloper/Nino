@@ -731,7 +731,7 @@ namespace Nino.Codegen.Model
             var value = type.GetGenericArguments()[0];
             if (RawArgument(value) is not { } raw)
                 return null;
-            int align = CanonicalAlign(value);
+            int align = CanonicalLayout.Align(value);
             if (align <= 0)
                 return null;
             return $"raw({align + raw.Size}){{hasValue:System.Boolean@0:raw(1),value:{value.FullName}@{align}:{raw.Source}}}";
@@ -752,40 +752,6 @@ namespace Nino.Codegen.Model
                     ? null
                     : WireEncoding.Parse($"raw({PrimitiveSize(primitive)})");
             return Find(type) is { Layout: { Raw: true, RawEncoding: { Size: > 0 } encoding } } ? encoding : null;
-        }
-
-        /// <summary>
-        /// The canonical alignment of a raw type (wire-format spec §5.2): of a leaf, its own; of a struct, the largest
-        /// of its fields' (each limited to <c>[StructLayout(Pack)]</c>); 0 when it cannot be told.
-        /// </summary>
-        private static int CanonicalAlign(Type type)
-        {
-            if (type.IsEnum)
-                type = type.GetEnumUnderlyingType();
-            if (PrimitiveOf(type) is { } primitive)
-                return primitive switch
-                {
-                    PrimitiveKind.Decimal => 8,
-                    PrimitiveKind.Guid => 4,
-                    PrimitiveKind.I128 or PrimitiveKind.U128 => 16,
-                    PrimitiveKind.NInt or PrimitiveKind.NUInt => 0,
-                    _ => PrimitiveSize(primitive),
-                };
-            if (!type.IsValueType)
-                return 0;
-            int pack = type.StructLayoutAttribute?.Pack ?? 0;
-            int align = 1;
-            foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
-            {
-                int a = CanonicalAlign(field.FieldType);
-                if (a <= 0)
-                    return 0;
-                if (pack > 0 && a > pack)
-                    a = pack;
-                align = Math.Max(align, a);
-            }
-
-            return align;
         }
 
         /// <summary>Records a collection that holds itself (its elements, keys or values are <c>type(itself)</c>).</summary>
@@ -885,6 +851,7 @@ namespace Nino.Codegen.Model
                 {
                     Layout = Find(clr),
                     Size = e.Fields.Count == 0 && e.Size < 0 ? 1 : e.Size,
+                    Align = Math.Max(CanonicalLayout.Align(clr), 1),
                     Packed = Packed(e),
                 };
                 _structs[clr] = model;
