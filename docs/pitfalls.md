@@ -83,6 +83,10 @@ from its fields:
   `decimal` on Mono/IL2CPP, and most 32-bit ones), values are copied as raw memory. The check is a
   `static readonly` flag the JIT folds away.
 - Elsewhere, values are converted field by field and the bulk raw paths are skipped.
+- .NET Framework lays out a sequential struct that holds a `DateTime` as auto-layout (`{ byte; DateTime; int }`
+  puts the `int` first, 16 bytes on x64), which no alignment model describes: there (and wherever the model misses
+  a type's size) the offsets are read from an instance, each field's value copied out by reflection from bytes set
+  to their own offsets.
 - `nint`/`nuint` are always written as 8 bytes.
 
 The generator only puts struct members into unmanaged blocks when their layout is the same under every

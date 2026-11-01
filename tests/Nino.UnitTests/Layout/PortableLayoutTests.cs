@@ -17,6 +17,18 @@ namespace Nino.UnitTests
     }
 #endif
 
+    public struct WideAfterByteOrLong
+    {
+#pragma warning disable CS0649
+        public byte A;
+#if NET8_0_OR_GREATER
+        public System.Int128 B;
+#else
+        public long B;
+#endif
+#pragma warning restore CS0649
+    }
+
     [TestClass]
     public class PortableLayoutTests
     {
@@ -130,6 +142,67 @@ namespace Nino.UnitTests
             Assert.IsTrue(NinoLayout.Compute(typeof(HoldsTimeSpan), 16, 8, 8, 0, 4).Canonical);
             // This runtime's probed alignments describe its own layout: 16 canonical bytes, converted or not.
             Assert.AreEqual(16, NinoLayout.Get(typeof(HoldsDateTime), Unsafe.SizeOf<HoldsDateTime>()).Size);
+        }
+
+        private struct Mixed
+        {
+#pragma warning disable CS0649
+            public bool A;
+            public HoldsDateTimes B;
+            public bool C;
+            public decimal D;
+            public short E;
+            public System.Guid F;
+            public byte G;
+            public double H;
+#pragma warning restore CS0649
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        private struct Overlapping
+        {
+#pragma warning disable CS0649
+            [FieldOffset(0)] public long A;
+            [FieldOffset(4)] public int B;
+            [FieldOffset(9)] public bool C;
+#pragma warning restore CS0649
+        }
+
+        private struct HoldsNullable
+        {
+#pragma warning disable CS0649
+            public byte A;
+            public int? B;
+#pragma warning restore CS0649
+        }
+
+        [TestMethod]
+        public void MeasuredOffsetsMatchTheModelWhereItHolds()
+        {
+            // Where the model is not this runtime's (.NET Framework lays out a struct holding a DateTime as
+            // auto-layout), the offsets are read from an instance instead: here they must agree with the model.
+            AssertSameLayout<Natural>();
+            AssertSameLayout<HoldsDateTime>();
+            AssertSameLayout<HoldsDateTimes>();
+            AssertSameLayout<HoldsDateTimesX86>();
+            AssertSameLayout<Mixed>();
+            AssertSameLayout<Overlapping>();
+            AssertSameLayout<WideAfterByteOrLong>();
+            // A Nullable field is boxed as its value, so its offset cannot be read: copied as memory, as before.
+            var nullable = NinoLayout.Compute(typeof(HoldsNullable), Unsafe.SizeOf<HoldsNullable>(), 8, 8, 0, 0, true);
+            Assert.IsTrue(nullable.Canonical);
+            Assert.IsNull(nullable.Map);
+            Assert.IsNull(nullable.Mask);
+        }
+
+        private static void AssertSameLayout<T>() where T : struct
+        {
+            var model = NinoLayout.Compute(typeof(T), Unsafe.SizeOf<T>(), 8, 8);
+            var measured = NinoLayout.Compute(typeof(T), Unsafe.SizeOf<T>(), 8, 8, 0, 0, true);
+            Assert.AreEqual(model.Canonical, measured.Canonical, typeof(T).Name);
+            Assert.AreEqual(model.Size, measured.Size, typeof(T).Name);
+            CollectionAssert.AreEqual(model.Mask, measured.Mask, typeof(T).Name);
+            CollectionAssert.AreEqual(model.Map, measured.Map, typeof(T).Name);
         }
 
         [TestMethod]
