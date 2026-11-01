@@ -23,8 +23,15 @@ namespace Nino.Core.Internal
         Size2,
         Size4,
 
-        /// <summary>8 bytes aligned to the runtime's alignment of 8-byte primitives (<c>long</c>, <c>DateTime</c>...).</summary>
+        /// <summary>8 bytes aligned to the runtime's alignment of 8-byte primitives (<c>long</c>, <c>TimeSpan</c>...).</summary>
         Size8,
+
+        /// <summary>
+        /// <c>DateTime</c>: 8 bytes aligned to the runtime's alignment of it, which is not that of <c>long</c> on 32-bit
+        /// x86 CoreCLR (an auto-layout struct as a field is aligned to 4 there, a <c>long</c> to 8). Only Nino.Core's view
+        /// returns it; the generator's is <see cref="Size8"/>, which its 4-byte model aligns to 4 as well.
+        /// </summary>
+        DateTime,
 
         /// <summary><c>decimal</c>: 16 bytes aligned to the runtime's alignment of <c>decimal</c>.</summary>
         Decimal,
@@ -75,12 +82,13 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Lays out <paramref name="type"/> at <paramref name="baseOffset"/> under a runtime model (alignment of 8-byte
-        /// primitives, of <c>decimal</c>, the pointer size, and the alignment of <see cref="NinoLeaf.Wide"/>), collecting
-        /// its leaves in field order, and the offsets of its own fields in <paramref name="fieldOffsets"/> when given.
+        /// primitives, of <c>decimal</c>, the pointer size, and the alignments of <see cref="NinoLeaf.Wide"/> and of
+        /// <see cref="NinoLeaf.DateTime"/>, 0 for <paramref name="longAlign"/>), collecting its leaves in field order, and
+        /// the offsets of its own fields in <paramref name="fieldOffsets"/> when given.
         /// </summary>
         public static bool Measure<TType, TView>(TView view, TType type, int longAlign, int decimalAlign,
             int pointerSize, int baseOffset, List<Leaf> leaves, out int size, out int align,
-            List<int>? fieldOffsets = null, int wideAlign = 16)
+            List<int>? fieldOffsets = null, int wideAlign = 16, int dateTimeAlign = 0)
             where TView : INinoLayoutView<TType>
         {
             switch (view.Leaf(type))
@@ -96,6 +104,9 @@ namespace Nino.Core.Internal
                     return Add(4, 4, baseOffset, leaves, out size, out align);
                 case NinoLeaf.Size8:
                     return Add(8, longAlign, baseOffset, leaves, out size, out align);
+                case NinoLeaf.DateTime:
+                    return Add(8, dateTimeAlign > 0 ? dateTimeAlign : longAlign, baseOffset, leaves, out size,
+                        out align);
                 case NinoLeaf.Decimal:
                     return Add(16, decimalAlign, baseOffset, leaves, out size, out align);
                 case NinoLeaf.Guid:
@@ -121,7 +132,7 @@ namespace Nino.Core.Internal
             {
                 int start = leaves.Count;
                 if (!Measure(view, field.Key, longAlign, decimalAlign, pointerSize, 0, leaves, out int fieldSize,
-                        out int fieldAlign, null, wideAlign))
+                        out int fieldAlign, null, wideAlign, dateTimeAlign))
                     return false;
                 fieldAlign = fieldAlign < pack ? fieldAlign : pack;
                 int offset;

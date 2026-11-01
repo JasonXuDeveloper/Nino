@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -65,6 +66,81 @@ namespace Nino.UnitTests
             CollectionAssert.AreEqual(Bytes(ref memory), Bytes(ref back));
 
             Assert.IsTrue(NinoLayout.Compute(typeof(Natural), Unsafe.SizeOf<Natural>(), 8, 8).Canonical);
+        }
+
+        private struct HoldsDateTime
+        {
+#pragma warning disable CS0649
+            public int A;
+            public System.DateTime B;
+#pragma warning restore CS0649
+        }
+
+        private struct HoldsDateTimes
+        {
+#pragma warning disable CS0649
+            public byte A;
+            public System.DateTime B;
+            public int C;
+#pragma warning restore CS0649
+        }
+
+        // How .NET on 32-bit x86 lays out HoldsDateTimes: DateTime aligned to 4, long to 8.
+        [StructLayout(LayoutKind.Sequential, Pack = 4)]
+        private struct HoldsDateTimesX86
+        {
+            public byte A;
+            public System.DateTime B;
+            public int C;
+        }
+
+        private struct HoldsTimeSpan
+        {
+#pragma warning disable CS0649
+            public int A;
+            public System.TimeSpan B;
+#pragma warning restore CS0649
+        }
+
+        [TestMethod]
+        public void X86DateTimeAlignmentIsConvertedToTheCanonicalLayout()
+        {
+            // .NET on 32-bit x86 aligns long, double and TimeSpan fields to 8 but DateTime (an auto-layout struct) to
+            // 4: { int; DateTime } is 12 bytes there, 16 on 64-bit. With one alignment for both, the model said 16,
+            // missed the runtime's 12, and the value was copied as its 12 bytes of memory.
+            var info = NinoLayout.Compute(typeof(HoldsDateTime), 12, 8, 8, 0, 4);
+            Assert.IsFalse(info.Canonical);
+            Assert.AreEqual(16, info.Size);
+            CollectionAssert.AreEqual(new[] { 0, 0, 4, 4, 8, 8 }, info.Map);
+
+            var x86 = NinoLayout.Compute(typeof(HoldsDateTimes), Unsafe.SizeOf<HoldsDateTimesX86>(), 8, 8, 0, 4);
+            Assert.IsFalse(x86.Canonical);
+            Assert.AreEqual(Unsafe.SizeOf<HoldsDateTimes>(), x86.Size);
+            var memory = new HoldsDateTimesX86 { A = 1, B = new System.DateTime(0x0102030405060708L), C = -3 };
+            var wire = new byte[x86.Size];
+            NinoLayout.Convert(x86, ref Unsafe.As<HoldsDateTimesX86, byte>(ref memory), ref wire[0], true);
+            CollectionAssert.AreEqual(
+                NinoSerializer.Serialize(new HoldsDateTimes { A = 1, B = memory.B, C = -3 }), wire);
+            var back = default(HoldsDateTimesX86);
+            NinoLayout.Convert(x86, ref Unsafe.As<HoldsDateTimesX86, byte>(ref back), ref wire[0], false);
+            Assert.AreEqual(memory.B, back.B);
+            Assert.AreEqual(-3, back.C);
+
+            // TimeSpan follows long (8 there): nothing to convert.
+            Assert.IsTrue(NinoLayout.Compute(typeof(HoldsTimeSpan), 16, 8, 8, 0, 4).Canonical);
+            // This runtime's probed alignments describe its own layout: 16 canonical bytes, converted or not.
+            Assert.AreEqual(16, NinoLayout.Get(typeof(HoldsDateTime), Unsafe.SizeOf<HoldsDateTime>()).Size);
+        }
+
+        [TestMethod]
+        public void DateTimeAfterAnIntIsWrittenInTheCanonicalLayout()
+        {
+            var value = new HoldsDateTime { A = 1, B = new System.DateTime(0x0102030405060708L) };
+            var expected = new byte[] { 1, 0, 0, 0, 0, 0, 0, 0, 8, 7, 6, 5, 4, 3, 2, 1 };
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(value));
+            Assert.AreEqual(value.B, NinoDeserializer.Deserialize<HoldsDateTime>(expected).B);
+            var array = NinoSerializer.Serialize(new[] { value, value });
+            CollectionAssert.AreEqual(expected.Concat(expected).ToArray(), array.Skip(4).ToArray());
         }
 
         private static byte[] Bytes(ref X86Memory value) =>
