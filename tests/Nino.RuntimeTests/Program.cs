@@ -41,11 +41,6 @@ public struct StampedEvent { public int Id; public DateTime At; }
 [NinoType]
 public class EventLog { public HoldsDateTime First; public List<HoldsDateTimes> Rest; public StampedEvent Last; }
 
-// Plain structs holding a multi-field auto-layout struct (ValueTuple, DateTimeOffset): their layout is not measured,
-// they are copied as they lie in memory. Printed, not compared (see the end of Main).
-public struct HoldsTuple { public int A; public (int, long) B; }
-public struct HoldsDateTimeOffset { public int A; public DateTimeOffset B; }
-
 [NinoType]
 public class Item
 {
@@ -234,7 +229,7 @@ public static class Program
         Console.WriteLine($"{name,-24} {(ok ? "ok" : "WRONG")}");
     }
 
-    public static int Main()
+    public static int Main(string[] args)
     {
         var views = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.CollectionViews");
         // Informational, not compared: where this runtime keeps the fields.
@@ -528,17 +523,13 @@ public static class Program
             Console.WriteLine($"DateTime after an int {(ok ? "ok" : "WRONG BYTES")}");
         }
 
-        // What this runtime aligns 8-byte fields to (NinoLayout's probes), and how it lays out the structs Nino does not
-        // measure: not compared.
+        // What this runtime aligns 8-byte fields to (NinoLayout's probes): not compared.
         var ninoLayout = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.NinoLayout");
         Console.WriteLine("# layout: " + string.Join(" ", new[] { "LongAlign", "DateTimeAlign", "DecimalAlign", "WideAlign", "KeepsDeclarationOrder" }
             .Select(n => n + "=" + ninoLayout?.GetField(n, BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null))));
-        foreach (var (name, bytes) in new[]
-                 {
-                     ("HoldsTuple", NinoSerializer.Serialize(new HoldsTuple { A = 1, B = (2, 3) })),
-                     ("HoldsDateTimeOffset", NinoSerializer.Serialize(new HoldsDateTimeOffset { A = 1, B = new DateTimeOffset(4, TimeSpan.Zero) })),
-                 })
-            Console.WriteLine($"# unmeasured {name}: {BitConverter.ToString(bytes)}");
+        // Every BCL struct inside a plain struct, and tuples and pairs: CoreCLR x64's bytes, both ways.
+        BclStructs.Run(args.Contains("--write-fixtures"));
+        _failed += BclStructs.Failed;
         Console.WriteLine(_failed == 0 ? "ALL OK" : _failed + " FAILED");
         return _failed;
     }

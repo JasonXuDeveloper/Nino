@@ -16,14 +16,19 @@ namespace Nino.Core.Internal
 {
     /// <summary>
     /// Layout of raw-copied unmanaged types. The wire format of such a type is its <b>canonical</b> layout: the one
-    /// CoreCLR uses on 64-bit (every primitive aligned to its size, <c>decimal</c> aligned to 8), padding zeroed.
-    /// Runtimes that lay the type out differently are detected once by probe structs, and their values are converted
-    /// field by field instead of copied: Mono on 32-bit x86 aligns 8-byte primitives to 4; .NET on
+    /// CoreCLR uses on 64-bit (every primitive aligned to its size, <c>decimal</c> aligned to 8, <c>nint</c> and
+    /// pointers 8 bytes; auto-layout structs such as <c>ValueTuple</c> placed by its auto-layout rule,
+    /// <see cref="NinoLayoutCore"/>; <c>DateTimeOffset</c> as .NET 10 lays it out, its offset in minutes as an
+    /// <c>int</c>, then its UTC date at 8), padding zeroed. Runtimes that lay the type out differently are detected
+    /// once by probe structs, and their values are converted field by field instead of copied: Mono on 32-bit x86
+    /// aligns 8-byte primitives to 4; .NET on
     /// 32-bit x86 aligns <c>long</c>, <c>double</c> and sequential structs holding them (<c>TimeSpan</c>, <c>decimal</c>)
     /// to 8 but <c>DateTime</c>, an auto-layout struct, to 4 (<c>{ int; DateTime }</c> is 12 bytes there, 16 on 64-bit);
     /// Mono and IL2CPP align <c>decimal</c> to 4; Arm32 and .NET 7 align <c>Int128</c> to 8. .NET Framework lays out a
-    /// struct holding a <c>DateTime</c> as auto-layout (fields reordered): there, and wherever the model misses a type's
-    /// size, the offsets are read from an instance instead.
+    /// struct holding a <c>DateTime</c> as auto-layout (fields reordered): there, wherever the model misses a type's
+    /// size, and for structs holding an auto-layout struct (whose placement differs between runtimes: Mono and IL2CPP
+    /// keep a tuple's declaration order, .NET 8 has a <c>short</c> in <c>DateTimeOffset</c>), the offsets are read from
+    /// an instance instead.
     /// </summary>
     internal static class NinoLayout
     {
@@ -152,6 +157,13 @@ namespace Nino.Core.Internal
 
             /// <summary>When not canonical: (memory offset, wire offset, size) runs.</summary>
             public int[] Map;
+
+            /// <summary>
+            /// When not canonical, the integers whose size differs between memory and wire (<c>nint</c> on 32-bit, the
+            /// minutes of a <c>DateTimeOffset</c> where they are a <c>short</c>): (memory offset, memory size, wire
+            /// offset, wire size, 1 when signed) quintuples; null for none.
+            /// </summary>
+            public int[] Resized;
         }
 
         /// <summary>Layout info for <paramref name="type"/>; <paramref name="runtimeSize"/> validates the model.</summary>
@@ -194,10 +206,11 @@ namespace Nino.Core.Internal
                 wideAlign = WideAlign;
             if (dateTimeAlign == 0)
                 dateTimeAlign = DateTimeAlign;
-            if (!NinoLayoutCore.Measure<Type, RuntimeView>(default, type, 8, 8, IntPtr.Size, 0, wire,
-                    out int wireSize, out int wireAlign, null, 16, 8))
+            if (!NinoLayoutCore.Measure(new RuntimeView { Canonical = true }, type, 8, 8, 8, 0, wire,
+                    out int wireSize, out int wireAlign, null, 16, 8, 8))
                 return new Info { Size = runtimeSize };
             int memorySize = -1;
+            // Auto-layout structs are not modeled for this runtime (autoPointerSize 0): their offsets are measured.
             if (measured ||
                 !NinoLayoutCore.Measure<Type, RuntimeView>(default, type, longAlign, decimalAlign, IntPtr.Size, 0,
                     memory, out memorySize, out _, null, wideAlign, dateTimeAlign) ||
@@ -207,17 +220,18 @@ namespace Nino.Core.Internal
                 memory.Clear();
                 memorySize = runtimeSize;
                 var values = runtimeSize > 0 ? MeasureMemory(type, runtimeSize) : null;
-                int leaves = 0;
                 foreach (var value in values ?? new List<KeyValuePair<Type, int>>())
                 {
-                    if (default(RuntimeView).Leaf(value.Key) == NinoLeaf.None)
-                        continue;
-                    if (leaves < wire.Count)
-                        memory.Add(new NinoLayoutCore.Leaf { Offset = value.Value, Size = wire[leaves].Size });
-                    leaves++;
+                    int size = LeafSize(value.Key);
+                    if (size > 0)
+                        memory.Add(new NinoLayoutCore.Leaf
+                        {
+                            Offset = value.Value, Size = size,
+                            Signed = value.Key == typeof(IntPtr) || value.Key == typeof(short) || value.Key == typeof(int),
+                        });
                 }
 
-                if (values == null || leaves != wire.Count)
+                if (values == null || memory.Count != wire.Count)
                     // Neither: the value is copied as it lies in memory, which other runtimes may lay out
                     // differently. tests/Nino.RuntimeTests checks the canonical bytes on every runtime CI has.
                     return new Info { Size = runtimeSize };
@@ -225,10 +239,14 @@ namespace Nino.Core.Internal
 
             if (wire.Count != memory.Count)
                 return new Info { Size = runtimeSize };
+            // A leaf of another size is an integer of another width (nint, a DateTimeOffset's minutes), and only that.
+            for (int i = 0; i < wire.Count; i++)
+                if (wire[i].Size != memory[i].Size && !(Resizable(wire[i].Size) && Resizable(memory[i].Size)))
+                    return new Info { Size = runtimeSize };
 
             var info = new Info { Size = wireSize, Align = wireAlign, Canonical = wireSize == memorySize };
             for (int i = 0; i < wire.Count && info.Canonical; i++)
-                info.Canonical = wire[i].Offset == memory[i].Offset;
+                info.Canonical = wire[i].Offset == memory[i].Offset && wire[i].Size == memory[i].Size;
 
             var mask = new byte[wireSize];
             foreach (var leaf in wire)
@@ -241,8 +259,19 @@ namespace Nino.Core.Internal
             {
                 // Merge leaves that are contiguous in both layouts into runs.
                 var runs = new List<int>();
+                var resized = new List<int>();
                 for (int i = 0; i < wire.Count; i++)
                 {
+                    if (wire[i].Size != memory[i].Size)
+                    {
+                        resized.Add(memory[i].Offset);
+                        resized.Add(memory[i].Size);
+                        resized.Add(wire[i].Offset);
+                        resized.Add(wire[i].Size);
+                        resized.Add(memory[i].Signed ? 1 : 0);
+                        continue;
+                    }
+
                     int n = runs.Count;
                     if (n != 0 && runs[n - 3] + runs[n - 1] == memory[i].Offset &&
                         runs[n - 2] + runs[n - 1] == wire[i].Offset)
@@ -257,9 +286,38 @@ namespace Nino.Core.Internal
                 }
 
                 info.Map = runs.ToArray();
+                if (resized.Count != 0)
+                    info.Resized = resized.ToArray();
             }
 
             return info;
+        }
+
+        private static bool Resizable(int size) => size == 2 || size == 4 || size == 8;
+
+        /// <summary>The size in memory of a leaf of <paramref name="type"/> on this runtime; 0 for a struct of fields.</summary>
+        private static int LeafSize(Type type)
+        {
+            switch (default(RuntimeView).Leaf(type))
+            {
+                case NinoLeaf.Size1:
+                    return 1;
+                case NinoLeaf.Size2:
+                    return 2;
+                case NinoLeaf.Size4:
+                    return 4;
+                case NinoLeaf.Size8:
+                case NinoLeaf.DateTime:
+                    return 8;
+                case NinoLeaf.Pointer:
+                case NinoLeaf.SignedPointer:
+                    return IntPtr.Size;
+                case NinoLeaf.None:
+                case NinoLeaf.Unsupported:
+                    return 0;
+                default:
+                    return 16;
+            }
         }
 
         /// <summary>
@@ -275,9 +333,11 @@ namespace Nino.Core.Internal
             try
             {
                 var checks = new List<int>();
-                if (KeepsDeclarationOrder)
-                    return AddChecks(type, 0, checks) && checks.Count != 0 ? new NinoValueChecks(checks.ToArray()) : null;
-                // Offsets read from an instance, as Compute reads them here.
+                if (KeepsDeclarationOrder && AddChecks(type, 0, checks))
+                    return checks.Count != 0 ? new NinoValueChecks(checks.ToArray()) : null;
+                // Offsets read from an instance, as Compute reads them where the model does not describe the type
+                // (.NET Framework, auto-layout structs inside).
+                checks.Clear();
                 var values = MeasureMemory(type, size);
                 if (values == null)
                     return null;
@@ -334,6 +394,8 @@ namespace Nino.Core.Internal
                 return NinoValueChecks.DateTime;
             if (type == typeof(decimal))
                 return NinoValueChecks.Decimal;
+            if (type == typeof(DateTimeOffset) && ValueViews.DateTimeOffsetUtc >= 0)
+                return NinoValueChecks.DateTimeOffset;
             // By name: netstandard has neither.
             if (type.FullName == "System.DateOnly" && type.Assembly == typeof(object).Assembly)
                 return NinoValueChecks.DateOnly;
@@ -357,52 +419,131 @@ namespace Nino.Core.Internal
         /// runtime, itself first, then each field's, depth first in the order <see cref="RuntimeView"/> lists them, down
         /// to its leaves: each with its type and its offset in memory, read from an instance. One bit of each byte's
         /// own offset at a time, every byte of the instance is set to that bit (0 or 1, which a <c>bool</c> keeps), and
-        /// the first byte of each value, copied out by reflection, gives that bit of its offset. Null where a field
-        /// cannot be read so (a pointer is read as a <c>Pointer</c>, a <c>Nullable</c> boxed as its value).
+        /// the first byte of each value, copied out by reflection, gives that bit of its offset. A <c>Nullable</c>
+        /// (boxed as null or as its value) gives the bit of its flag, which comes first, and its value lies where
+        /// <c>T?</c> and <c>T</c> differ in size, laid out as a <c>T</c> on its own. Null where a field cannot be read
+        /// so (a pointer is read as a <c>Pointer</c>).
         /// </summary>
         [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "A struct's default instance needs no constructor.")]
         private static List<KeyValuePair<Type, int>> MeasureMemory(Type type, int size)
         {
             object instance = Activator.CreateInstance(type);
-            List<KeyValuePair<Type, int>> values = null;
+            List<Measured> values = null;
             int bit = 0;
             do
             {
                 for (int i = 0; i < size; i++)
                     ObjectFields.At<byte>(instance, i) = (byte)(i >> bit & 1);
-                var pass = new List<KeyValuePair<Type, int>>();
+                var pass = new List<Measured>();
                 if (!Visit(instance, type, bit, pass))
                     return null;
                 if (values != null)
+                {
+                    if (pass.Count != values.Count)
+                        return null;
                     for (int i = 0; i < pass.Count; i++)
-                        pass[i] = new KeyValuePair<Type, int>(pass[i].Key, pass[i].Value | values[i].Value);
+                        pass[i] = new Measured(pass[i].Type, pass[i].Offset | values[i].Offset, pass[i].Base,
+                            pass[i].Delta);
+                }
+
                 values = pass;
             } while ((size - 1) >> ++bit != 0);
 
+            var offsets = new List<KeyValuePair<Type, int>>(values.Count);
             foreach (var value in values)
-                if (value.Value >= size)
+            {
+                int offset = value.Base < 0 ? value.Offset : offsets[value.Base].Value + value.Delta;
+                if (offset >= size)
                     return null;
-            return values;
+                offsets.Add(new KeyValuePair<Type, int>(value.Type, offset));
+            }
+
+            return offsets;
+        }
+
+        /// <summary>
+        /// A value <see cref="MeasureMemory"/> found: its type and the bits of its offset found so far, or, with a
+        /// <see cref="Base"/>, its offset from that of an earlier value.
+        /// </summary>
+        private readonly struct Measured
+        {
+            public readonly Type Type;
+            public readonly int Offset, Base, Delta;
+
+            public Measured(Type type, int offset, int @base = -1, int delta = 0)
+            {
+                Type = type;
+                Offset = offset;
+                Base = @base;
+                Delta = delta;
+            }
         }
 
         [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = FieldsJustification)]
         [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = FieldsJustification)]
-        private static bool Visit(object value, Type type, int bit, List<KeyValuePair<Type, int>> values)
+        private static bool Visit(object value, Type type, int bit, List<Measured> values)
         {
             var leaf = default(RuntimeView).Leaf(type);
             if (leaf == NinoLeaf.Unsupported || value == null)
                 return false;
-            values.Add(new KeyValuePair<Type, int>(type, (ObjectFields.At<byte>(value, 0) & 1) << bit));
+            values.Add(new Measured(type, (ObjectFields.At<byte>(value, 0) & 1) << bit));
             if (leaf != NinoLeaf.None)
                 return true;
             foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
-                if (field.FieldType.IsPointer || Nullable.GetUnderlyingType(field.FieldType) != null ||
-                    !Visit(field.GetValue(value), field.FieldType, bit, values))
+            {
+                if (field.FieldType.IsPointer)
                     return false;
+                var underlying = Nullable.GetUnderlyingType(field.FieldType);
+                if (underlying == null ? !Visit(field.GetValue(value), field.FieldType, bit, values)
+                    : !VisitNullable(field.GetValue(value) != null, field.FieldType, underlying, bit, values))
+                    return false;
+            }
+
             return true;
         }
 
-        /// <summary>Copies a value between its memory layout and its wire layout using <see cref="Info.Map"/>.</summary>
+        /// <summary>A <c>Nullable</c> field whose flag (its first byte) is <paramref name="set"/> in this pass.</summary>
+        private static bool VisitNullable(bool set, Type nullable, Type underlying, int bit, List<Measured> values)
+        {
+            var inner = NullableValue(underlying, out int valueOffset);
+            if (inner == null)
+                return false;
+            int index = values.Count;
+            values.Add(new Measured(nullable, set ? 1 << bit : 0));
+            values.Add(new Measured(typeof(bool), 0, index));
+            foreach (var value in inner)
+                values.Add(new Measured(value.Key, 0, index, valueOffset + value.Value));
+            return true;
+        }
+
+        /// <summary>
+        /// The values of a <typeparamref name="T"/> (<see cref="MeasureMemory"/>) and where it lies in a <c>T?</c>,
+        /// whose flag comes first (corefx, and Mono from Unity 2021.3); null where that is not so or not measured.
+        /// </summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2060", Justification = "Measured only where reflection works; null otherwise.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Measured only where reflection works; null otherwise.")]
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = FieldsJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2090", Justification = FieldsJustification)]
+        private static List<KeyValuePair<Type, int>> NullableValue(Type underlying, out int valueOffset)
+        {
+            valueOffset = 0;
+            var nullable = typeof(Nullable<>).MakeGenericType(underlying);
+            var fields = nullable.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (fields.Length != 2 || fields[0].FieldType != typeof(bool))
+                return null;
+            var sizeOf = typeof(NinoLayout).GetMethod(nameof(SizeOf), BindingFlags.NonPublic | BindingFlags.Static)!;
+            int size = (int)sizeOf.MakeGenericMethod(underlying).Invoke(null, null)!;
+            valueOffset = (int)sizeOf.MakeGenericMethod(nullable).Invoke(null, null)! - size;
+            return valueOffset > 0 ? MeasureMemory(underlying, size) : null;
+        }
+
+        private static int SizeOf<T>() => Unsafe.SizeOf<T>();
+
+        /// <summary>
+        /// Copies a value between its memory layout and its wire layout using <see cref="Info.Map"/> and
+        /// <see cref="Info.Resized"/>. A wire integer that does not fit its narrower field in memory (an <c>nint</c>
+        /// past 32 bits on a 32-bit runtime) is invalid data there.
+        /// </summary>
         internal static void Convert(Info info, ref byte memory, ref byte wire, bool toWire)
         {
             var map = info.Map;
@@ -417,6 +558,50 @@ namespace Nino.Core.Internal
                 else
                     Unsafe.CopyBlockUnaligned(ref m, ref w, (uint)map[i + 2]);
             }
+
+            var resized = info.Resized;
+            if (resized == null)
+                return;
+            for (int i = 0; i < resized.Length; i += 5)
+            {
+                ref byte m = ref Unsafe.Add(ref memory, resized[i]);
+                ref byte w = ref Unsafe.Add(ref wire, resized[i + 2]);
+                bool signed = resized[i + 4] != 0;
+                if (toWire)
+                {
+                    Store(ref w, resized[i + 3], Load(ref m, resized[i + 1], signed));
+                    continue;
+                }
+
+                long value = Load(ref w, resized[i + 3], signed);
+                if (Load(ref Unsafe.As<long, byte>(ref value), resized[i + 1], signed) != value)
+                    NinoThrow.InvalidData("an integer too large for this runtime's field.");
+                Store(ref m, resized[i + 1], value);
+            }
+        }
+
+        /// <summary>The little-endian integer of <paramref name="size"/> bytes (2, 4 or 8) at <paramref name="at"/>.</summary>
+        private static long Load(ref byte at, int size, bool signed) => size switch
+        {
+            2 => signed ? Unsafe.ReadUnaligned<short>(ref at) : Unsafe.ReadUnaligned<ushort>(ref at),
+            4 => signed ? Unsafe.ReadUnaligned<int>(ref at) : Unsafe.ReadUnaligned<uint>(ref at),
+            _ => Unsafe.ReadUnaligned<long>(ref at),
+        };
+
+        private static void Store(ref byte at, int size, long value)
+        {
+            switch (size)
+            {
+                case 2:
+                    Unsafe.WriteUnaligned(ref at, (short)value);
+                    break;
+                case 4:
+                    Unsafe.WriteUnaligned(ref at, (int)value);
+                    break;
+                default:
+                    Unsafe.WriteUnaligned(ref at, value);
+                    break;
+            }
         }
 
         /// <summary>Why reading the instance fields of an unmanaged struct is safe after trimming and under NativeAOT.</summary>
@@ -428,9 +613,16 @@ namespace Nino.Core.Internal
             "struct it names. For another struct the fields read as missing, the measured size does not match " +
             "Unsafe.SizeOf<T>() and the value is copied as it lies in memory, as on any reflection failure here.";
 
-        /// <summary>The runtime's view of a type for <see cref="NinoLayoutCore"/>.</summary>
+        /// <summary>
+        /// The runtime's view of a type for <see cref="NinoLayoutCore"/>; with <see cref="Canonical"/>, the canonical
+        /// layout's: <c>DateTimeOffset</c> as the fields of .NET 10, whatever this runtime declares.
+        /// </summary>
         private struct RuntimeView : INinoLayoutView<Type>
         {
+            public bool Canonical;
+
+            public bool Primitive(Type type) => type.IsPrimitive || type.IsEnum || type.IsPointer;
+
             public NinoLeaf Leaf(Type type)
             {
                 if (type.IsEnum)
@@ -443,7 +635,9 @@ namespace Nino.Core.Internal
                     return NinoLeaf.Size8;
                 if (type == typeof(Guid))
                     return NinoLeaf.Guid;
-                if (type.IsPointer || type == typeof(IntPtr) || type == typeof(UIntPtr))
+                if (type == typeof(IntPtr))
+                    return NinoLeaf.SignedPointer;
+                if (type.IsPointer || type == typeof(UIntPtr))
                     return NinoLeaf.Pointer;
                 // By name: the netstandard builds name no Int128. Without a known alignment (the probe failed), its
                 // two ulongs (8-byte aligned), as before.
@@ -477,6 +671,16 @@ namespace Nino.Core.Internal
             public bool Struct(Type type, List<KeyValuePair<Type, int>> fields, out LayoutKind kind, out int pack,
                 out int minSize)
             {
+                if (Canonical && type == typeof(DateTimeOffset))
+                {
+                    // .NET 10's fields (.NET 8, .NET Framework and Mono have a short for the minutes).
+                    kind = LayoutKind.Auto;
+                    pack = minSize = 0;
+                    fields.Add(new KeyValuePair<Type, int>(typeof(DateTime), -1));
+                    fields.Add(new KeyValuePair<Type, int>(typeof(int), -1));
+                    return true;
+                }
+
                 var layout = type.StructLayoutAttribute;
                 kind = layout?.Value ?? LayoutKind.Sequential;
                 pack = layout != null && layout.Pack > 0 ? layout.Pack : 0;

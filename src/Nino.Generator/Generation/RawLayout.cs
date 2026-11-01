@@ -54,8 +54,9 @@ internal static class RawLayout
     private static bool Describe(ITypeSymbol type, StringBuilder sb)
     {
         var offsets = new List<int>();
+        // Auto-layout structs (value tuples) placed as 64-bit CoreCLR places them: the canonical layout.
         if (!NinoLayoutCore.Measure(new SymbolView(type), type, 8, 8, 8, 0, new List<NinoLayoutCore.Leaf>(),
-                out int size, out _, offsets))
+                out int size, out _, offsets, autoPointerSize: 8))
             return false;
         sb.Append("raw(").Append(size.ToString(CultureInfo.InvariantCulture)).Append(')');
         if (Leaf(type) != NinoLeaf.None)
@@ -319,6 +320,13 @@ internal static class RawLayout
     private readonly struct SymbolView(ITypeSymbol top) : INinoLayoutView<ITypeSymbol>
     {
         public NinoLeaf Leaf(ITypeSymbol type) => RawLayout.Leaf(type);
+
+        // For the canonical layout Describe publishes (a struct with several fields of an auto layout is never portable).
+        public bool Primitive(ITypeSymbol type) =>
+            type.TypeKind is TypeKind.Enum or TypeKind.Pointer ||
+            type.SpecialType is >= SpecialType.System_Boolean and <= SpecialType.System_UInt64 or
+                SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_IntPtr or
+                SpecialType.System_UIntPtr;
 
         public bool Struct(ITypeSymbol type, List<KeyValuePair<ITypeSymbol, int>> fields, out LayoutKind kind,
             out int pack, out int minSize)
