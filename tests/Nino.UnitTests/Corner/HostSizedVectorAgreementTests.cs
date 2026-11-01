@@ -82,8 +82,7 @@ namespace Vectors
             var facts = factsType.GetMethod("For")!.Invoke(null,
                 new object[] { compilation, compilation.SyntaxTrees.First().Options });
             var raw = factsType.GetProperty("Raw")!.GetValue(facts);
-            var search = raw.GetType().GetMethod("HostSizedVectorIn", new[] { typeof(ITypeSymbol) }) ??
-                         raw.GetType().GetMethod("VariableVectorIn", new[] { typeof(ITypeSymbol) });
+            var search = raw.GetType().GetMethod("HostSizedVectorIn", new[] { typeof(ITypeSymbol) });
             Assert.IsNotNull(search, "RawRules' search for a Vector<T>");
 
             var runtimeProbe = result.Assembly.GetType("Vectors.Probe", true);

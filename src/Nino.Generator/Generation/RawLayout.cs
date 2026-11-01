@@ -148,15 +148,10 @@ internal static class RawLayout
     /// </summary>
     public static RawSize SizeOf(ITypeSymbol type)
     {
-        int bytes = Leaf(type) switch
-        {
-            NinoLeaf.Size1 => 1,
-            NinoLeaf.Size2 => 2,
-            NinoLeaf.Size4 => 4,
-            NinoLeaf.Size8 => 8,
-            NinoLeaf.Decimal or NinoLeaf.Guid => 16,
-            _ => 0,
-        };
+        // The sizes of the leaves are NinoLayoutCore's (a vector's comes from a view: SizeOf<T>() here), and this Leaf
+        // returns no pointers.
+        var leaf = Leaf(type);
+        int bytes = leaf == NinoLeaf.Vector ? 0 : NinoLayoutCore.SizeOf(leaf, pointerSize: 8);
         var size = bytes != 0
             ? RawSize.Constant(bytes)
             : new RawSize(0, $"{TypeNames.CoreCompilerServices}NinoUnsafe.SizeOf<{TypeNames.Global(type)}>()");
