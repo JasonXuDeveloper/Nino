@@ -203,6 +203,45 @@ NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
 - Not supported (NINO007, member skipped): delegates, `Task`, pointers, `Span<T>`, `System.Type` (on purpose: store
   your own id), non-generic collections, abstract or struct collections, Unity/Godot classes except Unity's
   `AnimationCurve`, `Gradient`, `RectOffset`. Fix with `[NinoIgnore]` or a custom formatter.
+- Never serializable (NINO029, an error; `NotSupportedException` at run time): `System.Numerics.Vector<T>`, alone or
+  inside anything (arrays, collections, tuples, `T?`, plain structs). It is 32 bytes on x64 with AVX2 and 16 on Arm64,
+  in Unity and on x64 without AVX2, so no bytes of it read on every host. `Vector64<T>` to `Vector512<T>` are fixed
+  size and fine. Store a fixed number of lanes and expose the vectors through `[NinoIgnore]` members over a span; 16
+  lanes of a 4-byte type split into whole vectors on every CPU (4, 8 or 16 lanes each):
+
+  ```csharp
+  using System;
+  using System.Numerics;
+  using System.Runtime.InteropServices;
+  using Nino.Core;
+
+  [NinoType]
+  public sealed partial class Particle
+  {
+      public int Id;
+
+      // Serialized: 16 floats, 64 bytes on every host. 16 is a multiple of Vector<float>.Count everywhere (4, 8 or 16).
+      public float[] Lanes = new float[16];
+
+      // Not serialized: the same lanes as Vector<float>s, 4, 2 or 1 of them depending on the CPU.
+      [NinoIgnore]
+      public Span<Vector<float>> Vectors => MemoryMarshal.Cast<float, Vector<float>>(Lanes.AsSpan());
+
+      // Not serialized: the first Vector<float>.Count lanes (4, 8 or 16 of them) as one vector.
+      [NinoIgnore]
+      public Vector<float> Head
+      {
+          get => Vectors[0];
+          set => Vectors[0] = value;
+      }
+
+      public void Scale(float factor)
+      {
+          foreach (ref var vector in Vectors)
+              vector *= factor;
+      }
+  }
+  ```
 
 ### Custom formatters
 
@@ -286,8 +325,8 @@ data is silently dropped or an attribute does nothing: never suppress NINO006 or
   member, serialize at least one struct member.
 - **Construction** (NINO004, 005, 006, 021, 025): give a usable constructor, match `[NinoConstructor]` names, make
   read-only members parameters or settable, make it public, pick one of `[NinoConstructor]` / `[NinoFactory]`.
-- **Members** (NINO007 to 013): an unsupported member type, a formatter for the wrong type, inconsistent
-  `[NinoMember]`/`[NinoIgnore]`, duplicate indices.
+- **Members** (NINO007 to 013, 028, 029): an unsupported member type, a formatter for the wrong type, inconsistent
+  `[NinoMember]`/`[NinoIgnore]`, duplicate indices, `[NinoMember]` on what is never written, `Vector<T>` (below).
 - **Features** (NINO014 to 017, 024, 026, 027): keyed name collisions, `trackReferences` on structs or re-created types,
   invalid factories, misplaced `[NinoFormerName]`.
 - **Pooling and formatters** (NINO018, 019, 020): pooled types must be sealed, partial, assignable and implement both
@@ -301,8 +340,8 @@ data is silently dropped or an attribute does nothing: never suppress NINO006 or
   wrong values). Pick `VersionTolerant` or `Keyed` before shipping anything stored or exchanged across versions.
 - Raw structs: reordering fields or changing `StructLayout` changes the bytes. Their layout is 64-bit CoreCLR's on
   every runtime (Mono, IL2CPP, .NET Framework and 32-bit hosts convert), so data moves between them.
-- `Vector<T>` is 32 bytes on the wire (x64 with AVX2); hosts with 16-byte vectors (Arm64, Unity) reject one whose
-  upper lanes are set. Store lanes as an array when every host must read them.
+- `Vector<T>` members: NINO029 (Types Nino writes). Never write `new Vector<float>(lanes)` assuming 8 lanes:
+  `Vector<float>.Count` is 4, 8 or 16 by the CPU.
 - `Serialize<object>`, `object` members and the boxed API in message code: use a common `[NinoType]` base.
 - Write and read with the same declared type: `Serialize<Base>` then `Deserialize<Base>`.
 - `int?[]` / `List<int?>` and `IList<int?>` write different bytes; so do `[NinoUtf8]` and the default.
