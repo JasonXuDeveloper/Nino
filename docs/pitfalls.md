@@ -160,6 +160,15 @@ into the output. Nino clears padding on write. Blocks use a masked copy (SIMD wh
 than a copy followed by masking, which would reload freshly stored bytes and stall on store forwarding.
 Types without padding pay nothing: the check is a JIT-time constant.
 
+### A raw struct's `bool` fields and `Nullable` flags are unchecked by default
+
+Reading a raw struct copies its block, so the default mode does not check a `bool` field or a `Nullable` flag inside
+it: the default mode copies raw blocks as they are, at no cost (the owner's decision, round 104). A byte other than 0 or 1 there is undefined
+behavior to the JIT, not only a wrong value: a `long?` with a flag of 2 was boxed as null by one compiled body and as
+a value by another, so the struct compared unequal to itself and was lost in a `Dictionary`. `NinoSettings.Untrusted`
+rejects such bytes (the corpus's `presence-raw-*` cases are `untrusted`), and the docs tell users to read untrusted
+data with it (spec §9.3; the site's security page). The Go, Rust and TypeScript runtimes always reject them.
+
 ### Reordering fields of a raw struct changes the format
 
 A `[NinoType]` struct that qualifies for raw copying is written in its canonical memory order.
