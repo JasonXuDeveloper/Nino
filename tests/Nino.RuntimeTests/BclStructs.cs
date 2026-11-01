@@ -88,7 +88,7 @@ public static class BclStructs
         Bcl("DateTimeOffset?", (DateTimeOffset?)dto1, (DateTimeOffset?)null);
         Bcl("IntPtr", new IntPtr(-1), new IntPtr(int.MaxValue));
         Bcl("Complex", new System.Numerics.Complex(1.5, -2.5), new System.Numerics.Complex(double.MaxValue, 0));
-        // Vector<T> is refused, alone or inside (16 or 32 bytes by the CPU: no bytes every host reads); the fixed
+        // Vector<T> is refused, alone or inside (16, 32 or 64 bytes by the CPU: no bytes every host reads); the fixed
         // lanes that replace it (LaneParticle) are the same bytes everywhere, whatever this CPU's Vector<float>.Count.
         Console.WriteLine($"# Vector<float>.Count {System.Numerics.Vector<float>.Count}");
         Refused("Vector<int>", new System.Numerics.Vector<int>(7));
