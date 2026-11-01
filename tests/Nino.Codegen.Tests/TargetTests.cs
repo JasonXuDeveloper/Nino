@@ -67,6 +67,17 @@ namespace Nino.Codegen.Tests
         }
 
         [TestMethod]
+        public void EveryTargetLeavesOutSimdVectors()
+        {
+            foreach (var (lang, file) in new[] { ("go", "nino_types.go"), ("rust", "nino_types.rs"), ("ts", "Nino.Codegen.Tests.ts") })
+            {
+                var (text, output) = Run(lang, file);
+                StringAssert.Contains(output, "System.Numerics.Vector`1");
+                Assert.IsFalse(text.Contains("Simd", StringComparison.Ordinal), lang);
+            }
+        }
+
+        [TestMethod]
         public void RustPutsStructsBehindTheirIdInSlots()
         {
             var (text, _) = Run("rust", "nino_types.rs");

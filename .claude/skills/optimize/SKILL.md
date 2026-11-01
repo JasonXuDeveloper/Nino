@@ -86,6 +86,12 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   to 8 % on `HashSet<int>` writes (run 41052335826): not landed.
 - A JIT-time check made of several helper calls is one `static readonly` field instead (`NinoElements.Traits`,
   `NinoBlockPlan<T, TFormatter>.Size`): one load, nothing to inline.
+- Decide "copy memory" against "convert" by a `static readonly` computed before Tier1 (`NinoLayout<T>.IsCanonical`,
+  `CopiesAsIs`, `HasPadding`, `Size`), so the common platform (64-bit CoreCLR) pays nothing and every other one adapts
+  to it (the owner's rule: 32-bit adapts to 64-bit, never the reverse). Prove it with JitDisasm of a scratch program
+  that calls the array, list and value paths in a loop until Tier1 (`DOTNET_JitDisasm='P:* Nino*:* NinoGen*:*'`): no
+  `NinoLayout` field or call is left (`NinoLayout<T>.Size` compiles to `mov eax, 32`, `CopyToWire` to a tail jump
+  into `NinoMask.Copy`), for `Vector<int>[]` and raw structs holding tuples alike (round of the Vector<T> layout).
 - Call a formatter known only at run time through a `static readonly` field read directly, never through
   `field ?? fallback` or a local that merges two sources: Tier1 knows the exact class of an initialized class's
   `static readonly` object and calls (and inlines) its overrides, but a merge loses it, and the JIT then loads the

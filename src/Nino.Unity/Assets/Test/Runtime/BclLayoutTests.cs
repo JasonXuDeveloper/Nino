@@ -7,8 +7,35 @@ using Nino.Core;
 using NUnit.Framework;
 using UnityEngine;
 
+// A formatter of the user's whose parameter is [NinoRaw]: the generated registry registers that mark, which IL2CPP,
+// keeping no attributes on generic parameters, binds it by.
+[assembly: NinoFormatter(typeof(Test.Runtime.CellFormatter<>))]
+
 namespace Test.Runtime
 {
+    /// <summary>One value, or null: a type Nino has no formatter for but <see cref="CellFormatter{T}"/>.</summary>
+    public sealed class Cell<T>
+    {
+        public T Value;
+    }
+
+    /// <summary>A presence byte, then the value as raw bytes: only for types written raw ([NinoRaw]).</summary>
+    public struct CellFormatter<[NinoRaw] T> : INinoFormatter<Cell<T>> where T : unmanaged
+    {
+        public void Serialize(Cell<T> value, ref Writer writer)
+        {
+            writer.Write(value != null);
+            if (value != null)
+                writer.WriteValue(value.Value);
+        }
+
+        public void Deserialize(ref Cell<T> value, ref Reader reader)
+        {
+            reader.Read(out bool present);
+            value = present ? new Cell<T> { Value = reader.ReadValue<T>() } : null;
+        }
+    }
+
     /// <summary>A plain (raw) struct around a BCL struct, after a byte and before an int.</summary>
     public struct Around<T>
     {
@@ -76,7 +103,34 @@ namespace Test.Runtime
             Check("List<(byte,long,int)>", new List<(byte, long, int)> { (1, 2, 3), (255, -1, int.MaxValue) }, "0200000001020000000000000003000000FFFFFFFFFFFFFFFFFFFFFFFF7F");
             Check("KVP<int,long>[]", new[] { new KeyValuePair<int, long>(1, 2), new KeyValuePair<int, long>(-3, -4) }, "02000000010000000200000000000000FDFFFFFFFCFFFFFFFFFFFFFF");
             Check("Dictionary<int,(byte,long)>", new Dictionary<int, (byte, long)> { [1] = (2, 3), [-4] = (5, -6) }, "0200000001000000020300000000000000FCFFFFFF05FAFFFFFFFFFFFFFF");
+            // Vector<T>: 32 bytes on the wire (x64's width), zero-extended from this runtime's 16.
+            Check("Around<Vector<int>>", new Around<System.Numerics.Vector<int>> { A = 1, B = Low(1, -2, 3, -4), C = -1 }, "010000000000000001000000FEFFFFFF03000000FCFFFFFF00000000000000000000000000000000FFFFFFFF00000000");
+            Check("Vector<int>[]", new[] { Low(1, 2, 3, 4), Low(-5, 0, 0, 0) }, "020000000100000002000000030000000400000000000000000000000000000000000000FBFFFFFF00000000000000000000000000000000000000000000000000000000");
             CollectionAssert.IsEmpty(failed);
+        }
+
+        [Test]
+        public void UserRawFormatterIsBoundByItsMarks()
+        {
+            // Resolved at run time (Unity's compiler has no interceptors): bound to a raw long...
+            var bytes = NinoSerializer.Serialize(new Cell<long> { Value = -7 });
+            Assert.AreEqual("01-F9-FF-FF-FF-FF-FF-FF-FF", BitConverter.ToString(bytes));
+            Assert.AreEqual(-7L, NinoDeserializer.Deserialize<Cell<long>>(bytes).Value);
+            // ...and never to a value tuple, which is not raw: IL2CPP bound it before the generated registry
+            // registered the [NinoRaw] mark, and wrote the tuple's memory in its own layout.
+            Assert.Throws<InvalidOperationException>(() =>
+                NinoSerializer.Serialize(new Cell<(byte, long, int)> { Value = (1, 2, 3) }));
+        }
+
+        /// <summary>A <c>Vector&lt;int&gt;</c> of these four items, then zeros (as wide as this runtime's vectors).</summary>
+        private static System.Numerics.Vector<int> Low(int a, int b, int c, int d)
+        {
+            var items = new int[System.Numerics.Vector<int>.Count];
+            items[0] = a;
+            items[1] = b;
+            items[2] = c;
+            items[3] = d;
+            return new System.Numerics.Vector<int>(items);
         }
 
         /// <summary>Offsets of some tuples' items and of DateTimeOffset's fields on this runtime.</summary>
@@ -87,14 +141,15 @@ namespace Test.Runtime
             var c = default((byte, long, int));
             var views = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.ValueViews");
             string Field(string name) => views?.GetField(name, BindingFlags.Static | BindingFlags.Public)?.GetValue(null)?.ToString();
-            var marks = typeof(NinoSerializer).Assembly.GetType("Nino.Core.NinoParameterMarks");
+            var marks = typeof(NinoSerializer).Assembly.GetType("Nino.Core.CompilerServices.NinoParameterMarks");
             return $"attributes of generic parameters visible: {marks?.GetField("Visible", BindingFlags.Static | BindingFlags.NonPublic)?.GetValue(null)}; " +
                    $"(int,long) {Unsafe.SizeOf<(int, long)>()}: {Offset(ref a, ref a.Item1)},{Offset(ref a, ref a.Item2)}; " +
                    $"(byte,short) {Unsafe.SizeOf<(byte, short)>()}: {Offset(ref b, ref b.Item1)},{Offset(ref b, ref b.Item2)}; " +
                    $"(byte,long,int) {Unsafe.SizeOf<(byte, long, int)>()}: {Offset(ref c, ref c.Item1)},{Offset(ref c, ref c.Item2)},{Offset(ref c, ref c.Item3)}; " +
                    $"KVP<int,long> {Unsafe.SizeOf<KeyValuePair<int, long>>()}; " +
                    $"DateTimeOffset {Unsafe.SizeOf<DateTimeOffset>()}: UTC at {Field("DateTimeOffsetUtc")}, minutes at {Field("DateTimeOffsetMinutes")} ({Field("DateTimeOffsetMinutesSize")} bytes); " +
-                   $"Around<(int,long)> {Unsafe.SizeOf<Around<(int, long)>>()}";
+                   $"Around<(int,long)> {Unsafe.SizeOf<Around<(int, long)>>()}; " +
+                   $"Vector<byte> {Unsafe.SizeOf<System.Numerics.Vector<byte>>()}, in Around {Unsafe.SizeOf<Around<System.Numerics.Vector<byte>>>()}";
         }
 
         private static long Offset<TS, TF>(ref TS s, ref TF f) =>

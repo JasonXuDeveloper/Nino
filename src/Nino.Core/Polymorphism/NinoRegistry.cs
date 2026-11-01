@@ -217,7 +217,6 @@ namespace Nino.Core
                 // Remove may have run meanwhile (on another thread).
                 if (IsRemoved(assembly))
                     return;
-                NinoFormatterResolver.AddAssembly(assembly);
                 RemoveOnUnload(assembly);
             }
 
@@ -229,8 +228,12 @@ namespace Nino.Core
 
             lock (Lock)
             {
-                if (!IsRemoved(assembly))
-                    Initialized.TryAdd(assembly, true);
+                if (IsRemoved(assembly))
+                    return;
+                // After the registries (which add it too): they register the marks of the formatters these
+                // registrations name (NinoParameterMarks), which the resolver needs where attributes are dropped.
+                NinoFormatterResolver.AddAssembly(assembly);
+                Initialized.TryAdd(assembly, true);
             }
         }
 

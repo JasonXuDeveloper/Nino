@@ -178,3 +178,20 @@ What the tables show:
 | `Vector128<int>` | 48: 0, 16, 32 | = | = | **32: 0, 8, 24** | n/a | n/a | n/a | n/a |
 | `Vector256<long>` | 96: 0, 32, 64 | **64: 0, 16, 48** | = | **48: 0, 8, 40** | n/a | n/a | n/a | n/a |
 
+### IL2CPP and Unity's Mono
+
+Unity's tests log the layouts of a few types (`Assets/Test/Runtime/BclLayoutTests.cs`; CI run 41270331318: Unity
+2022.3.62f2 and 6000.3.27f1, the editor's Mono and a Linux x64 IL2CPP player, the same on all four):
+
+| Type | CoreCLR x64 | Unity Mono and IL2CPP |
+| --- | --- | --- |
+| `(int,long)` | 16: Item1 8, Item2 0 | **16: 0, 8** |
+| `(byte,short)` | 4: Item1 2, Item2 0 | **4: 0, 2** |
+| `(byte,long,int)` | 16: Item1 12, Item2 0, Item3 8 | **24: 0, 8, 16** |
+| `KeyValuePair<int,long>` | 16 | = |
+| `DateTimeOffset` | 16: minutes 0 (`int`), UTC 8 | **16: UTC 0, minutes 8 (`short`)** |
+| `Around<(int,long)>` | 32 | = |
+
+IL2CPP also keeps no custom attributes on generic parameters (`[NinoRaw]`, `[NinoCreated]`, `unmanaged`): the
+runtime resolver once bound the raw-memory list formatter to a `List` of value tuples there. It now takes those marks
+of Nino.Core's formatters from a table (`NinoParameterMarks`).

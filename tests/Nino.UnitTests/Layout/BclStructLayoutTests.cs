@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -60,6 +61,9 @@ namespace Nino.UnitTests
             typeof(TimeOnly), typeof((byte, DateOnly, TimeOnly)), typeof(Range), typeof(Index),
             typeof(System.Numerics.Vector3), typeof(System.Numerics.Quaternion), typeof(System.Numerics.Matrix3x2),
             typeof(System.Numerics.Matrix4x4), typeof(System.Numerics.Plane), typeof(System.Text.Rune),
+            // Aligned to their size by 64-bit CoreCLR on x64 and Arm64 (Vector256 and Vector512: x64 only, below).
+            typeof(System.Runtime.Intrinsics.Vector64<int>), typeof(System.Runtime.Intrinsics.Vector128<int>),
+            typeof((byte, System.Runtime.Intrinsics.Vector128<long>)),
 #endif
         };
 
@@ -158,6 +162,73 @@ namespace Nino.UnitTests
         [TestMethod]
         public void BclValuesInRawStructsAreChecked() =>
             SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedBclLayouts));
+#endif
+
+        /// <summary>A <c>Vector&lt;int&gt;</c> of these four items, then zeros (as wide as this CPU's vectors).</summary>
+        private static Vector<int> Low(int a, int b, int c, int d)
+        {
+            var items = new int[Vector<int>.Count];
+            items[0] = a;
+            items[1] = b;
+            items[2] = c;
+            items[3] = d;
+            return new Vector<int>(items);
+        }
+
+        [TestMethod]
+        public void VectorTIsThirtyTwoBytesOnEveryCpu()
+        {
+            // The canonical Vector<T> is x64's (AVX2 and AVX-512 CPUs, default settings): 32 bytes aligned to 8, so
+            // Around<Vector<int>> is A at 0, the vector at 8, C at 40, 48 bytes, whatever this CPU's width.
+            var value = new Around<Vector<int>> { A = 1, B = Low(1, -2, 3, -4), C = -1 };
+            var expected = Hex("01000000 00000000 01000000 FEFFFFFF 03000000 FCFFFFFF" + new string('0', 32) +
+                               "FFFFFFFF 00000000");
+            var bytes = NinoSerializer.Serialize(value);
+            CollectionAssert.AreEqual(expected, bytes);
+            Assert.AreEqual(value.B, NinoDeserializer.Deserialize<Around<Vector<int>>>(bytes).B);
+            CollectionAssert.AreEqual(expected.Skip(8).Take(32).ToArray(), NinoSerializer.Serialize(value.B));
+            var array = NinoDeserializer.Deserialize<Vector<int>[]>(NinoSerializer.Serialize(new[] { value.B, value.B }));
+            Assert.AreEqual(value.B, array[1]);
+            // Copied as it lies in memory where the CPU's vectors are 32 bytes: no conversion there.
+            Assert.AreEqual(Vector<byte>.Count == 32, Layout(typeof(Around<Vector<int>>)).Canonical);
+
+            // All 32 bytes set: read where this CPU's vectors hold them, invalid data where they are 16 bytes.
+            var full = (byte[])expected.Clone();
+            full[8 + 31] = 0x7F;
+            if (Vector<byte>.Count >= 32)
+                Assert.AreEqual(0x7F, (int)Vector.AsVectorByte(
+                    NinoDeserializer.Deserialize<Around<Vector<int>>>(full).B)[31]);
+            else
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Around<Vector<int>>>(full));
+            // Bytes past the 32 the wire keeps (64-byte vectors): the caller's value cannot be written.
+            if (Vector<byte>.Count > 32)
+                Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(new Vector<int>(-1)));
+        }
+
+#if NET8_0_OR_GREATER
+        [TestMethod]
+        public void IntrinsicVectorsAreAlignedAsOnX64()
+        {
+            // Vector256 aligned to 32 (x64 CoreCLR; Arm64 aligns it to 16 and converts): A at 0, the vector at 32, C at 64.
+            var value = new Around<System.Runtime.Intrinsics.Vector256<long>>
+                { A = 1, B = System.Runtime.Intrinsics.Vector256.Create(1L, -2, 3, -4), C = -1 };
+            var bytes = NinoSerializer.Serialize(value);
+            Assert.AreEqual(96, bytes.Length);
+            Assert.AreEqual(1L, BitConverter.ToInt64(bytes, 32));
+            Assert.AreEqual(-4L, BitConverter.ToInt64(bytes, 56));
+            Assert.AreEqual(-1, BitConverter.ToInt32(bytes, 64));
+            Assert.AreEqual(value.B, NinoDeserializer.Deserialize<Around<System.Runtime.Intrinsics.Vector256<long>>>(bytes).B);
+            var wide = new Around<System.Runtime.Intrinsics.Vector512<long>>
+                { A = 1, B = System.Runtime.Intrinsics.Vector512.Create(7L), C = -1 };
+            bytes = NinoSerializer.Serialize(wide);
+            Assert.AreEqual(192, bytes.Length);
+            Assert.AreEqual(7L, BitConverter.ToInt64(bytes, 64));
+            Assert.AreEqual(-1, BitConverter.ToInt32(bytes, 128));
+            Assert.AreEqual(wide.B, NinoDeserializer.Deserialize<Around<System.Runtime.Intrinsics.Vector512<long>>>(bytes).B);
+            bool x64 = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture ==
+                       System.Runtime.InteropServices.Architecture.X64;
+            Assert.AreEqual(x64, Layout(typeof(Around<System.Runtime.Intrinsics.Vector256<long>>)).Canonical);
+        }
 #endif
 
         internal static byte[] Hex(string hex)

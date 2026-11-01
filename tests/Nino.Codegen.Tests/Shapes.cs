@@ -112,6 +112,17 @@ namespace Shapes
         public Dictionary<float, int> Map;
     }
 
+    /// <summary>
+    /// A SIMD vector: as wide as the CPU's vectors in .NET (canonically 32 bytes, Nino.Core's layout), which no target
+    /// expresses: every target leaves the type out, with a warning.
+    /// </summary>
+    [NinoType]
+    public sealed class Simd
+    {
+        public int Id;
+        public System.Numerics.Vector<int> Lanes;
+    }
+
     public static class Outer
     {
         [NinoType]
