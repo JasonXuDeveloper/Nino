@@ -26,6 +26,7 @@ on:
       - '.github/actions/setup-dotnet/**'
       - '.github/actions/apt-install/**'
       - '.github/scripts/test_shards.py'
+      - '.github/scripts/has_avx512.sh'
       - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
       - '!**/CLAUDE.md'
       - '!tools/agents.sh'   # checked by agents.yml
@@ -80,6 +81,7 @@ jobs:
             name: net10.0
             framework: net10.0
             coverage: true
+            vector512: true
           # What Unity and older compilers run: Nino.Core netstandard2.1, regular calls instead of interceptors.
           - id: ns21
             name: netstandard2.1 without interceptors
@@ -208,6 +210,19 @@ jobs:
             echo "::group::shard $id"; cat "$RESULTS/shard-$CONFIG-$id.log"; echo "::endgroup::"
           done
           exit $status
+
+      # Vector<T> at its third width, 64 bytes (16 with AVX2 off is no-avx2's, 32 the default): its tests only, a few
+      # seconds, where the runner's CPU has AVX-512 (GitHub's x64 runners are Xeons with it or EPYC 7763s without).
+      - name: Test Vector<T> at 512 bits
+        if: matrix.config.vector512
+        env:
+          DOTNET_MaxVectorTBitWidth: '512'
+        run: |
+          if ! .github/scripts/has_avx512.sh; then
+            echo "::notice::no AVX-512 on this runner: Vector<T> at 512 bits not tested"
+            exit 0
+          fi
+          dotnet test "$PROJECT" --no-build -c Debug -f "$FRAMEWORK" --filter 'FullyQualifiedName~VectorTTests'
 
       - name: Upload test results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -446,6 +461,15 @@ jobs:
           esac
           case "${{ matrix.id }}" in
             linux)
+              # Vector<T> at 64 bytes where the CPU has AVX-512 (the refusals, LaneParticle, the same bytes).
+              if .github/scripts/has_avx512.sh; then
+                DOTNET_MaxVectorTBitWidth=512 run vector512 dotnet "$BIN/Release/net10.0/Nino.RuntimeTests.dll"
+                grep -q '^# Vector<float>.Count 16$' vector512.txt ||
+                  { echo "::error::DOTNET_MaxVectorTBitWidth=512 did not make Vector<float> 16 lanes"; status=1; }
+                compare vector512
+              else
+                echo "::notice::no AVX-512 on this runner: Vector<T> at 512 bits not run"
+              fi
               # W^X off: the runtime writes code through a second mapping of its pages, which qemu-user does not see
               # as a change to the code it translated (dynamic methods then crash). Suspension by signal off: qemu
               # (8.2 and 10.2) delivers the runtime's GC suspension signal at an odd Thumb address now and then and
