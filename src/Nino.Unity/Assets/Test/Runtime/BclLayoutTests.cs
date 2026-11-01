@@ -36,6 +36,32 @@ namespace Test.Runtime
         }
     }
 
+    /// <summary>
+    /// What replaces a Vector&lt;T&gt; member (NINO029): 16 floats (64 bytes, the widest Vector&lt;float&gt;) stored and
+    /// written, the vectors a [NinoIgnore] view over them (tests/Nino.RuntimeTests' LaneParticle).
+    /// </summary>
+    [NinoType]
+    public sealed class LaneParticle
+    {
+        public int Id;
+        public float[] Lanes = new float[16];
+
+        [NinoIgnore]
+        public Span<System.Numerics.Vector<float>> Vectors =>
+            System.Runtime.InteropServices.MemoryMarshal.Cast<float, System.Numerics.Vector<float>>(Lanes.AsSpan());
+
+        /// <summary>Lanes 0 to 15 doubled a vector at a time.</summary>
+        public static LaneParticle Doubled(int id)
+        {
+            var particle = new LaneParticle { Id = id };
+            for (int i = 0; i < particle.Lanes.Length; i++)
+                particle.Lanes[i] = i;
+            foreach (ref var vector in particle.Vectors)
+                vector *= 2;
+            return particle;
+        }
+    }
+
     /// <summary>A plain (raw) struct around a BCL struct, after a byte and before an int.</summary>
     public struct Around<T>
     {
@@ -103,9 +129,6 @@ namespace Test.Runtime
             Check("List<(byte,long,int)>", new List<(byte, long, int)> { (1, 2, 3), (255, -1, int.MaxValue) }, "0200000001020000000000000003000000FFFFFFFFFFFFFFFFFFFFFFFF7F");
             Check("KVP<int,long>[]", new[] { new KeyValuePair<int, long>(1, 2), new KeyValuePair<int, long>(-3, -4) }, "02000000010000000200000000000000FDFFFFFFFCFFFFFFFFFFFFFF");
             Check("Dictionary<int,(byte,long)>", new Dictionary<int, (byte, long)> { [1] = (2, 3), [-4] = (5, -6) }, "0200000001000000020300000000000000FCFFFFFF05FAFFFFFFFFFFFFFF");
-            // Vector<T>: 32 bytes on the wire (x64's width), zero-extended from this runtime's 16.
-            Check("Around<Vector<int>>", new Around<System.Numerics.Vector<int>> { A = 1, B = Low(1, -2, 3, -4), C = -1 }, "010000000000000001000000FEFFFFFF03000000FCFFFFFF00000000000000000000000000000000FFFFFFFF00000000");
-            Check("Vector<int>[]", new[] { Low(1, 2, 3, 4), Low(-5, 0, 0, 0) }, "020000000100000002000000030000000400000000000000000000000000000000000000FBFFFFFF00000000000000000000000000000000000000000000000000000000");
             CollectionAssert.IsEmpty(failed);
         }
 
@@ -122,15 +145,22 @@ namespace Test.Runtime
                 NinoSerializer.Serialize(new Cell<(byte, long, int)> { Value = (1, 2, 3) }));
         }
 
-        /// <summary>A <c>Vector&lt;int&gt;</c> of these four items, then zeros (as wide as this runtime's vectors).</summary>
-        private static System.Numerics.Vector<int> Low(int a, int b, int c, int d)
+        [Test]
+        public void VectorTIsRefusedAndFixedLanesReplaceIt()
         {
-            var items = new int[System.Numerics.Vector<int>.Count];
-            items[0] = a;
-            items[1] = b;
-            items[2] = c;
-            items[3] = d;
-            return new System.Numerics.Vector<int>(items);
+            // Vector<T> is 16 bytes here and 32 on x64 with AVX2: Nino refuses it, alone or inside (NINO029, suppressed
+            // here to reach the run-time check).
+#pragma warning disable NINO029
+            Assert.Throws<NotSupportedException>(() => NinoSerializer.Serialize(new System.Numerics.Vector<int>(7)));
+            Assert.Throws<NotSupportedException>(() =>
+                NinoDeserializer.Deserialize<Around<System.Numerics.Vector<int>>[]>(new byte[64]));
+#pragma warning restore NINO029
+            // Its replacement writes CoreCLR x64's bytes (tests/Nino.RuntimeTests/BclFixtures.cs) whatever this CPU's
+            // Vector<float>.Count.
+            Debug.Log($"Vector<float>.Count {System.Numerics.Vector<float>.Count}");
+            var bytes = NinoSerializer.Serialize(LaneParticle.Doubled(3));
+            Assert.AreEqual("0103000000100000000000000000000040000080400000C0400000004100002041000040410000604100008041000090410000A0410000B0410000C0410000D0410000E0410000F041", BitConverter.ToString(bytes).Replace("-", ""));
+            Assert.AreEqual(30f, NinoDeserializer.Deserialize<LaneParticle>(bytes).Lanes[15]);
         }
 
         /// <summary>Offsets of some tuples' items and of DateTimeOffset's fields on this runtime.</summary>
@@ -148,8 +178,7 @@ namespace Test.Runtime
                    $"(byte,long,int) {Unsafe.SizeOf<(byte, long, int)>()}: {Offset(ref c, ref c.Item1)},{Offset(ref c, ref c.Item2)},{Offset(ref c, ref c.Item3)}; " +
                    $"KVP<int,long> {Unsafe.SizeOf<KeyValuePair<int, long>>()}; " +
                    $"DateTimeOffset {Unsafe.SizeOf<DateTimeOffset>()}: UTC at {Field("DateTimeOffsetUtc")}, minutes at {Field("DateTimeOffsetMinutes")} ({Field("DateTimeOffsetMinutesSize")} bytes); " +
-                   $"Around<(int,long)> {Unsafe.SizeOf<Around<(int, long)>>()}; " +
-                   $"Vector<byte> {Unsafe.SizeOf<System.Numerics.Vector<byte>>()}, in Around {Unsafe.SizeOf<Around<System.Numerics.Vector<byte>>>()}";
+                   $"Around<(int,long)> {Unsafe.SizeOf<Around<(int, long)>>()}";
         }
 
         private static long Offset<TS, TF>(ref TS s, ref TF f) =>

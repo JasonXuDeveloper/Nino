@@ -151,18 +151,6 @@ namespace Nino.Core.Internal
         private static int AlignOf<T>() => Unsafe.SizeOf<AlignProbe<T>>() - Unsafe.SizeOf<T>();
 
         /// <summary>
-        /// The canonical size of <c>Vector&lt;T&gt;</c>: 32 bytes, its size on 64-bit CoreCLR x64 with the default
-        /// settings (AVX2 and AVX-512 CPUs), where it is copied. CPUs with 16-byte vectors (Arm64, x64 without AVX2,
-        /// Mono, IL2CPP, .NET Framework without RyuJIT's AVX2) zero-extend it on write and reject nonzero upper bytes on
-        /// read; 64-byte vectors (<c>DOTNET_MaxVectorTBitWidth=512</c>) are written as their low 32 bytes, and a value
-        /// with any upper byte set cannot be written (docs/spec/wire-format.md §3).
-        /// </summary>
-        internal const int CanonicalVectorSize = 32;
-
-        /// <summary>The size and alignment of <c>Vector&lt;T&gt;</c> on this runtime (any <c>T</c>).</summary>
-        private static readonly int VectorSize = Unsafe.SizeOf<Vector<byte>>(), VectorAlign = AlignOf<Vector<byte>>();
-
-        /// <summary>
         /// The alignments of <c>Vector64&lt;T&gt;</c> to <c>Vector512&lt;T&gt;</c> inside structs on this runtime (0 where
         /// the type does not exist or could not be probed). The canonical ones are x64 CoreCLR's: their sizes (Arm64
         /// aligns the 32- and 64-byte vectors to 16, Arm32 every one of them to 8).
@@ -200,16 +188,14 @@ namespace Nino.Core.Internal
 #endif
 
         /// <summary>
-        /// Which vector <paramref name="type"/> is: 0 for <c>Vector&lt;T&gt;</c>, 1 to 4 for <c>Vector64&lt;T&gt;</c> to
-        /// <c>Vector512&lt;T&gt;</c>, -1 for none.
+        /// Which vector <paramref name="type"/> is: 1 to 4 for <c>Vector64&lt;T&gt;</c> to <c>Vector512&lt;T&gt;</c>, -1 for
+        /// none. <c>Vector&lt;T&gt;</c>, as wide as the CPU's vectors, is never laid out: <see cref="Create"/> refuses it.
         /// </summary>
         private static int VectorIndex(Type type)
         {
             if (!type.IsGenericType || type.IsGenericTypeDefinition)
                 return -1;
             var definition = type.GetGenericTypeDefinition();
-            if (definition == typeof(Vector<>))
-                return 0;
             if (definition.Assembly != typeof(object).Assembly)
                 return -1;
             switch (definition.FullName)
@@ -222,21 +208,15 @@ namespace Nino.Core.Internal
             }
         }
 
-        /// <summary>The size and alignment of a vector (<see cref="VectorIndex"/>) canonically or on this runtime.</summary>
+        /// <summary>
+        /// The size and alignment of a vector (<see cref="VectorIndex"/>) canonically (x64's: its size) or on this
+        /// runtime; its size is the same everywhere.
+        /// </summary>
         private static bool VectorLayout(Type type, bool canonical, out int size, out int align)
         {
             int index = VectorIndex(type);
-            if (index == 0)
-            {
-                size = canonical ? CanonicalVectorSize : VectorSize;
-                align = canonical ? 8 : VectorAlign;
-            }
-            else
-            {
-                size = index > 0 ? 4 << index : 0; // 8, 16, 32, 64
-                align = index <= 0 ? 0 : canonical ? size : IntrinsicAligns[index - 1];
-            }
-
+            size = index > 0 ? 4 << index : 0; // 8, 16, 32, 64
+            align = index <= 0 ? 0 : canonical ? size : IntrinsicAligns[index - 1];
             return size > 0 && align > 0;
         }
 
@@ -260,10 +240,10 @@ namespace Nino.Core.Internal
             public int[] Map;
 
             /// <summary>
-            /// When not canonical, the integers and vectors whose size differs between memory and wire (<c>nint</c> on
-            /// 32-bit, the minutes of a <c>DateTimeOffset</c> where they are a <c>short</c>, <c>Vector&lt;T&gt;</c> where
-            /// the CPU's vectors are not 32 bytes): (memory offset, memory size, wire offset, wire size, 1 when signed)
-            /// quintuples, the unsigned ones zero-extended; null for none.
+            /// When not canonical, the integers whose size differs between memory and wire (<c>nint</c> and
+            /// <c>nuint</c> on 32-bit, the minutes of a <c>DateTimeOffset</c> where they are a <c>short</c>): (memory
+            /// offset, memory size, wire offset, wire size, 1 when signed) quintuples, the unsigned ones zero-extended;
+            /// null for none.
             /// </summary>
             public int[] Resized;
         }
@@ -281,6 +261,12 @@ namespace Nino.Core.Internal
 
         private static Info Create(Type type, int runtimeSize)
         {
+            // A Vector<T> has no canonical layout, and copying it as it lies in memory (the fallback below) would write
+            // 16 bytes on one host and 32 on another: neither raw nor convertible (RawFormatter.Is is false), and no
+            // formatter of it exists (NinoReflection.RefuseVariableVector throws when one is resolved). Not thrown here:
+            // Mono and IL2CPP run NinoLayout<T>'s initializer whenever a method naming it is compiled.
+            if (NinoReflection.VariableVectorIn(type) != null)
+                return new Info { Canonical = false };
             try
             {
                 return Compute(type, runtimeSize, LongAlign, DecimalAlign, WideAlign, DateTimeAlign,
@@ -330,7 +316,6 @@ namespace Nino.Core.Internal
                         {
                             Offset = value.Value, Size = size,
                             Signed = value.Key == typeof(IntPtr) || value.Key == typeof(short) || value.Key == typeof(int),
-                            Vector = VectorIndex(value.Key) >= 0,
                         });
                 }
 
@@ -342,11 +327,9 @@ namespace Nino.Core.Internal
 
             if (wire.Count != memory.Count)
                 return new Info { Size = runtimeSize };
-            // A leaf of another size is an integer of another width (nint, a DateTimeOffset's minutes) or a vector of
-            // another width (Vector<T>), and only that.
+            // A leaf of another size is an integer of another width (nint, a DateTimeOffset's minutes), and only that.
             for (int i = 0; i < wire.Count; i++)
-                if (wire[i].Size != memory[i].Size && (wire[i].Vector != memory[i].Vector ||
-                                                       !wire[i].Vector && !(Resizable(wire[i].Size) && Resizable(memory[i].Size))))
+                if (wire[i].Size != memory[i].Size && !(Resizable(wire[i].Size) && Resizable(memory[i].Size)))
                     return new Info { Size = runtimeSize };
 
             var info = new Info { Size = wireSize, Align = wireAlign, Canonical = wireSize == memorySize };
@@ -676,23 +659,17 @@ namespace Nino.Core.Internal
                 int memorySize = resized[i + 1], wireSize = resized[i + 3];
                 if (resized[i + 4] == 0)
                 {
-                    // Unsigned integers and vectors: their low bytes, zero-extended; the bytes past the narrower side
-                    // must be zero (the wire's past this runtime's field is invalid data, a field's past the wire's
-                    // a value the wire cannot hold).
-                    int common = memorySize < wireSize ? memorySize : wireSize;
+                    // Unsigned integers (nuint on 32-bit): their low bytes, zero-extended on the wire (cleared above);
+                    // a wire value with bytes set past this runtime's field is invalid data.
                     if (toWire)
                     {
-                        if (!Zero(ref Unsafe.Add(ref m, common), memorySize - common))
-                            NinoThrow.TooWideForWire();
-                        Unsafe.CopyBlockUnaligned(ref w, ref m, (uint)common);
+                        Unsafe.CopyBlockUnaligned(ref w, ref m, (uint)memorySize);
                         continue;
                     }
 
-                    if (!Zero(ref Unsafe.Add(ref w, common), wireSize - common))
-                        NinoThrow.InvalidData("a value too wide for this runtime's field (an nuint past 32 bits, a " +
-                                              "Vector<T> with bytes past this CPU's vector width).");
-                    Unsafe.CopyBlockUnaligned(ref m, ref w, (uint)common);
-                    Unsafe.InitBlockUnaligned(ref Unsafe.Add(ref m, common), 0, (uint)(memorySize - common));
+                    if (!Zero(ref Unsafe.Add(ref w, memorySize), wireSize - memorySize))
+                        NinoThrow.InvalidData("an integer too large for this runtime's field.");
+                    Unsafe.CopyBlockUnaligned(ref m, ref w, (uint)memorySize);
                     continue;
                 }
 

@@ -1,15 +1,15 @@
 # Layouts of BCL structs across runtimes
 
-The memory layout of every unmanaged BCL struct Nino copies as raw bytes inside a plain struct, on each runtime CI
-runs, against 64-bit CoreCLR's (the first column). The canonical layout Nino writes is that column (spec §5.2), with
-two exceptions that do not depend on the runtime: `DateTimeOffset` as .NET 10 lays it out (its minutes as an `int`;
-.NET 8 has a `short` at the same place), and `nint`/`nuint`/pointers as 8 bytes. Every runtime below writes the
-canonical bytes and reads them, checked case by case against the bytes CoreCLR x64 wrote
-(`tests/Nino.RuntimeTests/BclStructs.cs` against `BclFixtures.cs`; Unity's `BclLayoutTests` in its editor and its
-IL2CPP player): a runtime whose layout is the canonical one copies the struct as it is, every other one converts it
-field by field, at offsets it finds once (`NinoLayout`, `MeasureMemory`).
+The memory layout of every unmanaged BCL struct Nino copies as raw bytes inside a plain struct, on each runtime CI runs,
+against 64-bit CoreCLR's (the first column). The canonical layout Nino writes is that column (spec §5.2), with
+exceptions that do not depend on the runtime: `DateTimeOffset` as .NET 10 lays it out (its minutes as an `int`; .NET 8
+has a `short` at the same place), `nint`/`nuint`/pointers as 8 bytes, and the SIMD vectors aligned as on x64.
+`Vector<T>` is not serializable (below). Every runtime below writes the canonical bytes and reads them, checked case by
+case against the bytes CoreCLR x64 wrote (`tests/Nino.RuntimeTests/BclStructs.cs` against `BclFixtures.cs`; Unity's
+`BclLayoutTests` in its editor and its IL2CPP player): a runtime whose layout is the canonical one copies the struct as
+it is, every other one converts it field by field, at offsets it finds once (`NinoLayout`, `MeasureMemory`).
 
-Measured by CI run 41270331320 (`# layout` lines of `tests/Nino.RuntimeTests`, tabulated with
+Measured by CI run 41280617045 (`# layout` lines of `tests/Nino.RuntimeTests`, tabulated with
 `tests/Nino.RuntimeTests/layouts.py`): .NET 10.0.13/14 on Linux x64, Linux Arm64, Windows x86 and Linux Arm32 (qemu), .NET
 Framework 4.8.9363 64-bit and 32-bit, Mono 6.14.1 on Linux x64 and Arm64. `=` is the same size and field offsets as
 CoreCLR x64; a bold cell differs (offsets only, in field order); `n/a` is a type the runtime does not have (the
@@ -29,9 +29,49 @@ What the tables show:
   puts the date first. .NET 8 x64 (not in CI's matrix, measured locally) has a `short` at 0 and the date at 8.
 - **`decimal`** is aligned to 8 by CoreCLR and Mono 6.14, to 4 by .NET Framework.
 - **`KeyValuePair`** and **`Nullable`** are sequential everywhere; they differ only where their items do.
-- **`Int128`**, **`Vector128`** and **`Vector256`** are aligned to 16, 16 and 32 by 64-bit CoreCLR (Vector256 to 16
-  on Arm64), to 8 on Arm32. The canonical layout of the vectors is their fields' (two `ulong`s per 16 bytes, aligned
-  to 8): CoreCLR converts a struct holding one after a smaller field. `Vector<T>` is left out: its size is the CPU's.
+- **`Int128`**, **`Vector128`**, **`Vector256`** and **`Vector512`** are aligned to 16, 16, 32 and 64 by CoreCLR
+  x64 (the canonical layout), the two wide vectors to 16 on Arm64, everything to 8 on Arm32.
+- **`Vector<T>`** is not in the tables: it is as wide as the CPU's vectors (CI run 41280617045 measured 32 bytes on
+  .NET x64 and x86 and .NET Framework x64 on its AVX2 runners, 16 on Arm64, Arm32, .NET Framework x86 and Mono, and
+  Unity's `BclLayoutTests` 16 in its Mono and IL2CPP), so no layout of it is the same on every runtime, and Nino
+  serializes no type that holds one (NINO029, spec §3). Store a fixed number of lanes and make the vectors a view
+  over them, which Nino does not serialize: 16 floats are whole vectors on every CPU (docs/pitfalls.md, "`Vector<T>`
+  is not serializable", has why and the tests).
+
+  ```csharp title="Particle.cs"
+  using System;
+  using System.Numerics;
+  using System.Runtime.InteropServices;
+  using Nino.Core;
+
+  [NinoType]
+  public sealed partial class Particle
+  {
+      public int Id;
+
+      // Serialized: 16 floats, 64 bytes on every host. 16 is a multiple of Vector<float>.Count everywhere (4, 8 or 16).
+      public float[] Lanes = new float[16];
+
+      // Not serialized: the same lanes as Vector<float>s, 4, 2 or 1 of them depending on the CPU.
+      [NinoIgnore]
+      public Span<Vector<float>> Vectors => MemoryMarshal.Cast<float, Vector<float>>(Lanes.AsSpan());
+
+      // Not serialized: the first Vector<float>.Count lanes (4, 8 or 16 of them) as one vector.
+      [NinoIgnore]
+      public Vector<float> Head
+      {
+          get => Vectors[0];
+          set => Vectors[0] = value;
+      }
+
+      public void Scale(float factor)
+      {
+          foreach (ref var vector in Vectors)
+              vector *= factor;
+      }
+  }
+  ```
+
 - **IL2CPP**: see the section after the tables.
 
 ### Each type: size, then the offset of each of its fields
@@ -105,6 +145,7 @@ What the tables show:
 | `Vector64<int>` | 8: _00 0 | = | = | = | n/a | n/a | n/a | n/a |
 | `Vector128<int>` | 16: _lower 0, _upper 8 | = | = | = | n/a | n/a | n/a | n/a |
 | `Vector256<long>` | 32: _lower 0, _upper 16 | = | = | = | n/a | n/a | n/a | n/a |
+| `Vector512<long>` | 64: _lower 0, _upper 32 | = | = | = | n/a | n/a | n/a | n/a |
 
 ### In `Around<T> { byte A; T B; int C; }`: its size, then the offsets of A, B and C
 
@@ -177,6 +218,7 @@ What the tables show:
 | `Vector64<int>` | 24: 0, 8, 16 | = | = | = | n/a | n/a | n/a | n/a |
 | `Vector128<int>` | 48: 0, 16, 32 | = | = | **32: 0, 8, 24** | n/a | n/a | n/a | n/a |
 | `Vector256<long>` | 96: 0, 32, 64 | **64: 0, 16, 48** | = | **48: 0, 8, 40** | n/a | n/a | n/a | n/a |
+| `Vector512<long>` | 192: 0, 64, 128 | **96: 0, 16, 80** | = | **80: 0, 8, 72** | n/a | n/a | n/a | n/a |
 
 ### IL2CPP and Unity's Mono
 
@@ -194,4 +236,6 @@ Unity's tests log the layouts of a few types (`Assets/Test/Runtime/BclLayoutTest
 
 IL2CPP also keeps no custom attributes on generic parameters (`[NinoRaw]`, `[NinoCreated]`, `unmanaged`): the
 runtime resolver once bound the raw-memory list formatter to a `List` of value tuples there. It now takes those marks
-of Nino.Core's formatters from a table (`NinoParameterMarks`).
+from `NinoParameterMarks`, where Nino.Core registers its own formatters' and each generated registry those of the
+formatters its assembly registers with `[assembly: NinoFormatter]`. `Vector<T>` is 16 bytes in Unity's Mono and
+IL2CPP, one reason it is not serializable (`BclLayoutTests` logs `Vector<float>.Count`).

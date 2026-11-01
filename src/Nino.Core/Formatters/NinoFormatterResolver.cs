@@ -109,6 +109,7 @@ namespace Nino.Core
         [RequiresDynamicCode(DynamicCodeMessage)]
         private static Type Build(Type type, bool topLevel)
         {
+            NinoReflection.RefuseVariableVector(type);
             var building = t_building ??= new HashSet<Type>();
             bool added = building.Add(type);
             try

@@ -68,10 +68,68 @@ Before treating a BCL struct as raw, verify its layout on every runtime:
   copied as it is.
 - `nint`, `nuint` and pointers inside a raw struct are 8 bytes on the wire on every host (sign- or zero-extended on
   32-bit; a value that does not fit a 32-bit host's field is rejected there).
-- `Vector64/128/256/512<T>` are laid out by their fields (two `ulong`s per 16 bytes, aligned to 8): CoreCLR aligns
-  `Vector128` to 16 and `Vector256` to 32 (16 on Arm64), so a raw struct holding one after a smaller field is
-  converted there. `Vector<T>` has the size of the CPU's vectors: a struct holding one is not portable at all.
+- `Vector<T>` is not serializable (next section).
+- `Vector64/128/256/512<T>` are aligned to their size inside raw structs, as x64 CoreCLR does; Arm64 aligns
+  `Vector256` and `Vector512` to 16 and Arm32 every one to 8, so a raw struct holding one after a smaller field is
+  converted there.
 - docs/layouts.md has the measured layout of every BCL struct on every runtime CI has.
+
+### `Vector<T>` is not serializable
+
+`Vector<T>` has the size of the CPU's vectors: 32 bytes on x64 with AVX2 or AVX-512 (the default; check
+`DOTNET_PreferredVectorBitWidth` and `DOTNET_MaxVectorTBitWidth`, which can make it 64), 16 on Arm64, Arm32, .NET
+Framework x86, Mono, IL2CPP (Unity, on x64 too) and x64 without AVX2. Its declared fields are two `ulong`s whatever its
+size. No wire format can carry it between hosts: 32 bytes written on x64 do not fit a 16-byte `Vector<T>` on Arm64 or in
+Unity. Nino up to rc.7 measured it by its fields and wrote 16 bytes, silently dropping the upper half on AVX2 machines.
+Now no type that is or holds one is serializable (alone, in arrays, collections, tuples, `Nullable`, a type argument a
+`[NinoType]` uses, or a field at any depth of a plain struct): the analyzer reports NINO029 on the member or the
+`NinoSerializer`/`NinoDeserializer` call, the generator emits nothing for it, and the runtime throws
+`NotSupportedException` when the formatter is first resolved (`NinoReflection.VariableVectorIn`, the generator's
+`RawRules.VariableVectorIn`). `Vector64<T>` to `Vector512<T>` are fixed size and stay serializable.
+
+Store a fixed number of lanes instead and build the vectors from them, in members Nino does not serialize. Pick a
+lane count that is a multiple of `Vector<T>.Count` on every host (16 floats or ints, 64 bytes: the widest `Vector<T>`),
+so the view covers every lane everywhere; or process in `Vector<T>.Count` chunks and finish the rest lane by lane.
+
+```csharp title="Particle.cs"
+using System;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using Nino.Core;
+
+[NinoType]
+public sealed partial class Particle
+{
+    public int Id;
+
+    // Serialized: 16 floats, 64 bytes on every host. 16 is a multiple of Vector<float>.Count everywhere (4, 8 or 16).
+    public float[] Lanes = new float[16];
+
+    // Not serialized: the same lanes as Vector<float>s, 4, 2 or 1 of them depending on the CPU.
+    [NinoIgnore]
+    public Span<Vector<float>> Vectors => MemoryMarshal.Cast<float, Vector<float>>(Lanes.AsSpan());
+
+    // Not serialized: the first Vector<float>.Count lanes (4, 8 or 16 of them) as one vector.
+    [NinoIgnore]
+    public Vector<float> Head
+    {
+        get => Vectors[0];
+        set => Vectors[0] = value;
+    }
+
+    public void Scale(float factor)
+    {
+        foreach (ref var vector in Vectors)
+            vector *= factor;
+    }
+}
+```
+
+The bytes are the same whatever `Vector<float>.Count` is (`tests/Nino.UnitTests/Layout/VectorTTests.cs` with
+`DOTNET_EnableAVX2=0` and `DOTNET_MaxVectorTBitWidth=512`, and `LaneParticle` in `tests/Nino.RuntimeTests` on every CI
+runtime). A span is a ref struct, so `Vectors` could not be serialized anyway; `[NinoIgnore]` says it is meant. Data
+read from an untrusted source may hold another number of lanes: check `Lanes.Length` before using the view. A fixed
+buffer or `Vector128<T>`/`Vector256<T>` fields (.NET only) serve as storage too.
 
 ### Alignment on 32-bit platforms
 
@@ -104,7 +162,12 @@ from its fields:
   puts the `int` first, 16 bytes on x64), which no alignment model describes: there (and wherever the model misses
   a type's size) the offsets are read from an instance, each field's value copied out by reflection from bytes set
   to their own offsets.
-- `nint`/`nuint` are always written as 8 bytes, inside raw structs too.
+- `nint`/`nuint` are always written as 8 bytes, inside raw structs too: where this host's field is 4 bytes, the
+  conversion sign- or zero-extends it, and rejects what does not fit.
+- The 64-bit path pays nothing for the others: whether a type is copied or converted is a `static readonly` bool
+  (`NinoLayout<T>.IsCanonical`, `CopiesAsIs`, `HasPadding`, `Size`) computed once before Tier1, which the JIT folds,
+  so the Tier1 code of a raw array, list or value on x64 holds no layout check at all (checked with JitDisasm:
+  `NinoLayout<T>.Size` compiles to `mov eax, 32`). Mono, IL2CPP, NativeAOT and Tier0 read the flag.
 
 The generator only puts struct members into unmanaged blocks when their layout is the same under every
 model, so generated code never depends on the runtime's layout.

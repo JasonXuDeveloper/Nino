@@ -55,10 +55,10 @@ namespace Nino.Core.Internal
         Wide,
 
         /// <summary>
-        /// A SIMD vector (<c>Vector&lt;T&gt;</c>, <c>Vector64&lt;T&gt;</c> to <c>Vector512&lt;T&gt;</c>): its size and
-        /// alignment come from the view (<see cref="INinoLayoutView{TType}.Vector"/>), and where the sizes of two
-        /// layouts differ (<c>Vector&lt;T&gt;</c> is as wide as the CPU's vectors), its bytes are zero-extended or
-        /// narrowed. Only Nino.Core's view returns it; the generator treats a struct with one as not portable.
+        /// A SIMD vector of fixed size (<c>Vector64&lt;T&gt;</c> to <c>Vector512&lt;T&gt;</c>), aligned per runtime: its
+        /// size and alignment come from the view (<see cref="INinoLayoutView{TType}.Vector"/>). Only Nino.Core's view
+        /// returns it; the generator treats a struct with one as not portable. <c>Vector&lt;T&gt;</c>, as wide as the
+        /// CPU's vectors, is never serialized (NINO029).
         /// </summary>
         Vector,
     }
@@ -104,9 +104,6 @@ namespace Nino.Core.Internal
 
             /// <summary>Whether the leaf is a signed integer extended by its sign where sizes differ (<c>nint</c>).</summary>
             public bool Signed;
-
-            /// <summary>Whether the leaf is a SIMD vector (<see cref="NinoLeaf.Vector"/>): bytes zero-extended where sizes differ.</summary>
-            public bool Vector;
         }
 
         /// <summary>
@@ -156,11 +153,7 @@ namespace Nino.Core.Internal
                         return false;
                     }
 
-                    Add(vectorSize, vectorAlign, baseOffset, leaves, out size, out align);
-                    var vector = leaves[leaves.Count - 1];
-                    vector.Vector = true;
-                    leaves[leaves.Count - 1] = vector;
-                    return true;
+                    return Add(vectorSize, vectorAlign, baseOffset, leaves, out size, out align);
             }
 
             size = align = 0;
@@ -277,10 +270,7 @@ namespace Nino.Core.Internal
                 fieldOffsets?.Add(offsets[i]);
                 foreach (var leaf in own[i])
                     leaves.Add(new Leaf
-                    {
-                        Offset = baseOffset + offsets[i] + leaf.Offset, Size = leaf.Size, Signed = leaf.Signed,
-                        Vector = leaf.Vector,
-                    });
+                        { Offset = baseOffset + offsets[i] + leaf.Offset, Size = leaf.Size, Signed = leaf.Signed });
             }
 
             return size > 0;

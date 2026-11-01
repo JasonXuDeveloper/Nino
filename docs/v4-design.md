@@ -471,6 +471,11 @@ rules, and a test checks that both write the same bytes:
      constructor callable without arguments (every parameter optional). See "User collections" below. A plain `new()`
      constraint is still honored for third-party formatters that call `new T()`.
 
+   IL2CPP keeps no custom attributes on generic parameters, so there the runtime resolver reads these marks (and
+   `unmanaged`) from `NinoParameterMarks`: Nino.Core registers its own formatters', and each generated registry
+   registers, in its static constructor and before its assembly's registrations reach the resolver, those of every
+   generic formatter the assembly's `[assembly: NinoFormatter]` attributes name.
+
 Lookup order: registrations of the type's own definition (and of arrays, by rank) in `Priority` order, then raw
 unmanaged values, then `[NinoType]`s, then registrations of a bare type parameter (`INinoFormatter<TCollection>`),
 which match by their constraints (or the `targets` they list). NINO020 reports a registration that cannot be used.

@@ -80,11 +80,16 @@ builds of Nino.Core, Mono).
   `[StructLayout(Auto)]` in them): the generator once published raw structs' tuples in declaration order while .NET
   x64 wrote them reordered, so `RawLayout` forces `Auto` for `System.ValueTuple`. `Vector<T>` is as wide as the
   CPU's vectors (32 bytes on x64 with AVX2 or AVX-512 by default, 64 with `DOTNET_MaxVectorTBitWidth=512`, 16 on
-  Arm64, without AVX2 and on Mono and IL2CPP), and its declared fields are two `ulong`s whatever its size: never
-  measure a vector by its fields (Nino did, and wrote 16 bytes, dropping the upper half on AVX2 hosts); it is a leaf
-  (`NinoLeaf.Vector`) of x64's size, zero-extended or narrowed elsewhere. Vector128/256/512 are aligned 16/32/64 on
-  x64, 16/16/16 on Arm64, 8 on Arm32. Test every width on one x64 machine: `DOTNET_EnableAVX2=0` (16 bytes),
-  `DOTNET_MaxVectorTBitWidth=512` (64), the default (32). Each CI runtime prints its layout of
+  Arm64, Arm32, .NET Framework x86, without AVX2 and on Mono and IL2CPP, Unity on x64 included), and its declared
+  fields are two `ulong`s whatever its size: never measure a vector by its fields (Nino did, and wrote 16 bytes,
+  dropping the upper half on AVX2 hosts). Never serialize a type whose size depends on the host: no bytes of it read
+  everywhere (a 32-byte draft encoding made x64 data unreadable on Arm64 and in Unity), so the owner's rule is that
+  such a type is refused, by the analyzer (NINO029) and at run time (`NotSupportedException`), with a fixed-size form
+  documented instead (16 lanes, a `[NinoIgnore]` span view: `tests/Nino.UnitTests.Subset/VectorLanes.cs`). Vector64
+  to Vector512 are fixed size and stay: aligned 8/16/32/64 on x64, 16/16/16 on Arm64, 8 on Arm32 (`NinoLeaf.Vector`).
+  Test every `Vector<T>` width on one x64 machine: `DOTNET_EnableAVX2=0` (16 bytes), `DOTNET_MaxVectorTBitWidth=512`
+  (64), the default (32); `tests/Nino.RuntimeTests` prints `# Vector<float>.Count`.
+  Each CI runtime prints its layout of
   every BCL struct (`# layout` lines of `tests/Nino.RuntimeTests`, the table in docs/layouts.md) and must write and
   read CoreCLR x64's bytes for each (`BclStructs.cs` against `BclFixtures.cs`; Unity's `BclLayoutTests` in play mode
   and the IL2CPP player). Never read a pointer field by reflection (`FieldInfo.GetValue` on `IntPtr`'s `void*`
@@ -146,6 +151,13 @@ Why the qemu flags:
   `NinoRegistry.Add` hands the assembly's `[assembly: NinoFormatter]` registrations to the resolver) those of the generic
   formatters its assembly registers (`FormatterRules.OwnMarks`; Unity's `UserRawFormatterIsBoundByItsMarks`). Any new
   mark on a type parameter goes into both. A check over attributes on types or members is fine.
+- Never throw from the static initializer of a generic cache the top-level calls name (`NinoLayout<T>`, `NinoRaw<T>`,
+  `NinoTopFormatter<T>`): Mono runs a `beforefieldinit` class's initializer when a method naming it is compiled, not
+  when the field is read, so a refusal there escapes as `TypeInitializationException` from code that never took that
+  branch. A `NotSupportedException` thrown by `NinoLayout.Create` for `Vector<T>` reached `NinoSerializer.Serialize`
+  through `NinoRaw<T>`'s initializer on Mono 6.14 (`tests/Nino.RuntimeTests`, net472), while CoreCLR threw it from the
+  resolver as meant. Give such a type a layout that is neither raw nor sized, and throw where its formatter is
+  resolved (`NinoReflection.RefuseVariableVector`).
 - IL2CPP has no `Reflection.Emit` and shares generic code: no runtime code generation, and the mirror-class rules of
   `runtime-internals` (static code only).
 - WebGL has no Burst: Burst compiles jobs with LLVM into a native library the player calls, and the WebGL player (IL2CPP

@@ -380,6 +380,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
         if (type is null or { TypeKind: TypeKind.Error or TypeKind.Pointer or TypeKind.FunctionPointer } or
             { SpecialType: SpecialType.System_Void } or INamedTypeSymbol { IsUnboundGenericType: true })
             return null;
+        // Vector<T>, alone or inside (NINO029): nothing to register or intercept, the regular call refuses it.
+        if (facts.Raw.VariableVectorIn(type) != null)
+            return null;
         return ModelCache.GetOrBuildCall(ctx.Node, method, type, ctx.SemanticModel.Compilation, () =>
         {
             var usage = TransformUsage(type, facts);

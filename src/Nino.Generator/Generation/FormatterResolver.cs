@@ -102,7 +102,8 @@ internal sealed class FormatterResolver
             return NestingFormatter(type, utf8);
         try
         {
-            formatter = ResolveCore(type, utf8);
+            // Vector<T>, alone or inside: no formatter (NINO029 names it where it is used).
+            formatter = _raw.VariableVectorIn(type) == null ? ResolveCore(type, utf8) : null;
         }
         finally
         {

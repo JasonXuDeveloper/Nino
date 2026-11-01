@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Operations;
 using Nino.Generator.Generation;
 using Nino.Generator.Common;
 
@@ -34,6 +35,8 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             if (symbols.Factory is { } factoryAttribute)
                 start.RegisterSymbolAction(c => AnalyzeMethod(c, factoryAttribute), SymbolKind.Method);
             start.RegisterSyntaxNodeAction(AnalyzeAssemblyAttributes, SyntaxKind.AttributeList);
+            if (symbols.Serializer != null || symbols.Deserializer != null)
+                start.RegisterOperationAction(c => AnalyzeCall(c, symbols), OperationKind.Invocation);
         });
     }
 
@@ -59,6 +62,35 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.InvalidFormatterRegistration,
                 Location.Create(syntax.SyntaxTree, syntax.Span), formatter?.ToDisplayString(), error));
         }
+    }
+
+    /// <summary>
+    /// A top-level <c>NinoSerializer</c> / <c>NinoDeserializer</c> call whose type is or holds <c>Vector&lt;T&gt;</c>
+    /// (NINO029): the generator registers and intercepts nothing for it, and the call throws.
+    /// </summary>
+    private static void AnalyzeCall(OperationAnalysisContext context, NinoSymbols symbols)
+    {
+        var invocation = (IInvocationOperation)context.Operation;
+        var method = invocation.TargetMethod;
+        // Cheapest rejection first: the name, then the class.
+        if (!method.Name.StartsWith("Serialize", System.StringComparison.Ordinal) &&
+            !method.Name.StartsWith("Deserialize", System.StringComparison.Ordinal))
+            return;
+        var owner = method.ContainingType;
+        if (!SymbolEqualityComparer.Default.Equals(owner, symbols.Serializer) &&
+            !SymbolEqualityComparer.Default.Equals(owner, symbols.Deserializer))
+            return;
+        // The type the call needs a formatter for, as the generator finds it: its type argument, or a typeof argument.
+        var type = method.IsGenericMethod
+            ? method.TypeArguments[0]
+            : invocation.Arguments.Select(static a => a.Value).OfType<ITypeOfOperation>().FirstOrDefault()?.TypeOperand;
+        if (type == null)
+            return;
+        var facts = TypeFacts.For(context.Compilation, invocation.Syntax.SyntaxTree.Options);
+        if (facts.Raw.VariableVectorIn(type) is { } vector)
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.VariableVector, invocation.Syntax.GetLocation(),
+                $"The value of this {owner.Name}.{method.Name} call", type.ToDisplayString(),
+                NinoDiagnostics.HoldsVector(type, vector)));
     }
 
     private static void AnalyzeType(SymbolAnalysisContext context)
