@@ -13,7 +13,8 @@ namespace Nino.Generator.Generation;
 
 /// <summary>
 /// Decides whether a struct's raw memory is the same on every runtime Nino targets. Layouts differ in two ways:
-/// x86 .NET/Mono align 8-byte primitives to 4 (64-bit, ARM and wasm align them to 8), and Mono/IL2CPP's
+/// 32-bit x86 aligns 8-byte fields to 4 (Mono all of them, .NET <c>DateTime</c>; 64-bit, ARM and wasm align them
+/// to 8), and Mono/IL2CPP's
 /// <c>decimal</c> is four ints (alignment 4) where CoreCLR's has a <c>ulong</c> (alignment 8). A struct is portable
 /// when its field offsets and size come out the same under both models, and it has no pointer-sized fields. The
 /// layout rules are the runtime's own (<see cref="NinoLayoutCore"/>, shared source), and so is the canonical layout
