@@ -24,7 +24,7 @@ them is deliberate, complete in one landing, and called out.
 | `src/Nino.Core` | writer and reader, every fast path (`optimize`, `platforms`: x64 ISAs, Arm64, no SIMD, big-endian guards) |
 | `src/Nino.Generator` | the emitters that inline the encoding (`audit-generated-code`) |
 | `src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Burst/NinoBurst.cs` | the Burst kernels, and `Assets/Test/Runtime/Burst/BurstKernelTests.cs`' golden bytes |
-| `conformance/` | regenerate (`dotnet run --project conformance/Nino.Conformance -c Release -- --out conformance/corpus`), new valid and malicious cases for the new encoding's edges, `corpusVersion` when the corpus layout or schema changes |
+| `conformance/` | regenerate (`dotnet run --project conformance/Nino.Conformance -c Release -- --out conformance/corpus`), new valid and malicious cases for the new encoding's edges (`untrusted` cases where .NET checks only with `NinoSettings.Untrusted`), `corpusVersion` when the corpus layout or schema changes |
 | `runtimes/go`, `runtimes/rust`, `runtimes/typescript` | reader, writer, fast paths, their tests and fuzzers; each reads the new corpus |
 | `src/Nino.Codegen/Templates` | the generated readers and writers; regenerate the committed output (`NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests`) |
 | golden-bytes tests | `tests/Nino.UnitTests/Serialization/GoldenBytesTests.cs`, `tests/Nino.Fuzz/Golden`, Unity's, any test with expected hex; for raw layouts `tests/Nino.RuntimeTests/BclFixtures.cs` (rewrite with `dotnet Nino.RuntimeTests.dll --write-fixtures 2> BclFixtures.cs` on .NET 10 x64) and the copy of its hex in Unity's `Assets/Test/Runtime/BclLayoutTests.cs` |

@@ -33,7 +33,8 @@ the runtime it targets.
   `if` on the field, with the work out of line, so the default path compiles to what it was; prove it with
   `benchmarks/asm.py compare` (`optimize`).
 - A rule the other runtimes must follow goes into `docs/spec/wire-format.md` §9, with malicious cases in the corpus
-  (`wire-format`).
+  (`wire-format`). A check only `Untrusted` makes gets `untrusted` cases (`AddUntrusted`, conformance/AGENTS.md):
+  .NET's default mode may read them, its untrusted mode and every other runtime (they always check) must reject them.
 
 ## Look for
 
@@ -84,8 +85,9 @@ the runtime it targets.
   the default mode copies unchecked (spec §9.3, §10 item 12), is undefined behavior to the JIT, not only a wrong
   value: a struct with a `long?` whose flag is 2 compared unequal to itself in 1 of 300,000 `Equals(v, v)` once the
   JIT tiered up (boxed as null by one body, as a value by another), and the fuzzer's dictionary invariant failed on it
-  (round 104). Fuzz such flags in an Untrusted target (`RawsUntrusted`), which rejects them; whether the default mode
-  should check them is the owner's call.
+  (round 104). The owner keeps the default mode unchecked (one block copy, speed first) and documents the risk:
+  untrusted data is read with `Untrusted`. Fuzz such flags in an Untrusted target (`RawsUntrusted`), and keep them in
+  the corpus as `untrusted` cases (`presence-raw-*`).
 - A new conversion between a runtime's layout and the canonical one (`NinoLayout.Convert`) gets a field of that kind
   in the fuzzer's `RawBcl` (Raws, Stale) and a run on the runtime that converts it: `net8.0` converts
   `DateTimeOffset` (short minutes), `DOTNET_EnableHWIntrinsic=0` the SIMD paths; 32-bit and Arm layouts only under
