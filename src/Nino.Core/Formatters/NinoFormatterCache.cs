@@ -66,6 +66,9 @@ namespace Nino.Core
             var instance = Volatile.Read(ref _instance);
             if (instance != null)
                 return instance;
+            // Vector<T> has no layout every host reads, alone or inside anything (NINO029): refused before the
+            // resolver or NativeAOT's raw formatter would copy it.
+            NinoReflection.RefuseVariableVector(typeof(T));
 #if NET8_0_OR_GREATER
             // Building a formatter needs dynamic code: without it (NativeAOT), only generated registrations exist,
             // and the formatters that need no generic type closed at run time.

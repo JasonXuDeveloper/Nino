@@ -45,7 +45,6 @@ namespace Nino.Fuzz
             Wide = Enumerable.Range(0, 17).Select(i => ((short)i, (long)i << 40)).ToList(),
             Guids = new[] { Guid.Empty, new Guid("0f8fad5b-d9cb-469f-a165-70867728950e") }, Decimals = new[] { 1.5m, -0.0001m },
             Maybe = new RawS { A = 3 }, ById = new() { [1] = new RawS { A = 1 }, [2] = default },
-            Vectors = new[] { new System.Numerics.Vector<int>(Enumerable.Range(1, System.Numerics.Vector<int>.Count).Select(i => i <= 4 ? i : 0).ToArray()), default }, VecStructs = new[] { new VecS { A = 1 }, new VecS { A = 2 } },
         };
 
         public static Keyed Keyed() => new Keyed

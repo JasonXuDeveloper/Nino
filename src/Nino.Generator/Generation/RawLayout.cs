@@ -230,15 +230,13 @@ internal static class RawLayout
                 : new List<Field> { new(firstName, first, null), new(secondName, second, null) };
     }
 
-    /// <summary><c>Vector&lt;T&gt;</c> and <c>Vector64&lt;T&gt;</c> to <c>Vector512&lt;T&gt;</c> (<see cref="NinoLeaf.Vector"/>).</summary>
+    /// <summary>
+    /// <c>Vector64&lt;T&gt;</c> to <c>Vector512&lt;T&gt;</c> (<see cref="NinoLeaf.Vector"/>). <c>Vector&lt;T&gt;</c> never
+    /// gets here: no type holding one is raw (<see cref="RawRules.VariableVectorIn"/>).
+    /// </summary>
     private static bool IsVector(INamedTypeSymbol definition) =>
-        definition.Arity == 1 && definition.MetadataName switch
-        {
-            "Vector`1" => TypeNames.HasMetadataName(definition, "System.Numerics.Vector`1"),
-            "Vector64`1" or "Vector128`1" or "Vector256`1" or "Vector512`1" =>
-                TypeNames.HasMetadataName(definition, "System.Runtime.Intrinsics." + definition.MetadataName),
-            _ => false,
-        };
+        definition.Arity == 1 && definition.MetadataName is "Vector64`1" or "Vector128`1" or "Vector256`1" or "Vector512`1" &&
+        TypeNames.HasMetadataName(definition, "System.Runtime.Intrinsics." + definition.MetadataName);
 
     /// <summary><c>System.ValueTuple</c> of any arity: <c>[StructLayout(LayoutKind.Auto)]</c> in every runtime.</summary>
     private static bool IsValueTuple(ITypeSymbol type) =>
@@ -342,8 +340,8 @@ internal static class RawLayout
         public NinoLeaf Leaf(ITypeSymbol type) => RawLayout.Leaf(type);
 
         // For the canonical layout Describe publishes (a struct with several fields of an auto layout is never portable).
-        // SIMD vectors are as wide as the CPU's (Vector<T>) or aligned per runtime: never portable, and their canonical
-        // layout is Nino.Core's (NinoLayout), which nino-gen does not express.
+        // SIMD vectors are aligned per runtime (Vector256 at 16 on Arm64): never portable, and their canonical layout is
+        // Nino.Core's (NinoLayout), which nino-gen does not express.
         public bool Vector(ITypeSymbol type, out int size, out int align)
         {
             size = align = 0;

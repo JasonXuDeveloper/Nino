@@ -91,9 +91,12 @@ public static class BclStructs
         Bcl("DateTimeOffset?", (DateTimeOffset?)dto1, (DateTimeOffset?)null);
         Bcl("IntPtr", new IntPtr(-1), new IntPtr(int.MaxValue));
         Bcl("Complex", new System.Numerics.Complex(1.5, -2.5), new System.Numerics.Complex(double.MaxValue, 0));
-        // Vector<T>: 32 bytes canonically (x64's width), its low 16 bytes set (every CPU holds them).
-        Bcl("Vector<int>", Low(1, -2, 3, -4), Low(int.MaxValue, 0, 0, int.MinValue));
-        Top("Vector<int>[]", new[] { Low(1, 2, 3, 4), Low(-5, 0, 0, 0) });
+        // Vector<T> is refused, alone or inside (16 or 32 bytes by the CPU: no bytes every host reads); the fixed
+        // lanes that replace it (LaneParticle) are the same bytes everywhere, whatever this CPU's Vector<float>.Count.
+        Console.WriteLine($"# Vector<float>.Count {System.Numerics.Vector<float>.Count}");
+        Refused("Vector<int>", new System.Numerics.Vector<int>(7));
+        Refused("Around<Vector<int>>[]", new[] { new Around<System.Numerics.Vector<int>> { A = 1, C = -1 } });
+        Top("LaneParticle", LaneParticle.Doubled(3));
 #if NET8_0_OR_GREATER
         // .NET only (the net472 build has none of these): checked against the fixtures, printed as comments so the
         // outputs of the .NET Framework and Mono runs stay comparable with .NET's.
@@ -174,15 +177,44 @@ public static class BclStructs
 
     private static void Top<T>(string name, T value) => Fixture(name, value);
 
-    /// <summary>A <c>Vector&lt;int&gt;</c> of these four items, then zeros (as wide as this CPU's vectors).</summary>
-    private static System.Numerics.Vector<int> Low(int a, int b, int c, int d)
+    /// <summary>
+    /// Writing and reading <typeparamref name="T"/> (it holds a <c>Vector&lt;T&gt;</c>) throw
+    /// <see cref="NotSupportedException"/> on this runtime too, the generator's NINO029 suppressed.
+    /// </summary>
+    private static void Refused<T>(string name, T value)
     {
-        var items = new int[System.Numerics.Vector<int>.Count];
-        items[0] = a;
-        items[1] = b;
-        items[2] = c;
-        items[3] = d;
-        return new System.Numerics.Vector<int>(items);
+        string outcome;
+        try
+        {
+#pragma warning disable NINO029
+            NinoSerializer.Serialize(value);
+            outcome = "WRITTEN";
+        }
+        catch (NotSupportedException)
+        {
+            try
+            {
+                NinoDeserializer.Deserialize<T>(new byte[64]);
+#pragma warning restore NINO029
+                outcome = "READ";
+            }
+            catch (NotSupportedException)
+            {
+                outcome = "refused";
+            }
+            catch (Exception e)
+            {
+                outcome = "READ THREW " + e.GetType().Name;
+            }
+        }
+        catch (Exception e)
+        {
+            outcome = "WRITE THREW " + e.GetType().Name;
+        }
+
+        if (outcome != "refused")
+            Failed++;
+        Console.WriteLine($"bcl {name,-44} {outcome}");
     }
 
     /// <summary>

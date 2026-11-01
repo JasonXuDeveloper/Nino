@@ -7,7 +7,7 @@ namespace Nino.Generator.Analysis;
 
 /// <summary>
 /// Every diagnostic Nino reports, shared by the analyzer, the model builder and the code fixes. Ids are grouped:
-/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023, 028), features (014-017, 024, 026-027), pooling
+/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023, 028-029), features (014-017, 024, 026-027), pooling
 /// (018-019), formatter registrations (020).
 /// </summary>
 internal static class NinoDiagnostics
@@ -77,6 +77,14 @@ internal static class NinoDiagnostics
     public static readonly DiagnosticDescriptor NotSerializableMember = Warning("NINO028",
         "[NinoMember] on a member that is never serialized",
         "[NinoMember] on '{0}' of NinoType '{1}' has no effect: {2}; remove it");
+
+    public static readonly DiagnosticDescriptor VariableVector = Error("NINO029",
+        "Vector<T> cannot be serialized",
+        "{0} cannot be serialized: '{1}' {2}, and Vector<T> is 16 or 32 bytes depending on the CPU, so no host could read every other host's bytes; store a fixed number of lanes (an array or fixed buffer, Vector128<T> or Vector256<T>) and expose the Vector<T> through a [NinoIgnore] property over them");
+
+    /// <summary>The <c>{2}</c> of <see cref="VariableVector"/>: what <paramref name="type"/> is or holds.</summary>
+    public static string HoldsVector(ITypeSymbol type, ITypeSymbol vector) =>
+        SymbolEqualityComparer.Default.Equals(type, vector) ? "is a Vector<T>" : $"holds '{vector.ToDisplayString()}'";
 
     public static readonly DiagnosticDescriptor AmbiguousMember = Error("NINO012", "Member has both [NinoMember] and [NinoIgnore]",
         "Member '{0}' of NinoType '{1}' has both [NinoMember] and [NinoIgnore]; remove the one you do not mean");

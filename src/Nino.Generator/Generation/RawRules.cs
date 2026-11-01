@@ -11,6 +11,7 @@ namespace Nino.Generator.Generation;
 internal sealed class RawRules
 {
     private readonly ConcurrentDictionary<ISymbol, bool> _rawStructs = new(SymbolEqualityComparer.Default);
+    private readonly ConcurrentDictionary<ITypeSymbol, ITypeSymbol?> _vectors = new(SymbolEqualityComparer.Default);
     private readonly Func<ISymbol, bool> _computeRawStruct;
     private readonly NinoSymbols _symbols;
     private readonly MemberCache _members;
@@ -30,7 +31,7 @@ internal sealed class RawRules
     /// <summary>Whether values of <paramref name="type"/> are written as their raw bytes.</summary>
     public bool IsRawUnmanaged(ITypeSymbol type)
     {
-        if (type is ITypeParameterSymbol || !type.IsUnmanagedType)
+        if (type is ITypeParameterSymbol || !type.IsUnmanagedType || VariableVectorIn(type) != null)
             return false;
         if (type.IsNinoType())
             return type is INamedTypeSymbol ninoStruct && IsRawStruct(ninoStruct);
@@ -50,6 +51,73 @@ internal sealed class RawRules
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// The <c>System.Numerics.Vector&lt;T&gt;</c> that <paramref name="type"/> is or holds, or null: as an array
+    /// element, a type argument (of a <c>[NinoType]</c>, only one its serialized members use), or a field at any depth
+    /// of a struct that is not a <c>[NinoType]</c> (whose members are checked on their own declaration).
+    /// <c>Vector&lt;T&gt;</c> is as wide as the CPU's vectors (16 or 32 bytes), so no layout of it reads on every host:
+    /// such a type has no formatter (<see cref="FormatterResolver"/>), is never raw, and a member or top-level call
+    /// with one is NINO029. Nino.Core refuses the same types at run time (<c>NinoReflection.VariableVectorIn</c>).
+    /// </summary>
+    public ITypeSymbol? VariableVectorIn(ITypeSymbol type)
+    {
+        if (_vectors.TryGetValue(type, out var found))
+            return found;
+        return _vectors.GetOrAdd(type, ComputeVariableVector(type));
+    }
+
+    private ITypeSymbol? ComputeVariableVector(ITypeSymbol type)
+    {
+        switch (type)
+        {
+            case IArrayTypeSymbol array:
+                return VariableVectorIn(array.ElementType);
+            case INamedTypeSymbol named:
+                var definition = named.OriginalDefinition;
+                if (definition.Arity == 1 && TypeNames.HasMetadataName(definition, "System.Numerics.Vector`1"))
+                    return named;
+                // A ref struct (Span<Vector<T>>) is never serialized: NINO007 says so, without a formatter for it.
+                if (named.TypeKind == TypeKind.Enum || named.IsRefLikeType ||
+                    named.SpecialType is not (SpecialType.None or SpecialType.System_Nullable_T))
+                    return null;
+                var arguments = TypeNames.AllTypeArguments(named);
+                if (definition.GetNinoTypeOptions() is { } options)
+                {
+                    if (arguments.Count == 0)
+                        return null;
+                    var parameters = TypeNames.AllTypeParameters(definition);
+                    var members = _members.Of(definition, options);
+                    for (int i = 0; i < arguments.Count; i++)
+                    {
+                        if (VariableVectorIn(arguments[i]) is { } inArgument &&
+                            members.Any(m => MemberCollector.MemberType(m) is { } t && TypeNames.Mentions(t, parameters[i])))
+                            return inArgument;
+                    }
+
+                    return null;
+                }
+
+                foreach (var argument in arguments)
+                {
+                    if (VariableVectorIn(argument) is { } inArgument)
+                        return inArgument;
+                }
+
+                if (named.TypeKind != TypeKind.Struct)
+                    return null;
+                foreach (var member in named.GetMembers())
+                {
+                    if (member is IFieldSymbol { IsStatic: false, IsConst: false } field &&
+                        VariableVectorIn(field.Type) is { } inField)
+                        return inField;
+                }
+
+                return null;
+            default:
+                return null;
+        }
     }
 
     /// <summary>

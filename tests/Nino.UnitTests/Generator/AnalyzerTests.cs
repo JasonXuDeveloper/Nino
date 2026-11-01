@@ -901,7 +901,7 @@ public class TestClass
 
     #endregion
 
-    #region Members (NINO007-NINO013, NINO022-NINO023)
+    #region Members (NINO007-NINO013, NINO022-NINO023, NINO029)
 
     [TestMethod]
     public async Task NINO007_UnserializableMember()
@@ -1613,6 +1613,163 @@ public sealed class EmptyClass
             Verify.Diagnostic("NINO007").WithLocation(2)
                 .WithArguments("Callback", "System.Action", "AllSkipped", "", "the member is skipped"),
             Verify.Diagnostic("NINO023").WithLocation(1).WithArguments("AllSkipped")).RunAsync();
+    }
+
+    /// <summary>The arguments of a NINO029 on member <paramref name="member"/> of <paramref name="type"/>.</summary>
+    private static DiagnosticResult Nino029(int location, string member, string type, string memberType,
+        string vector = null) =>
+        Verify.Diagnostic("NINO029").WithLocation(location).WithArguments($"Member '{member}' of NinoType '{type}'",
+            memberType, vector == null ? "is a Vector<T>" : $"holds '{vector}'");
+
+    [TestMethod]
+    public async Task NINO029_VectorTMembers()
+    {
+        // Vector<T> wherever Nino would write it: alone, as an element, a type argument a [NinoType] uses, a field at
+        // any depth of a plain struct, a settable property. One diagnostic: no NINO023 for a struct of vectors only.
+        var code = @"
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+public struct Raw { public int A; public Vector<int> V; }
+public struct Outer { public byte B; public Raw Inner; }
+
+[NinoType]
+public class Box<T> { public T Value; }
+
+[NinoType]
+public class Holder
+{
+    public Vector<float> {|#0:Alone|};
+    public List<Vector<int>> {|#1:InList|};
+    public Vector<int>[] {|#2:InArray|};
+    public Outer {|#3:Deep|};
+    public Box<Vector<int>> {|#4:InBox|};
+    public Vector<int>? {|#5:Nullable|};
+    public Dictionary<int, (byte, Vector<long>)> {|#6:InTuple|};
+    public Vector<float> {|#7:Settable|} { get => default; set { } }
+}
+
+[NinoType]
+public struct NinoStruct { public int A; public Vector<double> {|#8:V|}; }
+
+[NinoType]
+public struct OnlyVectors { public Vector<byte> {|#9:V|}; }
+";
+
+        await SetUpAnalyzerTest(code,
+            Nino029(0, "Alone", "Holder", "System.Numerics.Vector<float>"),
+            Nino029(1, "InList", "Holder", "System.Collections.Generic.List<System.Numerics.Vector<int>>",
+                "System.Numerics.Vector<int>"),
+            Nino029(2, "InArray", "Holder", "System.Numerics.Vector<int>[]", "System.Numerics.Vector<int>"),
+            Nino029(3, "Deep", "Holder", "Outer", "System.Numerics.Vector<int>"),
+            Nino029(4, "InBox", "Holder", "Box<System.Numerics.Vector<int>>", "System.Numerics.Vector<int>"),
+            Nino029(5, "Nullable", "Holder", "System.Numerics.Vector<int>?", "System.Numerics.Vector<int>"),
+            Nino029(6, "InTuple", "Holder",
+                "System.Collections.Generic.Dictionary<int, (byte, System.Numerics.Vector<long>)>",
+                "System.Numerics.Vector<long>"),
+            Nino029(7, "Settable", "Holder", "System.Numerics.Vector<float>"),
+            Nino029(8, "V", "NinoStruct", "System.Numerics.Vector<double>"),
+            Nino029(9, "V", "OnlyVectors", "System.Numerics.Vector<byte>")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO029_TopLevelCalls()
+    {
+        // The calls the generator would register or intercept; IsSupported only asks (it answers false).
+        var code = @"
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+public struct Raw { public int A; public Vector<int> V; }
+
+public static class Calls
+{
+    public static void Run()
+    {
+        var bytes = {|#0:NinoSerializer.Serialize(new Vector<int>(1))|};
+        {|#1:NinoDeserializer.Deserialize<List<Raw>>(bytes)|};
+        {|#2:NinoSerializer.SerializeBoxed(new Raw(), typeof(Raw))|};
+        NinoSerializer.IsSupported(typeof(Raw));
+        NinoSerializer.Serialize(new System.Runtime.Intrinsics.Vector128<int>());
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO029").WithLocation(0).WithArguments("The value of this NinoSerializer.Serialize call",
+                "System.Numerics.Vector<int>", "is a Vector<T>"),
+            Verify.Diagnostic("NINO029").WithLocation(1).WithArguments(
+                "The value of this NinoDeserializer.Deserialize call", "System.Collections.Generic.List<Raw>",
+                "holds 'System.Numerics.Vector<int>'"),
+            Verify.Diagnostic("NINO029").WithLocation(2).WithArguments(
+                "The value of this NinoSerializer.SerializeBoxed call", "Raw", "holds 'System.Numerics.Vector<int>'"))
+            .RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO029_NotForVectorsNinoNeverWrites()
+    {
+        // The documented workaround: fixed lanes stored, the Vector<T> exposed through [NinoIgnore] members. Neither
+        // members Nino does not serialize (get-only, ref structs, [NinoIgnore]), nor fixed-size vectors, nor a type
+        // argument no serialized member uses, nor a [NinoMemberFormatter] that writes the member its own way.
+        var code = @"
+using System;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
+using Nino.Core;
+
+[NinoType]
+public class Particle
+{
+    public float[] Lanes = new float[16];
+
+    [NinoIgnore]
+    public Span<Vector<float>> Vectors => MemoryMarshal.Cast<float, Vector<float>>(Lanes.AsSpan());
+
+    [NinoIgnore]
+    public Vector<float> Head { get => Vectors[0]; set => Vectors[0] = value; }
+
+    public Vector<float> First => new Vector<float>(Lanes);
+
+    [NinoIgnore]
+    public Vector<int> Scratch;
+}
+
+[NinoType]
+public struct Packed
+{
+    public Vector128<float> Low;
+    public Vector256<float> High;
+
+    [NinoIgnore]
+    public Vector<float> View { get => default; set { } }
+}
+
+[NinoType]
+public class Tag<T> { public int Id; }
+
+[NinoType]
+public class UsesTag { public Tag<Vector<int>> Tagged; }
+
+public struct VectorFormatter : INinoFormatter<Vector<int>>
+{
+    public void Serialize(Vector<int> value, ref Writer writer) { }
+    public void Deserialize(ref Vector<int> value, ref Reader reader) { }
+}
+
+[NinoType]
+public class Custom
+{
+    [NinoMemberFormatter(typeof(VectorFormatter))]
+    public Vector<int> Mine;
+}
+";
+
+        await SetUpAnalyzerTest(code).RunAsync();
     }
 
     #endregion

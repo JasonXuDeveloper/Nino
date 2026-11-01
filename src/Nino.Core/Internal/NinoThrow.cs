@@ -42,12 +42,14 @@ namespace Nino.Core.Internal
         public static void InvalidData(string message) =>
             throw new NinoDataException("Nino: " + message);
 
-        /// <summary>A value this runtime holds that its canonical layout cannot (the caller's value, not invalid data).</summary>
+        /// <summary><paramref name="type"/> is or holds <c>Vector&lt;T&gt;</c> (<see cref="NinoReflection.VariableVectorIn"/>).</summary>
         [MethodImpl(Cold)]
-        public static void TooWideForWire() =>
-            throw new InvalidOperationException(
-                "Nino: a Vector<T> with bytes set past the 32 its canonical layout keeps (this CPU's vectors are wider; " +
-                "wire format §3): write its elements as an array instead.");
+        public static void VariableVector(Type type, Type vector) =>
+            throw new NotSupportedException(
+                $"Nino: {type} cannot be serialized: it is or holds {vector}, which is as wide as the CPU's vectors " +
+                "(16 bytes on Arm64, Mono, IL2CPP and x64 without AVX2, 32 on x64 with AVX2), so no host could read " +
+                "every other host's bytes. Store a fixed number of lanes (an array or fixed buffer, Vector128<T> or " +
+                "Vector256<T>) and expose the Vector<T> through a [NinoIgnore] property over them (diagnostic NINO029).");
 
         [MethodImpl(Cold)]
         public static void NullElements(Type type) =>

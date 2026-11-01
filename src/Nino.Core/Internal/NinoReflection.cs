@@ -81,6 +81,76 @@ namespace Nino.Core.Internal
             return false;
         }
 
+        /// <summary>Why reading the fields and type arguments of a runtime type is safe after trimming.</summary>
+        private const string VectorJustification =
+            "Looks for System.Numerics.Vector<T> in the instance fields of a struct the program uses (the trimmer " +
+            "keeps every instance field of a sequential or explicit struct; where field metadata is missing, as under " +
+            "NativeAOT for a struct generated code never named, the struct is not refused here and its layout is " +
+            "copied as it lies in memory, as on any reflection failure of NinoLayout).";
+
+        /// <summary>
+        /// The <c>System.Numerics.Vector&lt;T&gt;</c> that <paramref name="type"/> is or holds, or null: as an array
+        /// element, a type argument of a type that is not a <c>[NinoType]</c>, or a field (at any depth) of a struct that
+        /// is not one. <c>Vector&lt;T&gt;</c> is as wide as the CPU's vectors (16 bytes on Arm64, Mono, IL2CPP and x64
+        /// without AVX2, 32 with AVX2, 64 with <c>DOTNET_MaxVectorTBitWidth=512</c>), so no layout of it reads on every
+        /// host, and Nino serializes no type that holds one (docs/spec/wire-format.md §3). <c>[NinoType]</c>s are left
+        /// to their generated formatters, which skip such members (NINO029) and resolve the formatters of their type
+        /// arguments, refused there, when first used. The generator's rule is <c>TypeFacts.VariableVectorIn</c>.
+        /// </summary>
+        public static Type VariableVectorIn(Type type) => VariableVectorIn(type, null);
+
+        /// <summary>
+        /// Throws <see cref="NotSupportedException"/> when <paramref name="type"/> is or holds <c>Vector&lt;T&gt;</c>
+        /// (<see cref="VariableVectorIn(Type)"/>): called where a formatter or a layout is first resolved, never per value.
+        /// </summary>
+        public static void RefuseVariableVector(Type type)
+        {
+            if (VariableVectorIn(type) is { } vector)
+                NinoThrow.VariableVector(type, vector);
+        }
+
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = VectorJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = VectorJustification)]
+        private static Type VariableVectorIn(Type type, HashSet<Type> seen)
+        {
+            while (type.HasElementType)
+            {
+                if (type.IsPointer || type.IsByRef)
+                    return null;
+                type = type.GetElementType()!;
+            }
+
+            if (type.IsGenericParameter)
+                return null;
+            // By name: Unity's Mono and IL2CPP have a Vector<T> in mscorlib and another in System.Numerics.Vectors.
+            if (type.IsGenericType && type.Namespace == "System.Numerics" && type.Name == "Vector`1")
+                return type;
+            if (type.IsPrimitive || type.IsEnum || type == typeof(string) || IsNinoType(type))
+                return null;
+            if (seen != null && !seen.Add(type))
+                return null;
+            if (type.IsGenericType)
+            {
+                foreach (var argument in type.GetGenericArguments())
+                {
+                    if (VariableVectorIn(argument, seen ??= new HashSet<Type> { type }) is { } found)
+                        return found;
+                }
+            }
+
+            if (!type.IsValueType || type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
+                return null;
+            foreach (var field in type.GetFields(System.Reflection.BindingFlags.Instance |
+                                                 System.Reflection.BindingFlags.Public |
+                                                 System.Reflection.BindingFlags.NonPublic))
+            {
+                if (VariableVectorIn(field.FieldType, seen ??= new HashSet<Type> { type }) is { } found)
+                    return found;
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// Whether values of <paramref name="type"/> are written as their raw bytes, as the generator decides it
         /// (RawRules.IsRawUnmanaged): a formatter parameter marked <see cref="NinoRawAttribute"/> binds the same types

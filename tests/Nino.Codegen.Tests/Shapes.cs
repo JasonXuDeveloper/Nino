@@ -113,14 +113,15 @@ namespace Shapes
     }
 
     /// <summary>
-    /// A SIMD vector: as wide as the CPU's vectors in .NET (canonically 32 bytes, Nino.Core's layout), which no target
-    /// expresses: every target leaves the type out, with a warning.
+    /// A SIMD vector of fixed size, aligned per runtime (Vector256 at 32 on x64, 16 on Arm64; Nino.Core's layout), which
+    /// no target expresses: every target leaves the type out, with a warning. (Vector&lt;T&gt; is not serializable at
+    /// all: NINO029.)
     /// </summary>
     [NinoType]
     public sealed class Simd
     {
         public int Id;
-        public System.Numerics.Vector<int> Lanes;
+        public System.Runtime.Intrinsics.Vector256<int> Lanes;
     }
 
     public static class Outer

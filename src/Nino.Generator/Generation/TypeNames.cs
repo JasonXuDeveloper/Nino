@@ -255,6 +255,15 @@ internal static class TypeNames
         _ => false,
     };
 
+    /// <summary>Whether <paramref name="type"/> is or contains the type parameter <paramref name="p"/>.</summary>
+    public static bool Mentions(ITypeSymbol type, ITypeParameterSymbol p) => type switch
+    {
+        ITypeParameterSymbol t => SymbolEqualityComparer.Default.Equals(t, p),
+        IArrayTypeSymbol a => Mentions(a.ElementType, p),
+        INamedTypeSymbol n => AllTypeArguments(n).Any(a => Mentions(a, p)),
+        _ => false,
+    };
+
     /// <summary>A type or formatter as C# source without <c>global::</c>, as published layouts show it.</summary>
     public static string Plain(string name) => name.Replace("global::", "");
 

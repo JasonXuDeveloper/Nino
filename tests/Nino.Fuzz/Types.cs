@@ -24,12 +24,7 @@ namespace Nino.Fuzz
         public RawS One; public RawS[] Many; public List<Pair2> Pairs; public PlainBlock[] Blocks; public Empty[] Empties;
         public (byte, int)[] Tuples; public List<(short, long)> Wide; public Guid[] Guids; public decimal[] Decimals;
         public RawS? Maybe; public Dictionary<int, RawS> ById;
-        // Vector<T>: 32 bytes on the wire, converted where the CPU's vectors are 16 or 64 bytes (DOTNET_EnableAVX2=0).
-        public System.Numerics.Vector<int>[] Vectors; public VecS[] VecStructs;
     }
-
-    /// <summary>A raw struct holding a Vector&lt;T&gt; after a byte (at 8 on the wire).</summary>
-    public struct VecS { public byte A; public System.Numerics.Vector<int> V; }
 
     // Deep nesting: positional, version tolerant and keyed chains.
     [NinoType] public sealed class Node { public int V; public Node Next; }

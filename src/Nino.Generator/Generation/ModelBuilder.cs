@@ -175,8 +175,11 @@ internal static class ModelBuilder
 
         // A positional struct without members is written as nothing at all: a collection of it could not be read back,
         // since its count is checked against the bytes left (every element takes at least one byte).
-        if (kind == FormatterKind.Struct && !shape.RawStruct && !shape.Tolerant && !attr.Keyed && members.Count == 0)
-            diagnostics?.Report(NinoDiagnostics.EmptyStruct, type, type.ToDisplayString());
+        // One that has only Vector<T> members is NINO029's alone.
+        if (kind == FormatterKind.Struct && !shape.RawStruct && !shape.Tolerant && !attr.Keyed && members.Count == 0 &&
+            diagnostics != null && facts.Members.Of(type, attr).All(m =>
+                MemberCollector.MemberType(m) is not { } t || facts.Raw.VariableVectorIn(t) == null))
+            diagnostics.Report(NinoDiagnostics.EmptyStruct, type, type.ToDisplayString());
 
         if (diagnostics != null)
             ReportNames(type, attr.Keyed, members, set.Symbols, facts.Symbols, diagnostics);
@@ -510,6 +513,16 @@ internal static class ModelBuilder
         bool readsLoop = false;
         FormatterTraits traits;
         var custom = NinoSymbols.Get(symbol, known.CustomFormatter);
+        // Vector<T>, alone or inside: as wide as the CPU's vectors, so no bytes of it read on every host. Skipped (it
+        // has no formatter either); a [NinoMemberFormatter] writes what it chooses.
+        if (custom == null && facts.Raw.VariableVectorIn(memberType) is { } vector)
+        {
+            diagnostics?.Report(NinoDiagnostics.VariableVector, symbol,
+                $"Member '{symbol.Name}' of NinoType '{type.ToDisplayString()}'", memberType.ToDisplayString(),
+                NinoDiagnostics.HoldsVector(memberType, vector));
+            return null;
+        }
+
         if (custom is { ConstructorArguments: { Length: > 0 } args } && args[0].Value is INamedTypeSymbol customType)
         {
             if (!known.IsCustomFormatterOf(customType, memberType))
@@ -659,15 +672,6 @@ internal static class ModelBuilder
                 return null;
         }
     }
-
-    /// <summary>Whether <paramref name="type"/> is or contains the type parameter <paramref name="p"/>.</summary>
-    private static bool Mentions(ITypeSymbol type, ITypeParameterSymbol p) => type switch
-    {
-        ITypeParameterSymbol t => SymbolEqualityComparer.Default.Equals(t, p),
-        IArrayTypeSymbol a => Mentions(a.ElementType, p),
-        INamedTypeSymbol n => AllTypeArguments(n).Any(a => Mentions(a, p)),
-        _ => false,
-    };
 
     /// <summary>
     /// Whether an <c>[UnsafeAccessor]</c> extern in the formatter of <paramref name="type"/> reaches a member declared
