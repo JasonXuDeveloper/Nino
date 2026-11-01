@@ -89,6 +89,10 @@ builds of Nino.Core, Mono).
   to Vector512 are fixed size and stay: aligned 8/16/32/64 on x64, 16/16/16 on Arm64, 8 on Arm32 (`NinoLeaf.Vector`).
   Test every `Vector<T>` width on one x64 machine: `DOTNET_EnableAVX2=0` (16 bytes), `DOTNET_MaxVectorTBitWidth=512`
   (64), the default (32); `tests/Nino.RuntimeTests` prints `# Vector<float>.Count`.
+  CI covers all three: the no-AVX2 unit tests (16), the default (32), and 64 in the net10.0 unit-test job (VectorTTests)
+  and the Linux runtime-internals job (Nino.RuntimeTests, which must print Count 16) with `DOTNET_MaxVectorTBitWidth=512`.
+  GitHub's x64 runners are Xeon 6973P-C (AVX-512) or EPYC 7763 (none): a check that needs AVX-512 asks
+  `.github/scripts/has_avx512.sh` (F, BW, CD, DQ, VL, as .NET needs) and posts a notice instead of failing without it.
   Each CI runtime prints its layout of
   every BCL struct (`# layout` lines of `tests/Nino.RuntimeTests`, the table in docs/layouts.md) and must write and
   read CoreCLR x64's bytes for each (`BclStructs.cs` against `BclFixtures.cs`, which Unity's `BclLayoutTests` read too,
