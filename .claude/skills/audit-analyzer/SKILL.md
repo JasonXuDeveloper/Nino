@@ -19,6 +19,14 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   (`Box<Action>`, anywhere in a member's type) is NINO007 with "writing a value of it throws", because its formatter
   takes `CachedFormatter<Action>`; the generator keeps the member, so the bytes stay (the owner's call, round 101).
   Only type parameters a serialized member uses count (`Tag<Action>` writes fine).
+- A type whose bytes would differ by host is an Error wherever Nino would write it: NINO029 for `Vector<T>` on the
+  member (alone, element, type argument a `[NinoType]` member uses, field of a plain struct at any depth) and on the
+  `NinoSerializer`/`NinoDeserializer` call (an operation action, rejected by method name first). One predicate decides
+  it for the analyzer, the generator's resolver, `RawRules.IsRawUnmanaged`, the call transform (no registration, no
+  interceptor) and, mirrored, Nino.Core (`RawRules.VariableVectorIn` / `NinoReflection.VariableVectorIn`). It never
+  fires where Nino writes nothing (`[NinoIgnore]`, get-only properties, ref structs, which stay NINO007) or the user
+  writes the bytes (`[NinoMemberFormatter]`), and a struct of such members gets NINO029 alone, not NINO023 too
+  (`AnalyzerTests.NINO029_*`).
 - An attribute that cannot do what it says is reported, not left to a rule whose message would be wrong:
   `[NinoMember]` on a static, constant, indexer, get-only computed property or backing field was NINO010 ("collected
   already") with autoCollect and nothing without it, while nothing was written; NINO028 now reports it alone, with
