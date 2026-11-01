@@ -186,6 +186,52 @@ internal sealed class FormatterRules
         }
     }
 
+    /// <summary>
+    /// The marks (<c>[NinoRaw]</c>, <c>unmanaged</c>, <c>[NinoCreated]</c>) of the type parameters of each generic
+    /// formatter the compilation's own <c>[assembly: NinoFormatter]</c> attributes register, for formatters with any.
+    /// The generated registry registers them with the runtime (<c>NinoParameterMarks.Register</c>), which needs them
+    /// where the runtime keeps no attributes on generic parameters (IL2CPP). Bits count the parameters of containing
+    /// types first, as the runtime numbers them.
+    /// </summary>
+    public static IEnumerable<FormatterMarks> OwnMarks(Compilation compilation)
+    {
+        var attributeType = compilation.GetTypeByMetadataName(NinoNames.Core("NinoFormatterAttribute"));
+        if (attributeType == null)
+            yield break;
+        var rawType = compilation.GetTypeByMetadataName(NinoNames.Core("NinoRawAttribute"));
+        var createdType = compilation.GetTypeByMetadataName(NinoNames.Core("NinoCreatedAttribute"));
+        var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        foreach (var attribute in compilation.Assembly.GetAttributes())
+        {
+            if (!SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, attributeType) ||
+                attribute.ConstructorArguments.Length == 0 ||
+                attribute.ConstructorArguments[0].Value is not INamedTypeSymbol { OriginalDefinition: var formatter } ||
+                formatter.Arity == 0 || !seen.Add(formatter) ||
+                !compilation.IsSymbolAccessibleWithin(formatter, compilation.Assembly))
+                continue;
+            int outer = 0;
+            for (var containing = formatter.ContainingType; containing != null; containing = containing.ContainingType)
+                outer += containing.Arity;
+            int raw = 0, unmanaged = 0, created = 0;
+            foreach (var parameter in formatter.TypeParameters)
+            {
+                int bit = 1 << (outer + parameter.Ordinal);
+                if (parameter.HasUnmanagedTypeConstraint)
+                    unmanaged |= bit;
+                foreach (var mark in parameter.GetAttributes())
+                {
+                    if (SymbolEqualityComparer.Default.Equals(mark.AttributeClass, rawType))
+                        raw |= bit;
+                    else if (SymbolEqualityComparer.Default.Equals(mark.AttributeClass, createdType))
+                        created |= bit;
+                }
+            }
+
+            if ((raw | unmanaged | created) != 0)
+                yield return new FormatterMarks(TypeNames.OpenName(formatter), raw, unmanaged, created);
+        }
+    }
+
     // Generated code registers the formatters of generic [NinoType]s for the runtime resolver. The generator resolves
     // [NinoType]s itself (its own generated formatter, or CachedFormatter<T> for other assemblies'), so it skips them.
     private static bool IsGeneratedNinoTypeFormatter(FormatterRule rule) =>

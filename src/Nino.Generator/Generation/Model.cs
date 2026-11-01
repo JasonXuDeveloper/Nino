@@ -495,5 +495,9 @@ internal sealed record DispatchEntry(string TypeName, string FormatterName, stri
 internal sealed record GenericAncestor(string Type, string Definition);
 
 // RegisteringReferences: one formatter (open name) of each referenced assembly that registers formatters.
+// FormatterMarks: the marks of the type parameters of the formatters the compilation registers (FormatterRules.OwnMarks).
 internal sealed record GeneratorOptions(string AssemblyName, bool HasModuleInitializer, bool HasUnityEngine,
-    bool HasUnityEditor, EquatableArray<string> RegisteringReferences);
+    bool HasUnityEditor, EquatableArray<string> RegisteringReferences, EquatableArray<FormatterMarks> FormatterMarks);
+
+// A formatter definition (open name) and its type parameters' marks, one bit per position (NinoParameterMarks).
+internal sealed record FormatterMarks(string Formatter, int Raw, int Unmanaged, int Created);

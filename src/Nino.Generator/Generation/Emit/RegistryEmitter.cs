@@ -42,6 +42,10 @@ internal static class RegistryEmitter
 
         w.Block($"static {name}()", () =>
         {
+            // Before Add, which hands the assembly's [NinoFormatter] registrations to the runtime resolver: it binds
+            // them by these marks where the runtime drops attributes of generic parameters (IL2CPP).
+            foreach (var marks in options.FormatterMarks)
+                w.Line($"{CoreCompilerServices}NinoParameterMarks.Register(typeof({marks.Formatter}), {marks.Raw}, {marks.Unmanaged}, {marks.Created});");
             w.Line($"{Core}NinoRegistry.Add(new {name}());");
             // Libraries declaring formatters this assembly may resolve at runtime (see FormatterRules.RegisteringReferences).
             foreach (var formatter in options.RegisteringReferences)

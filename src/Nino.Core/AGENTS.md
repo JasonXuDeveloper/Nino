@@ -65,6 +65,9 @@ NinoSubtypes.cs              NinoSubtypes<TBase>: the registry of a base type's 
 NinoGeneratedAttribute.cs    [NinoGenerated]: marks an assembly with generated code, names its registry
 INinoRegistry.cs             INinoRegistry: an assembly's generated registry (lazy registration by type id)
 NinoSubtypeHandler.cs        NinoSubtypeHandler: writes and reads one registered type; the registry's entry
+NinoParameterMarks.cs        what a formatter's type parameters require ([NinoRaw], unmanaged, [NinoCreated]): their
+                             attributes, or where the runtime drops them (IL2CPP) the marks Nino.Core registers for its
+                             own formatters and generated registries for the formatters they register (Register)
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
 NinoUnsafe.cs                unaligned little-endian memory access, block copies (vector loops, paired loads),
                              ReadBool, array allocation; used by Reader, Writer and generated code
@@ -81,8 +84,6 @@ NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (register
                              NinoMissingFormatter<T> (the never-null stand-in of a type without one)
 NinoFormatterResolver.cs     builds formatter types by reflection for unregistered types, applying the
                              [NinoFormatter] registrations with the generator's rules
-NinoParameterMarks.cs        what a formatter's type parameters require ([NinoRaw], unmanaged, [NinoCreated]): their
-                             attributes, or a table of Nino.Core's own where the runtime drops them (IL2CPP)
 BuiltInFormatters.cs         the [assembly: NinoFormatter] table of the BCL formatters below (generator and resolver read it)
 BoxedFormatter.cs            BoxedFormatter: NinoFormatterCache<T> for a runtime Type (the Boxed APIs)
 PrimitiveFormatters.cs       UnmanagedFormatter<T> (raw bytes), RawValueFormatter<T>, IntPtr / UIntPtr (8 bytes),

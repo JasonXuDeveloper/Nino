@@ -156,6 +156,34 @@ public class IncrementalGeneratorTests
     }
 
     [TestMethod]
+    public void RegistryRegistersTheMarksOfRegisteredFormatters()
+    {
+        // IL2CPP keeps no attributes on generic parameters: the registry registers [NinoRaw], unmanaged and
+        // [NinoCreated] (a bit per parameter) before handing the assembly's registrations to the resolver.
+        var compilation = Create(
+            ("Rules.cs", "using Nino.Core;\n[assembly: NinoFormatter(typeof(Inc.CellFormatter<>))]\n" +
+                         "[assembly: NinoFormatter(typeof(Inc.BagFormatter<,>))]\nnamespace Inc {\n" +
+                         "public class Cell<T> { public T V; }\npublic class Bag<T> : System.Collections.Generic.List<T> { }\n" +
+                         "public struct CellFormatter<[NinoRaw] T> : INinoFormatter<Cell<T>> where T : unmanaged {\n" +
+                         "public void Serialize(Cell<T> value, ref Writer writer) { }\n" +
+                         "public void Deserialize(ref Cell<T> value, ref Reader reader) { }\n}\n" +
+                         "public struct BagFormatter<[NinoCreated] TBag, T> : INinoFormatter<TBag> where TBag : Bag<T>, new() {\n" +
+                         "public void Serialize(TBag value, ref Writer writer) { }\n" +
+                         "public void Deserialize(ref TBag value, ref Reader reader) { }\n}\n}"),
+            ("Holder.cs", Usings + "[NinoType] public class Holder { public int X; }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGenerators(compilation);
+        string registry = driver.GetRunResult().Results[0].GeneratedSources
+            .Single(s => s.HintName == "NinoGen.Registry.g.cs").SourceText.ToString();
+        StringAssert.Contains(registry,
+            "NinoParameterMarks.Register(typeof(global::Inc.CellFormatter<>), 1, 1, 0);");
+        StringAssert.Contains(registry,
+            "NinoParameterMarks.Register(typeof(global::Inc.BagFormatter<,>), 0, 0, 1);");
+        Assert.IsTrue(registry.IndexOf("NinoParameterMarks.Register", StringComparison.Ordinal) <
+                      registry.IndexOf("NinoRegistry.Add", StringComparison.Ordinal), registry);
+    }
+
+    [TestMethod]
     public void CallsThroughAliasesAndUsingStaticAreRegistered()
     {
         // The receiver is matched by symbol: an alias (here or global, in another file) or using static names it too.

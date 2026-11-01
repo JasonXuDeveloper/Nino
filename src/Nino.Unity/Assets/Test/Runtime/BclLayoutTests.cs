@@ -7,8 +7,35 @@ using Nino.Core;
 using NUnit.Framework;
 using UnityEngine;
 
+// A formatter of the user's whose parameter is [NinoRaw]: the generated registry registers that mark, which IL2CPP,
+// keeping no attributes on generic parameters, binds it by.
+[assembly: NinoFormatter(typeof(Test.Runtime.CellFormatter<>))]
+
 namespace Test.Runtime
 {
+    /// <summary>One value, or null: a type Nino has no formatter for but <see cref="CellFormatter{T}"/>.</summary>
+    public sealed class Cell<T>
+    {
+        public T Value;
+    }
+
+    /// <summary>A presence byte, then the value as raw bytes: only for types written raw ([NinoRaw]).</summary>
+    public struct CellFormatter<[NinoRaw] T> : INinoFormatter<Cell<T>> where T : unmanaged
+    {
+        public void Serialize(Cell<T> value, ref Writer writer)
+        {
+            writer.Write(value != null);
+            if (value != null)
+                writer.WriteValue(value.Value);
+        }
+
+        public void Deserialize(ref Cell<T> value, ref Reader reader)
+        {
+            reader.Read(out bool present);
+            value = present ? new Cell<T> { Value = reader.ReadValue<T>() } : null;
+        }
+    }
+
     /// <summary>A plain (raw) struct around a BCL struct, after a byte and before an int.</summary>
     public struct Around<T>
     {
@@ -82,6 +109,19 @@ namespace Test.Runtime
             CollectionAssert.IsEmpty(failed);
         }
 
+        [Test]
+        public void UserRawFormatterIsBoundByItsMarks()
+        {
+            // Resolved at run time (Unity's compiler has no interceptors): bound to a raw long...
+            var bytes = NinoSerializer.Serialize(new Cell<long> { Value = -7 });
+            Assert.AreEqual("01-F9-FF-FF-FF-FF-FF-FF-FF", BitConverter.ToString(bytes));
+            Assert.AreEqual(-7L, NinoDeserializer.Deserialize<Cell<long>>(bytes).Value);
+            // ...and never to a value tuple, which is not raw: IL2CPP bound it before the generated registry
+            // registered the [NinoRaw] mark, and wrote the tuple's memory in its own layout.
+            Assert.Throws<InvalidOperationException>(() =>
+                NinoSerializer.Serialize(new Cell<(byte, long, int)> { Value = (1, 2, 3) }));
+        }
+
         /// <summary>A <c>Vector&lt;int&gt;</c> of these four items, then zeros (as wide as this runtime's vectors).</summary>
         private static System.Numerics.Vector<int> Low(int a, int b, int c, int d)
         {
@@ -101,7 +141,7 @@ namespace Test.Runtime
             var c = default((byte, long, int));
             var views = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.ValueViews");
             string Field(string name) => views?.GetField(name, BindingFlags.Static | BindingFlags.Public)?.GetValue(null)?.ToString();
-            var marks = typeof(NinoSerializer).Assembly.GetType("Nino.Core.NinoParameterMarks");
+            var marks = typeof(NinoSerializer).Assembly.GetType("Nino.Core.CompilerServices.NinoParameterMarks");
             return $"attributes of generic parameters visible: {marks?.GetField("Visible", BindingFlags.Static | BindingFlags.NonPublic)?.GetValue(null)}; " +
                    $"(int,long) {Unsafe.SizeOf<(int, long)>()}: {Offset(ref a, ref a.Item1)},{Offset(ref a, ref a.Item2)}; " +
                    $"(byte,short) {Unsafe.SizeOf<(byte, short)>()}: {Offset(ref b, ref b.Item1)},{Offset(ref b, ref b.Item2)}; " +
