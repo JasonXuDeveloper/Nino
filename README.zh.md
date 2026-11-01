@@ -33,7 +33,8 @@
 > 即 `NinoDataException`（派生自 `InvalidOperationException`，消息以 `Nino:` 开头），在边界处一个 `catch` 就能处理。
 > 为在哈希表中冲突而构造的键也会抛出异常（`NinoSettings.MaxHashCollisions`），`NinoSettings.MaxDepth` 和
 > `MaxCollectionLength` 可以收紧限制。读取外部数据时，在启动时设置 `NinoSettings.Untrusted = true`：Nino 创建的字典和集合用每个进程随机生成的密钥对整数、`char`、`Guid` 和 `string` 键求哈希，
-> `bool`、`DateTime`、`decimal`、`DateOnly` 和 `TimeOnly` 的值（包括原始结构体内部的）都会检查，值之后多余的字节会被拒绝；
+> `bool`、`DateTime`、`decimal`、`DateOnly` 和 `TimeOnly` 的值（包括原始结构体内部的）都会检查（不检查时，原始结构体里不是 0 或 1 的
+> `bool` 或 `Nullable` 存在字节对 JIT 是未定义行为：这个值可能和自己都不相等），值之后多余的字节会被拒绝；
 > 关闭时（默认）这些都没有任何开销。
 > 我们用变异 fuzz 和手工构造的数据检验了每个内置类型，发现的问题都已在 4.0.0-rc.7 修复。
 > [Nino 检查什么、哪些仍需你的代码负责](https://nino.xgamedev.net/zh/docs/v4/security)。（MemoryPack 现在

@@ -184,7 +184,12 @@ A member, a `NinoSerializer`/`NinoDeserializer` call, or Nino.Core's own formatt
 by hand (`new UnmanagedFormatter<Vector<int>>()`, `default(...)`, `[NinoMemberFormatter(typeof(...))]`,
 `writer.Write(vector)`, `reader.Read(out Vector<int> v)`) need `System.Numerics.Vector<T>`: the type is one or holds
 one (as an element, a type argument, a base type or a field of a plain struct), and `Vector<T>` is 16, 32 or 64 bytes
-by the CPU, so Nino serializes no such type; the runtime throws `NotSupportedException` for it. A formatter of your
+by the CPU, so Nino serializes no such type; the runtime throws `NotSupportedException` for it. A generic
+`[NinoType]` counts when the members it serializes (its own or its base type's) name the type argument:
+`Box<Vector<int>>` of `class Box<T> { public T Value; }` is reported, and so is `ListBox<Vector<short>>` of
+`class ListBox<T> : Box<List<T>>`. The message reads: "... cannot be serialized: '{type}' is a Vector<T> (or holds
+'...'), and Vector<T> is 16, 32 or 64 bytes by the CPU; store a fixed number of lanes (an array, a fixed buffer,
+Vector128<T> or Vector256<T>) and view them as Vector<T> in [NinoIgnore] members". A formatter of your
 own that writes the lanes its way is never reported, nor a Nino.Core collection formatter over it. Store a fixed
 number of lanes and expose the vectors through `[NinoIgnore]` members: [pitfalls.md, "`Vector<T>` is not
 serializable"](pitfalls.md#vectort-is-not-serializable) has why and the example.

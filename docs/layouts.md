@@ -5,8 +5,9 @@ against 64-bit CoreCLR's (the first column). The canonical layout Nino writes is
 exceptions that do not depend on the runtime: `DateTimeOffset` as .NET 10 lays it out (its minutes as an `int`; .NET 8
 has a `short` at the same place), `nint`/`nuint`/pointers as 8 bytes, and the SIMD vectors aligned as on x64.
 `Vector<T>` is not serializable (below). Every runtime below writes the canonical bytes and reads them, checked case by
-case against the bytes CoreCLR x64 wrote (`tests/Nino.RuntimeTests/BclStructs.cs` against `BclFixtures.cs`; Unity's
-`BclLayoutTests` in its editor and its IL2CPP player): a runtime whose layout is the canonical one copies the struct as
+case against the bytes CoreCLR x64 wrote: one fixture file, `src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs`,
+linked into `tests/Nino.RuntimeTests` (`BclStructs.cs`) and read by Unity's `BclLayoutTests` in its editor and its
+IL2CPP player: a runtime whose layout is the canonical one copies the struct as
 it is, every other one converts it field by field, at offsets it finds once (`NinoLayout`, `MeasureMemory`).
 
 Measured by CI run 41280617045 (`# layout` lines of `tests/Nino.RuntimeTests`, tabulated with
@@ -31,11 +32,9 @@ What the tables show:
 - **`KeyValuePair`** and **`Nullable`** are sequential everywhere; they differ only where their items do.
 - **`Int128`**, **`Vector128`**, **`Vector256`** and **`Vector512`** are aligned to 16, 16, 32 and 64 by CoreCLR
   x64 (the canonical layout), the two wide vectors to 16 on Arm64, everything to 8 on Arm32.
-- **`Vector<T>`** is not in the tables: it is as wide as the CPU's vectors (CI run 41280617045 measured 32 bytes on
-  .NET x64 and x86 and .NET Framework x64 on its AVX2 runners, 16 on Arm64, Arm32, .NET Framework x86 and Mono, and
-  Unity's `BclLayoutTests` 16 in its Mono and IL2CPP), so Nino serializes no type that holds one (NINO029, spec §3);
-  [pitfalls.md, "`Vector<T>` is not serializable"](pitfalls.md#vectort-is-not-serializable) has the fixed-lane form
-  that replaces it.
+- **`Vector<T>`** is not in the tables: it is 16, 32 or 64 bytes, chosen by the CPU (spec §3 lists the hosts; CI run
+  41280617045 and Unity's `BclLayoutTests` measured them), so Nino serializes no type that holds one (NINO029);
+  [pitfalls.md](pitfalls.md#vectort-is-not-serializable) has the fixed-lane form that replaces it.
 - **IL2CPP**: see the section after the tables.
 
 ### Each type: size, then the offset of each of its fields
@@ -198,8 +197,5 @@ Unity's tests log the layouts of a few types (`Assets/Test/Runtime/BclLayoutTest
 | `DateTimeOffset` | 16: minutes 0 (`int`), UTC 8 | **16: UTC 0, minutes 8 (`short`)** |
 | `Around<(int,long)>` | 32 | = |
 
-IL2CPP also keeps no custom attributes on generic parameters (`[NinoRaw]`, `[NinoCreated]`, `unmanaged`): the
-runtime resolver once bound the raw-memory list formatter to a `List` of value tuples there. It now takes those marks
-from `NinoParameterMarks`, where Nino.Core registers its own formatters' and each generated registry those of the
-formatters its assembly registers with `[assembly: NinoFormatter]`. `Vector<T>` is 16 bytes in Unity's Mono and
-IL2CPP, one reason it is not serializable (`BclLayoutTests` logs `Vector<float>.Count`).
+IL2CPP also drops the custom attributes on generic parameters, which the runtime resolver reads; how it gets them
+instead is in [v4-design.md, "Formatter registrations"](v4-design.md#formatter-registrations).
