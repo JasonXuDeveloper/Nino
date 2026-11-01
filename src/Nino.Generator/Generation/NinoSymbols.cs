@@ -15,7 +15,7 @@ internal sealed class NinoSymbols
 {
     public readonly INamedTypeSymbol? Member, Ignore, CustomFormatter, Utf8, FormerName,
         Constructor, Factory, Created, Raw, Pooled, IFormatter, FormatterAttribute,
-        Serializer, Deserializer;
+        Serializer, Deserializer, Writer, Reader, Direct;
 
     /// <summary>
     /// Whether the referenced Nino.Core's <c>NinoTypeLayoutAttribute</c> has a settable <c>bool Deferrable</c>, which
@@ -40,9 +40,28 @@ internal sealed class NinoSymbols
         Pooled = Core("NinoPooledAttribute");
         Serializer = Core(NinoNames.Serializer);
         Deserializer = Core(NinoNames.Deserializer);
+        Writer = Core("Writer");
+        Reader = Core("Reader");
+        Direct = Core("CompilerServices.NinoDirect");
         LayoutDeferrable = Core("NinoTypeLayoutAttribute") is { } layout && layout.GetMembers("Deferrable")
             .OfType<IPropertySymbol>().Any(static p => p.Type.SpecialType == SpecialType.System_Boolean &&
                                                        p.SetMethod is { DeclaredAccessibility: Accessibility.Public });
+    }
+
+    /// <summary>Whether <paramref name="type"/> is <c>INinoFormatter&lt;T&gt;</c> or implements it.</summary>
+    public bool IsFormatter(ITypeSymbol type)
+    {
+        if (IFormatter == null)
+            return false;
+        if (SymbolEqualityComparer.Default.Equals(type.OriginalDefinition, IFormatter))
+            return true;
+        foreach (var i in type.AllInterfaces)
+        {
+            if (SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, IFormatter))
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>
