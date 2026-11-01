@@ -175,6 +175,14 @@ and one 40-byte copy from the value straight into the array, the same machine co
 `NinoSerializer.Serialize(T)` took the value by value, so a value read from a field (as in this benchmark) was
 first copied to the stack, before the allocation; since 4.0.0-rc.3 it takes `in T`, as MemoryPack does.
 
+`InventoryItem` holds one byte of padding per element (an `int`, a `short` and a `bool` in 8 bytes). v4 writes it as
+zero, a masked copy where MemoryPack makes a plain one, which is the extra work in v4's time for that row.
+MemoryPack's output carries whatever the memory held there: two `InventoryItem[2]` of equal values, one built in a
+buffer that had held `0xCD` bytes, serialize to different bytes in MemoryPack 1.21.4 (`CD` in each padding byte)
+and to the same bytes in v4. Likewise `List<(int, long)>` in `CollectionsTest` is 12 bytes per item in v4 and 16 in
+MemoryPack, which copies the tuple's memory, padding included; that memory is 12 bytes on Windows x86 .NET (see
+`docs/pitfalls.md`), and on Mono the items are in another order.
+
 Neither serializer allocates on the serialize paths above (0 B per call), and deserialization allocates only
 the result objects.
 

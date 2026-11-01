@@ -378,7 +378,8 @@ follows (`NinoLayoutCore.Measure`, also given in [Appendix B.2](#b2-canonical-la
 The bytes of a raw value are copied as they are. Readers MUST NOT normalize them: a `bool` field holding `2` is
 written as `02`.
 
-Runtimes whose memory layout differs (x86 aligns 8-byte primitives to 4; Mono and IL2CPP align `decimal` to 4; .NET 7
+Runtimes whose memory layout differs (x86 aligns some 8-byte fields to 4, such as a `DateTime` field on Windows x86
+.NET; Mono and IL2CPP align `decimal` to 4; .NET 7
 aligns `Int128` to 8) convert
 each value field by field into the canonical layout. The bytes on the wire are the same on every runtime.
 
