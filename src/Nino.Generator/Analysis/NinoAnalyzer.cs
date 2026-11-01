@@ -35,8 +35,12 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             if (symbols.Factory is { } factoryAttribute)
                 start.RegisterSymbolAction(c => AnalyzeMethod(c, factoryAttribute), SymbolKind.Method);
             start.RegisterSyntaxNodeAction(AnalyzeAssemblyAttributes, SyntaxKind.AttributeList);
-            if (symbols.Serializer != null || symbols.Deserializer != null)
+            if (symbols.IFormatter?.ContainingAssembly is { } core)
+            {
                 start.RegisterOperationAction(c => AnalyzeCall(c, symbols), OperationKind.Invocation);
+                start.RegisterOperationAction(c => AnalyzeFormatter(c, core), OperationKind.ObjectCreation,
+                    OperationKind.DefaultValue);
+            }
         });
     }
 
@@ -65,33 +69,65 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// A top-level <c>NinoSerializer</c> / <c>NinoDeserializer</c> call whose type is or holds <c>Vector&lt;T&gt;</c>
-    /// (NINO029): the generator registers and intercepts nothing for it, and the call throws.
+    /// A call whose value is or holds <c>Vector&lt;T&gt;</c> (NINO029): a top-level <c>NinoSerializer</c> /
+    /// <c>NinoDeserializer</c> call, for which the generator registers and intercepts nothing, or a generic method of
+    /// <c>Writer</c>, <c>Reader</c> or <c>NinoDirect</c> used by hand; each throws.
     /// </summary>
     private static void AnalyzeCall(OperationAnalysisContext context, NinoSymbols symbols)
     {
         var invocation = (IInvocationOperation)context.Operation;
         var method = invocation.TargetMethod;
-        // Cheapest rejection first: the name, then the class.
-        if (!method.Name.StartsWith("Serialize", System.StringComparison.Ordinal) &&
-            !method.Name.StartsWith("Deserialize", System.StringComparison.Ordinal))
+        // Cheapest rejection first: a Serialize / Deserialize name or a generic method, then the class.
+        bool serializes = method.Name.StartsWith("Serialize", System.StringComparison.Ordinal) ||
+                          method.Name.StartsWith("Deserialize", System.StringComparison.Ordinal);
+        if (!serializes && !method.IsGenericMethod)
             return;
         var owner = method.ContainingType;
-        if (!SymbolEqualityComparer.Default.Equals(owner, symbols.Serializer) &&
-            !SymbolEqualityComparer.Default.Equals(owner, symbols.Deserializer))
+        ITypeSymbol? type, vector;
+        if (serializes && (SymbolEqualityComparer.Default.Equals(owner, symbols.Serializer) ||
+                           SymbolEqualityComparer.Default.Equals(owner, symbols.Deserializer)))
+        {
+            // The type the call needs a formatter for, as the generator finds it: its type argument, or a typeof
+            // argument.
+            type = method.IsGenericMethod
+                ? method.TypeArguments[0]
+                : invocation.Arguments.Select(static a => a.Value).OfType<ITypeOfOperation>().FirstOrDefault()
+                    ?.TypeOperand;
+            vector = type == null ? null : Raw(context, invocation).VariableVectorIn(type);
+        }
+        else if (method.IsGenericMethod && (SymbolEqualityComparer.Default.Equals(owner, symbols.Writer) ||
+                                            SymbolEqualityComparer.Default.Equals(owner, symbols.Reader) ||
+                                            SymbolEqualityComparer.Default.Equals(owner, symbols.Direct)))
+            vector = Raw(context, invocation).VariableVectorWrittenBy(method, out type);
+        else
             return;
-        // The type the call needs a formatter for, as the generator finds it: its type argument, or a typeof argument.
-        var type = method.IsGenericMethod
-            ? method.TypeArguments[0]
-            : invocation.Arguments.Select(static a => a.Value).OfType<ITypeOfOperation>().FirstOrDefault()?.TypeOperand;
-        if (type == null)
-            return;
-        var facts = TypeFacts.For(context.Compilation, invocation.Syntax.SyntaxTree.Options);
-        if (facts.Raw.VariableVectorIn(type) is { } vector)
+
+        if (vector != null && type != null)
             context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.VariableVector, invocation.Syntax.GetLocation(),
                 $"The value of this {owner.Name}.{method.Name} call", type.ToDisplayString(),
                 NinoDiagnostics.HoldsVector(type, vector)));
     }
+
+    /// <summary>
+    /// One of Nino.Core's generic formatters made by hand (<c>new UnmanagedFormatter&lt;Vector&lt;int&gt;&gt;()</c>,
+    /// <c>default(...)</c>) whose value is or holds <c>Vector&lt;T&gt;</c> (NINO029): it throws when used.
+    /// </summary>
+    private static void AnalyzeFormatter(OperationAnalysisContext context, IAssemblySymbol core)
+    {
+        // Cheapest rejection first: a generic type of Nino.Core.
+        if (context.Operation.Type is not INamedTypeSymbol { IsGenericType: true } formatter ||
+            !SymbolEqualityComparer.Default.Equals(formatter.ContainingAssembly, core))
+            return;
+        if (Raw(context, context.Operation).VariableVectorWrittenBy(formatter, out var type) is { } vector &&
+            type != null)
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.VariableVector,
+                context.Operation.Syntax.GetLocation(),
+                $"The value of this {formatter.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}",
+                type.ToDisplayString(), NinoDiagnostics.HoldsVector(type, vector)));
+    }
+
+    private static RawRules Raw(OperationAnalysisContext context, IOperation operation) =>
+        TypeFacts.For(context.Compilation, operation.Syntax.SyntaxTree.Options).Raw;
 
     private static void AnalyzeType(SymbolAnalysisContext context)
     {

@@ -1852,6 +1852,111 @@ public class Custom
         await SetUpAnalyzerTest(code).RunAsync();
     }
 
+    /// <summary>A NINO029 on a formatter or a call used by hand: its value <paramref name="value"/>.</summary>
+    private static DiagnosticResult Nino029ByHand(int location, string what, string value, string vector = null) =>
+        Verify.Diagnostic("NINO029").WithLocation(location).WithArguments(what, value,
+            vector == null ? "is a Vector<T>" : $"holds '{vector}'");
+
+    [TestMethod]
+    public async Task NINO029_FormattersMadeByHand()
+    {
+        // Nino.Core's formatters and the Writer / Reader / NinoDirect generic methods used by hand refuse a value that
+        // holds Vector<T> at run time: constructed, defaulted, inferred or explicit, nested in a collection formatter,
+        // or named by [NinoMemberFormatter].
+        var code = @"
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+using Nino.Core.CompilerServices;
+
+public struct Raw { public int A; public Vector<int> V; }
+
+[NinoType]
+public class Holder
+{
+    [NinoMemberFormatter(typeof(UnmanagedFormatter<Vector<int>>))]
+    public Vector<int> {|#0:Lanes|};
+}
+
+public static class ByHand
+{
+    public static void Run(ref Writer writer, ref Reader reader, Vector<int> v, Raw raw)
+    {
+        {|#1:new UnmanagedFormatter<Vector<int>>()|}.Serialize(v, ref writer);
+        UnmanagedFormatter<Raw> f = {|#2:default|};
+        {|#3:default(ArrayFormatter<Vector<int>, UnmanagedFormatter<Vector<int>>>)|}.Serialize(null, ref writer);
+        var list = {|#4:new UnmanagedListFormatter<List<Raw>, Raw>()|};
+        {|#5:writer.Write(v)|};
+        {|#6:writer.Write(new[] { raw })|};
+        {|#7:reader.Read(out Vector<long> back)|};
+        {|#8:reader.Read<Raw>()|};
+        {|#9:NinoDirect.Serialize<Vector<int>, UnmanagedFormatter<Vector<int>>>(v)|};
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Nino029(0, "Lanes", "Holder", "System.Numerics.Vector<int>"),
+            Nino029ByHand(1, "The value of this UnmanagedFormatter<T>", "System.Numerics.Vector<int>"),
+            Nino029ByHand(2, "The value of this UnmanagedFormatter<T>", "Raw", "System.Numerics.Vector<int>"),
+            Nino029ByHand(3, "The value of this ArrayFormatter<T, TFormatter>", "System.Numerics.Vector<int>"),
+            Nino029ByHand(4, "The value of this UnmanagedListFormatter<TList, T>", "System.Collections.Generic.List<Raw>",
+                "System.Numerics.Vector<int>"),
+            Nino029ByHand(5, "The value of this Writer.Write call", "System.Numerics.Vector<int>"),
+            Nino029ByHand(6, "The value of this Writer.Write call", "Raw", "System.Numerics.Vector<int>"),
+            Nino029ByHand(7, "The value of this Reader.Read call", "System.Numerics.Vector<long>"),
+            Nino029ByHand(8, "The value of this Reader.Read call", "Raw", "System.Numerics.Vector<int>"),
+            Nino029ByHand(9, "The value of this NinoDirect.Serialize call", "System.Numerics.Vector<int>")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO029_NotForOtherFormattersByHand()
+    {
+        // Fixed-size vectors and Vector4 through the same calls, a collection formatter over the user's own
+        // Vector<T> formatter (which writes the lanes its own way), and unrelated generic types and methods that take
+        // a Vector<T>.
+        var code = @"
+using System.Collections.Generic;
+using System.Numerics;
+using System.Runtime.Intrinsics;
+using Nino.Core;
+using Nino.Core.CompilerServices;
+
+public struct VectorFormatter : INinoFormatter<Vector<int>>
+{
+    public void Serialize(Vector<int> value, ref Writer writer) { }
+    public void Deserialize(ref Vector<int> value, ref Reader reader) { }
+}
+
+public struct Box<T> { public T Value; }
+
+public static class Unrelated
+{
+    public static void Take<T>(T value) { }
+}
+
+public static class ByHand
+{
+    public static void Run(ref Writer writer, ref Reader reader, Vector<int> v)
+    {
+        new UnmanagedFormatter<Vector128<int>>().Serialize(Vector128<int>.Zero, ref writer);
+        writer.Write(Vector256<float>.Zero);
+        writer.Write(Vector4.One);
+        reader.Read(out Vector128<byte> fixedLanes);
+        default(ArrayFormatter<Vector<int>, VectorFormatter>).Serialize(null, ref writer);
+        new VectorFormatter().Serialize(v, ref writer);
+        NinoDirect.Serialize<Vector<int>, VectorFormatter>(v);
+        var box = new Box<Vector<int>> { Value = v };
+        Unrelated.Take(v);
+        var list = new List<Vector<int>>();
+        Vector<int> zero = default;
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code).RunAsync();
+    }
+
     #endregion
 
     #region Features (NINO014-NINO017, NINO024, NINO026)

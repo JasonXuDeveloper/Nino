@@ -180,11 +180,14 @@ auto-property, give a constructor a parameter of its name; otherwise 🔧 remove
 
 ### NINO029
 
-A member, or a `NinoSerializer`/`NinoDeserializer` call, needs `System.Numerics.Vector<T>`: the type is one or holds
+A member, a `NinoSerializer`/`NinoDeserializer` call, or Nino.Core's own formatters and `Writer`/`Reader` methods used
+by hand (`new UnmanagedFormatter<Vector<int>>()`, `default(...)`, `[NinoMemberFormatter(typeof(...))]`,
+`writer.Write(vector)`, `reader.Read(out Vector<int> v)`) need `System.Numerics.Vector<T>`: the type is one or holds
 one (as an element, a type argument, a base type or a field of a plain struct), and `Vector<T>` is 16, 32 or 64 bytes
-by the CPU, so Nino serializes no such type; the runtime throws `NotSupportedException` for it. Store a fixed number of
-lanes and expose the vectors through `[NinoIgnore]` members:
-[pitfalls.md, "`Vector<T>` is not serializable"](pitfalls.md#vectort-is-not-serializable) has why and the example.
+by the CPU, so Nino serializes no such type; the runtime throws `NotSupportedException` for it. A formatter of your
+own that writes the lanes its way is never reported, nor a Nino.Core collection formatter over it. Store a fixed
+number of lanes and expose the vectors through `[NinoIgnore]` members: [pitfalls.md, "`Vector<T>` is not
+serializable"](pitfalls.md#vectort-is-not-serializable) has why and the example.
 There is no code fix: the stored form is yours to choose.
 
 ## Features

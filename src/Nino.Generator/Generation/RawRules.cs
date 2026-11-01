@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Common;
@@ -70,6 +71,58 @@ internal sealed class RawRules
         HashSet<ITypeSymbol>? open = null;
         bool cut = false;
         return _vectors.GetOrAdd(type, ComputeVariableVector(type, ref open, ref cut));
+    }
+
+    /// <summary>
+    /// The <c>Vector&lt;T&gt;</c> that one of Nino.Core's own generic formatters, used by hand
+    /// (<c>new UnmanagedFormatter&lt;Vector&lt;int&gt;&gt;()</c>, <c>default(...)</c> or a
+    /// <c>[NinoMemberFormatter]</c>), would write, or null; <paramref name="value"/> is the type argument that holds
+    /// it. Nino.Core refuses it at run time like <see cref="VariableVectorIn(ITypeSymbol)"/>'s types; a user's own
+    /// formatter writes a <c>Vector&lt;T&gt;</c> its own way and is never searched.
+    /// </summary>
+    public ITypeSymbol? VariableVectorWrittenBy(INamedTypeSymbol formatter, out ITypeSymbol? value)
+    {
+        value = null;
+        return formatter.IsGenericType && _symbols.IFormatter is { } core &&
+               SymbolEqualityComparer.Default.Equals(formatter.ContainingAssembly, core.ContainingAssembly) &&
+               _symbols.IsFormatter(formatter)
+            ? VariableVectorWrittenBy(formatter.TypeParameters, formatter.TypeArguments, out value)
+            : null;
+    }
+
+    /// <summary>
+    /// <see cref="VariableVectorWrittenBy(INamedTypeSymbol, out ITypeSymbol?)"/> for a generic method of Nino.Core's
+    /// <c>Writer</c>, <c>Reader</c> or <c>NinoDirect</c> (<c>writer.Write(vector)</c>, <c>reader.Read(out T[] v)</c>),
+    /// with its type arguments as the call has them, inferred or not.
+    /// </summary>
+    public ITypeSymbol? VariableVectorWrittenBy(IMethodSymbol method, out ITypeSymbol? value) =>
+        VariableVectorWrittenBy(method.TypeParameters, method.TypeArguments, out value);
+
+    // Where a type parameter is a formatter (ArrayFormatter<T, TFormatter>, NinoDirect.Serialize<T, TFormatter>), that
+    // formatter writes the values of the others: only it is searched, and only if it is Nino.Core's. Otherwise every
+    // type argument is a value written (UnmanagedFormatter<T>, Writer.Write<T>, UnmanagedListFormatter<TList, T>).
+    private ITypeSymbol? VariableVectorWrittenBy(ImmutableArray<ITypeParameterSymbol> parameters,
+        ImmutableArray<ITypeSymbol> arguments, out ITypeSymbol? value)
+    {
+        value = null;
+        bool delegates = parameters.Any(p => p.ConstraintTypes.Any(_symbols.IsFormatter));
+        for (int i = 0; i < arguments.Length; i++)
+        {
+            if (!delegates)
+            {
+                if (VariableVectorIn(arguments[i]) is { } vector)
+                {
+                    value = arguments[i];
+                    return vector;
+                }
+            }
+            else if (arguments[i] is INamedTypeSymbol formatter &&
+                     parameters[i].ConstraintTypes.Any(_symbols.IsFormatter) &&
+                     VariableVectorWrittenBy(formatter, out value) is { } inFormatter)
+                return inFormatter;
+        }
+
+        return null;
     }
 
     /// <summary>

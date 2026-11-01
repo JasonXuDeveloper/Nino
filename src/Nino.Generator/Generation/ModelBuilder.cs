@@ -513,20 +513,25 @@ internal static class ModelBuilder
         bool readsLoop = false;
         FormatterTraits traits;
         var custom = NinoSymbols.Get(symbol, known.CustomFormatter);
+        var customType = custom is { ConstructorArguments: { Length: > 0 } args } ? args[0].Value as INamedTypeSymbol : null;
+        if (customType != null && !known.IsCustomFormatterOf(customType, memberType))
+            return null; // NINO008, reported by the analyzer
         // Vector<T>, alone or inside: as wide as the CPU's vectors, so no bytes of it read on every host. Skipped (it
-        // has no formatter either); a [NinoMemberFormatter] writes what it chooses.
-        if (custom == null && facts.Raw.VariableVectorIn(memberType) is { } vector)
+        // has no formatter either); a [NinoMemberFormatter] writes what it chooses, unless it is one of Nino.Core's
+        // own formatters (UnmanagedFormatter<Vector<int>>), which refuse it.
+        ITypeSymbol? holder = memberType;
+        var vector = custom == null ? facts.Raw.VariableVectorIn(memberType)
+            : customType == null ? null : facts.Raw.VariableVectorWrittenBy(customType, out holder);
+        if (vector != null && holder != null)
         {
             diagnostics?.Report(NinoDiagnostics.VariableVector, symbol,
-                $"Member '{symbol.Name}' of NinoType '{type.ToDisplayString()}'", memberType.ToDisplayString(),
-                NinoDiagnostics.HoldsVector(memberType, vector));
+                $"Member '{symbol.Name}' of NinoType '{type.ToDisplayString()}'", holder.ToDisplayString(),
+                NinoDiagnostics.HoldsVector(holder, vector));
             return null;
         }
 
-        if (custom is { ConstructorArguments: { Length: > 0 } args } && args[0].Value is INamedTypeSymbol customType)
+        if (customType != null)
         {
-            if (!known.IsCustomFormatterOf(customType, memberType))
-                return null; // NINO008, reported by the analyzer
             formatter = FormatterRef.Of(customType);
             encoding = WireEncoding.Formatter(formatter.ToString());
             traits = FormatterTraitsOf.Of(customType);
