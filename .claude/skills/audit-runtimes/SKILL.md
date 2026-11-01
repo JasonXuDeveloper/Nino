@@ -23,6 +23,13 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
   14-byte stride where .NET writes 16 in all three languages, and Rust's `RawNullables<i128>` 24 where .NET writes
   32. Pin such a value against bytes .NET writes (`Shapes.Strides`: ModelTests, and each runtime's shapes test), not
   a round trip, which agrees with itself.
+- Resolve a raw field's type from the layout when the name it publishes is canonical rather than declared:
+  `DateTimeOffset` publishes `offsetMinutes` (an int at 0) and `dateTime` (at 8), which no runtime declares (.NET 10
+  `_offsetMinutes`, .NET 8 a short), so reflection found nothing and nino-gen left every type holding one out
+  (`CodegenModel.FieldType`). A pointer field is nuint (8 bytes, zero-extended), not an unsupported reference.
+  TypeScript keeps NINOGEN002 for a `DateTimeOffset` anywhere: its `Date` drops the tick and writes the kind as UTC
+  (r104: bcl-raw-offset wrote `dc48` where .NET writes `dc08`). Lock such a mapping in ModelTests against bytes .NET
+  writes (`HostDependentLeavesAreWhereNinoCoreWritesThem`) and with a corpus case every runtime reads.
 - nino-gen refuses what Nino.Core no longer serializes even in a layout an older build published
   (`System.Numerics.Vector<T>`: `CodegenModel.IsHostSizedVector`, `Shapes.OldVector`).
 - A C# feature users can declare is supported by each runtime and by nino-gen's templates, or reported as NINOGEN002
