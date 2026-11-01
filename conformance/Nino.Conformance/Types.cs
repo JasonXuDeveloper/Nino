@@ -259,6 +259,29 @@ namespace Conformance
         public (int, long)? C;
     }
 
+    /// <summary>Int128 inside a raw struct: 16 bytes aligned to 16, after the byte's 15 bytes of padding.</summary>
+    public struct HoldsWide
+    {
+        public byte A;
+        public Int128 B;
+        public UInt128 C;
+    }
+
+    /// <summary>DateTimeOffset inside a raw struct: .NET 10's fields, the offset in minutes at 0, the UTC ticks at 8.</summary>
+    public struct HoldsOffset
+    {
+        public int A;
+        public DateTimeOffset B;
+    }
+
+    /// <summary>nint and nuint inside a raw struct: 8 bytes on every runtime, sign- and zero-extended.</summary>
+    public struct HoldsPointers
+    {
+        public int A;
+        public nint B;
+        public nuint C;
+    }
+
     [NinoType]
     public sealed class BclRaw
     {
@@ -275,6 +298,23 @@ namespace Conformance
     {
         public HoldsNullables Nullables;
         public HoldsNullables[] Array;
+    }
+
+    [NinoType]
+    public sealed class BclRawHost
+    {
+        public HoldsWide Wide;
+        public HoldsPointers Pointers;
+        public HoldsWide[] Wides;
+        public Int128?[] Gaps;
+    }
+
+    /// <summary>Not written to TypeScript, whose DateTime is a Date (milliseconds, written as UTC).</summary>
+    [NinoType]
+    public sealed class BclRawOffset
+    {
+        public HoldsOffset Offset;
+        public List<HoldsOffset> Offsets;
     }
 
     [NinoType]

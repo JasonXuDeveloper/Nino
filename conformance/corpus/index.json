@@ -64,6 +64,8 @@
     "bcl-raw-default",
     "bcl-raw-values",
     "bcl-raw-nullables",
+    "bcl-raw-host",
+    "bcl-raw-offset",
     "struct-root-raw",
     "struct-root-nested-raw",
     "struct-root",

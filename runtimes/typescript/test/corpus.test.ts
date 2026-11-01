@@ -22,6 +22,7 @@ const notGenerated = new Set([
   "Conformance.Floats", "Conformance.Scalars", "Conformance.Dates", "Conformance.BigValues",
   "Conformance.Collections", "Conformance.TreeHolder", "Conformance.EmptyStruct", "Conformance.Empties",
   "Conformance.Targets.Grid", "Conformance.Targets.BigSlot", "Conformance.Targets.VersionSlot",
+  "Conformance.BclRawOffset",
 ]);
 
 /** The optional features of the corpus the generated code supports. */

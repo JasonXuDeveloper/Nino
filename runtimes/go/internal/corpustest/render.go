@@ -22,7 +22,7 @@ import (
 // A struct is a class or struct of the corpus, named by its NinoTypeName method (generated code) or else
 // "Conformance." and its Go name (internal/sample), except for the generic pairs and grids both packages declare:
 // nino.Entry, Tuple2 or NinoTuple2 to NinoTuple7 render as an array of their items, Grid or NinoGrid as {lengths,
-// items}.
+// items}, and the DateTimeOffset nino-gen writes inside raw structs (its canonical fields) as a nino.DateTimeOffset.
 //
 // An object of a tracked type is {"$id": n, ...} where it is first met (depth first, members in order: the order the
 // corpus numbers them) and {"$ref": n} after.
@@ -168,6 +168,12 @@ func renderValue(v reflect.Value) any {
 				out[i] = renderValue(v.Field(i))
 			}
 			return out
+		case name == "DateTimeOffset" && t.NumField() == 2 && t.Field(0).Type == tDateTime:
+			// A DateTimeOffset inside a raw struct, as nino-gen writes it: the struct of its canonical fields.
+			return map[string]any{
+				"utcTicks":      integer(big.NewInt(v.Field(0).Interface().(nino.DateTime).Ticks())),
+				"offsetMinutes": num(v.FieldByName("OffsetMinutes").Int()),
+			}
 		case strings.HasPrefix(name, "Grid["), strings.HasPrefix(name, "NinoGrid["):
 			lengths := v.FieldByName("Lengths")
 			return map[string]any{

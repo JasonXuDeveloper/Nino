@@ -647,6 +647,7 @@ namespace Conformance
                 "keyed-v1-to-v2", "polymorphism", "polymorphism-generic-root", "deep-chain-130",
                 "deep-tolerant-chain-129", "deep-keyed-chain-129", "deep-links-129", "deep-in-region",
                 "references-shared", "tree-collections", "bcl-raw-values", "bcl-raw-nullables",
+                "bcl-raw-host", "bcl-raw-offset",
             };
             return names.Select(n => valid.Single(c => c.Name == n)).ToList();
         }
