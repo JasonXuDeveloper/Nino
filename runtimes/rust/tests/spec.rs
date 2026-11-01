@@ -158,7 +158,8 @@ fn a6_raw_nullables() {
     assert_eq!(deserialize_exact::<RawNullables<i32>>(&hex("01000000 00000000 01000000")).unwrap().0, vec![None]);
 }
 
-/// `{ byte A; Int128 B; }`: B at 16, 32 bytes (the specification, 5.2).
+/// `{ byte A; Int128 B; }`: B at 16, 32 bytes (the specification, 5.2). Through the derive, which sets the ALIGN.
+#[cfg(feature = "derive")]
 #[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
 #[nino(kind = "raw")]
 struct WideField {
@@ -166,6 +167,7 @@ struct WideField {
     b: i128,
 }
 
+#[cfg(feature = "derive")]
 #[test]
 fn canonical_layout_int128_field() {
     let v = WideField { a: 1, b: -2 };
