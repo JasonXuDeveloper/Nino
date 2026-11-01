@@ -11,7 +11,7 @@ fields renamed by `--serde-rename` (serde's `rename_all` rules: camelCase by def
 keeps the Rust names).
 
 What the layouts do not say is a table below, from conformance/Nino.Conformance/Types.cs: subtypes, enums'
-underlying types, raw structs' alignment, deferrability (the specification, 10.5) and which string members keep
+underlying types, raw structs' [StructLayout(Pack)], deferrability (the specification, 10.5) and which string members keep
 lone surrogates (WideString; the others use String, to test both).
 """
 import glob
@@ -39,6 +39,13 @@ SUBTYPES = {
     "Conformance.TolerantBase": ["Conformance.TolerantBase", "Conformance.TolerantLeaf"],
     "Conformance.Link": ["Conformance.RedLink", "Conformance.BlueLink"],
 }
+
+# [StructLayout(Pack = n)] of the corpus's raw structs (Types.cs), which their layouts do not publish.
+PACKS = {"Conformance.Packed": 1}
+
+# Leaves aligned other than to their size in the canonical layout (the specification, 5.2); every other leaf (an
+# integer, float, char, bool, enum, date or time) is aligned to its size.
+LEAF_ALIGNS = {"decimal": 8, "System.Guid": 4, "System.Int128": 16, "System.UInt128": 16}
 
 # Built by a constructor taking member values (a record): never deferred.
 NOT_DEFERRABLE = {"Conformance.RecordChain"}
@@ -185,6 +192,13 @@ def snake(name):
 class Gen:
     def __init__(self, layouts, type_ids):
         self.layouts = {k: parse_layout(v) for k, v in layouts.items() if k not in SKIPPED}
+        # Where a layout publishes a T?[] stride (the specification, 6.2), its value offset is T's alignment: each
+        # raw struct's computed alignment is checked against it.
+        self.published_aligns = {}
+        for text in layouts.values():
+            for t, off in re.findall(r"hasValue:bool@0:raw\(1\),value:([^@]+)@(\d+):", text):
+                if self.published_aligns.setdefault(t, int(off)) != int(off):
+                    raise ValueError(f"two strides published for {t}")
         self.type_ids = type_ids
         self.out = []
         self.raw_structs = {}
@@ -302,24 +316,21 @@ class Gen:
     def leaf_align(self, ftype, fenc):
         if ftype in self.layouts and self.layouts[ftype]["raw"] == "true":
             return self.struct_align(ftype)
-        if ftype == "decimal":
-            return 8
-        if ftype == "System.Guid":
-            return 4
-        return min(fenc[1], 8)
+        if re.match(r"System\.(ValueTuple|Collections\.Generic\.KeyValuePair|Nullable|DateTimeOffset)\b", ftype):
+            raise ValueError(f"{ftype}: a BCL struct in a raw struct, left to the code nino-gen writes")
+        return LEAF_ALIGNS.get(ftype, fenc[1])
 
     def struct_align(self, name):
-        _, (_, size, fields) = self.raw_structs[name] if name in self.raw_structs and self.raw_structs[name][1] else (
-            None, (None, 1, []))
-        if not fields:
+        """The canonical alignment (the specification, 5.2): the largest of the fields', limited by Pack."""
+        if name not in self.raw_structs or not self.raw_structs[name][1]:
             self.raw_struct(name)
-            _, (_, size, fields) = self.raw_structs[name]
-        aligns = [(off, self.leaf_align(t, e)) for (_, t, off, e) in fields]
-        best = 1
-        for a in (1, 2, 4, 8):
-            if a <= max([x for _, x in aligns] + [1]) and all(off % min(fa, a) == 0 for off, fa in aligns):
-                best = a
-        return best
+        _, (_, _, fields) = self.raw_structs[name]
+        align = max([self.leaf_align(t, e) for (_, t, _, e) in fields] + [1])
+        align = min(align, PACKS.get(name, align))
+        published = self.published_aligns.get(name)
+        if published is not None and published != align:
+            raise ValueError(f"{name}: alignment {align}, but its published T?[] stride says {published}")
+        return align
 
     def emit_raw_struct(self, name, size, fields):
         rust = ident(name)
