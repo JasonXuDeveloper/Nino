@@ -181,9 +181,16 @@ host MUST reject a value that does not fit. The .NET reader builds it with `new 
 they are 8 bytes too, extended the same way (§5.2); a 32-bit .NET host rejects a field that does not fit with
 `NinoDataException`.
 
-`Vector<T>` has no encoding. It is as wide as the host CPU's vectors in .NET: 32 bytes on x64 with AVX2 or AVX-512 and
-the default settings, 16 on Arm64, on x64 without AVX2, on Mono and IL2CPP and on .NET Framework x86, 64 on x64 with
-`DOTNET_MaxVectorTBitWidth=512`. No width on the wire lets every host read what every other host writes (a 16-byte host
+`Vector<T>` has no encoding. It is 16, 32 or 64 bytes, chosen by the CPU of the host .NET runs on. This section is the
+one list of widths the other documents point to:
+
+| Host | `Vector<T>` |
+| --- | --- |
+| CoreCLR x64 and x86 with AVX2 or AVX-512, default settings; .NET Framework x64 with AVX2 | 32 bytes |
+| CoreCLR x64 with AVX-512 and `DOTNET_MaxVectorTBitWidth=512` | 64 bytes |
+| Arm64, Arm32, x64 without AVX2, .NET Framework x86, Mono, IL2CPP (Unity, on x64 too) | 16 bytes |
+
+No width on the wire lets every host read what every other host writes (a 16-byte host
 cannot hold 32 bytes of lanes), so no type that is or holds one is serializable: alone, as an element or type argument
 of a collection, tuple or `Nullable`, or as a field of a raw struct. Writers MUST NOT write one. The .NET
 implementation refuses such a type when its formatter is first resolved (`NotSupportedException`), before any byte is
@@ -413,7 +420,7 @@ runtime that writes or reads it. Implementations MUST compute it as follows (`Ni
 | `{ int A; (int, long) B; }` = `{1, (2, 3)}` | `01 00 00 00 00 00 00 00 \| 03 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00` (24) |
 | `{ byte A; (byte, short) B; }` = `{1, (2, 3)}` | `01 00 00 00 \| 03 00 02 00` (8) |
 | `{ byte A; KeyValuePair<int, long> B; }` = `{1, (2, 3)}` | `01`, 7 × `00`, `\|`, `02 00 00 00 00 00 00 00 03 00 00 00 00 00 00 00` (24) |
-| `{ int A; DateTimeOffset B; }`, `A` = 1, `B` at −01:30 | `01`, 7 × `00`, `\|`, `A6 FF FF FF 00 00 00 00`, `\|`, `B`'s UTC ticks as a `u64` (32) |
+| `{ int A; DateTimeOffset B; }`, `A` = 1, `B` at −01:30 | `01`, 7 × `00`, `\|`, `A6 FF FF FF 00 00 00 00`, `\|`, `B`'s UTC ticks as a `u64` (24) |
 | `{ int A; nint B; }` = `{1, -1}` | `01 00 00 00 00 00 00 00 FF FF FF FF FF FF FF FF` (16, on every host) |
 | `{ byte A; Vector256<long> B; }` = `{1, (1, 2, 3, 4)}` | `01`, 31 × `00`, `\|`, `01`, 7 × `00`, `02`, 7 × `00`, `03`, 7 × `00`, `04`, 7 × `00` (64) |
 | `[NinoType] { int X; byte Y; }` = `{1, 2}` | `01 00 00 00 02 00 00 00` (8) |
@@ -421,14 +428,11 @@ runtime that writes or reads it. Implementations MUST compute it as follows (`Ni
 The bytes of a raw value are copied as they are. Readers MUST NOT normalize them: a `bool` field holding `2` is
 written as `02`.
 
-Runtimes whose memory layout differs convert each value field by field into the canonical layout: x86 aligns some
-8-byte fields to 4 (a `DateTime` field on Windows x86 .NET); IL2CPP and .NET Framework align `decimal` to 4; Mono and IL2CPP keep a
-`ValueTuple`'s declaration order; .NET Framework reorders a struct holding a `DateTime` and places tuples by the
-pointer size; .NET 8 has a `short` in `DateTimeOffset`; 32-bit hosts have 4-byte `nint` and pack tuples into fewer
-bytes; .NET 7 aligns `Int128` to 8; Arm64 aligns `Vector256<T>` and `Vector512<T>` to 16. The bytes on the wire are
-the same on every runtime: a writer in any runtime or
-language MUST write the canonical bytes, and a reader MUST read them as such. docs/layouts.md lists the layout of each
-BCL struct on each runtime.
+Runtimes whose memory layout differs (32-bit hosts, Mono, IL2CPP, .NET Framework, .NET 8 for `DateTimeOffset`, .NET 7
+for `Int128`, Arm64 for the wide vectors) convert each value field by field into the canonical layout;
+[docs/layouts.md](../layouts.md) lists the measured layout of each BCL struct on each runtime. The bytes on the wire
+are the same on every runtime: a writer in any runtime or language MUST write the canonical bytes, and a reader MUST
+read them as such.
 
 ---
 
@@ -1041,6 +1045,12 @@ hexdigit      = digit | "A" | "B" | "C" | "D" | "E" | "F" ;
 | `formatter(F)` | written by `F` (§7.11) |
 
 `Uri`, `CultureInfo` and `StringBuilder` are published as `string`. `nint` and `nuint` are published as `raw(8)`.
+A raw struct holding `nint`, `nuint`, pointers, `Int128`/`UInt128` or `DateTimeOffset` publishes its fields at their
+canonical offsets (§5.2): `B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}` after a `byte`,
+`B:System.IntPtr@8:raw(8)`, and `DateTimeOffset` as
+`raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}`. A `Nullable<Int128>` element of a fixed-stride
+array is `seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){...}})` (§6.2; corpus cases
+`bcl-raw-host`, `bcl-raw-offset`).
 `Vector64<T>` to `Vector512<T>`, and raw structs holding one, are published as the bare `raw`: no target of nino-gen
 expresses them, and it leaves out the types that hold them (NINOGEN002). `Vector<T>` is never published: no type that
 holds one is serializable (§3).
@@ -1080,8 +1090,13 @@ member, the elements of a `bool[]` or `List<bool>` (and other raw blocks of `boo
 class, `T?`, `Lazy<T>` or `Tuple<...>`, and the presence bytes of a fixed-stride `T?[]` (§6.2). **.NET:** done
 (`Nino: invalid bool byte`, `Nino: invalid presence byte`); so are the Go, Rust and TypeScript runtimes.
 
-Note: the .NET reader copies a `bool` field inside a raw struct (§5) with the struct's bytes, unchecked, unless
-`NinoSettings.Untrusted` is set (§9.10).
+Note: the .NET reader copies a raw struct (§5) as one block, so a `bool` field or a `Nullable` flag inside one is not
+checked unless `NinoSettings.Untrusted` is set (§9.10). In the default mode such a byte other than 0 or 1 is undefined
+behavior to the .NET JIT, not only a wrong value: the struct can compare unequal to itself once its code is
+recompiled (a `long?` with a flag of 2 was boxed as null by one compiled body and as a value by another), and be lost
+as a key or value in a `Dictionary`. Data from an untrusted source MUST be read with `NinoSettings.Untrusted`. The
+corpus marks these inputs `untrusted` (`presence-raw-*`): readers in their untrusted mode reject them; the Go, Rust and
+TypeScript runtimes always do.
 
 ### 9.4 Strings
 
@@ -1252,9 +1267,10 @@ readers of layouts or data from earlier builds.
    `ValueTuple`, a `DateTimeOffset` or an `nint` was written as its memory where Nino could not measure it: the
    tuple's items in another order on Mono, IL2CPP and .NET Framework, other sizes on 32-bit hosts, the offset of a
    `DateTimeOffset` in another place on Mono and .NET Framework and another width on .NET 8. Every runtime now writes
-   the canonical layout (§5.2), and the generator publishes tuples and pairs inside raw structs with their fields
-   (layouts from earlier builds showed tuples in declaration order and pairs as the bare `raw`). The bare `raw` remains
-   for structs whose fields the generator cannot see (a `DateTimeOffset` or an `nint` inside, private fields of another
+   the canonical layout (§5.2), and the generator publishes tuples, pairs, `nint`/`nuint`/pointers, `Int128` and
+   `DateTimeOffset` inside raw structs with their fields at the canonical offsets (§8.3; layouts from earlier builds
+   showed tuples in declaration order and the others as the bare `raw`). The bare `raw` remains only for
+   `Vector64<T>` to `Vector512<T>` and structs whose fields the generator cannot see (private fields of another
    library's struct): their layout is still canonical, but other languages cannot express it.
 4. **`TimeZoneInfo` custom zones** carry .NET's `ToSerializedString()` text, which no other runtime defines.
 5. **Deferrability was not published** (resolved): layouts now carry `deferrable=true|false` (§7.10.1,
@@ -1262,16 +1278,18 @@ readers of layouts or data from earlier builds.
    §7.10.1.
 6. **Presence bytes and `bool` other than `0` or `1` are rejected in every runtime (resolved)** (§9.3).
 7. **Repeated keyed entries are accepted** in .NET, and the last one wins (§9.8).
-8. **Trailing bytes are ignored** unless `NinoSettings.Untrusted` is set (§2.2, §9.12).
+8. **Trailing bytes are ignored** unless `NinoSettings.Untrusted` is set (§2.2, §9.12; corpus: `untrusted` cases).
 9. **`DateTime`, `decimal`, `DateOnly` and `TimeOnly` are validated** only when `NinoSettings.Untrusted` is set
-   (§9.10).
+   (§9.10; corpus: `untrusted` cases).
 10. *(Resolved: `-1` reads as a default `ImmutableArray<T>`, §6.1.)*
 11. **Member order across `partial` declarations** follows Roslyn's `GetMembers()` order, which in practice is the
     order of the files in the compilation. Moving a member to another file of a `partial` type can change a
     positional format. **(unverified across compilers.)** The published layout is authoritative for any given
     build.
 12. **Raw blocks are not normalized**: padding inside raw structs is copied as it is on read, and so are `bool`
-    fields unless `NinoSettings.Untrusted` is set (§9.3, §9.11).
+    fields and `Nullable` flags unless `NinoSettings.Untrusted` is set (§9.3, §9.11). Such a flag or `bool` other than
+    0 or 1 read in the default mode is JIT undefined behavior: the value can be unequal to itself, for example lost in
+    a `Dictionary`. Untrusted data must use `NinoSettings.Untrusted`.
 13. **`object` resolves any loaded type** (§9.6).
 14. **`WEAK_VERSION_TOLERANCE` changes the format per assembly** (§7.5). The same source compiled in two projects can
     produce two formats. The layout shows the effective format.
@@ -1288,7 +1306,7 @@ readers of layouts or data from earlier builds.
 19. **`Vector<T>` was written as 16 bytes on every host (resolved)**: Nino measured it from its declared fields (two
     `ulong`s) and silently dropped the upper half on x64 hosts with 32-byte vectors; `Vector128<T>` to `Vector512<T>`
     inside raw structs were placed with 8-byte alignment. `Vector128<T>` to `Vector512<T>` now take x64 CoreCLR's
-    layout (§5.2); `Vector<T>`, which no fixed width serves on every host, is not serializable (§3, spec 4.4).
+    layout (§5.2); `Vector<T>`, which no fixed width serves on every host, is not serializable (§3).
 
 Unverified overall: behavior on 32-bit hosts, big-endian hosts, Mono, IL2CPP and Arm; the exact set of BCL
 exceptions that can escape a reader (§9.14). Everything else in
@@ -1444,7 +1462,7 @@ function ninoHash(s: sequence of UTF-16 code units) -> i32:
 function measure(t) -> (size, align, leaves):
     if t is a leaf: return (leafSize(t), leafAlign(t), [(0, leafSize(t))])
         leaf sizes / aligns: 1/1, 2/2, 4/4, 8-byte primitives 8/8, decimal 16/8, Guid 16/4, Int128/UInt128 16/16,
-        pointer P/P, Vector64/128/256/512 8/8, 16/16, 32/32, 64/64 (Vector<T>: not serializable, §3)
+        pointer 8/8 (nint sign-extended, nuint and pointers zero-extended), Vector64/128/256/512 8/8, 16/16, 32/32, 64/64 (Vector<T>: not serializable, §3)
     fields = instance fields of t in declaration order (DateTimeOffset: [DateTime, int]; §5.2)
     if layoutKind(t) == Auto and count(fields) > 1: return measureAuto(fields)
     pack = Pack(t) if Pack(t) > 0 else infinity
