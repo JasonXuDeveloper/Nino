@@ -197,7 +197,7 @@ internal sealed record RegistrationModel(
     EquatableArray<TypeRegistration> GenericTypes,
     // Unmanaged structs whose layout the runtime measures (LayoutTypes), for the registry's [DynamicDependency].
     EquatableArray<string> LayoutTypes,
-    // The nesting formatters its formatters name (FormatterResolver.Nesting), declared once per assembly.
+    // The nesting formatters its formatters name (FormatterResolver.NestingFormattersNamedIn), declared once per assembly.
     EquatableArray<NestingModel> Nesting);
 
 internal sealed record TypeModel(
@@ -446,7 +446,7 @@ internal sealed record UsageRegistration(FormatterRegistration? Formatter, Equat
     EquatableArray<TypeRegistration> GenericTypes, EquatableArray<string> LayoutTypes,
     EquatableArray<NestingModel> Nesting);
 
-// The formatter of a type that holds itself through collections (FormatterResolver.NestingFormatter): the struct
+// The formatter of a type that holds itself through collections (FormatterResolver.GeneratedNestingFormatter): the struct
 // Name (in NinoGen) counts a level of TypeName and calls Body, which names Name again for the elements.
 internal sealed record NestingModel(string Name, string TypeName, string Body);
 

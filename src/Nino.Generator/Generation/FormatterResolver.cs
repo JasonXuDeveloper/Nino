@@ -47,7 +47,7 @@ internal sealed class FormatterResolver
     private readonly ConcurrentDictionary<ITypeSymbol, ResolvedFormatter?> _plain = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ITypeSymbol, ResolvedFormatter?> _utf8 = new(SymbolEqualityComparer.Default);
 
-    /// <summary>The nesting formatters named so far (<see cref="NestingFormatter"/>), by name: their type and encoding.</summary>
+    /// <summary>The nesting formatters named so far (<see cref="GeneratedNestingFormatter"/>), by name: their type and encoding.</summary>
     private readonly ConcurrentDictionary<string, (ITypeSymbol Type, bool Utf8)> _nesting = new();
 
     [System.ThreadStatic] private static HashSet<ITypeSymbol>? t_resolving;
@@ -99,11 +99,11 @@ internal sealed class FormatterResolver
         // A collection of itself (class Tree : List<Tree>) reaches its own type again: its nesting formatter.
         var resolving = t_resolving ??= new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
         if (!resolving.Add(type))
-            return NestingFormatter(type, utf8);
+            return GeneratedNestingFormatter(type, utf8);
         try
         {
             // Vector<T>, alone or inside: no formatter (NINO029 names it where it is used).
-            formatter = _raw.VariableVectorIn(type) == null ? ResolveCore(type, utf8) : null;
+            formatter = _raw.HostSizedVectorIn(type) == null ? ResolveCore(type, utf8) : null;
         }
         finally
         {
@@ -117,7 +117,7 @@ internal sealed class FormatterResolver
     /// <summary>
     /// The formatter of <paramref name="type"/> where its own formatter reaches it again (<c>class Tree :
     /// List&lt;Tree&gt;</c>, <c>class Map : Dictionary&lt;string, Map&gt;</c>, no <c>[NinoType]</c> body in between): a
-    /// struct generated for it (<see cref="Nesting"/>) that counts the level (<c>EnterStruct</c>, as Nino.Core's
+    /// struct generated for it (<see cref="NestingFormattersNamedIn"/>) that counts the level (<c>EnterStruct</c>, as Nino.Core's
     /// <c>NestingFormatter</c> does for the runtime's formatters) and calls that formatter, which names the struct
     /// again for the next level. A type argument cannot name the formatter it is part of, and a named struct can:
     /// every level is a direct call on every runtime, where <c>CachedFormatter&lt;T&gt;</c> made one through the
@@ -125,15 +125,13 @@ internal sealed class FormatterResolver
     /// from folding. <c>CachedFormatter&lt;T&gt;</c> stays for types generated code cannot name in a struct of its own
     /// (open, inaccessible) and for value types, which the runtime does not count either.
     /// </summary>
-    private ResolvedFormatter NestingFormatter(ITypeSymbol type, bool utf8)
+    private ResolvedFormatter GeneratedNestingFormatter(ITypeSymbol type, bool utf8)
     {
         if (type is not INamedTypeSymbol { TypeKind: TypeKind.Class } named || TypeNames.ContainsTypeParameter(type) ||
             !_visibility.CanName(type))
             return CachedFormatter(type);
         string global = TypeNames.Global(named);
-        string name = TypeNames.FormatterName(named.OriginalDefinition);
-        name = name.Substring(0, name.Length - "Formatter".Length) +
-               $"_{TypeNames.ComputeId(utf8 ? global + " utf8" : global):X8}Nesting";
+        string name = TypeNames.NestingFormatterName(named, TypeNames.ComputeId(utf8 ? global + " utf8" : global));
         _nesting.TryAdd(name, (type, utf8));
         return CachedFormatter(type) with
         {
@@ -142,11 +140,11 @@ internal sealed class FormatterResolver
     }
 
     /// <summary>
-    /// The nesting formatters (<see cref="NestingFormatter"/>) that <paramref name="code"/> (generated code naming
+    /// The nesting formatters (<see cref="GeneratedNestingFormatter"/>) that <paramref name="code"/> (generated code naming
     /// formatters) names, with the ones their formatters name in turn, sorted by name: what the assembly declares
     /// for it.
     /// </summary>
-    public EquatableArray<NestingModel> Nesting(IEnumerable<string> code)
+    public EquatableArray<NestingModel> NestingFormattersNamedIn(IEnumerable<string> code)
     {
         if (_nesting.IsEmpty)
             return EquatableArray<NestingModel>.Empty;

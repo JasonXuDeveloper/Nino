@@ -15,17 +15,21 @@ namespace Nino.Generator.Generation;
 internal sealed record ProjectFacts(bool Enabled, GeneratorOptions Options, EquatableArray<string> ReferencedNinoTypes,
     bool CanKeepLayouts)
 {
-    public static ProjectFacts Of(Compilation c, CancellationToken ct) => new(
-        c.ReferencedAssemblyNames.Any(static a => a.Name == NinoNames.CoreAssembly),
-        new GeneratorOptions(
-            c.AssemblyName ?? "Assembly",
-            TypeNames.CanName(c, "System.Runtime.CompilerServices.ModuleInitializerAttribute"),
-            TypeNames.CanName(c, "UnityEngine.RuntimeInitializeOnLoadMethodAttribute"),
-            TypeNames.CanName(c, "UnityEditor.InitializeOnLoadMethodAttribute"),
-            new EquatableArray<string>(FormatterRules.RegisteringReferences(c)
-                .OrderBy(n => n, StringComparer.Ordinal).ToArray()),
-            new EquatableArray<FormatterMarks>(FormatterRules.OwnMarks(c)
-                .OrderBy(m => m.Formatter, StringComparer.Ordinal).ToArray())),
-        InheritedCandidates.ReferencedNinoTypes(c, ct),
-        LayoutTypes.CanEmit(c));
+    public static ProjectFacts Of(Compilation c, CancellationToken ct)
+    {
+        var formatterAttribute = c.GetTypeByMetadataName(NinoNames.Core("NinoFormatterAttribute"));
+        return new ProjectFacts(
+            c.ReferencedAssemblyNames.Any(static a => a.Name == NinoNames.CoreAssembly),
+            new GeneratorOptions(
+                c.AssemblyName ?? "Assembly",
+                TypeNames.CanName(c, "System.Runtime.CompilerServices.ModuleInitializerAttribute"),
+                TypeNames.CanName(c, "UnityEngine.RuntimeInitializeOnLoadMethodAttribute"),
+                TypeNames.CanName(c, "UnityEditor.InitializeOnLoadMethodAttribute"),
+                new EquatableArray<string>(FormatterRules.RegisteringReferences(c, formatterAttribute)
+                    .OrderBy(n => n, StringComparer.Ordinal).ToArray()),
+                new EquatableArray<FormatterMarks>(FormatterRules.OwnMarks(c, formatterAttribute)
+                    .OrderBy(m => m.Formatter, StringComparer.Ordinal).ToArray())),
+            InheritedCandidates.ReferencedNinoTypes(c, ct),
+            LayoutTypes.CanEmit(c));
+    }
 }

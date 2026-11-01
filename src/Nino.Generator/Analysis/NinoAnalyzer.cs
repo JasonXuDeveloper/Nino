@@ -93,17 +93,17 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
                 ? method.TypeArguments[0]
                 : invocation.Arguments.Select(static a => a.Value).OfType<ITypeOfOperation>().FirstOrDefault()
                     ?.TypeOperand;
-            vector = type == null ? null : Raw(context, invocation).VariableVectorIn(type);
+            vector = type == null ? null : Raw(context, invocation).HostSizedVectorIn(type);
         }
         else if (method.IsGenericMethod && (SymbolEqualityComparer.Default.Equals(owner, symbols.Writer) ||
                                             SymbolEqualityComparer.Default.Equals(owner, symbols.Reader) ||
                                             SymbolEqualityComparer.Default.Equals(owner, symbols.Direct)))
-            vector = Raw(context, invocation).VariableVectorWrittenBy(method, out type);
+            vector = Raw(context, invocation).HostSizedVectorWrittenBy(method, out type);
         else
             return;
 
         if (vector != null && type != null)
-            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.VariableVector, invocation.Syntax.GetLocation(),
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.HostSizedVector, invocation.Syntax.GetLocation(),
                 $"The value of this {owner.Name}.{method.Name} call", type.ToDisplayString(),
                 NinoDiagnostics.HoldsVector(type, vector)));
     }
@@ -118,9 +118,9 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         if (context.Operation.Type is not INamedTypeSymbol { IsGenericType: true } formatter ||
             !SymbolEqualityComparer.Default.Equals(formatter.ContainingAssembly, core))
             return;
-        if (Raw(context, context.Operation).VariableVectorWrittenBy(formatter, out var type) is { } vector &&
+        if (Raw(context, context.Operation).HostSizedVectorWrittenBy(formatter, out var type) is { } vector &&
             type != null)
-            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.VariableVector,
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.HostSizedVector,
                 context.Operation.Syntax.GetLocation(),
                 $"The value of this {formatter.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}",
                 type.ToDisplayString(), NinoDiagnostics.HoldsVector(type, vector)));

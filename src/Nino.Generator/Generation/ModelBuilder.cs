@@ -178,7 +178,7 @@ internal static class ModelBuilder
         // One that has only Vector<T> members is NINO029's alone.
         if (kind == FormatterKind.Struct && !shape.RawStruct && !shape.Tolerant && !attr.Keyed && members.Count == 0 &&
             diagnostics != null && facts.Members.Of(type, attr).All(m =>
-                MemberCollector.MemberType(m) is not { } t || facts.Raw.VariableVectorIn(t) == null))
+                MemberCollector.MemberType(m) is not { } t || facts.Raw.HostSizedVectorIn(t) == null))
             diagnostics.Report(NinoDiagnostics.EmptyStruct, type, type.ToDisplayString());
 
         if (diagnostics != null)
@@ -315,7 +315,7 @@ internal static class ModelBuilder
                 .OrderBy(g => g.TypeName, System.StringComparer.Ordinal)),
             LayoutTypes: LayoutTypes.ToArray(layoutTypes),
             Nesting: namesTypes
-                ? facts.Resolver.Nesting(members.Models.Select(static m => m.Formatter.ToString())
+                ? facts.Resolver.NestingFormattersNamedIn(members.Models.Select(static m => m.Formatter.ToString())
                     .Concat(genericTypes.Select(static g => g.Formatter))
                     .Concat(collection != null ? new[] { collection.ToString() } : System.Array.Empty<string>()))
                 : EquatableArray<NestingModel>.Empty);
@@ -520,11 +520,11 @@ internal static class ModelBuilder
         // has no formatter either); a [NinoMemberFormatter] writes what it chooses, unless it is one of Nino.Core's
         // own formatters (UnmanagedFormatter<Vector<int>>), which refuse it.
         ITypeSymbol? holder = memberType;
-        var vector = custom == null ? facts.Raw.VariableVectorIn(memberType)
-            : customType == null ? null : facts.Raw.VariableVectorWrittenBy(customType, out holder);
+        var vector = custom == null ? facts.Raw.HostSizedVectorIn(memberType)
+            : customType == null ? null : facts.Raw.HostSizedVectorWrittenBy(customType, out holder);
         if (vector != null && holder != null)
         {
-            diagnostics?.Report(NinoDiagnostics.VariableVector, symbol,
+            diagnostics?.Report(NinoDiagnostics.HostSizedVector, symbol,
                 $"Member '{symbol.Name}' of NinoType '{type.ToDisplayString()}'", holder.ToDisplayString(),
                 NinoDiagnostics.HoldsVector(holder, vector));
             return null;

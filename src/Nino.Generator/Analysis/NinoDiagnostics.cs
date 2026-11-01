@@ -78,11 +78,11 @@ internal static class NinoDiagnostics
         "[NinoMember] on a member that is never serialized",
         "[NinoMember] on '{0}' of NinoType '{1}' has no effect: {2}; remove it");
 
-    public static readonly DiagnosticDescriptor VariableVector = Error("NINO029",
+    public static readonly DiagnosticDescriptor HostSizedVector = Error("NINO029",
         "Vector<T> cannot be serialized",
         "{0} cannot be serialized: '{1}' {2}, and Vector<T> is 16 or 32 bytes depending on the CPU, so no host could read every other host's bytes; store a fixed number of lanes (an array or fixed buffer, Vector128<T> or Vector256<T>) and expose the Vector<T> through a [NinoIgnore] property over them");
 
-    /// <summary>The <c>{2}</c> of <see cref="VariableVector"/>: what <paramref name="type"/> is or holds.</summary>
+    /// <summary>The <c>{2}</c> of <see cref="HostSizedVector"/>: what <paramref name="type"/> is or holds.</summary>
     public static string HoldsVector(ITypeSymbol type, ITypeSymbol vector) =>
         SymbolEqualityComparer.Default.Equals(type, vector) ? "is a Vector<T>" : $"holds '{vector.ToDisplayString()}'";
 

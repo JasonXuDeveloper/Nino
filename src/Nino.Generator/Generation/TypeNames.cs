@@ -299,7 +299,18 @@ internal static class TypeNames
     /// Name of the generated formatter for a type definition: namespace and containing types joined by '_'
     /// (literal underscores doubled, so names cannot collide), arity suffixes, then "Formatter".
     /// </summary>
-    public static string FormatterName(INamedTypeSymbol type)
+    public static string FormatterName(INamedTypeSymbol type) => Stem(type).Append("Formatter").ToString();
+
+    /// <summary>
+    /// Name of the nesting formatter generated for <paramref name="type"/> (a closed class that holds itself):
+    /// its definition's <see cref="FormatterName"/> stem, the hash <paramref name="id"/> of the closed type (and its
+    /// encoding), then "NestingFormatter". A user type's name has its underscores doubled, so none ends this way.
+    /// </summary>
+    public static string NestingFormatterName(INamedTypeSymbol type, int id) =>
+        Stem(type.OriginalDefinition).Append('_').Append(id.ToString("X8", System.Globalization.CultureInfo.InvariantCulture))
+            .Append("NestingFormatter").ToString();
+
+    private static StringBuilder Stem(INamedTypeSymbol type)
     {
         var parts = new List<string>();
         for (var t = type; t != null; t = t.ContainingType)
@@ -314,9 +325,7 @@ internal static class TypeNames
             sb.Append('_');
         }
 
-        sb.Append(string.Join("_", parts));
-        sb.Append("Formatter");
-        return sb.ToString();
+        return sb.Append(string.Join("_", parts));
     }
 
     /// <summary>

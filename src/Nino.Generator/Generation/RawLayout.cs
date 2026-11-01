@@ -12,13 +12,11 @@ using Nino.Generator.Common;
 namespace Nino.Generator.Generation;
 
 /// <summary>
-/// Decides whether a struct's raw memory is the same on every runtime Nino targets. Layouts differ in two ways:
-/// 32-bit x86 aligns 8-byte fields to 4 (Mono all of them, .NET <c>DateTime</c>; 64-bit, ARM and wasm align them
-/// to 8), and Mono/IL2CPP's
-/// <c>decimal</c> is four ints (alignment 4) where CoreCLR's has a <c>ulong</c> (alignment 8). A struct is portable
-/// when its field offsets and size come out the same under both models, and it has no pointer-sized fields. The
-/// layout rules are the runtime's own (<see cref="NinoLayoutCore"/>, shared source), and so is the canonical layout
-/// <see cref="Describe"/> publishes.
+/// The memory of raw structs, measured with the runtime's own rules (<see cref="NinoLayoutCore"/>, shared source).
+/// <see cref="IsPortable"/>: a struct's field offsets and size are the same under the 8-byte model (64-bit, ARM,
+/// wasm) and the 4-byte model (32-bit x86, Mono/IL2CPP's <c>decimal</c>), so its memory is copied as it lies on every
+/// runtime. <see cref="Describe"/>: the canonical layout (64-bit CoreCLR's, auto-layout structs such as value tuples
+/// placed as it places them), which every runtime converts to where its own differs and the published layout states.
 /// <para>
 /// Projects compile against reference assemblies, where a struct's private fields are replaced by placeholders
 /// (<c>int _dummyPrimitive</c>, <c>object _dummy</c>): the BCL structs whose fields are private take their layout from
@@ -231,8 +229,9 @@ internal static class RawLayout
     }
 
     /// <summary>
-    /// <c>Vector64&lt;T&gt;</c> to <c>Vector512&lt;T&gt;</c> (<see cref="NinoLeaf.Vector"/>). <c>Vector&lt;T&gt;</c> never
-    /// gets here: no type holding one is raw (<see cref="RawRules.VariableVectorIn"/>).
+    /// <c>Vector64&lt;T&gt;</c> to <c>Vector512&lt;T&gt;</c> (<see cref="NinoLeaf.Vector"/>; the runtime's is
+    /// <c>NinoLayout.VectorIndex</c>). <c>Vector&lt;T&gt;</c> never gets here: no type holding one is raw
+    /// (<see cref="RawRules.HostSizedVectorIn"/>).
     /// </summary>
     private static bool IsVector(INamedTypeSymbol definition) =>
         definition.Arity == 1 && definition.MetadataName is "Vector64`1" or "Vector128`1" or "Vector256`1" or "Vector512`1" &&
@@ -251,7 +250,7 @@ internal static class RawLayout
     /// <c>Int128</c> and <c>UInt128</c>: 16-byte aligned on .NET 8 and later (64-bit), 8-byte aligned before, so their
     /// offset in another struct differs by runtime; on their own they are 16 bytes everywhere.
     /// </summary>
-    private static bool IsWide(ITypeSymbol type) =>
+    private static bool IsInt128(ITypeSymbol type) =>
         type is INamedTypeSymbol { TypeKind: TypeKind.Struct, Arity: 0 } named &&
         (TypeNames.HasMetadataName(named, "System.Int128") || TypeNames.HasMetadataName(named, "System.UInt128"));
 
@@ -332,7 +331,7 @@ internal static class RawLayout
 
     /// <summary>
     /// The generator's view of a type: pointer-sized fields are never portable, and neither is a struct with fields of
-    /// unknown layout (<see cref="Fields"/>) or with an <c>Int128</c> in it (<see cref="IsWide"/>; one on its own,
+    /// unknown layout (<see cref="Fields"/>) or with an <c>Int128</c> in it (<see cref="IsInt128"/>; one on its own,
     /// <paramref name="top"/>, is).
     /// </summary>
     private readonly struct SymbolView(ITypeSymbol top) : INinoLayoutView<ITypeSymbol>
@@ -367,7 +366,7 @@ internal static class RawLayout
                 pack = minSize = 0;
             }
 
-            if ((IsWide(type) && !SymbolEqualityComparer.Default.Equals(type, top)) || Fields(type) is not { } own)
+            if ((IsInt128(type) && !SymbolEqualityComparer.Default.Equals(type, top)) || Fields(type) is not { } own)
                 return false;
             foreach (var field in own)
             {

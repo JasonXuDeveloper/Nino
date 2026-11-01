@@ -99,6 +99,9 @@ public class IncrementalGeneratorTests
             .Single(s => s.HintName == "NinoGen.Nesting.g.cs").SourceText.ToString();
         // Tree, Map and Map with UTF-8 keys, and one of A and B (the cycle closes there).
         Assert.AreEqual(4, nesting.Split("internal struct ").Length - 1, nesting);
+        // Named after the type's formatter, the hash of the closed type, then NestingFormatter.
+        StringAssert.Matches(nesting,
+            new System.Text.RegularExpressions.Regex(@"internal struct Inc_Tree_[0-9A-F]{8}NestingFormatter :"));
         StringAssert.Contains(nesting, "writer.EnterStruct(typeof(global::Inc.Tree));");
         StringAssert.Contains(nesting, "reader.EnterStruct(typeof(global::Inc.Map));");
         foreach (var file in driver.GetRunResult().Results[0].GeneratedSources)

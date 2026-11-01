@@ -5,7 +5,7 @@ namespace Nino.Generator.Generation.Emit;
 
 /// <summary>
 /// Emits the nesting formatters of the types that hold themselves through collections
-/// (<see cref="FormatterResolver.Nesting"/>): each counts one level, as Nino.Core's <c>NestingFormatter</c> does, and
+/// (<see cref="FormatterResolver.NestingFormattersNamedIn"/>): each counts one level, as Nino.Core's <c>NestingFormatter</c> does, and
 /// calls the type's formatter, whose elements name the struct again.
 /// </summary>
 internal static class NestingEmitter

@@ -159,9 +159,8 @@ internal sealed class FormatterRules
     /// names them so the runtime resolver sees their registrations even before anything else loads the assembly
     /// (a formatter only needed by a generic <c>[NinoType]</c>, closed at runtime, is not referenced by any code).
     /// </summary>
-    public static IEnumerable<string> RegisteringReferences(Compilation compilation)
+    public static IEnumerable<string> RegisteringReferences(Compilation compilation, INamedTypeSymbol? attributeType)
     {
-        var attributeType = compilation.GetTypeByMetadataName(NinoNames.Core("NinoFormatterAttribute"));
         if (attributeType == null)
             yield break;
         var core = attributeType.ContainingAssembly;
@@ -193,42 +192,41 @@ internal sealed class FormatterRules
     /// where the runtime keeps no attributes on generic parameters (IL2CPP). Bits count the parameters of containing
     /// types first, as the runtime numbers them.
     /// </summary>
-    public static IEnumerable<FormatterMarks> OwnMarks(Compilation compilation)
+    public static IEnumerable<FormatterMarks> OwnMarks(Compilation compilation, INamedTypeSymbol? attributeType)
     {
-        var attributeType = compilation.GetTypeByMetadataName(NinoNames.Core("NinoFormatterAttribute"));
         if (attributeType == null)
             yield break;
-        var rawType = compilation.GetTypeByMetadataName(NinoNames.Core("NinoRawAttribute"));
-        var createdType = compilation.GetTypeByMetadataName(NinoNames.Core("NinoCreatedAttribute"));
-        var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        INamedTypeSymbol? raw = null, created = null;
+        HashSet<ISymbol>? seen = null;
         foreach (var attribute in compilation.Assembly.GetAttributes())
         {
             if (!SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, attributeType) ||
                 attribute.ConstructorArguments.Length == 0 ||
                 attribute.ConstructorArguments[0].Value is not INamedTypeSymbol { OriginalDefinition: var formatter } ||
-                formatter.Arity == 0 || !seen.Add(formatter) ||
+                formatter.Arity == 0 || !(seen ??= new HashSet<ISymbol>(SymbolEqualityComparer.Default)).Add(formatter) ||
                 !compilation.IsSymbolAccessibleWithin(formatter, compilation.Assembly))
                 continue;
+            // Looked up for the first generic registration only: most compilations register none.
+            raw ??= compilation.GetTypeByMetadataName(NinoNames.Core("NinoRawAttribute"));
+            created ??= compilation.GetTypeByMetadataName(NinoNames.Core("NinoCreatedAttribute"));
             int outer = 0;
             for (var containing = formatter.ContainingType; containing != null; containing = containing.ContainingType)
                 outer += containing.Arity;
-            int raw = 0, unmanaged = 0, created = 0;
+            int rawBits = 0, unmanaged = 0, createdBits = 0;
             foreach (var parameter in formatter.TypeParameters)
             {
                 int bit = 1 << (outer + parameter.Ordinal);
+                // The marks the generator binds by (FormatterResolver.Satisfies), read the same way.
                 if (parameter.HasUnmanagedTypeConstraint)
                     unmanaged |= bit;
-                foreach (var mark in parameter.GetAttributes())
-                {
-                    if (SymbolEqualityComparer.Default.Equals(mark.AttributeClass, rawType))
-                        raw |= bit;
-                    else if (SymbolEqualityComparer.Default.Equals(mark.AttributeClass, createdType))
-                        created |= bit;
-                }
+                if (NinoSymbols.Has(parameter, raw))
+                    rawBits |= bit;
+                if (NinoSymbols.Has(parameter, created))
+                    createdBits |= bit;
             }
 
-            if ((raw | unmanaged | created) != 0)
-                yield return new FormatterMarks(TypeNames.OpenName(formatter), raw, unmanaged, created);
+            if ((rawBits | unmanaged | createdBits) != 0)
+                yield return new FormatterMarks(TypeNames.OpenName(formatter), rawBits, unmanaged, createdBits);
         }
     }
 
