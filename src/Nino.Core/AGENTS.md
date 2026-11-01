@@ -81,6 +81,8 @@ NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (register
                              NinoMissingFormatter<T> (the never-null stand-in of a type without one)
 NinoFormatterResolver.cs     builds formatter types by reflection for unregistered types, applying the
                              [NinoFormatter] registrations with the generator's rules
+NinoParameterMarks.cs        what a formatter's type parameters require ([NinoRaw], unmanaged, [NinoCreated]): their
+                             attributes, or a table of Nino.Core's own where the runtime drops them (IL2CPP)
 BuiltInFormatters.cs         the [assembly: NinoFormatter] table of the BCL formatters below (generator and resolver read it)
 BoxedFormatter.cs            BoxedFormatter: NinoFormatterCache<T> for a runtime Type (the Boxed APIs)
 PrimitiveFormatters.cs       UnmanagedFormatter<T> (raw bytes), RawValueFormatter<T>, IntPtr / UIntPtr (8 bytes),
@@ -144,17 +146,20 @@ NinoThrow.cs                 throw helpers, out of line (NinoDataException for t
 NinoLimits.cs                the settings read paths check, frozen as static readonly fields
 NinoUntrusted.cs             the top-level reads in NinoSettings.Untrusted mode (trailing bytes, value checks)
 NinoChecks.cs                checks of values Nino never writes (bools other than 0 or 1) where each costs least
-NinoValueChecks.cs           the fields of a raw type Untrusted mode checks (bool, DateTime, decimal, DateOnly, TimeOnly),
-                             checked a field at a time over a run of values, as vectors with periodic masks on .NET 8+
+NinoValueChecks.cs           the fields of a raw type Untrusted mode checks (bool, DateTime, decimal, DateOnly, TimeOnly,
+                             DateTimeOffset), checked a field at a time over a run of values, as vectors with periodic
+                             masks on .NET 8+
 NinoSeededHash.cs            SipHash-1-3 comparers for the tables Nino creates in Untrusted mode
 HashTables.cs                fills new HashSet / Dictionary entries and buckets directly, counting collisions
                              against MaxHashCollisions (Plan, TryFill, Insert, Added, Walk)
 ConcurrentTables.cs          the same for ConcurrentDictionary (mirror classes per runtime, Builder)
 NinoNesting.cs               which types can hold themselves through collections (they count depth per level)
 NinoHash.cs                  FNV-1a behind type ids and member keys (also compiled into the generator)
-NinoLayout.cs                canonical (64-bit CoreCLR) layout of raw structs, padding masks, conversion where the
-                             runtime differs (x86, Mono, IL2CPP); NinoLayout<T>, NinoMask
-NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout)
+NinoLayout.cs                canonical (64-bit CoreCLR) layout of raw structs, BCL structs inside them included (tuples,
+                             DateTimeOffset, nint), padding masks, conversion where the runtime differs (x86, Mono,
+                             IL2CPP, .NET Framework), offsets read from an instance (MeasureMemory); NinoLayout<T>, NinoMask
+NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout), CoreCLR's auto layout
+                             (PlaceAuto)
 NinoReflection.cs            what Nino.Core reads by reflection with the generator's rules (NinoType, raw, tracking)
 NinoFormatterBinding.cs      binding of [NinoFormatter] registrations, shared with the generator (INinoTypeSystem)
 NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed)
@@ -178,7 +183,8 @@ ListAccess.cs                a List<T>'s elements as a span (CollectionsMarshal,
 ObjectFields.cs              an object's fields at byte offsets
 ObjectTypes.cs               mirror-class instances retyped to the runtime's class (also compiled into Nino.Immutable)
 SortedSetNodes.cs            SortedSet<T> red-black trees built in one pass (SortedSetTrees, node layouts)
-ValueViews.cs                where value types' fields are on this runtime (DateTimeOffset)
+ValueViews.cs                where value types' fields are on this runtime (DateTimeOffset: UTC ticks, minutes and their
+                             width, found through its public API)
 ```
 
 ## Rules for these files
