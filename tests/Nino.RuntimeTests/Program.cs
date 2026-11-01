@@ -31,7 +31,8 @@ public struct WideAfterByte { public byte A; public Int128 B; }
 
 // DateTime after a smaller field: aligned to 8 on 64-bit runtimes and by Mono, to 4 by .NET on 32-bit x86 (an
 // auto-layout struct as a field; long and TimeSpan are aligned to 8 there): { int; DateTime } is 16 bytes on x64, 12
-// on x86 .NET. Plain structs are raw, [NinoType] ones too when not portable: the canonical (64-bit) layout everywhere.
+// on x86 .NET; .NET Framework reorders { byte; DateTime; int } (the int first). Plain structs are raw, [NinoType] ones
+// too when not portable: the canonical (64-bit) layout everywhere.
 public struct HoldsDateTime { public int A; public DateTime B; }
 public struct HoldsDateTimes { public byte A; public DateTime B; public int C; }
 public struct HoldsTimeSpan { public int A; public TimeSpan B; }
@@ -491,7 +492,7 @@ public static class Program
         // What this runtime aligns 8-byte fields to (NinoLayout's probes), and how it lays out the structs Nino does not
         // measure: not compared.
         var ninoLayout = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.NinoLayout");
-        Console.WriteLine("# layout: " + string.Join(" ", new[] { "LongAlign", "DateTimeAlign", "DecimalAlign", "WideAlign" }
+        Console.WriteLine("# layout: " + string.Join(" ", new[] { "LongAlign", "DateTimeAlign", "DecimalAlign", "WideAlign", "KeepsDeclarationOrder" }
             .Select(n => n + "=" + ninoLayout?.GetField(n, BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null))));
         foreach (var (name, bytes) in new[]
                  {

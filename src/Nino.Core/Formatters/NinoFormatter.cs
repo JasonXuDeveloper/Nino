@@ -183,7 +183,7 @@ namespace Nino.Core
         // reflection over its interfaces is needed (which trimming and NativeAOT may not keep).
         private static bool Compute() =>
             typeof(INinoRawFormatter).IsAssignableFrom(typeof(TFormatter)) &&
-            NinoLayout.Get(typeof(T), -1).Canonical;
+            NinoLayout.Get(typeof(T), Unsafe.SizeOf<T>()).Canonical;
     }
 
     internal static class RawFormatter

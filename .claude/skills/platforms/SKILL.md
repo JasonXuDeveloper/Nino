@@ -65,8 +65,11 @@ builds of Nino.Core, Mono).
   the target's CoreLib so BCL sizes fold). Windows x86 .NET 10 aligns `long`, `double` and sequential structs holding
   one (`TimeSpan`, `decimal`, `Nullable<long>`, user structs) to 8 but auto-layout structs (`DateTime`, `ValueTuple`,
   `DateTimeOffset`) and the 8-byte fields inside them to 4: `NinoLayout` once took `{byte; long}` for `DateTime` too
-  and copied `{ int; DateTime }` as 12 bytes of x86 memory (fixed by a `{byte; DateTime}` probe). What `NinoLayout`
-  probes on each runtime is printed by tests/Nino.RuntimeTests (`# layout:`), which checks such structs on Windows x86.
+  and copied `{ int; DateTime }` as 12 bytes of x86 memory (fixed by a `{byte; DateTime}` probe). .NET Framework
+  (x64 and x86) reorders a sequential struct holding a `DateTime` as auto-layout (`{ byte; DateTime; int }`: the int
+  at 0, 16 bytes): `NinoLayout` detects it (`KeepsDeclarationOrder`) and reads offsets from an instance there
+  (`MeasureMemory`). What `NinoLayout` probes on each runtime is printed by tests/Nino.RuntimeTests (`# layout:`),
+  which checks such structs on every runtime CI has.
   To run the unit suite under qemu-arm, call its `[TestMethod]`s by reflection from a small program run by the Arm32
   `dotnet` (`dotnet test` starts its host with the machine's own runtime); leave out the Roslyn compilations,
   too slow emulated: `Generator` and `ShapeMatrixTests` (in `Corner/` but namespace `Nino.UnitTests`, so a filter on
