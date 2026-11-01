@@ -607,7 +607,7 @@ namespace Conformance
                 "collections-values", "nullables-values", "tolerant", "tolerant-new-to-old", "keyed",
                 "keyed-v1-to-v2", "polymorphism", "polymorphism-generic-root", "deep-chain-130",
                 "deep-tolerant-chain-129", "deep-keyed-chain-129", "deep-links-129", "deep-in-region",
-                "references-shared", "tree-collections",
+                "references-shared", "tree-collections", "bcl-raw-values", "bcl-raw-nullables",
             };
             return names.Select(n => valid.Single(c => c.Name == n)).ToList();
         }
