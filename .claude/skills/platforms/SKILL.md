@@ -59,6 +59,14 @@ builds of Nino.Core, Mono).
   (`microsoft.netcore.app.crossgen2.linux-x64`, `--targetos:windows --targetarch:x86 --inputbubble`,
   `--codegenopt JitDisasm=...`) with the `System.Private.CoreLib.dll` of `microsoft.netcore.app.runtime.win-x86` as
   reference (with x64's, `IntPtr.Size` folds to 8); it is R2R code, so a `static readonly` field is a load there.
+- Measure a struct layout of a target you cannot run the same way, and never assume one rule per field size: a
+  `[NoInlining]` method `ref T F(ref S s) => ref s.B` compiles to `lea eax, [ecx+offset]` and `Unsafe.SizeOf<S>()` to
+  `mov eax, size` (crossgen2 with `--parallelism 1`, or the listings interleave; `--inputbubble --inputbubbleref` with
+  the target's CoreLib so BCL sizes fold). Windows x86 .NET 10 aligns `long`, `double` and sequential structs holding
+  one (`TimeSpan`, `decimal`, `Nullable<long>`, user structs) to 8 but auto-layout structs (`DateTime`, `ValueTuple`,
+  `DateTimeOffset`) and the 8-byte fields inside them to 4: `NinoLayout` once took `{byte; long}` for `DateTime` too
+  and copied `{ int; DateTime }` as 12 bytes of x86 memory (fixed by a `{byte; DateTime}` probe). What `NinoLayout`
+  probes on each runtime is printed by tests/Nino.RuntimeTests (`# layout:`), which checks such structs on Windows x86.
   To run the unit suite under qemu-arm, call its `[TestMethod]`s by reflection from a small program run by the Arm32
   `dotnet` (`dotnet test` starts its host with the machine's own runtime); leave out the Roslyn compilations,
   too slow emulated: `Generator` and `ShapeMatrixTests` (in `Corner/` but namespace `Nino.UnitTests`, so a filter on
