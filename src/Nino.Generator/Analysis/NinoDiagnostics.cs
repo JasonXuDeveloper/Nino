@@ -80,7 +80,7 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor HostSizedVector = Error("NINO029",
         "Vector<T> cannot be serialized",
-        "{0} cannot be serialized: '{1}' {2}, and Vector<T> is 16 or 32 bytes depending on the CPU, so no host could read every other host's bytes; store a fixed number of lanes (an array or fixed buffer, Vector128<T> or Vector256<T>) and expose the Vector<T> through a [NinoIgnore] property over them");
+        "{0} cannot be serialized: '{1}' {2}, and Vector<T> is 16, 32 or 64 bytes by the CPU; store a fixed number of lanes (an array, a fixed buffer, Vector128<T> or Vector256<T>) and view them as Vector<T> in [NinoIgnore] members");
 
     /// <summary>The <c>{2}</c> of <see cref="HostSizedVector"/>: what <paramref name="type"/> is or holds.</summary>
     public static string HoldsVector(ITypeSymbol type, ITypeSymbol vector) =>
