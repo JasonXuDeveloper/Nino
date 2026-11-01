@@ -70,6 +70,19 @@ builds of Nino.Core, Mono).
   at 0, 16 bytes): `NinoLayout` detects it (`KeepsDeclarationOrder`) and reads offsets from an instance there
   (`MeasureMemory`). What `NinoLayout` probes on each runtime is printed by tests/Nino.RuntimeTests (`# layout:`),
   which checks such structs on every runtime CI has.
+  Value tuples (and any `LayoutKind.Auto` struct with several fields) are placed per runtime: 64-bit CoreCLR by its
+  auto rule (`NinoLayoutCore.PlaceAuto`, from crossgen2's `MetadataFieldLayoutAlgorithm.ComputeAutoFieldLayout`:
+  primitives largest first, then structs, the size rounded to 8 or to a power of two up to 8), Mono 6.8 and IL2CPP in
+  declaration order, 32-bit runtimes with a 4-byte pointer in that rule; `DateTimeOffset` is `{ int; DateTime }` on
+  .NET 10, `{ short; DateTime }` on .NET 8, `{ DateTime; short }` on Mono and .NET Framework. The canonical layout is
+  64-bit CoreCLR's (so x64 and Arm64 copy) with .NET 10's `DateTimeOffset`; every other runtime measures and converts
+  (`MeasureMemory`, which also reads `Nullable` fields). Reference assemblies declare tuples sequential (no
+  `[StructLayout(Auto)]` in them): the generator once published raw structs' tuples in declaration order while .NET
+  x64 wrote them reordered, so `RawLayout` forces `Auto` for `System.ValueTuple`. Each CI runtime prints its layout of
+  every BCL struct (`# layout` lines of `tests/Nino.RuntimeTests`, the table in docs/layouts.md) and must write and
+  read CoreCLR x64's bytes for each (`BclStructs.cs` against `BclFixtures.cs`; Unity's `BclLayoutTests` in play mode
+  and the IL2CPP player). Never read a pointer field by reflection (`FieldInfo.GetValue` on `IntPtr`'s `void*`
+  crashed Mono 6.8 with SIGSEGV).
   To run the unit suite under qemu-arm, call its `[TestMethod]`s by reflection from a small program run by the Arm32
   `dotnet` (`dotnet test` starts its host with the machine's own runtime); leave out the Roslyn compilations,
   too slow emulated: `Generator` and `ShapeMatrixTests` (in `Corner/` but namespace `Nino.UnitTests`, so a filter on
@@ -117,6 +130,11 @@ Why the qemu flags:
 ## Unity and IL2CPP
 
 - No module initializers on HybridCLR: registration goes through the generated registration calls.
+- Never decide anything at run time from custom attributes on generic parameters: IL2CPP keeps none (Unity 2022.3 and
+  6000.3 players: `typeof(UnmanagedFormatter<>).GetGenericArguments()[0].IsDefined(typeof(NinoRawAttribute))` is
+  false, true in the editor's Mono), so the resolver bound the raw list formatter to `List<(byte, long, int)>` and the
+  player could not read CoreCLR's bytes (unity.yml run 41270331318). `NinoParameterMarks` falls back to a table of
+  Nino.Core's formatters there; a check over attributes on types or members is fine.
 - IL2CPP has no `Reflection.Emit` and shares generic code: no runtime code generation, and the mirror-class rules of
   `runtime-internals` (static code only).
 - WebGL has no Burst: Burst compiles jobs with LLVM into a native library the player calls, and the WebGL player (IL2CPP
