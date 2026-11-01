@@ -78,7 +78,13 @@ builds of Nino.Core, Mono).
   64-bit CoreCLR's (so x64 and Arm64 copy) with .NET 10's `DateTimeOffset`; every other runtime measures and converts
   (`MeasureMemory`, which also reads `Nullable` fields). Reference assemblies declare tuples sequential (no
   `[StructLayout(Auto)]` in them): the generator once published raw structs' tuples in declaration order while .NET
-  x64 wrote them reordered, so `RawLayout` forces `Auto` for `System.ValueTuple`. Each CI runtime prints its layout of
+  x64 wrote them reordered, so `RawLayout` forces `Auto` for `System.ValueTuple`. `Vector<T>` is as wide as the
+  CPU's vectors (32 bytes on x64 with AVX2 or AVX-512 by default, 64 with `DOTNET_MaxVectorTBitWidth=512`, 16 on
+  Arm64, without AVX2 and on Mono and IL2CPP), and its declared fields are two `ulong`s whatever its size: never
+  measure a vector by its fields (Nino did, and wrote 16 bytes, dropping the upper half on AVX2 hosts); it is a leaf
+  (`NinoLeaf.Vector`) of x64's size, zero-extended or narrowed elsewhere. Vector128/256/512 are aligned 16/32/64 on
+  x64, 16/16/16 on Arm64, 8 on Arm32. Test every width on one x64 machine: `DOTNET_EnableAVX2=0` (16 bytes),
+  `DOTNET_MaxVectorTBitWidth=512` (64), the default (32). Each CI runtime prints its layout of
   every BCL struct (`# layout` lines of `tests/Nino.RuntimeTests`, the table in docs/layouts.md) and must write and
   read CoreCLR x64's bytes for each (`BclStructs.cs` against `BclFixtures.cs`; Unity's `BclLayoutTests` in play mode
   and the IL2CPP player). Never read a pointer field by reflection (`FieldInfo.GetValue` on `IntPtr`'s `void*`
@@ -122,8 +128,10 @@ Why the qemu flags:
   emulates wrong. With or without Nino's code, runs crashed (`ToImmutableDictionary`), or a static field written by
   `Volatile.Write` read as never written elsewhere; `DOTNET_TieredCompilation=0` moves the failures, it does not
   avoid them. Nino.Benchmark under qemu-aarch64 also needs the arm64 `libssl.so.3` and `libcrypto.so.3` in
-  `/usr/aarch64-linux-gnu/lib`, else it aborts with "No usable version of libssl" (round 101). For Tier1 listings
-  with tiering on under qemu, the jitwarm hook's 8 rounds of 200 ms reach no Tier1 at all (every listing Tier0):
+  `/usr/aarch64-linux-gnu/lib`, else it aborts with "No usable version of libssl" (round 101). A self-contained Arm64
+  publish run with `qemu-aarch64-static -cpu neoverse-n1 -L /usr/aarch64-linux-gnu` aborts at startup without an
+  arm64 libicu ("Couldn't find a valid ICU package"): set `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`
+  (tests/Nino.RuntimeTests ran ALL OK so, Vector<T> round). For Tier1 listings with tiering on under qemu, the jitwarm hook's 8 rounds of 200 ms reach no Tier1 at all (every listing Tier0):
   give it about 30 rounds of 1.5 s, and skip classes whose static constructor throws, as `BclTypesTest` does under
   `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` (`en-us`), which otherwise aborts the process (round 102).
 
@@ -133,8 +141,11 @@ Why the qemu flags:
 - Never decide anything at run time from custom attributes on generic parameters: IL2CPP keeps none (Unity 2022.3 and
   6000.3 players: `typeof(UnmanagedFormatter<>).GetGenericArguments()[0].IsDefined(typeof(NinoRawAttribute))` is
   false, true in the editor's Mono), so the resolver bound the raw list formatter to `List<(byte, long, int)>` and the
-  player could not read CoreCLR's bytes (unity.yml run 41270331318). `NinoParameterMarks` falls back to a table of
-  Nino.Core's formatters there; a check over attributes on types or members is fine.
+  player could not read CoreCLR's bytes (unity.yml run 41270331318). `NinoParameterMarks` falls back to registered marks
+  there: Nino.Core registers its own formatters', and each generated registry (its static constructor, before
+  `NinoRegistry.Add` hands the assembly's `[assembly: NinoFormatter]` registrations to the resolver) those of the generic
+  formatters its assembly registers (`FormatterRules.OwnMarks`; Unity's `UserRawFormatterIsBoundByItsMarks`). Any new
+  mark on a type parameter goes into both. A check over attributes on types or members is fine.
 - IL2CPP has no `Reflection.Emit` and shares generic code: no runtime code generation, and the mirror-class rules of
   `runtime-internals` (static code only).
 - WebGL has no Burst: Burst compiles jobs with LLVM into a native library the player calls, and the WebGL player (IL2CPP
