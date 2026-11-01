@@ -28,6 +28,65 @@ namespace Nino.Core.Internal
             typeof(ValueTuple<,,,,,,,>)
         };
 
+        /// <summary>
+        /// The type of a struct's field as its layout sees it: a function pointer (<c>delegate*</c>) as
+        /// <see cref="UIntPtr"/>, a pointer zero-extended to 8 bytes on the wire like <c>T*</c> (spec §5.2), whatever
+        /// the runtime reports. .NET 8 and later report a function pointer type (<c>IsFunctionPointer</c>), earlier
+        /// runtimes <see cref="IntPtr"/>, which the field's signature tells apart (ELEMENT_TYPE_FNPTR). Where the
+        /// signature cannot be read (Mono and IL2CPP resolve no field signatures), the field stays an
+        /// <see cref="IntPtr"/>, sign-extended: the same bytes on 64-bit hosts.
+        /// </summary>
+        public static Type LayoutFieldType(System.Reflection.FieldInfo field)
+        {
+            var type = field.FieldType;
+#if NET8_0_OR_GREATER
+            return type.IsFunctionPointer ? typeof(UIntPtr) : type;
+#else
+            if (type == typeof(IntPtr))
+                return HasFunctionPointerSignature(field) ? typeof(UIntPtr) : type;
+            // A netstandard build on .NET 8 or later, which names no IsFunctionPointer: a function pointer type is a
+            // class without a base type there (as are only object and interfaces).
+            return type.BaseType == null && !type.IsValueType && !type.IsPointer && !type.IsInterface &&
+                   type != typeof(object) && IsFunctionPointerProperty?.GetValue(type) is true
+                ? typeof(UIntPtr)
+                : type;
+#endif
+        }
+
+#if !NET8_0_OR_GREATER
+        private static readonly System.Reflection.PropertyInfo IsFunctionPointerProperty =
+            typeof(Type).GetProperty("IsFunctionPointer");
+
+        /// <summary>
+        /// Whether the field's signature (FIELD, custom modifiers, type) holds a function pointer, on runtimes that
+        /// report one as <see cref="IntPtr"/>; false where the signature cannot be read.
+        /// </summary>
+        private static bool HasFunctionPointerSignature(System.Reflection.FieldInfo field)
+        {
+            try
+            {
+                byte[] signature = field.Module.ResolveSignature(field.MetadataToken);
+                if (signature.Length < 2 || signature[0] != 0x06)
+                    return false;
+                int i = 1;
+                // CMOD_REQD and CMOD_OPT (volatile...), each with a compressed TypeDefOrRef token.
+                while (i < signature.Length && (signature[i] == 0x1F || signature[i] == 0x20))
+                {
+                    i++;
+                    if (i >= signature.Length)
+                        return false;
+                    i += (signature[i] & 0x80) == 0 ? 1 : (signature[i] & 0xC0) == 0x80 ? 2 : 4;
+                }
+
+                return i < signature.Length && signature[i] == 0x1B; // ELEMENT_TYPE_FNPTR
+            }
+            catch
+            {
+                return false;
+            }
+        }
+#endif
+
         /// <summary>The <c>[NinoType]</c> declared on <paramref name="type"/> itself, or null.</summary>
         private static NinoTypeAttribute Declared(Type type) =>
             (NinoTypeAttribute)Attribute.GetCustomAttribute(type, typeof(NinoTypeAttribute), false);

@@ -146,7 +146,7 @@ namespace Shapes
 
     /// <summary>
     /// The BCL leaves whose layout differs by runtime, inside a raw struct, in the canonical layout (wire-format spec
-    /// §5.2): Int128 aligned to 16, nint sign-extended, nuint and pointers zero-extended to 8 bytes.
+    /// §5.2): Int128 aligned to 16, nint sign-extended, nuint and pointers (delegate* too) zero-extended to 8 bytes.
     /// </summary>
     public unsafe struct HostLeaves
     {
@@ -155,6 +155,7 @@ namespace Shapes
         public nint Signed;
         public nuint Unsigned;
         public int* Pointer;
+        public delegate*<int> Callback;
     }
 
     /// <summary>DateTimeOffset inside a raw struct: its canonical fields, the minutes (an int) at 0, the ticks at 8.</summary>

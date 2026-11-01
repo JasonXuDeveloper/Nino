@@ -36,7 +36,8 @@ internal sealed class RawRules
             return false;
         if (type.IsNinoType())
             return type is INamedTypeSymbol ninoStruct && IsRawStruct(ninoStruct);
-        if (type.SpecialType is SpecialType.System_IntPtr or SpecialType.System_UIntPtr || type is IPointerTypeSymbol)
+        if (type.SpecialType is SpecialType.System_IntPtr or SpecialType.System_UIntPtr ||
+            type is IPointerTypeSymbol or IFunctionPointerTypeSymbol)
             return false; // pointer-sized: written as 8 bytes
         if (type is INamedTypeSymbol named)
         {

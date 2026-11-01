@@ -110,6 +110,7 @@ type HostLeaves struct {
 	Signed   int64       `nino:"2" json:"signed" yaml:"signed"`
 	Unsigned uint64      `nino:"3" json:"unsigned" yaml:"unsigned"`
 	Pointer  uint64      `nino:"4" json:"pointer" yaml:"pointer"`
+	Callback uint64      `nino:"5" json:"callback" yaml:"callback"`
 }
 
 func decodeHostLeaves(r *nino.Reader, b []byte) HostLeaves {
@@ -120,6 +121,7 @@ func decodeHostLeaves(r *nino.Reader, b []byte) HostLeaves {
 	v.Signed = int64(le.Uint64(b[32:]))
 	v.Unsigned = le.Uint64(b[40:])
 	v.Pointer = le.Uint64(b[48:])
+	v.Callback = le.Uint64(b[56:])
 	return v
 }
 
@@ -131,6 +133,7 @@ func encodeHostLeaves(b []byte, v HostLeaves) {
 	le.PutUint64(b[32:], uint64(v.Signed))
 	le.PutUint64(b[40:], uint64(v.Unsigned))
 	le.PutUint64(b[48:], uint64(v.Pointer))
+	le.PutUint64(b[56:], uint64(v.Callback))
 }
 
 // asIsHostLeaves: whether HostLeaves's memory is its bytes (on a little-endian host), for arrays copied as one block.
@@ -139,7 +142,8 @@ const asIsHostLeaves = unsafe.Sizeof(HostLeaves{}) == 64 &&
 	unsafe.Offsetof(HostLeaves{}.Wide) == 16 &&
 	unsafe.Offsetof(HostLeaves{}.Signed) == 32 &&
 	unsafe.Offsetof(HostLeaves{}.Unsigned) == 40 &&
-	unsafe.Offsetof(HostLeaves{}.Pointer) == 48
+	unsafe.Offsetof(HostLeaves{}.Pointer) == 48 &&
+	unsafe.Offsetof(HostLeaves{}.Callback) == 56
 
 func readHostLeaves(r *nino.Reader) HostLeaves {
 	var v HostLeaves
@@ -1045,7 +1049,7 @@ type HostHolder struct {
 }
 
 func (HostHolder) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73E57D3F; deferrable=true; members=Leaves:Shapes.HostLeaves:raw(64){A:byte@0:raw(1),Wide:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},Signed:System.IntPtr@32:raw(8),Unsigned:System.UIntPtr@40:raw(8),Pointer:int*@48:raw(8)};Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})"
+	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73E57D3F; deferrable=true; members=Leaves:Shapes.HostLeaves:raw(64){A:byte@0:raw(1),Wide:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},Signed:System.IntPtr@32:raw(8),Unsigned:System.UIntPtr@40:raw(8),Pointer:int*@48:raw(8),Callback:delegate*<int>@56:raw(8)};Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})"
 }
 
 func (HostHolder) NinoTypeName() string {

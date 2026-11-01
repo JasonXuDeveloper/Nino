@@ -152,6 +152,7 @@ pub struct HostLeaves {
     pub signed: i64,
     pub unsigned: u64,
     pub pointer: u64,
+    pub callback: u64,
 }
 
 impl nino::Raw for HostLeaves {
@@ -160,7 +161,7 @@ impl nino::Raw for HostLeaves {
 
     fn decode_raw(b: &[u8]) -> nino::Result<Self> {
         let b = b.get(..64).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
-        if [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 56, 57, 58, 59, 60, 61, 62, 63].iter().any(|&i| b.get(i) != Some(&0)) {
+        if [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].iter().any(|&i| b.get(i) != Some(&0)) {
             return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
         }
         Ok(Self {
@@ -169,6 +170,7 @@ impl nino::Raw for HostLeaves {
             signed: <i64 as nino::Raw>::decode_raw(b.get(32..).unwrap_or_default())?,
             unsigned: <u64 as nino::Raw>::decode_raw(b.get(40..).unwrap_or_default())?,
             pointer: <u64 as nino::Raw>::decode_raw(b.get(48..).unwrap_or_default())?,
+            callback: <u64 as nino::Raw>::decode_raw(b.get(56..).unwrap_or_default())?,
         })
     }
 
@@ -187,6 +189,9 @@ impl nino::Raw for HostLeaves {
         }
         if let Some(o) = out.get_mut(48..) {
             nino::Raw::encode_raw(&self.pointer, o);
+        }
+        if let Some(o) = out.get_mut(56..) {
+            nino::Raw::encode_raw(&self.callback, o);
         }
     }
 }
@@ -976,7 +981,7 @@ impl HostHolder {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.HostHolder";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73E57D3F; deferrable=true; members=Leaves:Shapes.HostLeaves:raw(64){A:byte@0:raw(1),Wide:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},Signed:System.IntPtr@32:raw(8),Unsigned:System.UIntPtr@40:raw(8),Pointer:int*@48:raw(8)};Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73E57D3F; deferrable=true; members=Leaves:Shapes.HostLeaves:raw(64){A:byte@0:raw(1),Wide:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},Signed:System.IntPtr@32:raw(8),Unsigned:System.UIntPtr@40:raw(8),Pointer:int*@48:raw(8),Callback:delegate*<int>@56:raw(8)};Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})";
 }
 
 /// `Shapes.Generic.Keys<T>`: Positional, header NullFlag.

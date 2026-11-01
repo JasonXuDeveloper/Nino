@@ -88,8 +88,8 @@ namespace Nino.Codegen.Tests
         }
 
         /// <summary>
-        /// The leaves whose layout differs by runtime (Int128, nint, nuint, pointers, DateTimeOffset) are where Nino.Core
-        /// writes them: each field of the model, read at its offset from .NET's bytes, is the value written.
+        /// The leaves whose layout differs by runtime (Int128, nint, nuint, pointers, delegate*, DateTimeOffset) are where
+        /// Nino.Core writes them: each field of the model, read at its offset from .NET's bytes, is the value written.
         /// </summary>
         [TestMethod]
         public unsafe void HostDependentLeavesAreWhereNinoCoreWritesThem()
@@ -103,7 +103,7 @@ namespace Nino.Codegen.Tests
             var bytes = NinoSerializer.Serialize(new Shapes.HostLeaves
             {
                 A = 0xA5, Wide = (System.Int128)long.MinValue * 3, Signed = -3, Unsigned = 0xFFFFFFFE,
-                Pointer = (int*)0x12345678,
+                Pointer = (int*)0x12345678, Callback = (delegate*<int>)(nuint)0x87654321u,
             });
             Assert.AreEqual(bytes.Length, leaves.Size);
             Assert.AreEqual(0xA5, bytes[Field(leaves, "A").Offset]);
@@ -122,6 +122,7 @@ namespace Nino.Codegen.Tests
             Check("Signed", PrimitiveKind.NInt, unchecked((ulong)-3L));
             Check("Unsigned", PrimitiveKind.NUInt, 0xFFFFFFFE);
             Check("Pointer", PrimitiveKind.NUInt, 0x12345678);
+            Check("Callback", PrimitiveKind.NUInt, 0x87654321);
 
             // Int128? at its stride: the flag, then the value at 16.
             var gap = Member("Shapes.HostHolder", "Gaps").Element!;

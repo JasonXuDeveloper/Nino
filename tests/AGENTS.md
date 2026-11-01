@@ -21,7 +21,9 @@ Nino.RuntimeTests/           one program (net10.0; net472 with the netstandard2.
                              inside a raw struct, and tuples and pairs, against CoreCLR x64's bytes both ways
                              (BclFixtures.cs and BclFixtureTypes.cs, linked from Unity's Assets/Test/Runtime, which
                              shares them; `--write-fixtures` rewrites BclFixtures.cs), and each runtime's layout of them
-                             (`# layout` lines; layouts.py turns CI's into docs/layouts.md's tables)
+                             (`# layout` lines; layouts.py turns CI's into docs/layouts.md's tables); FunctionPointers.cs:
+                             a delegate* inside a raw struct, 8 bytes zero-extended (net10.0 only: Mono 6.8 cannot load
+                             such a struct)
 Nino.AotTests/               a program over every kind of type, published trimmed and with NativeAOT (warnings are
                              errors); prints a hash of everything written to compare runs, and checks that the block
                              shuffle keeps its instruction (pshufb) under NativeAOT

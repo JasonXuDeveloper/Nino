@@ -38,6 +38,7 @@ export class HostLeaves {
   signed: bigint = 0n;
   unsigned: bigint = 0n;
   pointer: bigint = 0n;
+  callback: bigint = 0n;
 }
 
 function readHostLeaves(r: NinoReader, at: number): HostLeaves {
@@ -47,6 +48,7 @@ function readHostLeaves(r: NinoReader, at: number): HostLeaves {
   v.signed = r.view.getBigInt64(at + 32, true);
   v.unsigned = r.view.getBigUint64(at + 40, true);
   v.pointer = r.view.getBigUint64(at + 48, true);
+  v.callback = r.view.getBigUint64(at + 56, true);
   return v;
 }
 
@@ -56,6 +58,7 @@ function writeHostLeaves(w: NinoWriter, at: number, v: HostLeaves): void {
   w.view.setBigInt64(at + 32, v.signed, true);
   w.view.setBigUint64(at + 40, v.unsigned, true);
   w.view.setBigUint64(at + 48, v.pointer, true);
+  w.view.setBigUint64(at + 56, v.callback, true);
 }
 
 /** `System.Int128`, copied as raw memory (16 bytes). */

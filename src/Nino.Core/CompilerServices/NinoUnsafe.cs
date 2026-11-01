@@ -826,7 +826,8 @@ namespace Nino.Core.CompilerServices
                                                  System.Reflection.BindingFlags.Public |
                                                  System.Reflection.BindingFlags.NonPublic))
             {
-                if (!IsUnmanaged(field.FieldType))
+                // A function pointer (delegate*) as the UIntPtr it is laid out as.
+                if (!IsUnmanaged(NinoReflection.LayoutFieldType(field)))
                     return false;
             }
 

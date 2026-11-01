@@ -804,8 +804,8 @@ namespace Nino.Codegen.Model
                 return value;
             }
 
-            // A pointer is 8 bytes, zero-extended, as nuint (spec §5.2).
-            if (clr.IsPointer)
+            // A pointer (delegate* too) is 8 bytes, zero-extended, as nuint (spec §5.2).
+            if (clr.IsPointer || clr.IsFunctionPointer)
                 return new ValueModel(ValueKind.Primitive, clr, e.Source) { Primitive = PrimitiveKind.NUInt, Size = 8 };
             if (!clr.IsValueType)
                 return Unsupported(clr, e.Source, NoForm(clr, e.Source));
