@@ -1710,6 +1710,86 @@ public static class Calls
     }
 
     [TestMethod]
+    public async Task NINO029_InBaseTypesAndCollections()
+    {
+        // A type that names no vector itself but whose base type or IEnumerable<T> holds one: NINO029 alone, not
+        // NINO007 (it has no formatter for the same reason). A struct holding a list of itself is searched to the end.
+        var code = @"
+using System.Collections;
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+public class VectorList : List<Vector<int>> { }
+public class Derived : VectorList { }
+public class VectorMap : Dictionary<int, Vector<float>> { }
+public class Bag : IEnumerable<Vector<long>>
+{
+    public void Add(Vector<long> item) { }
+    public IEnumerator<Vector<long>> GetEnumerator() => null;
+    IEnumerator IEnumerable.GetEnumerator() => null;
+}
+public struct Chain { public int A; public List<Chain> Rest; public Vector<int> V; }
+
+[NinoType]
+public class Holder
+{
+    public VectorList {|#0:InBase|};
+    public Derived {|#1:InBaseOfBase|};
+    public VectorMap {|#2:InMapBase|};
+    public Bag {|#3:InEnumerable|};
+    public List<VectorList> {|#4:Nested|};
+    public Chain {|#5:SelfHolding|};
+}
+
+public static class Calls
+{
+    public static void Run() => {|#6:NinoSerializer.Serialize(new VectorList())|};
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Nino029(0, "InBase", "Holder", "VectorList", "System.Numerics.Vector<int>"),
+            Nino029(1, "InBaseOfBase", "Holder", "Derived", "System.Numerics.Vector<int>"),
+            Nino029(2, "InMapBase", "Holder", "VectorMap", "System.Numerics.Vector<float>"),
+            Nino029(3, "InEnumerable", "Holder", "Bag", "System.Numerics.Vector<long>"),
+            Nino029(4, "Nested", "Holder", "System.Collections.Generic.List<VectorList>", "System.Numerics.Vector<int>"),
+            Nino029(5, "SelfHolding", "Holder", "Chain", "System.Numerics.Vector<int>"),
+            Verify.Diagnostic("NINO029").WithLocation(6).WithArguments("The value of this NinoSerializer.Serialize call",
+                "VectorList", "holds 'System.Numerics.Vector<int>'")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO029_NotForBaseTypesWithoutVectors()
+    {
+        // Base types and collections without a Vector<T>, types that hold themselves (searched once, no stack
+        // overflow), and a struct of itself without a formatter, which stays NINO007's.
+        var code = @"
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+public class IntList : List<int> { }
+public class Vector4Map : Dictionary<string, Vector4> { }
+public class Tree : List<Tree> { public int Value; }
+public struct Node { public int A; public List<Node> Children; }
+
+[NinoType]
+public class Holder
+{
+    public IntList Ints;
+    public Vector4Map Map;
+    public Tree Root;
+    public Node {|#0:Graph|};
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO007").WithLocation(0)
+                .WithArguments("Graph", "Node", "Holder", "", "the member is skipped")).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO029_NotForVectorsNinoNeverWrites()
     {
         // The documented workaround: fixed lanes stored, the Vector<T> exposed through [NinoIgnore] members. Neither

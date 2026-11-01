@@ -15,6 +15,11 @@ public struct Around<T>
     public int C;
 }
 
+/// <summary>A collection whose base type holds Vector&lt;T&gt;: refused like the list it derives from.</summary>
+public class VectorList : List<System.Numerics.Vector<int>>
+{
+}
+
 public enum Tag : byte
 {
     A = 1,
@@ -96,6 +101,9 @@ public static class BclStructs
         Console.WriteLine($"# Vector<float>.Count {System.Numerics.Vector<float>.Count}");
         Refused("Vector<int>", new System.Numerics.Vector<int>(7));
         Refused("Around<Vector<int>>[]", new[] { new Around<System.Numerics.Vector<int>> { A = 1, C = -1 } });
+        Refused("VectorList", new VectorList { new System.Numerics.Vector<int>(7) });
+        RefusedByHand("Vector<int> by hand", new System.Numerics.Vector<int>(7));
+        RefusedByHand("Around<Vector<long>> by hand", new Around<System.Numerics.Vector<long>> { A = 1, C = -1 });
         Top("LaneParticle", LaneParticle.Doubled(3));
 #if NET8_0_OR_GREATER
         // .NET only (the net472 build has none of these): checked against the fixtures, printed as comments so the
@@ -196,6 +204,48 @@ public static class BclStructs
             {
                 NinoDeserializer.Deserialize<T>(new byte[64]);
 #pragma warning restore NINO029
+                outcome = "READ";
+            }
+            catch (NotSupportedException)
+            {
+                outcome = "refused";
+            }
+            catch (Exception e)
+            {
+                outcome = "READ THREW " + e.GetType().Name;
+            }
+        }
+        catch (Exception e)
+        {
+            outcome = "WRITE THREW " + e.GetType().Name;
+        }
+
+        if (outcome != "refused")
+            Failed++;
+        Console.WriteLine($"bcl {name,-44} {outcome}");
+    }
+
+    /// <summary>
+    /// The same refusal without the resolver: an <see cref="UnmanagedFormatter{T}"/> made by hand writes and reads
+    /// <typeparamref name="T"/> through its layout, which throws <see cref="NotSupportedException"/> for it on every
+    /// runtime (never from the layout's initializer, which Mono runs when the calling method is compiled).
+    /// </summary>
+    private static void RefusedByHand<T>(string name, T value) where T : unmanaged
+    {
+        string outcome;
+        try
+        {
+            var writer = new Writer(new NinoArrayBufferWriter());
+            new UnmanagedFormatter<T>().Serialize(value, ref writer);
+            outcome = "WRITTEN";
+        }
+        catch (NotSupportedException)
+        {
+            try
+            {
+                var reader = new Reader(new byte[64]);
+                T read = default;
+                new UnmanagedFormatter<T>().Deserialize(ref read, ref reader);
                 outcome = "READ";
             }
             catch (NotSupportedException)

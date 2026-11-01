@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
@@ -81,28 +82,33 @@ namespace Nino.Core.Internal
             return false;
         }
 
-        /// <summary>Why reading the fields and type arguments of a runtime type is safe after trimming.</summary>
+        /// <summary>Why reading the fields and interfaces of a runtime type is safe after trimming.</summary>
         private const string VectorJustification =
             "Looks for System.Numerics.Vector<T> in the instance fields of a struct the program uses (the trimmer " +
-            "keeps every instance field of a sequential or explicit struct; where field metadata is missing, as under " +
-            "NativeAOT for a struct generated code never named, the struct is not refused here and its layout is " +
-            "copied as it lies in memory, as on any reflection failure of NinoLayout).";
+            "keeps every instance field of a sequential or explicit struct) and in the IEnumerable<T> a collection " +
+            "implements. Where that metadata is missing (a trimmed interface, a struct generated code never named " +
+            "under NativeAOT), the type is not refused here: a collection's elements are refused when their formatter " +
+            "is resolved, and a struct's layout is copied as it lies in memory, as on any reflection failure of " +
+            "NinoLayout.";
 
         /// <summary>
         /// The <c>System.Numerics.Vector&lt;T&gt;</c> that <paramref name="type"/> is or holds, or null: as an array
-        /// element, a type argument of a type that is not a <c>[NinoType]</c>, or a field (at any depth) of a struct that
-        /// is not one. <c>Vector&lt;T&gt;</c> is as wide as the CPU's vectors (16 bytes on Arm64, Mono, IL2CPP and x64
-        /// without AVX2, 32 with AVX2, 64 with <c>DOTNET_MaxVectorTBitWidth=512</c>), so no layout of it reads on every
-        /// host, and Nino serializes no type that holds one (docs/spec/wire-format.md §3). <c>[NinoType]</c>s are left
-        /// to their generated formatters, which skip such members (NINO029) and resolve the formatters of their type
-        /// arguments, refused there, when first used. The generator's rule is <c>TypeFacts.VariableVectorIn</c>.
+        /// element, a type argument, a base type or the element of an <c>IEnumerable&lt;T&gt;</c> of a type that is not
+        /// a <c>[NinoType]</c>, or a field (at any depth) of a struct that is not one. <c>Vector&lt;T&gt;</c> is as wide
+        /// as the CPU's vectors (16 bytes on Arm64, Mono, IL2CPP and x64 without AVX2, 32 with AVX2, 64 with
+        /// <c>DOTNET_MaxVectorTBitWidth=512</c>), so no layout of it reads on every host, and Nino serializes no type
+        /// that holds one (docs/spec/wire-format.md §3). <c>[NinoType]</c>s are left to their generated formatters,
+        /// which skip such members (NINO029) and resolve the formatters of their type arguments, refused there, when
+        /// first used. The generator's rule is <c>RawRules.VariableVectorIn</c>.
         /// </summary>
         public static Type VariableVectorIn(Type type) => VariableVectorIn(type, null);
 
         /// <summary>
         /// Throws <see cref="NotSupportedException"/> when <paramref name="type"/> is or holds <c>Vector&lt;T&gt;</c>
-        /// (<see cref="VariableVectorIn(Type)"/>): called where a formatter or a layout is first resolved, never per value.
+        /// (<see cref="VariableVectorIn(Type)"/>): called where a formatter is first resolved, and by the converted paths
+        /// of <see cref="NinoLayout{T}"/> for such a type only (code that skipped the resolver); out of line.
         /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static void RefuseVariableVector(Type type)
         {
             if (VariableVectorIn(type) is { } vector)
@@ -136,6 +142,18 @@ namespace Nino.Core.Internal
                     if (VariableVectorIn(argument, seen ??= new HashSet<Type> { type }) is { } found)
                         return found;
                 }
+            }
+
+            // What a collection formatter writes of a type that names no vector itself: its base type's
+            // (class Lanes : List<Vector<int>>) and the elements of the IEnumerable<T> it implements.
+            if (!type.IsValueType && type.BaseType is { } baseType && baseType != typeof(object) &&
+                VariableVectorIn(baseType, seen ??= new HashSet<Type> { type }) is { } inBase)
+                return inBase;
+            foreach (var face in type.GetInterfaces())
+            {
+                if (face.IsGenericType && face.GetGenericTypeDefinition() == typeof(IEnumerable<>) &&
+                    VariableVectorIn(face.GetGenericArguments()[0], seen ??= new HashSet<Type> { type }) is { } inElements)
+                    return inElements;
             }
 
             if (!type.IsValueType || type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
