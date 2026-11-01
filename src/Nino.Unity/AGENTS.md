@@ -38,8 +38,9 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
                              no interceptors), RuntimePathsInEditMode
   Runtime/                   RuntimePathsTests (CollectionViews, ObjectTypes.Retype, SortedSetNodes, ReadLinked,
                              ConcurrentTables against the public API), BclLayoutTests (BCL structs in raw structs, and
-                             tuples and pairs, against CoreCLR's bytes from tests/Nino.RuntimeTests/BclFixtures.cs; logs
-                             this runtime's tuple layouts), run in play mode and in the IL2CPP player
+                             tuples and pairs, Vector<T>, against CoreCLR's bytes from tests/Nino.RuntimeTests/BclFixtures.cs;
+                             a [NinoRaw] formatter of the user's bound at run time by the marks its registry
+                             registers; logs this runtime's layouts), run in play mode and in the IL2CPP player
   Runtime/Burst/             BurstKernelTests (the kernels against the scalar paths, byte for byte; asserts the pointer
                              calls), BurstBenchmark (only in the release benchmark's player: NINO_UNITY_BENCH) and its
                              BenchClasses (SimpleClass, as in the .NET suite)

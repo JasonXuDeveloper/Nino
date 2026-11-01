@@ -68,9 +68,17 @@ Before treating a BCL struct as raw, verify its layout on every runtime:
   copied as it is.
 - `nint`, `nuint` and pointers inside a raw struct are 8 bytes on the wire on every host (sign- or zero-extended on
   32-bit; a value that does not fit a 32-bit host's field is rejected there).
-- `Vector64/128/256/512<T>` are laid out by their fields (two `ulong`s per 16 bytes, aligned to 8): CoreCLR aligns
-  `Vector128` to 16 and `Vector256` to 32 (16 on Arm64), so a raw struct holding one after a smaller field is
-  converted there. `Vector<T>` has the size of the CPU's vectors: a struct holding one is not portable at all.
+- `Vector<T>` has the size of the CPU's vectors: 32 bytes on x64 with AVX2 or AVX-512 (the default; check
+  `DOTNET_PreferredVectorBitWidth` and `DOTNET_MaxVectorTBitWidth`, which can make it 64), 16 on Arm64, on x64 without
+  AVX2, on Mono and on IL2CPP. Nino once measured it by its declared fields (two `ulong`s) and wrote 16 bytes, silently
+  dropping the upper half on AVX2 machines. It is now 32 bytes on the wire everywhere (aligned to 8, x64's layout,
+  copied there): a 16-byte host zero-extends on write and rejects a value with bytes 16 to 31 set on read
+  (`NinoDataException`), a 64-byte host writes its low 32 bytes and refuses to write a value with upper bytes set
+  (`InvalidOperationException`). Data written on x64 with lanes in the upper half cannot be read on Arm64: write an
+  array of the lanes when every host must read it.
+- `Vector64/128/256/512<T>` are aligned to their size inside raw structs, as x64 CoreCLR does; Arm64 aligns
+  `Vector256` and `Vector512` to 16 and Arm32 every one to 8, so a raw struct holding one after a smaller field is
+  converted there.
 - docs/layouts.md has the measured layout of every BCL struct on every runtime CI has.
 
 ### Alignment on 32-bit platforms
@@ -104,7 +112,12 @@ from its fields:
   puts the `int` first, 16 bytes on x64), which no alignment model describes: there (and wherever the model misses
   a type's size) the offsets are read from an instance, each field's value copied out by reflection from bytes set
   to their own offsets.
-- `nint`/`nuint` are always written as 8 bytes, inside raw structs too.
+- `nint`/`nuint` are always written as 8 bytes, inside raw structs too, and `Vector<T>` as 32: where this host's
+  field is another width, the conversion sign- or zero-extends it, and rejects what does not fit.
+- The 64-bit path pays nothing for the others: whether a type is copied or converted is a `static readonly` bool
+  (`NinoLayout<T>.IsCanonical`, `CopiesAsIs`, `HasPadding`, `Size`) computed once before Tier1, which the JIT folds,
+  so the Tier1 code of a raw array, list or value on x64 holds no layout check at all (checked with JitDisasm:
+  `NinoLayout<T>.Size` compiles to `mov eax, 32`). Mono, IL2CPP, NativeAOT and Tier0 read the flag.
 
 The generator only puts struct members into unmanaged blocks when their layout is the same under every
 model, so generated code never depends on the runtime's layout.

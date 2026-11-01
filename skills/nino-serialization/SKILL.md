@@ -299,7 +299,10 @@ data is silently dropped or an attribute does nothing: never suppress NINO006 or
 
 - A bare `[NinoType]` is positional: adding, removing or reordering members breaks stored data (throws, or worse,
   wrong values). Pick `VersionTolerant` or `Keyed` before shipping anything stored or exchanged across versions.
-- Raw structs: reordering fields or changing `StructLayout` changes the bytes.
+- Raw structs: reordering fields or changing `StructLayout` changes the bytes. Their layout is 64-bit CoreCLR's on
+  every runtime (Mono, IL2CPP, .NET Framework and 32-bit hosts convert), so data moves between them.
+- `Vector<T>` is 32 bytes on the wire (x64 with AVX2); hosts with 16-byte vectors (Arm64, Unity) reject one whose
+  upper lanes are set. Store lanes as an array when every host must read them.
 - `Serialize<object>`, `object` members and the boxed API in message code: use a common `[NinoType]` base.
 - Write and read with the same declared type: `Serialize<Base>` then `Deserialize<Base>`.
 - `int?[]` / `List<int?>` and `IList<int?>` write different bytes; so do `[NinoUtf8]` and the default.
