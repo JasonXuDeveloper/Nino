@@ -36,13 +36,20 @@ namespace Test.Runtime
             var failed = new List<string>();
             void Check<T>(string name, T value, string hex)
             {
-                var expected = Hex(hex);
-                byte[] bytes = NinoSerializer.Serialize(value);
-                if (!bytes.SequenceEqual(expected))
-                    failed.Add($"{name} writes {BitConverter.ToString(bytes)}");
-                byte[] again = NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(expected));
-                if (!again.SequenceEqual(expected))
-                    failed.Add($"{name} reads back as {BitConverter.ToString(again)}");
+                try
+                {
+                    var expected = Hex(hex);
+                    byte[] bytes = NinoSerializer.Serialize(value);
+                    if (!bytes.SequenceEqual(expected))
+                        failed.Add($"{name} writes {BitConverter.ToString(bytes)}");
+                    byte[] again = NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(expected));
+                    if (!again.SequenceEqual(expected))
+                        failed.Add($"{name} reads back as {BitConverter.ToString(again)}");
+                }
+                catch (Exception e)
+                {
+                    failed.Add($"{name}: {e.GetType().Name}: {e.Message}");
+                }
             }
 
             Check("Around<(int,long)>[]", new[] { new Around<(int, long)> { A = 1, B = (-1, long.MinValue), C = -1 }, new Around<(int, long)> { A = 0xFE, B = (2, 0x0102030405060708), C = int.MaxValue } }, "0200000001000000000000000000000000000080FFFFFFFF00000000FFFFFFFF00000000FE0000000000000008070605040302010200000000000000FFFFFF7F00000000");
@@ -80,7 +87,9 @@ namespace Test.Runtime
             var c = default((byte, long, int));
             var views = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.ValueViews");
             string Field(string name) => views?.GetField(name, BindingFlags.Static | BindingFlags.Public)?.GetValue(null)?.ToString();
-            return $"(int,long) {Unsafe.SizeOf<(int, long)>()}: {Offset(ref a, ref a.Item1)},{Offset(ref a, ref a.Item2)}; " +
+            var marks = typeof(NinoSerializer).Assembly.GetType("Nino.Core.NinoParameterMarks");
+            return $"attributes of generic parameters visible: {marks?.GetField("Visible", BindingFlags.Static | BindingFlags.NonPublic)?.GetValue(null)}; " +
+                   $"(int,long) {Unsafe.SizeOf<(int, long)>()}: {Offset(ref a, ref a.Item1)},{Offset(ref a, ref a.Item2)}; " +
                    $"(byte,short) {Unsafe.SizeOf<(byte, short)>()}: {Offset(ref b, ref b.Item1)},{Offset(ref b, ref b.Item2)}; " +
                    $"(byte,long,int) {Unsafe.SizeOf<(byte, long, int)>()}: {Offset(ref c, ref c.Item1)},{Offset(ref c, ref c.Item2)},{Offset(ref c, ref c.Item3)}; " +
                    $"KVP<int,long> {Unsafe.SizeOf<KeyValuePair<int, long>>()}; " +

@@ -81,6 +81,8 @@ NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (register
                              NinoMissingFormatter<T> (the never-null stand-in of a type without one)
 NinoFormatterResolver.cs     builds formatter types by reflection for unregistered types, applying the
                              [NinoFormatter] registrations with the generator's rules
+NinoParameterMarks.cs        what a formatter's type parameters require ([NinoRaw], unmanaged, [NinoCreated]): their
+                             attributes, or a table of Nino.Core's own where the runtime drops them (IL2CPP)
 BuiltInFormatters.cs         the [assembly: NinoFormatter] table of the BCL formatters below (generator and resolver read it)
 BoxedFormatter.cs            BoxedFormatter: NinoFormatterCache<T> for a runtime Type (the Boxed APIs)
 PrimitiveFormatters.cs       UnmanagedFormatter<T> (raw bytes), RawValueFormatter<T>, IntPtr / UIntPtr (8 bytes),
