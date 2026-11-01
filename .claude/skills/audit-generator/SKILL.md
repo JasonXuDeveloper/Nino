@@ -21,6 +21,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   `tests/Nino.UnitTests/Corner/ShapeMatrixTests.cs`, so it is compiled and round-tripped with every other one.
 - Generated registration code may call back into Nino.Core (`NinoPolymorphic.Register(Type)`), which asks every
   registry again: anything a registry calls must be re-entrant (`NinoRegistry.RegisterType` guards it per thread).
+- Register every closed type a public `NinoSerializer` / `NinoDeserializer` method names, by type argument or by
+  `typeof` argument: a new such method goes into `NinoGenerator.NamesType` (the syntax filter) and is covered by
+  `IncrementalGeneratorTests.EveryCallThatNamesATypeRegistersIt` and a case in `tests/Nino.AotTests`. Native AOT
+  cannot close a generic formatter at run time, and the JIT hides the gap: `GetFixedSize<Pair<int, short>>()` and
+  `SerializeBoxed(v, typeof(Pair<int, long>))` threw "no formatter" only after `PublishAot` until the filter matched
+  more than `Serialize` and `Deserialize`. A generic `[NinoType]` is never of fixed size (`TypeFacts.IsFixedSize`):
+  `GetFixedSize` of one is -1 on every runtime.
 - Registration works without module initializers (HybridCLR, `platforms`); interceptors are always on with Roslyn
   4.8+ and the regular entry points must agree with them (the `-p:NinoRegularCalls=true` run of `verify`).
 - Partial, nested, generic, record, struct, abstract and interface types, types in other assemblies, and every

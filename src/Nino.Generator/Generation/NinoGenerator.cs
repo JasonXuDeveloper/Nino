@@ -111,10 +111,11 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 x.Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)))
             .WithTrackingName("RegistryEntries");
 
-        // The top-level NinoSerializer/NinoDeserializer calls, bound once for what they register and (Roslyn 4.8+)
-        // how they are intercepted. Narrowed by syntax first (binding every Serialize call of other libraries on each
-        // edit is not free), to the receivers that may name them: NinoSerializer or NinoDeserializer, an identifier
-        // (a using alias), or none (using static); the bound method decides.
+        // The top-level NinoSerializer/NinoDeserializer calls that name a type (Serialize, Deserialize, GetFixedSize<T>,
+        // and the boxed methods and IsSupported given a typeof), bound once for what they register and (Roslyn 4.8+,
+        // Serialize and Deserialize) how they are intercepted. Narrowed by syntax first (binding every Serialize call of
+        // other libraries on each edit is not free), to the receivers that may name them: NinoSerializer or
+        // NinoDeserializer, an identifier (a using alias), or none (using static); the bound method decides.
         var calls = context.SyntaxProvider.CreateSyntaxProvider(
                 static (node, _) => node is InvocationExpressionSyntax invocation && MayCallNino(invocation),
                 static (ctx, ct) => TransformCall(ctx, ct))
@@ -249,21 +250,44 @@ public sealed class NinoGenerator : IIncrementalGenerator
             order(x.Left.SelectMany(fromUsage).Concat(x.Right.SelectMany(static a => a)).Distinct())));
 
     /// <summary>
-    /// Whether <paramref name="invocation"/> may call <c>NinoSerializer.Serialize</c> or
-    /// <c>NinoDeserializer.Deserialize</c>, from syntax alone: the method is named so, and is called on a type named
+    /// Whether <paramref name="invocation"/> may call a <c>NinoSerializer</c> / <c>NinoDeserializer</c> method that
+    /// names a type (<see cref="NamesType"/>), from syntax alone: the method is named so, and is called on a type named
     /// <c>NinoSerializer</c> or <c>NinoDeserializer</c> (qualified or not), on an identifier (which may be a
     /// <c>using</c> alias of one, declared in any file), or without a receiver (<c>using static</c>).
     /// </summary>
     private static bool MayCallNino(InvocationExpressionSyntax invocation) => invocation.Expression switch
     {
         MemberAccessExpressionSyntax { Name: var name, Expression: var receiver } =>
-            IsTopLevelMethod(name) && (receiver is IdentifierNameSyntax || IsNinoReceiver(receiver)),
-        SimpleNameSyntax name => IsTopLevelMethod(name),
+            NamesType(name, invocation.ArgumentList) && (receiver is IdentifierNameSyntax || IsNinoReceiver(receiver)),
+        SimpleNameSyntax name => NamesType(name, invocation.ArgumentList),
         _ => false,
     };
 
-    private static bool IsTopLevelMethod(SimpleNameSyntax name) =>
-        name.Identifier.ValueText is "Serialize" or "Deserialize";
+    /// <summary>
+    /// Whether a call of <paramref name="name"/> names, from syntax, the type it needs a formatter for: by type
+    /// argument (<c>Serialize</c> and <c>Deserialize</c>, inferred or not, and <c>GetFixedSize&lt;T&gt;</c>), or by a
+    /// <c>typeof</c> argument (<c>SerializeBoxed</c>, <c>DeserializeBoxed</c> and <c>IsSupported</c>; one given a
+    /// <see cref="Type"/> computed at run time names nothing, and is not bound).
+    /// </summary>
+    private static bool NamesType(SimpleNameSyntax name, ArgumentListSyntax arguments) => name.Identifier.ValueText switch
+    {
+        "Serialize" or "Deserialize" => true,
+        "GetFixedSize" => name is GenericNameSyntax,
+        "SerializeBoxed" or "DeserializeBoxed" or "IsSupported" => TypeOfArgument(arguments) != null,
+        _ => false,
+    };
+
+    /// <summary>The first <c>typeof</c> argument of a call, or null.</summary>
+    private static TypeOfExpressionSyntax? TypeOfArgument(ArgumentListSyntax arguments)
+    {
+        foreach (var argument in arguments.Arguments)
+        {
+            if (argument.Expression is TypeOfExpressionSyntax typeOf)
+                return typeOf;
+        }
+
+        return null;
+    }
 
     private static bool IsNinoReceiver(ExpressionSyntax receiver)
     {
@@ -311,7 +335,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
     private static TopLevelCall? TransformCall(GeneratorSyntaxContext ctx, CancellationToken ct)
     {
-        if (ctx.SemanticModel.GetSymbolInfo(ctx.Node, ct).Symbol is not IMethodSymbol { IsGenericMethod: true } method)
+        if (ctx.SemanticModel.GetSymbolInfo(ctx.Node, ct).Symbol is not IMethodSymbol method)
             return null;
         var options = ctx.SemanticModel.SyntaxTree.Options;
         var facts = TypeFacts.For(ctx.SemanticModel.Compilation, options);
@@ -319,11 +343,24 @@ public sealed class NinoGenerator : IIncrementalGenerator
         if (!SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Serializer) &&
             !SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer))
             return null;
-        return ModelCache.GetOrBuildCall(ctx.Node, method, ctx.SemanticModel.Compilation, () =>
+        // The type the call needs a formatter for: its type argument, or the type of its typeof argument (the boxed
+        // methods and IsSupported).
+        ITypeSymbol? type = method.IsGenericMethod
+            ? method.TypeArguments[0]
+            : TypeOfArgument(((InvocationExpressionSyntax)ctx.Node).ArgumentList) is { } typeOf
+                ? ctx.SemanticModel.GetTypeInfo(typeOf.Type, ct).Type
+                : null;
+        if (type is null or { TypeKind: TypeKind.Error or TypeKind.Pointer or TypeKind.FunctionPointer } or
+            { SpecialType: SpecialType.System_Void } or INamedTypeSymbol { IsUnboundGenericType: true })
+            return null;
+        return ModelCache.GetOrBuildCall(ctx.Node, method, type, ctx.SemanticModel.Compilation, () =>
         {
-            var usage = TransformUsage(method, facts);
+            var usage = TransformUsage(type, facts);
 #if ROSLYN4_8
-            var intercepted = Interceptors.Enabled(options) ? Interceptors.Transform(ctx, method, facts, ct) : null;
+            // Only Serialize and Deserialize have NinoDirect counterparts to intercept with.
+            var intercepted = method.Name is "Serialize" or "Deserialize" && Interceptors.Enabled(options)
+                ? Interceptors.Transform(ctx, method, facts, ct)
+                : null;
 #else
             InterceptedCall? intercepted = null;
 #endif
@@ -331,9 +368,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
         });
     }
 
-    private static UsageRegistration? TransformUsage(IMethodSymbol method, TypeFacts facts)
+    private static UsageRegistration? TransformUsage(ITypeSymbol type, TypeFacts facts)
     {
-        var type = method.TypeArguments[0];
         if (TypeNames.ContainsTypeParameter(type))
             return null;
         var generics = new List<TypeRegistration>();

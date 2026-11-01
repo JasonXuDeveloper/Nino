@@ -211,6 +211,8 @@ jobs:
           } > "$RUNNER_TEMP/header.md"
           # The notes script of main, not of the tag: fixes to it apply to a release published again.
           git fetch -q origin main && git show origin/main:.github/scripts/release_notes.py > "$RUNNER_TEMP/release_notes.py"
+          # Corrected highlight trailers: the notes of refs/notes/release, kept on the branch release-notes (release_notes.py).
+          git fetch -q origin refs/heads/release-notes:refs/notes/release || true
           python3 "$RUNNER_TEMP/release_notes.py" --tag "v$VERSION" ${NOTES_SINCE:+--since "$NOTES_SINCE"} \
             --header "$RUNNER_TEMP/header.md" --out "$RUNNER_TEMP/notes.md"
           gh release create "v$VERSION" artifacts/*."$VERSION".nupkg --verify-tag --title "v$VERSION" \

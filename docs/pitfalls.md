@@ -46,27 +46,38 @@ Before treating a BCL struct as raw, verify its layout on every runtime:
 - `decimal`: 16 bytes with the same byte order everywhere, but CoreCLR declares
   `int _flags; uint _hi32; ulong _lo64` (alignment 8) while Mono/IL2CPP declare four ints (alignment 4).
   So `struct { int a; decimal d; }` puts `d` at 8 on CoreCLR and at 4 on Unity.
-- `DateTimeOffset`: `DateTime` plus a `short`, so 6 bytes of padding and a different size on x86. Nino writes
+- `DateTimeOffset`: `DateTime` plus a `short`, so 6 bytes of padding and a different size on x86 (16 bytes on x64,
+  12 on Windows x86 .NET 10). Nino writes
   it as UTC ticks plus offset minutes (10 bytes), never raw.
 - `Nullable<T>`, `ValueTuple`, `KeyValuePair`: never raw (see above). A raw `[NinoType]` struct requires all
-  of its fields to be raw, so a struct holding one of these is written member by member.
+  of its fields to be raw, so a struct holding one of these is written member by member. A plain struct (no
+  `[NinoType]`) is raw as a whole: `Nullable<T>` and `KeyValuePair` inside it are sequential and converted like
+  any field, but a `ValueTuple` or `DateTimeOffset` inside it (auto layout, several fields) has no layout Nino
+  can measure, so the struct is copied as it lies in memory, and runtimes lay those out differently (Mono puts a
+  tuple's `Item1` first where .NET puts the `long` first; .NET 10's `DateTimeOffset` starts with its offset).
+  Mark such a struct `[NinoType]`.
 
 ### Alignment on 32-bit platforms
 
 The raw layout of a struct depends on the alignment the platform gives each field:
 
-| Platform | `long`/`double` alignment inside structs | `nint`/pointer size |
+| Platform | Alignment of 8-byte fields inside structs | `nint`/pointer size |
 | --- | --- | --- |
 | x64, arm64 (CoreCLR, Mono, IL2CPP) | 8 | 8 |
-| armv7, wasm32 (IL2CPP/WebGL), Windows x86 MSVC (IL2CPP) | 8 | 4 |
-| x86 CoreCLR / Mono managed layout | 4 | 4 |
+| armv7 (CoreCLR, IL2CPP), wasm32 (IL2CPP/WebGL), Windows x86 MSVC (IL2CPP) | 8 | 4 |
+| Windows x86 CoreCLR (.NET 10) | 8 for a `long` or `double` field and for a field of a sequential struct that holds one (`TimeSpan`, `decimal`, `Nullable<long>`, your own structs); 4 for a field of an auto-layout struct (`DateTime`, `ValueTuple`, `DateTimeOffset`) and for every 8-byte field inside one | 4 |
+| x86 Mono, Linux x86 CoreCLR | not verified | 4 |
 
-So `struct { int a; long b; }` is 16 bytes on x64 and 12 bytes on x86 .NET/Mono. MemoryPack copies such
-structs as they are, so its data is not portable between these platforms.
+The CoreCLR rows are the layouts crossgen2 10.0.14 compiles against for each target (`Unsafe.SizeOf<T>()`
+folds to a constant in its listing): on Windows x86, `struct { int a; long b; }` is 16 bytes as on x64 and
+linux-arm, but `struct { int a; DateTime b; }` is 12 (16 on x64) and `(int, long)` is 12 (16 on x64 and
+linux-arm). crossgen2 has no Linux x86 JIT, and 32-bit Mono was not run, so those are not verified. MemoryPack
+copies such values as they are, so its data is not portable between these platforms.
 
 Nino's wire layout for raw types is the **canonical** layout: the one 64-bit CoreCLR uses (primitives aligned
 to their size, `decimal` aligned to 8, `Int128` to 16). `NinoLayout` measures the runtime once with probe structs
-(`{byte; long}`, `{byte; decimal}` and `{byte; Int128}`) and derives each type's memory layout from its fields:
+(`{byte; long}`, `{byte; DateTime}`, `{byte; decimal}` and `{byte; Int128}`) and derives each type's memory layout
+from its fields:
 
 - Where it equals the canonical layout (every 64-bit runtime except for structs with a misaligned
   `decimal` on Mono/IL2CPP, and most 32-bit ones), values are copied as raw memory. The check is a

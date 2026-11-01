@@ -17,8 +17,11 @@ namespace Nino.Core.Internal
     /// <summary>
     /// Layout of raw-copied unmanaged types. The wire format of such a type is its <b>canonical</b> layout: the one
     /// CoreCLR uses on 64-bit (every primitive aligned to its size, <c>decimal</c> aligned to 8), padding zeroed.
-    /// Runtimes that lay the type out differently (x86 aligns 8-byte primitives to 4; Mono and IL2CPP align
-    /// <c>decimal</c> to 4) are detected once, and their values are converted field by field instead of copied.
+    /// Runtimes that lay the type out differently are detected once by probe structs, and their values are converted
+    /// field by field instead of copied: Mono on 32-bit x86 aligns 8-byte primitives to 4; .NET on
+    /// 32-bit x86 aligns <c>long</c>, <c>double</c> and sequential structs holding them (<c>TimeSpan</c>, <c>decimal</c>)
+    /// to 8 but <c>DateTime</c>, an auto-layout struct, to 4 (<c>{ int; DateTime }</c> is 12 bytes there, 16 on 64-bit);
+    /// Mono and IL2CPP align <c>decimal</c> to 4; Arm32 and .NET 7 align <c>Int128</c> to 8.
     /// </summary>
     internal static class NinoLayout
     {
@@ -38,8 +41,22 @@ namespace Nino.Core.Internal
 #pragma warning restore CS0649
         }
 
+        private struct DateTimeProbe
+        {
+#pragma warning disable CS0649
+            public byte A;
+            public DateTime B;
+#pragma warning restore CS0649
+        }
+
         /// <summary>Alignment of 8-byte primitives inside structs on this runtime.</summary>
         private static readonly int LongAlign = Unsafe.SizeOf<LongProbe>() - 8;
+
+        /// <summary>
+        /// Alignment of <c>DateTime</c> inside structs on this runtime: 4 on 32-bit x86 .NET, where <see cref="LongAlign"/>
+        /// is 8 (<c>DateTime</c> is an auto-layout struct, and those are aligned to the pointer size as fields there).
+        /// </summary>
+        private static readonly int DateTimeAlign = Unsafe.SizeOf<DateTimeProbe>() - 8;
 
         /// <summary>Alignment of <c>decimal</c> inside structs on this runtime.</summary>
         private static readonly int DecimalAlign = Unsafe.SizeOf<DecimalProbe>() - 16;
@@ -124,7 +141,7 @@ namespace Nino.Core.Internal
         {
             try
             {
-                return Compute(type, runtimeSize, LongAlign, DecimalAlign);
+                return Compute(type, runtimeSize, LongAlign, DecimalAlign, WideAlign, DateTimeAlign);
             }
             catch
             {
@@ -133,17 +150,26 @@ namespace Nino.Core.Internal
             }
         }
 
-        /// <summary>Layout info as a runtime with the given alignments would see it (exposed for tests).</summary>
-        internal static Info Compute(Type type, int runtimeSize, int longAlign, int decimalAlign, int wideAlign = 0)
+        /// <summary>
+        /// Layout info as a runtime with the given alignments would see it (exposed for tests); 0 for
+        /// <paramref name="wideAlign"/> or <paramref name="dateTimeAlign"/> is this runtime's.
+        /// </summary>
+        internal static Info Compute(Type type, int runtimeSize, int longAlign, int decimalAlign, int wideAlign = 0,
+            int dateTimeAlign = 0)
         {
             var wire = new List<NinoLayoutCore.Leaf>();
             var memory = new List<NinoLayoutCore.Leaf>();
             if (wideAlign == 0)
                 wideAlign = WideAlign;
+            if (dateTimeAlign == 0)
+                dateTimeAlign = DateTimeAlign;
+            // A size other than the runtime's means a layout rule this model lacks: the value is then copied as it
+            // lies in memory, which other runtimes may lay out differently. tests/Nino.RuntimeTests checks the
+            // canonical bytes on every runtime CI has (x86 and Arm32 included).
             if (!NinoLayoutCore.Measure<Type, RuntimeView>(default, type, 8, 8, IntPtr.Size, 0, wire,
-                    out int wireSize, out int wireAlign, null, 16) ||
+                    out int wireSize, out int wireAlign, null, 16, 8) ||
                 !NinoLayoutCore.Measure<Type, RuntimeView>(default, type, longAlign, decimalAlign, IntPtr.Size, 0,
-                    memory, out int memorySize, out _, null, wideAlign) ||
+                    memory, out int memorySize, out _, null, wideAlign, dateTimeAlign) ||
                 (runtimeSize >= 0 && memorySize != runtimeSize) || wire.Count != memory.Count)
                 return new Info { Size = runtimeSize };
 
@@ -231,7 +257,7 @@ namespace Nino.Core.Internal
             // The offsets of its own fields in memory, in the order RuntimeView.Struct lists them.
             var offsets = new List<int>();
             if (!NinoLayoutCore.Measure<Type, RuntimeView>(default, type, LongAlign, DecimalAlign, IntPtr.Size, 0,
-                    new List<NinoLayoutCore.Leaf>(), out _, out _, offsets))
+                    new List<NinoLayoutCore.Leaf>(), out _, out _, offsets, WideAlign, DateTimeAlign))
                 return false;
             var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (fields.Length != offsets.Count)
@@ -339,7 +365,9 @@ namespace Nino.Core.Internal
                     type = Enum.GetUnderlyingType(type);
                 if (type == typeof(decimal))
                     return NinoLeaf.Decimal;
-                if (type == typeof(DateTime) || type == typeof(TimeSpan))
+                if (type == typeof(DateTime))
+                    return NinoLeaf.DateTime;
+                if (type == typeof(TimeSpan))
                     return NinoLeaf.Size8;
                 if (type == typeof(Guid))
                     return NinoLeaf.Guid;

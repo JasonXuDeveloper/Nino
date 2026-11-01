@@ -113,6 +113,10 @@ public class Box<T>
     public List<T> Items;
 }
 
+// Closed only by GetFixedSize<T>, the boxed methods and IsSupported (with typeof): the generator registers those too.
+[NinoType]
+public record struct Pair<TKey, TValue>(TKey Key, TValue Value);
+
 [NinoType(format: NinoFormat.Keyed)]
 public class KeyedThing
 {
@@ -294,6 +298,14 @@ public static class Program
         var boxed = NinoSerializer.SerializeBoxed(new Circle { Radius = 6 }, typeof(Shape));
         var ub = NinoDeserializer.DeserializeBoxed(boxed, typeof(Shape));
         Check(ub is Circle { Radius: 6 }, "boxed serialize/deserialize");
+
+        // A generic [NinoType] is never of fixed size (-1, as on the JIT); before, NativeAOT threw "no formatter".
+        Check(NinoSerializer.GetFixedSize<Pair<int, short>>() == -1, "GetFixedSize of a closed generic NinoType");
+        var pb = NinoSerializer.SerializeBoxed(new Pair<int, long>(1, 2), typeof(Pair<int, long>));
+        Check(NinoDeserializer.DeserializeBoxed(pb, typeof(Pair<int, long>)) is Pair<int, long> { Key: 1, Value: 2 },
+            "boxed calls of a closed generic NinoType");
+        Check(NinoSerializer.IsSupported(typeof(Pair<byte, byte>)), "IsSupported of a closed generic NinoType");
+        AllBytes.Write(pb);
 
         var lst = NinoDeserializer.Deserialize<List<Dictionary<string, int[]>>>(Ser(new List<Dictionary<string, int[]>> { new() { ["q"] = new[] { 1 } } }));
         Check(lst[0]["q"][0] == 1, "top-level nested built-in collections");

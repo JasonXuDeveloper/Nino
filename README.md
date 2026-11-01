@@ -50,7 +50,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 ## Why Nino
 
 - **Faster than MemoryPack.** Serializing classes and polymorphic types is <!--bench:ser.range-->3.5–6.8<!--/bench-->× faster. Deserializing them is
-  <!--bench:deser.range-->1.3–1.9<!--/bench-->× faster, and raw struct arrays are at least on par (a block copy in both).
+  <!--bench:deser.range-->1.3–1.9<!--/bench-->× faster, and raw struct arrays without padding are at least on par (a block copy in both).
 - **Safe for untrusted data.** Crafted bytes cannot crash the process, allocate out of proportion to their size or make
   Nino create a type you did not declare; every invalid input throws one `NinoDataException`.
   [Untrusted data](https://nino.xgamedev.net/en/docs/v4/security).
@@ -217,7 +217,7 @@ and every invalid input throws one exception ([details](https://nino.xgamedev.ne
 | Untrusted input | **built for it**: bounded allocation and stack, one exception type | trusted data only, per its README |
 | Serialize classes and polymorphic types | **<!--bench:ser.range-->3.5–6.8<!--/bench-->× faster** | |
 | Deserialize classes and polymorphic types | **<!--bench:deser.range-->1.3–1.9<!--/bench-->× faster** | |
-| Raw struct arrays | at least on par (a block copy in both); v4 zeroes padding, so declare hot structs without it | copies padding as is |
+| Raw struct arrays | at least on par without padding (a block copy in both); v4 zeroes padding as it copies, so declare hot structs without it | copies padding as is, stale bytes included, in the platform's layout |
 | Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->8.7<!--/bench-->× faster** (in place) | overwrite mode, allocates |
 | Polymorphism | automatic type ids, any base class or interface, generic bases included | `[MemoryPackUnion]` tags you maintain, on interfaces and abstract classes, not on generic types |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
