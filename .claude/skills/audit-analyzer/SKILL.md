@@ -21,9 +21,17 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   Only type parameters a serialized member uses count (`Tag<Action>` writes fine).
 - A type whose bytes would differ by host is an Error wherever Nino would write it: NINO029 for `Vector<T>` on the
   member (alone, element, type argument a `[NinoType]` member uses, base type or `IEnumerable<T>` of a collection,
-  field of a plain struct at any depth) and on the
-  `NinoSerializer`/`NinoDeserializer` call (an operation action, rejected by method name first). One predicate decides
-  it for the analyzer, the generator's resolver, `RawRules.IsRawUnmanaged`, the call transform (no registration, no
+  field of a plain struct at any depth), on the
+  `NinoSerializer`/`NinoDeserializer` call (an operation action, rejected by method name first) and on Nino.Core's
+  formatters and `Writer`/`Reader`/`NinoDirect` generic methods used by hand (`new UnmanagedFormatter<Vector<int>>()`,
+  `default(...)`, `[NinoMemberFormatter(typeof(UnmanagedFormatter<Vector<int>>))]`, `writer.Write(v)`,
+  `reader.Read(out Vector<int> v)`, inferred type arguments included), which throw the same `NotSupportedException`
+  (`RawRules.VariableVectorWrittenBy`: the invocation action rejects a non-generic method by name first, the creation
+  and default-value action a type outside Nino.Core's assembly first). A type parameter constrained to a formatter
+  (`ArrayFormatter<T, TFormatter>`, `NinoDirect.Serialize<T, TFormatter>`) writes the others' values: only a Nino.Core
+  formatter there is searched, so the user's own `Vector<T>` formatter, a collection formatter over it and unrelated
+  generics that take a `Vector<T>` fire nothing (`NINO029_FormattersMadeByHand`, `NINO029_NotForOtherFormattersByHand`).
+  One predicate decides it for the analyzer, the generator's resolver, `RawRules.IsRawUnmanaged`, the call transform (no registration, no
   interceptor) and, mirrored, Nino.Core (`RawRules.VariableVectorIn` / `NinoReflection.VariableVectorIn`). It never
   fires where Nino writes nothing (`[NinoIgnore]`, get-only properties, ref structs, which stay NINO007) or the user
   writes the bytes (`[NinoMemberFormatter]`), and a struct of such members gets NINO029 alone, not NINO023 too
