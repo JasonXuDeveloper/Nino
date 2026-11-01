@@ -33,45 +33,9 @@ What the tables show:
   x64 (the canonical layout), the two wide vectors to 16 on Arm64, everything to 8 on Arm32.
 - **`Vector<T>`** is not in the tables: it is as wide as the CPU's vectors (CI run 41280617045 measured 32 bytes on
   .NET x64 and x86 and .NET Framework x64 on its AVX2 runners, 16 on Arm64, Arm32, .NET Framework x86 and Mono, and
-  Unity's `BclLayoutTests` 16 in its Mono and IL2CPP), so no layout of it is the same on every runtime, and Nino
-  serializes no type that holds one (NINO029, spec §3). Store a fixed number of lanes and make the vectors a view
-  over them, which Nino does not serialize: 16 floats are whole vectors on every CPU (docs/pitfalls.md, "`Vector<T>`
-  is not serializable", has why and the tests).
-
-  ```csharp title="Particle.cs"
-  using System;
-  using System.Numerics;
-  using System.Runtime.InteropServices;
-  using Nino.Core;
-
-  [NinoType]
-  public sealed partial class Particle
-  {
-      public int Id;
-
-      // Serialized: 16 floats, 64 bytes on every host. 16 is a multiple of Vector<float>.Count everywhere (4, 8 or 16).
-      public float[] Lanes = new float[16];
-
-      // Not serialized: the same lanes as Vector<float>s, 4, 2 or 1 of them depending on the CPU.
-      [NinoIgnore]
-      public Span<Vector<float>> Vectors => MemoryMarshal.Cast<float, Vector<float>>(Lanes.AsSpan());
-
-      // Not serialized: the first Vector<float>.Count lanes (4, 8 or 16 of them) as one vector.
-      [NinoIgnore]
-      public Vector<float> Head
-      {
-          get => Vectors[0];
-          set => Vectors[0] = value;
-      }
-
-      public void Scale(float factor)
-      {
-          foreach (ref var vector in Vectors)
-              vector *= factor;
-      }
-  }
-  ```
-
+  Unity's `BclLayoutTests` 16 in its Mono and IL2CPP), so Nino serializes no type that holds one (NINO029, spec §3);
+  [pitfalls.md, "`Vector<T>` is not serializable"](pitfalls.md#vectort-is-not-serializable) has the fixed-lane form
+  that replaces it.
 - **IL2CPP**: see the section after the tables.
 
 ### Each type: size, then the offset of each of its fields

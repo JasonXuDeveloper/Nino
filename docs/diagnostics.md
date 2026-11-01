@@ -180,52 +180,11 @@ auto-property, give a constructor a parameter of its name; otherwise 🔧 remove
 
 ### NINO029
 
-A member, or a `NinoSerializer`/`NinoDeserializer` call, needs `System.Numerics.Vector<T>`: the type is one, or holds
-one as an array element, a type argument (of a collection, a tuple, `Nullable`, or a `[NinoType]` member that uses it)
-or a field at any depth of a plain struct. `Vector<T>` is as wide as the CPU's vectors, 32 bytes on x64 with AVX2 and 16
-on Arm64, in Unity (Mono and IL2CPP) and on x64 without AVX2, so no bytes of it can be read on every host: Nino writes
-no type that holds one, the generator skips the member, and the runtime throws `NotSupportedException` when such a
-type's formatter is first resolved (pitfalls.md, "`Vector<T>` is not serializable"). `Vector128<T>` and
-`Vector256<T>`, of fixed size, are serializable; so is a member with a `[NinoMemberFormatter]` of your own.
-
-Store a fixed number of lanes (an array or a fixed buffer, or `Vector128<T>`/`Vector256<T>` fields) and expose the
-vectors through members marked `[NinoIgnore]` that work on a span over them. With 16 lanes of a 4-byte type (64 bytes,
-the widest `Vector<T>`), the lanes split into whole vectors on every CPU, whatever `Vector<float>.Count` is:
-
-```csharp
-using System;
-using System.Numerics;
-using System.Runtime.InteropServices;
-using Nino.Core;
-
-[NinoType]
-public sealed partial class Particle
-{
-    public int Id;
-
-    // Serialized: 16 floats, 64 bytes on every host. 16 is a multiple of Vector<float>.Count everywhere (4, 8 or 16).
-    public float[] Lanes = new float[16];
-
-    // Not serialized: the same lanes as Vector<float>s, 4, 2 or 1 of them depending on the CPU.
-    [NinoIgnore]
-    public Span<Vector<float>> Vectors => MemoryMarshal.Cast<float, Vector<float>>(Lanes.AsSpan());
-
-    // Not serialized: the first Vector<float>.Count lanes (4, 8 or 16 of them) as one vector.
-    [NinoIgnore]
-    public Vector<float> Head
-    {
-        get => Vectors[0];
-        set => Vectors[0] = value;
-    }
-
-    public void Scale(float factor)
-    {
-        foreach (ref var vector in Vectors)
-            vector *= factor;
-    }
-}
-```
-
+A member, or a `NinoSerializer`/`NinoDeserializer` call, needs `System.Numerics.Vector<T>`: the type is one or holds
+one (as an element, a type argument, a base type or a field of a plain struct), and `Vector<T>` is 16, 32 or 64 bytes
+by the CPU, so Nino serializes no such type; the runtime throws `NotSupportedException` for it. Store a fixed number of
+lanes and expose the vectors through `[NinoIgnore]` members:
+[pitfalls.md, "`Vector<T>` is not serializable"](pitfalls.md#vectort-is-not-serializable) has why and the example.
 There is no code fix: the stored form is yours to choose.
 
 ## Features

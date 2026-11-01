@@ -204,42 +204,18 @@ NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
   your own id), non-generic collections, abstract or struct collections, Unity/Godot classes except Unity's
   `AnimationCurve`, `Gradient`, `RectOffset`. Fix with `[NinoIgnore]` or a custom formatter.
 - Never serializable (NINO029, an error; `NotSupportedException` at run time): `System.Numerics.Vector<T>`, alone or
-  inside anything (arrays, collections, tuples, `T?`, plain structs). It is 32 bytes on x64 with AVX2 and 16 on Arm64,
-  in Unity and on x64 without AVX2, so no bytes of it read on every host. `Vector64<T>` to `Vector512<T>` are fixed
-  size and fine. Store a fixed number of lanes and expose the vectors through `[NinoIgnore]` members over a span; 16
-  lanes of a 4-byte type split into whole vectors on every CPU (4, 8 or 16 lanes each):
+  inside anything (arrays, collections and classes deriving from one, tuples, `T?`, plain structs): it is 16, 32 or 64
+  bytes by the CPU. `Vector64<T>` to `Vector512<T>` are fixed size and fine. Store 16 lanes of a 4-byte type (whole
+  vectors on every CPU) and view them as vectors ([why](https://nino.xgamedev.net/en/docs/v4/struct-layouts#vector-t)):
 
   ```csharp
-  using System;
-  using System.Numerics;
-  using System.Runtime.InteropServices;
-  using Nino.Core;
-
   [NinoType]
   public sealed partial class Particle
   {
-      public int Id;
+      public float[] Lanes = new float[16]; // serialized: 64 bytes on every host
 
-      // Serialized: 16 floats, 64 bytes on every host. 16 is a multiple of Vector<float>.Count everywhere (4, 8 or 16).
-      public float[] Lanes = new float[16];
-
-      // Not serialized: the same lanes as Vector<float>s, 4, 2 or 1 of them depending on the CPU.
-      [NinoIgnore]
+      [NinoIgnore] // 4, 2 or 1 vectors by the CPU
       public Span<Vector<float>> Vectors => MemoryMarshal.Cast<float, Vector<float>>(Lanes.AsSpan());
-
-      // Not serialized: the first Vector<float>.Count lanes (4, 8 or 16 of them) as one vector.
-      [NinoIgnore]
-      public Vector<float> Head
-      {
-          get => Vectors[0];
-          set => Vectors[0] = value;
-      }
-
-      public void Scale(float factor)
-      {
-          foreach (ref var vector in Vectors)
-              vector *= factor;
-      }
   }
   ```
 

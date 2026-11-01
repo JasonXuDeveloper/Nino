@@ -82,10 +82,15 @@ Framework x86, Mono, IL2CPP (Unity, on x64 too) and x64 without AVX2. Its declar
 size. No wire format can carry it between hosts: 32 bytes written on x64 do not fit a 16-byte `Vector<T>` on Arm64 or in
 Unity. Nino up to rc.7 measured it by its fields and wrote 16 bytes, silently dropping the upper half on AVX2 machines.
 Now no type that is or holds one is serializable (alone, in arrays, collections, tuples, `Nullable`, a type argument a
-`[NinoType]` uses, or a field at any depth of a plain struct): the analyzer reports NINO029 on the member or the
-`NinoSerializer`/`NinoDeserializer` call, the generator emits nothing for it, and the runtime throws
-`NotSupportedException` when the formatter is first resolved (`NinoReflection.VariableVectorIn`, the generator's
-`RawRules.VariableVectorIn`). `Vector64<T>` to `Vector512<T>` are fixed size and stay serializable.
+`[NinoType]` uses, a base type or the `IEnumerable<T>` of a collection, as in `class Lanes : List<Vector<int>>`, or a
+field at any depth of a plain struct): the analyzer reports NINO029 on the member or the
+`NinoSerializer`/`NinoDeserializer` call (not NINO007, though such a type has no formatter either), the generator emits
+nothing for it, and the runtime throws `NotSupportedException` when the formatter is first resolved, or, for code that
+skips the resolver (an `UnmanagedFormatter<T>` made by hand, `Writer.Write<T>`), when the value is written or read
+(`NinoReflection.VariableVectorIn`, the generator's `RawRules.VariableVectorIn`; `NinoLayout<T>` refuses it in its
+converted paths, never in its static initializer, which Mono runs when a method naming it is compiled).
+`Vector64<T>` to `Vector512<T>` are fixed size and stay serializable; so does a member with a `[NinoMemberFormatter]`
+of your own.
 
 Store a fixed number of lanes instead and build the vectors from them, in members Nino does not serialize. Pick a
 lane count that is a multiple of `Vector<T>.Count` on every host (16 floats or ints, 64 bytes: the widest `Vector<T>`),
