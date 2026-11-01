@@ -2,14 +2,12 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics;
-using System.Runtime.Intrinsics.Arm;
 #endif
 
 namespace Nino.Core.Internal
@@ -89,7 +87,7 @@ namespace Nino.Core.Internal
         /// Alignment of <c>DateTime</c> inside structs on this runtime: 4 on 32-bit x86 .NET, where <see cref="LongAlign"/>
         /// is 8 (<c>DateTime</c> is an auto-layout struct, and those are aligned to the pointer size as fields there).
         /// </summary>
-        private static readonly int DateTimeAlign = Unsafe.SizeOf<DateTimeProbe>() - 8;
+        internal static readonly int DateTimeAlign = Unsafe.SizeOf<DateTimeProbe>() - 8;
 
         /// <summary>Alignment of <c>decimal</c> inside structs on this runtime.</summary>
         private static readonly int DecimalAlign = Unsafe.SizeOf<DecimalProbe>() - 16;
@@ -98,10 +96,18 @@ namespace Nino.Core.Internal
         /// Alignment of <c>Int128</c> and <c>UInt128</c> inside structs on this runtime, probed: 16 on .NET 8 and later
         /// on 64-bit, 8 on Arm32 and on .NET 7. The canonical layout aligns them to 16, as CoreCLR does on 64-bit.
         /// </summary>
-        internal static readonly int WideAlign = ProbeWideAlign();
+        internal static readonly int Int128Align = ProbeInt128Align();
+
+        /// <summary>
+        /// This runtime's layout rules, probed (<see cref="LongAlign"/>, <see cref="DecimalAlign"/>, the pointer size,
+        /// <see cref="Int128Align"/>, <see cref="DateTimeAlign"/>), without the auto-layout rule: auto-layout structs are
+        /// measured (<see cref="MeasureMemory"/>).
+        /// </summary>
+        private static readonly NinoLayoutModel Runtime =
+            new NinoLayoutModel(LongAlign, DecimalAlign, IntPtr.Size, Int128Align, DateTimeAlign);
 
 #if NET8_0_OR_GREATER
-        private struct WideProbe
+        private struct Int128Probe
         {
 #pragma warning disable CS0649
             public byte A;
@@ -109,10 +115,10 @@ namespace Nino.Core.Internal
 #pragma warning restore CS0649
         }
 
-        private static int ProbeWideAlign() => Unsafe.SizeOf<WideProbe>() - 16;
+        private static int ProbeInt128Align() => Unsafe.SizeOf<Int128Probe>() - 16;
 #else
         // The netstandard builds name no Int128 (it exists from .NET 7): the probe struct is made for the runtime's own.
-        private struct WideProbe<T>
+        private struct Int128Probe<T>
         {
 #pragma warning disable CS0649
             public byte A;
@@ -120,14 +126,14 @@ namespace Nino.Core.Internal
 #pragma warning restore CS0649
         }
 
-        private static int ProbeWideAlign()
+        private static int ProbeInt128Align()
         {
             try
             {
                 var wide = typeof(object).Assembly.GetType("System.Int128");
                 if (wide == null)
                     return 16; // no Int128 on this runtime: nothing is laid out with it
-                return (int)typeof(NinoLayout).GetMethod(nameof(WideProbeSize), BindingFlags.NonPublic | BindingFlags.Static)!
+                return (int)typeof(NinoLayout).GetMethod(nameof(Int128ProbeSize), BindingFlags.NonPublic | BindingFlags.Static)!
                     .MakeGenericMethod(wide).Invoke(null, null)! - 16;
             }
             catch
@@ -136,7 +142,7 @@ namespace Nino.Core.Internal
             }
         }
 
-        private static int WideProbeSize<T>() => Unsafe.SizeOf<WideProbe<T>>();
+        private static int Int128ProbeSize<T>() => Unsafe.SizeOf<Int128Probe<T>>();
 #endif
 
         /// <summary>A byte, then a <typeparamref name="T"/>: its alignment inside structs on this runtime.</summary>
@@ -189,7 +195,8 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Which vector <paramref name="type"/> is: 1 to 4 for <c>Vector64&lt;T&gt;</c> to <c>Vector512&lt;T&gt;</c>, -1 for
-        /// none. <c>Vector&lt;T&gt;</c>, as wide as the CPU's vectors, is never laid out: <see cref="Create"/> refuses it.
+        /// none. <c>Vector&lt;T&gt;</c>, 16, 32 or 64 bytes by the CPU, is never laid out: <see cref="Create"/> refuses it
+        /// (docs/spec/wire-format.md §3). The generator's mirror is <c>RawLayout.IsVector</c>.
         /// </summary>
         private static int VectorIndex(Type type)
         {
@@ -248,10 +255,10 @@ namespace Nino.Core.Internal
             public int[] Resized;
 
             /// <summary>
-            /// Whether the type is or holds <c>Vector&lt;T&gt;</c> (<see cref="NinoReflection.VariableVectorIn"/>): not
+            /// Whether the type is or holds <c>Vector&lt;T&gt;</c> (<see cref="NinoReflection.HostSizedVectorIn"/>): not
             /// canonical and of no size, and <see cref="NinoLayout{T}"/> refuses to write or read it.
             /// </summary>
-            public bool VariableVector;
+            public bool HostSizedVector;
         }
 
         /// <summary>Layout info for <paramref name="type"/>; <paramref name="runtimeSize"/> validates the model.</summary>
@@ -269,14 +276,13 @@ namespace Nino.Core.Internal
         {
             // A Vector<T> has no canonical layout, and copying it as it lies in memory (the fallback below) would write
             // 16 bytes on one host and 32 on another: neither raw nor convertible (RawFormatter.Is is false), and no
-            // formatter of it exists (NinoReflection.RefuseVariableVector throws when one is resolved). Not thrown here:
+            // formatter of it exists (NinoReflection.RefuseHostSizedVector throws when one is resolved). Not thrown here:
             // Mono and IL2CPP run NinoLayout<T>'s initializer whenever a method naming it is compiled.
-            if (NinoReflection.VariableVectorIn(type) != null)
-                return new Info { Canonical = false, VariableVector = true };
+            if (NinoReflection.HostSizedVectorIn(type) != null)
+                return new Info { Canonical = false, HostSizedVector = true };
             try
             {
-                return Compute(type, runtimeSize, LongAlign, DecimalAlign, WideAlign, DateTimeAlign,
-                    !KeepsDeclarationOrder);
+                return Compute(type, runtimeSize, Runtime, !KeepsDeclarationOrder);
             }
             catch
             {
@@ -286,28 +292,22 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Layout info as a runtime with the given alignments would see it (exposed for tests); 0 for
-        /// <paramref name="wideAlign"/> or <paramref name="dateTimeAlign"/> is this runtime's. The memory layout is
-        /// modeled from the alignments, or, with <paramref name="measured"/> or where the model misses the runtime's
-        /// size, read from instances of this runtime (<see cref="MeasureMemory"/>).
+        /// Layout info as a runtime laid out by <paramref name="memoryModel"/> would see it (<see cref="Runtime"/>; other
+        /// models for tests). The memory layout is modeled, or, with <paramref name="measured"/> or where the model
+        /// misses the runtime's size, read from instances of this runtime (<see cref="MeasureMemory"/>).
         /// </summary>
-        internal static Info Compute(Type type, int runtimeSize, int longAlign, int decimalAlign, int wideAlign = 0,
-            int dateTimeAlign = 0, bool measured = false)
+        internal static Info Compute(Type type, int runtimeSize, in NinoLayoutModel memoryModel, bool measured = false)
         {
             var wire = new List<NinoLayoutCore.Leaf>();
             var memory = new List<NinoLayoutCore.Leaf>();
-            if (wideAlign == 0)
-                wideAlign = WideAlign;
-            if (dateTimeAlign == 0)
-                dateTimeAlign = DateTimeAlign;
-            if (!NinoLayoutCore.Measure(new RuntimeView { Canonical = true }, type, 8, 8, 8, 0, wire,
-                    out int wireSize, out int wireAlign, null, 16, 8, 8))
+            if (!NinoLayoutCore.Measure(new RuntimeView { Canonical = true }, type, NinoLayoutModel.Canonical, 0, wire,
+                    out int wireSize, out int wireAlign))
                 return new Info { Size = runtimeSize };
             int memorySize = -1;
-            // Auto-layout structs are not modeled for this runtime (autoPointerSize 0): their offsets are measured.
+            // Auto-layout structs are not modeled for this runtime (AutoPointerSize 0): their offsets are measured.
             if (measured ||
-                !NinoLayoutCore.Measure<Type, RuntimeView>(default, type, longAlign, decimalAlign, IntPtr.Size, 0,
-                    memory, out memorySize, out _, null, wideAlign, dateTimeAlign) ||
+                !NinoLayoutCore.Measure<Type, RuntimeView>(default, type, memoryModel, 0, memory, out memorySize,
+                    out _) ||
                 (runtimeSize >= 0 && memorySize != runtimeSize))
             {
                 // The model does not describe this runtime (or was not asked): the offsets this runtime gives.
@@ -392,28 +392,10 @@ namespace Nino.Core.Internal
         /// <summary>The size in memory of a leaf of <paramref name="type"/> on this runtime; 0 for a struct of fields.</summary>
         private static int LeafSize(Type type)
         {
-            switch (default(RuntimeView).Leaf(type))
-            {
-                case NinoLeaf.Size1:
-                    return 1;
-                case NinoLeaf.Size2:
-                    return 2;
-                case NinoLeaf.Size4:
-                    return 4;
-                case NinoLeaf.Size8:
-                case NinoLeaf.DateTime:
-                    return 8;
-                case NinoLeaf.Pointer:
-                case NinoLeaf.SignedPointer:
-                    return IntPtr.Size;
-                case NinoLeaf.Vector:
-                    return VectorLayout(type, false, out int size, out _) ? size : 0;
-                case NinoLeaf.None:
-                case NinoLeaf.Unsupported:
-                    return 0;
-                default:
-                    return 16;
-            }
+            var leaf = default(RuntimeView).Leaf(type);
+            if (leaf == NinoLeaf.Vector)
+                return VectorLayout(type, false, out int size, out _) ? size : 0;
+            return NinoLayoutCore.SizeOf(leaf, IntPtr.Size);
         }
 
         /// <summary>
@@ -470,8 +452,8 @@ namespace Nino.Core.Internal
                 return true;
             // The offsets of its own fields in memory, in the order RuntimeView.Struct lists them.
             var offsets = new List<int>();
-            if (!NinoLayoutCore.Measure<Type, RuntimeView>(default, type, LongAlign, DecimalAlign, IntPtr.Size, 0,
-                    new List<NinoLayoutCore.Leaf>(), out _, out _, offsets, WideAlign, DateTimeAlign))
+            if (!NinoLayoutCore.Measure<Type, RuntimeView>(default, type, Runtime, 0, new List<NinoLayoutCore.Leaf>(),
+                    out _, out _, offsets))
                 return false;
             var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (fields.Length != offsets.Count)
@@ -757,9 +739,10 @@ namespace Nino.Core.Internal
         {
             public bool Canonical;
 
-            public bool Primitive(Type type) => type.IsPrimitive || type.IsEnum || type.IsPointer;
+            public bool IsAutoPrimitive(Type type) => type.IsPrimitive || type.IsEnum || type.IsPointer;
 
-            public bool Vector(Type type, out int size, out int align) => VectorLayout(type, Canonical, out size, out align);
+            public bool TryGetVector(Type type, out int size, out int align) =>
+                VectorLayout(type, Canonical, out size, out align);
 
             public NinoLeaf Leaf(Type type)
             {
@@ -781,9 +764,9 @@ namespace Nino.Core.Internal
                     return NinoLeaf.Vector;
                 // By name: the netstandard builds name no Int128. Without a known alignment (the probe failed), its
                 // two ulongs (8-byte aligned), as before.
-                if (WideAlign > 0 && type.Assembly == typeof(object).Assembly &&
+                if (Int128Align > 0 && type.Assembly == typeof(object).Assembly &&
                     (type.FullName == "System.Int128" || type.FullName == "System.UInt128"))
-                    return NinoLeaf.Wide;
+                    return NinoLeaf.Int128;
                 switch (Type.GetTypeCode(type))
                 {
                     case TypeCode.Boolean:
@@ -808,7 +791,7 @@ namespace Nino.Core.Internal
             }
 
             [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = FieldsJustification)]
-            public bool Struct(Type type, List<KeyValuePair<Type, int>> fields, out LayoutKind kind, out int pack,
+            public bool TryGetFields(Type type, List<KeyValuePair<Type, int>> fields, out LayoutKind kind, out int pack,
                 out int minSize)
             {
                 if (Canonical && type == typeof(DateTimeOffset))
@@ -834,376 +817,6 @@ namespace Nino.Core.Internal
     }
 
     /// <summary>
-    /// A byte mask (0xFF keeps a byte, 0 clears it) applied while copying values to the wire, in one pass:
-    /// SIMD where it is fast (<see cref="NinoUnsafe.VectorMasks"/>), 8-byte words otherwise.
-    /// </summary>
-    internal sealed class NinoMask
-    {
-        private readonly byte[] _mask;
-        private readonly ulong[] _words; // the mask repeated over lcm(length, 8) bytes
-        // The mask repeated over lcm(length, vector width) bytes plus one vector more, so the mask of any offset
-        // is a single unaligned load.
-        private readonly byte[] _vectorMask;
-        private readonly int _vectorPeriod;
-#if NET8_0_OR_GREATER
-        // The same for 64-byte vectors, where they are accelerated (see CopyVectors).
-        private readonly byte[] _mask512;
-        private readonly int _period512;
-#endif
-        private readonly int[] _gaps; // (offset, length) of each run of cleared bytes in one element
-#if !NET8_0_OR_GREATER
-        // For the registered kernels (NinoKernels.Permute): each byte from itself, padding cleared (0xFF). Zero for
-        // elements above 64 bytes.
-        private readonly IntPtr _kernelTable;
-#endif
-
-        /// <summary>(offset, length) of each run of cleared bytes in one element.</summary>
-        public int[] Gaps => _gaps;
-
-        /// <summary>Returns a mask, or null when <paramref name="mask"/> keeps every byte.</summary>
-        public static NinoMask Create(byte[] mask) =>
-            Array.IndexOf(mask, (byte)0) < 0 ? null : new NinoMask(mask);
-
-        private NinoMask(byte[] mask)
-        {
-            _mask = mask;
-            var gaps = new System.Collections.Generic.List<int>();
-            for (int i = 0; i < mask.Length; i++)
-            {
-                if (mask[i] != 0)
-                    continue;
-                int start = i;
-                while (i + 1 < mask.Length && mask[i + 1] == 0)
-                    i++;
-                gaps.Add(start);
-                gaps.Add(i + 1 - start);
-            }
-
-            _gaps = gaps.ToArray();
-#if !NET8_0_OR_GREATER
-            if (mask.Length <= 64)
-            {
-                _kernelTable = NinoKernelHook.Table(mask.Length);
-                unsafe
-                {
-                    for (int j = 0; j < mask.Length; j++)
-                        if (mask[j] != 0)
-                            ((byte*)_kernelTable)[j] = (byte)j;
-                }
-            }
-#endif
-            var words = Repeat(mask, 8, 0, out _);
-            _words = new ulong[words.Length / 8];
-            for (int i = 0; i < _words.Length; i++)
-                _words[i] = Unsafe.ReadUnaligned<ulong>(ref words[i * 8]);
-            if (NinoUnsafe.VectorMasks)
-                _vectorMask = Repeat(mask, Vector<byte>.Count, Vector<byte>.Count, out _vectorPeriod);
-#if NET8_0_OR_GREATER
-            // Not on Ice Lake (NinoUnsafe.Wide512): GitHub's Xeon Platinum 8370C wrote 1,000 8-byte structs with a
-            // padding byte in 116 ns with 64-byte vectors, 83 with 32-byte ones (MemoryPack's copy 88).
-            if (Vector512.IsHardwareAccelerated && NinoUnsafe.Wide512)
-                _mask512 = Repeat(mask, Vector512<byte>.Count, Vector512<byte>.Count, out _period512);
-#endif
-        }
-
-        /// <summary>
-        /// <paramref name="mask"/> repeated over its <paramref name="period"/>, the least multiple of its length that
-        /// is a multiple of <paramref name="multiple"/>, and <paramref name="extra"/> bytes more.
-        /// </summary>
-        private static byte[] Repeat(byte[] mask, int multiple, int extra, out int period)
-        {
-            period = mask.Length;
-            while (period % multiple != 0)
-                period += mask.Length;
-            var bytes = new byte[period + extra];
-            for (int i = 0; i < bytes.Length; i++)
-                bytes[i] = mask[i % mask.Length];
-            return bytes;
-        }
-
-        /// <summary>Copies <paramref name="count"/> masked elements (the mask's length each).</summary>
-        // Out of line: one call per collection, around loops for any count. Inlined (the JIT did, on its profile
-        // data), its loops took the inlining budget of the generated body writing the collection, which then left
-        // helpers such as Writer.SetBuffer as calls.
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public void Copy(ref byte destination, ref byte source, int count)
-        {
-            int total = checked(count * _mask.Length);
-#if !NET8_0_OR_GREATER
-            // The netstandard builds (Unity, .NET Framework): the registered kernels, for runs long enough.
-            if (count >= NinoKernelHook.MinCopies && _kernelTable != IntPtr.Zero &&
-                NinoKernelHook.TryPermute(ref source, _mask.Length, ref destination, _mask.Length, _kernelTable, count))
-                return;
-#endif
-#if NET8_0_OR_GREATER
-            if (_mask512 != null && total >= Vector512<byte>.Count)
-            {
-                CopyVectors<Vector512<byte>, Vectors512>(ref destination, ref source, total, _mask512, _period512);
-                return;
-            }
-#endif
-            if (_vectorMask != null && total >= Vector<byte>.Count)
-            {
-                CopyVectors<Vector<byte>, Vectors>(ref destination, ref source, total, _vectorMask, _vectorPeriod);
-                return;
-            }
-
-            int i = 0;
-            int words = _words.Length;
-            int period = words * 8;
-            ref ulong word = ref NinoUnsafe.GetArrayDataReference(_words);
-            for (; i + period <= total; i += period)
-            {
-                ref byte d = ref Unsafe.Add(ref destination, i);
-                ref byte s = ref Unsafe.Add(ref source, i);
-                for (int j = 0; j < words; j++)
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, j * 8),
-                        Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref s, j * 8)) & Unsafe.Add(ref word, j));
-            }
-
-            // The rest is shorter than a period, which starts with the first element: its mask is the words' first
-            // bytes, with no division and no bounds checks.
-            ref byte mask = ref Unsafe.As<ulong, byte>(ref word);
-            for (int k = 0; i < total; i++, k++)
-                Unsafe.Add(ref destination, i) = (byte)(Unsafe.Add(ref source, i) & Unsafe.Add(ref mask, k));
-        }
-
-        /// <summary>
-        /// Vector copy with aligned stores (aligned loads on Arm64, <see cref="AlignedSide"/>): the destination usually
-        /// follows a 4-byte length, and unaligned vector stores straddle cache lines every other store. The first and
-        /// last vectors are unaligned and overlap the aligned body; the mask of each vector is loaded at its offset
-        /// in <paramref name="masks"/>, the mask repeated over <paramref name="repeat"/> bytes and one vector more.
-        /// Offsets are native-sized (nuint): int offsets took a sign extension and an address add per vector, measured
-        /// on an AVX-512 Xeon as 8,000 bytes in 74 ns instead of 66 (64-byte vectors). <typeparamref name="TVector"/>
-        /// is <see cref="Vector{T}"/> of bytes, or a 64-byte vector where those are accelerated (not on CPUs that slow
-        /// down for them): measured on an AVX-512 Xeon, structs of 8 bytes with a padding byte, source and destination
-        /// of different alignments, 8,000 bytes in 66 ns (97 ns with 32-byte vectors, 57 ns for a plain copy, 75 ns
-        /// Memmove), 1,200 bytes in 14 ns (19.5 ns, and 18.6 ns).
-        /// </summary>
-        // Fully optimized from the first call: a profile taken on short copies (lists of a few elements) would lay
-        // out the unrolled loop as cold code for the long ones.
-#if NET8_0_OR_GREATER
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-#endif
-        private static unsafe void CopyVectors<TVector, TOps>(ref byte destination, ref byte source, int total,
-            byte[] masks, int repeat)
-            where TVector : struct
-            where TOps : struct, IMaskVectors<TVector>
-        {
-            var ops = default(TOps);
-            nuint width = (nuint)Unsafe.SizeOf<TVector>();
-            nuint period = (nuint)repeat;
-            ref byte mask = ref NinoUnsafe.GetArrayDataReference(masks);
-            ops.Store(ops.And(ops.Load(ref source, 0), ops.Load(ref mask, 0)), ref destination, 0);
-
-            nuint i = width - ((nuint)Unsafe.AsPointer(ref AlignedSide(ref destination, ref source)) & (width - 1));
-            nuint end = (nuint)total - width;
-            nuint m = i; // i % period (i <= width <= period)
-            if (period == width)
-            {
-                var v = ops.Load(ref mask, m);
-#if NET8_0_OR_GREATER
-                if (AdvSimd.Arm64.IsSupported && Unsafe.SizeOf<TVector>() == 16)
-                    i = CopyPairs(ref destination, ref source, i, end, ops.Lower(v));
-#endif
-                for (; i + 3 * width <= end; i += 4 * width)
-                {
-                    var a = ops.And(ops.Load(ref source, i), v);
-                    var b = ops.And(ops.Load(ref source, i + width), v);
-                    var c = ops.And(ops.Load(ref source, i + 2 * width), v);
-                    var e = ops.And(ops.Load(ref source, i + 3 * width), v);
-                    ops.Store(a, ref destination, i);
-                    ops.Store(b, ref destination, i + width);
-                    ops.Store(c, ref destination, i + 2 * width);
-                    ops.Store(e, ref destination, i + 3 * width);
-                }
-
-                for (; i <= end; i += width)
-                    ops.Store(ops.And(ops.Load(ref source, i), v), ref destination, i);
-            }
-            else
-            {
-                if (m >= period)
-                    m -= period;
-                for (; i <= end; i += width)
-                {
-                    ops.Store(ops.And(ops.Load(ref source, i), ops.Load(ref mask, m)), ref destination, i);
-                    m += width;
-                    if (m >= period)
-                        m -= period;
-                }
-            }
-
-            ops.Store(ops.And(ops.Load(ref source, end), ops.Load(ref mask, TailOffset(m, i, end, period))),
-                ref destination, end);
-        }
-
-        /// <summary>
-        /// The side <see cref="CopyVectors{TVector, TOps}"/> aligns: the destination (unaligned vector stores straddle cache lines),
-        /// but the source on Arm64, where aligned loads beat aligned stores: on GitHub's Arm64 runners (Neoverse N2, .NET
-        /// 10) a 16-byte vector copy took 0.76 to 1.00 of memcpy's time for 8,000 bytes with its loads aligned, and up to
-        /// 1.31 times with its stores aligned.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ref byte AlignedSide(ref byte destination, ref byte source)
-        {
-#if NET8_0_OR_GREATER
-            if (AdvSimd.Arm64.IsSupported)
-                return ref source;
-#endif
-            return ref destination;
-        }
-
-#if NET8_0_OR_GREATER
-        /// <summary>
-        /// The body of <see cref="CopyVectors{TVector, TOps}"/> on Arm64, 64 bytes at a time as two load pairs and two store pairs
-        /// (ldp/stp of q registers, as the C library's memcpy copies): from <paramref name="i"/> while a whole 64
-        /// bytes fits before <paramref name="end"/> + 16; returns where it stopped.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static unsafe nuint CopyPairs(ref byte destination, ref byte source, nuint i, nuint end,
-            Vector128<byte> v)
-        {
-            fixed (byte* d = &destination, s = &source)
-            {
-                for (; i + 48 <= end; i += 64)
-                {
-                    var (a, b) = AdvSimd.Arm64.LoadPairVector128(s + i);
-                    var (c, e) = AdvSimd.Arm64.LoadPairVector128(s + i + 32);
-                    AdvSimd.Arm64.StorePair(d + i, a & v, b & v);
-                    AdvSimd.Arm64.StorePair(d + i + 32, c & v, e & v);
-                }
-            }
-
-            return i;
-        }
-#endif
-
-        /// <summary>
-        /// The vector operations of <see cref="CopyVectors{TVector, TOps}"/> on <typeparamref name="TVector"/>: a
-        /// struct, so each call is direct and inlined.
-        /// </summary>
-        private interface IMaskVectors<TVector> where TVector : struct
-        {
-            /// <summary>The vector at <paramref name="offset"/> bytes from <paramref name="at"/>, unaligned.</summary>
-            TVector Load(ref byte at, nuint offset);
-
-            /// <summary>Stores <paramref name="value"/> at <paramref name="offset"/> bytes from <paramref name="at"/>, unaligned.</summary>
-            void Store(TVector value, ref byte at, nuint offset);
-
-            TVector And(TVector left, TVector right);
-#if NET8_0_OR_GREATER
-
-            /// <summary>The first 16 bytes (<see cref="CopyPairs"/>, for a 16-byte vector).</summary>
-            Vector128<byte> Lower(TVector value);
-#endif
-        }
-
-        /// <summary><see cref="Vector{T}"/> of bytes, on every runtime where it is hardware accelerated.</summary>
-        private readonly struct Vectors : IMaskVectors<Vector<byte>>
-        {
-            // Plain ldobj / stobj (Unsafe.As), not Unsafe.ReadUnaligned / WriteUnaligned: classic Mono compiles their
-            // unaligned. prefix on a 16-byte struct to a call to memcpy through a stack slot (mini_emit_memory_load in
-            // mono/mini/memory-access.c), and plain ones to movups. RyuJIT never assumes a vector aligned: CopyVectors'
-            // machine code on .NET 10 is the same with either form (netstandard2.0 and net10.0 builds).
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector<byte> Load(ref byte at, nuint offset) =>
-                Unsafe.As<byte, Vector<byte>>(ref Unsafe.Add(ref at, offset));
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Store(Vector<byte> value, ref byte at, nuint offset) =>
-                Unsafe.As<byte, Vector<byte>>(ref Unsafe.Add(ref at, offset)) = value;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector<byte> And(Vector<byte> left, Vector<byte> right) => left & right;
-#if NET8_0_OR_GREATER
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector128<byte> Lower(Vector<byte> value) => value.AsVector128();
-#endif
-        }
-#if NET8_0_OR_GREATER
-
-        /// <summary>64-byte vectors, where the runtime reports them accelerated.</summary>
-        private readonly struct Vectors512 : IMaskVectors<Vector512<byte>>
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector512<byte> Load(ref byte at, nuint offset) => Vector512.LoadUnsafe(ref at, offset);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Store(Vector512<byte> value, ref byte at, nuint offset) => value.StoreUnsafe(ref at, offset);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector512<byte> And(Vector512<byte> left, Vector512<byte> right) => left & right;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector128<byte> Lower(Vector512<byte> value) => value.GetLower().GetLower();
-        }
-#endif
-
-        /// <summary>
-        /// <c>end % period</c> from the loop's state, without a division (an <c>idiv</c> of about 12 cycles, 5% of
-        /// copying 1,000 8-byte structs): <paramref name="m"/> is <paramref name="i"/> % <paramref name="period"/>,
-        /// and the last vector at <paramref name="end"/> starts less than a vector before <paramref name="i"/>.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static nuint TailOffset(nuint m, nuint i, nuint end, nuint period)
-        {
-            nuint back = i - end;
-            return m >= back ? m - back : m + period - back;
-        }
-
-        /// <summary>
-        /// Zeroes the padding of <paramref name="count"/> elements in place. Only stores: reading back bytes just
-        /// written by narrower field stores would stall on store forwarding.
-        /// </summary>
-        public void Clear(ref byte destination, int count)
-        {
-            int[] gaps = _gaps;
-            for (int e = 0; e < count; e++)
-            {
-                ref byte element = ref Unsafe.Add(ref destination, e * _mask.Length);
-                for (int g = 0; g < gaps.Length; g += 2)
-                    Zero(ref Unsafe.Add(ref element, gaps[g]), gaps[g + 1]);
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void Zero(ref byte destination, int length)
-        {
-            switch (length)
-            {
-                case 1:
-                    destination = 0;
-                    return;
-                case 2:
-                    Unsafe.WriteUnaligned(ref destination, (ushort)0);
-                    return;
-                case 3:
-                    Unsafe.WriteUnaligned(ref destination, (ushort)0);
-                    Unsafe.Add(ref destination, 2) = 0;
-                    return;
-                case 4:
-                    Unsafe.WriteUnaligned(ref destination, 0u);
-                    return;
-                case 5:
-                case 6:
-                case 7:
-                    // Two overlapping stores, both inside the gap.
-                    Unsafe.WriteUnaligned(ref destination, 0u);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, length - 4), 0u);
-                    return;
-                case 8:
-                    Unsafe.WriteUnaligned(ref destination, 0ul);
-                    return;
-                default:
-                    Unsafe.InitBlockUnaligned(ref destination, 0, (uint)length);
-                    return;
-            }
-        }
-    }
-
-    /// <summary>
     /// Canonical layout of <typeparamref name="T"/> (see <see cref="NinoLayout"/>). The flags are JIT-time constants:
     /// on runtimes where the layout is canonical and the type has no padding, raw writes cost nothing extra.
     /// </summary>
@@ -1223,7 +836,7 @@ namespace Nino.Core.Internal
         /// A JIT-time constant, false for every other type and folded away on canonical ones; the throw is never in this
         /// initializer, which Mono runs when a method naming the class is compiled.
         /// </summary>
-        private static readonly bool HoldsVariableVector = Info.VariableVector;
+        private static readonly bool HoldsHostSizedVector = Info.HostSizedVector;
 
         /// <summary>
         /// In <see cref="NinoSettings.Untrusted"/> mode, the fields of <typeparamref name="T"/> with invalid values
@@ -1327,8 +940,8 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteConverted(ref byte destination, in T value)
         {
-            if (HoldsVariableVector)
-                NinoReflection.RefuseVariableVector(typeof(T));
+            if (HoldsHostSizedVector)
+                NinoReflection.RefuseHostSizedVector(typeof(T));
             NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), ref destination, true);
         }
 
@@ -1353,8 +966,8 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static T ReadConverted(ref byte source)
         {
-            if (HoldsVariableVector)
-                NinoReflection.RefuseVariableVector(typeof(T));
+            if (HoldsHostSizedVector)
+                NinoReflection.RefuseHostSizedVector(typeof(T));
             T value = default;
             if (Info.Canonical)
                 value = NinoUnsafe.Read<T>(ref source);

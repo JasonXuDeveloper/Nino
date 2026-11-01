@@ -130,9 +130,9 @@ namespace Nino.UnitTests
             Assert.IsFalse(layout.Canonical);
             Assert.AreEqual(0, layout.Size);
             Assert.IsFalse(NinoLayout<Vector<byte>>.IsCanonical);
-            Assert.AreEqual(typeof(Vector<int>), NinoReflection.VariableVectorIn(typeof(List<Around<Vector<int>>>[])));
-            Assert.IsNull(NinoReflection.VariableVectorIn(typeof(Around<Vector4>)));
-            Assert.IsNull(NinoReflection.VariableVectorIn(typeof(Particle)));
+            Assert.AreEqual(typeof(Vector<int>), NinoReflection.HostSizedVectorIn(typeof(List<Around<Vector<int>>>[])));
+            Assert.IsNull(NinoReflection.HostSizedVectorIn(typeof(Around<Vector4>)));
+            Assert.IsNull(NinoReflection.HostSizedVectorIn(typeof(Particle)));
         }
 #pragma warning restore NINO029
 
@@ -144,7 +144,7 @@ namespace Nino.UnitTests
                 { A = 1, B = System.Runtime.Intrinsics.Vector128.Create(1, -2, 3, -4), C = -1 };
             Assert.AreEqual(value.B, NinoDeserializer.Deserialize<Around<System.Runtime.Intrinsics.Vector128<int>>>(
                 NinoSerializer.Serialize(value)).B);
-            Assert.IsNull(NinoReflection.VariableVectorIn(typeof(System.Runtime.Intrinsics.Vector256<float>[])));
+            Assert.IsNull(NinoReflection.HostSizedVectorIn(typeof(System.Runtime.Intrinsics.Vector256<float>[])));
         }
 #endif
 

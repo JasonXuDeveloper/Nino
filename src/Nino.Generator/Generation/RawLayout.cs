@@ -30,8 +30,8 @@ internal static class RawLayout
         var wide = new List<NinoLayoutCore.Leaf>();
         var narrow = new List<NinoLayoutCore.Leaf>();
         var view = new SymbolView(type, canonical: false);
-        return NinoLayoutCore.Measure(view, type, 8, 8, 8, 0, wide, out int wideSize, out _) &&
-               NinoLayoutCore.Measure(view, type, 4, 4, 4, 0, narrow, out int narrowSize, out _) &&
+        return NinoLayoutCore.Measure(view, type, new NinoLayoutModel(8, 8, 8), 0, wide, out int wideSize, out _) &&
+               NinoLayoutCore.Measure(view, type, new NinoLayoutModel(4, 4, 4), 0, narrow, out int narrowSize, out _) &&
                wideSize == narrowSize && wide.Select(l => l.Offset).SequenceEqual(narrow.Select(l => l.Offset));
     }
 
@@ -54,8 +54,8 @@ internal static class RawLayout
         var offsets = new List<int>();
         // Auto-layout structs (value tuples, DateTimeOffset) placed as 64-bit CoreCLR places them: the canonical layout.
         var view = new SymbolView(type, canonical: true);
-        if (!NinoLayoutCore.Measure(view, type, 8, 8, 8, 0, new List<NinoLayoutCore.Leaf>(),
-                out int size, out _, offsets, autoPointerSize: 8))
+        if (!NinoLayoutCore.Measure(view, type, NinoLayoutModel.Canonical, 0, new List<NinoLayoutCore.Leaf>(),
+                out int size, out _, offsets))
             return false;
         sb.Append("raw(").Append(size.ToString(CultureInfo.InvariantCulture)).Append(')');
         // Int128 is a leaf of its own alignment (16) but still published as its two halves, as it always was.
@@ -361,7 +361,7 @@ internal static class RawLayout
                 if (type.SpecialType == SpecialType.System_UIntPtr || type is IPointerTypeSymbol)
                     return NinoLeaf.Pointer;
                 if (IsInt128(type))
-                    return NinoLeaf.Wide;
+                    return NinoLeaf.Int128;
             }
 
             return RawLayout.Leaf(type);
@@ -370,19 +370,19 @@ internal static class RawLayout
         // For the canonical layout Describe publishes (a struct with several fields of an auto layout is never portable).
         // SIMD vectors are aligned per runtime (Vector256 at 16 on Arm64): never portable, and their canonical layout is
         // Nino.Core's (NinoLayout), which nino-gen does not express.
-        public bool Vector(ITypeSymbol type, out int size, out int align)
+        public bool TryGetVector(ITypeSymbol type, out int size, out int align)
         {
             size = align = 0;
             return false;
         }
 
-        public bool Primitive(ITypeSymbol type) =>
+        public bool IsAutoPrimitive(ITypeSymbol type) =>
             type.TypeKind is TypeKind.Enum or TypeKind.Pointer ||
             type.SpecialType is >= SpecialType.System_Boolean and <= SpecialType.System_UInt64 or
                 SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_IntPtr or
                 SpecialType.System_UIntPtr;
 
-        public bool Struct(ITypeSymbol type, List<KeyValuePair<ITypeSymbol, int>> fields, out LayoutKind kind,
+        public bool TryGetFields(ITypeSymbol type, List<KeyValuePair<ITypeSymbol, int>> fields, out LayoutKind kind,
             out int pack, out int minSize)
         {
             // A known layout is sequential, without Pack or Size; the value tuples are auto-layout, which reference

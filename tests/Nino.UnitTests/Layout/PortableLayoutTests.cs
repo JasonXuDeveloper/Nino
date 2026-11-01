@@ -32,6 +32,15 @@ namespace Nino.UnitTests
     [TestClass]
     public class PortableLayoutTests
     {
+        /// <summary>
+        /// A runtime with these alignments, and this runtime's pointer size and, where not given, its alignments of
+        /// Int128 and DateTime.
+        /// </summary>
+        private static NinoLayoutModel Model(int longAlign, int decimalAlign, int int128Align = 0, int dateTimeAlign = 0) =>
+            new NinoLayoutModel(longAlign, decimalAlign, System.IntPtr.Size,
+                int128Align > 0 ? int128Align : NinoLayout.Int128Align,
+                dateTimeAlign > 0 ? dateTimeAlign : NinoLayout.DateTimeAlign);
+
         [TestMethod]
         public void LayoutDependentStructsUseTheCanonicalLayout()
         {
@@ -62,7 +71,7 @@ namespace Nino.UnitTests
         public void X86LayoutIsConvertedToTheCanonicalLayout()
         {
             // How x86 (8-byte primitives and decimal aligned to 4) lays out Natural: exactly X86Memory.
-            var info = NinoLayout.Compute(typeof(Natural), Unsafe.SizeOf<X86Memory>(), 4, 4);
+            var info = NinoLayout.Compute(typeof(Natural), Unsafe.SizeOf<X86Memory>(), Model(4, 4));
             Assert.IsFalse(info.Canonical);
             Assert.AreEqual(Unsafe.SizeOf<Natural>(), info.Size);
 
@@ -77,7 +86,7 @@ namespace Nino.UnitTests
             // Compared as bytes: Equals would read the decimal at offset 12, which faults on Arm64 (SIGBUS).
             CollectionAssert.AreEqual(Bytes(ref memory), Bytes(ref back));
 
-            Assert.IsTrue(NinoLayout.Compute(typeof(Natural), Unsafe.SizeOf<Natural>(), 8, 8).Canonical);
+            Assert.IsTrue(NinoLayout.Compute(typeof(Natural), Unsafe.SizeOf<Natural>(), Model(8, 8)).Canonical);
         }
 
         private struct HoldsDateTime
@@ -120,12 +129,13 @@ namespace Nino.UnitTests
             // .NET on 32-bit x86 aligns long, double and TimeSpan fields to 8 but DateTime (an auto-layout struct) to
             // 4: { int; DateTime } is 12 bytes there, 16 on 64-bit. With one alignment for both, the model said 16,
             // missed the runtime's 12, and the value was copied as its 12 bytes of memory.
-            var info = NinoLayout.Compute(typeof(HoldsDateTime), 12, 8, 8, 0, 4);
+            var info = NinoLayout.Compute(typeof(HoldsDateTime), 12, Model(8, 8, dateTimeAlign: 4));
             Assert.IsFalse(info.Canonical);
             Assert.AreEqual(16, info.Size);
             CollectionAssert.AreEqual(new[] { 0, 0, 4, 4, 8, 8 }, info.Map);
 
-            var x86 = NinoLayout.Compute(typeof(HoldsDateTimes), Unsafe.SizeOf<HoldsDateTimesX86>(), 8, 8, 0, 4);
+            var x86 = NinoLayout.Compute(typeof(HoldsDateTimes), Unsafe.SizeOf<HoldsDateTimesX86>(),
+                Model(8, 8, dateTimeAlign: 4));
             Assert.IsFalse(x86.Canonical);
             Assert.AreEqual(Unsafe.SizeOf<HoldsDateTimes>(), x86.Size);
             var memory = new HoldsDateTimesX86 { A = 1, B = new System.DateTime(0x0102030405060708L), C = -3 };
@@ -139,7 +149,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(-3, back.C);
 
             // TimeSpan follows long (8 there): nothing to convert.
-            Assert.IsTrue(NinoLayout.Compute(typeof(HoldsTimeSpan), 16, 8, 8, 0, 4).Canonical);
+            Assert.IsTrue(NinoLayout.Compute(typeof(HoldsTimeSpan), 16, Model(8, 8, dateTimeAlign: 4)).Canonical);
             // This runtime's probed alignments describe its own layout: 16 canonical bytes, converted or not.
             Assert.AreEqual(16, NinoLayout.Get(typeof(HoldsDateTime), Unsafe.SizeOf<HoldsDateTime>()).Size);
         }
@@ -204,7 +214,7 @@ namespace Nino.UnitTests
 
         private static void AssertMeasuredNullable<T>() where T : struct
         {
-            var measured = NinoLayout.Compute(typeof(T?), Unsafe.SizeOf<T?>(), 8, 8, 0, 0, true);
+            var measured = NinoLayout.Compute(typeof(T?), Unsafe.SizeOf<T?>(), Model(8, 8), true);
             Assert.IsTrue(measured.Canonical, typeof(T).Name);
             Assert.AreEqual(8, measured.Align, typeof(T).Name);
             Assert.AreEqual(Unsafe.SizeOf<T?>(), measured.Size, typeof(T).Name);
@@ -212,8 +222,8 @@ namespace Nino.UnitTests
 
         private static void AssertSameLayout<T>() where T : struct
         {
-            var model = NinoLayout.Compute(typeof(T), Unsafe.SizeOf<T>(), 8, 8);
-            var measured = NinoLayout.Compute(typeof(T), Unsafe.SizeOf<T>(), 8, 8, 0, 0, true);
+            var model = NinoLayout.Compute(typeof(T), Unsafe.SizeOf<T>(), Model(8, 8));
+            var measured = NinoLayout.Compute(typeof(T), Unsafe.SizeOf<T>(), Model(8, 8), true);
             Assert.AreEqual(model.Canonical, measured.Canonical, typeof(T).Name);
             Assert.AreEqual(model.Size, measured.Size, typeof(T).Name);
             CollectionAssert.AreEqual(model.Mask, measured.Mask, typeof(T).Name);
@@ -284,15 +294,15 @@ namespace Nino.UnitTests
         [TestMethod]
         public void Int128IsAlignedToSixteenBytes()
         {
-            var info = NinoLayout.Compute(typeof(WideAfterByte), Unsafe.SizeOf<WideAfterByte>(), 8, 8);
+            var info = NinoLayout.Compute(typeof(WideAfterByte), Unsafe.SizeOf<WideAfterByte>(), Model(8, 8));
             Assert.AreEqual(32, info.Size);
             Assert.AreEqual(16, info.Align);
             // CoreCLR on 64-bit aligns it to 16, as the canonical layout does; Arm32 aligns it to 8 and converts.
-            Assert.IsTrue(NinoLayout.WideAlign == 16 || NinoLayout.WideAlign == 8);
-            Assert.AreEqual(NinoLayout.WideAlign == 16, info.Canonical);
+            Assert.IsTrue(NinoLayout.Int128Align == 16 || NinoLayout.Int128Align == 8);
+            Assert.AreEqual(NinoLayout.Int128Align == 16, info.Canonical);
 
             // A runtime that aligns it to 8 (Arm32, .NET 7) has it at 8, and converts to the same 32 bytes.
-            var narrow = NinoLayout.Compute(typeof(WideAfterByte), 24, 8, 8, 8);
+            var narrow = NinoLayout.Compute(typeof(WideAfterByte), 24, Model(8, 8, int128Align: 8));
             Assert.IsFalse(narrow.Canonical);
             Assert.AreEqual(32, narrow.Size);
             CollectionAssert.AreEqual(new[] { 0, 0, 1, 8, 16, 16 }, narrow.Map);
