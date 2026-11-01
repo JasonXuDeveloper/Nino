@@ -523,6 +523,21 @@ namespace Nino.Core.Internal
         [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "A struct's default instance needs no constructor.")]
         private static List<KeyValuePair<Type, int>> MeasureMemory(Type type, int size)
         {
+            // A T? is created as null (boxed as nothing): its values are its flag and its T's (VisitNullable).
+            if (Nullable.GetUnderlyingType(type) is { } underlying)
+            {
+                var inner = NullableValue(underlying, out int valueOffset);
+                if (inner == null)
+                    return null;
+                var all = new List<KeyValuePair<Type, int>>(inner.Count + 2)
+                {
+                    new KeyValuePair<Type, int>(type, 0), new KeyValuePair<Type, int>(typeof(bool), 0),
+                };
+                foreach (var value in inner)
+                    all.Add(new KeyValuePair<Type, int>(value.Key, valueOffset + value.Value));
+                return all;
+            }
+
             object instance = Activator.CreateInstance(type);
             List<Measured> values = null;
             int bit = 0;

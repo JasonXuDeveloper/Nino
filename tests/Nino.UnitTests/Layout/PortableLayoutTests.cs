@@ -193,6 +193,23 @@ namespace Nino.UnitTests
             AssertSameLayout<HoldsNullable>();
         }
 
+        [TestMethod]
+        public void MeasuredNullableAtTheTop()
+        {
+            // A T? is boxed as null or as its T, never as itself: its offsets come from its value's and the sizes.
+            AssertMeasuredNullable<long>();
+            AssertMeasuredNullable<(int, long)>();
+            AssertMeasuredNullable<System.DateTimeOffset>();
+        }
+
+        private static void AssertMeasuredNullable<T>() where T : struct
+        {
+            var measured = NinoLayout.Compute(typeof(T?), Unsafe.SizeOf<T?>(), 8, 8, 0, 0, true);
+            Assert.IsTrue(measured.Canonical, typeof(T).Name);
+            Assert.AreEqual(8, measured.Align, typeof(T).Name);
+            Assert.AreEqual(Unsafe.SizeOf<T?>(), measured.Size, typeof(T).Name);
+        }
+
         private static void AssertSameLayout<T>() where T : struct
         {
             var model = NinoLayout.Compute(typeof(T), Unsafe.SizeOf<T>(), 8, 8);
