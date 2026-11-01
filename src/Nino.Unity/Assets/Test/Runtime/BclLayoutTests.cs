@@ -37,44 +37,10 @@ namespace Test.Runtime
     }
 
     /// <summary>
-    /// What replaces a Vector&lt;T&gt; member (NINO029): 16 floats (64 bytes, the widest Vector&lt;float&gt;) stored and
-    /// written, the vectors a [NinoIgnore] view over them (tests/Nino.RuntimeTests' LaneParticle).
-    /// </summary>
-    [NinoType]
-    public sealed class LaneParticle
-    {
-        public int Id;
-        public float[] Lanes = new float[16];
-
-        [NinoIgnore]
-        public Span<System.Numerics.Vector<float>> Vectors =>
-            System.Runtime.InteropServices.MemoryMarshal.Cast<float, System.Numerics.Vector<float>>(Lanes.AsSpan());
-
-        /// <summary>Lanes 0 to 15 doubled a vector at a time.</summary>
-        public static LaneParticle Doubled(int id)
-        {
-            var particle = new LaneParticle { Id = id };
-            for (int i = 0; i < particle.Lanes.Length; i++)
-                particle.Lanes[i] = i;
-            foreach (ref var vector in particle.Vectors)
-                vector *= 2;
-            return particle;
-        }
-    }
-
-    /// <summary>A plain (raw) struct around a BCL struct, after a byte and before an int.</summary>
-    public struct Around<T>
-    {
-        public byte A;
-        public T B;
-        public int C;
-    }
-
-    /// <summary>
     /// BCL structs inside plain structs (value tuples, pairs, DateTimeOffset, nint, Nullable) and tuples and pairs on
     /// their own: this runtime (Mono in the editor, IL2CPP in a player) must write the bytes 64-bit CoreCLR writes (the
-    /// canonical layout; the hex is tests/Nino.RuntimeTests/BclFixtures.cs's, written by CoreCLR x64) and read them
-    /// back. It also logs how this runtime lays the tuples out (docs/layouts.md).
+    /// canonical layout: <see cref="BclFixtures"/>, which tests/Nino.RuntimeTests writes on CoreCLR x64 and checks on
+    /// every other runtime) and read them back. It also logs how this runtime lays the tuples out (docs/layouts.md).
     /// </summary>
     public class BclLayoutTests
     {
@@ -87,11 +53,11 @@ namespace Test.Runtime
         {
             Debug.Log($"Nino layouts ({Application.platform}, {RuntimeName()}): " + Layouts());
             var failed = new List<string>();
-            void Check<T>(string name, T value, string hex)
+            void Check<T>(string name, T value)
             {
                 try
                 {
-                    var expected = Hex(hex);
+                    var expected = Hex(BclFixtures.Bytes[name]);
                     byte[] bytes = NinoSerializer.Serialize(value);
                     if (!bytes.SequenceEqual(expected))
                         failed.Add($"{name} writes {BitConverter.ToString(bytes)}");
@@ -105,30 +71,30 @@ namespace Test.Runtime
                 }
             }
 
-            Check("Around<(int,long)>[]", new[] { new Around<(int, long)> { A = 1, B = (-1, long.MinValue), C = -1 }, new Around<(int, long)> { A = 0xFE, B = (2, 0x0102030405060708), C = int.MaxValue } }, "0200000001000000000000000000000000000080FFFFFFFF00000000FFFFFFFF00000000FE0000000000000008070605040302010200000000000000FFFFFF7F00000000");
-            Check("Around<(byte,short)>", new Around<(byte, short)> { A = 1, B = (1, -2), C = -1 }, "01000000FEFF0100FFFFFFFF");
-            Check("Around<(byte,long,int)>", new Around<(byte, long, int)> { A = 1, B = (7, -8, 9), C = -1 }, "0100000000000000F8FFFFFFFFFFFFFF0900000007000000FFFFFFFF00000000");
-            Check("Around<(int,int,int)>", new Around<(int, int, int)> { A = 1, B = (1, 2, 3), C = -1 }, "010000000000000001000000020000000300000000000000FFFFFFFF00000000");
-            Check("Around<(bool,char,byte)>", new Around<(bool, char, byte)> { A = 1, B = (true, 'x', 3), C = -1 }, "0100000078000103FFFFFFFF");
-            Check("Around<(int,DateTime)>", new Around<(int, DateTime)> { A = 1, B = (1, Dt1), C = -1 }, "01000000000000000100000000000000EFCDAB8967452341FFFFFFFF00000000");
-            Check("Around<(byte,decimal)>", new Around<(byte, decimal)> { A = 1, B = (1, 1.5m), C = -1 }, "0100000000000000010000000000000000000100000000000F00000000000000FFFFFFFF00000000");
-            Check("Around<(byte,Guid)>", new Around<(byte, Guid)> { A = 1, B = (1, G1), C = -1 }, "0100000000000000010000000403020106050807090A0B0C0D0E0F1000000000FFFFFFFF00000000");
-            Check("Around<(byte,int?)>", new Around<(byte, int?)> { A = 1, B = (1, null), C = -1 }, "010000000000000001000000000000000000000000000000FFFFFFFF00000000");
-            Check("Around<(byte,(int,long))>", new Around<(byte, (int, long))> { A = 1, B = (1, (2, 3L)), C = -1 }, "0100000000000000010000000000000003000000000000000200000000000000FFFFFFFF00000000");
-            Check("Around<(int,(byte,short),long)>", new Around<(int, (byte, short), long)> { A = 1, B = (1, (2, 3), 4L), C = -1 }, "010000000000000004000000000000000100000003000200FFFFFFFF00000000");
-            Check("Around<(int,IntPtr)>", new Around<(int, IntPtr)> { A = 1, B = (1, new IntPtr(-2)), C = -1 }, "0100000000000000FEFFFFFFFFFFFFFF0100000000000000FFFFFFFF00000000");
-            Check("Around<(byte,DateTimeOffset)>", new Around<(byte, DateTimeOffset)> { A = 1, B = (1, Dto1), C = -1 }, "010000000000000001000000000000006AFFFFFF00000000008457F63414D708FFFFFFFF00000000");
-            Check("Around<(byte,long,byte,long,byte,long,byte,int)>", new Around<(byte, long, byte, long, byte, long, byte, int)> { A = 1, B = (1, 2L, 3, 4L, 5, 6L, 7, 8), C = -1 }, "01000000000000000200000000000000040000000000000006000000000000000103050708000000FFFFFFFF00000000");
-            Check("Around<KVP<int,long>>", new Around<KeyValuePair<int, long>> { A = 1, B = new KeyValuePair<int, long>(1, -2), C = -1 }, "01000000000000000100000000000000FEFFFFFFFFFFFFFFFFFFFFFF00000000");
-            Check("Around<KVP<long,byte>>", new Around<KeyValuePair<long, byte>> { A = 1, B = new KeyValuePair<long, byte>(-1, 2), C = -1 }, "0100000000000000FFFFFFFFFFFFFFFF0200000000000000FFFFFFFF00000000");
-            Check("Around<DateTimeOffset>", new Around<DateTimeOffset> { A = 1, B = Dto1, C = -1 }, "01000000000000006AFFFFFF00000000008457F63414D708FFFFFFFF00000000");
-            Check("Around<decimal>", new Around<decimal> { A = 1, B = 1.5m, C = -1 }, "010000000000000000000100000000000F00000000000000FFFFFFFF00000000");
-            Check("Around<IntPtr>", new Around<IntPtr> { A = 1, B = new IntPtr(-1), C = -1 }, "0100000000000000FFFFFFFFFFFFFFFFFFFFFFFF00000000");
-            Check("Around<(int,long)?>", new Around<(int, long)?> { A = 1, B = (1, 2L), C = -1 }, "0100000000000000010000000000000002000000000000000100000000000000FFFFFFFF00000000");
-            Check("(int,long)[]", new[] { (1, 2L), (-3, long.MinValue) }, "02000000010000000200000000000000FDFFFFFF0000000000000080");
-            Check("List<(byte,long,int)>", new List<(byte, long, int)> { (1, 2, 3), (255, -1, int.MaxValue) }, "0200000001020000000000000003000000FFFFFFFFFFFFFFFFFFFFFFFF7F");
-            Check("KVP<int,long>[]", new[] { new KeyValuePair<int, long>(1, 2), new KeyValuePair<int, long>(-3, -4) }, "02000000010000000200000000000000FDFFFFFFFCFFFFFFFFFFFFFF");
-            Check("Dictionary<int,(byte,long)>", new Dictionary<int, (byte, long)> { [1] = (2, 3), [-4] = (5, -6) }, "0200000001000000020300000000000000FCFFFFFF05FAFFFFFFFFFFFFFF");
+            Check("Around<(int,long)>[]", new[] { new Around<(int, long)> { A = 1, B = (-1, long.MinValue), C = -1 }, new Around<(int, long)> { A = 0xFE, B = (2, 0x0102030405060708), C = int.MaxValue } });
+            Check("Around<(byte,short)>", new Around<(byte, short)> { A = 1, B = (1, -2), C = -1 });
+            Check("Around<(byte,long,int)>", new Around<(byte, long, int)> { A = 1, B = (7, -8, 9), C = -1 });
+            Check("Around<(int,int,int)>", new Around<(int, int, int)> { A = 1, B = (1, 2, 3), C = -1 });
+            Check("Around<(bool,char,byte)>", new Around<(bool, char, byte)> { A = 1, B = (true, 'x', 3), C = -1 });
+            Check("Around<(int,DateTime)>", new Around<(int, DateTime)> { A = 1, B = (1, Dt1), C = -1 });
+            Check("Around<(byte,decimal)>", new Around<(byte, decimal)> { A = 1, B = (1, 1.5m), C = -1 });
+            Check("Around<(byte,Guid)>", new Around<(byte, Guid)> { A = 1, B = (1, G1), C = -1 });
+            Check("Around<(byte,int?)>", new Around<(byte, int?)> { A = 1, B = (1, null), C = -1 });
+            Check("Around<(byte,(int,long))>", new Around<(byte, (int, long))> { A = 1, B = (1, (2, 3L)), C = -1 });
+            Check("Around<(int,(byte,short),long)>", new Around<(int, (byte, short), long)> { A = 1, B = (1, (2, 3), 4L), C = -1 });
+            Check("Around<(int,IntPtr)>", new Around<(int, IntPtr)> { A = 1, B = (1, new IntPtr(-2)), C = -1 });
+            Check("Around<(byte,DateTimeOffset)>", new Around<(byte, DateTimeOffset)> { A = 1, B = (1, Dto1), C = -1 });
+            Check("Around<(byte,long,byte,long,byte,long,byte,int)>", new Around<(byte, long, byte, long, byte, long, byte, int)> { A = 1, B = (1, 2L, 3, 4L, 5, 6L, 7, 8), C = -1 });
+            Check("Around<KVP<int,long>>", new Around<KeyValuePair<int, long>> { A = 1, B = new KeyValuePair<int, long>(1, -2), C = -1 });
+            Check("Around<KVP<long,byte>>", new Around<KeyValuePair<long, byte>> { A = 1, B = new KeyValuePair<long, byte>(-1, 2), C = -1 });
+            Check("Around<DateTimeOffset>", new Around<DateTimeOffset> { A = 1, B = Dto1, C = -1 });
+            Check("Around<decimal>", new Around<decimal> { A = 1, B = 1.5m, C = -1 });
+            Check("Around<IntPtr>", new Around<IntPtr> { A = 1, B = new IntPtr(-1), C = -1 });
+            Check("Around<(int,long)?>", new Around<(int, long)?> { A = 1, B = (1, 2L), C = -1 });
+            Check("(int,long)[]", new[] { (1, 2L), (-3, long.MinValue) });
+            Check("List<(byte,long,int)>", new List<(byte, long, int)> { (1, 2, 3), (255, -1, int.MaxValue) });
+            Check("KVP<int,long>[]", new[] { new KeyValuePair<int, long>(1, 2), new KeyValuePair<int, long>(-3, -4) });
+            Check("Dictionary<int,(byte,long)>", new Dictionary<int, (byte, long)> { [1] = (2, 3), [-4] = (5, -6) });
             CollectionAssert.IsEmpty(failed);
         }
 
@@ -155,11 +121,10 @@ namespace Test.Runtime
             Assert.Throws<NotSupportedException>(() =>
                 NinoDeserializer.Deserialize<Around<System.Numerics.Vector<int>>[]>(new byte[64]));
 #pragma warning restore NINO029
-            // Its replacement writes CoreCLR x64's bytes (tests/Nino.RuntimeTests/BclFixtures.cs) whatever this CPU's
-            // Vector<float>.Count.
+            // Its replacement writes CoreCLR x64's bytes (BclFixtures) whatever this CPU's Vector<float>.Count.
             Debug.Log($"Vector<float>.Count {System.Numerics.Vector<float>.Count}");
             var bytes = NinoSerializer.Serialize(LaneParticle.Doubled(3));
-            Assert.AreEqual("0103000000100000000000000000000040000080400000C0400000004100002041000040410000604100008041000090410000A0410000B0410000C0410000D0410000E0410000F041", BitConverter.ToString(bytes).Replace("-", ""));
+            Assert.AreEqual(BclFixtures.Bytes["LaneParticle"], BitConverter.ToString(bytes).Replace("-", ""));
             Assert.AreEqual(30f, NinoDeserializer.Deserialize<LaneParticle>(bytes).Lanes[15]);
         }
 

@@ -80,8 +80,9 @@ namespace BclCorner
             // Not laid out the same on x86 (TimeOnly at 4) and 64-bit runtimes: written through its formatter, in the
             // canonical layout.
             "Late:Nino.UnitTests.TimeAfterInt:raw(16){A:int@0:raw(4),T:System.TimeOnly@8:raw(8)}",
-            // Int128 is 16-byte aligned on .NET 8 and later, 8-byte aligned before: no layout known at compile time.
-            "Wide:Nino.UnitTests.WideAfterLong:raw");
+            // Int128 is 16-byte aligned on .NET 8 and later, 8-byte aligned before: written through its formatter, in
+            // the canonical layout, which aligns it to 16.
+            "Wide:Nino.UnitTests.WideAfterLong:raw(32){A:long@0:raw(8),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}}");
 
         private static string Members(Assembly assembly, string ns) =>
             assembly.GetCustomAttributes<NinoTypeLayoutAttribute>()

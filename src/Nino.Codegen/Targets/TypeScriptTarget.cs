@@ -589,7 +589,9 @@ namespace Nino.Codegen.Targets
                 case ValueKind.RawStruct:
                 {
                     var model = value.Struct!;
-                    if (model.Empty)
+                    // DateTimeOffset as the struct of its canonical fields holds a DateTime to the tick and of kind
+                    // Unspecified, which a Date (milliseconds, written as UTC) cannot give back.
+                    if (model.Empty || model.FullName == "System.DateTimeOffset")
                         throw new UnsupportedException($"{value.ClrName} ({value.Encoding}) has no TypeScript form");
                     int index = _rawStructs.FindIndex(r => r.Struct == model);
                     if (index >= 0)

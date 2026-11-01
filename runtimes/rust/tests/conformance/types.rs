@@ -5946,7 +5946,9 @@ impl J for Nested {
 pub const NOT_EMULATED: &[&str] = &[
     "Conformance.BagHolder",
     "Conformance.BclRaw",
+    "Conformance.BclRawHost",
     "Conformance.BclRawNullables",
+    "Conformance.BclRawOffset",
     "Conformance.GenericSlots",
     "Conformance.NestHolder",
     "Conformance.WrappedArgs",

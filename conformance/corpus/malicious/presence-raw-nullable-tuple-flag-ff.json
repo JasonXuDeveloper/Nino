@@ -1,0 +1,19 @@
+{
+  "case": "presence-raw-nullable-tuple-flag-ff",
+  "type": "Conformance.BclRawNullables",
+  "category": "presence",
+  "expected": "error",
+  "exercises": "bcl-raw-nullables with the has-value byte of Nullables.C (an (int, long)? at byte 16) 0xff.",
+  "untrusted": true,
+  "size": 125,
+  "layouts": {
+    "Conformance.BclRawNullables": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA24BE90D; deferrable=true; members=Nullables:Conformance.HoldsNullables:raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}};Array:Conformance.HoldsNullables[]:seq(raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}})"
+  },
+  "dotnet": {
+    "outcome": "returned"
+  },
+  "dotnetUntrusted": {
+    "outcome": "error",
+    "exception": "NinoDataException"
+  }
+}

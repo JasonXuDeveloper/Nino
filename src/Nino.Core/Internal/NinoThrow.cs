@@ -42,13 +42,12 @@ namespace Nino.Core.Internal
         public static void InvalidData(string message) =>
             throw new NinoDataException("Nino: " + message);
 
-        /// <summary><paramref name="type"/> is or holds <c>Vector&lt;T&gt;</c> (<see cref="NinoReflection.VariableVectorIn"/>).</summary>
+        /// <summary><paramref name="type"/> is or holds <c>Vector&lt;T&gt;</c> (<see cref="NinoReflection.HostSizedVectorIn"/>).</summary>
         [MethodImpl(Cold)]
-        public static void VariableVector(Type type, Type vector) =>
+        public static void HostSizedVector(Type type, Type vector) =>
             throw new NotSupportedException(
-                $"Nino: {type} cannot be serialized: it is or holds {vector}, which is as wide as the CPU's vectors " +
-                "(16 bytes on Arm64, Mono, IL2CPP and x64 without AVX2, 32 on x64 with AVX2), so no host could read " +
-                "every other host's bytes. Store a fixed number of lanes (an array or fixed buffer, Vector128<T> or " +
+                $"Nino: {type} cannot be serialized: it is or holds {vector}, which is 16, 32 or 64 bytes by the CPU, " +
+                "so no host could read every other host's bytes (docs/spec/wire-format.md §3). Store a fixed number of lanes (an array or fixed buffer, Vector128<T> or " +
                 "Vector256<T>) and expose the Vector<T> through a [NinoIgnore] property over them (diagnostic NINO029).");
 
         [MethodImpl(Cold)]

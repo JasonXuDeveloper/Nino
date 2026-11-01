@@ -21,6 +21,11 @@ namespace Conformance
         public byte[] Bytes;
         /// <summary><c>error</c>, or <c>error-or-value</c> where .NET reads the input by design.</summary>
         public string Expected = "error";
+        /// <summary>
+        /// Rejected by a reader in its untrusted mode (.NET: <c>NinoSettings.Untrusted</c>); a reader's default mode may
+        /// read it (.NET copies raw blocks and values as they are, at no cost). A reader with no such mode rejects it.
+        /// </summary>
+        public bool Untrusted;
     }
 
     internal static class MaliciousCases
@@ -44,6 +49,21 @@ namespace Conformance
                     Name = $"{category}-{name}", Type = typeof(T), Category = category, Exercises = exercises,
                     Bytes = Concat(parts),
                 });
+
+            // Rejected in untrusted mode only (MaliciousCase.Untrusted).
+            void AddUntrusted<T>(string category, string name, string exercises, params byte[][] parts)
+            {
+                Add<T>(category, name, exercises, parts);
+                cases[^1].Untrusted = true;
+            }
+
+            // A valid case's bytes with the byte at offset set to value.
+            byte[] Patched(string validCase, int offset, byte value)
+            {
+                var bytes = (byte[])validBytes[validCase].Clone();
+                bytes[offset] = value;
+                return bytes;
+            }
 
             // ---------------------------------------------------------- collection lengths
 
@@ -218,6 +238,21 @@ namespace Conformance
                     I32(1), new byte[] { b, 0, 0, 0 }, I32(7));
                 Add<Integers>("presence", $"root-null-flag-{hex}", $"The top-level object's null flag of 0x{hex}.",
                     new[] { b }, new byte[62]);
+
+                // Inside raw structs, copied as one block: checked in untrusted mode only (spec §9.3). The valid cases
+                // are the controls.
+                AddUntrusted<Nested>("presence", $"raw-bool-{hex}",
+                    $"struct-root-nested-raw with its bool Flag (byte 25 of the raw struct) 0x{hex}.",
+                    Patched("struct-root-nested-raw", 25, b));
+                AddUntrusted<BclRawNullables>("presence", $"raw-nullable-flag-{hex}",
+                    $"bcl-raw-nullables with the has-value byte of Nullables.B (an int? at byte 4 of the raw struct) 0x{hex}.",
+                    Patched("bcl-raw-nullables", 1 + 4, b));
+                AddUntrusted<BclRawNullables>("presence", $"raw-nullable-tuple-flag-{hex}",
+                    $"bcl-raw-nullables with the has-value byte of Nullables.C (an (int, long)? at byte 16) 0x{hex}.",
+                    Patched("bcl-raw-nullables", 1 + 16, b));
+                AddUntrusted<BclRawNullables>("presence", $"raw-array-nullable-flag-{hex}",
+                    $"bcl-raw-nullables with the has-value byte of Array[1].B (a block of raw structs) 0x{hex}.",
+                    Patched("bcl-raw-nullables", 1 + 40 + 4 + 40 + 4, b));
             }
 
             // ---------------------------------------------------------- type ids
@@ -472,23 +507,23 @@ namespace Conformance
                 new byte[12], new byte[16], new byte[8], I32(3_652_058), new byte[8]);
             Control<Dates>("dates", NotNull, I64(3155378975999999999), new byte[8], new byte[8], I64(0),
                 BitConverter.GetBytes((short)840));
-            Add<Point>("trailing", "byte",
+            AddUntrusted<Point>("trailing", "byte",
                 "A valid Point followed by one more byte: the input must be consumed exactly.", NotNull, I32(1), I32(2),
                 new byte[] { 0 });
             Add<VersionSlot>("version", "negative-part", "A Version whose minor part is -2 (a major of -1 is null; build " +
                                                          "and revision may be -1, unset; nothing else is negative).",
                 NotNull, I32(1), I32(-2), I32(0), I32(0));
-            Add<Scalars>("decimal", "bad-scale",
+            AddUntrusted<Scalars>("decimal", "bad-scale",
                 "A decimal whose scale byte is 29 (at most 28) and whose reserved flag bits are set.", NotNull,
                 new byte[] { 0 }, new byte[] { 0x61, 0 }, new byte[] { 0xFF, 0xFF, 29, 0 }, new byte[12],
                 new byte[16], new byte[8], new byte[4], new byte[8]);
-            Add<Dates>("datetime", "ticks-past-max",
+            AddUntrusted<Dates>("datetime", "ticks-past-max",
                 "A DateTime whose ticks are past DateTime.MaxValue (the low 62 bits).", NotNull,
                 I64(0x3FFFFFFFFFFFFFFF), new byte[8], new byte[8], new byte[10]);
             Add<Dates>("datetime", "offset-past-14h",
                 "A DateTimeOffset with an offset of 15 hours (at most 14).", NotNull, new byte[24], I64(0),
                 BitConverter.GetBytes((short)900));
-            Add<Scalars>("dateonly", "day-past-max", "A DateOnly day number past DateOnly.MaxValue.", NotNull,
+            AddUntrusted<Scalars>("dateonly", "day-past-max", "A DateOnly day number past DateOnly.MaxValue.", NotNull,
                 new byte[] { 0 }, new byte[2], new byte[16], new byte[16], new byte[8], I32(int.MaxValue),
                 new byte[8]);
 
@@ -570,7 +605,7 @@ namespace Conformance
 
         private static byte[] I64(long value) => BitConverter.GetBytes(value);
 
-        public static JsonObject Describe(MaliciousCase c, Outcome outcome)
+        public static JsonObject Describe(MaliciousCase c, Outcome outcome, Outcome untrusted)
         {
             var involved = new SortedDictionary<string, Type>(StringComparer.Ordinal);
             Layouts.Involved(c.Type, involved);
@@ -587,9 +622,13 @@ namespace Conformance
             };
             if (c.Optional != null)
                 json["optional"] = c.Optional;
+            if (c.Untrusted)
+                json["untrusted"] = true;
             json["size"] = c.Bytes.Length;
             json["layouts"] = layouts;
             json["dotnet"] = outcome.ToJson();
+            if (c.Untrusted)
+                json["dotnetUntrusted"] = untrusted.ToJson();
             return json;
         }
 
@@ -607,7 +646,8 @@ namespace Conformance
                 "collections-values", "nullables-values", "tolerant", "tolerant-new-to-old", "keyed",
                 "keyed-v1-to-v2", "polymorphism", "polymorphism-generic-root", "deep-chain-130",
                 "deep-tolerant-chain-129", "deep-keyed-chain-129", "deep-links-129", "deep-in-region",
-                "references-shared", "tree-collections",
+                "references-shared", "tree-collections", "bcl-raw-values", "bcl-raw-nullables",
+                "bcl-raw-host", "bcl-raw-offset",
             };
             return names.Select(n => valid.Single(c => c.Name == n)).ToList();
         }

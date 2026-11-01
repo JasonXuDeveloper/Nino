@@ -162,7 +162,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 : EquatableArray<string>.Empty)
             .WithTrackingName("LayoutTypes");
 
-        // The nesting formatters of the types that hold themselves (FormatterResolver.Nesting), declared once: one per
+        // The nesting formatters of the types that hold themselves (FormatterResolver.NestingFormattersNamedIn), declared once: one per
         // name, whose body models built in different compilations may have resolved differently (both correct).
         var nesting = Merge(usages, CollectAll(models, static m => m.Registrations.Nesting), static u => u.Nesting,
                 static all => all.GroupBy(static n => n.Name)
@@ -381,7 +381,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
             { SpecialType: SpecialType.System_Void } or INamedTypeSymbol { IsUnboundGenericType: true })
             return null;
         // Vector<T>, alone or inside (NINO029): nothing to register or intercept, the regular call refuses it.
-        if (facts.Raw.VariableVectorIn(type) != null)
+        if (facts.Raw.HostSizedVectorIn(type) != null)
             return null;
         return ModelCache.GetOrBuildCall(ctx.Node, method, type, ctx.SemanticModel.Compilation, () =>
         {
@@ -411,7 +411,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
                           facts.Visibility.CanName(type);
         // The nesting formatters the registration, the closed generics or the interceptor (the same formatter) name.
         var nesting = formatter is { } named
-            ? facts.Resolver.Nesting(generics.Select(static g => g.Formatter).Append(named.Code.ToString()))
+            ? facts.Resolver.NestingFormattersNamedIn(generics.Select(static g => g.Formatter).Append(named.Code.ToString()))
             : EquatableArray<NestingModel>.Empty;
         if (!registered && generics.Count == 0 && layouts.Count == 0 && nesting.Length == 0)
             return null;

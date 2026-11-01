@@ -99,6 +99,45 @@ namespace Layout
         }
 
         /// <summary>
+        /// Raw structs holding an <c>Int128</c>, a <c>DateTimeOffset</c> or an <c>nint</c>, and nullable <c>Int128</c>
+        /// elements, are published with their fields at their canonical offsets (spec §5.2), which every runtime
+        /// writes: they were the bare <c>raw</c>, and nino-gen left out every type holding one (NINOGEN002). The
+        /// published size is the size Nino.Core writes.
+        /// </summary>
+        [TestMethod]
+        public void PublishesCanonicalFieldsOfHostDependentStructs()
+        {
+            var assembly = Compile(@"
+using System;
+using Nino.Core;
+namespace Canonical
+{
+    public struct Wide { public byte A; public Int128 B; }
+    public struct Offset { public int A; public DateTimeOffset B; }
+    public struct Pointer { public int A; public nint B; public nuint C; }
+    [NinoType] public sealed class Holder { public Wide W; public Offset O; public Pointer P; public Int128?[] Gaps; }
+}");
+            const string int128 = "raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}";
+            const string dateTime = "raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}";
+            Assert.AreEqual(
+                $"W:Canonical.Wide:raw(32){{A:byte@0:raw(1),B:System.Int128@16:{int128}}};" +
+                $"O:Canonical.Offset:raw(24){{A:int@0:raw(4),B:System.DateTimeOffset@8:{dateTime}}};" +
+                "P:Canonical.Pointer:raw(24){A:int@0:raw(4),B:System.IntPtr@8:raw(8),C:System.UIntPtr@16:raw(8)};" +
+                $"Gaps:System.Nullable<System.Int128>[]:seq(raw(32){{hasValue:bool@0:raw(1),value:System.Int128@16:{int128}}})",
+                Layout(assembly, "Canonical.Holder").Members);
+
+            // The bytes Nino.Core writes for each: as many as published.
+            var serialize = typeof(NinoSerializer).GetMethods()
+                .Single(m => m.Name == nameof(NinoSerializer.Serialize) && m.IsGenericMethod && m.GetParameters().Length == 1);
+            foreach (var (type, size) in new[] { ("Canonical.Wide", 32), ("Canonical.Offset", 24), ("Canonical.Pointer", 24) })
+            {
+                var t = assembly.GetType(type);
+                var bytes = (byte[])serialize.MakeGenericMethod(t).Invoke(null, new[] { Activator.CreateInstance(t) });
+                Assert.AreEqual(size, bytes.Length, type);
+            }
+        }
+
+        /// <summary>
         /// Whether a class body can be deferred (read after its instance is in its slot) is published as
         /// <c>Deferrable</c>, and <c>ToString</c> writes it before the members.
         /// </summary>

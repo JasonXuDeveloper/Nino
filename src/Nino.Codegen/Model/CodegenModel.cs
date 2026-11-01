@@ -513,9 +513,21 @@ namespace Nino.Codegen.Model
 
         private static string NoForm(Type clr, string encoding) => $"{clr.FullName} ({encoding}) has no {{lang}} form";
 
+        /// <summary>
+        /// <c>System.Numerics.Vector&lt;T&gt;</c>: as wide as the CPU's vectors, so not serializable (wire-format spec §3).
+        /// A current generator publishes no layout with one (NINO029); one from an older build is refused here.
+        /// </summary>
+        internal static bool IsHostSizedVector(Type type) => Generic(type) == "System.Numerics.Vector`1";
+
+        private static ValueModel HostSizedVector(Type clr, string encoding) =>
+            Unsupported(clr, encoding,
+                "System.Numerics.Vector<T> is not serializable: 16, 32 or 64 bytes by the CPU (wire-format spec §3)");
+
         /// <summary>A member's encoding resolved against its type.</summary>
         private ValueModel Value(WireEncoding e, Type clr)
         {
+            if (IsHostSizedVector(clr))
+                return HostSizedVector(clr, e.Source);
             switch (e.Kind)
             {
                 case "raw":
@@ -731,7 +743,7 @@ namespace Nino.Codegen.Model
             var value = type.GetGenericArguments()[0];
             if (RawArgument(value) is not { } raw)
                 return null;
-            int align = CanonicalAlign(value);
+            int align = CanonicalLayout.Align(value);
             if (align <= 0)
                 return null;
             return $"raw({align + raw.Size}){{hasValue:System.Boolean@0:raw(1),value:{value.FullName}@{align}:{raw.Source}}}";
@@ -754,40 +766,6 @@ namespace Nino.Codegen.Model
             return Find(type) is { Layout: { Raw: true, RawEncoding: { Size: > 0 } encoding } } ? encoding : null;
         }
 
-        /// <summary>
-        /// The canonical alignment of a raw type (wire-format spec §5.2): of a leaf, its own; of a struct, the largest
-        /// of its fields' (each limited to <c>[StructLayout(Pack)]</c>); 0 when it cannot be told.
-        /// </summary>
-        private static int CanonicalAlign(Type type)
-        {
-            if (type.IsEnum)
-                type = type.GetEnumUnderlyingType();
-            if (PrimitiveOf(type) is { } primitive)
-                return primitive switch
-                {
-                    PrimitiveKind.Decimal => 8,
-                    PrimitiveKind.Guid => 4,
-                    PrimitiveKind.I128 or PrimitiveKind.U128 => 16,
-                    PrimitiveKind.NInt or PrimitiveKind.NUInt => 0,
-                    _ => PrimitiveSize(primitive),
-                };
-            if (!type.IsValueType)
-                return 0;
-            int pack = type.StructLayoutAttribute?.Pack ?? 0;
-            int align = 1;
-            foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
-            {
-                int a = CanonicalAlign(field.FieldType);
-                if (a <= 0)
-                    return 0;
-                if (pack > 0 && a > pack)
-                    a = pack;
-                align = Math.Max(align, a);
-            }
-
-            return align;
-        }
-
         /// <summary>Records a collection that holds itself (its elements, keys or values are <c>type(itself)</c>).</summary>
         private void NameCollection(ValueModel value)
         {
@@ -798,6 +776,8 @@ namespace Nino.Codegen.Model
         /// <summary>A value copied as raw memory: a primitive, an enum, or a struct in its canonical layout.</summary>
         private ValueModel Raw(WireEncoding e, Type clr)
         {
+            if (IsHostSizedVector(clr))
+                return HostSizedVector(clr, e.Source);
             if (clr.IsEnum)
             {
                 var model = EnumOf(clr);
@@ -824,6 +804,9 @@ namespace Nino.Codegen.Model
                 return value;
             }
 
+            // A pointer is 8 bytes, zero-extended, as nuint (spec §5.2).
+            if (clr.IsPointer)
+                return new ValueModel(ValueKind.Primitive, clr, e.Source) { Primitive = PrimitiveKind.NUInt, Size = 8 };
             if (!clr.IsValueType)
                 return Unsupported(clr, e.Source, NoForm(clr, e.Source));
             if (e.Fields.Count == 0)
@@ -885,6 +868,7 @@ namespace Nino.Codegen.Model
                 {
                     Layout = Find(clr),
                     Size = e.Fields.Count == 0 && e.Size < 0 ? 1 : e.Size,
+                    Align = Math.Max(CanonicalLayout.Align(clr), 1),
                     Packed = Packed(e),
                 };
                 _structs[clr] = model;
@@ -993,6 +977,15 @@ namespace Nino.Codegen.Model
 
         private static Type? FieldType(Type type, string name)
         {
+            // DateTimeOffset's layout publishes its canonical fields (spec §5.2: .NET 10's, the minutes an int at 0, the
+            // UTC ticks at 8), which a runtime declares its own way (.NET 8 holds a short, Mono puts it at 8).
+            if (type.FullName == "System.DateTimeOffset")
+                return name switch
+                {
+                    "offsetMinutes" => type.Assembly.GetType("System.Int32"),
+                    "dateTime" => type.Assembly.GetType("System.DateTime"),
+                    _ => null,
+                };
             const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
             return (type.GetField(name, flags) ?? type.GetField($"<{name}>k__BackingField", flags))?.FieldType;
         }

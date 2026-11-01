@@ -100,10 +100,10 @@ func (b *builder) fill(c *codec, variant uint8) error {
 	case typeTimeOnly:
 		return b.leaf(c, kTimeOnly, 8, 8, true)
 	case typeInt128:
-		// The alignment of Int128 differs between .NET versions: only a declared raw layout places it.
-		return b.leaf(c, kInt128, 16, 0, true)
+		// Aligned to 16 in the canonical layout (spec §5.2), as .NET 8 and later lay it out.
+		return b.leaf(c, kInt128, 16, 16, true)
 	case typeUInt128:
-		return b.leaf(c, kUInt128, 16, 0, true)
+		return b.leaf(c, kUInt128, 16, 16, true)
 	case typeHalf:
 		return b.leaf(c, kHalf, 2, 2, true)
 	case typeDateTimeOffset:

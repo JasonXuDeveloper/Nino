@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
@@ -1637,6 +1638,10 @@ public struct Outer { public byte B; public Raw Inner; }
 [NinoType]
 public class Box<T> { public T Value; }
 
+// T reaches the base's member under the base's own parameter.
+[NinoType]
+public class ListBox<T> : Box<List<T>> { }
+
 [NinoType]
 public class Holder
 {
@@ -1648,6 +1653,7 @@ public class Holder
     public Vector<int>? {|#5:Nullable|};
     public Dictionary<int, (byte, Vector<long>)> {|#6:InTuple|};
     public Vector<float> {|#7:Settable|} { get => default; set { } }
+    public ListBox<Vector<short>> {|#10:InBaseOfBox|};
 }
 
 [NinoType]
@@ -1670,7 +1676,9 @@ public struct OnlyVectors { public Vector<byte> {|#9:V|}; }
                 "System.Numerics.Vector<long>"),
             Nino029(7, "Settable", "Holder", "System.Numerics.Vector<float>"),
             Nino029(8, "V", "NinoStruct", "System.Numerics.Vector<double>"),
-            Nino029(9, "V", "OnlyVectors", "System.Numerics.Vector<byte>")).RunAsync();
+            Nino029(9, "V", "OnlyVectors", "System.Numerics.Vector<byte>"),
+            Nino029(10, "InBaseOfBox", "Holder", "ListBox<System.Numerics.Vector<short>>",
+                "System.Numerics.Vector<short>")).RunAsync();
     }
 
     [TestMethod]
@@ -1955,6 +1963,40 @@ public static class ByHand
 ";
 
         await SetUpAnalyzerTest(code).RunAsync();
+    }
+
+    [TestMethod]
+    [Timeout(60000)]
+    public async Task NINO029_TypesHoldingEachOtherAreSearchedOnce()
+    {
+        // A ring of collections, each derived from a list of the next: every class was searched again on each path to
+        // it (its list's type argument, the list's IEnumerable<T>, its own IEnumerable<T>), three times more work per
+        // class; 18 took two minutes, 40 would never end.
+        const int count = 40;
+        var ring = string.Join("\n", Enumerable.Range(0, count)
+            .Select(i => $"public class C{i} : List<C{(i + 1) % count}> {{ }}"));
+        var code = $@"
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+{ring}
+public class Last : List<C0> {{ public Vector<int> NotWritten; }}
+public class Lanes : List<C{count / 2}>, IEnumerable<Vector<int>>
+{{
+    IEnumerator<Vector<int>> IEnumerable<Vector<int>>.GetEnumerator() => null;
+}}
+
+[NinoType]
+public class Holder
+{{
+    public C0 Ring;
+    public List<C7> Inside;
+    public Last Fields;
+    public Lanes {{|#0:Mixed|}};
+}}
+";
+        await SetUpAnalyzerTest(code, Nino029(0, "Mixed", "Holder", "Lanes", "System.Numerics.Vector<int>")).RunAsync();
     }
 
     #endregion

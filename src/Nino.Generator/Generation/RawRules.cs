@@ -32,7 +32,7 @@ internal sealed class RawRules
     /// <summary>Whether values of <paramref name="type"/> are written as their raw bytes.</summary>
     public bool IsRawUnmanaged(ITypeSymbol type)
     {
-        if (type is ITypeParameterSymbol || !type.IsUnmanagedType || VariableVectorIn(type) != null)
+        if (type is ITypeParameterSymbol || !type.IsUnmanagedType || HostSizedVectorIn(type) != null)
             return false;
         if (type.IsNinoType())
             return type is INamedTypeSymbol ninoStruct && IsRawStruct(ninoStruct);
@@ -56,52 +56,62 @@ internal sealed class RawRules
 
     /// <summary>
     /// The <c>System.Numerics.Vector&lt;T&gt;</c> that <paramref name="type"/> is or holds, or null: as an array
-    /// element, a type argument (of a <c>[NinoType]</c>, only one its serialized members use), in a base type or the
-    /// element of an <c>IEnumerable&lt;T&gt;</c> it implements (<c>class Lanes : List&lt;Vector&lt;int&gt;&gt;</c>), or
-    /// a field at any depth of a struct that is not a <c>[NinoType]</c> (whose members are checked on their own
-    /// declaration). <c>Vector&lt;T&gt;</c> is as wide as the CPU's vectors (16 or 32 bytes), so no layout of it reads
-    /// on every host: such a type has no formatter (<see cref="FormatterResolver"/>), is never raw, and a member or
-    /// top-level call with one is NINO029 (not NINO007). Nino.Core refuses the same types at run time
-    /// (<c>NinoReflection.VariableVectorIn</c>).
+    /// element, a type argument, in a base type or the element of an <c>IEnumerable&lt;T&gt;</c> it implements
+    /// (<c>class Lanes : List&lt;Vector&lt;int&gt;&gt;</c>), a field at any depth of a struct that is not a
+    /// <c>[NinoType]</c>, or a type argument of a generic <c>[NinoType]</c> that one of its serialized members names
+    /// (<c>Box&lt;Vector&lt;int&gt;&gt;</c> of <c>Box&lt;T&gt; { T Value; }</c>, not <c>Tag&lt;Vector&lt;int&gt;&gt;</c>
+    /// of <c>Tag&lt;T&gt; { int Id; }</c>; its other members are checked on their own declaration).
+    /// <c>Vector&lt;T&gt;</c> is as wide as the CPU's vectors (16, 32 or 64 bytes), so no layout of it reads on every
+    /// host: such a type has no formatter (<see cref="FormatterResolver"/>), is never raw, and a member or top-level
+    /// call with one is NINO029 (not NINO007). Nino.Core refuses the same types at run time
+    /// (<c>NinoReflection.HostSizedVectorIn</c>).
     /// </summary>
-    public ITypeSymbol? VariableVectorIn(ITypeSymbol type)
+    public ITypeSymbol? HostSizedVectorIn(ITypeSymbol type)
     {
         if (_vectors.TryGetValue(type, out var found))
             return found;
-        HashSet<ITypeSymbol>? open = null;
-        bool cut = false;
-        return _vectors.GetOrAdd(type, ComputeVariableVector(type, ref open, ref cut));
+        HashSet<ITypeSymbol>? searched = null;
+        found = ComputeHostSizedVector(type, ref searched);
+        // A search returns the first vector it finds through every step up to here, so a query that found none
+        // searched every type it met to the end: none of them holds one.
+        if (found == null && searched != null)
+        {
+            foreach (var t in searched)
+                _vectors.TryAdd(t, null);
+        }
+
+        return _vectors.GetOrAdd(type, found);
     }
 
     /// <summary>
     /// The <c>Vector&lt;T&gt;</c> that one of Nino.Core's own generic formatters, used by hand
     /// (<c>new UnmanagedFormatter&lt;Vector&lt;int&gt;&gt;()</c>, <c>default(...)</c> or a
     /// <c>[NinoMemberFormatter]</c>), would write, or null; <paramref name="value"/> is the type argument that holds
-    /// it. Nino.Core refuses it at run time like <see cref="VariableVectorIn(ITypeSymbol)"/>'s types; a user's own
+    /// it. Nino.Core refuses it at run time like <see cref="HostSizedVectorIn(ITypeSymbol)"/>'s types; a user's own
     /// formatter writes a <c>Vector&lt;T&gt;</c> its own way and is never searched.
     /// </summary>
-    public ITypeSymbol? VariableVectorWrittenBy(INamedTypeSymbol formatter, out ITypeSymbol? value)
+    public ITypeSymbol? HostSizedVectorWrittenBy(INamedTypeSymbol formatter, out ITypeSymbol? value)
     {
         value = null;
         return formatter.IsGenericType && _symbols.IFormatter is { } core &&
                SymbolEqualityComparer.Default.Equals(formatter.ContainingAssembly, core.ContainingAssembly) &&
                _symbols.IsFormatter(formatter)
-            ? VariableVectorWrittenBy(formatter.TypeParameters, formatter.TypeArguments, out value)
+            ? HostSizedVectorWrittenBy(formatter.TypeParameters, formatter.TypeArguments, out value)
             : null;
     }
 
     /// <summary>
-    /// <see cref="VariableVectorWrittenBy(INamedTypeSymbol, out ITypeSymbol?)"/> for a generic method of Nino.Core's
+    /// <see cref="HostSizedVectorWrittenBy(INamedTypeSymbol, out ITypeSymbol?)"/> for a generic method of Nino.Core's
     /// <c>Writer</c>, <c>Reader</c> or <c>NinoDirect</c> (<c>writer.Write(vector)</c>, <c>reader.Read(out T[] v)</c>),
     /// with its type arguments as the call has them, inferred or not.
     /// </summary>
-    public ITypeSymbol? VariableVectorWrittenBy(IMethodSymbol method, out ITypeSymbol? value) =>
-        VariableVectorWrittenBy(method.TypeParameters, method.TypeArguments, out value);
+    public ITypeSymbol? HostSizedVectorWrittenBy(IMethodSymbol method, out ITypeSymbol? value) =>
+        HostSizedVectorWrittenBy(method.TypeParameters, method.TypeArguments, out value);
 
     // Where a type parameter is a formatter (ArrayFormatter<T, TFormatter>, NinoDirect.Serialize<T, TFormatter>), that
     // formatter writes the values of the others: only it is searched, and only if it is Nino.Core's. Otherwise every
     // type argument is a value written (UnmanagedFormatter<T>, Writer.Write<T>, UnmanagedListFormatter<TList, T>).
-    private ITypeSymbol? VariableVectorWrittenBy(ImmutableArray<ITypeParameterSymbol> parameters,
+    private ITypeSymbol? HostSizedVectorWrittenBy(ImmutableArray<ITypeParameterSymbol> parameters,
         ImmutableArray<ITypeSymbol> arguments, out ITypeSymbol? value)
     {
         value = null;
@@ -110,7 +120,7 @@ internal sealed class RawRules
         {
             if (!delegates)
             {
-                if (VariableVectorIn(arguments[i]) is { } vector)
+                if (HostSizedVectorIn(arguments[i]) is { } vector)
                 {
                     value = arguments[i];
                     return vector;
@@ -118,7 +128,7 @@ internal sealed class RawRules
             }
             else if (arguments[i] is INamedTypeSymbol formatter &&
                      parameters[i].ConstraintTypes.Any(_symbols.IsFormatter) &&
-                     VariableVectorWrittenBy(formatter, out value) is { } inFormatter)
+                     HostSizedVectorWrittenBy(formatter, out value) is { } inFormatter)
                 return inFormatter;
         }
 
@@ -126,39 +136,33 @@ internal sealed class RawRules
     }
 
     /// <summary>
-    /// <see cref="VariableVectorIn(ITypeSymbol)"/> of <paramref name="child"/>, met while searching
-    /// <paramref name="parent"/>. <paramref name="open"/> holds the types being searched (created at the first step
-    /// down): a type that holds itself (<c>class Tree : List&lt;Tree&gt;</c>, <c>struct Node { List&lt;Node&gt; C; }</c>)
-    /// is not searched again (<paramref name="cut"/>), and a null found under such a cut is not memoized, since the
-    /// rest of that type may still hold a vector.
+    /// <see cref="HostSizedVectorIn(ITypeSymbol)"/> of <paramref name="child"/>, met while searching
+    /// <paramref name="parent"/>; <paramref name="searched"/> holds every type this query met (created at the first
+    /// step down). A type met again (<c>class Tree : List&lt;Tree&gt;</c>, <c>struct Node { List&lt;Node&gt; C; }</c>,
+    /// or a type two others hold) is not searched again: it is being searched further up, or was searched without a
+    /// vector, since a vector found ends the query. Each type is searched once per query: searching a type again on
+    /// every path to it was exponential (a ring of 18 collection classes each derived from a list of the next took
+    /// two minutes, three times longer per class).
     /// </summary>
-    private ITypeSymbol? VariableVectorIn(ITypeSymbol parent, ITypeSymbol child, ref HashSet<ITypeSymbol>? open,
-        ref bool cut)
+    private ITypeSymbol? HostSizedVectorIn(ITypeSymbol parent, ITypeSymbol child, ref HashSet<ITypeSymbol>? searched)
     {
         if (_vectors.TryGetValue(child, out var found))
             return found;
-        var searching = open ??= new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default) { parent };
-        if (!searching.Add(child))
-        {
-            cut = true;
+        if (!(searched ??= new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default) { parent }).Add(child))
             return null;
-        }
-
-        bool childCut = false;
-        found = ComputeVariableVector(child, ref open, ref childCut);
-        searching.Remove(child);
-        if (found != null || !childCut)
+        found = ComputeHostSizedVector(child, ref searched);
+        // Every type on the way to a vector holds it.
+        if (found != null)
             _vectors.TryAdd(child, found);
-        cut |= childCut;
         return found;
     }
 
-    private ITypeSymbol? ComputeVariableVector(ITypeSymbol type, ref HashSet<ITypeSymbol>? open, ref bool cut)
+    private ITypeSymbol? ComputeHostSizedVector(ITypeSymbol type, ref HashSet<ITypeSymbol>? searched)
     {
         switch (type)
         {
             case IArrayTypeSymbol array:
-                return VariableVectorIn(type, array.ElementType, ref open, ref cut);
+                return HostSizedVectorIn(type, array.ElementType, ref searched);
             case INamedTypeSymbol named:
                 var definition = named.OriginalDefinition;
                 if (definition.Arity == 1 && TypeNames.HasMetadataName(definition, "System.Numerics.Vector`1"))
@@ -172,12 +176,18 @@ internal sealed class RawRules
                 {
                     if (arguments.Count == 0)
                         return null;
+                    // Its formatter writes the arguments its serialized members name. The arguments are searched,
+                    // never the closed member types, which grow without end for a type holding itself over a bigger
+                    // argument (Expanding<T> holding Expanding<List<T>>).
                     var parameters = TypeNames.AllTypeParameters(definition);
                     var members = _members.Of(definition, options);
                     for (int i = 0; i < arguments.Count; i++)
                     {
-                        if (VariableVectorIn(type, arguments[i], ref open, ref cut) is { } inArgument &&
-                            members.Any(m => MemberCollector.MemberType(m) is { } t && TypeNames.Mentions(t, parameters[i])))
+                        var parameter = parameters[i];
+                        // Which arguments are written is asked first: an argument no member names is never searched,
+                        // so a vector found always reaches the query.
+                        if (members.Any(m => MemberCollector.MemberType(m) is { } t && TypeNames.Mentions(t, parameter)) &&
+                            HostSizedVectorIn(type, arguments[i], ref searched) is { } inArgument)
                             return inArgument;
                     }
 
@@ -186,19 +196,19 @@ internal sealed class RawRules
 
                 foreach (var argument in arguments)
                 {
-                    if (VariableVectorIn(type, argument, ref open, ref cut) is { } inArgument)
+                    if (HostSizedVectorIn(type, argument, ref searched) is { } inArgument)
                         return inArgument;
                 }
 
                 // What a collection formatter writes of a type that names no vector itself: its base type's
                 // (class Lanes : List<Vector<int>>) and the elements of the IEnumerable<T> it implements.
                 if (named.BaseType is { SpecialType: SpecialType.None } baseType &&
-                    VariableVectorIn(type, baseType, ref open, ref cut) is { } inBase)
+                    HostSizedVectorIn(type, baseType, ref searched) is { } inBase)
                     return inBase;
                 foreach (var face in named.AllInterfaces)
                 {
                     if (face.OriginalDefinition.SpecialType == SpecialType.System_Collections_Generic_IEnumerable_T &&
-                        VariableVectorIn(type, face.TypeArguments[0], ref open, ref cut) is { } inElements)
+                        HostSizedVectorIn(type, face.TypeArguments[0], ref searched) is { } inElements)
                         return inElements;
                 }
 
@@ -207,7 +217,7 @@ internal sealed class RawRules
                 foreach (var member in named.GetMembers())
                 {
                     if (member is IFieldSymbol { IsStatic: false, IsConst: false } field &&
-                        VariableVectorIn(type, field.Type, ref open, ref cut) is { } inField)
+                        HostSizedVectorIn(type, field.Type, ref searched) is { } inField)
                         return inField;
                 }
 

@@ -129,6 +129,15 @@ reject the data after that is a member of `Stale` in `Types.cs` (with its elemen
 one-element value in `Samples.StaleExisting`), not a new target: a poisoned target costs a collection per rejected
 input. `StaleUntrusted` reads the same type with `NinoSettings.Untrusted` on (`Target.Untrusted`).
 
+A value whose bytes only `NinoSettings.Untrusted` checks goes into an Untrusted target (`RawsUntrusted`), not into a
+default-mode one. The default mode copies raw structs as one block, so a `bool` or `Nullable` flag other than 0 or 1
+inside one reaches the caller unchecked by design, and that is undefined behavior to the JIT: a struct whose `long?`
+has a flag of 2 compared unequal to itself once its code was recompiled, and the `Raws` target's dictionary invariant
+reported it (round 104). `RawsUntrusted` holds such nullables and bools (`RawFlags`) and the BCL structs inside raw
+structs (`RawBcl`), whose dates and decimals Untrusted mode checks too; `Raws` keeps `RawBcl` without nullables.
+Run the targets that cover a layout conversion on the runtime that makes it: `-f net8.0` converts `DateTimeOffset`
+(its minutes are a `short` there).
+
 A problem that needs a precise input instead of mutations (thousands of nesting levels, crafted hashes) is a probe:
 add it to `Probes.All` in `Probes.cs`.
 

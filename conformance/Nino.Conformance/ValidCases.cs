@@ -324,6 +324,27 @@ namespace Conformance
                     Nullables = new HoldsNullables { A = 17, B = -18, C = (19, -20) },
                     Array = new[] { new HoldsNullables { A = 1 }, new HoldsNullables { B = 2, C = (3, 4) } },
                 }, "raw-struct", "struct", "seq", "nullable");
+            Add("bcl-raw-host", "Plain structs holding Int128, nint and nuint, whose layout differs by runtime, in the canonical layout: Int128 aligned to 16, nint sign- and nuint zero-extended to 8 bytes.",
+                new BclRawHost
+                {
+                    Wide = new HoldsWide { A = 1, B = Int128.MinValue + 2, C = UInt128.MaxValue - 3 },
+                    Pointers = new HoldsPointers { A = 5, B = -6, C = unchecked((nuint)uint.MaxValue) },
+                    Wides = new[] { new HoldsWide { A = 7, B = -8, C = 9 }, default },
+                    Gaps = new Int128?[] { null, -10, Int128.MaxValue },
+                }, "raw-struct", "struct", "seq", "nullable");
+            Add("bcl-raw-offset", "DateTimeOffset inside a plain struct, in the canonical layout: the offset in minutes (an int) at 0, the UTC ticks at 8.",
+                new BclRawOffset
+                {
+                    Offset = new HoldsOffset
+                    {
+                        A = -4, B = new DateTimeOffset(2024, 2, 29, 23, 59, 58, TimeSpan.FromMinutes(-570)).AddTicks(1),
+                    },
+                    Offsets = new List<HoldsOffset>
+                    {
+                        new() { A = 11, B = new DateTimeOffset(9999, 12, 31, 23, 59, 59, TimeSpan.FromHours(14)) },
+                        new() { A = 12, B = DateTimeOffset.MinValue },
+                    },
+                }, "raw-struct", "struct", "seq");
 
             Add("struct-root-raw", "A raw struct at the top level: its bytes alone, no header.",
                 new Padded { A = 1, B = -2 }, "raw-struct");

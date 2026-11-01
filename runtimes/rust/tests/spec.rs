@@ -143,6 +143,12 @@ fn a6_raw_nullables() {
     assert_eq!(serialize(&Some(7i32)).unwrap(), hex("01 07000000"));
     assert_eq!(serialize(&None::<i64>).unwrap(), hex("00"));
 
+    // Int128 is aligned to 16 in the canonical layout (5.2): the value 16 bytes after the flag, as .NET writes it.
+    let v = RawNullables::<i128>(vec![Some(5)]);
+    let bytes = serialize(&v).unwrap();
+    assert_eq!(bytes, hex("01000000 01 000000000000000000000000000000 05000000000000000000000000000000"));
+    assert_eq!(deserialize_exact::<RawNullables<i128>>(&bytes).unwrap(), v);
+
     // Padding and flags are checked.
     assert_eq!(
         deserialize::<RawNullables<i32>>(&hex("01000000 02000000 01000000")).unwrap_err().kind(),
@@ -150,6 +156,22 @@ fn a6_raw_nullables() {
     );
     // The value bytes of a null element are not looked at (.NET writes zeros there).
     assert_eq!(deserialize_exact::<RawNullables<i32>>(&hex("01000000 00000000 01000000")).unwrap().0, vec![None]);
+}
+
+/// `{ byte A; Int128 B; }`: B at 16, 32 bytes (the specification, 5.2).
+#[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "raw")]
+struct WideField {
+    a: u8,
+    b: i128,
+}
+
+#[test]
+fn canonical_layout_int128_field() {
+    let v = WideField { a: 1, b: -2 };
+    let bytes = serialize(&v).unwrap();
+    assert_eq!(bytes, hex("01 000000000000000000000000000000 FEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"));
+    assert_eq!(deserialize_exact::<WideField>(&bytes).unwrap(), v);
 }
 
 #[test]

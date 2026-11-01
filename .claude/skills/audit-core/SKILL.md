@@ -33,7 +33,11 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
   internals instead of a shared helper; `#if` blocks that grew into separate implementations.
 - **Lifecycle**: deserializing into existing instances (reuse by index and by key, strings kept when unchanged,
   re-created types), pooled instances (`[NinoPooled]`, recyclers, double return), reference tracking, collectible
-  assemblies (registry entries that keep an unloaded assembly alive).
+  assemblies (registry entries that keep an unloaded assembly alive). Every static table keyed by a type or holding
+  one (a registry, a cache, registered marks) is created through `NinoUnload.Cache` or registers a
+  `NinoUnload.OnRemove` hook, and `UnloadTests`' assembly declares the kind of type it holds: `NinoParameterMarks`
+  kept a plain dictionary of the formatter definitions generated registries register, so a collectible assembly with
+  a generic `[NinoFormatter]` whose parameter is `[NinoRaw]`, `unmanaged` or `[NinoCreated]` never unloaded (r104).
 - **Threads**: registries and caches are safe to read while another thread registers (copy-on-write or locks, with
   the contract written next to the code); per-thread state does not leak between calls; statics initialize once.
 - **Exceptions**: data errors are `NinoDataException` (`audit-security`), caller mistakes say which call and why.

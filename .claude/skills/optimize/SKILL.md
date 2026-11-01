@@ -134,7 +134,7 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   build configuration page advises declaring heavily serialized types in the serializing assembly instead. The benchmark suite has no such member (its DLL
   names `CachedFormatter` nowhere). A collection that holds itself without a `[NinoType]` body (`SelfTree : List<SelfTree>`,
   `Map : Dictionary<string, Map>`) was in this row too and is fixed: the generator writes a struct per such type
-  (`NinoGen.Nesting.g.cs`, `FormatterResolver.NestingFormatter`: `EnterStruct`, the type's formatter, `ExitStruct`),
+  (`NinoGen.Nesting.g.cs`, `FormatterResolver.GeneratedNestingFormatter`: `EnterStruct`, the type's formatter, `ExitStruct`),
   and that formatter's elements name the struct, since a named struct can name itself where a type argument cannot.
   `CachedFormatter<T>` was not devirtualized by the JIT there either: `T` is a class, so
   `ListFormatter<__Canon, __Canon, CachedFormatter<__Canon>>` is shared code everywhere, a dictionary call per

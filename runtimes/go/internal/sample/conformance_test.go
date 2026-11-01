@@ -45,8 +45,8 @@ func unsupported(typeName string) string {
 	case "Conformance.BagHolder", "Conformance.GenericSlots", "Conformance.WrappedArgs":
 		// [NinoType] collections, generic types behind a type id, Nullable and KeyValuePair type arguments.
 		return "left to the code nino-gen writes (internal/generated runs its cases)"
-	case "Conformance.BclRaw", "Conformance.BclRawNullables":
-		// Plain structs holding value tuples, pairs and nullables in the canonical layout.
+	case "Conformance.BclRaw", "Conformance.BclRawNullables", "Conformance.BclRawHost", "Conformance.BclRawOffset":
+		// Plain structs holding value tuples, pairs, nullables, Int128, nint and DateTimeOffset in the canonical layout.
 		return "left to the code nino-gen writes (internal/generated runs its cases)"
 	case "Conformance.NestHolder":
 		return "Nest<T> holds Nest<List<T>>, a type Go cannot instantiate (polymorphic recursion)"

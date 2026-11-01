@@ -1,6 +1,7 @@
 package shapes
 
 import (
+	"encoding/hex"
 	"errors"
 	"reflect"
 	"testing"
@@ -190,5 +191,25 @@ func writeEach[T any](w *nino.Writer, v []T, write func(*nino.Writer, T)) {
 	w.Length(len(v))
 	for _, e := range v {
 		write(w, e)
+	}
+}
+
+// The bytes .NET writes for Shapes.Strides: a T?[] of a raw struct aligned to 4 by the auto layout of the tuple it
+// holds (the flag, three bytes of padding, then the value), as a member and as a type argument.
+func TestNullableStridesAsDotNetWritesThem(t *testing.T) {
+	const want = "01" + "02000000" + "01000000" + "0100000002000000fcff0300" + "00000000000000000000000000000000" +
+		"01" + "02000000" + "00000000000000000000000000000000" + "01000000" + "0100000002000000fcff0300"
+	cell := &TupleCell{A: 1, Inside: TupleInside{A: 2, T: NinoTuple2[uint8, int16]{Item1: 3, Item2: -4}}}
+	strides := &Strides{Cells: []*TupleCell{cell, nil}, Boxed: &Box[[]*TupleCell]{Value: []*TupleCell{nil, cell}}}
+	data, err := nino.Serialize(strides, WriteStrides)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := hex.EncodeToString(data); got != want {
+		t.Fatalf("wrote\n %s\nwant %s", got, want)
+	}
+	back, err := nino.DeserializeExact(data, ReadStrides)
+	if err != nil || !reflect.DeepEqual(back, strides) {
+		t.Fatalf("read back: %v, %+v", err, back)
 	}
 }

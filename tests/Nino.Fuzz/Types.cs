@@ -18,12 +18,41 @@ namespace Nino.Fuzz
     [NinoType] public struct Empty { }
     public struct PlainBlock { public long A; public int B; public short C; public byte D; }
 
+    // BCL structs inside a raw struct, in the canonical layout (spec §5.2): tuples and pairs by 64-bit CoreCLR's
+    // auto-layout rule, DateTimeOffset's int minutes, nint and nuint as 8 bytes, Int128 and the vectors aligned to
+    // their size. A runtime whose memory layout differs converts each field (NinoLayout.Convert: .NET 8 narrows the
+    // minutes to a short, rejecting what does not fit); Untrusted mode checks the dates, decimals and bools inside.
+    public struct RawBcl
+    {
+        public byte A; public (int, long) T; public (byte, short) S; public KeyValuePair<int, long> P;
+        public DateTimeOffset O; public nint N; public nuint U; public Int128 W; public decimal D; public DateTime Dt;
+        public TimeSpan Ts; public Guid G; public DateOnly Do; public TimeOnly To;
+        public bool B; public Half H; public (byte, DateTimeOffset) TO;
+        public System.Runtime.Intrinsics.Vector64<int> V64; public System.Runtime.Intrinsics.Vector128<long> V128;
+        public System.Runtime.Intrinsics.Vector256<long> V256; public System.Runtime.Intrinsics.Vector512<byte> V512;
+    }
+
+    // Nullables inside a raw struct: only Untrusted mode checks their flags (spec §9.3, §10 item 12). A flag of 2 read
+    // in the default mode makes the value unequal to itself once the JIT tiers up (a long? boxed as null by one
+    // compiled body and as a value by another), which the Raws target's dictionary checks report: RawsUntrusted.
+    public struct RawFlags { public byte A; public long? L; public (int, long)? T; public DateTimeOffset? O; public bool B; }
+
+    [NinoType]
+    public sealed class RawUntrusted
+    {
+        public RawFlags One; public RawFlags[] Many; public List<RawFlags> List; public Dictionary<int, RawFlags> ById;
+        public RawBcl Bcl; public RawBcl[] Bcls; public Dictionary<(int, long), RawBcl> ByTuple;
+    }
+
     [NinoType]
     public sealed class RawRoot
     {
         public RawS One; public RawS[] Many; public List<Pair2> Pairs; public PlainBlock[] Blocks; public Empty[] Empties;
         public (byte, int)[] Tuples; public List<(short, long)> Wide; public Guid[] Guids; public decimal[] Decimals;
         public RawS? Maybe; public Dictionary<int, RawS> ById;
+        public RawBcl Bcl; public RawBcl[] Bcls; public List<RawBcl> BclList; public RawBcl? MaybeBcl;
+        public (byte, DateTimeOffset)[] DtoTuples; public KeyValuePair<long, (int, long)>[] PairArray;
+        public Dictionary<(int, long), RawBcl> ByTuple;
     }
 
     // Deep nesting: positional, version tolerant and keyed chains.
@@ -139,7 +168,7 @@ namespace Nino.Fuzz
         public (int, bool)[] Pairs; public List<(int, bool)> PairList; public Memory<(int, bool)> PairMemory;
         public int?[] Nullables; public List<int?> NullableList; public bool[] Bools; public List<bool> BoolList;
         public RawS[] Raws; public List<DateTime> Times; public decimal[] Decimals;
-        public Dictionary<int, bool> Map; public HashSet<(int, bool)> Set;
+        public Dictionary<int, bool> Map; public HashSet<(int, bool)> Set; public RawBcl[] Bcls;
     }
 
     // Collections that hold themselves (Probes.cs: the "tree" and "dtree" probes) and colliding hashes ("hash").

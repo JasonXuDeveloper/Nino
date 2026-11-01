@@ -16,6 +16,7 @@ namespace Conformance
     /// --out &lt;dir&gt;      write the corpus (valid and malicious cases, with what .NET does on each)
     /// --verify &lt;dir&gt;   read a committed corpus back with .NET and check every case
     /// --probe &lt;type&gt; &lt;file&gt;   (internal) deserialize one file in this process and print the outcome
+    /// --probe-untrusted &lt;type&gt; &lt;file&gt;   (internal) the same with NinoSettings.Untrusted set
     /// </code>
     /// </summary>
     public static class Program
@@ -25,6 +26,9 @@ namespace Conformance
 
         public static int Main(string[] args)
         {
+            // Before Nino's first use, which freezes the settings: a probe of an input untrusted readers must reject.
+            if (args.Length > 0 && args[0] == "--probe-untrusted")
+                NinoSettings.Untrusted = true;
             // Closed generic subtypes the code only creates (new Box<int>), never names as a member or call type: a
             // process that reads them without writing them first registers them (docs/v4-design.md, Polymorphism).
             NinoPolymorphic.Register<Box<int>>();
@@ -38,7 +42,7 @@ namespace Conformance
                     // The JSON of the deep cases is written recursively: a large stack, not Nino's.
                     ["--out", var dir] => OnLargeStack(() => Generate(dir)),
                     ["--verify", var dir] => OnLargeStack(() => Verify(dir)),
-                    ["--probe", var type, var file] => Probe.Run(type, file),
+                    ["--probe" or "--probe-untrusted", var type, var file] => Probe.Run(type, file),
                     ["--probe-prefixes", var type, var file] => Probe.RunPrefixes(type, file),
                     _ => Usage(),
                 };
@@ -111,8 +115,14 @@ namespace Conformance
             }
 
             var outcomes = Probe.InChildren(bad.Select(m => (m.Type, Path.Combine(malicious, m.Name + ".bin"))).ToList());
+            var untrusted = Probe.InChildren(bad.Select(m => (m.Type, m.Untrusted ? Path.Combine(malicious, m.Name + ".bin") : null)).ToList(), true);
             for (int i = 0; i < bad.Count; i++)
-                WriteJson(Path.Combine(malicious, bad[i].Name + ".json"), MaliciousCases.Describe(bad[i], outcomes[i]));
+            {
+                // The promise of an untrusted case: .NET's untrusted mode rejects it.
+                if (bad[i].Untrusted && untrusted[i].Kind != "error")
+                    throw new VerificationException($"malicious/{bad[i].Name}: NinoSettings.Untrusted does not reject it ({untrusted[i].ToJson().ToJsonString()})");
+                WriteJson(Path.Combine(malicious, bad[i].Name + ".json"), MaliciousCases.Describe(bad[i], outcomes[i], untrusted[i]));
+            }
 
             var truncations = MaliciousCases.Truncations(cases);
             var truncationJson = MaliciousCases.DescribeTruncations(truncations, cases, valid);
@@ -254,12 +264,19 @@ namespace Conformance
             var expectedBad = files.Select(ReadJson).ToList();
             var outcomes = Probe.InChildren(expectedBad
                 .Select((e, i) => (Layouts.ByName[(string)e["type"]], Path.ChangeExtension(files[i], ".bin"))).ToList());
+            var untrustedOutcomes = Probe.InChildren(expectedBad
+                .Select((e, i) => (Layouts.ByName[(string)e["type"]],
+                    (bool?)e["untrusted"] == true ? Path.ChangeExtension(files[i], ".bin") : null)).ToList(), true);
             for (int i = 0; i < files.Count; i++)
             {
                 var recorded = expectedBad[i]["dotnet"];
                 var now = outcomes[i].ToJson();
                 if (!JsonNode.DeepEquals(recorded, now))
                     failures.Add($"malicious/{expectedBad[i]["case"]}: .NET recorded {Short(recorded)}, now {Short(now)}");
+                var recordedUntrusted = expectedBad[i]["dotnetUntrusted"];
+                var nowUntrusted = untrustedOutcomes[i]?.ToJson();
+                if (!JsonNode.DeepEquals(recordedUntrusted, nowUntrusted))
+                    failures.Add($"malicious/{expectedBad[i]["case"]}: .NET recorded {Short(recordedUntrusted)} in untrusted mode, now {Short(nowUntrusted)}");
             }
 
             // Truncations: every prefix of the listed cases is an error in .NET.

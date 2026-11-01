@@ -1,7 +1,10 @@
+using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Codegen.Model;
+using Nino.Core;
 using Nino.Core.Internal;
 
 namespace Nino.Codegen.Tests
@@ -60,6 +63,86 @@ namespace Nino.Codegen.Tests
             Assert.AreEqual(8, gappy.Size);
             Assert.IsFalse(gappy.Packed);
             CollectionAssert.AreEqual(new[] { 0, 4 }, gappy.Fields.Select(f => f.Offset).ToList());
+        }
+
+        [TestMethod]
+        public void NullableStridesAreThoseNinoCoreWrites()
+        {
+            using var model = Load(GeneratedFilesTests.Shapes);
+            var strides = Type(model, "Shapes.Strides");
+            ValueModel Member(string name) => strides.Members.Single(m => m.Name == name).Value;
+            ValueModel Element(string name) =>
+                (name == "Boxed" ? Member(name).Arguments.Single() : Member(name)).Element!;
+            // One element after the four-byte count: the stride .NET writes, the value after the flag's padding.
+            void Check(string member, byte[] bytes, int valueSize)
+            {
+                var element = Element(member);
+                Assert.AreEqual(ValueKind.RawNullable, element.Kind, member);
+                Assert.AreEqual(bytes.Length - 4, element.Size, member);
+                Assert.AreEqual(bytes.Length - 4 - valueSize, element.ValueOffset, member);
+            }
+
+            var cells = NinoSerializer.Serialize(new Shapes.TupleCell?[] { default(Shapes.TupleCell) });
+            Check("Cells", cells, 12);
+            Check("Boxed", cells, 12);
+        }
+
+        /// <summary>
+        /// The leaves whose layout differs by runtime (Int128, nint, nuint, pointers, DateTimeOffset) are where Nino.Core
+        /// writes them: each field of the model, read at its offset from .NET's bytes, is the value written.
+        /// </summary>
+        [TestMethod]
+        public unsafe void HostDependentLeavesAreWhereNinoCoreWritesThem()
+        {
+            using var model = Load(GeneratedFilesTests.Shapes);
+            ValueModel Member(string type, string name) =>
+                Type(model, type).Members.Single(m => m.Name == name).Value;
+            RawFieldModel Field(RawStructModel s, string name) => s.Fields.Single(f => f.Name == name);
+
+            var leaves = Member("Shapes.HostHolder", "Leaves").Struct!;
+            var bytes = NinoSerializer.Serialize(new Shapes.HostLeaves
+            {
+                A = 0xA5, Wide = (System.Int128)long.MinValue * 3, Signed = -3, Unsigned = 0xFFFFFFFE,
+                Pointer = (int*)0x12345678,
+            });
+            Assert.AreEqual(bytes.Length, leaves.Size);
+            Assert.AreEqual(0xA5, bytes[Field(leaves, "A").Offset]);
+            var wide = Field(leaves, "Wide");
+            Assert.AreEqual(PrimitiveKind.I128, wide.Value.Primitive);
+            Assert.AreEqual((System.Int128)long.MinValue * 3,
+                BinaryPrimitives.ReadInt128LittleEndian(bytes.AsSpan(wide.Offset)));
+            void Check(string name, PrimitiveKind kind, ulong expected)
+            {
+                var field = Field(leaves, name);
+                Assert.AreEqual(kind, field.Value.Primitive, name);
+                Assert.AreEqual(8, field.Value.Size, name);
+                Assert.AreEqual(expected, BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(field.Offset)), name);
+            }
+
+            Check("Signed", PrimitiveKind.NInt, unchecked((ulong)-3L));
+            Check("Unsigned", PrimitiveKind.NUInt, 0xFFFFFFFE);
+            Check("Pointer", PrimitiveKind.NUInt, 0x12345678);
+
+            // Int128? at its stride: the flag, then the value at 16.
+            var gap = Member("Shapes.HostHolder", "Gaps").Element!;
+            var gaps = NinoSerializer.Serialize(new System.Int128?[] { -5 });
+            Assert.AreEqual(ValueKind.RawNullable, gap.Kind);
+            Assert.AreEqual(gaps.Length - 4, gap.Size);
+            Assert.AreEqual((System.Int128)(-5), BinaryPrimitives.ReadInt128LittleEndian(gaps.AsSpan(4 + gap.ValueOffset)));
+
+            // DateTimeOffset as its canonical fields: the minutes an int, the UTC ticks a DateTime of kind Unspecified.
+            var leaf = Member("Shapes.OffsetHolder", "Leaf").Struct!;
+            var at = new System.DateTimeOffset(2024, 2, 29, 23, 59, 58, System.TimeSpan.FromMinutes(-570)).AddTicks(7);
+            var offsetBytes = NinoSerializer.Serialize(new Shapes.OffsetLeaf { A = -1, At = at });
+            Assert.AreEqual(offsetBytes.Length, leaf.Size);
+            var field = Field(leaf, "At");
+            var dto = field.Value.Struct!;
+            var minutes = Field(dto, "offsetMinutes");
+            var ticks = Field(dto, "dateTime");
+            Assert.AreEqual(PrimitiveKind.I32, minutes.Value.Primitive);
+            Assert.AreEqual(PrimitiveKind.DateTime, ticks.Value.Primitive);
+            Assert.AreEqual(-570, BinaryPrimitives.ReadInt32LittleEndian(offsetBytes.AsSpan(field.Offset + minutes.Offset)));
+            Assert.AreEqual(at.UtcTicks, BinaryPrimitives.ReadInt64LittleEndian(offsetBytes.AsSpan(field.Offset + ticks.Offset)));
         }
 
         [TestMethod]

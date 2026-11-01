@@ -81,10 +81,19 @@ default).
 | `category` | `length`, `string`, `utf8`, `presence`, `type-id`, `depth`, `deferred`, `keyed`, `tolerant`, `duplicate`, `references`, `trailing`, and single cases for `decimal`, `datetime`, `dateonly`, `version` |
 | `exercises` | what is wrong with the input |
 | `expected` | `error`, or `error-or-value` for deep inline nesting outside any region, which .NET reads by design (as deferred bodies, docs/v4-design.md, "Deep nesting"): a runtime may read it or reject it, but must not use stack in proportion to the depth |
-| `dotnet` | what .NET Nino does with it today, in a child process with a 512 MB GC heap limit: `{"outcome": "error", "exception": "InvalidOperationException"}`, `{"outcome": "returned"}` (accepted: a gap in .NET where `expected` is `error`), or `{"outcome": "crashed", "reason": "stack overflow"}` |
+| `untrusted` | `true` on an input that a reader's **untrusted mode** must reject (`expected` applies there), while its default mode may read it: .NET's default mode copies raw blocks and values as they are, at no cost, and rejects these only with `NinoSettings.Untrusted` (spec §9.3, §9.10, §9.12). Left out otherwise. A runtime with no unchecked mode (Go, Rust and TypeScript always check) rejects these like any other case |
+| `dotnet` | what .NET Nino does with it today, in a child process with a 512 MB GC heap limit: `{"outcome": "error", "exception": "InvalidOperationException"}`, `{"outcome": "returned"}` (accepted: a gap in .NET where `expected` is `error`, or by design where `untrusted` is set), or `{"outcome": "crashed", "reason": "stack overflow"}` |
+| `dotnetUntrusted` | where `untrusted` is set: the same with `NinoSettings.Untrusted` on, always an error (`--out` fails otherwise) |
 
-`dotnet` records the current behavior, not the requirement: where it is not an error, .NET is known to fall short of
-`expected` (see "Known .NET gaps").
+`dotnet` records the current behavior, not the requirement: where it is not an error and `untrusted` is not set, .NET
+is known to fall short of `expected` (see "Known .NET gaps").
+
+The `untrusted` cases today: bytes after the top-level value (`trailing-byte`); values outside their type's range
+(`decimal-bad-scale`, `datetime-ticks-past-max`, `dateonly-day-past-max`); and a `bool` or a `Nullable` flag other
+than 0 or 1 inside a raw struct, alone or in a block of them (`presence-raw-*`). In .NET's default mode such a flag is
+undefined behavior to the JIT, not only a wrong value: a struct whose `long?` has a flag of 2 can compare unequal to
+itself once its code is recompiled, and be lost in a `Dictionary`. Data from an untrusted source is read with
+`NinoSettings.Untrusted`.
 
 ### `malicious/truncations.json`
 
@@ -103,7 +112,8 @@ For every valid case (skip the ones whose `optional` feature the runtime leaves 
 For every malicious case and every truncated prefix: decoding must fail with the runtime's ordinary error (no panic,
 crash, stack overflow or hang), and memory use must stay bounded by a small multiple of the input: several cases
 claim gigabytes in a few bytes. Run them with a timeout and, where the language allows, under a memory limit. Where
-`expected` is `error-or-value`, a successful decode is accepted too.
+`expected` is `error-or-value`, a successful decode is accepted too. Where `untrusted` is set, a runtime with an
+unchecked default mode runs the case in its untrusted mode; one without (every runtime but .NET today) runs it as is.
 
 A runtime that generates code per type (Go, Rust, TypeScript) generates it from the `layouts`; the type names the
 cases use are those of `conformance/Nino.Conformance/Types.cs`.
@@ -132,9 +142,6 @@ Cases are added freely; a case is renamed or removed only with a reason in the c
 
 ## Known .NET gaps
 
-Recorded in each case's `dotnet` field (`returned` or `crashed` where `expected` is `error`); summarized here:
-
-- `trailing-byte`: bytes after the top-level value are ignored (rejected with `NinoSettings.Untrusted`, which the
-  corpus does not set).
-- `decimal-bad-scale`, `datetime-ticks-past-max`, `dateonly-day-past-max`: raw values outside the type's range are
-  copied as they are (rejected with `NinoSettings.Untrusted`).
+Recorded in each case's `dotnet` field (`returned` or `crashed` where `expected` is `error` and `untrusted` is not
+set). There are none today: the inputs .NET's default mode reads by design are `untrusted` cases, which its untrusted
+mode rejects (`dotnetUntrusted`), and the deep inline nesting it reads is `error-or-value`.

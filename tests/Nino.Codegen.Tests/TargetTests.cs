@@ -78,6 +78,18 @@ namespace Nino.Codegen.Tests
         }
 
         [TestMethod]
+        public void EveryTargetLeavesOutHostSizedVectors()
+        {
+            foreach (var (lang, file) in new[] { ("go", "nino_types.go"), ("rust", "nino_types.rs"), ("ts", "Nino.Codegen.Tests.ts") })
+            {
+                var (text, output) = Run(lang, file);
+                StringAssert.Contains(output, "NINOGEN002: Shapes.OldVector");
+                StringAssert.Contains(output, "is not serializable");
+                Assert.IsFalse(text.Contains("OldVector", StringComparison.Ordinal), lang);
+            }
+        }
+
+        [TestMethod]
         public void RustPutsStructsBehindTheirIdInSlots()
         {
             var (text, _) = Run("rust", "nino_types.rs");

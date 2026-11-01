@@ -26,21 +26,27 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   formatters and `Writer`/`Reader`/`NinoDirect` generic methods used by hand (`new UnmanagedFormatter<Vector<int>>()`,
   `default(...)`, `[NinoMemberFormatter(typeof(UnmanagedFormatter<Vector<int>>))]`, `writer.Write(v)`,
   `reader.Read(out Vector<int> v)`, inferred type arguments included), which throw the same `NotSupportedException`
-  (`RawRules.VariableVectorWrittenBy`: the invocation action rejects a non-generic method by name first, the creation
+  (`RawRules.HostSizedVectorWrittenBy`: the invocation action rejects a non-generic method by name first, the creation
   and default-value action a type outside Nino.Core's assembly first). A type parameter constrained to a formatter
   (`ArrayFormatter<T, TFormatter>`, `NinoDirect.Serialize<T, TFormatter>`) writes the others' values: only a Nino.Core
   formatter there is searched, so the user's own `Vector<T>` formatter, a collection formatter over it and unrelated
   generics that take a `Vector<T>` fire nothing (`NINO029_FormattersMadeByHand`, `NINO029_NotForOtherFormattersByHand`).
   One predicate decides it for the analyzer, the generator's resolver, `RawRules.IsRawUnmanaged`, the call transform (no registration, no
-  interceptor) and, mirrored, Nino.Core (`RawRules.VariableVectorIn` / `NinoReflection.VariableVectorIn`). It never
+  interceptor) and, mirrored, Nino.Core (`RawRules.HostSizedVectorIn` / `NinoReflection.HostSizedVectorIn`). It never
   fires where Nino writes nothing (`[NinoIgnore]`, get-only properties, ref structs, which stay NINO007) or the user
   writes the bytes (`[NinoMemberFormatter]`), and a struct of such members gets NINO029 alone, not NINO023 too
   (`AnalyzerTests.NINO029_*`). Walk everything a formatter would write, base types included: a type holding the
   vector only through its base (`class Lanes : List<Vector<int>>`) got NINO007 (no formatter) instead of NINO029, the
   same mistake under a rule that names neither cause nor fix; a base without a vector (`class Ints : List<int>`) fires
   neither (`NINO029_InBaseTypesAndCollections`, `NINO029_NotForBaseTypesWithoutVectors`). Any such walk over symbols
-  guards types that hold themselves (`struct Node { List<Node> C; }`, `class Tree : List<Tree>`) and memoizes no
-  null found under a cut: without the guard the first predicate overflowed the stack and took the compiler down.
+  guards types that hold themselves (`struct Node { List<Node> C; }`, `class Tree : List<Tree>`): without the guard
+  the first predicate overflowed the stack and took the compiler down. Search each type once per query (a set of
+  every type met, kept to the end; a vector found returns through every step, so a type met again is null), never
+  once per path: forgetting nulls found under a cut made a ring of collection classes (`C0 : List<C1>` ...
+  `Cn : List<C0>`) exponential, 18 classes two minutes in the IDE
+  (`NINO029_TypesHoldingEachOtherAreSearchedOnce`, round 104). Never search closed member types of a generic
+  `[NinoType]` either: `Expanding<T>` holding `Expanding<List<T>>` grows them without end (a stack overflow);
+  search the type arguments its members name.
 - An attribute that cannot do what it says is reported, not left to a rule whose message would be wrong:
   `[NinoMember]` on a static, constant, indexer, get-only computed property or backing field was NINO010 ("collected
   already") with autoCollect and nothing without it, while nothing was written; NINO028 now reports it alone, with

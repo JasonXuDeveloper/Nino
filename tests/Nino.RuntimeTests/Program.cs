@@ -41,33 +41,6 @@ public struct StampedEvent { public int Id; public DateTime At; }
 [NinoType]
 public class EventLog { public HoldsDateTime First; public List<HoldsDateTimes> Rest; public StampedEvent Last; }
 
-// What replaces a Vector<T> member (NINO029): 16 floats (64 bytes, the widest Vector<float>) stored and written, the
-// vectors a [NinoIgnore] view over them: 4, 2 or 1 of them by the CPU, the same bytes on every runtime.
-[NinoType]
-public sealed class LaneParticle
-{
-    public int Id;
-    public float[] Lanes = new float[16];
-
-    [NinoIgnore]
-    public Span<System.Numerics.Vector<float>> Vectors =>
-        System.Runtime.InteropServices.MemoryMarshal.Cast<float, System.Numerics.Vector<float>>(Lanes.AsSpan());
-
-    /// <summary>Lanes 0 to 15 doubled a vector at a time (checked: the view covers every lane on this CPU).</summary>
-    public static LaneParticle Doubled(int id)
-    {
-        var particle = new LaneParticle { Id = id };
-        for (int i = 0; i < particle.Lanes.Length; i++)
-            particle.Lanes[i] = i;
-        foreach (ref var vector in particle.Vectors)
-            vector *= 2;
-        for (int i = 0; i < particle.Lanes.Length; i++)
-            if (particle.Lanes[i] != 2 * i)
-                throw new InvalidOperationException("the vector view missed lane " + i);
-        return particle;
-    }
-}
-
 [NinoType]
 public class Item
 {
@@ -526,7 +499,7 @@ public static class Program
             for (int i = 17; i < 32; i++)
                 expected[i] = 0xFF;
             var wideAlign = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.NinoLayout")
-                ?.GetField("WideAlign", BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null);
+                ?.GetField("Int128Align", BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null);
             var array = NinoSerializer.Serialize(new[] { value, value });
             bool ok = NinoSerializer.Serialize(value).SequenceEqual(expected) &&
                       NinoDeserializer.Deserialize<WideAfterByte>(expected).B == -2 &&
@@ -552,7 +525,7 @@ public static class Program
 
         // What this runtime aligns 8-byte fields to (NinoLayout's probes): not compared.
         var ninoLayout = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.NinoLayout");
-        Console.WriteLine("# layout: " + string.Join(" ", new[] { "LongAlign", "DateTimeAlign", "DecimalAlign", "WideAlign", "KeepsDeclarationOrder" }
+        Console.WriteLine("# layout: " + string.Join(" ", new[] { "LongAlign", "DateTimeAlign", "DecimalAlign", "Int128Align", "KeepsDeclarationOrder" }
             .Select(n => n + "=" + ninoLayout?.GetField(n, BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null))));
         // Every BCL struct inside a plain struct, and tuples and pairs: CoreCLR x64's bytes, both ways.
         BclStructs.Run(args.Contains("--write-fixtures"));

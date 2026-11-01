@@ -52,6 +52,8 @@ func rtype(s)
     ret rtype(s.inner)
   when "rawstruct"
     ret name(s.struct)
+  when "rawnullable"
+    ret "Option<" + rtype(s.inner) + ">"
   when "tuple"
     $parts = []
     for $i in s.items

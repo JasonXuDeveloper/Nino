@@ -12,13 +12,11 @@ using Nino.Generator.Common;
 namespace Nino.Generator.Generation;
 
 /// <summary>
-/// Decides whether a struct's raw memory is the same on every runtime Nino targets. Layouts differ in two ways:
-/// 32-bit x86 aligns 8-byte fields to 4 (Mono all of them, .NET <c>DateTime</c>; 64-bit, ARM and wasm align them
-/// to 8), and Mono/IL2CPP's
-/// <c>decimal</c> is four ints (alignment 4) where CoreCLR's has a <c>ulong</c> (alignment 8). A struct is portable
-/// when its field offsets and size come out the same under both models, and it has no pointer-sized fields. The
-/// layout rules are the runtime's own (<see cref="NinoLayoutCore"/>, shared source), and so is the canonical layout
-/// <see cref="Describe"/> publishes.
+/// The memory of raw structs, measured with the runtime's own rules (<see cref="NinoLayoutCore"/>, shared source).
+/// <see cref="IsPortable"/>: a struct's field offsets and size are the same under the 8-byte model (64-bit, ARM,
+/// wasm) and the 4-byte model (32-bit x86, Mono/IL2CPP's <c>decimal</c>), so its memory is copied as it lies on every
+/// runtime. <see cref="Describe"/>: the canonical layout (64-bit CoreCLR's, auto-layout structs such as value tuples
+/// placed as it places them), which every runtime converts to where its own differs and the published layout states.
 /// <para>
 /// Projects compile against reference assemblies, where a struct's private fields are replaced by placeholders
 /// (<c>int _dummyPrimitive</c>, <c>object _dummy</c>): the BCL structs whose fields are private take their layout from
@@ -31,9 +29,9 @@ internal static class RawLayout
     {
         var wide = new List<NinoLayoutCore.Leaf>();
         var narrow = new List<NinoLayoutCore.Leaf>();
-        var view = new SymbolView(type);
-        return NinoLayoutCore.Measure(view, type, 8, 8, 8, 0, wide, out int wideSize, out _) &&
-               NinoLayoutCore.Measure(view, type, 4, 4, 4, 0, narrow, out int narrowSize, out _) &&
+        var view = new SymbolView(type, canonical: false);
+        return NinoLayoutCore.Measure(view, type, new NinoLayoutModel(8, 8, 8), 0, wide, out int wideSize, out _) &&
+               NinoLayoutCore.Measure(view, type, new NinoLayoutModel(4, 4, 4), 0, narrow, out int narrowSize, out _) &&
                wideSize == narrowSize && wide.Select(l => l.Offset).SequenceEqual(narrow.Select(l => l.Offset));
     }
 
@@ -54,15 +52,20 @@ internal static class RawLayout
     private static bool Describe(ITypeSymbol type, StringBuilder sb)
     {
         var offsets = new List<int>();
-        // Auto-layout structs (value tuples) placed as 64-bit CoreCLR places them: the canonical layout.
-        if (!NinoLayoutCore.Measure(new SymbolView(type), type, 8, 8, 8, 0, new List<NinoLayoutCore.Leaf>(),
-                out int size, out _, offsets, autoPointerSize: 8))
+        // Auto-layout structs (value tuples, DateTimeOffset) placed as 64-bit CoreCLR places them: the canonical layout.
+        var view = new SymbolView(type, canonical: true);
+        if (!NinoLayoutCore.Measure(view, type, NinoLayoutModel.Canonical, 0, new List<NinoLayoutCore.Leaf>(),
+                out int size, out _, offsets))
             return false;
         sb.Append("raw(").Append(size.ToString(CultureInfo.InvariantCulture)).Append(')');
-        if (Leaf(type) != NinoLeaf.None)
+        // Int128 is a leaf of its own alignment (16) but still published as its two halves, as it always was.
+        bool int128 = IsInt128(type);
+        if (view.Leaf(type) != NinoLeaf.None && !int128)
             return true;
 
         var fields = Fields(type)!;
+        if (int128)
+            offsets = new List<int> { 0, 8 };
         sb.Append('{');
         for (int i = 0; i < fields.Count; i++)
         {
@@ -145,15 +148,10 @@ internal static class RawLayout
     /// </summary>
     public static RawSize SizeOf(ITypeSymbol type)
     {
-        int bytes = Leaf(type) switch
-        {
-            NinoLeaf.Size1 => 1,
-            NinoLeaf.Size2 => 2,
-            NinoLeaf.Size4 => 4,
-            NinoLeaf.Size8 => 8,
-            NinoLeaf.Decimal or NinoLeaf.Guid => 16,
-            _ => 0,
-        };
+        // The sizes of the leaves are NinoLayoutCore's (a vector's comes from a view: SizeOf<T>() here), and this Leaf
+        // returns no pointers.
+        var leaf = Leaf(type);
+        int bytes = leaf == NinoLeaf.Vector ? 0 : NinoLayoutCore.SizeOf(leaf, pointerSize: 8);
         var size = bytes != 0
             ? RawSize.Constant(bytes)
             : new RawSize(0, $"{TypeNames.CoreCompilerServices}NinoUnsafe.SizeOf<{TypeNames.Global(type)}>()");
@@ -202,7 +200,8 @@ internal static class RawLayout
     /// <summary>
     /// The fields of the BCL structs of several private fields, as the runtimes declare them (reference assemblies
     /// show placeholders): <c>Nullable&lt;T&gt;</c>, <c>KeyValuePair&lt;TKey, TValue&gt;</c>, <c>Complex</c>,
-    /// <c>Range</c>, <c>Int128</c> and <c>UInt128</c> (little endian). Null for any other type.
+    /// <c>Range</c>, <c>Int128</c> and <c>UInt128</c> (little endian), and <c>DateTimeOffset</c>. Null for any other
+    /// type.
     /// </summary>
     private static List<Field>? Known(ITypeSymbol type)
     {
@@ -222,6 +221,10 @@ internal static class RawLayout
              TypeNames.HasMetadataName(definition, "System.UInt128")) &&
             definition.BaseType?.ContainingAssembly.GetTypeByMetadataName("System.UInt64") is { } ulongType)
             return Pair(ulongType, "_lower", ulongType, "_upper");
+        // Auto layout (SymbolView.Struct), the minutes an int as .NET 10 declares them: the canonical layout.
+        if (IsDateTimeOffset(definition) && definition.ContainingAssembly.GetTypeByMetadataName("System.Int32") is { } i32 &&
+            definition.ContainingAssembly.GetTypeByMetadataName("System.DateTime") is { } dateTime)
+            return Pair(dateTime, "dateTime", i32, "offsetMinutes");
         return null;
 
         static List<Field>? Pair(ITypeSymbol? first, string firstName, ITypeSymbol second, string secondName) =>
@@ -231,12 +234,17 @@ internal static class RawLayout
     }
 
     /// <summary>
-    /// <c>Vector64&lt;T&gt;</c> to <c>Vector512&lt;T&gt;</c> (<see cref="NinoLeaf.Vector"/>). <c>Vector&lt;T&gt;</c> never
-    /// gets here: no type holding one is raw (<see cref="RawRules.VariableVectorIn"/>).
+    /// <c>Vector64&lt;T&gt;</c> to <c>Vector512&lt;T&gt;</c> (<see cref="NinoLeaf.Vector"/>; the runtime's is
+    /// <c>NinoLayout.VectorIndex</c>). <c>Vector&lt;T&gt;</c> never gets here: no type holding one is raw
+    /// (<see cref="RawRules.HostSizedVectorIn"/>).
     /// </summary>
     private static bool IsVector(INamedTypeSymbol definition) =>
         definition.Arity == 1 && definition.MetadataName is "Vector64`1" or "Vector128`1" or "Vector256`1" or "Vector512`1" &&
         TypeNames.HasMetadataName(definition, "System.Runtime.Intrinsics." + definition.MetadataName);
+
+    private static bool IsDateTimeOffset(ITypeSymbol type) =>
+        type is INamedTypeSymbol { TypeKind: TypeKind.Struct, Arity: 0 } named &&
+        TypeNames.HasMetadataName(named, "System.DateTimeOffset");
 
     /// <summary><c>System.ValueTuple</c> of any arity: <c>[StructLayout(LayoutKind.Auto)]</c> in every runtime.</summary>
     private static bool IsValueTuple(ITypeSymbol type) =>
@@ -251,7 +259,7 @@ internal static class RawLayout
     /// <c>Int128</c> and <c>UInt128</c>: 16-byte aligned on .NET 8 and later (64-bit), 8-byte aligned before, so their
     /// offset in another struct differs by runtime; on their own they are 16 bytes everywhere.
     /// </summary>
-    private static bool IsWide(ITypeSymbol type) =>
+    private static bool IsInt128(ITypeSymbol type) =>
         type is INamedTypeSymbol { TypeKind: TypeKind.Struct, Arity: 0 } named &&
         (TypeNames.HasMetadataName(named, "System.Int128") || TypeNames.HasMetadataName(named, "System.UInt128"));
 
@@ -331,30 +339,45 @@ internal static class RawLayout
     }
 
     /// <summary>
-    /// The generator's view of a type: pointer-sized fields are never portable, and neither is a struct with fields of
-    /// unknown layout (<see cref="Fields"/>) or with an <c>Int128</c> in it (<see cref="IsWide"/>; one on its own,
-    /// <paramref name="top"/>, is).
+    /// The generator's view of a type. For portability (<see cref="IsPortable"/>): pointer-sized fields are never
+    /// portable, and neither is a struct with fields of unknown layout (<see cref="Fields"/>) or with an
+    /// <c>Int128</c> in it (<see cref="IsInt128"/>; one on its own, <paramref name="top"/>, is). For the canonical
+    /// layout (<paramref name="canonical"/>, <see cref="Describe"/>): <c>nint</c>, <c>nuint</c> and pointers are 8
+    /// bytes, <c>Int128</c> and <c>UInt128</c> 16 aligned to 16, as on 64-bit .NET 8 and later (spec §5.2).
     /// </summary>
-    private readonly struct SymbolView(ITypeSymbol top) : INinoLayoutView<ITypeSymbol>
+    private readonly struct SymbolView(ITypeSymbol top, bool canonical) : INinoLayoutView<ITypeSymbol>
     {
-        public NinoLeaf Leaf(ITypeSymbol type) => RawLayout.Leaf(type);
+        public NinoLeaf Leaf(ITypeSymbol type)
+        {
+            if (canonical)
+            {
+                if (type.SpecialType == SpecialType.System_IntPtr)
+                    return NinoLeaf.SignedPointer;
+                if (type.SpecialType == SpecialType.System_UIntPtr || type is IPointerTypeSymbol)
+                    return NinoLeaf.Pointer;
+                if (IsInt128(type))
+                    return NinoLeaf.Int128;
+            }
+
+            return RawLayout.Leaf(type);
+        }
 
         // For the canonical layout Describe publishes (a struct with several fields of an auto layout is never portable).
         // SIMD vectors are aligned per runtime (Vector256 at 16 on Arm64): never portable, and their canonical layout is
         // Nino.Core's (NinoLayout), which nino-gen does not express.
-        public bool Vector(ITypeSymbol type, out int size, out int align)
+        public bool TryGetVector(ITypeSymbol type, out int size, out int align)
         {
             size = align = 0;
             return false;
         }
 
-        public bool Primitive(ITypeSymbol type) =>
+        public bool IsAutoPrimitive(ITypeSymbol type) =>
             type.TypeKind is TypeKind.Enum or TypeKind.Pointer ||
             type.SpecialType is >= SpecialType.System_Boolean and <= SpecialType.System_UInt64 or
                 SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_IntPtr or
                 SpecialType.System_UIntPtr;
 
-        public bool Struct(ITypeSymbol type, List<KeyValuePair<ITypeSymbol, int>> fields, out LayoutKind kind,
+        public bool TryGetFields(ITypeSymbol type, List<KeyValuePair<ITypeSymbol, int>> fields, out LayoutKind kind,
             out int pack, out int minSize)
         {
             // A known layout is sequential, without Pack or Size; the value tuples are auto-layout, which reference
@@ -363,11 +386,11 @@ internal static class RawLayout
             if (Known(type) != null || IsValueTuple(type))
             {
                 metadata = null;
-                kind = IsValueTuple(type) ? LayoutKind.Auto : LayoutKind.Sequential;
+                kind = IsValueTuple(type) || IsDateTimeOffset(type) ? LayoutKind.Auto : LayoutKind.Sequential;
                 pack = minSize = 0;
             }
 
-            if ((IsWide(type) && !SymbolEqualityComparer.Default.Equals(type, top)) || Fields(type) is not { } own)
+            if ((IsInt128(type) && !SymbolEqualityComparer.Default.Equals(type, top)) || Fields(type) is not { } own)
                 return false;
             foreach (var field in own)
             {

@@ -486,6 +486,13 @@ type tagMixed struct {
 	D uint8
 }
 
+// tagWide is `struct { byte A; Int128 B; int C; }`: Int128 aligned to 16 in the canonical layout (spec §5.2).
+type tagWide struct {
+	A uint8
+	B Int128
+	C int32
+}
+
 type tagTuple struct {
 	Item1 uint8
 	Item2 int64
@@ -504,6 +511,13 @@ func TestTagRaw(t *testing.T) {
 			{tagMixed{1, 2, 3, 4}, "01 00 0200 03000000 04 000000"},
 			{tagTuple{1, 2}, "01 0200000000000000"},
 			{[]tagMixed{{1, 2, 3, 4}}, "01000000 01 00 0200 03000000 04 000000"},
+			// The bytes .NET writes: B at 16, 48 bytes; Int128? and UInt128? elements at a stride of 16 + 16.
+			{tagWide{1, Int128{Lo: ^uint64(1), Hi: ^uint64(0)}, 3},
+				"01 000000000000000000000000000000 FEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF 03000000 000000000000000000000000"},
+			{[]*Int128{{Lo: 5}, nil}, "02000000 01 000000000000000000000000000000 05000000000000000000000000000000" +
+				" 00000000000000000000000000000000 00000000000000000000000000000000"},
+			{[]*UInt128{nil, {Lo: 6}}, "02000000 00000000000000000000000000000000 00000000000000000000000000000000" +
+				" 01 000000000000000000000000000000 06000000000000000000000000000000"},
 		} {
 			got, err := Marshal(c.v)
 			if err != nil {
@@ -587,10 +601,6 @@ type (
 	badEmbeddedPtr struct {
 		*tagRaw
 	}
-	badRawInt128 struct {
-		A Int128
-		B int32
-	}
 	badElements struct{ A int32 }
 	badPtrPtr   struct {
 		P **int32 `nino:"0"`
@@ -634,7 +644,6 @@ func TestTagErrors(t *testing.T) {
 		{badLayoutParse{}, "", "unknown format"},
 		{badTolerantGap{}, "", "gap at 1"},
 		{badEmbeddedPtr{}, "tagRaw", "embedded pointer"},
-		{badRawInt128{}, "A", "needs its offsets"},
 		{badElements{}, "", "collections"},
 		{badPtrPtr{}, "P", "pointer to a ptr"},
 	} {

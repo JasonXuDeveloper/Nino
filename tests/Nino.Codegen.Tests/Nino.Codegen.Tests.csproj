@@ -8,6 +8,8 @@
         <Nullable>disable</Nullable>
         <OutputType>Library</OutputType>
         <NoWarn>$(NoWarn);CS0649</NoWarn>
+        <!-- Shapes.HostLeaves holds pointers. -->
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <ItemGroup>

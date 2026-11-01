@@ -1,6 +1,11 @@
 using System.Collections.Generic;
 using Nino.Core;
 
+// A layout as a Nino generator before spec 4.4 could publish it for a member of Vector<T>, which no runtime reads
+// since (Vector<T> is not serializable: spec 3): nino-gen leaves the type out (Shapes.OldVector).
+[assembly: NinoTypeLayout(typeof(Shapes.OldVector), NinoFormat.Positional, NinoHeader.NullFlag, false, false, 0x0BADF00D,
+    "Lanes:System.Numerics.Vector<int>:raw(16){_00:ulong@0:raw(8),_01:ulong@8:raw(8)}")]
+
 // Shapes of types the conformance corpus does not declare, generated into every language (runtimes/go/internal/
 // generated/shapes, runtimes/rust/tests/generated/shapes.rs, runtimes/typescript/test/generated) so each runtime's
 // build compiles them: names each language reserves, collisions, a struct holding itself, a struct in a polymorphic
@@ -112,16 +117,87 @@ namespace Shapes
         public Dictionary<float, int> Map;
     }
 
+    /// <summary>A plain struct holding a value tuple: (byte, short) is the short, then the byte, aligned to 4.</summary>
+    public struct TupleInside
+    {
+        public byte A;
+        public (byte, short) T;
+    }
+
+    /// <summary>A raw struct aligned to 4 by the auto layout of the tuple it holds (wire-format spec §5.2).</summary>
+    [NinoType]
+    public struct TupleCell
+    {
+        public byte A;
+        public TupleInside Inside;
+    }
+
     /// <summary>
-    /// A SIMD vector of fixed size, aligned per runtime (Vector256 at 32 on x64, 16 on Arm64; Nino.Core's layout), which
-    /// no target expresses: every target leaves the type out, with a warning. (Vector&lt;T&gt; is not serializable at
-    /// all: NINO029.)
+    /// Nullables of raw values at a fixed stride: the presence byte, padding to the value's canonical alignment, then
+    /// the value (wire-format spec §6.2); as a member (its layout publishes the stride) and as a type argument (nino-gen
+    /// works it out).
+    /// </summary>
+    [NinoType]
+    public sealed class Strides
+    {
+        public TupleCell?[] Cells;
+        public Generic.Box<TupleCell?[]> Boxed;
+    }
+
+    /// <summary>
+    /// The BCL leaves whose layout differs by runtime, inside a raw struct, in the canonical layout (wire-format spec
+    /// §5.2): Int128 aligned to 16, nint sign-extended, nuint and pointers zero-extended to 8 bytes.
+    /// </summary>
+    public unsafe struct HostLeaves
+    {
+        public byte A;
+        public System.Int128 Wide;
+        public nint Signed;
+        public nuint Unsigned;
+        public int* Pointer;
+    }
+
+    /// <summary>DateTimeOffset inside a raw struct: its canonical fields, the minutes (an int) at 0, the ticks at 8.</summary>
+    public struct OffsetLeaf
+    {
+        public short A;
+        public System.DateTimeOffset At;
+    }
+
+    /// <summary>Raw structs holding <see cref="HostLeaves"/>, and Int128? at a stride of 32 (the value at 16).</summary>
+    [NinoType]
+    public sealed class HostHolder
+    {
+        public HostLeaves Leaves;
+        public System.Int128?[] Gaps;
+    }
+
+    /// <summary>Not written to TypeScript, whose DateTime is a Date (milliseconds, written as UTC).</summary>
+    [NinoType]
+    public sealed class OffsetHolder
+    {
+        public OffsetLeaf Leaf;
+    }
+
+    /// <summary>
+    /// A SIMD vector of fixed size (Vector256: 32 bytes aligned to 32 in the canonical layout), which no target
+    /// expresses: every target leaves the type out, with a warning. (Vector&lt;T&gt; is not serializable at all:
+    /// NINO029.)
     /// </summary>
     [NinoType]
     public sealed class Simd
     {
         public int Id;
         public System.Runtime.Intrinsics.Vector256<int> Lanes;
+    }
+
+    /// <summary>
+    /// Not a [NinoType]: its layout is the hand-written one above, which no target may write code for (Vector&lt;T&gt;
+    /// is as wide as the CPU's vectors).
+    /// </summary>
+    public sealed class OldVector
+    {
+        public System.Numerics.Vector<int> Lanes;
     }
 
     public static class Outer

@@ -7,14 +7,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using Nino.Core;
 
-/// <summary>A plain (raw) struct around a BCL struct, after a byte and before an int.</summary>
-public struct Around<T>
-{
-    public byte A;
-    public T B;
-    public int C;
-}
-
 /// <summary>A collection whose base type holds Vector&lt;T&gt;: refused like the list it derives from.</summary>
 public class VectorList : List<System.Numerics.Vector<int>>
 {
@@ -96,7 +88,7 @@ public static class BclStructs
         Bcl("DateTimeOffset?", (DateTimeOffset?)dto1, (DateTimeOffset?)null);
         Bcl("IntPtr", new IntPtr(-1), new IntPtr(int.MaxValue));
         Bcl("Complex", new System.Numerics.Complex(1.5, -2.5), new System.Numerics.Complex(double.MaxValue, 0));
-        // Vector<T> is refused, alone or inside (16 or 32 bytes by the CPU: no bytes every host reads); the fixed
+        // Vector<T> is refused, alone or inside (16, 32 or 64 bytes by the CPU: no bytes every host reads); the fixed
         // lanes that replace it (LaneParticle) are the same bytes everywhere, whatever this CPU's Vector<float>.Count.
         Console.WriteLine($"# Vector<float>.Count {System.Numerics.Vector<float>.Count}");
         Refused("Vector<int>", new System.Numerics.Vector<int>(7));
@@ -396,15 +388,19 @@ public static class BclStructs
         return bytes;
     }
 
-    /// <summary>Prints BclFixtures.cs with what this runtime wrote (run on CoreCLR x64: <c>--write-fixtures</c>).</summary>
+    /// <summary>
+    /// Prints BclFixtures.cs with what this runtime wrote (run on CoreCLR x64: <c>--write-fixtures</c>, standard error
+    /// redirected to src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs).
+    /// </summary>
     private static void WriteFixtures()
     {
         var sb = new StringBuilder();
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine();
         sb.AppendLine("/// <summary>");
-        sb.AppendLine("/// What CoreCLR x64 writes for each case of <see cref=\"BclStructs\"/> (the canonical layout), as hex. Written by");
-        sb.AppendLine("/// <c>dotnet Nino.RuntimeTests.dll --write-fixtures</c> on .NET 10 x64; every runtime must write and read these bytes.");
+        sb.AppendLine("/// What CoreCLR x64 writes for each case of tests/Nino.RuntimeTests/BclStructs.cs (the canonical layout), as hex:");
+        sb.AppendLine("/// every runtime must write and read these bytes (BclStructs, and Unity's BclLayoutTests on Mono and IL2CPP). Written by");
+        sb.AppendLine("/// <c>dotnet Nino.RuntimeTests.dll --write-fixtures 2> src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs</c> on .NET 10 x64.");
         sb.AppendLine("/// </summary>");
         sb.AppendLine("public static class BclFixtures");
         sb.AppendLine("{");

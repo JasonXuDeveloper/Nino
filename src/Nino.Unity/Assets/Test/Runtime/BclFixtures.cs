@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 
 /// <summary>
-/// What CoreCLR x64 writes for each case of <see cref="BclStructs"/> (the canonical layout), as hex. Written by
-/// <c>dotnet Nino.RuntimeTests.dll --write-fixtures</c> on .NET 10 x64; every runtime must write and read these bytes.
+/// What CoreCLR x64 writes for each case of tests/Nino.RuntimeTests/BclStructs.cs (the canonical layout), as hex:
+/// every runtime must write and read these bytes (BclStructs, and Unity's BclLayoutTests on Mono and IL2CPP). Written by
+/// <c>dotnet Nino.RuntimeTests.dll --write-fixtures 2> src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs</c> on .NET 10 x64.
 /// </summary>
 public static class BclFixtures
 {

@@ -158,9 +158,10 @@ NinoNesting.cs               which types can hold themselves through collections
 NinoHash.cs                  FNV-1a behind type ids and member keys (also compiled into the generator)
 NinoLayout.cs                canonical (64-bit CoreCLR) layout of raw structs, BCL structs inside them included (tuples,
                              DateTimeOffset, nint), padding masks, conversion where the runtime differs (x86, Mono,
-                             IL2CPP, .NET Framework), offsets read from an instance (MeasureMemory); NinoLayout<T>, NinoMask
-NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout), CoreCLR's auto layout
-                             (PlaceAuto)
+                             IL2CPP, .NET Framework), offsets read from an instance (MeasureMemory); NinoLayout<T>
+NinoMask.cs                  NinoMask: padding cleared while copying values to the wire (vector masks, 8-byte words)
+NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout): NinoLeaf, NinoLayoutModel
+                             (one runtime's rules; Canonical), Measure, CoreCLR's auto layout (PlaceAuto)
 NinoReflection.cs            what Nino.Core reads by reflection with the generator's rules (NinoType, raw, tracking)
 NinoFormatterBinding.cs      binding of [NinoFormatter] registrations, shared with the generator (INinoTypeSystem)
 NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed)

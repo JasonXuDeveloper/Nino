@@ -89,10 +89,20 @@ builds of Nino.Core, Mono).
   to Vector512 are fixed size and stay: aligned 8/16/32/64 on x64, 16/16/16 on Arm64, 8 on Arm32 (`NinoLeaf.Vector`).
   Test every `Vector<T>` width on one x64 machine: `DOTNET_EnableAVX2=0` (16 bytes), `DOTNET_MaxVectorTBitWidth=512`
   (64), the default (32); `tests/Nino.RuntimeTests` prints `# Vector<float>.Count`.
+  CI covers all three: the no-AVX2 unit tests (16), the default (32), and 64 in the net10.0 unit-test job (VectorTTests)
+  and the Linux runtime-internals job (Nino.RuntimeTests, which must print Count 16) with `DOTNET_MaxVectorTBitWidth=512`.
+  GitHub's x64 runners are Xeon 6973P-C (AVX-512) or EPYC 7763 (none): a check that needs AVX-512 asks
+  `.github/scripts/has_avx512.sh` (F, BW, CD, DQ, VL, as .NET needs) and posts a notice instead of failing without it.
   Each CI runtime prints its layout of
   every BCL struct (`# layout` lines of `tests/Nino.RuntimeTests`, the table in docs/layouts.md) and must write and
-  read CoreCLR x64's bytes for each (`BclStructs.cs` against `BclFixtures.cs`; Unity's `BclLayoutTests` in play mode
-  and the IL2CPP player). Never read a pointer field by reflection (`FieldInfo.GetValue` on `IntPtr`'s `void*`
+  read CoreCLR x64's bytes for each (`BclStructs.cs` against `BclFixtures.cs`, which Unity's `BclLayoutTests` read too,
+  in play mode and the IL2CPP player). Check a change to `NinoLayout` / `NinoLayoutCore` against random shapes, not only the listed ones: generate nested
+  value tuples of every leaf (with `Nullable`, `KeyValuePair`, `DateTimeOffset`, `nint`) inside a sequential struct,
+  fill them through reflection, `NinoSerializer.Serialize` them and diff the hex across runtimes (.NET 10, .NET 8 and
+  Mono's net472 build on x64, the self-contained `linux-arm64` publish under qemu); in-process, `NinoLayout.Compute`
+  with `measured: true` must give the model's result for every shape on x64. Round 104: 5,000 shapes wrote the same
+  bytes on all four, and the measured path threw for a top-level `T?` (created as null by `Activator`, so
+  `MeasureMemory` takes its flag and value from `NullableValue`). Never read a pointer field by reflection (`FieldInfo.GetValue` on `IntPtr`'s `void*`
   crashed Mono 6.8 with SIGSEGV).
   To run the unit suite under qemu-arm, call its `[TestMethod]`s by reflection from a small program run by the Arm32
   `dotnet` (`dotnet test` starts its host with the machine's own runtime); leave out the Roslyn compilations,
@@ -157,9 +167,9 @@ Why the qemu flags:
   branch. A `NotSupportedException` thrown by `NinoLayout.Create` for `Vector<T>` reached `NinoSerializer.Serialize`
   through `NinoRaw<T>`'s initializer on Mono 6.14 (`tests/Nino.RuntimeTests`, net472), while CoreCLR threw it from the
   resolver as meant. Give such a type a layout that is neither raw nor sized, and throw where its formatter is
-  resolved (`NinoReflection.RefuseVariableVector`) and, for code that skips the resolver (a hand-made
+  resolved (`NinoReflection.RefuseHostSizedVector`) and, for code that skips the resolver (a hand-made
   `UnmanagedFormatter<T>`, `Writer.Write<T>`), on the layout's converted paths behind a `static readonly bool`
-  (`NinoLayout<T>.HoldsVariableVector`): a JIT constant, folded away on canonical types (`asm.py compare`: no method
+  (`NinoLayout<T>.HoldsHostSizedVector`): a JIT constant, folded away on canonical types (`asm.py compare`: no method
   changed), where the layout of no size threw `NullReferenceException` before.
 - IL2CPP has no `Reflection.Emit` and shares generic code: no runtime code generation, and the mirror-class rules of
   `runtime-internals` (static code only).

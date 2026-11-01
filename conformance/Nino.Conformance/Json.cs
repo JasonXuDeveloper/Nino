@@ -178,7 +178,7 @@ namespace Conformance
                 case Enum e:
                     Integer(w, ToBig(Convert.ChangeType(e, Enum.GetUnderlyingType(type), CultureInfo.InvariantCulture)));
                     return;
-                case sbyte or byte or short or ushort or int or uint or long or ulong or Int128 or UInt128:
+                case sbyte or byte or short or ushort or int or uint or long or ulong or Int128 or UInt128 or nint or nuint:
                     Integer(w, ToBig(value));
                     return;
                 case char c:
@@ -361,6 +361,8 @@ namespace Conformance
             Int128 i => (BigInteger)i,
             UInt128 u => (BigInteger)u,
             ulong u => u,
+            nint n => (long)n,
+            nuint n => (ulong)n,
             _ => Convert.ToInt64(integer, CultureInfo.InvariantCulture),
         };
 

@@ -327,6 +327,12 @@ namespace Nino.Codegen.Model
 
         public int Size { get; internal set; }
 
+        /// <summary>
+        /// The alignment in the canonical layout (wire-format spec §5.2), which the layout does not publish: what pads a
+        /// <c>T?</c> element before the value (§6.2).
+        /// </summary>
+        public int Align { get; internal set; } = 1;
+
         public List<RawFieldModel> Fields { get; } = new();
 
         /// <summary>Whether the fields fill it with no gap.</summary>

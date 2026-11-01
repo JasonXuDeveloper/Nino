@@ -94,30 +94,30 @@ namespace Nino.Core.Internal
         /// <summary>
         /// The <c>System.Numerics.Vector&lt;T&gt;</c> that <paramref name="type"/> is or holds, or null: as an array
         /// element, a type argument, a base type or the element of an <c>IEnumerable&lt;T&gt;</c> of a type that is not
-        /// a <c>[NinoType]</c>, or a field (at any depth) of a struct that is not one. <c>Vector&lt;T&gt;</c> is as wide
-        /// as the CPU's vectors (16 bytes on Arm64, Mono, IL2CPP and x64 without AVX2, 32 with AVX2, 64 with
+        /// a <c>[NinoType]</c>, or a field (at any depth) of a struct that is not one. <c>Vector&lt;T&gt;</c> is 16, 32
+        /// or 64 bytes by the CPU (16 on Arm64, Mono, IL2CPP and x64 without AVX2, 32 with AVX2, 64 with
         /// <c>DOTNET_MaxVectorTBitWidth=512</c>), so no layout of it reads on every host, and Nino serializes no type
         /// that holds one (docs/spec/wire-format.md §3). <c>[NinoType]</c>s are left to their generated formatters,
         /// which skip such members (NINO029) and resolve the formatters of their type arguments, refused there, when
-        /// first used. The generator's rule is <c>RawRules.VariableVectorIn</c>.
+        /// first used. The generator's rule is <c>RawRules.HostSizedVectorIn</c>.
         /// </summary>
-        public static Type VariableVectorIn(Type type) => VariableVectorIn(type, null);
+        public static Type HostSizedVectorIn(Type type) => HostSizedVectorIn(type, null);
 
         /// <summary>
         /// Throws <see cref="NotSupportedException"/> when <paramref name="type"/> is or holds <c>Vector&lt;T&gt;</c>
-        /// (<see cref="VariableVectorIn(Type)"/>): called where a formatter is first resolved, and by the converted paths
+        /// (<see cref="HostSizedVectorIn(Type)"/>): called where a formatter is first resolved, and by the converted paths
         /// of <see cref="NinoLayout{T}"/> for such a type only (code that skipped the resolver); out of line.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void RefuseVariableVector(Type type)
+        public static void RefuseHostSizedVector(Type type)
         {
-            if (VariableVectorIn(type) is { } vector)
-                NinoThrow.VariableVector(type, vector);
+            if (HostSizedVectorIn(type) is { } vector)
+                NinoThrow.HostSizedVector(type, vector);
         }
 
         [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = VectorJustification)]
         [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = VectorJustification)]
-        private static Type VariableVectorIn(Type type, HashSet<Type> seen)
+        private static Type HostSizedVectorIn(Type type, HashSet<Type> seen)
         {
             while (type.HasElementType)
             {
@@ -139,7 +139,7 @@ namespace Nino.Core.Internal
             {
                 foreach (var argument in type.GetGenericArguments())
                 {
-                    if (VariableVectorIn(argument, seen ??= new HashSet<Type> { type }) is { } found)
+                    if (HostSizedVectorIn(argument, seen ??= new HashSet<Type> { type }) is { } found)
                         return found;
                 }
             }
@@ -147,12 +147,12 @@ namespace Nino.Core.Internal
             // What a collection formatter writes of a type that names no vector itself: its base type's
             // (class Lanes : List<Vector<int>>) and the elements of the IEnumerable<T> it implements.
             if (!type.IsValueType && type.BaseType is { } baseType && baseType != typeof(object) &&
-                VariableVectorIn(baseType, seen ??= new HashSet<Type> { type }) is { } inBase)
+                HostSizedVectorIn(baseType, seen ??= new HashSet<Type> { type }) is { } inBase)
                 return inBase;
             foreach (var face in type.GetInterfaces())
             {
                 if (face.IsGenericType && face.GetGenericTypeDefinition() == typeof(IEnumerable<>) &&
-                    VariableVectorIn(face.GetGenericArguments()[0], seen ??= new HashSet<Type> { type }) is { } inElements)
+                    HostSizedVectorIn(face.GetGenericArguments()[0], seen ??= new HashSet<Type> { type }) is { } inElements)
                     return inElements;
             }
 
@@ -162,7 +162,7 @@ namespace Nino.Core.Internal
                                                  System.Reflection.BindingFlags.Public |
                                                  System.Reflection.BindingFlags.NonPublic))
             {
-                if (VariableVectorIn(field.FieldType, seen ??= new HashSet<Type> { type }) is { } found)
+                if (HostSizedVectorIn(field.FieldType, seen ??= new HashSet<Type> { type }) is { } found)
                     return found;
             }
 
