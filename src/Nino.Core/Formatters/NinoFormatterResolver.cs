@@ -319,15 +319,15 @@ namespace Nino.Core
                     (!type.IsValueType || Nullable.GetUnderlyingType(type) != null))
                     return false;
                 // `unmanaged` is C#'s; [NinoRaw] means "copied as raw memory", which is stricter.
-                if (IsUnmanagedConstrained(parameter) && (!type.IsValueType || !NinoUnsafe.IsUnmanaged(type)))
+                if (NinoParameterMarks.Unmanaged(parameter) && (!type.IsValueType || !NinoUnsafe.IsUnmanaged(type)))
                     return false;
-                if (parameter.IsDefined(typeof(NinoRawAttribute), false) && !NinoReflection.IsRawUnmanaged(type))
+                if (NinoParameterMarks.Raw(parameter) && !NinoReflection.IsRawUnmanaged(type))
                     return false;
                 if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0 &&
                     !type.IsValueType && (type.IsAbstract || type.GetConstructor(Type.EmptyTypes) == null))
                     return false;
                 // [NinoCreated]: created through NinoActivator<T>, by a factory or constructor callable without arguments.
-                if (parameter.IsDefined(typeof(NinoCreatedAttribute), false) && !NinoActivator.IsCreatable(type))
+                if (NinoParameterMarks.Created(parameter) && !NinoActivator.IsCreatable(type))
                     return false;
                 foreach (var constraint in parameter.GetGenericParameterConstraints())
                 {
@@ -339,9 +339,6 @@ namespace Nino.Core
 
                 return true;
             }
-
-            private static bool IsUnmanagedConstrained(Type parameter) =>
-                NinoActivator.HasAttribute(parameter, "System.Runtime.CompilerServices.IsUnmanagedAttribute");
         }
 
         /// <summary>The registrations seen so far, indexed like the generator's; replaced as a whole when one is added.</summary>

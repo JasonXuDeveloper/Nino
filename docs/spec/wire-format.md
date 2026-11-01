@@ -407,7 +407,7 @@ The bytes of a raw value are copied as they are. Readers MUST NOT normalize them
 written as `02`.
 
 Runtimes whose memory layout differs convert each value field by field into the canonical layout: x86 aligns some
-8-byte fields to 4 (a `DateTime` field on Windows x86 .NET); Mono and IL2CPP align `decimal` to 4 and keep a
+8-byte fields to 4 (a `DateTime` field on Windows x86 .NET); IL2CPP and .NET Framework align `decimal` to 4; Mono and IL2CPP keep a
 `ValueTuple`'s declaration order; .NET Framework reorders a struct holding a `DateTime` and places tuples by the
 pointer size; .NET 8 has a `short` in `DateTimeOffset`; 32-bit hosts have 4-byte `nint` and pack tuples into fewer
 bytes; .NET 7 aligns `Int128` to 8. The bytes on the wire are the same on every runtime: a writer in any runtime or

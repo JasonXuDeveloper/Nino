@@ -20,7 +20,7 @@ Nino.RuntimeTests/           one program (net10.0; net472 with the netstandard2.
                              SortedSetNodes, ObjectTypes, HashTrees, SortedTrees); BclStructs.cs: every BCL struct
                              inside a raw struct, and tuples and pairs, against CoreCLR x64's bytes both ways
                              (BclFixtures.cs, `--write-fixtures` rewrites it), and each runtime's layout of them
-                             (`# layout` lines, docs/layouts.md)
+                             (`# layout` lines; layouts.py turns CI's into docs/layouts.md's tables)
 Nino.AotTests/               a program over every kind of type, published trimmed and with NativeAOT (warnings are
                              errors); prints a hash of everything written to compare runs, and checks that the block
                              shuffle keeps its instruction (pshufb) under NativeAOT

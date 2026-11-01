@@ -24,7 +24,7 @@ namespace Nino.Core.Internal
     /// aligns 8-byte primitives to 4; .NET on
     /// 32-bit x86 aligns <c>long</c>, <c>double</c> and sequential structs holding them (<c>TimeSpan</c>, <c>decimal</c>)
     /// to 8 but <c>DateTime</c>, an auto-layout struct, to 4 (<c>{ int; DateTime }</c> is 12 bytes there, 16 on 64-bit);
-    /// Mono and IL2CPP align <c>decimal</c> to 4; Arm32 and .NET 7 align <c>Int128</c> to 8. .NET Framework lays out a
+    /// IL2CPP and .NET Framework align <c>decimal</c> to 4; Arm32 and .NET 7 align <c>Int128</c> to 8. .NET Framework lays out a
     /// struct holding a <c>DateTime</c> as auto-layout (fields reordered): there, wherever the model misses a type's
     /// size, and for structs holding an auto-layout struct (whose placement differs between runtimes: Mono and IL2CPP
     /// keep a tuple's declaration order, .NET 8 has a <c>short</c> in <c>DateTimeOffset</c>), the offsets are read from

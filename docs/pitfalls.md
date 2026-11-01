@@ -52,7 +52,8 @@ Before treating a BCL struct as raw, verify its layout on every runtime:
 - `Guid`: `int, short, short, 8 bytes`, the same everywhere.
 - `decimal`: 16 bytes with the same byte order everywhere, but CoreCLR declares
   `int _flags; uint _hi32; ulong _lo64` (alignment 8) while Mono/IL2CPP declare four ints (alignment 4).
-  So `struct { int a; decimal d; }` puts `d` at 8 on CoreCLR and at 4 on Unity.
+  So `struct { int a; decimal d; }` puts `d` at 8 on CoreCLR and at 4 on Unity. Measured in CI: .NET Framework aligns
+  `decimal` to 4 as well; Mono 6.8 and 6.14 (whose `decimal` overlays a `ulong`) to 8.
 - `DateTimeOffset`: auto-layout, and different everywhere: .NET 10 has an `int` offset in minutes at 0 and the UTC
   date at 8; .NET 8 a `short` at 0 (the same place, other width); .NET Framework and Mono the date at 0 and a `short`
   at 8; 32-bit runtimes 12 bytes. On its own Nino writes it as UTC ticks plus offset minutes (10 bytes), never raw;
@@ -96,7 +97,7 @@ lays it out; spec §5.2). `NinoLayout` measures the runtime once with probe stru
 from its fields:
 
 - Where it equals the canonical layout (every 64-bit runtime except for structs with a misaligned
-  `decimal` on Mono/IL2CPP, and most 32-bit ones), values are copied as raw memory. The check is a
+  `decimal` on IL2CPP and .NET Framework, and most 32-bit ones), values are copied as raw memory. The check is a
   `static readonly` flag the JIT folds away.
 - Elsewhere, values are converted field by field and the bulk raw paths are skipped.
 - .NET Framework lays out a sequential struct that holds a `DateTime` as auto-layout (`{ byte; DateTime; int }`
