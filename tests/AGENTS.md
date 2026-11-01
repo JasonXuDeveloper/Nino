@@ -17,7 +17,10 @@ Nino.RuntimeTests/           one program (net10.0; net472 with the netstandard2.
                              job runs on .NET (x64, Arm64, Arm32 under qemu, Windows x86), Mono and .NET Framework 4.8:
                              the same bytes everywhere, and every fast path through a runtime's internals taken
                              (FastPaths: a row per startup flag of CollectionViews, HashTables, ConcurrentTables,
-                             SortedSetNodes, ObjectTypes, HashTrees, SortedTrees)
+                             SortedSetNodes, ObjectTypes, HashTrees, SortedTrees); BclStructs.cs: every BCL struct
+                             inside a raw struct, and tuples and pairs, against CoreCLR x64's bytes both ways
+                             (BclFixtures.cs, `--write-fixtures` rewrites it), and each runtime's layout of them
+                             (`# layout` lines, docs/layouts.md)
 Nino.AotTests/               a program over every kind of type, published trimmed and with NativeAOT (warnings are
                              errors); prints a hash of everything written to compare runs, and checks that the block
                              shuffle keeps its instruction (pshufb) under NativeAOT
@@ -47,8 +50,9 @@ Serialization/               round trips of the public API: primitives, strings 
 Collections/                 arrays, BCL and user collections, empty ones, Stack/Queue through their arrays, the
                              HashTables fill, the collection fast paths, the prefetch of long top-level arrays and lists
                              of scattered objects and the interceptors that route them there (PrefetchTests)
-Layout/                      raw structs, padding, the portable (canonical) layout, block structs, fixed-size types,
-                             the unmanaged constraint, top-level fast paths
+Layout/                      raw structs, padding, the portable (canonical) layout, BCL structs inside raw structs
+                             (BclStructLayoutTests: CoreCLR's auto layout of tuples, DateTimeOffset), block structs,
+                             fixed-size types, the unmanaged constraint, top-level fast paths
 Polymorphism/                inheritance, dispatch, the registry, generic polymorphic bases, cross-assembly subtypes
 Versioning/                  version-tolerant and keyed types read across versions
 Reuse/                       reuse deserialization (ref overloads), [NinoFactory], pools, recycling ownership, null targets

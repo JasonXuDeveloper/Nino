@@ -184,7 +184,8 @@ namespace Nino.Codegen.Model
 
         /// <summary>
         /// For a primitive whose layout also lists its fields (<c>Int128</c>: <c>_lower</c>, <c>_upper</c>), the same
-        /// bytes as a raw struct of them, for a language without the primitive.
+        /// bytes as a raw struct of them, for a language without the primitive; for a <see cref="ValueKind.RawTuple"/>,
+        /// a raw struct of its items at their offsets, for a language whose tuples cannot hold them so.
         /// </summary>
         public ValueModel? Fallback { get; internal set; }
 

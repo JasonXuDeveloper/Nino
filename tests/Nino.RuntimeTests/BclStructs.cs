@@ -140,7 +140,11 @@ public static class BclStructs
             WriteFixtures();
     }
 
+#if NET8_0_OR_GREATER
     private static bool _netOnly;
+#else
+    private const bool _netOnly = false;
+#endif
 
     private static readonly List<KeyValuePair<string, byte[]>> Written = new List<KeyValuePair<string, byte[]>>();
 

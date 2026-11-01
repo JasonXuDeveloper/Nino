@@ -22,6 +22,8 @@ diagnostics.md               every NINO diagnostic with its fix (the analyzer's 
                              NINOGEN ones
 pitfalls.md                  problems met building v4 (memory layouts across runtimes, the generator, benchmarking)
                              and what Nino does about them; read before changing the wire format or raw fast paths
+layouts.md                   the layout of every unmanaged BCL struct on every runtime CI runs (size, field offsets),
+                             against the canonical one, from tests/Nino.RuntimeTests' `# layout` lines
 v4-benchmarks.md             build-time and runtime numbers against v3 3.3.13 and MemoryPack; the runtime tables are
                              written by benchmarks/readme.py from a release's report
 assets/                      logo.png (README); benchmark.svg (the README chart, written by readme.py) and

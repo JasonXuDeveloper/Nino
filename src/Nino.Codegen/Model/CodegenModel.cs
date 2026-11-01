@@ -868,6 +868,9 @@ namespace Nino.Codegen.Model
                     value.Offsets.Add(field.Offset);
                 }
 
+                // The same bytes as a struct of its items at their offsets, for a language whose tuples hold no gaps
+                // (an item order other than declaration order, or padding: 64-bit CoreCLR's auto layout).
+                value.Fallback = RawStruct(e, clr);
                 return value;
             }
 

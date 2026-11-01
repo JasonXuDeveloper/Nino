@@ -21,7 +21,8 @@ import (
 //
 // A struct is a class or struct of the corpus, named by its NinoTypeName method (generated code) or else
 // "Conformance." and its Go name (internal/sample), except for the generic pairs and grids both packages declare:
-// nino.Entry, Tuple2 or NinoTuple2 render as an array of their items, Grid or NinoGrid as {lengths, items}.
+// nino.Entry, Tuple2 or NinoTuple2 to NinoTuple7 render as an array of their items, Grid or NinoGrid as {lengths,
+// items}.
 //
 // An object of a tracked type is {"$id": n, ...} where it is first met (depth first, members in order: the order the
 // corpus numbers them) and {"$ref": n} after.
@@ -161,7 +162,7 @@ func renderValue(v reflect.Value) any {
 	case reflect.Struct:
 		name := t.Name()
 		switch {
-		case strings.HasPrefix(name, "Entry["), strings.HasPrefix(name, "Tuple2["), strings.HasPrefix(name, "NinoTuple2["):
+		case strings.HasPrefix(name, "Entry["), strings.HasPrefix(name, "Tuple2["), strings.HasPrefix(name, "NinoTuple"):
 			out := make([]any, t.NumField())
 			for i := range out {
 				out[i] = renderValue(v.Field(i))
