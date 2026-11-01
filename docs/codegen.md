@@ -80,7 +80,7 @@ The generated API of each language is on the site; these are the decisions behin
 
 - **Host-sized and BCL fields inside raw structs** (`CanonicalLayout`, `CodegenModel.Raw`): every target reads the
   fields the layout publishes at their canonical offsets (spec §5.2, §8.3). `nint` becomes a signed 64-bit integer
-  (`int64`, `i64`, `bigint`) and `nuint` and pointers an unsigned one (`uint64`, `u64`, `bigint`), because the wire
+  (`int64`, `i64`, `bigint`) and `nuint`, pointers and function pointers (`delegate*`) an unsigned one (`uint64`, `u64`, `bigint`), because the wire
   holds them as 8 bytes, sign- or zero-extended; `Int128` sits at its 16-byte-aligned offset, and a `Nullable<Int128>`
   element of a fixed-stride array has a stride of 32. `DateTimeOffset` is a struct `{ dateTime, offsetMinutes }` in Go
   and Rust; TypeScript leaves it out with NINOGEN002, since a `Date` holds milliseconds as UTC and cannot give back

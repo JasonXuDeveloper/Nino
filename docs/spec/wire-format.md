@@ -371,8 +371,10 @@ runtime that writes or reads it. Implementations MUST compute it as follows (`Ni
 
 - **Leaves** (size, alignment): 1-byte types (1, 1). 2-byte types (2, 2). 4-byte types (4, 4). 8-byte primitives,
   `DateTime` and `TimeSpan` (8, 8). `decimal` (16, 8). `Guid` (16, 4). `Int128` and `UInt128` (16, 16). Enums are
-  their underlying type. `nint`, `nuint` and pointers (8, 8): `nint` sign-extended, the others zero-extended where the
-  host's pointer is 4 bytes. `Vector64<T>` (8, 8), `Vector128<T>` (16, 16), `Vector256<T>` (32, 32), `Vector512<T>`
+  their underlying type. `nint`, `nuint`, pointers and function pointers (`delegate*`) (8, 8): `nint` sign-extended,
+  the others zero-extended where the host's pointer is 4 bytes. (Mono and IL2CPP report a `delegate*` field as an
+  `IntPtr`, so the .NET reader and writer there sign-extend it: the same bytes on 64-bit hosts; on a 32-bit Unity
+  player an address with its top bit set differs.) `Vector64<T>` (8, 8), `Vector128<T>` (16, 16), `Vector256<T>` (32, 32), `Vector512<T>`
   (64, 64): x64 CoreCLR's alignments (Arm64 aligns the last two to 16, Arm32 every one to 8). `Vector<T>` is not a
   leaf: a struct holding one is not serializable (§3).
 - **BCL structs of private fields**, as .NET 10 declares them: `KeyValuePair<K, V>` is sequential `{ K key; V value; }`;
@@ -393,7 +395,7 @@ runtime that writes or reads it. Implementations MUST compute it as follows (`Ni
 - `LayoutKind.Auto` with more than one field (every `ValueTuple`, `DateTimeOffset`, and user structs that ask for it)
   is placed by 64-bit CoreCLR's auto-layout rule (its type loader, and crossgen2's
   `MetadataFieldLayoutAlgorithm.ComputeAutoFieldLayout`):
-  - **Primitive fields** (integers, `bool`, `char`, `float`, `double`, `nint`, `nuint`, pointers, enums) first, by
+  - **Primitive fields** (integers, `bool`, `char`, `float`, `double`, `nint`, `nuint`, pointers, function pointers, enums) first, by
     size from 8 bytes down to 1, in declaration order within a size, each at the next multiple of its size.
   - **Struct fields** (every other value type: `DateTime`, `TimeSpan`, `decimal`, `Guid`, tuples...) after them, in
     declaration order, each at the next multiple of its own alignment.
@@ -1045,7 +1047,7 @@ hexdigit      = digit | "A" | "B" | "C" | "D" | "E" | "F" ;
 | `formatter(F)` | written by `F` (§7.11) |
 
 `Uri`, `CultureInfo` and `StringBuilder` are published as `string`. `nint` and `nuint` are published as `raw(8)`.
-A raw struct holding `nint`, `nuint`, pointers, `Int128`/`UInt128` or `DateTimeOffset` publishes its fields at their
+A raw struct holding `nint`, `nuint`, pointers, function pointers, `Int128`/`UInt128` or `DateTimeOffset` publishes its fields at their
 canonical offsets (§5.2): `B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}` after a `byte`,
 `B:System.IntPtr@8:raw(8)`, and `DateTimeOffset` as
 `raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}`. A `Nullable<Int128>` element of a fixed-stride
@@ -1462,7 +1464,7 @@ function ninoHash(s: sequence of UTF-16 code units) -> i32:
 function measure(t) -> (size, align, leaves):
     if t is a leaf: return (leafSize(t), leafAlign(t), [(0, leafSize(t))])
         leaf sizes / aligns: 1/1, 2/2, 4/4, 8-byte primitives 8/8, decimal 16/8, Guid 16/4, Int128/UInt128 16/16,
-        pointer 8/8 (nint sign-extended, nuint and pointers zero-extended), Vector64/128/256/512 8/8, 16/16, 32/32, 64/64 (Vector<T>: not serializable, §3)
+        pointer and function pointer 8/8 (nint sign-extended, nuint and pointers zero-extended), Vector64/128/256/512 8/8, 16/16, 32/32, 64/64 (Vector<T>: not serializable, §3)
     fields = instance fields of t in declaration order (DateTimeOffset: [DateTime, int]; §5.2)
     if layoutKind(t) == Auto and count(fields) > 1: return measureAuto(fields)
     pack = Pack(t) if Pack(t) > 0 else infinity
@@ -1495,6 +1497,7 @@ function measureAuto(fields) -> (size, align, leaves):
     return (size, align, leaves)
 ```
 
-`isPrimitive` holds for integers, `bool`, `char`, `float`, `double`, `nint`, `nuint`, pointers and enums.
+`isPrimitive` holds for integers, `bool`, `char`, `float`, `double`, `nint`, `nuint`, pointers, function pointers and
+enums.
 
 The wire bytes of a raw value are its leaves at their offsets, with every other byte zero.

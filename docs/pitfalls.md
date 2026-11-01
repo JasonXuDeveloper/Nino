@@ -42,10 +42,15 @@ host's memory:
 - On their own (values, members, elements, dictionary entries), `ValueTuple`, `KeyValuePair` and `Nullable<T>` are
   written item by item, never as raw memory; `DateTimeOffset` as UTC ticks plus offset minutes (10 bytes).
 - Inside a plain raw struct they take the canonical layout (spec §5.2: 64-bit CoreCLR's, with `DateTimeOffset` as
-  .NET 10 lays it out, `nint`/`nuint`/pointers as 8 bytes, the SIMD vectors aligned as on x64). A runtime whose
+  .NET 10 lays it out, `nint`/`nuint`/pointers and function pointers as 8 bytes, the SIMD vectors aligned as on x64). A runtime whose
   layout is the canonical one copies the struct; every other one finds its field offsets once from an instance
   (`MeasureMemory`) and converts field by field. A raw `[NinoType]` struct requires all of its fields to be raw, so
   one holding a tuple, pair or nullable is written member by member.
+- A function pointer (`delegate*`) is a pointer: 8 bytes, zero-extended. Each runtime reports its field differently
+  (.NET 8+ a function pointer type, .NET Framework and .NET 7 an `IntPtr` only its signature tells apart), so layouts
+  read field types through `NinoReflection.LayoutFieldType`. Mono and IL2CPP cannot resolve the signature and see an
+  `IntPtr`, which they sign-extend: the same bytes on 64-bit hosts, different on a 32-bit Unity player only for an
+  address with its top bit set.
 - `Vector<T>` is not serializable (next section).
 
 ### `Vector<T>` is not serializable

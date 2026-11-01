@@ -3,7 +3,7 @@
 The memory layout of every unmanaged BCL struct Nino copies as raw bytes inside a plain struct, on each runtime CI runs,
 against 64-bit CoreCLR's (the first column). The canonical layout Nino writes is that column (spec §5.2), with
 exceptions that do not depend on the runtime: `DateTimeOffset` as .NET 10 lays it out (its minutes as an `int`; .NET 8
-has a `short` at the same place), `nint`/`nuint`/pointers as 8 bytes, and the SIMD vectors aligned as on x64.
+has a `short` at the same place), `nint`/`nuint`/pointers and function pointers as 8 bytes, and the SIMD vectors aligned as on x64.
 `Vector<T>` is not serializable (below). Every runtime below writes the canonical bytes and reads them, checked case by
 case against the bytes CoreCLR x64 wrote: one fixture file, `src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs`,
 linked into `tests/Nino.RuntimeTests` (`BclStructs.cs`) and read by Unity's `BclLayoutTests` in its editor and its
