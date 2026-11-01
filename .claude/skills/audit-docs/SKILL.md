@@ -81,8 +81,9 @@ is a finding, and so is a page that teaches a feature before the one it builds o
      round 105); a page's meaning never depends on colour alone (the Markdown copy has none).
    - **Diagrams are Mermaid, drawn at build time** (EasyEcs docs' way: `rehypeMermaid` in Playwright's Chromium,
      cached per page by sha256 of Mermaid's version, the options and the diagrams, in memory and in
-     `node_modules/.cache/mermaid`; the page loads no Mermaid, the Markdown copy keeps the source): small flowcharts,
-     Chinese labels on Chinese pages, never hand-drawn SVG. The cache is what keeps local builds fast; Cloudflare
+     `node_modules/.cache/mermaid`; the page loads no Mermaid, the Markdown copy keeps the source): small `LR` flowcharts
+     of rounded nodes, never taller than about 420px at desktop width (a decision with a few outcomes is a table: round
+     105's diamond trees were taller than a screen), Chinese labels on Chinese pages, never hand-drawn SVG. The cache is what keeps local builds fast; Cloudflare
      Pages keeps no `node_modules/.cache` for a React Router site, so its builds draw every diagram (measured in
      round 105: nino.docs AGENTS.md, Build & Deploy).
    - **Byte figures come from the specification's worked examples** (Appendix A, dumps of a real run) or from its
