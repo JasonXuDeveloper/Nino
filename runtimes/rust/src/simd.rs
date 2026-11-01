@@ -427,8 +427,31 @@ where
     I: ExactSizeIterator<Item = C>,
     F: Fn(C) -> crate::error::Result<T>,
 {
-    let len = chunks.len();
-    let mut out = Vec::with_capacity(len);
+    let mut out = Vec::with_capacity(chunks.len());
+    fill_block(&mut out, chunks, decode)?;
+    Ok(out)
+}
+
+/// [`decode_block`] into `out` (reading into an existing `Vec`): emptied, then filled, keeping its allocation when it
+/// has room for every value. On an error `out` holds the values decoded before it.
+#[inline(always)]
+pub(crate) fn decode_block_into<C, T, I, F>(out: &mut Vec<T>, chunks: I, decode: F) -> crate::error::Result<()>
+where
+    I: ExactSizeIterator<Item = C>,
+    F: Fn(C) -> crate::error::Result<T>,
+{
+    out.clear();
+    out.reserve_exact(chunks.len());
+    fill_block(out, chunks, decode)
+}
+
+/// Decodes `chunks` into the spare capacity of `out`, which is empty with room for all of them.
+#[inline(always)]
+fn fill_block<C, T, I, F>(out: &mut Vec<T>, chunks: I, decode: F) -> crate::error::Result<()>
+where
+    I: ExactSizeIterator<Item = C>,
+    F: Fn(C) -> crate::error::Result<T>,
+{
     let room = out.spare_capacity_mut();
     let mut done = 0usize;
     for (slot, bytes) in room.iter_mut().zip(chunks) {
@@ -439,15 +462,16 @@ where
                 done = done.wrapping_add(1);
             }
             Err(e) => {
-                // SAFETY: the first `done` slots are written.
+                // SAFETY: `out` was empty, and the first `done` slots are written.
                 unsafe { out.set_len(done) };
                 return Err(e);
             }
         }
     }
-    // SAFETY: the capacity is at least `len` and `zip` wrote a slot for each of the `len` chunks: `done == len`.
+    // SAFETY: `out` was empty with room for every chunk, and `zip` wrote a slot for each (it stops at the shorter of
+    // the spare capacity and the chunks, and the capacity is at least their count): the first `done` are written.
     unsafe { out.set_len(done) };
-    Ok(out)
+    Ok(())
 }
 
 /// The most strings [`ascii_strings`] writes with one reservation.
@@ -535,6 +559,12 @@ pub(crate) fn short_wide(out: &mut Vec<u8>, text: &str) {
 }
 
 /// [`short_wide`], inlined (in [`strings_short`]'s loop).
+///
+/// Branchy on purpose: a branch a char on its class, which text of one shape after another predicts, keeps the next
+/// char's address an add away, where a branch-free decoder (a table of lengths, or the length of a run of ASCII from
+/// its bit mask) waits for a load every char. Each class has its own back edge, and the bytes are read sign-extended
+/// (ASCII is `>= 0`, and its unit is the byte itself), so a char takes a few instructions: on Arm64 six for ASCII and
+/// eleven for a two-byte char, where one loop with a shared tail took nine and fifteen (`optimize-runtimes`).
 #[inline(always)]
 fn short_wide_inline(out: &mut Vec<u8>, text: &str) {
     let (src, len) = (text.as_ptr(), text.len());
@@ -545,27 +575,48 @@ fn short_wide_inline(out: &mut Vec<u8>, text: &str) {
     // U+007F takes two bytes or more, so there are at most 63 chars or code units and the header is one byte.
     out.reserve(len.wrapping_mul(2).wrapping_add(1));
     let at = out.len();
-    // SAFETY: the room reserved holds `1 + 2 * len` bytes from `at`. Invariants: `i <= len`, a char boundary of the
-    // valid UTF-8 at `src`, and `o <= i` (Latin-1) or `o <= 2 * i` (UTF-16) bytes written after the header.
+    // SAFETY: the room reserved holds `1 + 2 * len` bytes from `at`. Invariants: `p` is a char boundary of the valid
+    // UTF-8 from `src` to `end` (so a lead byte's continuation bytes are there to read, and `p` is read only while it
+    // is not `end`), and `d` is at most `p - src` bytes (Latin-1) or `2 * (p - src)` (UTF-16) past `dst`.
     unsafe {
         let base = out.as_mut_ptr().add(at);
         let dst = base.add(1);
-        let (mut i, mut o) = (0usize, 0usize);
-        while i < len {
-            let b = src.add(i).read();
-            if b < 0x80 {
-                dst.add(o).write(b);
-                i = i.wrapping_add(1);
-            } else if b < 0xC4 {
+        let end = src.add(len);
+        let (mut p, mut d) = (src, dst);
+        let lead = |p: *const u8| i32::from(p.read() as i8);
+        let next = |p: *const u8, k: usize| i32::from(p.add(k).read() & 0x3F);
+        // A byte read as `i8`: ASCII is `0..=127`, a lead byte of 0xC0 and above `-64..=-1`.
+        let mut b = 0;
+        let wide = p != end && {
+            b = lead(p);
+            loop {
+                if b >= 0 {
+                    d.write(b as u8);
+                    p = p.add(1);
+                    d = d.add(1);
+                    if p == end {
+                        break false;
+                    }
+                    b = lead(p);
+                    continue;
+                }
+                // 0xC4 and above: a char above U+00FF.
+                if b >= -0x3C {
+                    break true;
+                }
                 // U+0080..U+00FF: its lead byte's two low bits, then its continuation byte's six.
-                dst.add(o).write((b << 6) | (src.add(i.wrapping_add(1)).read() & 0x3F));
-                i = i.wrapping_add(2);
-            } else {
-                break;
+                d.write(((b << 6) | next(p, 1)) as u8);
+                p = p.add(2);
+                d = d.add(1);
+                if p == end {
+                    break false;
+                }
+                b = lead(p);
             }
-            o = o.wrapping_add(1);
-        }
-        if i == len {
+        };
+        // `d >= dst`, and at most 63 bytes past it.
+        let o = d.offset_from(dst) as usize;
+        if !wide {
             // `o` chars, at most 63: the header `2 * o + 1`.
             base.write((o as u8).wrapping_mul(2).wrapping_add(1));
             out.set_len(at.wrapping_add(1).wrapping_add(o));
@@ -578,31 +629,56 @@ fn short_wide_inline(out: &mut Vec<u8>, text: &str) {
             let unit = u16::from(dst.add(k).read());
             dst.add(k.wrapping_mul(2)).cast::<[u8; 2]>().write_unaligned(unit.to_le_bytes());
         }
-        let mut o = o.wrapping_mul(2);
-        let unit = |o: usize, u: u32| dst.add(o).cast::<[u8; 2]>().write_unaligned((u as u16).to_le_bytes());
-        while i < len {
-            let byte = |k: usize| u32::from(src.add(i.wrapping_add(k)).read());
-            let b = byte(0);
-            if b < 0x80 {
-                unit(o, b);
-                i = i.wrapping_add(1);
-            } else if b < 0xE0 {
-                unit(o, ((b & 0x1F) << 6) | (byte(1) & 0x3F));
-                i = i.wrapping_add(2);
-            } else if b < 0xF0 {
-                unit(o, ((b & 0x0F) << 12) | ((byte(1) & 0x3F) << 6) | (byte(2) & 0x3F));
-                i = i.wrapping_add(3);
-            } else {
-                let c = ((b & 0x07) << 18) | ((byte(1) & 0x3F) << 12) | ((byte(2) & 0x3F) << 6) | (byte(3) & 0x3F);
-                let v = c.wrapping_sub(0x1_0000);
-                unit(o, 0xD800 | (v >> 10));
-                o = o.wrapping_add(2);
-                unit(o, 0xDC00 | (v & 0x3FF));
-                i = i.wrapping_add(4);
+        let mut d = dst.add(o.wrapping_mul(2));
+        // A unit's low 16 bits: the bits above them, from a sign-extended byte, are not stored.
+        let unit = |d: *mut u8, c: i32| d.cast::<[u8; 2]>().write_unaligned((c as u16).to_le_bytes());
+        loop {
+            if b >= 0 {
+                unit(d, b);
+                p = p.add(1);
+                d = d.add(2);
+                if p == end {
+                    break;
+                }
+                b = lead(p);
+                continue;
             }
-            o = o.wrapping_add(2);
+            if b < -0x20 {
+                // 0xC0..0xDF: two bytes.
+                unit(d, ((b & 0x1F) << 6) | next(p, 1));
+                p = p.add(2);
+                d = d.add(2);
+                if p == end {
+                    break;
+                }
+                b = lead(p);
+                continue;
+            }
+            if b < -0x10 {
+                // 0xE0..0xEF: three bytes.
+                unit(d, ((b & 0x0F) << 12) | (next(p, 1) << 6) | next(p, 2));
+                p = p.add(3);
+                d = d.add(2);
+                if p == end {
+                    break;
+                }
+                b = lead(p);
+                continue;
+            }
+            // Four bytes: a surrogate pair, stored as one word.
+            let c = ((b & 0x07) << 18) | (next(p, 1) << 12) | (next(p, 2) << 6) | next(p, 3);
+            let v = c.wrapping_sub(0x1_0000);
+            let pair = (0xD800 | (v >> 10)) | ((0xDC00 | (v & 0x3FF)) << 16);
+            d.cast::<[u8; 4]>().write_unaligned(pair.to_le_bytes());
+            p = p.add(4);
+            d = d.add(4);
+            if p == end {
+                break;
+            }
+            b = lead(p);
         }
-        // `o / 2` code units, at most 63: the header `2 * (o / 2)`, which is `o`.
+        // `o` bytes of code units, at most 126: the header `2 * (o / 2)`, which is `o`.
+        let o = d.offset_from(dst) as usize;
         base.write(o as u8);
         out.set_len(at.wrapping_add(1).wrapping_add(o));
     }
@@ -1292,6 +1368,75 @@ pub(crate) fn wide(out: &mut Vec<u8>, text: &str) -> bool {
         return true;
     }
     wide_short(out, text)
+}
+
+/// The size of the last-level cache in bytes, read once: the largest `size` under
+/// `/sys/devices/system/cpu/cpu0/cache` on Linux (the cache one core shares with its neighbors, an L3 slice on
+/// EPYC), 32 MiB on other systems, under Miri and when the files cannot be read. A list whose data fits in it is
+/// written without prefetching: on a CPU whose L3 held a 100 MB set (Xeon 6973P-C), prefetching ahead made the Go
+/// runtime 13 to 38% slower, since nothing waited on memory and the extra loads still cost.
+#[inline]
+pub(crate) fn last_level_cache() -> usize {
+    static SIZE: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *SIZE.get_or_init(|| read_last_level_cache().unwrap_or(32 << 20))
+}
+
+#[cfg(all(not(miri), target_os = "linux"))]
+fn read_last_level_cache() -> Option<usize> {
+    let mut largest = None;
+    for entry in std::fs::read_dir("/sys/devices/system/cpu/cpu0/cache").ok()?.flatten() {
+        let Ok(text) = std::fs::read_to_string(entry.path().join("size")) else { continue };
+        let text = text.trim();
+        let (digits, unit) = match text.char_indices().find(|(_, c)| !c.is_ascii_digit()) {
+            Some((at, _)) => text.split_at(at),
+            None => (text, ""),
+        };
+        let Ok(n) = digits.parse::<usize>() else { continue };
+        let scale = match unit {
+            "" => 1,
+            "K" => 1 << 10,
+            "M" => 1 << 20,
+            "G" => 1 << 30,
+            _ => continue,
+        };
+        let size = n.saturating_mul(scale);
+        largest = Some(largest.map_or(size, |l: usize| l.max(size)));
+    }
+    largest
+}
+
+#[cfg(not(all(not(miri), target_os = "linux")))]
+fn read_last_level_cache() -> Option<usize> {
+    None
+}
+
+/// Asks the CPU to bring the cache line at `p` into the cache closest to the core, without waiting for it: x86 and
+/// x86_64 `prefetcht0` (SSE), Arm64 `prfm pldl1keep`; nothing on other targets and under Miri. A prefetch never
+/// faults, whatever the address (a dangling pointer of an empty `String` included), and changes nothing the program
+/// can observe.
+#[inline(always)]
+pub(crate) fn prefetch<T: ?Sized>(p: *const T) {
+    #[cfg(all(not(miri), target_arch = "x86_64"))]
+    // SAFETY: SSE is part of every x86_64 target; a prefetch reads nothing and never faults.
+    unsafe {
+        core::arch::x86_64::_mm_prefetch::<{ core::arch::x86_64::_MM_HINT_T0 }>(p.cast::<i8>());
+    }
+    #[cfg(all(not(miri), target_arch = "x86", target_feature = "sse"))]
+    // SAFETY: the target has SSE (the cfg); a prefetch reads nothing and never faults.
+    unsafe {
+        core::arch::x86::_mm_prefetch::<{ core::arch::x86::_MM_HINT_T0 }>(p.cast::<i8>());
+    }
+    #[cfg(all(not(miri), target_arch = "aarch64"))]
+    // SAFETY: a hint that touches no register but its address and never faults; no memory is read or written as
+    // far as the program can tell, no stack, no flags.
+    unsafe {
+        core::arch::asm!("prfm pldl1keep, [{0}]", in(reg) p.cast::<u8>(), options(nostack, readonly, preserves_flags));
+    }
+    #[cfg(any(
+        miri,
+        not(any(target_arch = "x86_64", all(target_arch = "x86", target_feature = "sse"), target_arch = "aarch64"))
+    ))]
+    let _ = p;
 }
 
 /// Pads the code to the next multiple of 64 bytes (and aligns the function's section to 64), so that what follows
@@ -2698,6 +2843,62 @@ mod tests {
                     expected.extend_from_slice(&encoded(v));
                 }
                 assert_eq!(out, expected, "{name}");
+            }
+        }
+    }
+
+    #[test]
+    fn short_text_at_every_byte_length() {
+        // Text drawn at random from the chars at each width's edges, at every byte length up to `SHORT_WIDE`, against
+        // std's `encode_utf16` (`reference`): `short_wide` on each, after a byte so the output is unaligned, and the
+        // list loops over those of up to `SHORT` bytes.
+        const CHARS: [char; 14] = [
+            'a',
+            '\u{0}',
+            '\u{7F}',
+            '\u{80}',
+            'é',
+            '\u{FF}',
+            '\u{100}',
+            'Ж',
+            '\u{7FF}',
+            '\u{800}',
+            '字',
+            '\u{FFFF}',
+            '\u{10000}',
+            '\u{10FFFF}',
+        ];
+        let mut seed = 0x2545_F491_4F6C_DD1Du64;
+        for _ in 0..if cfg!(miri) { 2 } else { 300 } {
+            let texts: Vec<String> = (0..=SHORT_WIDE)
+                .map(|len| {
+                    let mut text = String::new();
+                    while text.len() < len {
+                        seed ^= seed << 13;
+                        seed ^= seed >> 7;
+                        seed ^= seed << 17;
+                        let c = CHARS.get((seed % 14) as usize).copied().unwrap_or('q');
+                        text.push(if text.len() + c.len_utf8() <= len { c } else { 'z' });
+                    }
+                    text
+                })
+                .collect();
+            for text in &texts {
+                let mut out = vec![0xAA];
+                short_wide(&mut out, text);
+                let mut want = vec![0xAA];
+                want.extend_from_slice(&encoded(text));
+                assert_eq!(out, want, "short_wide: {text:?}");
+            }
+            let short: Vec<String> = texts.into_iter().filter(|t| t.len() <= SHORT).collect();
+            let mut want = vec![0xAA];
+            for text in &short {
+                want.extend_from_slice(&encoded(text));
+            }
+            for (name, way, _) in list_ways() {
+                let mut out = vec![0xAA];
+                assert_eq!(way(&mut out, &short), short.len(), "{name}");
+                assert_eq!(out, want, "{name}");
             }
         }
     }

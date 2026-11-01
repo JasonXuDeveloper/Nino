@@ -12,6 +12,9 @@ internal static class MemberCode
 
     private static string Accessor(TypeModel m) => $"{m.TypeName}.{AccessorClass(m)}";
 
+    /// <summary>The class holding a generic type's <c>[UnsafeAccessor]</c> externs, next to its formatter.</summary>
+    public static string UnsafeAccessorClass(TypeModel m) => "__NinoAccessors_" + m.FormatterName;
+
     private static bool IsReadonlyField(MemberModel member) => !member.IsProperty && member.ConstructionOnly;
 
     private static string Instance(MemberModel member, string v) => member.DeclaringTypeIsValueType ? "ref " + v : v;
@@ -23,14 +26,15 @@ internal static class MemberCode
 
     /// <summary>
     /// The accessors of a member that generated code cannot name: <c>[UnsafeAccessor]</c> externs in the formatter
-    /// (<c>__G_Name</c>, <c>__S_Name</c>, <c>__F_Name</c>) or methods of the partial accessor class (<c>G_Name</c>...):
-    /// a getter, a setter (properties) and a field reference (fields).
+    /// (<c>__G_Name</c>, <c>__S_Name</c>, <c>__R_Name</c>) or methods of the partial accessor class (<c>G_Name</c>...):
+    /// a getter, a setter (properties) and a field reference (fields). (<c>__F_</c> names a generic formatter's formatter
+    /// type parameters, <see cref="TypeNames.FormatterParameter"/>.)
     /// </summary>
     public static string Getter(MemberModel member) => AccessorPrefix(member) + "G_" + member.Name;
 
     public static string Setter(MemberModel member) => AccessorPrefix(member) + "S_" + member.Name;
 
-    public static string FieldRef(MemberModel member) => AccessorPrefix(member) + "F_" + member.Name;
+    public static string FieldRef(MemberModel member) => AccessorPrefix(member) + "R_" + member.Name;
 
     private static string AccessorPrefix(MemberModel member) =>
         member.Access == MemberAccess.UnsafeAccessor ? "__" : "";
@@ -40,7 +44,9 @@ internal static class MemberCode
     /// <summary>A call of the accessor <paramref name="accessor"/> on <paramref name="v"/>.</summary>
     private static string Call(TypeModel m, MemberModel member, string accessor, string v, string more = "") =>
         member.Access == MemberAccess.UnsafeAccessor
-            ? $"{accessor}({Instance(member, v)}{more})"
+            ? m.IsGeneric
+                ? $"{UnsafeAccessorClass(m)}{m.TypeArgumentList}.{accessor}({Instance(member, v)}{more})"
+                : $"{accessor}({Instance(member, v)}{more})"
             : $"{Accessor(m)}.{accessor}({Instance(member, v)}{more})";
 
     /// <summary>Expression reading the member of <paramref name="v"/>.</summary>

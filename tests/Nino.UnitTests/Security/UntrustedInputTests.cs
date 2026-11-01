@@ -168,6 +168,72 @@ public class UntrustedInputTests
     }
 
     [TestMethod]
+    public void ARejectedReadKeepsNewArraysOutOfTheSlot()
+    {
+        // 8,000 elements (allocated uninitialized from 6 KB), the last one invalid: the read rejects the data after it
+        // allocated the new array, which must not reach the existing value (stale heap memory once the read stopped).
+        const int n = 8000;
+        byte[] Elements(Func<int, byte[]> element) =>
+            Ints(n).Concat(Enumerable.Range(0, n).SelectMany(element)).ToArray();
+
+        // Has-value bytes other than 0 or 1.
+        var nullables = Elements(i => new byte[] { (byte)(i == n - 1 ? 2 : 0), 0, 0, 0, 0, 0, 0, 0 });
+        var nullableArray = new int?[1];
+        var old = nullableArray;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(nullables, ref nullableArray));
+        Assert.AreSame(old, nullableArray);
+        List<int?> nullableList = null;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(nullables, ref nullableList));
+        Assert.IsNull(nullableList);
+
+        // Bools other than 0 or 1, raw and in blocks.
+        var bools = Elements(i => new[] { (byte)(i == n - 1 ? 2 : 1) });
+        List<bool> boolList = null;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bools, ref boolList));
+        Assert.IsNull(boolList);
+        var held = (new bool[1], 5);
+        var heldOld = held.Item1;
+        var heldData = bools.Concat(Ints(5)).ToArray();
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(heldData, ref held));
+        Assert.AreSame(heldOld, held.Item1);
+
+        // Blocks with a bool are read into a zeroed array (kept off the recursive read path): what the read did not
+        // reach is default, never the 0xCD of freed memory. 12,000 of 8 bytes: an array on the large object heap,
+        // whose memory is reused uninitialized after a collection.
+        const int m = 12000;
+        var pairs = Ints(m).Concat(Enumerable.Range(0, m)
+            .SelectMany(i => Ints(i).Append((byte)(i == m - 1 ? 2 : 1)))).ToArray();
+        void Garbage()
+        {
+            for (int i = 0; i < 32; i++)
+                new byte[200_000].AsSpan().Fill(0xCD);
+            GC.Collect();
+        }
+
+        bool Clean(ReadOnlySpan<(int, bool)> values)
+        {
+            for (int i = 0; i < values.Length; i++)
+                // The value the read stopped at may be read in part (its int, then the invalid bool).
+                if (values[i] != default && values[i].Item1 != i)
+                    return false;
+            return true;
+        }
+
+        Garbage();
+        var pairArray = new (int, bool)[1];
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(pairs, ref pairArray));
+        Assert.IsTrue(Clean(pairArray));
+        Garbage();
+        List<(int, bool)> pairList = null;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(pairs, ref pairList));
+        Assert.IsTrue(pairList == null || Clean(pairList.ToArray()));
+        Garbage();
+        var pairMemory = new Memory<(int, bool)>(new (int, bool)[1]);
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(pairs, ref pairMemory));
+        Assert.IsTrue(Clean(pairMemory.Span));
+    }
+
+    [TestMethod]
     public void InvalidValuesThrowAsInvalidData()
     {
         // A null key: [count 1][key: null string][value].
@@ -189,6 +255,38 @@ public class UntrustedInputTests
         Invalid<Uri>(NinoSerializer.Serialize("http://[::1"));
         // A UTC time or offset out of range.
         Invalid<DateTimeOffset>(BitConverter.GetBytes(long.MaxValue).Concat(BitConverter.GetBytes((short)0)).ToArray());
+    }
+
+    /// <summary>
+    /// Culture names from the data cannot grow the process: with ICU, .NET makes a culture of any well-formed name and
+    /// keeps each for good (200,000 names held 160 MB), so the net8.0 and net10.0 builds read back only the cultures
+    /// the runtime ships, by names without extensions. Every one of those still reads back, aliases (zh-CN) included.
+    /// </summary>
+    [TestMethod]
+    public void CultureNamesFromTheDataCannotGrowTheProcess()
+    {
+        foreach (var culture in System.Globalization.CultureInfo.GetCultures(System.Globalization.CultureTypes.AllCultures)
+                     .Append(System.Globalization.CultureInfo.InvariantCulture))
+            Assert.AreEqual(culture.Name,
+                NinoDeserializer.Deserialize<System.Globalization.CultureInfo>(NinoSerializer.Serialize(culture)).Name);
+        if (System.Globalization.CultureInfo.GetCultures(System.Globalization.CultureTypes.AllCultures).Length > 1)
+            foreach (string alias in new[] { "zh-CN", "zh-TW", "en-us" })
+                Assert.AreEqual(System.Globalization.CultureInfo.GetCultureInfo(alias).Name,
+                    NinoDeserializer.Deserialize<System.Globalization.CultureInfo>(NinoSerializer.Serialize(alias)).Name);
+
+#if !NINO_CORE_NETSTANDARD
+        // Custom cultures and names with an extension or private use subtag: the runtime would keep each.
+        foreach (string name in new[] { "en-x0001", "en-US-u-ca-buddhist", "en-US-x-mine", "x-mine", "de-DE_phoneb" })
+            Invalid<System.Globalization.CultureInfo>(NinoSerializer.Serialize(name));
+        long before = GC.GetTotalMemory(true);
+        for (int i = 0; i < 50_000; i++)
+            Assert.ThrowsExactly<NinoDataException>(() =>
+                NinoDeserializer.Deserialize<System.Globalization.CultureInfo>(
+                    NinoSerializer.Serialize("en-x" + i.ToString("x8"))));
+        // Kept, these would hold about 40 MB.
+        long grew = GC.GetTotalMemory(true) - before;
+        Assert.IsTrue(grew < 8 << 20, $"{grew} bytes kept");
+#endif
     }
 
     /// <summary>

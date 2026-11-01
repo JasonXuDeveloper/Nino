@@ -3,11 +3,21 @@ using System.Text;
 
 namespace Nino.Generator.Generation.Emit;
 
-/// <summary>Builds C# source line by line, tracking indentation (four spaces per level).</summary>
+/// <summary>
+/// Builds C# source line by line, tracking indentation (four spaces per level). Blank lines separate what emitters
+/// write in turn, so one is written only between two lines of the same block: never after an opening brace, before a
+/// closing one or next to another blank line, whichever emitter asked for it.
+/// </summary>
 internal sealed class CodeWriter
 {
     private readonly StringBuilder _sb;
     private int _indent;
+
+    /// <summary>A blank line was asked for and is written before the next line, unless that line ends a block.</summary>
+    private bool _blank;
+
+    /// <summary>The last line written opened a block.</summary>
+    private bool _opened;
 
     public CodeWriter(int capacity = 4096, int indent = 0)
     {
@@ -18,9 +28,20 @@ internal sealed class CodeWriter
     /// <summary>Writes one line at the current indentation; an empty string writes a blank line.</summary>
     public CodeWriter Line(string text = "")
     {
-        if (text.Length != 0)
-            _sb.Append(' ', _indent * 4).Append(text);
-        _sb.Append('\n');
+        if (text.Length == 0)
+        {
+            _blank = !_opened;
+            return this;
+        }
+
+        string code = text.Trim();
+        if (code.Length == 0)
+            return Line();
+        if (_blank && code[0] != '}')
+            _sb.Append('\n');
+        _blank = false;
+        _opened = code[code.Length - 1] == '{';
+        _sb.Append(' ', _indent * 4).Append(text).Append('\n');
         return this;
     }
 
@@ -32,13 +53,6 @@ internal sealed class CodeWriter
     {
         foreach (var line in text.Split('\n'))
             Line(line.TrimEnd('\r'));
-        return this;
-    }
-
-    /// <summary>Writes <paramref name="text"/> as is (it carries its own line breaks and indentation).</summary>
-    public CodeWriter Raw(string text)
-    {
-        _sb.Append(text);
         return this;
     }
 
@@ -76,5 +90,6 @@ internal sealed class CodeWriter
         return Close();
     }
 
-    public override string ToString() => _sb.ToString();
+    /// <summary>The source written, ending with the blank line asked for last (one that separates it from what follows).</summary>
+    public override string ToString() => _blank ? _sb.ToString() + "\n" : _sb.ToString();
 }

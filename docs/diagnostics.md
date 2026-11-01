@@ -16,7 +16,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO005](#nino005) | Error | A `[NinoConstructor]` parameter matches no member |
 | [NINO006](#nino006) | Warning | Read-only member is not restored 🔧 |
 | [NINO007](#nino007) | Warning | Member type cannot be serialized 🔧 |
-| [NINO008](#nino008) | Error | Custom formatter does not match the member type |
+| [NINO008](#nino008) | Error | `[NinoMemberFormatter]` does not match the member type |
 | [NINO009](#nino009) | Error | Non-public `[NinoMember]` in a type that does not allow non-public members 🔧 |
 | [NINO010](#nino010) | Warning | Redundant `[NinoMember]` 🔧 |
 | [NINO011](#nino011) | Warning | Redundant `[NinoIgnore]` 🔧 |
@@ -32,10 +32,11 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO021](#nino021) | Error | `[NinoConstructor]` is not accessible to generated code |
 | [NINO022](#nino022) | Warning | A member hidden with `new` cannot be reached by generated code |
 | [NINO023](#nino023) | Error | A struct serializes no member |
-| [NINO024](#nino024) | Warning | `[NinoFormerName]` on a member of a type that is not keyed |
-| [NINO025](#nino025) | Warning | `[NinoFactory]` on a type created through `[NinoConstructor]` |
+| [NINO024](#nino024) | Warning | `[NinoFormerName]` on a member of a type that is not keyed 🔧 |
+| [NINO025](#nino025) | Warning | `[NinoFactory]` on a type created through `[NinoConstructor]` 🔧 |
 | [NINO026](#nino026) | Error | More than one `[NinoFormerName]` on a type |
 | [NINO027](#nino027) | Warning | `[NinoFormerName]` on a generic type written with its type id |
+| [NINO028](#nino028) | Warning | `[NinoMember]` on a member that is never serialized 🔧 |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -62,8 +63,8 @@ containing it must be `partial`. 🔧 Make them partial.
 
 ### NINO003
 
-The base type or interface is a NinoType with `allowInheritance: false`, so this subtype is not serialized as
-itself. 🔧 Add `[NinoType]`.
+The base type or interface is a NinoType with `allowInheritance: false`, so this subtype gets no formatter of its
+own: writing one (through the base, an interface or `object`) throws `InvalidOperationException`. 🔧 Add `[NinoType]`.
 
 ## Construction
 
@@ -79,7 +80,9 @@ parameters: the object initializer sets them.
 ### NINO005
 
 A `[NinoConstructor]` constructor or factory method has a parameter (or a name passed to the attribute) that
-matches no serialized member.
+matches no serialized member, so the type cannot be created when read: deserializing it throws
+`NotSupportedException`. Name the parameter after a member (any case), or list the members in
+`[NinoConstructor(nameof(A), ...)]`.
 
 ### NINO006
 
@@ -99,7 +102,7 @@ The type is not constructed by the generated formatter: deserializing it throws 
 A type with a `[NinoConstructor]` (a constructor or a static factory method) is re-created through it on every read, so its
 `[NinoFactory]` method is never called. Remove one of the two attributes:
 `[NinoFactory]` to keep re-creating instances from the constructor, or `[NinoConstructor]` to create instances with
-the factory and fill them in place.
+the factory and fill them in place. 🔧 Remove `[NinoFactory]` (what reading does now).
 
 ## Members
 
@@ -113,17 +116,23 @@ constructor callable without arguments (and no public static `[NinoFactory]` fac
 `required` members that constructor does not set, a struct implementing `ICollection<T>`, a non-generic collection
 (`ArrayList`) or a type implementing `ICollection<T>` for two different `T`.
 
+It is also reported for a generic `[NinoType]` closed over a type Nino has no formatter for, where a member of the
+generic type uses that type parameter (`Box<Action>`, also inside `List<Box<Action>>`, `Box<Action>[]` or another
+generic). That member is not skipped: it is written, and null works, but writing any `Box<Action>` throws
+`InvalidOperationException` ("no formatter for System.Action"). A type parameter no serialized member uses
+(`Tag<Action>` of `class Tag<T> { int X; }`) is not reported.
+
 ### NINO008
 
-`[NinoCustomFormatter(typeof(F))]` requires `F` to be a struct implementing `INinoFormatter<T>`, where `T` is exactly the
+`[NinoMemberFormatter(typeof(F))]` requires `F` to be a struct implementing `INinoFormatter<T>`, where `T` is exactly the
 member type. Generated code calls it as `default(F)`, inlined like the built-in formatters, so it has no instance:
 keep any state it needs in static fields.
 
 ### NINO009
 
 A non-public (private, protected, internal...) member marked `[NinoMember]` is only serialized when the type sets
-`containNonPublicMembers: true`, with or without `autoCollect`. 🔧 Remove `[NinoMember]`, or set
-`containNonPublicMembers: true` on the type.
+`includeNonPublicMembers: true`, with or without `autoCollect`. 🔧 Remove `[NinoMember]`, or set
+`includeNonPublicMembers: true` on the type.
 
 ### NINO010
 
@@ -159,6 +168,15 @@ allocations, and every element must take at least one byte. Serialize a member, 
 `NinoFormat.VersionTolerant` or `NinoFormat.Keyed` (each instance then writes its 4-byte length). A struct without any instance field is
 written as its raw memory (1 byte) and is not reported.
 
+### NINO028
+
+`[NinoMember]` on a member Nino never serializes, whatever the type's options: a static field or property, a
+constant, an indexer, a fixed-size buffer, a property without a getter or implemented explicitly for an interface,
+a property without a setter that no constructor takes (`int Sum => A + B;`, or `int Id { get; }` without a
+constructor parameter `id`), or a backing field (`[field: NinoMember]`; mark the property). Nothing is written for
+it. This is the only diagnostic about that `[NinoMember]` (not NINO009, NINO010 or NINO013). To serialize a get-only
+auto-property, give a constructor a parameter of its name; otherwise 🔧 remove `[NinoMember]`.
+
 ## Features
 
 ### NINO014
@@ -172,7 +190,7 @@ claims it second. A former name equal to the member's own name is ignored.
 
 Member-level `[NinoFormerName]` lets keyed types read data written before a member was renamed. Positional and
 version-tolerant types write no member names (members are matched by position), so there it has no effect. Remove
-it, or give the type `format: NinoFormat.Keyed`.
+it, or give the type `format: NinoFormat.Keyed`. 🔧 Remove the member's `[NinoFormerName]`s.
 
 ### NINO026
 
@@ -237,11 +255,12 @@ in MSBuild's message format, outside the analyzer:
 
 - `NINOGEN001`: error. The arguments are invalid (an unknown option, an option of another language, a value it does
   not take) or the assembly cannot be read; the tool exits with code 1 and the build fails.
-- `NINOGEN002`: warning. A type is left out because the target language cannot express it (a generic type, reference
-  tracking, a `[NinoType]` collection, ...), with the reason; see [codegen.md](codegen.md#what-is-not-generated).
+- `NINOGEN002`: warning. A type is left out because the target language cannot express it (in Go and Rust, a generic
+  type that holds itself with other type arguments; in TypeScript, a `DateTimeOffset` member; ...), with the reason;
+  see [What Is Not Generated](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#not-generated).
 - `NINOGEN003`: warning, from the build. The project sets Nino.TypeScript's `NinoTypeScript*` properties: without a
   `<NinoCodegen>` item they stand for `<NinoCodegen Include="typescript" ... />`, next to one they are ignored. Declare
-  the item instead ([codegen.md](codegen.md#from-ninotypescript)).
+  the item instead ([Migrating from Nino.TypeScript](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#from-ninotypescript)).
 - `NINOGEN004`: warning, from the build. The project references Nino.Codegen but declares no `<NinoCodegen>` item, so
   nothing is written; add one, or set `NinoCodegenEnabled` to `false`.
 

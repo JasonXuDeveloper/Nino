@@ -101,12 +101,22 @@ func rtype(s)
   end
 end
 
-# Reading a member into `self`: through read_in when a class body inside may be deferred.
+# FIXED_SIZE of a struct of fixed size (`trait` NinoRead or NinoWrite): its members' sizes added up.
+func fixed_size(t, trait)
+  $sizes = []
+  for $m in t.members
+    $sizes = array.add $sizes ("<" + rtype($m.shape) + " as " + trait + ">::FIXED_SIZE")
+  end
+  ret "    const FIXED_SIZE: usize = nino::sum_fixed_sizes(&[" + (array.join $sizes ", ") + "]);"
+end
+
+# Reading a member into its current value in `self` (NinoRead::read_into): through read_member_into when a class body
+# inside may be deferred.
 func read(m)
   if m.shape.may_defer
-    ret "r.read_in(nino::field!(Self, " + m.name + "))?"
+    ret "r.read_member_into(&mut self." + m.name + ", nino::field!(Self, " + m.name + "))?"
   end
-  ret "r.read()?"
+  ret "r.read_into(&mut self." + m.name + ")?"
 end
 
 # A variant of a slot's enum: a tracked class is shared, any other type boxed.
@@ -120,7 +130,7 @@ end
 # The statement reading a [NinoType] collection's elements: never null (the collection is the object itself).
 func read_elements(t)
   if t.elements_member
-    ret "        self." + t.elements_member.name + " = " + read(t.elements_member) + ";\n"
+    ret "        " + read(t.elements_member) + ";\n"
   end
   ret ""
 end
@@ -130,6 +140,39 @@ func write_elements(t)
     ret "        w.write(&self." + t.elements_member.name + ")?;\n"
   end
   ret ""
+end
+
+# NinoWrite's PREFETCH_BYTES and prefetch stages, for a type with members that may point elsewhere (text, a list, a class,
+# or a type that may hold one): their bytes summed and their stages in turn; none for a type of numbers.
+func prefetch(t)
+  $fields = []
+  $types = []
+  if t.elements_member
+    $fields = array.add $fields t.elements_member.name
+    $types = array.add $types (bare(t.elements_member.shape))
+  end
+  for $m in t.members
+    if (["string", "keystring", "seq", "class", "genericclass", "struct", "generic", "param", "nullable"] | array.contains $m.shape.kind) && !($m.shape.wide)
+      $fields = array.add $fields $m.name
+      $types = array.add $types (rtype($m.shape))
+    end
+  end
+  if $fields.size == 0
+    ret ""
+  end
+  $o = "    const PREFETCH_BYTES: usize = 0usize"
+  for $ty in $types
+    $o = $o + "\n        .saturating_add(<" + $ty + " as NinoWrite>::PREFETCH_BYTES)"
+  end
+  $o = $o + ";\n\n    fn prefetch(&self) {\n"
+  for $f in $fields
+    $o = $o + "        self." + $f + ".prefetch();\n"
+  end
+  $o = $o + "    }\n\n    fn prefetch_members(&self) {\n"
+  for $f in $fields
+    $o = $o + "        self." + $f + ".prefetch_members();\n"
+  end
+  ret $o + "    }\n\n"
 end
 
 # MAY_DEFER of a struct: a member holding a type parameter asks its argument.
@@ -330,7 +373,7 @@ impl{{ t.impl_generics }} NinoReadBody for {{ t.name }}{{ t.generics }} {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
 {{~ if t.format == "positional" ~}}
 {{ read_elements(t) }}{{~ for m in t.members ~}}
-        self.{{ m.name }} = {{ read(m) }};
+        {{ read(m) }};
 {{~ end ~}}
 {{~ if t.members.size == 0 && !t.elements_member ~}}
         let _ = r;
@@ -339,7 +382,7 @@ impl{{ t.impl_generics }} NinoReadBody for {{ t.name }}{{ t.generics }} {
 {{ read_elements(t) }}        let body = r.begin_region()?;
 {{~ for m in t.members ~}}
         if r.has_more() {
-            self.{{ m.name }} = {{ read(m) }};
+            {{ read(m) }};
         }
 {{~ end ~}}
         r.end_region(body, self)?;
@@ -350,7 +393,7 @@ impl{{ t.impl_generics }} NinoReadBody for {{ t.name }}{{ t.generics }} {
             let member = r.begin_region()?;
             match key as u32 {
 {{~ for m in t.members ~}}
-                {{ m.keys }} => self.{{ m.name }} = {{ read(m) }},
+                {{ m.keys }} => {{ read(m) }},
 {{~ end ~}}
                 _ => {
                     r.end_region(member, self)?;
@@ -404,22 +447,49 @@ impl{{ t.impl_generics }} NinoRead for {{ t.name }}{{ t.generics }} {
     const MAY_DEFER: bool = {{ may_defer(t) }};
 
 {{~ end ~}}
+{{~ if t.fixed ~}}
+{{ fixed_size(t, "NinoRead") }}
+
+    #[allow(clippy::field_reassign_with_default)]
+    fn decode_fixed(mut b: &[u8]) -> nino::Result<Self> {
+        let mut v = Self::default();
+{{~ for m in t.members ~}}
+        v.{{ m.name }} = nino::decode_member(&mut b)?;
+{{~ end ~}}
+        Ok(v)
+    }
+
+{{~ end ~}}
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
         let mut v = Self::default();
+        v.read_into(r)?;
+        Ok(v)
+    }
+
+    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
 {{~ if t.counted ~}}
         // It can hold itself through no class body: each level counts toward the depth limit.
         r.enter_struct()?;
-        let body = v.read_body(r);
+        let body = self.read_body(r);
         r.exit_struct();
-        body?;
+        body
 {{~ else ~}}
-        v.read_body(r)?;
+        self.read_body(r)
 {{~ end ~}}
-        Ok(v)
     }
 }
 
 impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
+{{ prefetch(t) }}{{~ if t.fixed ~}}
+{{ fixed_size(t, "NinoWrite") }}
+
+    fn encode_fixed(&self, mut out: &mut [u8]) {
+{{~ for m in t.members ~}}
+        nino::encode_member(&self.{{ m.name }}, &mut out);
+{{~ end ~}}
+    }
+
+{{~ end ~}}
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         self.write_body(w)
     }
@@ -428,32 +498,11 @@ impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
 
 impl{{ t.impl_generics }} NinoRead for {{ t.name }}{{ t.generics }} {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl{{ t.impl_generics }} NinoWrite for {{ t.name }}{{ t.generics }} {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+{{ prefetch(t) }}    nino::sealed_write!();
 }
 {{~ end ~}}
 
@@ -498,18 +547,27 @@ impl NinoRead for {{ x.name }} {
     }
 
     fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    // The object the slot holds is read into when the data holds its type (and it is not tracked), else replaced.
+    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
 {{~ if x.tracked ~}}
         // Its reference header first: an object read before, by number, of a type the slot allows.
         let header = r.ref_header()?;
         if header == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
         if header > 0 {
             let any = r.back_ref(header)?;
 {{~ for a in x.allowed ~}}
 {{~ if a.shared ~}}
-            if let Some(v) = nino::Shared::<{{ variant_type(a) }}>::downcast(&any) {
-                return Ok(Some(Self::{{ a.name }}(v)));
+            if let Some(v) = r.shared_from::<{{ variant_type(a) }}>(&any) {
+                *slot = Some(Self::{{ a.name }}(v));
+                return Ok(());
             }
 {{~ end ~}}
 {{~ end ~}}
@@ -519,26 +577,56 @@ impl NinoRead for {{ x.name }} {
 {{~ else ~}}
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
 {{~ end ~}}
-        let mark = r.mark();
-        let value = match id {
+        let mark = r.defer_mark();
+{{~ reusable = false ~}}
+{{~ for a in x.allowed ~}}
+{{~ if a.is_value_type || !a.shared ~}}
+{{~ reusable = true ~}}
+{{~ end ~}}
+{{~ end ~}}
+{{~ if reusable ~}}
+        let reused = match slot {
 {{~ for a in x.allowed ~}}
 {{~ if a.is_value_type ~}}
-            {{ a.id }} => Self::{{ a.name }}(Box::new(r.read()?)),
-{{~ else if a.shared && x.tracked ~}}
-            {{ a.id }} => Self::{{ a.name }}(r.read_shared_new()?),
-{{~ else if a.shared ~}}
-            {{ a.id }} => Self::{{ a.name }}(r.read_shared_after_id()?),
-{{~ else ~}}
-            {{ a.id }} => Self::{{ a.name }}(Box::new(r.read_class()?)),
+            Some(Self::{{ a.name }}(v)) if id == {{ a.id }} => {
+                r.read_into(&mut **v)?;
+                true
+            }
+{{~ else if !a.shared ~}}
+            Some(Self::{{ a.name }}(v)) if id == {{ a.id }} => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
 {{~ end ~}}
 {{~ end ~}}
-            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+            _ => false,
         };
-        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<{{ x.name }}>()?.body())));
-        Ok(Some(value))
+{{~ else ~}}
+        // Tracked objects are shared: each slot gets the one the data names.
+        let reused = false;
+{{~ end ~}}
+        if !reused {
+            *slot = Some(match id {
+{{~ for a in x.allowed ~}}
+{{~ if a.is_value_type ~}}
+                {{ a.id }} => Self::{{ a.name }}(Box::new(r.read()?)),
+{{~ else if a.shared && x.tracked ~}}
+                {{ a.id }} => Self::{{ a.name }}(r.read_shared_new()?),
+{{~ else if a.shared ~}}
+                {{ a.id }} => Self::{{ a.name }}(r.read_shared_after_id()?),
+{{~ else ~}}
+                {{ a.id }} => Self::{{ a.name }}(Box::new(r.read_class()?)),
+{{~ end ~}}
+{{~ end ~}}
+                _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+            });
+        }
+        r.defer_trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<{{ x.name }}>()?.body())));
+        Ok(())
     }
 }
 

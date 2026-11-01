@@ -1064,21 +1064,21 @@ impl NinoRead for WideString {
     const MIN_SIZE: usize = 1;
 
     fn read(r: &mut Reader<'_>) -> Result<Self> {
-        r.wide_string()?.map(Self).ok_or_else(Error::null)
+        r.utf16()?.map(Self).ok_or_else(Error::null)
     }
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
-        Ok(r.wide_string()?.map(Self))
+        Ok(r.utf16()?.map(Self))
     }
 }
 
 impl NinoWrite for WideString {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        w.wide_string(Some(&self.0))
+        w.utf16(Some(&self.0))
     }
 
     fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-        w.wide_string(value.map(|v| v.0.as_slice()))
+        w.utf16(value.map(|v| v.0.as_slice()))
     }
 }
 

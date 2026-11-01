@@ -20,6 +20,12 @@ namespace Nino.Codegen.Targets
 
         /// <summary>Whether member names are camelCased (the default) or kept as in C#.</summary>
         public bool CamelCase { get; set; } = true;
+
+        /// <summary>
+        /// Whether arrays and lists of fixed-size numbers are typed arrays (<c>Int32Array</c>, <c>Float64Array</c>...;
+        /// <c>--numeric-arrays typed</c>) rather than <c>number[]</c> and <c>bigint[]</c> (the default).
+        /// </summary>
+        public bool TypedNumericArrays { get; set; }
     }
 
     /// <summary>
@@ -28,12 +34,9 @@ namespace Nino.Codegen.Targets
     /// cannot express (encodings without a TypeScript form, reference tracking of a generic type) is left out with a
     /// warning, and so is every type holding one.
     /// </summary>
-    public sealed class TypeScriptTarget
+    public sealed class TypeScriptTarget : CodegenTarget
     {
-        private readonly CodegenModel _model;
         private readonly TypeScriptOptions _options;
-        private readonly HashSet<TypeModel> _supported = new();
-        private readonly Dictionary<Type, string> _names = new();
 
         // Met while shaping the members of the supported types.
         private readonly List<EnumModel> _enums = new();
@@ -54,20 +57,9 @@ namespace Nino.Codegen.Targets
         private readonly List<TsSlot> _slots = new();
         private TypeModel? _context;
 
-        public List<string> Warnings { get; } = new();
+        public TypeScriptTarget(CodegenModel model, TypeScriptOptions options) : base(model) => _options = options;
 
-        public TypeScriptTarget(CodegenModel model, TypeScriptOptions options)
-        {
-            _model = model;
-            _options = options;
-        }
-
-        private sealed class UnsupportedException : Exception
-        {
-            public UnsupportedException(string message) : base(message)
-            {
-            }
-        }
+        protected override string Language => "TypeScript";
 
         /// <summary>
         /// The TypeScript runtime (<c>runtimes/typescript/src/nino.ts</c>, embedded), with this tool's version: written
@@ -151,44 +143,28 @@ namespace Nino.Codegen.Targets
 
         // ---------------------------------------------------------------- which types
 
-        private void ResolveSupported()
+        // A generic type holding itself with other arguments is fine (no GenericProblem): its codecs build those of
+        // the types it holds when the data first needs them.
+
+        protected override void Reset()
         {
-            // A generic type holding itself with other arguments is fine: its codecs build those of the types it holds
-            // when the data first needs them.
-            foreach (var type in _model.Types)
-            {
-                string? reason = type.SlotProblem
-                    ?? (type.TrackReferences && type.IsGenericDefinition
-                        ? "reference tracking (trackReferences) of a generic type is not supported"
-                        : null);
-                if (reason == null)
-                    _supported.Add(type);
-                else
-                    Warn(type, reason);
-            }
+            _enums.Clear();
+            _rawStructs.Clear();
+            ResetCodecs();
+        }
 
-            // Leave out the types holding a type that is left out, until every type left can be written.
-            while (true)
-            {
-                _enums.Clear();
-                _rawStructs.Clear();
-                _derived.Clear();
-                _closedByKey.Clear();
-                _closed.Clear();
-                _slotByModel.Clear();
-                _slots.Clear();
-                var failing = _model.Types.Where(_supported.Contains)
-                    .Select(t => (Type: t, Reason: Check(t))).FirstOrDefault(f => f.Reason != null);
-                if (failing.Type == null)
-                    break;
-                _supported.Remove(failing.Type);
-                Warn(failing.Type, failing.Reason!);
-            }
+        /// <summary>The enums and raw structs met while checking stay; the codecs and slots are shaped again.</summary>
+        protected override void ResetResolved()
+        {
+            ResetCodecs();
+            _structOpens.Clear();
+        }
 
+        private void ResetCodecs()
+        {
             _derived.Clear();
             _closedByKey.Clear();
             _closed.Clear();
-            _structOpens.Clear();
             _slotByModel.Clear();
             _slots.Clear();
         }
@@ -210,17 +186,11 @@ namespace Nino.Codegen.Targets
                 }
                 catch (UnsupportedException e)
                 {
-                    Warnings.Add(
-                        $"{closed.RuntimeName} is left out of the polymorphic slots in TypeScript: {e.Message}.");
+                    WarnClosed(closed, e.Message);
                 }
             }
 
-            _derived.Clear();
-            _closedByKey.Clear();
-            _closed.Clear();
-            _structOpens.Clear();
-            _slotByModel.Clear();
-            _slots.Clear();
+            ResetResolved();
         }
 
         /// <summary>
@@ -242,14 +212,14 @@ namespace Nino.Codegen.Targets
         private void NameClosed(List<TypeModel> layouts)
         {
             bool usesObject = layouts.Any(t => !t.Raw && t.Members.Any(m => m.Value.Walk().Any(v => v.Kind == ValueKind.Object)));
-            var used = new HashSet<string>(_names.Values, StringComparer.Ordinal);
+            var used = new HashSet<string>(Names, StringComparer.Ordinal);
             // The slots of closed generic types the supported types hold, through the codecs they build too.
             var slots = UsedSlots(layouts);
             foreach (var closed in _model.ClosedTypes.Where(c => _closedSupported.Contains(c) && (usesObject ||
                          layouts.Any(t => t.Header == HeaderKind.TypeId && t.ClosedAssignable.Contains(c)) ||
                          slots.Any(slot => slot.ClosedAssignable.Contains(c)))))
             {
-                string name = GoTarget.ClosedName(closed.Clr);
+                string name = TypeNames.Closed(closed.Clr);
                 while (!used.Add(name))
                     name += "_";
                 _slotClosed.Add(new TsSlotClosed(name, "closed$" + _slotClosed.Count, closed));
@@ -290,33 +260,20 @@ namespace Nino.Codegen.Targets
         internal List<TsSlotClosed> ClosedOf(TypeModel definition) =>
             _slotClosed.Where(c => c.Closed.Definition == definition).ToList();
 
-        /// <summary>Why a type cannot be written, or null.</summary>
-        private string? Check(TypeModel type)
+        protected override void CheckType(TypeModel type)
         {
-            try
+            if (type.Raw)
+                Shape(type.RawValue!);
+            else
             {
-                if (type.Raw)
-                    Shape(type.RawValue!);
-                else
-                {
-                    if (type.Elements != null)
-                        ShapeIn(type, type.Elements);
-                    foreach (var member in type.Members)
-                        ShapeIn(type, member.Value);
-                    if (type.BaseValue != null)
-                        BaseShape(type, type.BaseValue);
-                }
-
-                return null;
-            }
-            catch (UnsupportedException e)
-            {
-                return e.Message;
+                if (type.Elements != null)
+                    ShapeIn(type, type.Elements);
+                foreach (var member in type.Members)
+                    ShapeIn(type, member.Value);
+                if (type.BaseValue != null)
+                    BaseShape(type, type.BaseValue);
             }
         }
-
-        private void Warn(TypeModel type, string reason) =>
-            Warnings.Add($"{type.FullName} is not written to TypeScript: {reason}.");
 
         /// <summary>The concrete types of <paramref name="types"/> written behind a type id.</summary>
         private IEnumerable<TypeModel> Registered(IEnumerable<TypeModel> types) =>
@@ -484,13 +441,20 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Sequence:
                 {
                     var element = Shape(value.Element!);
+                    bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
+                               CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
                     if (value.IsByteArray)
                         return new TsShape("bytes");
+                    string? array = null;
+                    if (_options.TypedNumericArrays && !set && element.Kind == "prim" &&
+                        NumberArrays.TryGetValue(element.Primitive!, out array) && array == "Uint8Array")
+                        return new TsShape("bytes");
+                    // With --numeric-arrays typed, other fixed-size numbers are a typed array, read and written one by
+                    // one while it fits V8's heap (64 bytes), else copied in one block.
                     return InContext(value, Holding(new TsShape("seq")
                     {
-                        Element = element,
-                        Set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
-                              CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null,
+                        Element = element, Set = set, ArrayType = array,
+                        InlineLength = array == null ? 0 : 64 / element.Size,
                     }, element));
                 }
                 case ValueKind.Map:
@@ -645,6 +609,19 @@ namespace Nino.Codegen.Targets
             }
         }
 
+        /// <summary>
+        /// The typed array an array or list (not a set) of a primitive is held in: the fixed-size numbers, whose bytes
+        /// on the wire are those of the typed array on a little-endian host. <c>bool</c> (validated 0 or 1, read as
+        /// <c>boolean</c>), <c>char</c> (a string), <c>decimal</c>, <c>TimeSpan</c> and enums (their constants' type)
+        /// stay arrays.
+        /// </summary>
+        private static readonly Dictionary<string, string> NumberArrays = new()
+        {
+            ["i8"] = "Int8Array", ["u8"] = "Uint8Array", ["i16"] = "Int16Array", ["u16"] = "Uint16Array",
+            ["i32"] = "Int32Array", ["u32"] = "Uint32Array", ["i64"] = "BigInt64Array", ["u64"] = "BigUint64Array",
+            ["f32"] = "Float32Array", ["f64"] = "Float64Array",
+        };
+
         /// <summary>The primitives TypeScript reads and writes alone, and at an offset of a view.</summary>
         private static TsShape? Primitive(PrimitiveKind kind)
         {
@@ -697,8 +674,9 @@ namespace Nino.Codegen.Targets
         }
 
         /// <summary>
-        /// Whether a class body may hold other class bodies (<c>NinoBody.Nests</c>): it counts the depth for them, and
-        /// at depth 0, ends with the bodies deferred below it. Saying so of one that does not changes no byte.
+        /// Whether a class body may hold other class bodies (<c>NinoBodyTraits.Nests</c>): it counts the depth for
+        /// them, and at depth 0, ends with the bodies deferred below it. Saying so of one that does not changes no
+        /// byte.
         /// </summary>
         internal bool Nests(TypeModel type) =>
             type.Members.Select(m => m.Value).Append(type.Elements).Any(v => v != null && Opens(ShapeIn(type, v)));
@@ -775,33 +753,12 @@ namespace Nino.Codegen.Targets
 
         // ---------------------------------------------------------------- names
 
-        /// <summary>
-        /// Types are named as in C# (nested and generic types joined with _), or with their namespace when two share
-        /// a name.
-        /// </summary>
-        private void AssignNames(IEnumerable<object> types)
-        {
-            var all = types.Select(Clr).Distinct().ToList();
-            var simple = all.ToLookup(GoTarget.SimpleName);
-            foreach (var type in all)
-            {
-                string name = GoTarget.SimpleName(type);
-                if (simple[name].Count() > 1)
-                    name = (type.Namespace ?? "").Replace('.', '_') + "_" + name;
-                _names[type] = name;
-            }
-        }
+        /// <summary>Types are named as in C# (nested and generic types joined with _).</summary>
+        protected override string BaseName(Type type) => TypeNames.Definition(type);
 
-        private static Type Clr(object type) => type switch
-        {
-            TypeModel t => t.Clr,
-            EnumModel e => e.Clr,
-            RawStructModel s => s.Clr,
-            _ => throw new ArgumentException(type.ToString()),
-        };
-
-        internal string Name(object type) =>
-            _names.TryGetValue(Clr(type), out var name) ? name : GoTarget.SimpleName(Clr(type));
+        /// <summary>With their namespace when two share a name.</summary>
+        protected override string Qualified(Type type, string name) =>
+            (type.Namespace ?? "").Replace('.', '_') + "_" + name;
 
         internal string Member(string name) => _options.CamelCase ? TypeNames.Camel(name) : name;
 
@@ -847,7 +804,8 @@ namespace Nino.Codegen.Targets
                     break;
             }
 
-            helper = new TsHelper((mode == "read" ? "read$" : "write$") + _helpers.Count, mode, shape);
+            helper = new TsHelper((mode == "read" ? "read$" : mode == "readinto" ? "readInto$" : "write$") + _helpers.Count, mode,
+                shape);
             if (shape.Context is { } context)
             {
                 // The code of a value holding a type parameter takes the codecs of the type's arguments.
@@ -944,6 +902,36 @@ namespace Nino.Codegen.Targets
         /// <summary>A set (<c>Set</c>) rather than an array.</summary>
         public bool Set { get; internal set; }
 
+        /// <summary>
+        /// How a set's element or a map's key of this shape passes through <c>NinoKeyGuard</c> (the runtime's bound on
+        /// hash flooding for the keys V8 hashes without a seed): <c>int</c> (an int32 value), <c>number</c>,
+        /// <c>bigint</c>, <c>string</c> (V8 hashes an array index such as "42" by its value), <c>key</c> (a nullable
+        /// number or bigint, checked by its type at run time), or null for keys it does not guard (objects).
+        /// </summary>
+        public string? Guard => Kind switch
+        {
+            "prim" => Primitive switch
+            {
+                "u8" or "i8" or "i16" or "u16" or "i32" => "int",
+                "u32" or "f32" or "f64" => "number",
+                "i64" or "u64" or "timeSpan" => "bigint",
+                _ => null,
+            },
+            "string" or "utf8" => "string",
+            "enum" => Inner?.Guard,
+            "nullable" or "rawnullable" => Inner?.Guard == null ? null : "key",
+            _ => null,
+        };
+
+        /// <summary>The typed array a sequence of fixed-size numbers is (<c>Int32Array</c>...), else null.</summary>
+        public string? ArrayType { get; internal set; }
+
+        /// <summary>
+        /// The most elements of a typed array read and written one by one (those that fit in 64 bytes, which V8
+        /// keeps on its heap); longer ones are copied in one block (<c>NinoReader.numbers</c>, <c>NinoWriter.numbers</c>).
+        /// </summary>
+        public int InlineLength { get; internal set; }
+
         public TsShape? Key { get; internal set; }
 
         public TsShape? Value { get; internal set; }
@@ -982,6 +970,7 @@ namespace Nino.Codegen.Targets
             yield return Type?.FullName ?? "";
             yield return Header ?? "";
             yield return Set ? "set" : "";
+            yield return ArrayType ?? "";
             yield return FlagOffset + "/" + ValueOffset;
             yield return string.Join("/", Offsets);
             foreach (var child in new[] { Inner, Element, Key, Value }.Concat(Items))

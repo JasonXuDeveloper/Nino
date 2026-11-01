@@ -157,7 +157,47 @@ func read(s)
       ret "r.ByteArray()"
     end
   end
-  ret rfn(s) + "(r)"
+  $f = rfn(s)
+  if string.starts_with $f "(*nino.Reader)."
+    # A method value: called as a method.
+    ret "r." + (string.slice $f 15) + "()"
+  end
+  ret $f + "(r)"
+end
+
+# A statement reading a value into `x` (an addressable expression holding the current value), reusing what it holds
+# where it can (DeserializeInto): a class's object, a struct's members, a polymorphic value of the same type, a
+# slice's storage and elements. Any other value is read new and assigned.
+func read_into(s, x)
+  if !s.field
+    case s.kind
+    when "struct"
+      ret "Read" + type_of(s.type).name + "Into(r, &" + x + ")"
+    when "class", "slot"
+      $t = type_of(s.type)
+      if !$t.tracked
+        ret "Read" + (s.kind == "slot" ? $t.slot_functions : $t.name) + "Into(r, &" + x + ")"
+      end
+    when "seq", "map"
+      if reads_into(s)
+        ret helper(s, "readinto") + "(r, &" + x + ")"
+      end
+    end
+  end
+  ret x + " = " + read(s)
+end
+
+# Whether a sequence or map shape is read by an element loop the template writes (read_loop), which read_into reuses.
+func reads_into(s)
+  if s.field
+    ret false
+  end
+  if s.kind == "seq"
+    ret s.mode != "bytes" && s.mode != "block" && s.mode != "bools" && s.mode != "values" && s.mode != "unique" && s.mode != "stringset" && s.mode != "fixed"
+  else if s.kind == "map"
+    ret s.mode != "block" && s.mode != "unique"
+  end
+  ret false
 end
 
 # A function value writing a value: func(*nino.Writer, T).
@@ -227,7 +267,11 @@ func write(s, x)
       ret "w.ByteArray(" + x + ")"
     end
   end
-  ret wfn(s) + "(w, " + x + ")"
+  $f = wfn(s)
+  if string.starts_with $f "(*nino.Writer)."
+    ret "w." + (string.slice $f 15) + "(" + x + ")"
+  end
+  ret $f + "(w, " + x + ")"
 end
 
 # A function value decoding a raw value from exactly its bytes: func(*nino.Reader, []byte) T.

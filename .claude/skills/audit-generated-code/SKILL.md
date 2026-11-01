@@ -34,10 +34,19 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   `SizeOf<T>()` calls made the PolymorphicFooBase dispatch inline every subtype's `BodySize` (x64 76 stack accesses
   to 1, Arm64 57 to 9), yet PolymorphicClass and PolymorphicClassArray serialize measured 1.2-2.1% slower on EPYC
   7763 and Neoverse-N2 in two runner A/Bs, so the sum stayed. Take the decision from runners, not the listing.
-- **Parentheses only where precedence needs them**; layout as a formatter would leave it.
+- **Parentheses only where precedence needs them**; layout as a formatter would leave it. Blank lines are
+  `CodeWriter`'s: an emitter asks for one with `Line()` between the things it writes, and the writer drops it after an
+  opening brace, before a closing one and next to another (round 103: 65 of 533 unit-test files had one there,
+  mostly interface formatters whose body is only their entry points). A cast of a constant is the constant
+  (`Remaining >= 8`, not `>= (uint)(8)`; the parenthesized form stays for a size with `SizeOf<T>()` in it).
 - **Names a reader can follow**: locals after the member they hold.
 - **Generate once, refer to it**: a form that needs code another file generates names that code instead of copying
   it; a family that differs only by type comes from one template.
+  One act is one member, taking a struct by reference: a block struct's collections and its top-level and member
+  writes all call `WriteFixed(in T value, ref byte destination)` (`INinoBlockFormatter` extends
+  `INinoFixedSizeFormatter`; round 101 merged `BlockSize`/`WriteBlock` into it). A by-value `WriteFixed` that the
+  block write forwarded to made the block loops load every field before storing any (`NinoBlockCollections.WriteValue`,
+  `WriteEach` of Waypoints changed); by reference, the listings are the old by-reference `WriteBlock`'s.
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
   GeneratorBenchmark and the package size of a sample.
 
@@ -50,17 +59,26 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - Everything a top-level call reaches inlines into one method under one budget (`optimize`): the generated
   read and write bodies keep rare paths (deferral, pooling, growth, polymorphic fallback) in calls out of line and
   the common path inline; a run of fixed-size members is one bounds check and one block copy where the layout allows.
+- No indirect call in a generated read or write path where a direct one exists (`optimize`, the owner's rule): a
+  member's formatter is named directly (a generic type's formatter takes its arguments' formatters), and
+  `CachedFormatter<T>` only for a method's type parameter or a `[NinoType]` generated in another assembly (a type
+  that holds itself gets a generated nesting struct, `optimize`); read the IL2CPP C++ as well as the Tier1 listing (`optimize`, Unity kernels and IL2CPP); look for `call [rax+0x..]`, `call [r11]` and `call rax` in the Tier1
+  listing and explain each.
 - Check the Tier1 listing of generated serializers for the benchmark types on each ISA (`benchmarks/asm.py`), and
   compare with the hand-written equivalent where one exists: generated code is not slower than what a user would
   write by hand.
 - nino-gen output follows each runtime's performance and safety rules (`runtimes/*/AGENTS.md`): one bounds check per
   run of fixed-size members, bounds checked before allocating, depth counted as .NET does, rare paths out of line.
+- No dispatch per element: every loop nino-gen writes calls the element's code directly (no func value, interface
+  call or closure per element; `optimize-runtimes`, "Dispatch outside .NET").
 
 ## Proof
 
 - Text only (names, aliases, parentheses, layout): the IL of the generated methods is identical between base and
   head: build `benchmarks/Nino.Benchmark` (and `tests/Nino.UnitTests -f net10.0` for shapes the benchmark lacks, such
-  as keyed types) on both, `ilspycmd -il <dll> > side.il` (a dotnet tool), and `diff`: empty. (`-p:DebugType=none`
+  as keyed types) on both, `ilspycmd -il <dll> > side.il` (a dotnet tool), and `diff`: empty. The test DLL holds the
+  tests too, so drop the `// Method begins at RVA` lines and compare the IL of each `NinoGen` class; a changed
+  test moves every RVA after it. `diff -rB` of the two `generated/` folders shows what changed beyond blank lines. (`-p:DebugType=none`
   to compare the DLLs' bytes fails: Nino.Core embeds its sources.) Save the base side's `.il`, generated files and
   `asm.py dump` JSON once, then compare each commit against them.
 - IL changes: the Tier1 listings of the benchmark types identical or better (`asm.py compare`), else runner A/B

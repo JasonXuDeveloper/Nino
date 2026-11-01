@@ -110,7 +110,7 @@ func readKeyedChainBody(r *nino.Reader, v *KeyedChain) {
 	var seen uint64
 	for r.More() {
 		key := r.I32()
-		e := r.BeginEntry()
+		e := r.BeginMember()
 		switch key {
 		case keyKeyedChainValue:
 			if r.KeyedSeen(&seen, 0) {
@@ -121,33 +121,33 @@ func readKeyedChainBody(r *nino.Reader, v *KeyedChain) {
 				v.Next = ReadKeyedChain(r)
 			}
 		default:
-			r.SkipEntry(e)
+			r.SkipMember(e)
 			continue
 		}
-		r.EndEntry(e)
+		r.EndMember(e)
 	}
 	r.EndRegion(g)
 }
 
 func writeKeyedChainBody(w *nino.Writer, v *KeyedChain) {
 	g := w.BeginRegion()
-	e := w.BeginEntry(keyKeyedChainValue)
+	e := w.BeginMember(keyKeyedChainValue)
 	w.I32(v.Value)
-	w.EndEntry(e)
-	e = w.BeginEntry(keyKeyedChainNext)
+	w.EndMember(e)
+	e = w.BeginMember(keyKeyedChainNext)
 	WriteKeyedChain(w, v.Next)
-	w.EndEntry(e)
+	w.EndMember(e)
 	w.EndRegion(g)
 }
 
 func readTreeNodeBody(r *nino.Reader, v *TreeNode) {
 	v.Value = r.I32()
-	v.Children = nino.ReadSlice(r, 1, ReadTreeNode)
+	v.Children = readTreeNodes(r)
 }
 
 func writeTreeNodeBody(w *nino.Writer, v *TreeNode) {
 	w.I32(v.Value)
-	nino.WriteSlice(w, v.Children, WriteTreeNode)
+	writeTreeNodes(w, v.Children)
 }
 
 func readRedLinkBody(r *nino.Reader, v *RedLink) {
@@ -211,7 +211,7 @@ func readTree(r *nino.Reader) Tree {
 	if !r.EnterStruct() {
 		return nil
 	}
-	v := nino.ReadSlice(r, 4, readTree)
+	v := readTrees(r)
 	r.ExitStruct()
 	return v
 }
@@ -220,7 +220,7 @@ func writeTree(w *nino.Writer, v Tree) {
 	if !w.EnterStruct() {
 		return
 	}
-	nino.WriteSlice(w, v, writeTree)
+	writeTrees(w, v)
 	w.ExitStruct()
 }
 
@@ -228,7 +228,7 @@ func readDictTree(r *nino.Reader) DictTree {
 	if !r.EnterStruct() {
 		return nil
 	}
-	v := nino.ReadUniqueEntries(r, 5, keyString, readDictTree)
+	v := readStringDictTreeEntries(r)
 	r.ExitStruct()
 	return v
 }
@@ -237,7 +237,7 @@ func writeDictTree(w *nino.Writer, v DictTree) {
 	if !w.EnterStruct() {
 		return
 	}
-	nino.WriteEntries(w, v, (*nino.Writer).String, writeDictTree)
+	writeStringDictTreeEntries(w, v)
 	w.ExitStruct()
 }
 

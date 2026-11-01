@@ -1,6 +1,6 @@
 //! The traits generated code implements and calls.
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::reader::Reader;
 use crate::writer::Writer;
 
@@ -56,6 +56,49 @@ pub trait NinoRead: Sized + 'static {
         Ok(Self::read_option(r)?.map(Box::new))
     }
 
+    /// Reads a value into `self`, reusing what it holds where it can: the members of a struct or class (each read
+    /// into its own current value), the elements and the buffer of a `Vec` (by index), the buffers of maps and sets
+    /// (cleared, then refilled), and the body of a polymorphic slot's value when the data holds the same type. What
+    /// `NinoDeserializer.Deserialize(data, ref value)` does in .NET. Anything else (numbers, strings, tracked
+    /// objects, a body deferred past 128 class bodies) is replaced, as this default does. On an error, `self` is a
+    /// valid value holding what was read before it: read into it again, or drop it.
+    #[inline]
+    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        *self = Self::read(r)?;
+        Ok(())
+    }
+
+    /// [`NinoRead::read_into`] for a value that may be null ([`NinoRead::read_option`]): an existing value is read
+    /// into when the data holds one, created when the slot holds `None`.
+    #[inline]
+    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+        *slot = Self::read_option(r)?;
+        Ok(())
+    }
+
+    /// [`NinoRead::read_into`] for a `Box` (by default, into its content).
+    #[inline]
+    fn read_boxed_into(value: &mut Box<Self>, r: &mut Reader<'_>) -> Result<()> {
+        (**value).read_into(r)
+    }
+
+    /// [`NinoRead::read_option_into`] for a `Box`.
+    #[inline]
+    fn read_boxed_option_into(slot: &mut Option<Box<Self>>, r: &mut Reader<'_>) -> Result<()> {
+        *slot = Self::read_boxed_option(r)?;
+        Ok(())
+    }
+
+    /// Reads `count` values into `values`, reusing its buffer and its first elements (each read into, by index); the
+    /// rest are read new, and elements past `count` dropped.
+    #[inline]
+    fn read_many_into(r: &mut Reader<'_>, count: usize, values: &mut Vec<Self>) -> Result<()> {
+        if Self::FIXED_SIZE != 0 {
+            return crate::impls::read_fixed_into(r, count, values);
+        }
+        crate::impls::read_each_into(r, count, values)
+    }
+
     /// Reads `count` values (the length was checked against [`NinoRead::MIN_SIZE`]). Fixed-size types read them
     /// all with one length check.
     #[inline]
@@ -84,6 +127,23 @@ pub trait NinoWrite {
             }
         }
     }
+
+    /// The bytes a write of the value reads through its pointers, estimated (a `String`'s or `Vec`'s buffer counts
+    /// 64, a `Box` its target's size and 64 for the target's own): 0 for a value with none, the default. A slice of
+    /// at least 512 values with some, whose estimated data (the elements and these bytes) outgrows the last-level
+    /// cache, is written prefetching ahead ([`NinoWrite::prefetch`], [`NinoWrite::prefetch_members`]). Set by
+    /// `#[derive(NinoWrite)]` and nino-gen to the sum of the members'.
+    const PREFETCH_BYTES: usize = 0;
+
+    /// Prefetches the memory the value points to (a `String`'s text, a `Box`'s target, a struct's members' targets).
+    /// Nothing by default.
+    #[inline(always)]
+    fn prefetch(&self) {}
+
+    /// Prefetches the memory that what the value points to points to (a `Box`'s target's members' targets): the
+    /// second stage, for an element whose first stage was prefetched a few elements earlier. Nothing by default.
+    #[inline(always)]
+    fn prefetch_members(&self) {}
 
     /// Writes the value. `'a` is the lifetime of the value: deferred bodies are written later in the same call.
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()>;
@@ -116,6 +176,9 @@ pub trait NinoWrite {
             crate::impls::write_fixed(values, w);
             return Ok(());
         }
+        if Self::PREFETCH_BYTES != 0 && crate::impls::prefetches::<Self>(values.len()) {
+            return crate::impls::write_prefetched(values, w);
+        }
         for v in values {
             v.write(w)?;
         }
@@ -134,6 +197,40 @@ pub trait NinoWrite {
         }
         w.length(values.len())?;
         Self::write_many(values, w)
+    }
+}
+
+/// The [`NinoRead::FIXED_SIZE`] (or [`NinoWrite::FIXED_SIZE`]) of a value made of items of these sizes one after
+/// another, a tuple or a plain struct: their sum, or 0 (not of fixed size) when one of them is 0 or there are none.
+/// Generated and derived code states a plain struct's size with it.
+pub const fn sum_fixed_sizes(mut sizes: &[usize]) -> usize {
+    let mut sum = 0usize;
+    while let [size, rest @ ..] = sizes {
+        if *size == 0 {
+            return 0;
+        }
+        sum = sum.saturating_add(*size);
+        sizes = rest;
+    }
+    sum
+}
+
+/// Decodes the next item of a fixed-size value ([`NinoRead::decode_fixed`] on its first [`NinoRead::FIXED_SIZE`]
+/// bytes) and moves `bytes` past it: how generated and derived code reads a plain struct's members from its bytes.
+#[inline]
+pub fn decode_member<T: NinoRead>(bytes: &mut &[u8]) -> Result<T> {
+    let (item, rest) = bytes.split_at_checked(T::FIXED_SIZE).ok_or_else(Error::end)?;
+    *bytes = rest;
+    T::decode_fixed(item)
+}
+
+/// Encodes the next item of a fixed-size value ([`NinoWrite::encode_fixed`] into the first [`NinoWrite::FIXED_SIZE`]
+/// bytes of `out`) and moves `out` past it: how generated and derived code writes a plain struct's members.
+#[inline]
+pub fn encode_member<T: NinoWrite + ?Sized>(value: &T, out: &mut &mut [u8]) {
+    if let Some((item, rest)) = core::mem::take(out).split_at_mut_checked(T::FIXED_SIZE) {
+        value.encode_fixed(item);
+        *out = rest;
     }
 }
 

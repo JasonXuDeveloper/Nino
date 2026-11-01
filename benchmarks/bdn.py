@@ -1,6 +1,8 @@
 """Reads BenchmarkDotNet's GitHub Markdown reports (*-report-github.md) for the scripts that compare them: readme.py,
 ab.py, merge_reports.py, compact_report.py, compare_v3.py and members/table.py. One parser, one unit table and one
-floor, so the scripts cannot drift apart in how they read a report or which times they call too fast to measure."""
+floor, so the scripts cannot drift apart in how they read a report or which times they call too fast to measure.
+`show` is also how runtimes_report.py and unity_report.py print times: every table of the release body writes them
+alike (readme.py keeps the docs site's own format for README and docs)."""
 import re
 
 UNITS_NS = {"ns": 1.0, "μs": 1e3, "µs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
@@ -61,7 +63,7 @@ def mean_ns(cell):
 
 
 def show(ns):
-    """A time for a comparison table: 1.23 ms, 17.04 μs, 151.20 ns."""
+    """A time for a table of the release body: 1.23 ms, 17.04 μs, 151.20 ns (U+03BC, as BenchmarkDotNet writes it)."""
     for unit, scale in (("s", 1e9), ("ms", 1e6), ("μs", 1e3)):
         if ns >= scale:
             return f"{ns / scale:,.2f} {unit}"

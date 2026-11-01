@@ -38,4 +38,17 @@ A name is the first doc a reader sees.
 - Internal, test, benchmark (keeping the report keys the docs site syncs) and docs names are renamed without
   approval, in their own commit. Public renames wait for the owner; then they need the changelog, the docs in both
   languages, the public skill, and a migration note.
+- Rename a name no release carries without an alias: check `git tag --contains <commit that added it>` (and the
+  registries: NuGet, crates.io, npm, the Go module's tags) before adding one. Aliases (Go `Deprecated:`, Rust
+  `#[deprecated]`, MSBuild warnings, accepted old attribute values) only for names a release shipped. Why: rounds 101-102
+  renamed unreleased Go and Rust names with aliases anyway (Go deprecated.go, Rust `NinoWrite::PREFETCH`, the derive's
+  `"plain"`/`"tolerant"`), two names for one thing in a 4.0 that had not shipped; round 103 deleted them (the runtimes
+  first ship in rc.8). TypeScript shipped in rc.7: its renames break, with a changelog line saying to regenerate.
 - Stale names: `git grep` the old name across this repository and nino.docs; only history pages keep it.
+- Prove a rename is only a rename, so it needs no A/B: map the new names back to the old ones with `sed` and `cmp`
+  each changed file (runtime, tests, regenerated outputs) against `git show HEAD:<file>`; for an emitter, build the
+  unit tests with `-p:EmitCompilerGeneratedFiles=true` on base and branch and `diff -r` the trees; for TypeScript,
+  `node --no-lazy --print-bytecode -e 'import("./Nino.Conformance.ts")'` in `test/generated` sums to the same
+  bytecode length (V8 inlines by bytecode size, and a method's name is a constant-pool entry, not bytes). Rust
+  constants and file moves leave no trace in the machine code. Round 102 (Rust `INLINE_DEPTH`/`MAX_DEPTH`,
+  TypeScript `beginRegion`/`exitBody`): 1,584 functions, 146,729 bytes before and after.

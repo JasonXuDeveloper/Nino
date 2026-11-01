@@ -11,8 +11,24 @@ namespace Nino.Generator.Generation.Emit;
 /// </summary>
 internal static class AccessorEmitter
 {
-    /// <summary><c>[UnsafeAccessor]</c> declarations inside the formatter.</summary>
-    public static void EmitUnsafeAccessors(CodeWriter w, TypeModel m)
+    /// <summary>
+    /// The <c>[UnsafeAccessor]</c> declarations of a generic type, in a class of their own next to the formatter
+    /// (<see cref="MemberCode.UnsafeAccessorClass"/>): the runtime requires the type parameters of the class declaring
+    /// them to be exactly the target type's, and the formatter also takes their formatters.
+    /// </summary>
+    public static void EmitGenericUnsafeAccessors(CodeWriter w, TypeModel m)
+    {
+        if (!m.IsGeneric || !m.Members.Any(x => x.Access == MemberAccess.UnsafeAccessor))
+            return;
+        w.Line();
+        w.Line(HiddenAttribute);
+        w.Open($"internal static class {UnsafeAccessorClass(m)}{m.TypeArgumentList}{m.Constraints}");
+        EmitUnsafeAccessors(w, m, "internal");
+        w.Close();
+    }
+
+    /// <summary><c>[UnsafeAccessor]</c> declarations inside the formatter (a non-generic type's).</summary>
+    public static void EmitUnsafeAccessors(CodeWriter w, TypeModel m, string access = "private")
     {
         const string attr = CompilerServices + "UnsafeAccessor";
         const string kind = CompilerServices + "UnsafeAccessorKind";
@@ -23,17 +39,17 @@ internal static class AccessorEmitter
             if (member.IsProperty)
             {
                 w.Line($"[{attr}({kind}.Method, Name = \"get_{member.SourceName}\")]");
-                w.Line($"private static extern {member.TypeName} {Getter(member)}({self});");
+                w.Line($"{access} static extern {member.TypeName} {Getter(member)}({self});");
                 // No setter for a member that is read and dropped (get-only, no matching constructor parameter).
                 if (member.Unassignable)
                     continue;
                 w.Line($"[{attr}({kind}.Method, Name = \"set_{member.SourceName}\")]");
-                w.Line($"private static extern void {Setter(member)}({self}, {member.TypeName} value);");
+                w.Line($"{access} static extern void {Setter(member)}({self}, {member.TypeName} value);");
             }
             else
             {
                 w.Line($"[{attr}({kind}.Field, Name = \"{member.SourceName}\")]");
-                w.Line($"private static extern ref {member.TypeName} {FieldRef(member)}({self});");
+                w.Line($"{access} static extern ref {member.TypeName} {FieldRef(member)}({self});");
             }
         }
     }

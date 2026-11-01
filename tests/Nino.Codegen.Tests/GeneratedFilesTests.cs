@@ -91,6 +91,13 @@ namespace Nino.Codegen.Tests
             "Nino.Conformance.ts", "--assembly", Conformance, "--lang", "ts", "--names", "keep",
             "--import-extension", ".ts", "--runtime", "../../src/nino.ts");
 
+        /// <summary>The corpus's types with <c>--numeric-arrays typed</c>, which corpus.test.ts runs the corpus over too.</summary>
+        [TestMethod]
+        public void TypeScriptConformanceTypedArrays() => Check(
+            "runtimes/typescript/test/generated/Nino.Conformance.TypedArrays.ts", "Nino.Conformance.TypedArrays.ts",
+            "--assembly", Conformance, "--lang", "ts", "--names", "keep", "--import-extension", ".ts",
+            "--runtime", "../../src/nino.ts", "--numeric-arrays", "typed", "--name", "Nino.Conformance.TypedArrays.ts");
+
         [TestMethod]
         public void TypeScriptShapes() => Check("runtimes/typescript/test/generated/Nino.Codegen.Tests.ts",
             "Nino.Codegen.Tests.ts", "--assembly", Shapes, "--lang", "ts", "--import-extension", ".ts",

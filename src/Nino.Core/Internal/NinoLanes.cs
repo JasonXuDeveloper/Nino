@@ -14,9 +14,9 @@ namespace Nino.Core.Internal
 {
 #if NET8_0_OR_GREATER
     /// <summary>
-    /// How <see cref="NinoBlock{T, TFormatter}.LanePlan{TDirection}"/> moves a group: worked out once, read into its
-    /// constants. Each vector is the bytes of one or two loads, each load two 16-byte windows of the source (one per
-    /// lane of a 32-byte vector; one window for 16-byte vectors), shuffled within each lane.
+    /// How <see cref="NinoBlockPlan{T, TFormatter}.LanePlan{TDirection}"/> moves a group: worked out once, read into
+    /// its constants. Each vector is the bytes of one or two loads, each load two 16-byte windows of the source (one
+    /// per lane of a 32-byte vector; one window for 16-byte vectors), shuffled within each lane.
     /// </summary>
     internal sealed class NinoLanes
     {
@@ -29,13 +29,16 @@ namespace Nino.Core.Internal
         public readonly int[] Windows = new int[16];
 
         /// <summary>
-        /// Where lane <paramref name="lane"/> of load <paramref name="load"/> of vector <paramref name="vector"/> starts:
-        /// its slot in <see cref="Windows"/>, laid out as LanePlan's W0 to W15.
+        /// Where lane <paramref name="lane"/> of load <paramref name="load"/> of vector <paramref name="vector"/>
+        /// starts: its slot in <see cref="Windows"/>, laid out as LanePlan's W0 to W15.
         /// </summary>
         private ref int Window(int vector, int load, int lane) => ref Windows[vector * 4 + load * 2 + lane];
 
         // For each vector and load, the shuffle index of each byte (0x80 for none); Arm64: both loads in the first.
         private byte[][] _masks;
+
+        // For each vector, the source byte of each of its bytes from the group's first value (-1: padding).
+        private int[][] _sources;
 
         /// <summary>
         /// The plan, or null when a group would take more than four vectors or a lane draws on bytes no two windows
@@ -54,14 +57,21 @@ namespace Nino.Core.Internal
             // SSSE3, twelve values a group of four 16-byte vectors: 161 ns, three a group of one: 253 ns).
             if (group * target / width > 4)
             {
-                if (tables || !partial)
+                if (!partial)
                     return null;
+                // Arm64 tries the grid first and keeps it on a tie, where its windows load once into consecutive
+                // registers (Gridded): two Waypoints a step (15-byte blocks of 24-byte values) from three loads on the
+                // grid, at the same cost here as three loads anywhere, wrote 1,000 of them in 0.76 times the time on
+                // GitHub's Neoverse-N2 runners (430 to 325 ns, .NET A/B run 41164356389).
                 NinoLanes best = null;
                 for (int vectors = 1; vectors <= 4; vectors++)
-                for (int grid = 0; grid < (width == 32 ? 2 : 1); grid++)
+                for (int pass = 0; pass < (width == 32 || tables ? 2 : 1); pass++)
                 {
+                    bool grid = tables ? pass == 0 : pass == 1;
                     int values = vectors * width / target;
-                    var each = values < 2 ? null : Plan(width, bytes, writes, tables, values, grid == 1);
+                    var each = values < 2 ? null : Plan(width, bytes, writes, tables, values, grid);
+                    if (tables && grid && each?.Gridded() == false)
+                        each = null;
                     if (each != null && (best == null || (each.Cost() + 3) * best.Group < (best.Cost() + 3) * values))
                         best = each;
                 }
@@ -117,7 +127,8 @@ namespace Nino.Core.Internal
             int vectors = (targets + width - 1) / width;
             if (vectors > 4)
                 return null;
-            var plan = new NinoLanes { Width = width, Group = group, Vectors = vectors, _masks = new byte[8][] };
+            var plan = new NinoLanes
+                { Width = width, Group = group, Vectors = vectors, _masks = new byte[8][], _sources = new int[4][] };
             for (int v = 0; v < vectors; v++)
             {
                 // The source byte of each byte of the vector (-1: padding, any value).
@@ -126,6 +137,7 @@ namespace Nino.Core.Internal
                     sources[b] = v * width + b < targets ? Source(bytes, writes, v * width + b) : -1;
                 if (!Cover(sources, width, grid, out int[] first, out int[] second))
                     return null;
+                plan._sources[v] = sources;
                 var a = new byte[width];
                 var c = new byte[width];
                 for (int b = 0; b < width; b++)
@@ -194,7 +206,8 @@ namespace Nino.Core.Internal
             return true;
         }
 
-        /// <summary>For <see cref="Gridded"/> plans, the 16-byte windows a group loads (bit k: bytes 16k to 16k + 15).</summary>
+        /// <summary>For <see cref="Gridded"/> plans, the 16-byte windows a group loads (bit k: bytes 16k to 16k +
+        /// 15).</summary>
         public int GridLoads()
         {
             int loads = 0;
@@ -208,8 +221,8 @@ namespace Nino.Core.Internal
             return loads;
         }
 
-        /// <summary>Whether the windows <paramref name="low"/> and <paramref name="high"/> of a 32-byte load are lanes of
-        /// loads on the 32-byte grid, permuted (vperm2i128): both on the 16-byte grid, not one load.</summary>
+        /// <summary>Whether the windows <paramref name="low"/> and <paramref name="high"/> of a 32-byte load are lanes
+        /// of loads on the 32-byte grid, permuted (vperm2i128): both on the 16-byte grid, not one load.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Paired(int low, int high) => high != low + 16 && low % 16 == 0 && high % 16 == 0;
 
@@ -339,7 +352,8 @@ namespace Nino.Core.Internal
             return true;
         }
 
-        /// <summary>Moves lane 0's window to 16 bytes before lane 1's when it still covers lane 0's bytes there.</summary>
+        /// <summary>Moves lane 0's window to 16 bytes before lane 1's when it still covers lane 0's bytes
+        /// there.</summary>
         private static void Align(int[] sources, int[] windows)
         {
             int wanted = windows[1] - 16;
@@ -353,6 +367,25 @@ namespace Nino.Core.Internal
             }
 
             windows[0] = wanted;
+        }
+
+        /// <summary>
+        /// Reads: for each vector, 0xFE at the bytes that hold a bool of a block (at <paramref name="bools"/> of each
+        /// <paramref name="size"/>-byte block), whose bits other than the lowest must all be clear; 0 elsewhere.
+        /// </summary>
+        public byte[] Bools(int vector, int[] bools, int size)
+        {
+            var mask = new byte[Width];
+            if (vector >= Vectors)
+                return mask;
+            for (int b = 0; b < Width; b++)
+            {
+                int s = _sources[vector][b];
+                if (s >= 0 && Array.IndexOf(bools, s % size) >= 0)
+                    mask[b] = 0xFE;
+            }
+
+            return mask;
         }
 
         public Vector256<byte>[] Masks32()

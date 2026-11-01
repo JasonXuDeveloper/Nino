@@ -12,9 +12,9 @@ warning here usually means data is dropped. Full text: https://nino.xgamedev.net
 | NINO004 | Error | No usable constructor | Add a parameterless one, one whose parameters match members by name, or `[NinoConstructor]` |
 | NINO005 | Error | A `[NinoConstructor]` parameter or name matches no serialized member | Fix the names |
 | NINO006 | Warning | A read-only member of a re-created type is not a constructor parameter: read and dropped | Add it to the constructor, make it settable, or `[NinoIgnore]` 🔧 |
-| NINO007 | Warning | No formatter for the member type (delegate, `Task`, pointer, `Type`, an uncreatable collection): skipped | `[NinoIgnore]` 🔧, or a custom formatter |
-| NINO008 | Error | `[NinoCustomFormatter]` is not a struct implementing `INinoFormatter<T>` for exactly the member type | Fix the formatter |
-| NINO009 | Error | Non-public `[NinoMember]` without `containNonPublicMembers: true` | Remove it, or set the option 🔧 |
+| NINO007 | Warning | No formatter for the member type (delegate, `Task`, pointer, `Type`, an uncreatable collection): skipped; or a generic `[NinoType]` closed over such a type (`Box<Action>`): written, but writing a value throws | `[NinoIgnore]` 🔧, or a custom formatter |
+| NINO008 | Error | `[NinoMemberFormatter]` is not a struct implementing `INinoFormatter<T>` for exactly the member type | Fix the formatter |
+| NINO009 | Error | Non-public `[NinoMember]` without `includeNonPublicMembers: true` | Remove it, or set the option 🔧 |
 | NINO010 | Warning | `[NinoMember]` with `autoCollect: true` changes nothing | Remove it 🔧 |
 | NINO011 | Warning | `[NinoIgnore]` with `autoCollect: false` changes nothing | Remove it 🔧 |
 | NINO012 | Error | Both `[NinoMember]` and `[NinoIgnore]` | Remove one 🔧 |
@@ -33,6 +33,7 @@ warning here usually means data is dropped. Full text: https://nino.xgamedev.net
 | NINO025 | Warning | `[NinoFactory]` on a type created through `[NinoConstructor]` is never called | Remove one of the two |
 | NINO026 | Error | More than one `[NinoFormerName]` on a type | Keep the name the stored data used |
 | NINO027 | Warning | `[NinoFormerName]` on a generic type written with its type id: all instantiations share one id | Remove it, or use it on non-generic types only |
+| NINO028 | Warning | `[NinoMember]` on a member never serialized (static, constant, indexer, a property without a setter no constructor takes, a backing field) | Remove it 🔧, or give a constructor a parameter for a get-only auto-property |
 
 `NinoSuppressor` also hides CS0169/CS0414/CS0649 and IDE0051/IDE0052/IDE0044 for private members Nino serializes.
 

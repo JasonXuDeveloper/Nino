@@ -171,7 +171,7 @@ namespace Nino.Core
         public void Deserialize(ref string value, ref Reader reader) => value = reader.ReadUtf8(value);
     }
 
-    /// <summary>Writes a nullable value: a has-value byte, then the value.</summary>
+    /// <summary>Writes a nullable value: a presence byte, then the value.</summary>
     public struct NullableFormatter<T, TFormatter> : INinoFormatter<T?>
         where T : struct
         where TFormatter : struct, INinoFormatter<T>
@@ -220,7 +220,7 @@ namespace Nino.Core
 
     /// <summary>
     /// Writes an <see cref="object"/> whose values are <c>[NinoType]</c>s as type id plus body, dispatching through
-    /// <see cref="NinoPolymorphic{TBase}"/>. Not generic: a formatter generic over a reference type runs as shared
+    /// <see cref="NinoSubtypes{TBase}"/>. Not generic: a formatter generic over a reference type runs as shared
     /// code, which reaches the registry through the generic dictionary on every value (about 1.5x slower).
     /// </summary>
     /// <remarks>
@@ -239,13 +239,13 @@ namespace Nino.Core
                 return;
             }
 
-            NinoPolymorphic<object>.Serialize(value, ref writer);
+            NinoSubtypes<object>.Serialize(value, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref object value, ref Reader reader)
         {
-            NinoPolymorphic<object>.Deserialize(reader.UnsafeRead<int>(), ref value, ref reader);
+            NinoSubtypes<object>.Deserialize(reader.UnsafeRead<int>(), ref value, ref reader);
         }
     }
 }

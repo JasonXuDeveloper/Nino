@@ -188,6 +188,18 @@ public class Frozen
     public ImmutableSortedDictionary<int, string> SortedMap;
 }
 
+// Collections that hold themselves: each level is the generated nesting formatter, a direct call that counts the depth.
+public sealed class SelfTree : List<SelfTree> { }
+
+public sealed class SelfMap : Dictionary<string, SelfMap> { }
+
+[NinoType]
+public sealed class SelfHolder
+{
+    public SelfTree Tree;
+    public SelfMap Map;
+}
+
 public static class Program
 {
     private static int _failures;
@@ -307,6 +319,25 @@ public static class Program
         Check(NinoSerializer.IsSupported(typeof(Pair<byte, byte>)), "IsSupported of a closed generic NinoType");
         AllBytes.Write(pb);
 
+        var tree = new SelfTree { new SelfTree { new SelfTree() }, new SelfTree() };
+        var self = NinoDeserializer.Deserialize<SelfHolder>(Ser(new SelfHolder
+            { Tree = tree, Map = new SelfMap { ["a"] = new SelfMap { ["b"] = new SelfMap() } } }));
+        var topTree = NinoDeserializer.Deserialize<SelfTree>(Ser(tree));
+        Check(self.Tree.Count == 2 && self.Tree[0][0].Count == 0 && self.Map["a"]["b"].Count == 0 &&
+              topTree[0].Count == 1, "collections that hold themselves");
+        var deep = new byte[4 * 100_000 + 4];
+        for (int i = 0; i < 100_000; i++)
+            deep[4 * i] = 1;
+        try
+        {
+            NinoDeserializer.Deserialize<SelfTree>(deep);
+            Check(false, "self-holding collection nested past MaxDepth throws");
+        }
+        catch (NinoDataException)
+        {
+            Check(true, "self-holding collection nested past MaxDepth throws");
+        }
+
         var lst = NinoDeserializer.Deserialize<List<Dictionary<string, int[]>>>(Ser(new List<Dictionary<string, int[]>> { new() { ["q"] = new[] { 1 } } }));
         Check(lst[0]["q"][0] == 1, "top-level nested built-in collections");
 
@@ -350,7 +381,7 @@ public static class Program
         // gives a zero from 16 on.
         if (Ssse3.IsSupported)
         {
-            var shuffled = NinoBlock<int, UnmanagedFormatter<int>>.Shuffle(
+            var shuffled = NinoBlockPlan<int, UnmanagedFormatter<int>>.Shuffle(
                 Vector128.Create((byte)0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15), Vector128.Create((byte)0x11));
             Check(shuffled.GetElement(0) == 1, "block shuffles by SSSE3 (pshufb)");
         }

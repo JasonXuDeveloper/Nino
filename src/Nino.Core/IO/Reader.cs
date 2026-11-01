@@ -109,7 +109,7 @@ namespace Nino.Core
         /// to reach the cache, about 15 cycles for each copy. For generated code.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public readonly void CopyTo(ref Reader target)
         {
 #if NET8_0_OR_GREATER
@@ -654,7 +654,7 @@ namespace Nino.Core
         public void Read<T>(out T? value) where T : unmanaged => value = ReadNullableRaw<T>();
 
         /// <summary>
-        /// Reads what <see cref="Writer.WriteNullableRaw{T}"/> wrote: the has-value byte and the value with one bounds
+        /// Reads what <see cref="Writer.WriteNullableRaw{T}"/> wrote: the presence byte and the value with one bounds
         /// check where both fit in the remaining bytes, else (near the end, where a null takes only its byte) one each.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -749,7 +749,7 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Reads the 1-byte null flag of a sealed class (or tuple, or nullable value): false for null, after
+        /// Reads the presence byte of a sealed class (or tuple, or nullable value): false for null, after
         /// dropping the instance in <paramref name="value"/> (<see cref="NinoRecycler.Discard{T}"/>); true when the
         /// body follows.
         /// </summary>
@@ -763,7 +763,7 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Reads a presence byte (a null flag): true for 1, a value follows; false for 0, null. Any other byte is
+        /// Reads a presence byte: true for 1, a value follows; false for 0, null. Any other byte is
         /// invalid data. The common case, a value, takes one compare.
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
@@ -1184,15 +1184,28 @@ namespace Nino.Core
             fixed (byte* p = &src)
             fixed (char* d = value)
             {
+                // The registered kernel widens the leading ASCII bytes (each its own char, always valid), the strict
+                // decoder the rest from the first other byte, which a valid string starts a char with: what the
+                // decoder accepts and rejects is what it does alone. At most length bytes are widened (size >= length).
+                int ascii = length >= NinoKernelHook.MinWidenAscii ? NinoKernelHook.WidenAsciiPrefix(p, d, length) : 0;
+
                 int written;
-                try
+                if (ascii == length)
                 {
-                    // Strict: invalid bytes, or more chars than the string holds, throw ArgumentException.
-                    written = StrictUtf8.GetChars(p, size, d, length);
+                    // Every char written: any byte left over decodes to more chars than the string holds.
+                    written = size == length ? length : -1;
                 }
-                catch (ArgumentException)
+                else
                 {
-                    written = -1;
+                    try
+                    {
+                        // Strict: invalid bytes, or more chars than the string holds, throw ArgumentException.
+                        written = ascii + StrictUtf8.GetChars(p + ascii, size - ascii, d + ascii, length - ascii);
+                    }
+                    catch (ArgumentException)
+                    {
+                        written = -1;
+                    }
                 }
 
                 if (written != length)

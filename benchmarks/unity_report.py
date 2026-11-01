@@ -25,7 +25,7 @@ import os
 import sys
 import xml.etree.ElementTree as ElementTree
 
-from runtimes_report import time
+from bdn import show
 
 HEADING = "## 🎮 Unity benchmark (Burst, IL2CPP)"
 LEGEND = 'Each time is the median per call; "Speedup" is without Burst divided by with Burst.'
@@ -184,7 +184,7 @@ def table(run):
     rows = ["| Case | Operation | Without Burst | With Burst | Speedup |", "|---|---|--:|--:|--:|"]
     for case, operation, times in run["rows"]:
         scalar, burst = times[WITHOUT], times[WITH]
-        rows.append(f"| {cell(case)} | {operation} | {time(scalar)} | {time(burst)} | {speedup(scalar, burst)} |")
+        rows.append(f"| {cell(case)} | {operation} | {show(scalar)} | {show(burst)} | {speedup(scalar, burst)} |")
     return rows
 
 
@@ -195,7 +195,7 @@ def method(tag, runs):
             "GitHub-hosted runner (`Test.Runtime.Burst.BurstBenchmark`) with "
             f"{tool} (`Measure.Method`: its warm-up, then 9 measurements of about 100 ms, each the mean time per "
             "call): `NinoSerializer.Serialize` to a new array, `NinoDeserializer.Deserialize` into an array of the "
-            "same length (arrays) or to a new value (strings, the list), without the Burst kernels "
+            "same length (arrays) or to a new value (strings, the list, a class), without the Burst kernels "
             "(`NinoKernels.Register(null)`: Nino.Core's own paths, as without `com.unity.burst`) and with them. "
             "Compare within a table: the runners vary between releases.")
 

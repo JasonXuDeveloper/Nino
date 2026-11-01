@@ -34,8 +34,8 @@ namespace Conformance
             return null;
         }
 
-        /// <summary>The name a type is listed under: its runtime-form name (<see cref="NinoTypeId.GetName"/>).</summary>
-        public static string Name(Type type) => NinoTypeId.GetName(type);
+        /// <summary>The name a type is listed under: its runtime-form name (<see cref="NinoTypeId.GetRuntimeName"/>).</summary>
+        public static string Name(Type type) => NinoTypeId.GetRuntimeName(type);
 
         /// <summary>Splits on <paramref name="separator"/> outside brackets.</summary>
         public static List<string> Split(string text, char separator)
@@ -281,6 +281,22 @@ namespace Conformance
                 {
                     w.WritePropertyName(name);
                     Write(w, Layouts.Get(Layouts.Member(type, name), value));
+                }
+
+                w.WriteEndObject();
+                return;
+            }
+
+            if (type.IsValueType && !type.IsPrimitive && !type.IsEnum && type.Namespace == "Conformance")
+            {
+                // A plain (raw) struct of the corpus: its fields, as a [NinoType]'s members.
+                Seen.TryAdd(Layouts.Name(type), type);
+                w.WriteStartObject();
+                w.WriteString("$type", Layouts.Name(type));
+                foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public))
+                {
+                    w.WritePropertyName(field.Name);
+                    Write(w, field.GetValue(value));
                 }
 
                 w.WriteEndObject();

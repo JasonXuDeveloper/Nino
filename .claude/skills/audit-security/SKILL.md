@@ -37,20 +37,64 @@ the runtime it targets.
 
 ## Look for
 
+- A new array allocated uninitialized (`NinoUnsafe.NewArray`, `CopiedWhole`) stored in the caller's slot before a read
+  that can still reject the data (bools, presence bytes, Untrusted checks): reading into an existing value then left it
+  stale heap memory. Blocks with a bool (`NinoBlockPlan<T, TFormatter>.Rejects`) are read by
+  `NinoBlockCollections.ReadRejecting`, a try/finally that clears the values when the read throws; the raw formatters
+  (T?[], List<T?>, bool lists, Untrusted checks) store a new array once filled (`NinoElements.NewOrSame`, `Publish`);
+  `UntrustedInputTests.ARejectedReadKeepsNewArraysOutOfTheSlot` covers each, over 0xCD-filled freed memory. A new read
+  of that kind gets a member in the fuzzer's `Stale` type (below).
 - A read that allocates from a count before checking it against the bytes left (collections, strings, multi-dim
   arrays, `BigInteger`, `BitArray`, `StringBuilder`, custom formatters' helpers).
+- A hash table filled from the data whose hash the data can predict. In other runtimes the language's own table may
+  be unseeded: V8 hashes number and `bigint` keys of `Map`/`Set` without a seed (8,000 crafted ints took 40 times as
+  long as ordinary ones in Node 22), which `NinoKeyGuard` in `nino.ts` bounds by counting the buckets of the table V8 ends with; it is exact for
+  V8 only (JavaScriptCore and SpiderMonkey hash their own way). V8 also hashes a string that is an array index
+  ("0" to "4294967294", no leading zero) by its value (`MakeArrayIndexHash`), not its seed: 4,000 keys "0", "2048",
+  "4096", ... took 117 times as long as other numeric strings in Node 22 (round 103), so string keys take the guard
+  too (`NinoKeyGuard.string`, which hashes only such strings). A new collection of number, `bigint` or string keys in
+  generated TypeScript takes the guard (`TsShape.Guard`); Go and Rust tables are seeded (maphash, `RandomState`).
+- A graph the data can make cyclic in a runtime without a tracing GC must still be freed: memory a read leaves behind
+  adds up across reads however small each leak is. Rust's `Shared` was an `Rc`, and every read of a cycle (which .NET
+  writes and reads; corpus case `references-shared`) leaked its objects, a failed read too (round 103's cargo-fuzz
+  run found it at its first seed). The owner's fix: an arena per read that owns its objects; a `Shared` the reader
+  stores inside a tracked object is weak, every other one and every clone holds the arena (`src/shared.rs`). Prove such
+  a fix with a count of live objects (`tests/shared.rs`, a `Drop` counter per thread: cycles, deferred bodies, every
+  truncation), Miri on its `unsafe`, and the cargo-fuzz targets with LeakSanitizer on.
+- A value looked up by a name from the data in a cache the runtime never trims: every distinct name the lookup
+  accepts stays in memory for good, so a stream of messages grows the heap without bound although each read is small.
+  Accept only a bounded set of names, and test that many distinct names keep nothing. With ICU (.NET 5+),
+  `CultureInfo.GetCultureInfo` and `new CultureInfo` accept any well-formed name and keep each (CultureData's cache:
+  200,000 names such as `en-x0001` held 160 MB), and `predefinedOnly: true` still keeps names with a singleton subtag
+  (`en-US-x-<n>`: 31 MB per 50,000), so `CultureInfoFormatter` reads shipped cultures only, by names without one
+  (`CultureNamesFromTheDataCannotGrowTheProcess`, round 103). Checked and bounded: `TimeZoneInfo.FindSystemTimeZoneById`
+  (keeps found zones only; 20,000 unknown ids and case variants kept under 20 KB), `NinoUnknownIds` (1,024 ids).
 - A recursive path without depth counting (a struct holding a collection of itself, polymorphic slots, tuples,
   `object` members, reference tracking's back references).
 - A loop whose work grows faster than the input (nested lengths, quadratic rehashing, deferred sections re-read).
 - A new built-in type or collection without its malicious cases and fuzz shapes.
 - An exception other than `NinoDataException` escaping a read (`IndexOutOfRange`, `Overflow`, `OutOfMemory`,
-  `ArgumentException` from a BCL constructor fed raw data).
+  `ArgumentException` from a BCL constructor fed raw data). Check a limit the target's own setter or constructor
+  enforces before allocating and before calling it, and test it where the real type runs: Unity's `Gradient` holds
+  at most 8 color and 8 alpha keys, so `GradientFormatter` rejects a count above 8 (round 103; the stub's setters throw
+  above 8 too, `UnityTypesTests.GradientKeyCountsAboveUnitysLimitThrow` in .NET and in the Unity project, where
+  `HostileValuesReachUnitysSettersWithoutOtherExceptions` feeds Unity's setters zero keys, NaN, unsorted keys and
+  enum values no member has). `AnimationCurve` and `RectOffset` have no such limit.
 - Settings that weaken a check by default.
 
 ## Proof
 
 - `tests/Nino.Fuzz` (`tests/Nino.Fuzz/README.md`): `selftest`, then a timed run with and without
   `DOTNET_EnableHWIntrinsic=0`; a finding becomes a regression test and, when it is about the bytes, a malicious case.
+- Catch a bug whose symptom is a valid value with an invariant that makes it invalid: poison what the bug would leak,
+  then look for the poison. Stale heap memory left by a rejected read reads as ordinary bools and ints, so the
+  fuzzer's plain reuse reads never saw fd9d92f0 / 1f4cdc21; its `Poisoned` targets (`Stale`, `StaleUntrusted`: every
+  input read into a value of one-element arrays and null lists) read each rejected input again after filling freed
+  memory with an 8-byte pattern tied to the address (`StaleMemory.Poison`), and report `STALE` when an unmanaged
+  array the value reaches, private fields included, holds 16 bytes or more of a 64-byte line of it. Make such arrays
+  large-object-heap sized (11,000 elements): freed memory there is reused as it is, and with both fixes undone
+  every member was found within seconds; the gen0 allocator clears 8 KB ahead, so 8 KB lists were never found in
+  120 s and 16 KB ones once in 800 rejected inputs. The selftest plants one (`SelfTestStale`).
 - The hostile-input unit tests: `StrictReadTests`, `HashFloodingTests`, `UntrustedModeTests`, `SettingsTests`, the
   nesting tests (`tests/Nino.UnitTests/Security`).
 - The conformance corpus in .NET, Go, Rust and TypeScript; the runtimes' own fuzzers (`FuzzReader`, `FuzzDecode`,

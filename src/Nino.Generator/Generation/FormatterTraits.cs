@@ -69,7 +69,7 @@ internal static class FormatterTraitsOf
             _ => FormatterTraits.None,
         };
 
-    /// <summary>The traits of a formatter named by its symbol (a <c>[NinoCustomFormatter]</c>).</summary>
+    /// <summary>The traits of a formatter named by its symbol (a <c>[NinoMemberFormatter]</c>).</summary>
     public static FormatterTraits Of(INamedTypeSymbol formatter) =>
         IsCore(formatter)
             ? Of(formatter.Name, formatter.TypeArguments

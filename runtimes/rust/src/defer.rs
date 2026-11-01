@@ -9,7 +9,7 @@
 //! 1. Where a body is deferred, the slot gets `T::default()` (a placeholder) and the reader queues how to read the
 //!    body later ([`Pending`]).
 //! 2. Each container the value is read into (a member, an element, an `Option`, a `Box`) logs one [`Step`] for the
-//!    deferrals made inside it, as one entry for all of them ([`Reader::trail`]): the steps lead from the object
+//!    deferrals made inside it, as one entry for all of them ([`Reader::defer_trail`]): the steps lead from the object
 //!    that owns the queue (the outermost class, or the region's object) down to each placeholder. One entry per
 //!    container read, not per deferral, so memory stays proportional to the data.
 //! 3. When the queue is read (after the outermost body, or at the end of the outermost region), every body is read
@@ -20,8 +20,8 @@ use core::any::Any;
 use std::rc::Rc;
 
 use crate::error::{Error, ErrorKind, Result};
-use crate::reader::{take_i32, Reader, Region, DEPTH_INLINE};
-use crate::shared::Shared;
+use crate::reader::{take_i32, Reader, Region, INLINE_DEPTH};
+use crate::shared::{Arena, Shared};
 use crate::traits::{NinoReadBody, NinoWriteBody};
 use crate::writer::Writer;
 
@@ -67,6 +67,8 @@ struct Pending {
     own: Option<Vec<Trail>>,
     /// Put in place (by the walk of the held body it is inside).
     done: bool,
+    /// Deferred inside a tracked object's body (or is one): what it reads goes into that object (shared.rs).
+    inside: bool,
 }
 
 /// One container's step for the deferrals `lo..hi` made inside it.
@@ -83,8 +85,10 @@ pub(crate) struct ReadDeferrals {
     pending: Vec<Pending>,
     log: Vec<Trail>,
     top_active: bool,
-    /// The objects of tracked types read so far, in order: a back reference `n` is `refs[n - 1]` (shared.rs).
-    pub(crate) refs: Vec<Rc<dyn Any>>,
+    /// The objects of tracked types read so far (shared.rs), made with the first one.
+    pub(crate) arena: Option<Rc<Arena>>,
+    /// The tracked objects whose bodies are being read: a `Shared` read now goes inside one when it is not 0.
+    pub(crate) objects_open: u32,
 }
 
 fn read_deferred<T: NinoReadBody>(r: &mut Reader<'_>) -> Result<Box<dyn Any>> {
@@ -121,10 +125,11 @@ impl ReadDeferrals {
     }
 
     pub(crate) fn defer<T: NinoReadBody>(&mut self, position: usize, _regions: u32) {
-        self.defer_with(position, read_deferred::<T>, attach::<T>);
+        let inside = self.objects_open > 0;
+        self.defer_with(position, read_deferred::<T>, attach::<T>, inside);
     }
 
-    fn defer_with(&mut self, position: usize, read: ReadFn, attach: AttachFn) {
+    fn defer_with(&mut self, position: usize, read: ReadFn, attach: AttachFn, inside: bool) {
         self.pending.push(Pending {
             position,
             read,
@@ -134,12 +139,13 @@ impl ReadDeferrals {
             log: (0, 0),
             own: None,
             done: false,
+            inside,
         });
     }
 
     /// Defers the body of a tracked object: read later into its [`Shared`] (the placeholder), which exists now.
     pub(crate) fn defer_shared<T: NinoReadBody>(&mut self, position: usize) {
-        self.defer_with(position, read_deferred::<T>, attach_shared::<T>);
+        self.defer_with(position, read_deferred::<T>, attach_shared::<T>, true);
     }
 
     /// The steps logged so far.
@@ -194,6 +200,7 @@ impl ReadDeferrals {
                 log,
                 own: Some(own),
                 done: false,
+                inside: true,
             },
         );
         Ok(())
@@ -210,7 +217,7 @@ impl ReadDeferrals {
 
 /// The depth a body from a section is read and written at (`NinoDepth.Deferred`).
 fn section_depth(depth: u32) -> u32 {
-    depth.min(DEPTH_INLINE.saturating_sub(1)).saturating_add(1)
+    depth.min(INLINE_DEPTH.saturating_sub(1)).saturating_add(1)
 }
 
 /// Reads the body of pending item `i` with `read` (which positions the reader), and records the deferrals made
@@ -222,9 +229,16 @@ fn read_item<'d>(
 ) -> Result<()> {
     let Some(d) = r.defer.as_deref() else { return Err(misplaced()) };
     let Some(p) = d.pending.get(i) else { return Err(misplaced()) };
-    let (body, records, log) = (p.read, d.pending.len(), d.log.len());
-    let item = read(r, body)?;
+    let (body, records, log, inside) = (p.read, d.pending.len(), d.log.len(), p.inside);
+    // Read where it was deferred: inside a tracked object or not.
+    let open = d.objects_open;
+    if let Some(d) = r.defer.as_deref_mut() {
+        d.objects_open = u32::from(inside);
+    }
+    let item = read(r, body);
     let Some(d) = r.defer.as_deref_mut() else { return Err(misplaced()) };
+    d.objects_open = open;
+    let item = item?;
     let (records_end, log_end) = (d.pending.len(), d.log.len());
     let Some(p) = d.pending.get_mut(i) else { return Err(misplaced()) };
     p.item = Some(item);

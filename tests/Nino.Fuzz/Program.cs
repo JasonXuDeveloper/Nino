@@ -118,6 +118,7 @@ Exit code: 0 no findings, 1 findings (or failed probes), 2 bad arguments.";
         {
             if (args.Count < 2) throw new ArgumentException("repro needs a target and a file");
             var target = Targets.Find(args[0]);
+            target.Configure();
             var data = File.ReadAllBytes(args[1]);
             var placement = Placement.End;
             bool reuse = false, quiet = false, minimize = false;

@@ -11,7 +11,7 @@ internal enum FormatterKind
     /// <summary>Value type: body only.</summary>
     Struct,
 
-    /// <summary>Sealed class: 1-byte null flag, then body.</summary>
+    /// <summary>Sealed class: a presence byte, then body.</summary>
     SealedClass,
 
     /// <summary>Non-sealed instantiable class: type id, then body (subtypes dispatched through the registry).</summary>
@@ -169,7 +169,7 @@ internal sealed record DepthModel(
     // A class whose body can be read after its instance is in its slot (see NinoDepth): created without its
     // members (not by a constructor taking them) and not compared by value.
     bool Deferrable,
-    // Whether a class body may hold class bodies (see NinoBody.Nests): false lets it skip the depth count.
+    // Whether a class body may hold class bodies (see NinoBodyTraits.Nests): false lets it skip the depth count.
     bool Nests,
     // How deep below its own check a value can check the depth (TypeFacts.DepthBound): -1 if it opens no class
     // body, TypeFacts.Unbounded when not known.
@@ -196,7 +196,9 @@ internal sealed record RegistrationModel(
     // Closed generic [NinoType]s the type names (member types, base types), registered by type id.
     EquatableArray<TypeRegistration> GenericTypes,
     // Unmanaged structs whose layout the runtime measures (LayoutTypes), for the registry's [DynamicDependency].
-    EquatableArray<string> LayoutTypes);
+    EquatableArray<string> LayoutTypes,
+    // The nesting formatters its formatters name (FormatterResolver.Nesting), declared once per assembly.
+    EquatableArray<NestingModel> Nesting);
 
 internal sealed record TypeModel(
     // Fully qualified type, e.g. "global::Ns.Outer.Box<T>".
@@ -205,7 +207,8 @@ internal sealed record TypeModel(
     string OpenTypeName,
     // Formatter type name without type parameters, e.g. "Ns_Outer_Box_1Formatter".
     string FormatterName,
-    // Type parameter names, outermost containing type first; empty for non-generic types.
+    // Type parameter names, outermost containing type first; empty for non-generic types. The formatter also takes
+    // the formatter of each (TypeParameterList).
     EquatableArray<string> TypeParameters,
     // " where T : struct" ... or "".
     string Constraints,
@@ -248,7 +251,13 @@ internal sealed record TypeModel(
     bool PublishesDeferrable,
     // A raw struct's bytes in the canonical layout, its published layout (LayoutEmitter, RawLayout.Describe); empty
     // for any other type, whose layout is its members.
-    string RawLayout)
+    string RawLayout,
+    // The bytes an element of an array or list of this class brings into the cache (PrefetchRules), for the loop that
+    // prefetches long ones (the formatter implements INinoPrefetchFormatter); 0 for none.
+    int PrefetchBytes,
+    // The members (C# names, read as value.Member) whose objects those loops prefetch too, once the element's object is
+    // in the cache (PrefetchRules.Members).
+    EquatableArray<string> PrefetchMembers)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 
@@ -260,7 +269,7 @@ internal sealed record TypeModel(
 
     /// <summary>
     /// Whether the formatter dispatches its subtypes through generated code (<c>__WriteSubtype</c> and
-    /// <c>__ReadSubtype</c>, emitted with the registry) before falling back to <c>NinoPolymorphic</c>.
+    /// <c>__ReadSubtype</c>, emitted with the registry) before falling back to <c>NinoSubtypes</c>.
     /// </summary>
     public bool DispatchesSubtypes => TypeRules.DispatchesSubtypes(Kind, TrackReferences);
 
@@ -345,8 +354,8 @@ internal sealed record TypeModel(
 
     /// <summary>
     /// Whether the body of a class is one block of raw members (positional, not tracked, not a collection): the
-    /// formatter implements <c>INinoRawBodyFormatter</c>, so the type id or null flag in front of the body is written
-    /// into the same reservation (one capacity check instead of two).
+    /// formatter implements <c>INinoRawBodyFormatter</c>, so the type id or presence byte in front of the body is
+    /// written into the same reservation (one capacity check instead of two).
     /// </summary>
     public bool RawBody => Kind is FormatterKind.Class or FormatterKind.SealedClass && !RawStruct && !VersionTolerant &&
                            !Keyed && !TrackReferences && !IsCollection && Members.Length != 0 &&
@@ -390,10 +399,25 @@ internal sealed record TypeModel(
     /// </summary>
     public bool SplitFresh => FreshRead && OutOfLineBody && !InlineBody;
 
-    /// <summary>"&lt;T1, T2&gt;", or "" for non-generic types.</summary>
-    public string TypeParameterList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";
+    /// <summary>
+    /// The formatter's type parameters, "&lt;T1, T2, __F_T1, __F_T2&gt;": the type's, then the formatter of each
+    /// (<see cref="TypeNames.FormatterParameter"/>); "" for non-generic types.
+    /// </summary>
+    public string TypeParameterList => IsGeneric
+        ? "<" + string.Join(", ", TypeParameters.Concat(TypeParameters.Select(TypeNames.FormatterParameter))) + ">"
+        : "";
 
-    /// <summary>The formatter as its own code names it: its name with the type's parameters.</summary>
+    /// <summary>The type's own type parameters, "&lt;T1, T2&gt;", or "".</summary>
+    public string TypeArgumentList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";
+
+    /// <summary>The number of the formatter's type parameters (<see cref="TypeParameterList"/>).</summary>
+    public int FormatterArity => 2 * TypeParameters.Length;
+
+    /// <summary>The constraints of the formatter's own type parameters, then of their formatters.</summary>
+    public string FormatterConstraints => Constraints + string.Concat(TypeParameters.Select(static p =>
+        $" where {TypeNames.FormatterParameter(p)} : struct, {TypeNames.Core}INinoFormatter<{p}>"));
+
+    /// <summary>The formatter as its own code names it: its name with its type parameters.</summary>
     public string Self => SelfOf(FormatterName, TypeParameterList);
 
     /// <summary>A formatter as its own code names it (<see cref="Self"/>, <see cref="DispatchEntry.Self"/>).</summary>
@@ -419,7 +443,12 @@ internal sealed record TypeRegistration(string TypeName, string Formatter, int I
 // typeof argument of a boxed call or IsSupported) and the creators that formatter needs
 // (null when the type is a [NinoType]), and the closed generic [NinoType]s its type names.
 internal sealed record UsageRegistration(FormatterRegistration? Formatter, EquatableArray<FactoryRegistration> Factories,
-    EquatableArray<TypeRegistration> GenericTypes, EquatableArray<string> LayoutTypes);
+    EquatableArray<TypeRegistration> GenericTypes, EquatableArray<string> LayoutTypes,
+    EquatableArray<NestingModel> Nesting);
+
+// The formatter of a type that holds itself through collections (FormatterResolver.NestingFormatter): the struct
+// Name (in NinoGen) counts a level of TypeName and calls Body, which names Name again for the elements.
+internal sealed record NestingModel(string Name, string TypeName, string Body);
 
 // A generated formatter, as the registry lists it. Arity: its number of type parameters (0 if not generic).
 // Registration: how the registry registers it (non-generic types only, else null).

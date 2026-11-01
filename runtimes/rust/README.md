@@ -7,9 +7,17 @@ with the NuGet packages (`cargo add nino-serialization@=4.0.0-rc.8`, `features =
 
 - Edition 2021, MSRV 1.88.
 - `#![deny(unsafe_code)]`: the only `unsafe` code is `src/simd.rs` and its submodules (`simd/x86.rs`, `simd/neon.rs`),
-  checked under Miri: the string writer's transcoding, and the reader's decoding of text into a `String` it builds.
-  The reader's bounds checks are safe code.
+  checked under Miri: the string writer's transcoding, and the reader's decoding of text into a `String` it builds;
+  and one block in `Shared::get` ([Reference tracking](#reference-tracking)). The reader's bounds checks are safe code.
 - No required dependencies. Every integration is an opt-in feature.
+
+How to generate Rust code from your `[NinoType]`s, the options, the C# to Rust type mapping, what nino-gen writes and
+untrusted data are in the guide: [TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#rust).
+This file is the crate's reference: its API, the derive, serde, implementation notes, tests and benchmarks (how
+nino-gen works: [docs/codegen.md](../../docs/codegen.md)).
+
+Build settings that make it faster (`lto`, `codegen-units`, `target-cpu` and what each changes here): [Recommended
+Build Configuration](https://nino.xgamedev.net/en/docs/v4/advanced/build-configuration#rust).
 
 ```rust
 let bytes = nino::serialize(&vec![1i32, 2])?;
@@ -20,42 +28,31 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 
 | Item | What it is |
 | --- | --- |
-| `serialize`, `serialize_into` | Write a value under its declared type, as `NinoSerializer.Serialize<T>` does. `serialize_into` appends to a `Vec`, and on an error truncates it back to where it was. |
+| `serialize`, `serialize_into` | Write a value under its declared type, as `NinoSerializer.Serialize<T>` does. `serialize_into` appends to a `Vec`, and on an error truncates it back to where it was: a `Vec` the caller clears and reuses is .NET's `NinoArrayBufferWriter`, with no allocation once its capacity is large enough. |
 | `deserialize`, `deserialize_exact` | Read a value. `deserialize_exact` also rejects trailing bytes (`ErrorKind::TrailingData`). |
+| `deserialize_into` | Read a value into an existing one, as `NinoDeserializer.Deserialize(data, ref value)` does: the members of classes and structs are read in place, a `Vec` reuses its buffer and reads its elements into the old ones by index (extra ones dropped), maps, sets and deques are cleared and refilled in their buffers, and a polymorphic slot is read into only when the data holds the same type (else replaced, as are tracked objects and class bodies deeper than 128). On an error the value is still valid: the members read before the error are the new ones, the rest are the old. Every type has it through `NinoRead::read_into`, which the derive and nino-gen write as the one body `read` also uses. |
 | `NinoRead`, `NinoWrite` | A type's whole encoding. Implemented here for the types in the table below, and by generated or derived code for each `[NinoType]`. |
 | `NinoReadBody`, `NinoWriteBody` | A class's body, behind its presence byte or type id. They carry `TYPE_ID` (0 when it has none) and `DEFERRABLE` (whether .NET may defer it, spec §10.5). |
-| `Reader`, `Writer` | What the codecs call: primitives, lengths, the three string encodings, classes (`read_sealed`, `read_sealed_boxed`, `read_class`, `write_sealed`, `write_class`), structs (`enter_struct`/`exit_struct`), version-tolerant and keyed regions (`begin_region`, `end_region`, `end_member`), and deferral (`mark`, `trail`, `Step`, `field!`). |
+| `Reader`, `Writer` | What the codecs call: primitives, lengths, the three string encodings, classes (`read_sealed`, `read_sealed_boxed`, `read_class`, `write_sealed`, `write_class`; `sealed_read!` and `sealed_write!` write a sealed class's `NinoRead` and `NinoWrite` methods), structs (`enter_struct`/`exit_struct`), version-tolerant and keyed regions (`begin_region`, `end_region`, `end_member`), and deferral (`mark`, `trail`, `Step`, `field!`). |
+| `sum_fixed_sizes`, `decode_member`, `encode_member` | What a struct of fixed-size members (generated or derived) states its `FIXED_SIZE` with, and reads or writes each member from its bytes with, so that a list of it is one block. |
 | `type_id(name)` | The type id of a .NET full name: FNV-1a over its UTF-16 code units, as a `const fn`. |
 | `Error`, `ErrorKind` | Every failure. `ErrorKind` is `#[non_exhaustive]`. |
 
-How C# types map to Rust types:
-
-| C# | Rust |
-| --- | --- |
-| `sbyte` … `ulong`, `Int128`, `UInt128`, `float`, `double`, `bool` | `i8` … `u64`, `i128`, `u128`, `f32`, `f64`, `bool` |
-| `char` | `u16`, a UTF-16 code unit. A Rust `char` is a `Rune`. |
-| `string` | `Option<String>`, or `Option<WideString>`, or `Option<Utf8>` for `[NinoUtf8]`. See "Strings" below. |
-| `T?` (a struct), a class | `Option<T>`; `Option<Box<T>>` for a recursive class |
-| `T[]`, `List<T>`, `Queue<T>`, … | `Option<Vec<T>>`, `VecDeque<T>` |
-| `HashSet<T>`, `SortedSet<T>` | `HashSet<T>`, `BTreeSet<T>`, `IndexSet<T>` |
-| `Dictionary<K, V>`, `SortedDictionary<K, V>` | `HashMap<K, V>`, `BTreeMap<K, V>`, `IndexMap<K, V>` |
-| `ValueTuple<…>` (1 to 7 items) | tuples |
-| `T[,]` and other multi-dimensional arrays | `Grid<T, R>` |
-| `T?[]` of raw structs (written as raw memory) | `RawNullables<T>` |
-| `decimal`, `Guid`, `DateTime`, `DateTimeOffset`, `TimeSpan`, `DateOnly`, `TimeOnly`, `Half`, `Rune`, `Version`, `BigInteger`, `BitArray` | types of the same names. `DateTimeKind` is the `DateTime` kind. |
-
+How C# types map to Rust types (`String`, `WideString` and `Utf8` for strings, `Grid<T, R>`, `RawNullables<T>`, the
+value types of the same names as .NET's) is the guide's [Types](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#rust-types).
 A polymorphic declared type (an abstract class, an interface, or a class that is not sealed) becomes a Rust enum with
 one variant per concrete type. The reader rejects any type id that is not one of the variants
 (`ErrorKind::UnknownTypeId`).
 
 ## Guarantees
 
-The reader assumes the input may be hostile. For any input:
+The reader assumes the input may be hostile. What every runtime guarantees is in the guide's
+[Untrusted Data](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#untrusted-data); for this crate, for any input:
 
 - It never panics, never reads out of bounds, and returns either the whole value or an `Error`. A panic is a bug,
   whatever the input.
 - It recurses at most 128 class bodies deep. Deeper bodies are deferred onto a heap work list, as .NET defers them.
-  It stops at 512 nested bodies (`DEPTH_MAX`, `ErrorKind::TooDeep`).
+  It stops at 512 nested bodies (`MAX_DEPTH`, `ErrorKind::TooDeep`).
 - Memory is bounded by the input:
   - Up-front allocation for collections comes from one budget per read: 16 bytes per input byte, plus 4 KiB.
   - A collection whose count the remaining input cannot fill fails before it allocates (`InvalidLength`).
@@ -86,29 +83,31 @@ every mode, some only with `NinoSettings.Untrusted` set, and the rest not at all
 
 ### Reference tracking
 
-A type declared with `trackReferences=true` is held as a [`Shared<T>`](src/shared.rs): one object any number of
-places hold (a clone is the same object), which may hold itself; it compares by identity, and
-`Shared::empty` then `fill` builds a cycle. The code nino-gen writes uses it (`Option<nino::Shared<Node>>`), through
-`Reader::read_shared`, `ref_header`, `back_ref`, `read_shared_new`, `read_shared_after_id` and their writer
-counterparts; the derive does not take `trackReferences` yet. As .NET does, the reader records each object as it
-creates it, before its body (a deferred body waits in the queue until the bodies inside it are read), and rejects a
-header other than -1, 0 or the number of an object read so far, and a back reference to an object of a type the slot
-does not allow (`ErrorKind::InvalidReference`). Every object takes at least its 4 header bytes, so the table of
-objects grows with the input.
+A type declared with `trackReferences=true` is held as a [`Shared<T>`](src/shared.rs)
+([Reference Tracking](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#reference-tracking)). The code nino-gen
+writes uses it (`Option<nino::Shared<Node>>`), through `Reader::read_shared`, `ref_header`, `back_ref`,
+`read_shared_new`, `read_shared_after_id` and their writer counterparts; the derive does not take `trackReferences`
+yet. A deferred body waits in the queue until the bodies inside it are read; a bad header or back reference is
+`ErrorKind::InvalidReference`.
+
+The objects one read creates belong to that read (its arena), cycles included, as .NET's collector would free them:
+
+- A `Shared` the reader stores inside a tracked object refers to its target weakly; one it stores anywhere else (the
+  value returned, or a struct or collection outside every tracked object) keeps all of the read's objects alive, and so
+  does every clone of any `Shared`. When the last of those is dropped, every object of the read is freed, however they
+  refer to each other. A read that fails frees what it made.
+- `Shared::get` returns the value, `None` only for an object made by `Shared::empty` and not filled; `Shared::ptr_eq`
+  and `==` compare identity. To keep a part of a graph after dropping the value read, clone the `Shared`s you keep.
+- A graph built by hand (`Shared::new`, `Shared::empty` and `fill`) is reference counted like an `Rc`: a cycle built
+  that way is not freed.
+- The one `unsafe` block outside `simd.rs` is in `Shared::get` for a weak link (its SAFETY comment says why the object
+  is alive); `tests/shared.rs` (cycles, deferred bodies, failed reads, a `Drop` that reads another object) runs under
+  Miri in CI.
 
 ## Strings
 
-The wire has three string forms:
-
-A header's first byte gives its size, as MessagePack's string markers do: the value itself up to 0x7F (strings of up
-to 63 chars), else 0x80 and a little-endian `u16`, else 0x81 and a `u32` (1, 3 or 5 bytes), minimal; the reader
-rejects one cut short, not minimal or with another first byte, as .NET does.
-
-- **Null:** the header is 0.
-- **Latin-1:** the header is `2n + 1` (written when every character is ≤ U+00FF; 1 is the empty string), followed by
-  n bytes.
-- **UTF-16:** the header is `2n`, followed by n code units.
-- **`[NinoUtf8]`:** the char count plus one (0 null, 1 empty), then the byte count, then the bytes.
+The wire's string forms (a null, Latin-1, UTF-16 or `[NinoUtf8]` header, then the text) are in the specification's §4;
+the reader rejects a header cut short, not minimal or with another first byte, as .NET does.
 
 How each Rust type handles them:
 
@@ -165,7 +164,7 @@ pub struct Vec2 { pub x: f32, pub y: f32 }
 pub struct Dog { pub name: Option<String>, pub at: Vec2 }
 
 #[derive(Debug, Default, Clone, PartialEq, NinoRead, NinoWrite)]
-#[nino(kind = "open", id = "MyGame.Cat", format = "tolerant")]
+#[nino(kind = "open", id = "MyGame.Cat", format = "version_tolerant")]
 pub struct Cat { pub lives: u8 }
 
 #[derive(Debug, Clone, PartialEq, NinoRead, NinoWrite)]
@@ -176,7 +175,7 @@ Type attributes:
 
 | Attribute | Meaning |
 | --- | --- |
-| `format = "plain" \| "tolerant" \| "keyed"` | `NinoFormat.Positional`, `VersionTolerant` or `Keyed`. The default is plain. |
+| `format = "positional" \| "version_tolerant" \| "keyed"` | `NinoFormat.Positional`, `VersionTolerant` or `Keyed`. The default is positional. |
 | `kind = "class" \| "open" \| "struct" \| "raw"` | The type's header (defaults to `class`): <ul><li>`class`: a sealed class, written behind a presence byte.</li><li>`open`: a class that is not sealed, written behind its type id.</li><li>`struct`: no header.</li><li>`raw`: an unmanaged struct written as its memory. It takes `pack = n` and `size = n`, as `[StructLayout]` does.</li></ul> |
 | `id = "Full.Name"` or `id = 0x…` | The type id: a .NET full name, hashed at compile time, or the number itself. 0 is rejected. |
 | `deferrable = false` | Marks a type .NET never defers (a record, a type built through a constructor taking its members). Taken from the layout's `deferrable=` when not given. |
@@ -271,13 +270,22 @@ cargo test --workspace --all-features
   - Every read must return a value or an `Error`, without a panic and within the memory ceiling.
   - `NINO_FUZZ_ITERATIONS` sets the inputs per case (default 300). The random seeds are fixed per case, so a run can
     be repeated.
-  - It runs on stable. `cargo-fuzz` needs nightly and is not used.
+  - It runs on stable, in CI.
+- **Coverage-guided fuzzing** (`fuzz/`, cargo-fuzz on nightly; its own workspace, not run in CI): the targets
+  `conformance` and `generated` read each input as the type its first byte picks (of `tests/conformance/types.rs`'
+  hand-written codecs, or of nino-gen's code), without a panic and within the memory ceiling; a value read must be
+  written, read back and written again to the same bytes, and reading the input into that value must succeed too.
+  `python3 fuzz/seeds.py` writes the corpus's cases as seeds (`fuzz/corpus/<target>`), then
+  `cargo +nightly fuzz run -O generated fuzz/corpus/generated -- -max_total_time=900` (from `fuzz/`), with
+  LeakSanitizer on: a read that leaves an object allocated, cycles included, is a finding.
 - **Generated code** (`tests/generated.rs`, feature `indexmap`): `tests/generated/` holds what `nino-gen --lang rust`
   writes for the corpus's types and for `tests/Nino.Codegen.Tests`' shapes (docs/codegen.md; regenerated by
   `NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests`). They run against the corpus like `types.rs`, plus
   a short fuzz.
 - **Derive** (`tests/derive.rs`, features `derive` and `indexmap`):
   - The corpus's types are declared through the derive with their published layouts, and run against the corpus.
+  - Plain structs of fixed-size members are read and written as blocks: the bytes each element writes on its own,
+    every truncation and a bad `bool` or `Rune` in any element rejected.
   - `tests/compile_fail.rs` (trybuild) checks every rejection and its message. After a deliberate change to a message,
     `TRYBUILD=overwrite cargo test --features derive --test compile_fail` rewrites the expected messages.
 

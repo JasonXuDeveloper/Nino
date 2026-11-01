@@ -38,7 +38,7 @@ internal sealed record FormatterRef(string Name, EquatableArray<FormatterRef> Ar
     /// This formatter with the generated formatters in <paramref name="tops"/> replaced by their <c>__Top</c> twins
     /// and those in <paramref name="shallow"/> by their <c>__Shallow</c> twins (by <see cref="Name"/>): the formatter
     /// itself, or the element formatters it is composed of (the type arguments of built-in collection, nullable and
-    /// tuple formatters). A generic generated formatter has no twins, and takes no formatters as arguments.
+    /// tuple formatters). A generic generated formatter has no twins, and its formatter arguments keep theirs.
     /// </summary>
     public FormatterRef WithTwins(HashSet<string> tops, HashSet<string> shallow)
     {

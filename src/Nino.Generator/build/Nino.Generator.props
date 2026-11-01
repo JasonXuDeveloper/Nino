@@ -7,4 +7,11 @@
         <InterceptorsNamespaces>$(InterceptorsNamespaces);NinoGen</InterceptorsNamespaces>
         <InterceptorsPreviewNamespaces>$(InterceptorsPreviewNamespaces);NinoGen</InterceptorsPreviewNamespaces>
     </PropertyGroup>
+
+    <!-- <NinoPrefetchLargeCollections>true</NinoPrefetchLargeCollections> makes the intercepted top-level calls of
+         arrays and lists of classes prefetch long collections of scattered objects (off by default; the generated
+         code is then what it is without it). -->
+    <ItemGroup>
+        <CompilerVisibleProperty Include="NinoPrefetchLargeCollections"/>
+    </ItemGroup>
 </Project>

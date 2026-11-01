@@ -1,0 +1,45 @@
+{
+  "case": "bcl-raw-nullables",
+  "description": "Nullables inside a plain struct: the flag, then the value at its alignment.",
+  "type": "Conformance.BclRawNullables",
+  "features": [
+    "raw-struct",
+    "struct",
+    "seq",
+    "nullable"
+  ],
+  "size": 125,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.BclRawNullables": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA24BE90D; deferrable=true; members=Nullables:Conformance.HoldsNullables:raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}};Array:Conformance.HoldsNullables[]:seq(raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}})"
+  },
+  "value": {
+    "$type": "Conformance.BclRawNullables",
+    "Nullables": {
+      "$type": "Conformance.HoldsNullables",
+      "A": 17,
+      "B": -18,
+      "C": [
+        19,
+        -20
+      ]
+    },
+    "Array": [
+      {
+        "$type": "Conformance.HoldsNullables",
+        "A": 1,
+        "B": null,
+        "C": null
+      },
+      {
+        "$type": "Conformance.HoldsNullables",
+        "A": 0,
+        "B": 2,
+        "C": [
+          3,
+          4
+        ]
+      }
+    ]
+  }
+}

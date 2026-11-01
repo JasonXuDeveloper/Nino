@@ -56,8 +56,9 @@ SKIPPED = {"Conformance.Tracked", "Conformance.TrackedLeaf", "Conformance.Tracke
 
 # Shapes this hand-written emulation leaves to the code nino-gen writes (tests/generated.rs runs their cases):
 # [NinoType] collections, generic types behind a type id, generics nesting themselves, Nullable and KeyValuePair
-# type arguments. Their cases are skipped here, by type.
-NOT_EMULATED = {"Conformance.BagHolder", "Conformance.GenericSlots", "Conformance.NestHolder", "Conformance.WrappedArgs"}
+# type arguments, plain structs holding value tuples, pairs and nullables. Their cases are skipped here, by type.
+NOT_EMULATED = {"Conformance.BagHolder", "Conformance.BclRaw", "Conformance.BclRawNullables", "Conformance.GenericSlots",
+                "Conformance.NestHolder", "Conformance.WrappedArgs"}
 
 # Generic closed types used, and their arguments' layouts.
 GENERIC_ARGS = {
@@ -424,19 +425,19 @@ class Gen:
 
         def read(m):
             if self.may_defer(m["rust"]):
-                return f"r.read_in(field!(Self, {m['field']}))?"
-            return "r.read()?"
+                return f"r.read_member_into(&mut self.{m['field']}, field!(Self, {m['field']}))?"
+            return f"r.read_into(&mut self.{m['field']})?"
 
         if fmt == "Positional":
             for m in members:
-                o.append(f"        self.{m['field']} = {read(m)};")
+                o.append(f"        {read(m)};")
             if not members:
                 o.append("        let _ = r;")
         elif fmt == "VersionTolerant":
             o.append("        let body = r.begin_region()?;")
             for m in members:
                 o.append("        if r.has_more() {")
-                o.append(f"            self.{m['field']} = {read(m)};")
+                o.append(f"            {read(m)};")
                 o.append("        }")
             o.append("        r.end_region(body, self)?;")
         else:
@@ -447,7 +448,7 @@ class Gen:
             o.append("            match key as u32 {")
             for m in members:
                 keys = " | ".join(f"0x{k:08X}" for k in [m["key"]] + m["former"])
-                o.append(f"                {keys} => self.{m['field']} = {read(m)},")
+                o.append(f"                {keys} => {read(m)},")
             o.append("                _ => {")
             o.append("                    r.end_region(member, self)?;")
             o.append("                    continue;")
@@ -533,8 +534,12 @@ class Gen:
                 o.append("    const MAY_DEFER: bool = true;")
             o.append("    fn read(r: &mut Reader<'_>) -> Result<Self> {")
             o.append("        let mut v = Self::default();")
-            o.append("        v.read_body(r)?;")
+            o.append("        v.read_into(r)?;")
             o.append("        Ok(v)")
+            o.append("    }")
+            o.append("")
+            o.append("    fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {")
+            o.append("        self.read_body(r)")
             o.append("    }")
             o.append("}")
             o.append("")
@@ -552,32 +557,11 @@ class Gen:
         if header == "NullFlag":
             o.append(f"impl NinoRead for {rust} {{")
             o.append("    const MAY_DEFER: bool = true;")
-            o.append("")
-            o.append("    fn read(r: &mut Reader<'_>) -> Result<Self> {")
-            o.append("        r.read_sealed_value()")
-            o.append("    }")
-            o.append("")
-            o.append("    fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {")
-            o.append("        r.read_sealed()")
-            o.append("    }")
-            o.append("")
-            o.append("    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {")
-            o.append("        r.read_sealed_boxed_value()")
-            o.append("    }")
-            o.append("")
-            o.append("    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {")
-            o.append("        r.read_sealed_boxed()")
-            o.append("    }")
+            o.append("    nino::sealed_read!();")
             o.append("}")
             o.append("")
             o.append(f"impl NinoWrite for {rust} {{")
-            o.append("    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {")
-            o.append("        w.write_sealed(Some(self))")
-            o.append("    }")
-            o.append("")
-            o.append("    fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {")
-            o.append("        w.write_sealed(value)")
-            o.append("    }")
+            o.append("    nino::sealed_write!();")
             o.append("}")
             o.append("")
         tid = self.type_id(type_name)
@@ -622,18 +606,35 @@ class Gen:
         o.append("    }")
         o.append("")
         o.append("    fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {")
+        o.append("        let mut slot = None;")
+        o.append("        Self::read_option_into(&mut slot, r)?;")
+        o.append("        Ok(slot)")
+        o.append("    }")
+        o.append("")
+        o.append("    fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {")
         o.append("        let id = r.i32()?;")
         o.append("        if id == 0 {")
-        o.append("            return Ok(None);")
+        o.append("            *slot = None;")
+        o.append("            return Ok(());")
         o.append("        }")
-        o.append("        let mark = r.mark();")
-        o.append("        let value = match id {")
+        o.append("        let mark = r.defer_mark();")
+        o.append("        let reused = match slot {")
         for s in subtypes:
-            o.append(f"            {ident(s)}::TYPE_ID => Self::{ident(s)}(Box::new(r.read_class()?)),")
-        o.append("            _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),")
+            o.append(f"            Some(Self::{ident(s)}(v)) if id == {ident(s)}::TYPE_ID => {{")
+            o.append("                r.read_class_into(&mut **v)?;")
+            o.append("                true")
+            o.append("            }")
+        o.append("            _ => false,")
         o.append("        };")
-        o.append(f"        r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<{rust}>()?.body())));")
-        o.append("        Ok(Some(value))")
+        o.append("        if !reused {")
+        o.append("            *slot = Some(match id {")
+        for s in subtypes:
+            o.append(f"                {ident(s)}::TYPE_ID => Self::{ident(s)}(Box::new(r.read_class()?)),")
+        o.append("                _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),")
+        o.append("            });")
+        o.append("        }")
+        o.append(f"        r.defer_trail(mark, Step::Field(|p| Some(p.downcast_mut::<{rust}>()?.body())));")
+        o.append("        Ok(())")
         o.append("    }")
         o.append("}")
         o.append("")

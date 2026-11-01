@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -32,39 +33,31 @@ namespace Nino.Core
         public static bool IsRegistered => Volatile.Read(ref _instance) != null;
 
         /// <summary>
-        /// Registers the formatter unless one is already registered. Used by generated code: users declare
-        /// formatters with <c>[assembly: NinoFormatter]</c> or <c>[NinoCustomFormatter]</c> instead.
+        /// Registers the formatter unless one is already registered, and returns whether this call registered it.
+        /// Used by generated code: users declare formatters with <c>[assembly: NinoFormatter]</c> or
+        /// <c>[NinoMemberFormatter]</c> instead.
         /// </summary>
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static void TryRegister<TFormatter>() where TFormatter : struct, INinoFormatter<T>
-        {
-            if (Volatile.Read(ref _instance) == null)
-                Publish(new StructFormatter<T, TFormatter>());
-        }
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static bool TryRegister<TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            Volatile.Read(ref _instance) == null && TryPublish(new StructFormatter<T, TFormatter>());
 
         /// <summary>
         /// <see cref="TryRegister{TFormatter}"/> for a formatter of fixed size, which the regular byte array call
         /// uses to write into an array of that size. Used by generated code.
         /// </summary>
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static void TryRegisterFixed<TFormatter>() where TFormatter : struct, INinoFixedSizeFormatter<T>
-        {
-            if (Volatile.Read(ref _instance) == null)
-                Publish(new FixedStructFormatter<T, TFormatter>());
-        }
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static bool TryRegisterFixed<TFormatter>() where TFormatter : struct, INinoFixedSizeFormatter<T> =>
+            Volatile.Read(ref _instance) == null && TryPublish(new FixedStructFormatter<T, TFormatter>());
 
         /// <summary>
         /// <see cref="TryRegister{TFormatter}"/> for a formatter with a <c>__Top</c> twin, which the regular top-level
         /// calls write through (see <see cref="INinoTopFormatter{T}"/>). Used by generated code.
         /// </summary>
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public static void TryRegisterTop<TFormatter, TTop>()
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static bool TryRegisterTop<TFormatter, TTop>()
             where TFormatter : struct, INinoFormatter<T>
-            where TTop : struct, INinoTopFormatter<T>
-        {
-            if (Volatile.Read(ref _instance) == null)
-                Publish(new TopStructFormatter<T, TFormatter, TTop>());
-        }
+            where TTop : struct, INinoTopFormatter<T> =>
+            Volatile.Read(ref _instance) == null && TryPublish(new TopStructFormatter<T, TFormatter, TTop>());
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static NinoFormatter<T> Resolve()
@@ -134,11 +127,26 @@ namespace Nino.Core
         /// </summary>
         private static NinoFormatter<T> Publish(NinoFormatter<T> formatter)
         {
+            Publish(ref formatter);
+            return formatter;
+        }
+
+        /// <summary>Publishes <paramref name="formatter"/> unless another was first; whether it was.</summary>
+        private static bool TryPublish(NinoFormatter<T> formatter) => Publish(ref formatter);
+
+        /// <summary>
+        /// Stores <paramref name="formatter"/> unless a formatter is already stored, and sets it to the one stored;
+        /// returns whether it was this one.
+        /// </summary>
+        private static bool Publish(ref NinoFormatter<T> formatter)
+        {
             if (NinoNesting.Holds(typeof(T)))
                 formatter = formatter.Counted();
-            var instance = Interlocked.CompareExchange(ref _instance, formatter, null) ?? formatter;
-            NinoFormatterCache.MarkRegistered(typeof(T), instance);
-            return instance;
+            var existing = Interlocked.CompareExchange(ref _instance, formatter, null);
+            if (existing != null)
+                formatter = existing;
+            NinoFormatterCache.MarkRegistered(typeof(T), formatter);
+            return existing == null;
         }
     }
 
@@ -193,8 +201,7 @@ namespace Nino.Core
             // is a JIT-time constant: this field stays one).
             if (NinoUnsafe.IsReferenceOrContainsReferences<T>() || !BitConverter.IsLittleEndian)
                 return false;
-            var formatter = NinoTopFormatter<T>.Formatter;
-            return formatter != null && formatter.IsRaw;
+            return NinoTopFormatter<T>.Formatter.IsRaw;
         }
     }
 
@@ -203,11 +210,23 @@ namespace Nino.Core
     /// A registered formatter never changes (the first registration wins), so it is read once into a
     /// <c>static readonly</c> field: Tier1 code knows the exact class of <see cref="Formatter"/>, so it calls the
     /// struct formatter directly (and inlines it) instead of virtually.
+    /// <para>
+    /// The field is never null: a type without a formatter holds a <see cref="NinoMissingFormatter{T}"/>. Read through
+    /// <c>Formatter ?? NinoFormatterCache&lt;T&gt;.Instance</c>, the JIT lost the exact class at the merge: every
+    /// <see cref="CachedFormatter{T}"/> call (members of generic <c>[NinoType]</c>s and of <c>[NinoType]</c>s generated
+    /// in another assembly) compared the object's type and kept a virtual call behind it.
+    /// </para>
     /// </summary>
     internal static class NinoTopFormatter<T>
     {
-        /// <summary>The formatter; null when <typeparamref name="T"/> has none (use <see cref="Get"/>).</summary>
+        /// <summary>
+        /// The formatter; a <see cref="NinoMissingFormatter{T}"/> when <typeparamref name="T"/> has none, whose calls
+        /// report that error.
+        /// </summary>
         public static readonly NinoFormatter<T> Formatter = Load();
+
+        /// <summary>Whether <see cref="Formatter"/> is a formatter of <typeparamref name="T"/> (not the missing one).</summary>
+        public static readonly bool Exists = !(Formatter is NinoMissingFormatter<T>);
 
         private static NinoFormatter<T> Load()
         {
@@ -218,16 +237,38 @@ namespace Nino.Core
             catch (Exception)
             {
                 // No formatter: the regular path reports it on every call.
-                return null;
+                return new NinoMissingFormatter<T>();
             }
         }
+    }
 
-        /// <summary><see cref="Formatter"/>, or the error of a type without one.</summary>
-        public static NinoFormatter<T> Get
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => Formatter ?? NinoFormatterCache<T>.Instance;
-        }
+    /// <summary>
+    /// What <see cref="NinoTopFormatter{T}.Formatter"/> holds for a type that had no formatter when it was read: every
+    /// call asks <see cref="NinoFormatterCache{T}.Instance"/> again, which throws the type's error (or finds a formatter
+    /// registered since), as the calls did when the field was null. <see cref="NinoFormatter{T}.IsRaw"/> and
+    /// <see cref="NinoFormatter{T}.RawArray"/> keep their defaults: static initializers read them, and they read a
+    /// missing formatter as none.
+    /// </summary>
+    internal sealed class NinoMissingFormatter<T> : NinoFormatter<T>
+    {
+        public override void Serialize(T value, ref Writer writer) =>
+            NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
+
+        public override void Deserialize(ref T value, ref Reader reader) =>
+            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+
+        internal override void Write(T value, NinoArrayBufferWriter buffer) =>
+            NinoFormatterCache<T>.Instance.Write(value, buffer);
+
+        internal override T Read(ReadOnlySpan<byte> data) => NinoFormatterCache<T>.Instance.Read(data);
+
+        internal override int FixedSize => NinoFormatterCache<T>.Instance.FixedSize;
+
+        internal override byte[] SerializeFixed(T value) => NinoFormatterCache<T>.Instance.SerializeFixed(value);
+
+        internal override bool Sized => NinoFormatterCache<T>.Instance.Sized;
+
+        internal override byte[] SerializeSized(T value) => NinoFormatterCache<T>.Instance.SerializeSized(value);
     }
 
     /// <summary>
@@ -245,8 +286,8 @@ namespace Nino.Core
             // A big-endian host takes the formatter, whose writer or reader rejects it.
             if (!typeof(T).IsArray || typeof(T).GetArrayRank() != 1 || !BitConverter.IsLittleEndian)
                 return null;
-            // Through the snapshot (a use of T's formatter); null without a formatter: the regular path reports it.
-            return NinoTopFormatter<T>.Formatter?.RawArray;
+            // Through the snapshot (a use of T's formatter); none without a formatter: the regular path reports it.
+            return NinoTopFormatter<T>.Formatter.RawArray;
         }
     }
 

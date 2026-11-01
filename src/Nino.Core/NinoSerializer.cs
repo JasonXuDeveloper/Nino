@@ -32,29 +32,29 @@ namespace Nino.Core
                 return raw.Serialize(Unsafe.As<Array>(value));
 
             // A value of fixed size: written into an array of that size (a constant check in Tier1 code).
-            if (NinoTopFormatter<T>.Formatter is { FixedSize: >= 0 } fixedSize)
-                return fixedSize.SerializeFixed(value);
+            if (NinoTopFormatter<T>.Formatter.FixedSize >= 0)
+                return NinoTopFormatter<T>.Formatter.SerializeFixed(value);
 
             // A collection whose size is known up front (a count times a fixed element size): written into an array of
             // that size, with no scratch buffer to copy out of.
-            if (NinoTopFormatter<T>.Formatter is { Sized: true } sizedFormatter &&
-                sizedFormatter.SerializeSized(value) is { } sized)
+            if (NinoTopFormatter<T>.Formatter.Sized &&
+                NinoTopFormatter<T>.Formatter.SerializeSized(value) is { } sized)
                 return sized;
 
-            return NinoScratch.ToArray(value, new FormatterWriter<T>(NinoTopFormatter<T>.Get));
+            return NinoScratch.ToArray(value, new FormatterWriter<T>(NinoTopFormatter<T>.Formatter));
         }
 
         /// <summary>
         /// The number of bytes <see cref="Serialize{T}(in T)"/> returns for every value of <typeparamref name="T"/>
         /// when that number is the same for all of them, else -1. Fixed are raw values and generated structs and
         /// sealed classes whose members are all unmanaged values or such structs (not version tolerant, keyed or
-        /// tracked); a null instance of such a sealed class is 1 byte (its null flag), every other one this size.
+        /// tracked); a null instance of such a sealed class is 1 byte (its presence byte), every other one this size.
         /// </summary>
         public static int GetFixedSize<T>()
         {
             if (NinoRaw.Is<T>())
                 return Unsafe.SizeOf<T>();
-            return NinoTopFormatter<T>.Get.FixedSize;
+            return NinoTopFormatter<T>.Formatter.FixedSize;
         }
 
         // Inlined: the allocation and one store, as MemoryPack's (a call cost 1.6 ns of 14 for a 40-byte struct).
@@ -108,11 +108,11 @@ namespace Nino.Core
             }
             else if (bufferWriter is NinoArrayBufferWriter nino)
             {
-                WriteFormatted(value, nino, NinoTopFormatter<T>.Get);
+                WriteFormatted(value, nino, NinoTopFormatter<T>.Formatter);
                 return;
             }
 
-            SerializeOther(value, bufferWriter, NinoTopFormatter<T>.Get);
+            SerializeOther(value, bufferWriter, NinoTopFormatter<T>.Formatter);
         }
 
         // Out of line: inlined, it would take the caller's inlining budget for paths the calls above do not take.
@@ -138,7 +138,7 @@ namespace Nino.Core
                 return;
             }
 
-            NinoTopFormatter<T>.Get.Serialize(value, ref writer);
+            NinoTopFormatter<T>.Formatter.Serialize(value, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

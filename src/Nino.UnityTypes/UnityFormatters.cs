@@ -84,7 +84,8 @@ namespace Nino.UnityTypes
     /// <summary>
     /// <c>Gradient</c>: color key count (-1 = null), then each key's red, green, blue, alpha and time (floats), then
     /// the alpha key count and each key's alpha and time (floats), then the mode (int32). An existing gradient is
-    /// refilled.
+    /// refilled. Unity holds at most 8 keys of each kind: a count above that is invalid data, rejected before
+    /// anything is allocated or handed to Unity's setters.
     /// </summary>
     public struct GradientFormatter : INinoFormatter<Gradient>
     {
@@ -128,6 +129,12 @@ namespace Nino.UnityTypes
         private const int ColorKeySize = 5 * sizeof(float);
         private const int AlphaKeySize = 2 * sizeof(float);
 
+        /// <summary>Unity's limit on a gradient's color keys, and on its alpha keys.</summary>
+        private const int MaxKeys = 8;
+
+        private static void TooManyKeys(string kind, int count) =>
+            NinoThrow.InvalidData($"a Gradient holds at most {MaxKeys} {kind} keys, the data holds {count}.");
+
         public void Deserialize(ref Gradient value, ref Reader reader)
         {
             int colorCount = reader.ReadLength(ColorKeySize);
@@ -136,6 +143,9 @@ namespace Nino.UnityTypes
                 value = null;
                 return;
             }
+
+            if (colorCount > MaxKeys)
+                TooManyKeys("color", colorCount);
 
             // Each run of keys under one bounds check.
             ref byte next = ref reader.ReadBlock(colorCount * ColorKeySize);
@@ -152,6 +162,8 @@ namespace Nino.UnityTypes
             int alphaCount = reader.ReadLength(AlphaKeySize);
             if (alphaCount < 0)
                 NinoThrow.InvalidLength(alphaCount);
+            if (alphaCount > MaxKeys)
+                TooManyKeys("alpha", alphaCount);
             var alphaKeys = new GradientAlphaKey[alphaCount];
             next = ref reader.ReadBlock(alphaKeys.Length * AlphaKeySize + sizeof(int));
             for (int i = 0; i < alphaKeys.Length; i++)

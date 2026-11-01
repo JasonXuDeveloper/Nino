@@ -6,7 +6,7 @@ using Nino.Core.CompilerServices;
 namespace Nino.Core
 {
     /// <summary>
-    /// The type ids a polymorphic read looked for and did not find (<see cref="NinoPolymorphic{TBase}"/>), so that
+    /// The type ids a polymorphic read looked for and did not find (<see cref="NinoSubtypes{TBase}"/>), so that
     /// reading the same unknown id again (untrusted or stale data) does not redo the search: every generated registry
     /// asked twice, every loaded assembly scanned and every resolved formatter type checked. A miss holds while
     /// nothing that search depends on has changed: no registry added or removed, no formatter published

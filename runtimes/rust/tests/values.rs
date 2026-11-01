@@ -380,6 +380,54 @@ fn serialize_into_appends_and_restores() {
     std::mem::forget(too_deep);
 }
 
+#[test]
+fn serialize_into_reuses_the_vec() {
+    let value: Vec<String> = (0..100).map(|i| format!("value {i}")).collect();
+    let expected = serialize(&value).unwrap();
+    let mut out = Vec::new();
+    serialize_into(&value, &mut out).unwrap();
+    let memory = out.as_ptr();
+    for _ in 0..10 {
+        out.clear();
+        serialize_into(&value, &mut out).unwrap();
+        assert_eq!(out, expected);
+        assert_eq!(out.as_ptr(), memory);
+    }
+}
+
+#[test]
+fn deserialize_into_reuses_buffers() {
+    // A Vec of strings: its buffer is kept when it is large enough (the strings are read new).
+    let mut strings: Vec<String> = (0..4).map(|i| format!("old {i}")).collect();
+    let outer = strings.as_ptr();
+    let data: Vec<String> = vec!["x".into(), "y".into()];
+    deserialize_into(&serialize(&data).unwrap(), &mut strings).unwrap();
+    assert_eq!(strings, data);
+    assert_eq!(strings.as_ptr(), outer);
+    // Maps, sets and deques are cleared and refilled.
+    let mut map: HashMap<i32, String> = [(1, "a".into()), (2, "b".into())].into_iter().collect();
+    let data: HashMap<i32, String> = [(3, "c".into())].into_iter().collect();
+    deserialize_into(&serialize(&data).unwrap(), &mut map).unwrap();
+    assert_eq!(map, data);
+    let mut set: BTreeSet<i32> = [1, 2, 3].into_iter().collect();
+    deserialize_into(&serialize(&BTreeSet::from([9])).unwrap(), &mut set).unwrap();
+    assert_eq!(set, BTreeSet::from([9]));
+    let mut deque: VecDeque<u16> = (0..100).collect();
+    deserialize_into(&serialize(&VecDeque::from([7u16])).unwrap(), &mut deque).unwrap();
+    assert_eq!(deque, VecDeque::from([7]));
+    // Null clears an option; a value fills it.
+    let mut maybe = Some(vec![1u8]);
+    deserialize_into(&serialize(&None::<Vec<u8>>).unwrap(), &mut maybe).unwrap();
+    assert_eq!(maybe, None);
+    // A failed read leaves a value: the elements read before the error, then the rest of the old ones.
+    let mut ints = vec![0i32; 4];
+    let bytes = serialize(&vec![5i32, 6, 7]).unwrap();
+    assert!(deserialize_into(&bytes[..bytes.len() - 1], &mut ints).is_err());
+    serialize(&ints).unwrap();
+    deserialize_into(&bytes, &mut ints).unwrap();
+    assert_eq!(ints, [5, 6, 7]);
+}
+
 /// A non-deferrable recursive class, to make writing fail.
 #[derive(Default, Debug)]
 struct Deep {
@@ -601,4 +649,11 @@ fn string_lists() {
     }
     // A null element is an error in a list of String (Option<String> elements read it).
     assert_eq!(kind::<Vec<String>>("02000000 03 61 00"), ErrorKind::UnexpectedNull);
+}
+
+/// `NinoWrite::PREFETCH_BYTES`: 64 for a value whose text is behind a pointer, 0 for one without.
+#[test]
+fn prefetch_bytes_of_built_in_types() {
+    assert_eq!(<String as nino::NinoWrite>::PREFETCH_BYTES, 64);
+    assert_eq!(<u32 as nino::NinoWrite>::PREFETCH_BYTES, 0);
 }

@@ -17,24 +17,35 @@ namespace Nino.Core.Internal
     /// How values of <typeparamref name="T"/> map to their blocks (<see cref="INinoBlockFormatter{T}.BlockMap"/>),
     /// worked out once. The flags are JIT-time constants.
     /// </summary>
-    internal static class NinoBlock<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
+    internal static class NinoBlockPlan<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
     {
+#if !NET8_0_OR_GREATER
         /// <summary>
-        /// <see cref="NinoBlock.Size{T, TFormatter}"/>, read from a field: one load where the type test and the size
-        /// were each an inlined call, which the JIT counts against what else it inlines into the method.
+        /// The formatter boxed once, for the calls of one value at a time: IL2CPP (its C++ shows it) and runtimes
+        /// without RyuJIT's box removal box <c>default(TFormatter)</c> at every cast to an interface, a GC allocation
+        /// per value, where RyuJIT calls the struct directly. One interface call per value remains; the vector and
+        /// kernel paths take runs of values without it.
+        /// </summary>
+        public static readonly INinoBlockFormatter<T> Formatter = default(TFormatter) as INinoBlockFormatter<T>;
+
+#endif
+        /// <summary>
+        /// <see cref="NinoBlockCollections.FixedSize{T, TFormatter}"/>, read from a field: one load where the type test
+        /// and the size were each an inlined call, which the JIT counts against what else it inlines into the method.
         /// </summary>
         public static readonly int Size = default(TFormatter) is INinoBlockFormatter<T>
-            ? ((INinoBlockFormatter<T>)default(TFormatter)).BlockSize
+            ? ((INinoBlockFormatter<T>)default(TFormatter)).FixedSize
             : -1;
 
-        /// <summary>Where the bytes of a block lie in a value's memory, as the formatter describes it (null: not known).</summary>
-        private static readonly NinoBlockMap Description = NinoBlock.Size<T, TFormatter>() > 0
+        /// <summary>Where the bytes of a block lie in a value's memory, as the formatter describes it (null: not
+        /// known).</summary>
+        private static readonly NinoBlockMap Description = NinoBlockCollections.FixedSize<T, TFormatter>() > 0
             ? ((INinoBlockFormatter<T>)default(TFormatter)).BlockMap()
             : null;
 
         /// <summary>
-        /// <see cref="NinoBlock.ReadSize{T, TFormatter}"/>: -1 in <see cref="NinoSettings.Untrusted"/> mode for values
-        /// with fields to check, by their layout (<see cref="NinoLayout{T}.Checks"/>) or their items'
+        /// <see cref="NinoBlockCollections.ReadSize{T, TFormatter}"/>: -1 in <see cref="NinoSettings.Untrusted"/> mode
+        /// for values with fields to check, by their layout (<see cref="NinoLayout{T}.Checks"/>) or their items'
         /// (<see cref="NinoBlockMap.Checked"/>).
         /// </summary>
         public static readonly int ReadSize =
@@ -46,14 +57,21 @@ namespace Nino.Core.Internal
         /// (memory offset, block offset, size) triples covering every byte of a block once (see
         /// <see cref="NinoBlockMap"/>), or null: values are then moved one at a time.
         /// </summary>
-        private static readonly int[] Map = Description?.Runs(NinoBlock.Size<T, TFormatter>(), Unsafe.SizeOf<T>());
+        private static readonly int[] Map = Description?.Runs(NinoBlockCollections.FixedSize<T, TFormatter>(), Unsafe.SizeOf<T>());
+
+        /// <summary>
+        /// Whether a read of values can reject the data after it has started writing them: a block with a
+        /// <c>bool</c> (0 or 1), or one whose map failed (values read one at a time, their bools not all known).
+        /// Such reads clear the values when they do (<see cref="NinoBlockCollections"/>.ReadRejecting).
+        /// </summary>
+        public static readonly bool Rejects = Size > 0 && (Map == null || Description.Bools != null);
 
         /// <summary>Whether a value's memory is its block: a collection of them is one copy.</summary>
         public static readonly bool IsMemory = ComputeIsMemory();
 
         private static bool ComputeIsMemory()
         {
-            if (Map == null || Unsafe.SizeOf<T>() != NinoBlock.Size<T, TFormatter>())
+            if (Map == null || Unsafe.SizeOf<T>() != NinoBlockCollections.FixedSize<T, TFormatter>())
                 return false;
             for (int i = 0; i < Map.Length; i += 3)
                 if (Map[i] != Map[i + 1])
@@ -62,9 +80,9 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// The block offsets of the <c>bool</c>s of a block that reads move without <see cref="INinoBlockFormatter{T}.ReadBlock"/>
-        /// (as one copy where <see cref="IsMemory"/>, or by the vector paths), and so check first
-        /// (<see cref="NinoBlock"/>.ReadAll); null for none.
+        /// The block offsets of the <c>bool</c>s of a block that reads move without
+        /// <see cref="INinoBlockFormatter{T}.ReadBlock"/> (as one copy where <see cref="IsMemory"/>, or by the vector
+        /// paths), and so check first (<see cref="NinoBlockCollections"/>.ReadAll); null for none.
         /// </summary>
 #if NET8_0_OR_GREATER
         public static readonly int[] Bools = Map != null ? Description.Bools : null;
@@ -74,22 +92,23 @@ namespace Nino.Core.Internal
 
 #if !NET8_0_OR_GREATER
         /// <summary>
-        /// Whether values are moved by the registered kernels (<see cref="NinoKernels"/>, netstandard builds only): blocks
-        /// not laid out as in memory, both at most 64 bytes.
+        /// Whether values are moved by the registered kernels (<see cref="NinoKernels"/>, netstandard builds only):
+        /// blocks not laid out as in memory, both at most 64 bytes.
         /// </summary>
-        public static readonly bool Kernel = Map != null && !IsMemory && NinoBlock.Size<T, TFormatter>() <= 64 &&
+        public static readonly bool Kernel = Map != null && !IsMemory && NinoBlockCollections.FixedSize<T, TFormatter>() <= 64 &&
                                              Unsafe.SizeOf<T>() <= 64;
 
-        /// <summary>The tables of <see cref="NinoKernels.Permute"/>, built the first time a kernel is called for these values.</summary>
+        /// <summary>The tables of <see cref="NinoKernels.Permute"/>, built the first time a kernel is called for these
+        /// values.</summary>
         internal static class KernelTables
         {
             /// <summary>For each block byte, the memory byte it comes from.</summary>
             public static readonly IntPtr ToWire =
-                NinoKernelHook.Table(Map, NinoBlock.Size<T, TFormatter>(), Unsafe.SizeOf<T>(), toWire: true);
+                NinoKernelHook.Table(Map, NinoBlockCollections.FixedSize<T, TFormatter>(), Unsafe.SizeOf<T>(), toWire: true);
 
             /// <summary>For each memory byte, the block byte it comes from (0xFF: padding, cleared).</summary>
             public static readonly IntPtr ToMemory =
-                NinoKernelHook.Table(Map, NinoBlock.Size<T, TFormatter>(), Unsafe.SizeOf<T>(), toWire: false);
+                NinoKernelHook.Table(Map, NinoBlockCollections.FixedSize<T, TFormatter>(), Unsafe.SizeOf<T>(), toWire: false);
 
             /// <summary>The block offsets of the bools, checked before a read (null: none).</summary>
             public static readonly int[] Bools = Kernel ? Description.Bools : null;
@@ -99,7 +118,7 @@ namespace Nino.Core.Internal
 #if NET8_0_OR_GREATER
         /// <summary>The bytes of a value and of its block matched, which every table below is read from.</summary>
         private static readonly NinoBlockBytes Bytes = Map != null
-            ? new NinoBlockBytes(Map, NinoBlock.Size<T, TFormatter>(), Unsafe.SizeOf<T>())
+            ? new NinoBlockBytes(Map, NinoBlockCollections.FixedSize<T, TFormatter>(), Unsafe.SizeOf<T>())
             : null;
 
         /// <summary>
@@ -108,7 +127,7 @@ namespace Nino.Core.Internal
         /// SIMD on .NET 10).
         /// </summary>
         public static readonly bool Shuffles = Map != null && !IsMemory && Unsafe.SizeOf<T>() <= 16 &&
-                                               NinoBlock.Size<T, TFormatter>() <= 16 &&
+                                               NinoBlockCollections.FixedSize<T, TFormatter>() <= 16 &&
                                                (Ssse3.IsSupported || AdvSimd.Arm64.IsSupported
 #if NET10_0_OR_GREATER
                                                 || PackedSimd.IsSupported
@@ -144,7 +163,7 @@ namespace Nino.Core.Internal
         /// AVX-512 only (a two-source permute of 4-byte words, or with VBMI of bytes); other CPUs use
         /// <see cref="LanePlan{TDirection}"/>.
         public static readonly bool Groups = Map != null && !IsMemory &&
-                                             NinoBlock.Size<T, TFormatter>() < Unsafe.SizeOf<T>() &&
+                                             NinoBlockCollections.FixedSize<T, TFormatter>() < Unsafe.SizeOf<T>() &&
                                              Avx512F.IsSupported && GroupMasks() is { } masks &&
                                              (Avx512Vbmi.IsSupported || Words(masks));
 
@@ -156,10 +175,10 @@ namespace Nino.Core.Internal
         public static readonly bool GroupWords = Groups && Words(GroupMasks());
 
         /// <summary>Values per group: the fewest whose blocks fill whole vectors.</summary>
-        public static readonly int Group = Groups ? 64 / NinoLanes.Gcd(NinoBlock.Size<T, TFormatter>(), 64) : 0;
+        public static readonly int Group = Groups ? 64 / NinoLanes.Gcd(NinoBlockCollections.FixedSize<T, TFormatter>(), 64) : 0;
 
         /// <summary>Vectors of blocks per group (1 to 4); one memory vector more is read.</summary>
-        public static readonly int GroupVectors = Groups ? Group * NinoBlock.Size<T, TFormatter>() / 64 : 0;
+        public static readonly int GroupVectors = Groups ? Group * NinoBlockCollections.FixedSize<T, TFormatter>() / 64 : 0;
 
         /// <summary>
         /// The permute indices of each vector of blocks in a group: bytes, or for <see cref="GroupWords"/> one int per
@@ -168,7 +187,8 @@ namespace Nino.Core.Internal
         public static readonly Vector512<byte> Group0 = GroupMask(0), Group1 = GroupMask(1), Group2 = GroupMask(2),
             Group3 = GroupMask(3);
 
-        /// <summary>The last of <paramref name="count"/> values a group may start at: its reads stay inside the values.</summary>
+        /// <summary>The last of <paramref name="count"/> values a group may start at: its reads stay inside the
+        /// values.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int LastGroup(int count) =>
             count - Math.Max(Group, ((GroupVectors + 1) * 64 + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>());
@@ -201,7 +221,7 @@ namespace Nino.Core.Internal
         private static byte[] GroupMasks()
         {
             const int width = 64;
-            int size = NinoBlock.Size<T, TFormatter>();
+            int size = NinoBlockCollections.FixedSize<T, TFormatter>();
             int group = width / NinoLanes.Gcd(size, width), vectors = group * size / width;
             if (vectors > 4)
                 return null;
@@ -232,6 +252,72 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
+        /// The write groups of <see cref="GroupWords"/> values loaded from 64-byte boundaries
+        /// (<see cref="NinoBlockCollections"/>.WriteAligned, Ice Lake): for each place of the group's first value in a
+        /// 64-byte line (4-byte steps) and each vector of blocks, the aligned memory vector it starts at and one or two
+        /// word permutes. A vector of blocks draws on 128 bytes of memory at most (<see cref="GroupMasks"/>), which lie
+        /// in two or three aligned vectors: from two, one permute (Inner); from three, Inner of the first two, then
+        /// Outer keeps its words or takes one of the third. Its own class, so that only CPUs that take the path build
+        /// the tables.
+        /// </summary>
+        internal static class Aligned
+        {
+            /// <summary>Per alignment and vector of blocks: Inner, then Outer (default when two vectors do).</summary>
+            public static readonly Vector512<byte>[] Tables = Build(out Spans);
+
+            /// <summary>
+            /// Per alignment and vector of blocks: the byte offset of its first aligned memory vector from the group's
+            /// aligned start, plus 1 when it draws on three.
+            /// </summary>
+            public static readonly int[] Spans;
+
+            /// <summary>Bytes from a group's aligned start that its loads reach, at most (two vectors past the
+            /// blocks').</summary>
+            public static readonly int Reach = (GroupVectors + 2) * 64;
+
+            private static Vector512<byte>[] Build(out int[] spans)
+            {
+                spans = null;
+                if (!GroupWords || Group * Unsafe.SizeOf<T>() % 64 != 0)
+                    return null;
+                var tables = new Vector512<byte>[16 * 4 * 2];
+                spans = new int[16 * 4];
+                var inner = new int[16];
+                var outer = new int[16];
+                for (int shift = 0; shift < 64; shift += 4)
+                {
+                    for (int vector = 0; vector < GroupVectors; vector++)
+                    {
+                        int low = int.MaxValue, high = 0;
+                        for (int word = 0; word < 16; word++)
+                        {
+                            int at = shift + Bytes.MemoryAt(vector * 64 + word * 4);
+                            low = Math.Min(low, at / 64);
+                            high = Math.Max(high, at / 64);
+                        }
+
+                        if (high - low > 2)
+                            return null;
+                        for (int word = 0; word < 16; word++)
+                        {
+                            int at = shift + Bytes.MemoryAt(vector * 64 + word * 4);
+                            int from = at / 64 - low, index = at % 64 / 4;
+                            inner[word] = from < 2 ? from * 16 + index : 0;
+                            outer[word] = from < 2 ? word : 16 + index;
+                        }
+
+                        int slot = shift / 4 * 4 + vector;
+                        tables[slot * 2] = Vector512.Create(inner).AsByte();
+                        tables[slot * 2 + 1] = high - low == 2 ? Vector512.Create(outer).AsByte() : default;
+                        spans[slot] = low * 64 + (high - low == 2 ? 1 : 0);
+                    }
+                }
+
+                return tables;
+            }
+        }
+
+        /// <summary>
         /// Values read a group at a time (<see cref="Groups"/> the other way, with AVX-512): each 64-byte vector of
         /// memory is one two-source permute of the two vectors of blocks it draws on, stored at an aligned address.
         /// Its vectors start <typeparamref name="TPhase"/> bytes into a value: arrays are only 8-byte aligned, so
@@ -250,7 +336,16 @@ namespace Nino.Core.Internal
             /// <summary>Whether it moves whole 4-byte words (vpermt2d), else bytes (VBMI).</summary>
             public static readonly bool Words = Plan.Words;
 
-            /// <summary>Memory vectors per group (<see cref="Group"/> values), and vectors of blocks loaded for them.</summary>
+            /// <summary>
+            /// Values per group: as many as fill whole vectors of blocks
+            /// (<see cref="NinoBlockPlan{T, TFormatter}.Group"/>), or, for values over 16 bytes where those would take
+            /// more than four vectors of memory, as many as fill whole vectors of memory (8 24-byte values, 15 bytes
+            /// each on the wire, in three).
+            /// </summary>
+            public static readonly int Group = Plan.Group;
+
+            /// <summary>Memory vectors per group (<see cref="Group"/> values), and vectors of blocks loaded for
+            /// them.</summary>
             public static readonly int Vectors = Plan.Vectors, Loads = Plan.Loads;
 
             /// <summary>For memory vector k of a group, the vector of blocks it draws on (with the next).</summary>
@@ -261,29 +356,61 @@ namespace Nino.Core.Internal
             public static readonly Vector512<byte>[] Masks = { Plan.Mask(0), Plan.Mask(1), Plan.Mask(2), Plan.Mask(3) };
 
             /// <summary>
+            /// Whether a memory vector holds padding, which a permute fills with some byte of the blocks (it reads
+            /// only an index's low bits): then each is masked by <see cref="Keeps"/> (0 at padding), so that a read
+            /// writes every byte of the values, padding as 0, and an array of them can be allocated uninitialized.
+            /// </summary>
+            public static readonly bool Pads = Plan.Pads;
+
+            /// <summary>The masks of <see cref="Pads"/>, one per memory vector.</summary>
+            public static readonly Vector512<byte>[] Keeps = { Plan.Keep(0), Plan.Keep(1), Plan.Keep(2), Plan.Keep(3) };
+
+            /// <summary>
+            /// Whether the groups check the bools of the blocks they load (<see cref="Bools"/>) in the same pass, in
+            /// place of the strided pass before them: values over 16 bytes, whose values after the groups are read one
+            /// at a time, through ReadBlock, which checks them.
+            /// </summary>
+            public static readonly bool Checks = Plan.Masks != null && Bools != null && Unsafe.SizeOf<T>() > 16;
+
+            /// <summary>
+            /// For each vector of blocks loaded, 0xFE at the bools of the blocks in it (any block: those past the group
+            /// are in the data too), whose bits other than the lowest must all be clear.
+            /// </summary>
+            public static readonly Vector512<byte>[] BoolMasks = Checks
+                ? new[] { Plan.Bools(0), Plan.Bools(1), Plan.Bools(2), Plan.Bools(3), Plan.Bools(4) }
+                : new Vector512<byte>[5];
+
+            /// <summary>
             /// The last of <paramref name="count"/> values a group may start at: its loads stay inside the blocks,
             /// and its stores (past the group by the phase) inside the values.
             /// </summary>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static int Last(int count) =>
                 count - Math.Max(Group + (default(TPhase).Bytes > 0 ? 1 : 0),
-                    (Loads * 64 + NinoBlock.Size<T, TFormatter>() - 1) / NinoBlock.Size<T, TFormatter>());
+                    (Loads * 64 + NinoBlockCollections.FixedSize<T, TFormatter>() - 1) / NinoBlockCollections.FixedSize<T, TFormatter>());
         }
 
-        /// <summary>How <see cref="ReadPlan{TPhase}"/> moves a group: worked out once, read into its constants.</summary>
+        /// <summary>How <see cref="ReadPlan{TPhase}"/> moves a group: worked out once, read into its
+        /// constants.</summary>
         private sealed class GroupReads
         {
             public readonly byte[] Masks;
             public readonly int[] Bases = new int[4];
             public readonly bool Words;
-            public readonly int Vectors, Loads;
+            public readonly int Vectors, Loads, Group;
 
             public GroupReads(int phase)
             {
-                int size = NinoBlock.Size<T, TFormatter>(), memorySize = Unsafe.SizeOf<T>();
+                int size = NinoBlockCollections.FixedSize<T, TFormatter>(), memorySize = Unsafe.SizeOf<T>();
                 if (Map == null || IsMemory || size >= memorySize || !Avx512F.IsSupported)
                     return;
                 int group = 64 / NinoLanes.Gcd(size, 64), vectors = group * memorySize / 64;
+                if ((group * memorySize % 64 != 0 || vectors > 4) && memorySize > 16)
+                {
+                    group = 64 / NinoLanes.Gcd(memorySize, 64);
+                    vectors = group * memorySize / 64;
+                }
+
                 // A phase only where values can start that far past a boundary (8-byte aligned arrays).
                 if (group * memorySize % 64 != 0 || vectors > 4 || phase >= NinoLanes.Gcd(memorySize, 64))
                     return;
@@ -327,14 +454,39 @@ namespace Nino.Core.Internal
                                         masks[w + 2] == masks[w] + 2 && masks[w + 3] == masks[w] + 3);
                 }
 
-                if (!words && !Avx512Vbmi.IsSupported)
+                if (!words && !Avx512Vbmi.IsSupported || Loads > 5)
                     return;
+                Group = group;
                 Masks = masks;
                 Words = words;
                 Vectors = vectors;
             }
 
             public int Base(int k) => Masks != null && k < Vectors ? Bases[k] : 0;
+
+            public bool Pads => Masks != null && Array.IndexOf(Masks, (byte)0xFF) >= 0;
+
+            public Vector512<byte> Keep(int k)
+            {
+                if (Masks == null || k >= Vectors)
+                    return default;
+                var keep = new byte[64];
+                for (int b = 0; b < 64; b++)
+                    keep[b] = Masks[k * 64 + b] == 0xFF ? (byte)0 : (byte)0xFF;
+                return Vector512.Create(keep);
+            }
+
+            public Vector512<byte> Bools(int load)
+            {
+                if (load >= Loads)
+                    return default;
+                int size = NinoBlockCollections.FixedSize<T, TFormatter>();
+                var bools = new byte[64];
+                for (int b = 0; b < 64; b++)
+                    if (Array.IndexOf(NinoBlockPlan<T, TFormatter>.Bools, (load * 64 + b) % size) >= 0)
+                        bools[b] = 0xFE;
+                return Vector512.Create(bools);
+            }
 
             public Vector512<byte> Mask(int k)
             {
@@ -383,7 +535,8 @@ namespace Nino.Core.Internal
 
             private static readonly int GridLoads = Gridded ? Plan.GridLoads() : 0;
 
-            /// <summary>Whether a <see cref="Gridded"/> group loads bytes 16 <paramref name="k"/> to 16 <paramref name="k"/> + 15.</summary>
+            /// <summary>Whether a <see cref="Gridded"/> group loads bytes 16 <paramref name="k"/> to 16
+            /// <paramref name="k"/> + 15.</summary>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static bool Loads(int k) => (GridLoads & (1 << k)) != 0;
 
@@ -392,11 +545,32 @@ namespace Nino.Core.Internal
                 W6 = Get(6), W7 = Get(7), W8 = Get(8), W9 = Get(9), W10 = Get(10), W11 = Get(11), W12 = Get(12),
                 W13 = Get(13), W14 = Get(14), W15 = Get(15);
 
-            /// <summary>The shuffle indices of each vector's first and second load (Arm64: of both, in the first).</summary>
+            /// <summary>The shuffle indices of each vector's first and second load (Arm64: of both, in the
+            /// first).</summary>
             public static readonly Vector256<byte>[] Masks32 = Plan?.Masks32() ?? new Vector256<byte>[8];
 
             /// <inheritdoc cref="Masks32"/>
             public static readonly Vector128<byte>[] Masks16 = Plan?.Masks16() ?? new Vector128<byte>[8];
+
+            /// <summary>
+            /// Reads: whether the groups check the bools of the blocks they move (<see cref="Bools"/>) in the same
+            /// pass, in place of the strided pass before them (NinoBlockCollections.LanesChecked; AVX-512 CPUs take
+            /// <see cref="ReadPlan{TPhase}.Checks"/> instead). 32-byte groups only: on Arm64, Lanes16 is at the edge of
+            /// the JIT's inlining budget. Not for values that <see cref="Shuffles"/> moves after the groups without a
+            /// look; the others are read one at a time, through ReadBlock, which checks them.
+            /// </summary>
+            public static readonly bool Checks = Plan is { Width: 32 } && typeof(TDirection) == typeof(NinoReads) &&
+                                                 Bools != null && !Shuffles && !ReadPlan<NinoPhase0>.Enabled;
+
+            /// <summary>
+            /// For each vector of <see cref="Checks"/>, 0xFE at the bools of the values in it (fields: the JIT reads
+            /// each where it is used, vpand's memory operand).
+            /// </summary>
+            public static readonly Vector256<byte> BoolsA = BoolMask(0), BoolsB = BoolMask(1), BoolsC = BoolMask(2),
+                BoolsD = BoolMask(3);
+
+            private static Vector256<byte> BoolMask(int vector) =>
+                Checks ? Vector256.Create(Plan.Bools(vector, Bools, NinoBlockCollections.FixedSize<T, TFormatter>())) : default;
 
             private static int Get(int index) => Plan == null ? 0 : Plan.Windows[index];
 
@@ -424,7 +598,8 @@ namespace Nino.Core.Internal
 
             /// <summary>
             /// The last of <paramref name="count"/> values a group may start at: its loads stay inside the source
-            /// (<paramref name="from"/> bytes a value) and its stores inside the destination (<paramref name="to"/> bytes a value).
+            /// (<paramref name="from"/> bytes a value) and its stores inside the destination (<paramref name="to"/>
+            /// bytes a value).
             /// </summary>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static int Last(int count, int from, int to)
@@ -436,7 +611,7 @@ namespace Nino.Core.Internal
 
             private static NinoLanes Solve()
             {
-                if (Map == null || IsMemory || NinoBlock.Size<T, TFormatter>() > Unsafe.SizeOf<T>())
+                if (Map == null || IsMemory || NinoBlockCollections.FixedSize<T, TFormatter>() > Unsafe.SizeOf<T>())
                     return null;
                 bool shuffles = Ssse3.IsSupported || AdvSimd.Arm64.IsSupported;
 #if NET10_0_OR_GREATER
@@ -448,10 +623,12 @@ namespace Nino.Core.Internal
                 bool writes = typeof(TDirection) == typeof(NinoWrites);
                 // Partial groups where nothing else moves several values at a time: without AVX-512 VBMI, and with it
                 // for values its group and 64-byte permutes do not take (more than 16 bytes in memory: 1,000 values of
-                // 24 bytes, 15-byte blocks, took 1.7 us written one at a time on an AVX-512 Xeon, 0.43 us in groups).
-                bool others = Permutes || (writes ? Groups : ReadPlan<NinoPhase0>.Enabled);
+                // 24 bytes, 15-byte blocks, took 1.7 us written one at a time on an AVX-512 Xeon, 0.43 us in groups);
+                // on Arm64 for values its 64-byte permutes do not take (more than 8 bytes in memory: the same 1,000
+                // values took 1.44 us written one at a time on GitHub's Neoverse-N2 runners, MemoryPack 0.39 us).
+                bool others = Permutes || (writes ? Groups || PerPair > 0 : ReadPlan<NinoPhase0>.Enabled);
                 var plan = NinoLanes.Solve(width, Bytes, writes, AdvSimd.Arm64.IsSupported,
-                    !Avx512Vbmi.IsSupported || !others);
+                    AdvSimd.Arm64.IsSupported ? !others : !Avx512Vbmi.IsSupported || !others);
                 // A value a group is what Shuffles does already, without the group loop around it.
                 return plan is { Group: 1 } && Shuffles ? null : plan;
             }
@@ -461,18 +638,49 @@ namespace Nino.Core.Internal
         public static readonly int PerVector = 64 / Unsafe.SizeOf<T>();
 
         /// <summary>
-        /// Whether several values at a time are moved by one 64-byte byte permute (<see cref="NinoBlock"/>.Permute64):
-        /// at least two fit, in memory and as blocks, with AVX-512 VBMI; with Arm64's 4-register table lookups, eight
-        /// or more. A 4-register lookup issues at half the rate of a 1-register one (Arm's Neoverse optimization
-        /// guides), so the four per 64 bytes pay off over a shuffle and a store per value from eight values on.
+        /// Whether several values at a time are moved by one 64-byte byte permute
+        /// (<see cref="NinoBlockCollections"/>.Permute64): at least two fit, in memory and as blocks, with AVX-512
+        /// VBMI; with Arm64's 4-register table lookups, eight or more. A 4-register lookup issues at half the rate of a
+        /// 1-register one (Arm's Neoverse optimization guides), so the four per 64 bytes pay off over a shuffle and a
+        /// store per value from eight values on.
         /// </summary>
         public static readonly bool Permutes = Shuffles && PerVector >= 2 &&
                                                (Avx512Vbmi.IsSupported ||
                                                 AdvSimd.Arm64.IsSupported && Unsafe.SizeOf<T>() <= 8);
 
         /// <summary>
-        /// <see cref="ToWire"/> for <see cref="PerVector"/> values; on Arm64 each quarter's indices count from the first
-        /// quarter of its table (<see cref="WireTables64"/>).
+        /// Values written per two-source 64-byte byte permute (<see cref="NinoBlockCollections"/>.WritePairs), 0 when
+        /// they are not: where AVX-512 VBMI's pays off (<see cref="NinoUnsafe.PairPermutes"/>), values of more than 16
+        /// bytes (which neither <see cref="Shuffles"/> nor <see cref="Permutes"/> takes) whose blocks are not written
+        /// in <see cref="Groups"/>, as many as 128 bytes of their memory and 64 of their blocks hold, at least three.
+        /// Each step is two loads, one permute and one store (1,000 24-byte values, 15-byte blocks, four a step: on
+        /// GitHub's Xeon Platinum 8573C runners 386 ns in lane groups of two, 252 ns in steps, MemoryPack's copy 234
+        /// ns).
+        /// </summary>
+        public static readonly int PerPair = Map != null && !IsMemory && !Groups && !Shuffles &&
+                                             NinoBlockCollections.FixedSize<T, TFormatter>() < Unsafe.SizeOf<T>() &&
+                                             NinoUnsafe.PairPermutes &&
+                                             Math.Min(128 / Unsafe.SizeOf<T>(), 64 / NinoBlockCollections.FixedSize<T, TFormatter>()) is
+                                                 var pair && pair >= 3
+            ? pair
+            : 0;
+
+        /// <summary>The indices of <see cref="PerPair"/> values' blocks into 128 bytes of their memory.</summary>
+        public static readonly Vector512<byte> ToWire128 =
+            PerPair > 0 ? Vector512.Create(Bytes.Indices(toWire: true, PerPair, 64)) : default;
+
+        /// <summary>
+        /// The last of <paramref name="count"/> values a <see cref="PerPair"/> step may start at: its 128 bytes of
+        /// loads stay inside the values, its 64-byte store inside their blocks.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int LastPair(int count) =>
+            count - Math.Max((128 + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>(),
+                (64 + NinoBlockCollections.FixedSize<T, TFormatter>() - 1) / NinoBlockCollections.FixedSize<T, TFormatter>());
+
+        /// <summary>
+        /// <see cref="ToWire"/> for <see cref="PerVector"/> values; on Arm64 each quarter's indices count from the
+        /// first quarter of its table (<see cref="WireTables64"/>).
         /// </summary>
         public static readonly Vector512<byte> ToWire64 = Mask64(toWire: true);
 
@@ -480,13 +688,33 @@ namespace Nino.Core.Internal
         public static readonly Vector512<byte> ToMemory64 = Mask64(toWire: false);
 
         /// <summary>
-        /// Arm64's lookups for <see cref="ToWire64"/> (<see cref="NinoBlock"/>.Permute64): for each 16 bytes written,
-        /// only the quarters of the 64 bytes loaded that its bytes come from, as a lookup takes a micro-op per register
-        /// on Neoverse cores (1,000 (byte, int), five bytes each and 40 a group, written as 64 bytes by four 4-register
-        /// lookups, took twice as long as (short, int)), and only the quarters within the values' bytes are written.
-        /// Bits 4q and 4q + 1: the first quarter of quarter q's table, 4q + 2 and 4q + 3: its quarters less one;
-        /// 16 + q: whether quarter q is written; 20 + k: whether quarter k is loaded (<see cref="NinoBlock.TableBits"/>,
-        /// <see cref="NinoBlock.Written"/>, <see cref="NinoBlock.Loaded"/>). 0 with AVX-512 VBMI.
+        /// With AVX-512 VBMI, whose permute fills a padding byte of <see cref="ToMemory64"/> with some byte of the
+        /// blocks: whether its values have padding, then cleared by <see cref="KeepMemory64"/> (0 at padding), so that
+        /// a read writes every byte of the values. Arm64's lookups write 0 there by themselves.
+        /// </summary>
+        public static readonly bool PermutePads = Permutes && Avx512Vbmi.IsSupported &&
+                                                  Array.IndexOf(Indices64(toWire: false), (byte)0x80) >= 0;
+
+        /// <inheritdoc cref="PermutePads"/>
+        public static readonly Vector512<byte> KeepMemory64 = PermutePads ? Keep64() : default;
+
+        private static Vector512<byte> Keep64()
+        {
+            var keep = Indices64(toWire: false);
+            for (int b = 0; b < 64; b++)
+                keep[b] = keep[b] == 0x80 ? (byte)0 : (byte)0xFF;
+            return Vector512.Create(keep);
+        }
+
+        /// <summary>
+        /// Arm64's lookups for <see cref="ToWire64"/> (<see cref="NinoBlockCollections"/>.Permute64): for each 16 bytes
+        /// written, only the quarters of the 64 bytes loaded that its bytes come from, as a lookup takes a micro-op per
+        /// register on Neoverse cores (1,000 (byte, int), five bytes each and 40 a group, written as 64 bytes by four
+        /// 4-register lookups, took twice as long as (short, int)), and only the quarters within the values' bytes are
+        /// written. Bits 4q and 4q + 1: the first quarter of quarter q's table, 4q + 2 and 4q + 3: its quarters less
+        /// one; 16 + q: whether quarter q is written; 20 + k: whether quarter k is loaded
+        /// (<see cref="NinoBlockCollections.TableBits"/>, <see cref="NinoBlockCollections.Written"/>,
+        /// <see cref="NinoBlockCollections.Loaded"/>). 0 with AVX-512 VBMI.
         /// </summary>
         public static readonly int WireTables64 = Tables64(toWire: true);
 
@@ -501,7 +729,7 @@ namespace Nino.Core.Internal
             int tables = Tables64(toWire);
             for (int b = 0; b < 64; b++)
                 if (mask[b] < 64)
-                    mask[b] -= (byte)(16 * (tables >> NinoBlock.TableBits * (b / 16) & 3));
+                    mask[b] -= (byte)(16 * (tables >> NinoBlockCollections.TableBits * (b / 16) & 3));
             return Vector512.Create(mask);
         }
 
@@ -510,7 +738,7 @@ namespace Nino.Core.Internal
             if (!Permutes || Avx512Vbmi.IsSupported)
                 return 0;
             var mask = Indices64(toWire);
-            int written = PerVector * (toWire ? NinoBlock.Size<T, TFormatter>() : Unsafe.SizeOf<T>());
+            int written = PerVector * (toWire ? NinoBlockCollections.FixedSize<T, TFormatter>() : Unsafe.SizeOf<T>());
             int tables = 0;
             for (int q = 0; q * 16 < written; q++)
             {
@@ -524,9 +752,9 @@ namespace Nino.Core.Internal
 
                 if (first > last)
                     first = last = 0;
-                tables |= (first | (last - first) << 2) << NinoBlock.TableBits * q | 1 << NinoBlock.Written + q;
+                tables |= (first | (last - first) << 2) << NinoBlockCollections.TableBits * q | 1 << NinoBlockCollections.Written + q;
                 for (int k = first; k <= last; k++)
-                    tables |= 1 << NinoBlock.Loaded + k;
+                    tables |= 1 << NinoBlockCollections.Loaded + k;
             }
 
             return tables;
@@ -538,10 +766,10 @@ namespace Nino.Core.Internal
         /// <summary>
         /// pshufb, tbl or i8x16.swizzle: one instruction on each platform <see cref="Shuffles"/> is on for, each asked
         /// for by name behind its <c>IsSupported</c>. NativeAOT compiles x64 code for SSE2 and emits a later set's
-        /// instructions only there (a check at run time, which the JIT folds to a constant): <c>Vector128.ShuffleNative</c>
-        /// took its software form under NativeAOT while <see cref="Shuffles"/> was on (1,000 (int, long) written 200
-        /// times as slowly as under the JIT), and a fallback that is a call (that form, or a platform's intrinsic
-        /// called where it does not exist) left the vectors around it on the stack.
+        /// instructions only there (a check at run time, which the JIT folds to a constant):
+        /// <c>Vector128.ShuffleNative</c> took its software form under NativeAOT while <see cref="Shuffles"/> was on
+        /// (1,000 (int, long) written 200 times as slowly as under the JIT), and a fallback that is a call (that form,
+        /// or a platform's intrinsic called where it does not exist) left the vectors around it on the stack.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector128<byte> Shuffle(Vector128<byte> value, Vector128<byte> mask)
@@ -561,7 +789,8 @@ namespace Nino.Core.Internal
     }
 
 #if NET8_0_OR_GREATER
-    /// <summary>A constant number of bytes, as a type argument (<see cref="NinoBlock{T, TFormatter}.ReadPlan{TPhase}"/>).</summary>
+    /// <summary>A constant number of bytes, as a type argument
+    /// (<see cref="NinoBlockPlan{T, TFormatter}.ReadPlan{TPhase}"/>).</summary>
     internal interface INinoPhase
     {
         int Bytes { get; }
@@ -577,7 +806,8 @@ namespace Nino.Core.Internal
         public int Bytes => 8;
     }
 
-    /// <summary>A direction values move in, as a type argument (<see cref="NinoBlock{T, TFormatter}.LanePlan{TDirection}"/>).</summary>
+    /// <summary>A direction values move in, as a type argument
+    /// (<see cref="NinoBlockPlan{T, TFormatter}.LanePlan{TDirection}"/>).</summary>
     internal interface INinoDirection
     {
     }

@@ -57,14 +57,12 @@ func (c *Class[T]) writeAny(w *Writer, v any) {
 // .NET defers it, later (the instance is returned now and filled when its body is read).
 func ReadClass[T any](r *Reader, c *Class[T]) *T {
 	v := new(T)
-	d := r.depth
-	if d >= InlineDepth {
+	if d, ok := r.EnterBody(); ok {
+		c.Read(r, v)
+		r.ExitBody(d)
+	} else {
 		r.readDeep(v, c, c.Deferrable)
-		return v
 	}
-	r.depth = d + 1
-	c.Read(r, v)
-	r.exitBody(d)
 	return v
 }
 
@@ -75,14 +73,12 @@ func ReadClassInto[T any](r *Reader, v *T, c *Class[T]) {
 		r.Fail(CodeInvalidValue, "nil instance")
 		return
 	}
-	d := r.depth
-	if d >= InlineDepth {
+	if d, ok := r.EnterBody(); ok {
+		c.Read(r, v)
+		r.ExitBody(d)
+	} else {
 		r.readDeep(v, c, c.Deferrable)
-		return
 	}
-	r.depth = d + 1
-	c.Read(r, v)
-	r.exitBody(d)
 }
 
 // WriteClass writes the body of v (not nil: the caller wrote its presence byte or type id), in place or, as deep as
@@ -92,15 +88,44 @@ func WriteClass[T any](w *Writer, v *T, c *Class[T]) {
 		w.Fail(CodeInvalidValue, "nil body")
 		return
 	}
-	d := w.depth
-	if d >= InlineDepth {
+	if d, ok := w.EnterBody(); ok {
+		c.Write(w, v)
+		w.ExitBody(d)
+	} else {
 		w.writeDeep(v, c, c.Deferrable)
-		return
 	}
-	w.depth = d + 1
-	c.Write(w, v)
-	w.exitBody(d)
 }
+
+// EnterBody opens the body of a class that the caller reads in place, calling the code of its members directly
+// (generated code does, instead of going through [ReadClass] and its [Class]): it returns the depth to give
+// [Reader.ExitBody] once the members are read. ok is false from [InlineDepth] open bodies on: the caller then reads
+// the body through [ReadClassInto], which defers it or nests it up to [MaxDepth] exactly as .NET does.
+func (r *Reader) EnterBody() (depth int32, ok bool) {
+	depth = r.depth
+	if depth >= InlineDepth {
+		return depth, false
+	}
+	r.depth = depth + 1
+	return depth, true
+}
+
+// ExitBody closes a body opened by [Reader.EnterBody], which returned depth; once every body is closed, it reads
+// the bodies deferred outside regions.
+func (r *Reader) ExitBody(depth int32) { r.exitBody(depth) }
+
+// EnterBody is [Reader.EnterBody] for the writer: ok is false from [InlineDepth] open bodies on, where the caller
+// writes the body through [WriteClass].
+func (w *Writer) EnterBody() (depth int32, ok bool) {
+	depth = w.depth
+	if depth >= InlineDepth {
+		return depth, false
+	}
+	w.depth = depth + 1
+	return depth, true
+}
+
+// ExitBody closes a body opened by [Writer.EnterBody], which returned depth.
+func (w *Writer) ExitBody(depth int32) { w.exitBody(depth) }
 
 // deferredItem is a body read or written later.
 type deferredItem struct {
@@ -569,30 +594,30 @@ func (w *Writer) endOuterRegion(lengthPos int) {
 	w.PatchInt32(lengthPos, int32(n)|sectionFlag)
 }
 
-// KeyedEntry is a keyed member being read: its value's bytes.
-type KeyedEntry struct {
+// KeyedMember is a keyed member being read: its value's bytes.
+type KeyedMember struct {
 	rest []byte
 }
 
-// BeginEntry reads a keyed entry's length (after its key, inside a keyed region) and limits the reader to the
-// entry's value until [Reader.EndEntry]. A length that is negative or past the region fails.
-func (r *Reader) BeginEntry() KeyedEntry {
+// BeginMember reads a keyed member's length (after its key, inside a keyed region) and limits the reader to the
+// member's value until [Reader.EndMember]. A length that is negative or past the region fails.
+func (r *Reader) BeginMember() KeyedMember {
 	n := r.I32()
 	if r.err != nil {
-		return KeyedEntry{}
+		return KeyedMember{}
 	}
 	if n < 0 || int64(n) > int64(len(r.buf)) {
 		r.badLength(int64(n))
-		return KeyedEntry{}
+		return KeyedMember{}
 	}
 	b := r.buf
 	r.buf = b[:n]
-	return KeyedEntry{rest: b[n:]}
+	return KeyedMember{rest: b[n:]}
 }
 
-// EndEntry ends the entry e: the reader moves past it. A value that left bytes of its entry unread is invalid
+// EndMember ends the member m: the reader moves past it. A value that left bytes of its member unread is invalid
 // (writers make the length exactly the value's; .NET skips the rest).
-func (r *Reader) EndEntry(e KeyedEntry) {
+func (r *Reader) EndMember(m KeyedMember) {
 	if r.err != nil {
 		return
 	}
@@ -600,25 +625,25 @@ func (r *Reader) EndEntry(e KeyedEntry) {
 		r.Fail(CodeInvalidData, "bytes left in a keyed member")
 		return
 	}
-	r.buf = e.rest
+	r.buf = m.rest
 }
 
-// SkipEntry skips the value of a keyed entry whose key the reader does not know (after [Reader.BeginEntry]).
-func (r *Reader) SkipEntry(e KeyedEntry) {
+// SkipMember skips the value of a keyed member whose key the reader does not know (after [Reader.BeginMember]).
+func (r *Reader) SkipMember(m KeyedMember) {
 	if r.err != nil {
 		return
 	}
-	r.buf = e.rest
+	r.buf = m.rest
 }
 
-// BeginEntry writes a keyed entry's key and reserves its length; [Writer.EndEntry] writes the length.
-func (w *Writer) BeginEntry(key int32) int {
+// BeginMember writes a keyed member's key and reserves its length; [Writer.EndMember] writes the length.
+func (w *Writer) BeginMember(key int32) int {
 	w.I32(key)
 	return w.ReserveInt32()
 }
 
-// EndEntry ends the entry whose length is at pos.
-func (w *Writer) EndEntry(pos int) { w.patchLength(pos) }
+// EndMember ends the member whose length is at pos.
+func (w *Writer) EndMember(pos int) { w.patchLength(pos) }
 
 // ReadSealed reads a sealed class: its presence byte, then (when present) its body. nil for null.
 func ReadSealed[T any](r *Reader, c *Class[T]) *T {

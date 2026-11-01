@@ -17,9 +17,9 @@ reads the data lays the type out the same way. CoreCLR, Mono (Unity editor, Unit
 Copying a `T?` as raw memory (what MemoryPack does) therefore produces different bytes on old Unity
 versions. Nino defines the bytes instead:
 
-- A single `T?` is a has-value byte followed by the value when present.
+- A single `T?` is a presence byte followed by the value when present.
 - A `T?` array or list with unmanaged `T` uses the canonical (64-bit corefx) `Nullable<T>` layout: a
-  has-value byte, zero padding up to `T`'s alignment, then `T` (zero when null). On runtimes whose
+  presence byte, zero padding up to `T`'s alignment, then `T` (zero when null). On runtimes whose
   `Nullable<T>` matches, the block is copied as is (padding cleared). Elsewhere it is converted element
   by element: `NullableLayout<T>` probes the runtime's field offsets once (it builds `default(T)` as a
   `T?` and finds the flag byte) instead of assuming an order.
@@ -31,11 +31,18 @@ versions. Nino defines the bytes instead:
 
 ### `ValueTuple` uses `LayoutKind.Auto`
 
-`System.ValueTuple<...>` is `[StructLayout(LayoutKind.Auto)]` in corefx, so CoreCLR may reorder its fields
-and the padding differs from the sequential layout older Mono uses. Raw tuples are not portable. This is
-why `ValueTuple` and `KeyValuePair` are always written item by item, in declaration order and without padding,
-never as raw memory: arrays and lists of them with unmanaged items move between the runtime's layout and those
-packed bytes in blocks (vector shuffles), never as a copy of their memory.
+`System.ValueTuple<...>` is `[StructLayout(LayoutKind.Auto)]` in every runtime, and each runtime places auto-layout
+fields its own way: 64-bit CoreCLR puts the primitive items first, largest first, then the struct items
+(`(int, long)` is the `long`, then the `int`); Mono and IL2CPP keep declaration order (`(byte, long, int)` is 24 bytes
+there, 16 on CoreCLR); 32-bit runtimes align to 4 and pack into fewer bytes; .NET Framework reorders by its own rule.
+Reference assemblies do not even show the attribute (they declare tuples sequential), which once made the generator
+publish tuples inside raw structs in declaration order while .NET x64 wrote them reordered. So:
+
+- On their own (values, members, elements, dictionary entries), `ValueTuple` and `KeyValuePair` are always written
+  item by item, in declaration order and without padding, never as raw memory: arrays and lists of them with
+  unmanaged items move between the runtime's layout and those packed bytes in blocks (vector shuffles).
+- Inside a plain raw struct, they are part of its bytes, in the canonical layout (below): tuples placed by 64-bit
+  CoreCLR's auto-layout rule, pairs sequential. Runtimes that lay them out otherwise convert.
 
 ### BCL structs
 
@@ -46,16 +53,24 @@ Before treating a BCL struct as raw, verify its layout on every runtime:
 - `decimal`: 16 bytes with the same byte order everywhere, but CoreCLR declares
   `int _flags; uint _hi32; ulong _lo64` (alignment 8) while Mono/IL2CPP declare four ints (alignment 4).
   So `struct { int a; decimal d; }` puts `d` at 8 on CoreCLR and at 4 on Unity.
-- `DateTimeOffset`: `DateTime` plus a `short`, so 6 bytes of padding and a different size on x86 (16 bytes on x64,
-  12 on Windows x86 .NET 10). Nino writes
-  it as UTC ticks plus offset minutes (10 bytes), never raw.
-- `Nullable<T>`, `ValueTuple`, `KeyValuePair`: never raw (see above). A raw `[NinoType]` struct requires all
-  of its fields to be raw, so a struct holding one of these is written member by member. A plain struct (no
-  `[NinoType]`) is raw as a whole: `Nullable<T>` and `KeyValuePair` inside it are sequential and converted like
-  any field, but a `ValueTuple` or `DateTimeOffset` inside it (auto layout, several fields) has no layout Nino
-  can measure, so the struct is copied as it lies in memory, and runtimes lay those out differently (Mono puts a
-  tuple's `Item1` first where .NET puts the `long` first; .NET 10's `DateTimeOffset` starts with its offset).
-  Mark such a struct `[NinoType]`.
+- `DateTimeOffset`: auto-layout, and different everywhere: .NET 10 has an `int` offset in minutes at 0 and the UTC
+  date at 8; .NET 8 a `short` at 0 (the same place, other width); .NET Framework and Mono the date at 0 and a `short`
+  at 8; 32-bit runtimes 12 bytes. On its own Nino writes it as UTC ticks plus offset minutes (10 bytes), never raw;
+  inside a raw struct, as .NET 10 lays it out (16 bytes: `i32` minutes, 4 zero bytes, UTC ticks), so .NET 10 copies it
+  and every other runtime converts (.NET 8 sign-extends its `short`).
+- `Nullable<T>`, `ValueTuple`, `KeyValuePair`: never raw on their own (see above). A raw `[NinoType]` struct requires
+  all of its fields to be raw, so a struct holding one of these is written member by member. A plain struct (no
+  `[NinoType]`) is raw as a whole, with these inside it in the canonical layout: `Nullable<T>` and `KeyValuePair`
+  sequential with their real fields, `ValueTuple` and `DateTimeOffset` as above. Where the runtime's layout of such a
+  struct is not the canonical one, the offsets of its fields are read from an instance (`MeasureMemory`: tuples,
+  `DateTimeOffset`, `Nullable` fields included) and each value is converted; where it is (64-bit CoreCLR), it is
+  copied as it is.
+- `nint`, `nuint` and pointers inside a raw struct are 8 bytes on the wire on every host (sign- or zero-extended on
+  32-bit; a value that does not fit a 32-bit host's field is rejected there).
+- `Vector64/128/256/512<T>` are laid out by their fields (two `ulong`s per 16 bytes, aligned to 8): CoreCLR aligns
+  `Vector128` to 16 and `Vector256` to 32 (16 on Arm64), so a raw struct holding one after a smaller field is
+  converted there. `Vector<T>` has the size of the CPU's vectors: a struct holding one is not portable at all.
+- docs/layouts.md has the measured layout of every BCL struct on every runtime CI has.
 
 ### Alignment on 32-bit platforms
 
@@ -75,7 +90,8 @@ linux-arm). crossgen2 has no Linux x86 JIT, and 32-bit Mono was not run, so thos
 copies such values as they are, so its data is not portable between these platforms.
 
 Nino's wire layout for raw types is the **canonical** layout: the one 64-bit CoreCLR uses (primitives aligned
-to their size, `decimal` aligned to 8, `Int128` to 16). `NinoLayout` measures the runtime once with probe structs
+to their size, `decimal` aligned to 8, `Int128` to 16, tuples by its auto-layout rule, `DateTimeOffset` as .NET 10
+lays it out; spec §5.2). `NinoLayout` measures the runtime once with probe structs
 (`{byte; long}`, `{byte; DateTime}`, `{byte; decimal}` and `{byte; Int128}`) and derives each type's memory layout
 from its fields:
 
@@ -87,7 +103,7 @@ from its fields:
   puts the `int` first, 16 bytes on x64), which no alignment model describes: there (and wherever the model misses
   a type's size) the offsets are read from an instance, each field's value copied out by reflection from bytes set
   to their own offsets.
-- `nint`/`nuint` are always written as 8 bytes.
+- `nint`/`nuint` are always written as 8 bytes, inside raw structs too.
 
 The generator only puts struct members into unmanaged blocks when their layout is the same under every
 model, so generated code never depends on the runtime's layout.

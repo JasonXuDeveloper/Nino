@@ -292,7 +292,7 @@ mod indexmap_impl {
 
     use crate::defer::Step;
     use crate::error::{Error, ErrorKind, Result};
-    use crate::impls::read_key;
+    use crate::impls::{fill_set, read_key, FillSet};
     use crate::reader::Reader;
     use crate::traits::{NinoRead, NinoWrite};
     use crate::writer::Writer;
@@ -301,40 +301,35 @@ mod indexmap_impl {
         Some(m.downcast_mut::<IndexMap<K, V, S>>()?.get_index_mut(i)?.1 as &mut dyn Any)
     }
 
-    /// A dictionary in wire order (so writing it back gives the same bytes): its length, then each key and value.
-    /// A repeated key is rejected.
-    impl<K, V, S> NinoRead for IndexMap<K, V, S>
+    crate::impls::map!(
+        /// A dictionary in wire order (so writing it back gives the same bytes): its length, then each key and
+        /// value. A repeated key is rejected.
+        IndexMap, fill_map, Eq + Hash
+    );
+
+    /// Reads `count` entries into `map` (empty); a key read twice is an error.
+    #[inline]
+    fn fill_map<K, V, S>(map: &mut IndexMap<K, V, S>, r: &mut Reader<'_>, count: usize) -> Result<()>
     where
         K: NinoRead + Eq + Hash,
         V: NinoRead,
         S: BuildHasher + Default + 'static,
     {
-        const MAY_DEFER: bool = V::MAY_DEFER;
-        const MIN_SIZE: usize = 4;
-
-        fn read(r: &mut Reader<'_>) -> Result<Self> {
-            Self::read_option(r)?.ok_or_else(Error::null)
-        }
-
-        fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
-            let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
-            let mut map = IndexMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
-            for i in 0..count {
-                let key = read_key::<K>(r)?;
-                let value = if V::MAY_DEFER {
-                    let mark = r.mark();
-                    let value = V::read(r)?;
-                    r.trail(mark, Step::Index(map_value::<K, V, S>, i));
-                    value
-                } else {
-                    V::read(r)?
-                };
-                if map.insert(key, value).is_some() {
-                    return Err(Error::of(ErrorKind::DuplicateKey));
-                }
+        for i in 0..count {
+            let key = read_key::<K>(r)?;
+            let value = if V::MAY_DEFER {
+                let mark = r.defer_mark();
+                let value = V::read(r)?;
+                r.defer_trail(mark, Step::Index(map_value::<K, V, S>, i));
+                value
+            } else {
+                V::read(r)?
+            };
+            if map.insert(key, value).is_some() {
+                return Err(Error::of(ErrorKind::DuplicateKey));
             }
-            Ok(Some(map))
         }
+        Ok(())
     }
 
     impl<K: NinoWrite, V: NinoWrite, S> NinoWrite for IndexMap<K, V, S> {
@@ -373,13 +368,47 @@ mod indexmap_impl {
         fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
             let Some(count) = r.length(T::MIN_SIZE)? else { return Ok(None) };
             let mut set = IndexSet::with_capacity_and_hasher(r.capacity::<T>(count), S::default());
-            for _ in 0..count {
-                if !set.insert(read_key::<T>(r)?) {
-                    return Err(Error::of(ErrorKind::DuplicateKey));
-                }
-            }
+            fill_set(&mut set, r, count)?;
             Ok(Some(set))
         }
+
+        /// Cleared and refilled, keeping its buffer.
+        fn read_into(&mut self, r: &mut Reader<'_>) -> Result<()> {
+            let count = r.length_not_null(T::MIN_SIZE)?;
+            refill_set(self, r, count)
+        }
+
+        fn read_option_into(slot: &mut Option<Self>, r: &mut Reader<'_>) -> Result<()> {
+            let Some(set) = slot else {
+                *slot = Self::read_option(r)?;
+                return Ok(());
+            };
+            match r.length(T::MIN_SIZE)? {
+                None => *slot = None,
+                Some(count) => refill_set(set, r, count)?,
+            }
+            Ok(())
+        }
+    }
+
+    impl<T: Eq + Hash, S: BuildHasher> FillSet<T> for IndexSet<T, S> {
+        #[inline]
+        fn insert_new(&mut self, value: T) -> bool {
+            self.insert(value)
+        }
+    }
+
+    /// Empties `set` and reads `count` elements into it, keeping its buffer when it has room.
+    fn refill_set<T, S>(set: &mut IndexSet<T, S>, r: &mut Reader<'_>, count: usize) -> Result<()>
+    where
+        T: NinoRead + Eq + Hash,
+        S: BuildHasher + Default + 'static,
+    {
+        set.clear();
+        if set.capacity() < count {
+            set.reserve(r.capacity::<T>(count));
+        }
+        fill_set(set, r, count)
     }
 
     impl<T: NinoWrite, S> NinoWrite for IndexSet<T, S> {

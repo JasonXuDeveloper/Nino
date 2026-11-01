@@ -321,9 +321,9 @@ func TestVersioning(t *testing.T) {
 	w.U8(1)
 	g := w.BeginRegion()
 	for _, key := range []int32{keyKeyedV1Health, keyKeyedV2Hp} {
-		e := w.BeginEntry(key)
+		e := w.BeginMember(key)
 		w.I32(1)
-		w.EndEntry(e)
+		w.EndMember(e)
 	}
 	w.EndRegion(g)
 	if _, err := nino.Deserialize(w.Bytes(), ReadKeyedV2); !errors.Is(err, nino.ErrDuplicateKey) {
@@ -333,12 +333,12 @@ func TestVersioning(t *testing.T) {
 	w.Reset()
 	w.U8(1)
 	g = w.BeginRegion()
-	e := w.BeginEntry(12345)
+	e := w.BeginMember(12345)
 	w.I64(1)
-	w.EndEntry(e)
-	e = w.BeginEntry(keyKeyedV2Level)
+	w.EndMember(e)
+	e = w.BeginMember(keyKeyedV2Level)
 	w.I32(5)
-	w.EndEntry(e)
+	w.EndMember(e)
 	w.EndRegion(g)
 	if v, err := nino.DeserializeExact(w.Bytes(), ReadKeyedV2); err != nil || v.Level != 5 {
 		t.Fatalf("unknown key: %+v %v", v, err)

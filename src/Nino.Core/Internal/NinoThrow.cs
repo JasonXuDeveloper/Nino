@@ -98,7 +98,7 @@ namespace Nino.Core.Internal
         public static void NoFormatter(Type type) =>
             throw new InvalidOperationException(
                 $"Nino: no formatter for {type.FullName}. Mark it with [NinoType], or declare a struct formatter with " +
-                "[assembly: NinoFormatter] (or [NinoCustomFormatter] on the member).");
+                "[assembly: NinoFormatter] (or [NinoMemberFormatter] on the member).");
 
         [MethodImpl(Cold)]
         public static void NoGeneratedFormatter(Type type) =>

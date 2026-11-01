@@ -1,28 +1,20 @@
 name: Runtimes
 
 # The runtimes of Nino's wire format outside .NET, each tested on its own and against the conformance corpus that
-# .NET writes (conformance/README.md), and the check that the committed corpus is what .NET writes today. Each
-# runtime's tests also run the corpus over the code nino-gen (src/Nino.Codegen) generates for the corpus's types,
-# committed under runtimes/ and checked by the codegen job to be what nino-gen writes today (docs/codegen.md).
+# .NET writes (conformance/README.md). Each runtime's tests also run the corpus over the code nino-gen
+# (src/Nino.Codegen) generates for the corpus's types, committed under runtimes/ (docs/codegen.md). Every input of
+# these jobs is committed under runtimes/ and conformance/corpus/: a change to Nino.Core, the generator or nino-gen
+# reaches them only through those files, and ci.yml's integrations job checks that the committed corpus and generated
+# files are what .NET and nino-gen write today. So this workflow runs only when those files change: its 16 jobs once
+# ran for every Nino.Core change, which never touched what they test.
 on:
   push:
     branches: [ "main", "claude/zen-goldberg-5qqqcu" ]
-    # The runtimes, and what .NET writes the corpus and the generated code with.
     paths: &paths
-      - 'src/Nino.Core/**'
-      - 'src/Nino.Generator/**'
-      - 'src/Nino.Generator.Roslyn4.12/**'
-      - 'src/Nino.Codegen/**'
-      - 'tests/Nino.Codegen.Tests/**'
       - 'runtimes/**'
-      - 'conformance/**'
-      - 'Directory.Build.props'
-      - 'Directory.Build.targets'
-      - 'Directory.Packages.props'
-      - 'global.json'
-      - 'nuget.config'
+      - 'conformance/corpus/**'
       - '.github/workflows/runtimes.yml'
-      - '.github/actions/setup-dotnet/**'
+      - '.github/scripts/changed_paths.py'
       - '.github/actions/apt-install/**'
       - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
       - '!**/CLAUDE.md'
@@ -35,9 +27,6 @@ permissions:
   contents: read
 
 env:
-  DOTNET_NOLOGO: '1'
-  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
-  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
   # The conformance corpus every runtime's tests read, and a missing one fails them instead of skipping them.
   # (dtolnay/rust-toolchain sets CARGO_INCREMENTAL=0 and CARGO_TERM_COLOR=always.)
   NINO_CORPUS: ${{ github.workspace }}/conformance/corpus
@@ -47,8 +36,8 @@ concurrency:
   group: runtimes-${{ github.ref }}
   cancel-in-progress: true
 
-# Every push to main starts some 80 jobs across ci.yml, runtimes.yml, fuzz.yml, codeql.yml and unity.yml, against an
-# account limit of 40 at a time: a job that only sets up a toolchain and runs a few seconds of tests still holds a
+# A push to main that changes everything starts some 50 jobs across ci.yml, runtimes.yml, fuzz.yml, codeql.yml and
+# unity.yml, against an account limit of 40 at a time: a job that only sets up a toolchain and runs a few seconds of tests still holds a
 # slot, and the long jobs queued behind it. So the short checks of one runner share a job (each a step that runs even
 # after another step failed, so one run shows every failure), the longest jobs come first, and the Rust jobs restore
 # their dependencies, and Miri its sysroot, from a cache that only main writes (the repository's 10 GB of caches are
@@ -59,6 +48,37 @@ defaults:
     shell: bash
 
 jobs:
+  # Which runtimes the push or pull request changed (.github/scripts/changed_paths.py): each job below runs only for
+  # its own, the corpus changes them all, and a schedule, a manual run, a new branch or a change to this workflow runs
+  # everything. Miri only for the Rust crate's library code (its tests are the simd module's own). A Go-only change
+  # once started the eleven Rust jobs too.
+  changes:
+    name: Changed runtimes
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    outputs:
+      rust: ${{ steps.diff.outputs.rust }}
+      miri: ${{ steps.diff.outputs.miri }}
+      go: ${{ steps.diff.outputs.go }}
+      typescript: ${{ steps.diff.outputs.typescript }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compare with the base
+        id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          python3 .github/scripts/changed_paths.py "$BASE" \
+            --all-if '^\.github/(workflows/runtimes\.yml|scripts/changed_paths\.py|actions/apt-install/)' \
+            'rust=^runtimes/rust/|^conformance/corpus/' \
+            'miri=^runtimes/rust/(src/|tests/shared\.rs$|build\.rs$|Cargo\.(toml|lock)$)' \
+            'go=^runtimes/go/|^conformance/corpus/' \
+            'typescript=^runtimes/typescript/|^conformance/corpus/' | tee -a "$GITHUB_OUTPUT"
+
   # The crate's only unsafe code (runtimes/rust/src/simd.rs: the string writer's transcoding and the reader's text
   # decoding) under Miri: its tests compare every block kind a target has, and the decoders, with plain ones. Miri
   # interprets each target here: x86_64 with SSE2 only (SSE2 and words), SSSE3 (the pair steps), SSE4.1 (the one-pass
@@ -71,6 +91,8 @@ jobs:
   # module runs there). Two, not more: the runners' four vCPUs are two cores.
   rust-miri:
     name: Rust (Miri, ${{ matrix.target.name }})
+    needs: changes
+    if: needs.changes.outputs.miri == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     defaults:
@@ -98,19 +120,19 @@ jobs:
 
       # The default toolchain, so the cache's key names the nightly it was built with.
       - name: Toolchain (nightly, with Miri)
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-08
         with:
           toolchain: nightly
           components: miri, rust-src
 
       # The dependencies built for Miri, and Miri's sysroot for the target (the triple and RUSTFLAGS are in the key).
       - name: Cache Rust builds
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: runtimes/rust -> target
           key: ${{ matrix.target.triple }}
           cache-directories: ~/.cache/miri
-          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Build under Miri
         run: |
@@ -135,10 +157,18 @@ jobs:
           done
           exit $status
 
+      # Reference tracking's one unsafe block (src/shared.rs, Shared::get on a link inside a read's arena): the graph
+      # tests, cycles, deferred bodies and a Drop that reads another object, once (it has no per-target code).
+      - name: Test reference tracking under Miri
+        if: matrix.target.name == 'x86_64 SSE2'
+        run: cargo +nightly miri test -p nino-serialization --locked --target "$TRIPLE" --test shared
+
   # Format, lints, the tests with every feature, and the MSRV. The tests without features are a job of their own:
   # the debug build's simd tests take over three minutes, and the two runs one after the other took eight.
   rust:
     name: Rust
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     defaults:
@@ -161,24 +191,24 @@ jobs:
         run: echo "version=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)" >> "$GITHUB_OUTPUT"
 
       - name: Toolchain (the MSRV)
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-08
         with:
           toolchain: ${{ steps.msrv.outputs.version }}
 
       # Installed last: the default.
       - name: Toolchain (stable)
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-08
         with:
           toolchain: stable
           components: rustfmt, clippy
 
       # Keyed by OS, CPU, job, compilers (the MSRV here) and Cargo.lock: a new stable never reuses the old one's builds.
       - name: Cache Rust builds
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: runtimes/rust -> target
           key: msrv-${{ steps.msrv.outputs.version }}
-          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Format
         run: cargo fmt --all --check
@@ -199,6 +229,8 @@ jobs:
 
   rust-no-features:
     name: Rust (without features)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     defaults:
@@ -214,15 +246,15 @@ jobs:
           persist-credentials: false
 
       - name: Toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-08
         with:
           toolchain: stable
 
       - name: Cache Rust builds
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: runtimes/rust -> target
-          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Test without features
         run: cargo test -p nino-serialization --locked --lib --test spec --test values
@@ -231,6 +263,8 @@ jobs:
   # corpus, on the CPU they are written for (the rust-miri job interprets them, this one runs them).
   rust-arm64:
     name: Rust (Arm64)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 30
     defaults:
@@ -246,15 +280,15 @@ jobs:
           persist-credentials: false
 
       - name: Toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-08
         with:
           toolchain: stable
 
       - name: Cache Rust builds
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: runtimes/rust -> target
-          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Test
         run: cargo test --workspace --all-features --locked
@@ -264,6 +298,8 @@ jobs:
   # rust-miri job.
   rust-fuzz:
     name: Rust fuzz (short)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     defaults:
@@ -278,15 +314,15 @@ jobs:
           persist-credentials: false
 
       - name: Toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-08
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-08
         with:
           toolchain: stable
 
       - name: Cache Rust builds
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: runtimes/rust -> target
-          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/zen-goldberg-5qqqcu' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Fuzz (short)
         env:
@@ -306,6 +342,8 @@ jobs:
   # in a row's list: <target>:<package>:<time>.
   go-fuzz:
     name: Go fuzz (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     defaults:
@@ -355,44 +393,6 @@ jobs:
           path: runtimes/go/**/testdata/fuzz
           if-no-files-found: ignore
 
-  # .NET still reads the committed corpus as recorded, and regenerating it changes nothing; and the generated files
-  # committed under runtimes/ (the corpus's types and tests/Nino.Codegen.Tests/Shapes.cs in Go, Rust and TypeScript)
-  # are what nino-gen writes today (the runtime jobs compile and run them).
-  dotnet:
-    name: Conformance corpus and code generation
-    runs-on: ubuntu-26.04
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup .NET
-        uses: ./.github/actions/setup-dotnet
-        with:
-          net8: true
-
-      - name: Build the conformance corpus writer
-        run: dotnet build conformance/Nino.Conformance -c Release
-
-      - name: Check the committed corpus with .NET
-        run: dotnet run --project conformance/Nino.Conformance -c Release --no-build -- --verify conformance/corpus
-
-      - name: Check the committed corpus is up to date
-        run: |
-          dotnet run --project conformance/Nino.Conformance -c Release --no-build -- --out "$RUNNER_TEMP/corpus"
-          if ! diff -r conformance/corpus "$RUNNER_TEMP/corpus" > "$RUNNER_TEMP/corpus.diff"; then
-            head -c 20000 "$RUNNER_TEMP/corpus.diff"
-            echo "::error::conformance/corpus is out of date: run" \
-              "'dotnet run --project conformance/Nino.Conformance -c Release -- --out conformance/corpus' and commit it."
-            exit 1
-          fi
-
-      - name: Test nino-gen and check the generated files
-        if: ${{ !cancelled() }}
-        run: dotnet test tests/Nino.Codegen.Tests -c Release
-
   # The TypeScript runtime on the oldest Node package.json's engines allow and on the newest release, and the Go
   # runtime: the oldest Go go.mod allows and the newest (which also checks the benchmark module, staticcheck and the
   # generated assembly). The string writer has assembly for amd64 (SSE2) and arm64 (NEON) and a portable fallback
@@ -404,6 +404,8 @@ jobs:
   # Each check is a step that runs even after another one failed.
   go:
     name: Go and TypeScript
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.typescript == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     defaults:
@@ -517,10 +519,15 @@ jobs:
         with:
           packages: --no-install-recommends qemu-user
 
+      # One P: with several, Go 1.27's runtime under qemu-arm crashed in the garbage collector's lock-free lists
+      # (lfstack.pop SIGSEGV) in a quarter to half of the runs, Nino's code or not (main f618b973 too, 1 of 10 runs;
+      # Go 1.24 0 of 8, GOMAXPROCS=1 0 of 18; platforms skill). The step tests 32-bit code, not concurrency, which the
+      # race detector covers natively above.
       - name: Test on Arm32 under qemu
         if: ${{ !cancelled() }}
         env:
           GOARCH: arm
+          GOMAXPROCS: '1'
         run: go test -count=1 -exec qemu-arm ./...
 
       - name: Test on big-endian s390x under qemu
@@ -533,6 +540,8 @@ jobs:
   # TypeScript runtime on the newest Node.
   go-arm64:
     name: Go and TypeScript (Arm64)
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.typescript == 'true'
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 20
     defaults:

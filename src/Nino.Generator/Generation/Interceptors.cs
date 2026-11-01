@@ -146,7 +146,8 @@ internal static class Interceptors
     /// buffer to create its writer in (<c>INinoTopFormatter</c>), and a read of a new value through
     /// <c>NinoDirect.DeserializeTop</c>, which hands it the data to create its reader on.
     /// </summary>
-    private static string WithTopCall(InterceptedCall c, HashSet<string> tops, HashSet<string> shallow)
+    private static string WithTopCall(InterceptedCall c, HashSet<string> tops, HashSet<string> shallow,
+        HashSet<string> prefetch)
     {
         string method = c.Formatter is not { Generated: true, Args.Length: 0 } f || !tops.Contains(f.Name)
             ? c.Method
@@ -157,18 +158,44 @@ internal static class Interceptors
             "Deserialize" when c.Arguments == "a0" => "DeserializeTop",
             _ => c.Method,
         };
-        return c.CallWith(method, c.Formatter?.WithTwins(tops, shallow));
+        var formatter = c.Formatter?.WithTwins(tops, shallow);
+        string? prefetched = !Prefetches(c.Formatter, prefetch) ? null : method switch
+        {
+            // An array or a list of a class whose formatter prefetches: written, or read into its existing objects
+            // (a new collection's objects are allocated in order).
+            "Serialize" => "SerializePrefetched",
+            "Deserialize" when c.Arguments == "a0, ref a1" => "DeserializePrefetched",
+            _ => null,
+        };
+        if (prefetched == null)
+            return c.CallWith(method, formatter);
+        // The prefetched methods take the element type and formatter, so the collection formatters stay as they are.
+        var args = formatter!.Args;
+        return $"{prefetched}<{args[args.Length - 2]}, {args[args.Length - 1]}>({c.Arguments})";
     }
+
+    /// <summary>
+    /// Whether <paramref name="formatter"/> is Nino.Core's formatter of arrays or of <c>List&lt;T&gt;</c> of a class
+    /// whose generated formatter is in <paramref name="prefetch"/> (TypeModel.PrefetchBytes).
+    /// </summary>
+    private static bool Prefetches(FormatterRef? formatter, HashSet<string> prefetch) =>
+        formatter is { Generated: false, Args.Length: > 1 } &&
+        (formatter.Name == TypeNames.Core + "ArrayFormatter" ||
+         formatter.Name == TypeNames.Core + "ListFormatter" && formatter.Args.Length == 3 &&
+         formatter.Args[0].ToString() == "global::System.Collections.Generic.List<" + formatter.Args[1] + ">") &&
+        formatter.Args[formatter.Args.Length - 1] is { Generated: true, Args.Length: 0 } element &&
+        prefetch.Contains(element.Name);
 
     /// <summary>
     /// <paramref name="fileLocal"/>: C# 11 or later, where the attribute and the interceptors are file-local, so
     /// they never clash with another generator's.
     /// </summary>
     public static string Emit(EquatableArray<InterceptedCall> calls, bool fileLocal, EquatableArray<string> top,
-        EquatableArray<string> shallowTwins)
+        EquatableArray<string> shallowTwins, EquatableArray<string> prefetchers)
     {
         var tops = new HashSet<string>(top.Select(n => TypeNames.Gen + n));
         var shallow = new HashSet<string>(shallowTwins.Select(n => TypeNames.Gen + n));
+        var prefetch = new HashSet<string>(prefetchers.Select(n => TypeNames.Gen + n));
         string scope = fileLocal ? "file" : "internal";
         var attribute = new CodeWriter();
         attribute.Open("namespace System.Runtime.CompilerServices");
@@ -185,7 +212,8 @@ internal static class Interceptors
         var w = new CodeWriter(calls.Length * 384, indent: 1);
         w.Open($"{scope} static class NinoInterceptors");
         int n = 0;
-        foreach (var group in calls.GroupBy(c => (c.Signature, Call: c.Inlinable ? WithTopCall(c, tops, shallow) : c.Call)))
+        foreach (var group in calls.GroupBy(c => (c.Signature,
+                     Call: c.Inlinable ? WithTopCall(c, tops, shallow, prefetch) : c.Call)))
         {
             if (n != 0)
                 w.Line();

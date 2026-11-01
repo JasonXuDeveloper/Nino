@@ -40,14 +40,19 @@ namespace Nino.Core
         /// <summary>Whether a creator has been registered or resolved.</summary>
         public static bool IsRegistered => Volatile.Read(ref _create) != null;
 
-        /// <summary>Registers the creator unless one is already set. Used by generated code.</summary>
+        /// <summary>
+        /// Registers the creator unless one is already set, and returns whether this call registered it. Used by
+        /// generated code.
+        /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public static void TryRegister(Func<T> create)
+        public static bool TryRegister(Func<T> create)
         {
             if (create == null)
                 throw new ArgumentNullException(nameof(create));
-            if (Interlocked.CompareExchange(ref _create, create, null) == null)
-                NinoActivator.OnRegistered(typeof(T));
+            if (Interlocked.CompareExchange(ref _create, create, null) != null)
+                return false;
+            NinoActivator.OnRegistered(typeof(T));
+            return true;
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]

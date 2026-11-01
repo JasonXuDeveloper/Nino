@@ -3,7 +3,8 @@
 //! hand-written code would not do); see `runtimes/rust/README.md` for the attributes.
 //!
 //! On a struct, `#[nino(...)]` takes:
-//! - `format = "plain" | "tolerant" | "keyed"`: the .NET `NinoFormat` (`Positional`, `VersionTolerant`, `Keyed`).
+//! - `format = "positional" | "version_tolerant" | "keyed"`: the .NET `NinoFormat` (`Positional`, `VersionTolerant`,
+//!   `Keyed`).
 //! - `kind = "class" | "open" | "struct" | "raw"`: a sealed class (presence byte), a class that is not sealed (its
 //!   type id), a struct (no header) or an unmanaged struct written as raw memory in the canonical layout
 //!   (`pack = n`, `size = n` as `[StructLayout]`).
@@ -47,8 +48,8 @@ enum Side {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Format {
-    Plain,
-    Tolerant,
+    Positional,
+    VersionTolerant,
     Keyed,
 }
 
@@ -113,10 +114,12 @@ fn type_opts(attrs: &[syn::Attribute]) -> syn::Result<TypeOpts> {
             if meta.path.is_ident("format") {
                 let s: LitStr = meta.value()?.parse()?;
                 let f = match s.value().as_str() {
-                    "plain" | "positional" => Format::Plain,
-                    "tolerant" | "version_tolerant" => Format::Tolerant,
+                    "positional" => Format::Positional,
+                    "version_tolerant" => Format::VersionTolerant,
                     "keyed" => Format::Keyed,
-                    _ => return Err(Error::new(s.span(), "format is \"plain\", \"tolerant\" or \"keyed\"")),
+                    _ => {
+                        return Err(Error::new(s.span(), "format is \"positional\", \"version_tolerant\" or \"keyed\""))
+                    }
                 };
                 o.format = Some((f, s.span()));
             } else if meta.path.is_ident("kind") {
@@ -331,8 +334,8 @@ fn parse_layout(lit: &LitStr) -> syn::Result<Layout> {
     }
     let field = |k: &str| get.get(k).cloned().ok_or_else(|| err(&format!("no {k}=")));
     let format = match field("format")?.as_str() {
-        "Positional" => Format::Plain,
-        "VersionTolerant" => Format::Tolerant,
+        "Positional" => Format::Positional,
+        "VersionTolerant" => Format::VersionTolerant,
         "Keyed" => Format::Keyed,
         f => return Err(err(&format!("unknown format {f}"))),
     };
@@ -418,7 +421,7 @@ fn expand_struct(
         }
         (Some((f, _)), _) => f,
         (None, Some(l)) => l.format,
-        (None, None) => Format::Plain,
+        (None, None) => Format::Positional,
     };
     let layout_kind = layout.as_ref().map(|l| match (l.raw, l.header.as_str()) {
         (true, _) => Kind::Raw,
@@ -443,7 +446,7 @@ fn expand_struct(
         (None, Some(ld)) => ld,
         (None, None) => true,
     };
-    if kind == Kind::Raw && format != Format::Plain {
+    if kind == Kind::Raw && format != Format::Positional {
         return Err(Error::new(Span::call_site(), "a raw struct has no format: it is its memory"));
     }
     if kind != Kind::Raw && (opts.pack.is_some() || opts.size.is_some()) {
@@ -583,6 +586,7 @@ fn expand_struct(
         Side::Read => read_body(&members, &keys, format, krate),
         Side::Write => write_body(&members, &keys, format, krate),
     };
+    let prefetch = prefetch_items(&members, krate);
     let tokens = match (side, kind) {
         (Side::Read, Kind::Class) => quote! {
             impl #impl_g #krate::NinoReadBody for #name #ty_g #where_clause {
@@ -596,24 +600,7 @@ fn expand_struct(
             }
             impl #impl_g #krate::NinoRead for #name #ty_g #where_clause {
                 const MAY_DEFER: bool = true;
-                #[inline]
-                fn read(r: &mut #krate::Reader<'_>) -> #krate::Result<Self> {
-                    r.read_sealed_value()
-                }
-                #[inline]
-                fn read_option(r: &mut #krate::Reader<'_>) -> #krate::Result<::core::option::Option<Self>> {
-                    r.read_sealed()
-                }
-                #[inline]
-                fn read_boxed(r: &mut #krate::Reader<'_>) -> #krate::Result<::std::boxed::Box<Self>> {
-                    r.read_sealed_boxed_value()
-                }
-                #[inline]
-                fn read_boxed_option(
-                    r: &mut #krate::Reader<'_>,
-                ) -> #krate::Result<::core::option::Option<::std::boxed::Box<Self>>> {
-                    r.read_sealed_boxed()
-                }
+                #krate::sealed_read!();
             }
         },
         (Side::Write, Kind::Class) => quote! {
@@ -627,17 +614,8 @@ fn expand_struct(
                 }
             }
             impl #impl_g #krate::NinoWrite for #name #ty_g #where_clause {
-                #[inline]
-                fn write<'a>(&'a self, w: &mut #krate::Writer<'a>) -> #krate::Result<()> {
-                    w.write_sealed(::core::option::Option::Some(self))
-                }
-                #[inline]
-                fn write_option<'a>(
-                    value: ::core::option::Option<&'a Self>,
-                    w: &mut #krate::Writer<'a>,
-                ) -> #krate::Result<()> {
-                    w.write_sealed(value)
-                }
+                #prefetch
+                #krate::sealed_write!();
             }
         },
         (Side::Read, Kind::Open) => quote! {
@@ -669,6 +647,28 @@ fn expand_struct(
                     }
                     r.read_class().map(::core::option::Option::Some)
                 }
+                /// An object the slot holds is read into, `None` gets a new one.
+                #[inline]
+                fn read_option_into(
+                    slot: &mut ::core::option::Option<Self>,
+                    r: &mut #krate::Reader<'_>,
+                ) -> #krate::Result<()> {
+                    let id = r.i32()?;
+                    if id == 0 {
+                        *slot = ::core::option::Option::None;
+                        return ::core::result::Result::Ok(());
+                    }
+                    if id != <Self as #krate::NinoReadBody>::TYPE_ID {
+                        return ::core::result::Result::Err(#krate::Error::new(#krate::ErrorKind::UnknownTypeId, id));
+                    }
+                    match slot {
+                        ::core::option::Option::Some(value) => r.read_class_into(value),
+                        ::core::option::Option::None => {
+                            *slot = ::core::option::Option::Some(r.read_class()?);
+                            ::core::result::Result::Ok(())
+                        }
+                    }
+                }
             }
             const _: () = assert!(#type_id != 0, "kind = \"open\" needs a type id: #[nino(id = ...)] or a layout");
         },
@@ -683,6 +683,7 @@ fn expand_struct(
                 }
             }
             impl #impl_g #krate::NinoWrite for #name #ty_g #where_clause {
+                #prefetch
                 #[inline]
                 fn write<'a>(&'a self, w: &mut #krate::Writer<'a>) -> #krate::Result<()> {
                     w.i32(<Self as #krate::NinoWriteBody>::TYPE_ID);
@@ -704,10 +705,12 @@ fn expand_struct(
             }
         },
         (Side::Read, _) => {
+            let fixed = if format == Format::Positional { fixed_items(&members, krate, side) } else { quote!() };
             let tys: Vec<&Type> = members.iter().filter(|m| m.opts.utf8.is_none()).map(|m| m.ty).collect();
-            let min = if format == Format::Plain {
+            let min = if format == Format::Positional {
                 let parts = members.iter().map(|m| match m.opts.utf8 {
-                    Some(_) => quote!(4usize),
+                    // A string written as UTF-8 takes one byte at least (null or empty: its header alone).
+                    Some(_) => quote!(1usize),
                     None => {
                         let ty = m.ty;
                         quote!(<#ty as #krate::NinoRead>::MIN_SIZE)
@@ -729,19 +732,28 @@ fn expand_struct(
                 impl #impl_g #krate::NinoRead for #name #ty_g #where_clause {
                     const MAY_DEFER: bool = false #(|| <#tys as #krate::NinoRead>::MAY_DEFER)*;
                     const MIN_SIZE: usize = #min;
+                    #fixed
                     /// A struct: its members, no header. Counted towards the depth limit, as it may hold itself.
                     #[inline]
                     fn read(r: &mut #krate::Reader<'_>) -> #krate::Result<Self> {
-                        r.enter_struct()?;
                         let mut value = <Self as ::core::default::Default>::default();
-                        let result = #krate::NinoReadBody::read_body(&mut value, r);
+                        #krate::NinoRead::read_into(&mut value, r)?;
+                        ::core::result::Result::Ok(value)
+                    }
+                    /// Each member read into its current value.
+                    #[inline]
+                    fn read_into(&mut self, r: &mut #krate::Reader<'_>) -> #krate::Result<()> {
+                        r.enter_struct()?;
+                        let result = #krate::NinoReadBody::read_body(self, r);
                         r.exit_struct();
-                        result.map(|()| value)
+                        result
                     }
                 }
             }
         }
-        (Side::Write, _) => quote! {
+        (Side::Write, _) => {
+            let fixed = if format == Format::Positional { fixed_items(&members, krate, side) } else { quote!() };
+            quote! {
             impl #impl_g #krate::NinoWriteBody for #name #ty_g #where_clause {
                 const TYPE_ID: i32 = #type_id;
                 #[inline]
@@ -751,18 +763,76 @@ fn expand_struct(
                 }
             }
             impl #impl_g #krate::NinoWrite for #name #ty_g #where_clause {
+                #prefetch
+                #fixed
                 #[inline]
                 fn write<'a>(&'a self, w: &mut #krate::Writer<'a>) -> #krate::Result<()> {
                     #krate::NinoWriteBody::write_body(self, w)
                 }
             }
-        },
+            }
+        }
     };
     // Layout checks once, on the read side (or the write side when only it is derived, both is harmless).
     Ok(quote! {
         #tokens
         const _: () = { #checks };
     })
+}
+
+/// `NinoWrite::PREFETCH_BYTES` and the two prefetch stages of a type with members: the sum of its members' bytes, and each
+/// member's stage in turn (a member whose type points nowhere adds 0 and asks for nothing, so a type of numbers has
+/// what the defaults give). The members written as UTF-8 (`utf8`) are left out: their type need not be `NinoWrite`.
+fn prefetch_items(members: &[Member], krate: &syn::Path) -> Tokens {
+    let members: Vec<&Member> = members.iter().filter(|m| m.opts.utf8.is_none()).collect();
+    if members.is_empty() {
+        return quote!();
+    }
+    let tys = members.iter().map(|m| m.ty);
+    let fields: Vec<&syn::Ident> = members.iter().map(|m| m.ident).collect();
+    quote! {
+        const PREFETCH_BYTES: usize = 0usize #(.saturating_add(<#tys as #krate::NinoWrite>::PREFETCH_BYTES))*;
+        #[inline(always)]
+        fn prefetch(&self) {
+            #(#krate::NinoWrite::prefetch(&self.#fields);)*
+        }
+        #[inline(always)]
+        fn prefetch_members(&self) {
+            #(#krate::NinoWrite::prefetch_members(&self.#fields);)*
+        }
+    }
+}
+
+/// `FIXED_SIZE` and its codec for a plain struct whose members are all fixed-size on the wire (numbers, `bool`,
+/// dates, raw structs, tuples of these): their sizes added up ([`nino::sum_fixed_sizes`]), else 0, as a tuple's. A list of
+/// it is then one block: one length check, each element decoded or encoded from its own bytes. The templates write
+/// the same for the structs .NET finds of fixed size. Members written as UTF-8 make it variable-size: nothing is
+/// emitted.
+fn fixed_items(members: &[Member], krate: &syn::Path, side: Side) -> Tokens {
+    if members.is_empty() || members.iter().any(|m| m.opts.utf8.is_some()) {
+        return quote!();
+    }
+    let tys: Vec<&Type> = members.iter().map(|m| m.ty).collect();
+    let fields: Vec<&syn::Ident> = members.iter().map(|m| m.ident).collect();
+    match side {
+        Side::Read => quote! {
+            const FIXED_SIZE: usize = #krate::sum_fixed_sizes(&[#(<#tys as #krate::NinoRead>::FIXED_SIZE),*]);
+            #[allow(clippy::field_reassign_with_default)]
+            #[inline]
+            fn decode_fixed(mut b: &[u8]) -> #krate::Result<Self> {
+                let mut v = <Self as ::core::default::Default>::default();
+                #(v.#fields = #krate::decode_member(&mut b)?;)*
+                ::core::result::Result::Ok(v)
+            }
+        },
+        Side::Write => quote! {
+            const FIXED_SIZE: usize = #krate::sum_fixed_sizes(&[#(<#tys as #krate::NinoWrite>::FIXED_SIZE),*]);
+            #[inline]
+            fn encode_fixed(&self, mut out: &mut [u8]) {
+                #(#krate::encode_member(&self.#fields, &mut out);)*
+            }
+        },
+    }
 }
 
 fn mentions_param(t: proc_macro2::TokenTree, params: &[String]) -> bool {
@@ -773,22 +843,22 @@ fn mentions_param(t: proc_macro2::TokenTree, params: &[String]) -> bool {
     }
 }
 
-/// The expression reading member `m` (into `self`).
+/// The statement reading member `m` into its current value in `self` ([`NinoRead::read_into`]).
 fn read_member(m: &Member, krate: &syn::Path) -> Tokens {
     let field = m.ident;
     let ty = m.ty;
     if m.opts.utf8.is_some() {
         let optional = matches!(segment(ty), Some((s, _)) if s == "Option");
         return if optional {
-            quote!(r.utf8()?)
+            quote!(self.#field = r.utf8()?;)
         } else {
-            quote!(r.utf8()?.ok_or_else(|| #krate::Error::of(#krate::ErrorKind::UnexpectedNull))?)
+            quote!(self.#field = r.utf8()?.ok_or_else(|| #krate::Error::of(#krate::ErrorKind::UnexpectedNull))?;)
         };
     }
     quote_spanned! {ty.span()=>
-        r.read_in::<#ty>(|p: &mut dyn ::core::any::Any| -> ::core::option::Option<&mut dyn ::core::any::Any> {
+        r.read_member_into::<#ty>(&mut self.#field, |p: &mut dyn ::core::any::Any| -> ::core::option::Option<&mut dyn ::core::any::Any> {
             ::core::option::Option::Some(&mut p.downcast_mut::<Self>()?.#field as &mut dyn ::core::any::Any)
-        })?
+        })?;
     }
 }
 
@@ -808,19 +878,14 @@ fn write_member(m: &Member) -> Tokens {
 
 fn read_body(members: &[Member], keys: &[(i32, Vec<i32>)], format: Format, krate: &syn::Path) -> Tokens {
     match format {
-        Format::Plain => {
-            let reads = members.iter().map(|m| {
-                let f = m.ident;
-                let e = read_member(m, krate);
-                quote!(self.#f = #e;)
-            });
+        Format::Positional => {
+            let reads = members.iter().map(|m| read_member(m, krate));
             quote!(let _ = &r; #(#reads)*)
         }
-        Format::Tolerant => {
+        Format::VersionTolerant => {
             let reads = members.iter().map(|m| {
-                let f = m.ident;
                 let e = read_member(m, krate);
-                quote!(if r.has_more() { self.#f = #e; })
+                quote!(if r.has_more() { #e })
             });
             quote! {
                 let body = r.begin_region()?;
@@ -830,11 +895,10 @@ fn read_body(members: &[Member], keys: &[(i32, Vec<i32>)], format: Format, krate
         }
         Format::Keyed => {
             let arms = members.iter().zip(keys).map(|(m, (key, former))| {
-                let f = m.ident;
                 let e = read_member(m, krate);
                 quote! {
                     if key == #key #(|| key == #former)* {
-                        self.#f = #e;
+                        #e
                         r.end_member(member, self)?;
                         continue;
                     }
@@ -856,11 +920,11 @@ fn read_body(members: &[Member], keys: &[(i32, Vec<i32>)], format: Format, krate
 
 fn write_body(members: &[Member], keys: &[(i32, Vec<i32>)], format: Format, _krate: &syn::Path) -> Tokens {
     match format {
-        Format::Plain => {
+        Format::Positional => {
             let writes = members.iter().map(write_member);
             quote!(let _ = &w; #(#writes)*)
         }
-        Format::Tolerant => {
+        Format::VersionTolerant => {
             let writes = members.iter().map(write_member);
             quote! {
                 let body = w.begin_region();
@@ -1202,6 +1266,15 @@ fn expand_enum(
                     quote!(Self::#v(x) => x as &mut dyn ::core::any::Any,)
                 }
             });
+            let reuses = variants.iter().zip(&boxed).zip(&ids).map(|((v, b), id)| {
+                let x = if *b { quote!(&mut **x) } else { quote!(x) };
+                quote! {
+                    ::core::option::Option::Some(Self::#v(x)) if id == #id => {
+                        r.read_class_into(#x)?;
+                        true
+                    }
+                }
+            });
             quote! {
                 impl #krate::NinoRead for #name {
                     const MAY_DEFER: bool = true;
@@ -1211,19 +1284,35 @@ fn expand_enum(
                     }
                     /// The type id (0 = null), then the body of that type: only the types of this enum.
                     fn read_option(r: &mut #krate::Reader<'_>) -> #krate::Result<::core::option::Option<Self>> {
+                        let mut slot = ::core::option::Option::None;
+                        Self::read_option_into(&mut slot, r)?;
+                        ::core::result::Result::Ok(slot)
+                    }
+                    /// The object the slot holds is read into when the data holds its type, else replaced.
+                    fn read_option_into(
+                        slot: &mut ::core::option::Option<Self>,
+                        r: &mut #krate::Reader<'_>,
+                    ) -> #krate::Result<()> {
                         let id = r.i32()?;
                         if id == 0 {
-                            return ::core::result::Result::Ok(::core::option::Option::None);
+                            *slot = ::core::option::Option::None;
+                            return ::core::result::Result::Ok(());
                         }
-                        let mark = r.mark();
-                        let value = #(#reads)* {
-                            return ::core::result::Result::Err(#krate::Error::new(#krate::ErrorKind::UnknownTypeId, id));
+                        let mark = r.defer_mark();
+                        let reused = match slot {
+                            #(#reuses)*
+                            _ => false,
                         };
-                        r.trail(mark, #krate::Step::Field(|p| {
+                        if !reused {
+                            *slot = ::core::option::Option::Some(#(#reads)* {
+                                return ::core::result::Result::Err(#krate::Error::new(#krate::ErrorKind::UnknownTypeId, id));
+                            });
+                        }
+                        r.defer_trail(mark, #krate::Step::Field(|p| {
                             let v = p.downcast_mut::<Self>()?;
                             ::core::option::Option::Some(match v { #(#bodies)* })
                         }));
-                        ::core::result::Result::Ok(::core::option::Option::Some(value))
+                        ::core::result::Result::Ok(())
                     }
                 }
             }

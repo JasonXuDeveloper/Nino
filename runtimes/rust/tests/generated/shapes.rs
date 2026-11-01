@@ -246,25 +246,25 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for Bag<T> {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
-            self.items = r.read_in(nino::field!(Self, items))?;
+            r.read_member_into(&mut self.items, nino::field!(Self, items))?;
         }
         if r.has_more() {
-            self.by_name = r.read_in(nino::field!(Self, by_name))?;
+            r.read_member_into(&mut self.by_name, nino::field!(Self, by_name))?;
         }
         if r.has_more() {
-            self.array = r.read_in(nino::field!(Self, array))?;
+            r.read_member_into(&mut self.array, nino::field!(Self, array))?;
         }
         if r.has_more() {
-            self.inner = r.read_in(nino::field!(Self, inner))?;
+            r.read_member_into(&mut self.inner, nino::field!(Self, inner))?;
         }
         if r.has_more() {
-            self.pair = r.read_in(nino::field!(Self, pair))?;
+            r.read_member_into(&mut self.pair, nino::field!(Self, pair))?;
         }
         if r.has_more() {
-            self.boxes = r.read_in(nino::field!(Self, boxes))?;
+            r.read_member_into(&mut self.boxes, nino::field!(Self, boxes))?;
         }
         if r.has_more() {
-            self.tuple = r.read_in(nino::field!(Self, tuple))?;
+            r.read_member_into(&mut self.tuple, nino::field!(Self, tuple))?;
         }
         r.end_region(body, self)?;
         Ok(())
@@ -288,32 +288,34 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for Bag<T> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for Bag<T> {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Bag<T> {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<Vec<T>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<T>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<T>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Pair<i32, T> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<Option<Box<BoxType<T>>>>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.items.prefetch();
+        self.array.prefetch();
+        self.inner.prefetch();
+        self.pair.prefetch();
+        self.boxes.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.items.prefetch_members();
+        self.array.prefetch_members();
+        self.inner.prefetch_members();
+        self.pair.prefetch_members();
+        self.boxes.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl<T> Bag<T> {
@@ -332,7 +334,7 @@ pub struct BoxType<T> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for BoxType<T> {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.value = r.read_in(nino::field!(Self, value))?;
+        r.read_member_into(&mut self.value, nino::field!(Self, value))?;
         Ok(())
     }
 }
@@ -346,32 +348,22 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for BoxType<T> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for BoxType<T> {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for BoxType<T> {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<T as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.value.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.value.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl<T> BoxType<T> {
@@ -390,7 +382,7 @@ pub struct ForestHolder {
 
 impl NinoReadBody for ForestHolder {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.forest = r.read_in(nino::field!(Self, forest))?;
+        r.read_member_into(&mut self.forest, nino::field!(Self, forest))?;
         Ok(())
     }
 }
@@ -404,32 +396,22 @@ impl NinoWriteBody for ForestHolder {
 
 impl NinoRead for ForestHolder {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for ForestHolder {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<Vec<Option<Forest>>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.forest.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.forest.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl ForestHolder {
@@ -463,20 +445,20 @@ pub struct Holder {
 
 impl NinoReadBody for Holder {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.thing = r.read_in(nino::field!(Self, thing))?;
-        self.things = r.read_in(nino::field!(Self, things))?;
-        self.tree = r.read()?;
-        self.inner = r.read_in(nino::field!(Self, inner))?;
-        self.left_item = r.read_in(nino::field!(Self, left_item))?;
-        self.right_item = r.read_in(nino::field!(Self, right_item))?;
-        self.flags = r.read()?;
-        self.gaps = r.read()?;
-        self.names = r.read()?;
-        self.tags = r.read()?;
-        self.pair = r.read()?;
-        self.entry = r.read()?;
-        self.maybe = r.read()?;
-        self.keywords = r.read_in(nino::field!(Self, keywords))?;
+        r.read_member_into(&mut self.thing, nino::field!(Self, thing))?;
+        r.read_member_into(&mut self.things, nino::field!(Self, things))?;
+        r.read_into(&mut self.tree)?;
+        r.read_member_into(&mut self.inner, nino::field!(Self, inner))?;
+        r.read_member_into(&mut self.left_item, nino::field!(Self, left_item))?;
+        r.read_member_into(&mut self.right_item, nino::field!(Self, right_item))?;
+        r.read_into(&mut self.flags)?;
+        r.read_into(&mut self.gaps)?;
+        r.read_into(&mut self.names)?;
+        r.read_into(&mut self.tags)?;
+        r.read_into(&mut self.pair)?;
+        r.read_into(&mut self.entry)?;
+        r.read_into(&mut self.maybe)?;
+        r.read_member_into(&mut self.keywords, nino::field!(Self, keywords))?;
         Ok(())
     }
 }
@@ -503,32 +485,46 @@ impl NinoWriteBody for Holder {
 
 impl NinoRead for Holder {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Holder {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<Vec<Option<IThingRef>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Recursive as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<OuterInner>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<ShapesLeftItem>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<ShapesRightItem>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<Gappy>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<indexmap::IndexSet<String>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<i32> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<Keywords>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.things.prefetch();
+        self.tree.prefetch();
+        self.inner.prefetch();
+        self.left_item.prefetch();
+        self.right_item.prefetch();
+        self.gaps.prefetch();
+        self.tags.prefetch();
+        self.maybe.prefetch();
+        self.keywords.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.things.prefetch_members();
+        self.tree.prefetch_members();
+        self.inner.prefetch_members();
+        self.left_item.prefetch_members();
+        self.right_item.prefetch_members();
+        self.gaps.prefetch_members();
+        self.tags.prefetch_members();
+        self.maybe.prefetch_members();
+        self.keywords.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl Holder {
@@ -550,8 +546,8 @@ pub struct Keys<T: Eq + core::hash::Hash> {
 
 impl<T: NinoRead + NinoWrite + Default + Eq + core::hash::Hash + Clone + 'static> NinoReadBody for Keys<T> {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.set = r.read_in(nino::field!(Self, set))?;
-        self.by_key = r.read_in(nino::field!(Self, by_key))?;
+        r.read_member_into(&mut self.set, nino::field!(Self, set))?;
+        r.read_member_into(&mut self.by_key, nino::field!(Self, by_key))?;
         Ok(())
     }
 }
@@ -566,32 +562,22 @@ impl<T: NinoRead + NinoWrite + Default + Eq + core::hash::Hash + Clone + 'static
 
 impl<T: NinoRead + NinoWrite + Default + Eq + core::hash::Hash + Clone + 'static> NinoRead for Keys<T> {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl<T: NinoRead + NinoWrite + Default + Eq + core::hash::Hash + Clone + 'static> NinoWrite for Keys<T> {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<indexmap::IndexSet<T>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.set.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.set.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl<T: Eq + core::hash::Hash> Keys<T> {
@@ -620,16 +606,16 @@ pub struct Keywords {
 
 impl NinoReadBody for Keywords {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.r#type = r.read()?;
-        self.self_ = r.read()?;
-        self.r#match = r.read()?;
-        self.default = r.read()?;
-        self.body = r.read()?;
-        self.key = r.read()?;
-        self.value = r.read()?;
-        self.r = r.read()?;
-        self.w = r.read()?;
-        self.v = r.read()?;
+        r.read_into(&mut self.r#type)?;
+        r.read_into(&mut self.self_)?;
+        r.read_into(&mut self.r#match)?;
+        r.read_into(&mut self.default)?;
+        r.read_into(&mut self.body)?;
+        r.read_into(&mut self.key)?;
+        r.read_into(&mut self.value)?;
+        r.read_into(&mut self.r)?;
+        r.read_into(&mut self.w)?;
+        r.read_into(&mut self.v)?;
         Ok(())
     }
 }
@@ -652,32 +638,22 @@ impl NinoWriteBody for Keywords {
 
 impl NinoRead for Keywords {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Keywords {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<String> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.default.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.default.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl Keywords {
@@ -699,8 +675,8 @@ pub struct MoreOpen<T> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for MoreOpen<T> {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.value = r.read_in(nino::field!(Self, value))?;
-        self.extra = r.read_in(nino::field!(Self, extra))?;
+        r.read_member_into(&mut self.value, nino::field!(Self, value))?;
+        r.read_member_into(&mut self.extra, nino::field!(Self, extra))?;
         Ok(())
     }
 }
@@ -729,7 +705,7 @@ pub struct NinoGrid {
 
 impl NinoReadBody for NinoGrid {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.value = r.read()?;
+        r.read_into(&mut self.value)?;
         Ok(())
     }
 }
@@ -743,32 +719,11 @@ impl NinoWriteBody for NinoGrid {
 
 impl NinoRead for NinoGrid {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for NinoGrid {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl NinoGrid {
@@ -795,8 +750,8 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for Node<T> {
             let key = r.i32()?;
             let member = r.begin_region()?;
             match key as u32 {
-                0xC373233E => self.value = r.read_in(nino::field!(Self, value))?,
-                0xC9A6113A => self.next = r.read_in(nino::field!(Self, next))?,
+                0xC373233E => r.read_member_into(&mut self.value, nino::field!(Self, value))?,
+                0xC9A6113A => r.read_member_into(&mut self.next, nino::field!(Self, next))?,
                 _ => {
                     r.end_region(member, self)?;
                     continue;
@@ -827,32 +782,25 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for Node<T> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for Node<T> {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Node<T> {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<T as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<Node<T>>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.value.prefetch();
+        self.next.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.value.prefetch_members();
+        self.next.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl<T> Node<T> {
@@ -871,7 +819,7 @@ pub struct Open<T> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for Open<T> {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.value = r.read_in(nino::field!(Self, value))?;
+        r.read_member_into(&mut self.value, nino::field!(Self, value))?;
         Ok(())
     }
 }
@@ -913,8 +861,8 @@ impl<T: Default, S0> Default for OpenHolder<T, S0> {
 
 impl<T: NinoRead + NinoWrite + Default + 'static, S0: NinoRead + NinoWrite + 'static> NinoReadBody for OpenHolder<T, S0> {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.inner = r.read_in(nino::field!(Self, inner))?;
-        self.all = r.read_in(nino::field!(Self, all))?;
+        r.read_member_into(&mut self.inner, nino::field!(Self, inner))?;
+        r.read_member_into(&mut self.all, nino::field!(Self, all))?;
         Ok(())
     }
 }
@@ -929,32 +877,22 @@ impl<T: NinoRead + NinoWrite + Default + 'static, S0: NinoRead + NinoWrite + 'st
 
 impl<T: NinoRead + NinoWrite + Default + 'static, S0: NinoRead + NinoWrite + 'static> NinoRead for OpenHolder<T, S0> {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static, S0: NinoRead + NinoWrite + 'static> NinoWrite for OpenHolder<T, S0> {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<Vec<Option<S0>>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.all.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.all.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl<T, S0> OpenHolder<T, S0> {
@@ -973,7 +911,7 @@ pub struct OpenHolderUse {
 
 impl NinoReadBody for OpenHolderUse {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.holder = r.read_in(nino::field!(Self, holder))?;
+        r.read_member_into(&mut self.holder, nino::field!(Self, holder))?;
         Ok(())
     }
 }
@@ -987,32 +925,22 @@ impl NinoWriteBody for OpenHolderUse {
 
 impl NinoRead for OpenHolderUse {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for OpenHolderUse {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<Box<OpenHolder<i64, OpenInt64Ref>>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.holder.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.holder.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl OpenHolderUse {
@@ -1033,7 +961,7 @@ pub struct OpenUse {
 
 impl NinoReadBody for OpenUse {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.open = r.read_in(nino::field!(Self, open))?;
+        r.read_member_into(&mut self.open, nino::field!(Self, open))?;
         Ok(())
     }
 }
@@ -1047,32 +975,11 @@ impl NinoWriteBody for OpenUse {
 
 impl NinoRead for OpenUse {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for OpenUse {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl OpenUse {
@@ -1093,7 +1000,7 @@ pub struct OuterInner {
 
 impl NinoReadBody for OuterInner {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.value = r.read()?;
+        r.read_into(&mut self.value)?;
         Ok(())
     }
 }
@@ -1107,32 +1014,11 @@ impl NinoWriteBody for OuterInner {
 
 impl NinoRead for OuterInner {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for OuterInner {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl OuterInner {
@@ -1156,8 +1042,8 @@ impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrit
     const DEFERRABLE: bool = false;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.key = r.read_in(nino::field!(Self, key))?;
-        self.value = r.read_in(nino::field!(Self, value))?;
+        r.read_member_into(&mut self.key, nino::field!(Self, key))?;
+        r.read_member_into(&mut self.value, nino::field!(Self, value))?;
         Ok(())
     }
 }
@@ -1175,18 +1061,53 @@ impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrit
 impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrite + Default + 'static> NinoRead for Pair<TKey, TValue> {
     const MAY_DEFER: bool = <TKey as NinoRead>::MAY_DEFER || <TValue as NinoRead>::MAY_DEFER;
 
+    const FIXED_SIZE: usize = nino::sum_fixed_sizes(&[<TKey as NinoRead>::FIXED_SIZE, <TValue as NinoRead>::FIXED_SIZE]);
+
+    #[allow(clippy::field_reassign_with_default)]
+    fn decode_fixed(mut b: &[u8]) -> nino::Result<Self> {
+        let mut v = Self::default();
+        v.key = nino::decode_member(&mut b)?;
+        v.value = nino::decode_member(&mut b)?;
+        Ok(v)
+    }
+
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
         let mut v = Self::default();
+        v.read_into(r)?;
+        Ok(v)
+    }
+
+    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         // It can hold itself through no class body: each level counts toward the depth limit.
         r.enter_struct()?;
-        let body = v.read_body(r);
+        let body = self.read_body(r);
         r.exit_struct();
-        body?;
-        Ok(v)
+        body
     }
 }
 
 impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrite + Default + 'static> NinoWrite for Pair<TKey, TValue> {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<TKey as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<TValue as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.key.prefetch();
+        self.value.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.key.prefetch_members();
+        self.value.prefetch_members();
+    }
+
+    const FIXED_SIZE: usize = nino::sum_fixed_sizes(&[<TKey as NinoWrite>::FIXED_SIZE, <TValue as NinoWrite>::FIXED_SIZE]);
+
+    fn encode_fixed(&self, mut out: &mut [u8]) {
+        nino::encode_member(&self.key, &mut out);
+        nino::encode_member(&self.value, &mut out);
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         self.write_body(w)
     }
@@ -1211,8 +1132,8 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for RawPair<T> {
     const DEFERRABLE: bool = false;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.a = r.read_in(nino::field!(Self, a))?;
-        self.b = r.read_in(nino::field!(Self, b))?;
+        r.read_member_into(&mut self.a, nino::field!(Self, a))?;
+        r.read_member_into(&mut self.b, nino::field!(Self, b))?;
         Ok(())
     }
 }
@@ -1230,18 +1151,53 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for RawPair<T> {
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for RawPair<T> {
     const MAY_DEFER: bool = <T as NinoRead>::MAY_DEFER;
 
+    const FIXED_SIZE: usize = nino::sum_fixed_sizes(&[<T as NinoRead>::FIXED_SIZE, <T as NinoRead>::FIXED_SIZE]);
+
+    #[allow(clippy::field_reassign_with_default)]
+    fn decode_fixed(mut b: &[u8]) -> nino::Result<Self> {
+        let mut v = Self::default();
+        v.a = nino::decode_member(&mut b)?;
+        v.b = nino::decode_member(&mut b)?;
+        Ok(v)
+    }
+
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
         let mut v = Self::default();
+        v.read_into(r)?;
+        Ok(v)
+    }
+
+    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         // It can hold itself through no class body: each level counts toward the depth limit.
         r.enter_struct()?;
-        let body = v.read_body(r);
+        let body = self.read_body(r);
         r.exit_struct();
-        body?;
-        Ok(v)
+        body
     }
 }
 
 impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for RawPair<T> {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<T as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<T as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.a.prefetch();
+        self.b.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.a.prefetch_members();
+        self.b.prefetch_members();
+    }
+
+    const FIXED_SIZE: usize = nino::sum_fixed_sizes(&[<T as NinoWrite>::FIXED_SIZE, <T as NinoWrite>::FIXED_SIZE]);
+
+    fn encode_fixed(&self, mut out: &mut [u8]) {
+        nino::encode_member(&self.a, &mut out);
+        nino::encode_member(&self.b, &mut out);
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         self.write_body(w)
     }
@@ -1266,8 +1222,8 @@ impl NinoReadBody for Recursive {
     const DEFERRABLE: bool = false;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.value = r.read()?;
-        self.children = r.read()?;
+        r.read_into(&mut self.value)?;
+        r.read_into(&mut self.children)?;
         Ok(())
     }
 }
@@ -1285,16 +1241,31 @@ impl NinoWriteBody for Recursive {
 impl NinoRead for Recursive {
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
         let mut v = Self::default();
+        v.read_into(r)?;
+        Ok(v)
+    }
+
+    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         // It can hold itself through no class body: each level counts toward the depth limit.
         r.enter_struct()?;
-        let body = v.read_body(r);
+        let body = self.read_body(r);
         r.exit_struct();
-        body?;
-        Ok(v)
+        body
     }
 }
 
 impl NinoWrite for Recursive {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<Vec<Recursive>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.children.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.children.prefetch_members();
+    }
+
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         self.write_body(w)
     }
@@ -1324,8 +1295,8 @@ impl NinoReadBody for Renamed {
             let key = r.i32()?;
             let member = r.begin_region()?;
             match key as u32 {
-                0xAC8120CE | 0x4B4D09F5 => self.new_name = r.read()?,
-                0x4D897D71 => self.other = r.read()?,
+                0xAC8120CE | 0x4B4D09F5 => r.read_into(&mut self.new_name)?,
+                0x4D897D71 => r.read_into(&mut self.other)?,
                 _ => {
                     r.end_region(member, self)?;
                     continue;
@@ -1356,32 +1327,22 @@ impl NinoWriteBody for Renamed {
 
 impl NinoRead for Renamed {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Renamed {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<String> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.other.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.other.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl Renamed {
@@ -1402,7 +1363,7 @@ pub struct ShapesLeftItem {
 
 impl NinoReadBody for ShapesLeftItem {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.left = r.read()?;
+        r.read_into(&mut self.left)?;
         Ok(())
     }
 }
@@ -1416,32 +1377,11 @@ impl NinoWriteBody for ShapesLeftItem {
 
 impl NinoRead for ShapesLeftItem {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for ShapesLeftItem {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl ShapesLeftItem {
@@ -1462,7 +1402,7 @@ pub struct ShapesRightItem {
 
 impl NinoReadBody for ShapesRightItem {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.right = r.read()?;
+        r.read_into(&mut self.right)?;
         Ok(())
     }
 }
@@ -1476,32 +1416,11 @@ impl NinoWriteBody for ShapesRightItem {
 
 impl NinoRead for ShapesRightItem {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for ShapesRightItem {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
-    }
+    nino::sealed_write!();
 }
 
 impl ShapesRightItem {
@@ -1529,14 +1448,14 @@ pub struct Stamps {
 
 impl NinoReadBody for Stamps {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.times = r.read()?;
-        self.days = r.read()?;
-        self.clocks = r.read()?;
-        self.prices = r.read()?;
-        self.ids = r.read()?;
-        self.signed = r.read()?;
-        self.unsigned = r.read()?;
-        self.marks = r.read()?;
+        r.read_into(&mut self.times)?;
+        r.read_into(&mut self.days)?;
+        r.read_into(&mut self.clocks)?;
+        r.read_into(&mut self.prices)?;
+        r.read_into(&mut self.ids)?;
+        r.read_into(&mut self.signed)?;
+        r.read_into(&mut self.unsigned)?;
+        r.read_into(&mut self.marks)?;
         Ok(())
     }
 }
@@ -1557,32 +1476,43 @@ impl NinoWriteBody for Stamps {
 
 impl NinoRead for Stamps {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Stamps {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<Vec<nino::DateTime>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::DateOnly>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::TimeOnly>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::Decimal>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::Guid>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<i128>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<u128>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<Marked>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.times.prefetch();
+        self.days.prefetch();
+        self.clocks.prefetch();
+        self.prices.prefetch();
+        self.ids.prefetch();
+        self.signed.prefetch();
+        self.unsigned.prefetch();
+        self.marks.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.times.prefetch_members();
+        self.days.prefetch_members();
+        self.clocks.prefetch_members();
+        self.prices.prefetch_members();
+        self.ids.prefetch_members();
+        self.signed.prefetch_members();
+        self.unsigned.prefetch_members();
+        self.marks.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl Stamps {
@@ -1604,8 +1534,8 @@ pub struct ThingClass {
 
 impl NinoReadBody for ThingClass {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.id = r.read()?;
-        self.label = r.read()?;
+        r.read_into(&mut self.id)?;
+        r.read_into(&mut self.label)?;
         Ok(())
     }
 }
@@ -1620,32 +1550,22 @@ impl NinoWriteBody for ThingClass {
 
 impl NinoRead for ThingClass {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for ThingClass {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<String> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.label.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.label.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl ThingClass {
@@ -1684,25 +1604,25 @@ pub struct Uses {
 
 impl NinoReadBody for Uses {
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
-        self.number = r.read_in(nino::field!(Self, number))?;
-        self.text = r.read_in(nino::field!(Self, text))?;
-        self.pair = r.read_in(nino::field!(Self, pair))?;
-        self.nested = r.read_in(nino::field!(Self, nested))?;
-        self.mixed = r.read_in(nino::field!(Self, mixed))?;
-        self.boxes = r.read_in(nino::field!(Self, boxes))?;
-        self.bag = r.read_in(nino::field!(Self, bag))?;
-        self.chain = r.read_in(nino::field!(Self, chain))?;
-        self.thing = r.read_in(nino::field!(Self, thing))?;
-        self.array = r.read_in(nino::field!(Self, array))?;
-        self.complex = r.read_in(nino::field!(Self, complex))?;
-        self.pairs = r.read_in(nino::field!(Self, pairs))?;
-        self.raw = r.read_in(nino::field!(Self, raw))?;
-        self.tuple = r.read_in(nino::field!(Self, tuple))?;
-        self.maybe = r.read_in(nino::field!(Self, maybe))?;
-        self.entry = r.read_in(nino::field!(Self, entry))?;
-        self.set = r.read_in(nino::field!(Self, set))?;
-        self.int_keys = r.read_in(nino::field!(Self, int_keys))?;
-        self.string_keys = r.read_in(nino::field!(Self, string_keys))?;
+        r.read_member_into(&mut self.number, nino::field!(Self, number))?;
+        r.read_member_into(&mut self.text, nino::field!(Self, text))?;
+        r.read_member_into(&mut self.pair, nino::field!(Self, pair))?;
+        r.read_member_into(&mut self.nested, nino::field!(Self, nested))?;
+        r.read_member_into(&mut self.mixed, nino::field!(Self, mixed))?;
+        r.read_member_into(&mut self.boxes, nino::field!(Self, boxes))?;
+        r.read_member_into(&mut self.bag, nino::field!(Self, bag))?;
+        r.read_member_into(&mut self.chain, nino::field!(Self, chain))?;
+        r.read_member_into(&mut self.thing, nino::field!(Self, thing))?;
+        r.read_member_into(&mut self.array, nino::field!(Self, array))?;
+        r.read_member_into(&mut self.complex, nino::field!(Self, complex))?;
+        r.read_member_into(&mut self.pairs, nino::field!(Self, pairs))?;
+        r.read_member_into(&mut self.raw, nino::field!(Self, raw))?;
+        r.read_member_into(&mut self.tuple, nino::field!(Self, tuple))?;
+        r.read_member_into(&mut self.maybe, nino::field!(Self, maybe))?;
+        r.read_member_into(&mut self.entry, nino::field!(Self, entry))?;
+        r.read_member_into(&mut self.set, nino::field!(Self, set))?;
+        r.read_member_into(&mut self.int_keys, nino::field!(Self, int_keys))?;
+        r.read_member_into(&mut self.string_keys, nino::field!(Self, string_keys))?;
         Ok(())
     }
 }
@@ -1734,32 +1654,73 @@ impl NinoWriteBody for Uses {
 
 impl NinoRead for Uses {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
-        r.read_sealed()
-    }
-
-    fn read_boxed(r: &mut nino::Reader<'_>) -> nino::Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-
-    fn read_boxed_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Uses {
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<Box<BoxType<i32>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<String>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Pair<i32, Option<String>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<Box<BoxType<i32>>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Pair<Option<String>, Gappy>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<Option<Box<BoxType<i32>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<Bag<Option<Box<BoxType<i64>>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<Node<Option<String>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<IThingRef>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<Vec<i32>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Pair<Option<Box<BoxType<i32>>>, Option<indexmap::IndexMap<i32, Option<String>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<RawPair<i32> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<(i32, Option<String>)>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<i32>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<(i32, Option<String>)>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<indexmap::IndexSet<String>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<Keys<i32>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<Keys<Option<String>>>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.number.prefetch();
+        self.text.prefetch();
+        self.pair.prefetch();
+        self.nested.prefetch();
+        self.mixed.prefetch();
+        self.boxes.prefetch();
+        self.bag.prefetch();
+        self.chain.prefetch();
+        self.thing.prefetch();
+        self.array.prefetch();
+        self.complex.prefetch();
+        self.raw.prefetch();
+        self.tuple.prefetch();
+        self.maybe.prefetch();
+        self.entry.prefetch();
+        self.set.prefetch();
+        self.int_keys.prefetch();
+        self.string_keys.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.number.prefetch_members();
+        self.text.prefetch_members();
+        self.pair.prefetch_members();
+        self.nested.prefetch_members();
+        self.mixed.prefetch_members();
+        self.boxes.prefetch_members();
+        self.bag.prefetch_members();
+        self.chain.prefetch_members();
+        self.thing.prefetch_members();
+        self.array.prefetch_members();
+        self.complex.prefetch_members();
+        self.raw.prefetch_members();
+        self.tuple.prefetch_members();
+        self.maybe.prefetch_members();
+        self.entry.prefetch_members();
+        self.set.prefetch_members();
+        self.int_keys.prefetch_members();
+        self.string_keys.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 impl Uses {
@@ -1797,18 +1758,39 @@ impl NinoRead for IThingRef {
     }
 
     fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    // The object the slot holds is read into when the data holds its type (and it is not tracked), else replaced.
+    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
-        let mark = r.mark();
-        let value = match id {
-            ThingClass::TYPE_ID => Self::ThingClass(Box::new(r.read_class()?)),
-            ThingStruct::TYPE_ID => Self::ThingStruct(Box::new(r.read()?)),
-            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        let mark = r.defer_mark();
+        let reused = match slot {
+            Some(Self::ThingClass(v)) if id == ThingClass::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::ThingStruct(v)) if id == ThingStruct::TYPE_ID => {
+                r.read_into(&mut **v)?;
+                true
+            }
+            _ => false,
         };
-        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<IThingRef>()?.body())));
-        Ok(Some(value))
+        if !reused {
+            *slot = Some(match id {
+                ThingClass::TYPE_ID => Self::ThingClass(Box::new(r.read_class()?)),
+                ThingStruct::TYPE_ID => Self::ThingStruct(Box::new(r.read()?)),
+                _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+            });
+        }
+        r.defer_trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<IThingRef>()?.body())));
+        Ok(())
     }
 }
 
@@ -1865,18 +1847,39 @@ impl NinoRead for OpenInt32Ref {
     }
 
     fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    // The object the slot holds is read into when the data holds its type (and it is not tracked), else replaced.
+    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
-        let mark = r.mark();
-        let value = match id {
-            -1765026582 => Self::MoreOpenInt32(Box::new(r.read_class()?)),
-            -1170110497 => Self::OpenInt32(Box::new(r.read_class()?)),
-            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        let mark = r.defer_mark();
+        let reused = match slot {
+            Some(Self::MoreOpenInt32(v)) if id == -1765026582 => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::OpenInt32(v)) if id == -1170110497 => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            _ => false,
         };
-        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<OpenInt32Ref>()?.body())));
-        Ok(Some(value))
+        if !reused {
+            *slot = Some(match id {
+                -1765026582 => Self::MoreOpenInt32(Box::new(r.read_class()?)),
+                -1170110497 => Self::OpenInt32(Box::new(r.read_class()?)),
+                _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+            });
+        }
+        r.defer_trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<OpenInt32Ref>()?.body())));
+        Ok(())
     }
 }
 
@@ -1933,18 +1936,39 @@ impl NinoRead for OpenInt64Ref {
     }
 
     fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    // The object the slot holds is read into when the data holds its type (and it is not tracked), else replaced.
+    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            return Ok(None);
+            *slot = None;
+            return Ok(());
         }
-        let mark = r.mark();
-        let value = match id {
-            -355893823 => Self::MoreOpenInt64(Box::new(r.read_class()?)),
-            2087250468 => Self::OpenInt64(Box::new(r.read_class()?)),
-            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        let mark = r.defer_mark();
+        let reused = match slot {
+            Some(Self::MoreOpenInt64(v)) if id == -355893823 => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::OpenInt64(v)) if id == 2087250468 => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            _ => false,
         };
-        r.trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<OpenInt64Ref>()?.body())));
-        Ok(Some(value))
+        if !reused {
+            *slot = Some(match id {
+                -355893823 => Self::MoreOpenInt64(Box::new(r.read_class()?)),
+                2087250468 => Self::OpenInt64(Box::new(r.read_class()?)),
+                _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+            });
+        }
+        r.defer_trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<OpenInt64Ref>()?.body())));
+        Ok(())
     }
 }
 

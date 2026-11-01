@@ -86,6 +86,21 @@ namespace Nino.Codegen.Tests
         }
 
         [TestMethod]
+        public void TypeScriptNumericArrays()
+        {
+            var (array, _) = Run("ts", "Nino.Codegen.Tests.ts");
+            var (explicitPlain, _) = Run("ts", "Nino.Codegen.Tests.ts", "--numeric-arrays", "plain");
+            var (typed, _) = Run("ts", "Nino.Codegen.Tests.ts", "--numeric-arrays", "typed");
+            Assert.AreEqual(array, explicitPlain);
+            StringAssert.Contains(array, "Box<number[] | null>");
+            Assert.IsFalse(array.Contains("Int32Array", StringComparison.Ordinal));
+            StringAssert.Contains(typed, "Box<Int32Array | null>");
+            StringAssert.Contains(typed, "return r.numbers(Int32Array, length);");
+            Assert.ThrowsExactly<ArgumentException>(() => Run("ts", "Nino.Codegen.Tests.ts", "--numeric-arrays", "list"));
+            Assert.ThrowsExactly<ArgumentException>(() => Run("go", "nino_types.go", "--numeric-arrays", "typed"));
+        }
+
+        [TestMethod]
         public void RustMaps()
         {
             var (indexmap, _) = Run("rust", "nino_types.rs");
@@ -133,7 +148,7 @@ namespace Nino.Codegen.Tests
             var (text, _) = Run("go", "nino_types.go", "--package", "shapes");
             StringAssert.Contains(text, "type NinoGridType struct {");
             StringAssert.Contains(text, "type ShapesLeftItem struct {");
-            StringAssert.Contains(text, "func ReadRecursive(r *nino.Reader) (v Recursive) {\n\tif !r.EnterStruct() {");
+            StringAssert.Contains(text, "func ReadRecursiveInto(r *nino.Reader, v *Recursive) {\n\tif !r.EnterStruct() {");
             StringAssert.Contains(text, "\tcase ThingStruct:\n\t\tw.TypeID(");
         }
 

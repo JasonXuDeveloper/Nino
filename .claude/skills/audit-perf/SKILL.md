@@ -8,7 +8,8 @@ metadata:
 # Performance
 
 Performance is a requirement on every platform, and every number that counts comes from a GitHub runner. This skill
-owns the search; measuring is `benchmark`, the code-level techniques are `optimize`, each runtime's rules are in
+owns the search; measuring is `benchmark`, the code-level techniques are `optimize` (.NET, Unity) and
+`optimize-runtimes` (Go, Rust, TypeScript), each runtime's rules are in
 `runtimes/*/AGENTS.md`, and a finding is built by the skill that owns its files.
 
 ## Where wins come from
@@ -28,10 +29,11 @@ owns the search; measuring is `benchmark`, the code-level techniques are `optimi
 ## Method
 
 1. **Read first.** What does the code do now, what would change, which benchmark shows it, what did earlier attempts
-   find (commit messages of reverted tries)? Look up the technique in `optimize` before inventing one.
+   find (commit messages of reverted tries)? Look up the technique in `optimize` or
+   `optimize-runtimes` before inventing one.
 2. **Choose locally, decide on runners**, as `benchmark` says: local runs only guide, the A/B on runners per CPU
    against the floor decides, and only a net win ships.
-3. **Record what you learned** in `optimize` (the technique, faster or slower, with the runner numbers).
+3. **Record what you learned** in `optimize` or `optimize-runtimes` (the technique, faster or slower, with the runner numbers).
 
 ## Report
 

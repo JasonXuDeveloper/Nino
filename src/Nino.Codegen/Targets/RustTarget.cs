@@ -36,12 +36,9 @@ namespace Nino.Codegen.Targets
     /// enum per type written behind a type id holding only the types it allows (<c>XRef</c>). A type it cannot express
     /// is left out with a warning, and so is every type holding one.
     /// </summary>
-    public sealed class RustTarget
+    public sealed class RustTarget : CodegenTarget
     {
-        private readonly CodegenModel _model;
         private readonly RustOptions _options;
-        private readonly HashSet<TypeModel> _supported = new();
-        private readonly Dictionary<Type, string> _names = new();
         private readonly List<EnumModel> _enums = new();
         private readonly List<RawStructModel> _rawStructs = new();
         internal Dictionary<RawStructModel, RustShape> RawShapes { get; } = new();
@@ -53,20 +50,9 @@ namespace Nino.Codegen.Targets
         /// <summary>The generic definition whose members are being shaped: its slot parameters name its open slots.</summary>
         private TypeModel? _context;
 
-        public List<string> Warnings { get; } = new();
+        public RustTarget(CodegenModel model, RustOptions options) : base(model) => _options = options;
 
-        public RustTarget(CodegenModel model, RustOptions options)
-        {
-            _model = model;
-            _options = options;
-        }
-
-        private sealed class UnsupportedException : Exception
-        {
-            public UnsupportedException(string message) : base(message)
-            {
-            }
-        }
+        protected override string Language => "Rust";
 
         public string Render(string source)
         {
@@ -129,33 +115,7 @@ namespace Nino.Codegen.Targets
 
         // ---------------------------------------------------------------- which types
 
-        private void ResolveSupported()
-        {
-            foreach (var type in _model.Types)
-            {
-                string? reason = CodegenModel.GenericProblem(type) ?? type.SlotProblem
-                    ?? (type.TrackReferences && type.IsGenericDefinition
-                        ? "a generic type with trackReferences is not supported"
-                        : null);
-                if (reason == null)
-                    _supported.Add(type);
-                else
-                    Warn(type, reason);
-            }
-
-            while (true)
-            {
-                Reset();
-                var failing = _model.Types.Where(_supported.Contains)
-                    .Select(t => (Type: t, Reason: Check(t))).FirstOrDefault(f => f.Reason != null);
-                if (failing.Type == null)
-                    break;
-                _supported.Remove(failing.Type);
-                Warn(failing.Type, failing.Reason!);
-            }
-
-            Reset();
-        }
+        protected override string? Problem(TypeModel type) => CodegenModel.GenericProblem(type) ?? base.Problem(type);
 
         /// <summary>
         /// The closed generic types the assembly names that Rust can write (<see cref="CodegenModel.ClosedTypes"/>),
@@ -174,7 +134,7 @@ namespace Nino.Codegen.Targets
                 }
                 catch (UnsupportedException e)
                 {
-                    Warnings.Add($"{closed.RuntimeName} is left out of the polymorphic slots in Rust: {e.Message}.");
+                    WarnClosed(closed, e.Message);
                 }
             }
         }
@@ -196,7 +156,7 @@ namespace Nino.Codegen.Targets
             var taken = new HashSet<string>(variants.Select(v => v.Name), StringComparer.Ordinal);
             foreach (var c in closed.Where(_closed.ContainsKey).OrderBy(c => c.RuntimeName, StringComparer.Ordinal))
             {
-                string name = GoTarget.ClosedName(c.Clr);
+                string name = TypeNames.Closed(c.Clr);
                 while (!taken.Add(name))
                     name += "_";
                 variants.Add(new RustVariant(name, null, _closed[c],
@@ -206,7 +166,7 @@ namespace Nino.Codegen.Targets
             return variants;
         }
 
-        private void Reset()
+        protected override void Reset()
         {
             _enums.Clear();
             _rawStructs.Clear();
@@ -216,30 +176,18 @@ namespace Nino.Codegen.Targets
             _usesObject = false;
         }
 
-        private string? Check(TypeModel type)
+        protected override void CheckType(TypeModel type)
         {
-            try
+            if (type.Raw)
+                Raw(type.RawValue!);
+            else
             {
-                if (type.Raw)
-                    Raw(type.RawValue!);
-                else
-                {
-                    if (type.Elements != null)
-                        ShapeIn(type, type.Elements);
-                    foreach (var member in type.Members)
-                        ShapeIn(type, member.Value);
-                }
-
-                return null;
-            }
-            catch (UnsupportedException e)
-            {
-                return e.Message;
+                if (type.Elements != null)
+                    ShapeIn(type, type.Elements);
+                foreach (var member in type.Members)
+                    ShapeIn(type, member.Value);
             }
         }
-
-        private void Warn(TypeModel type, string reason) =>
-            Warnings.Add($"{type.FullName} is not written to Rust: {reason}.");
 
         /// <summary>The concrete types an <c>object</c> slot allows: every one written behind a type id.</summary>
         private IEnumerable<TypeModel> ObjectTypes() =>
@@ -303,14 +251,17 @@ namespace Nino.Codegen.Targets
                     return Raw(value);
                 case ValueKind.RawTuple:
                 {
-                    // Items one after another with no gap are the same bytes as a tuple of them.
+                    // Items one after another with no gap are the same bytes as a tuple of them; others (padding, or
+                    // CoreCLR's auto layout, which puts larger items first) a struct of the items at their offsets.
                     var items = value.Items.Select(Raw).ToList();
                     int at = 0;
                     for (int i = 0; i < items.Count; i++)
                     {
                         if (value.Offsets[i] != at)
-                            throw new UnsupportedException(
-                                $"{value.ClrName} ({value.Encoding}) has padding, which a Rust tuple cannot hold");
+                            return value.Fallback != null
+                                ? Raw(value.Fallback)
+                                : throw new UnsupportedException(
+                                    $"{value.ClrName} ({value.Encoding}) has padding, which a Rust tuple cannot hold");
                         at += items[i].Size;
                     }
 
@@ -327,7 +278,7 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Type:
                     return TypeShape(value.Type!);
                 case ValueKind.Parameter:
-                    // A type parameter: its argument's NinoRead decides (read_in asks it whether it may defer); a
+                    // A type parameter: its argument's NinoRead decides (read_member asks it whether it may defer); a
                     // parameter a map key or set element holds is bound by Eq + Hash, and checked where it is closed.
                     return new RustShape("param") { Parameter = value.ParameterName, MayDefer = true, Hashable = true };
                 case ValueKind.Generic:
@@ -346,7 +297,7 @@ namespace Nino.Codegen.Targets
                     var named = _namedCollections.FirstOrDefault(n => n.FullName == value.NamedTypeName);
                     if (named == null)
                     {
-                        named = new RustNamed(GoTarget.Go(TypeNames.WithoutArity(
+                        named = new RustNamed(TypeNames.Joined(TypeNames.WithoutArity(
                             value.NamedTypeName!.Split('.', '+').Last())), value.NamedTypeName!);
                         _namedCollections.Add(named);
                         named.Value = Shape(collection, false);
@@ -479,7 +430,7 @@ namespace Nino.Codegen.Targets
 
             if (!_slotNames.TryGetValue(slot, out var name))
             {
-                name = GoTarget.ClosedName(slot.Clr) + "Ref";
+                name = TypeNames.Closed(slot.Clr) + "Ref";
                 _slotNames[slot] = name;
             }
 
@@ -532,6 +483,7 @@ namespace Nino.Codegen.Targets
                 {
                     var model = value.Struct!;
                     var fields = model.Fields.Select(f => f.Value.Kind is ValueKind.Primitive or ValueKind.Enum or ValueKind.RawStruct
+                            or ValueKind.RawTuple
                         ? Raw(f.Value)
                         : throw new UnsupportedException(
                             $"{model.FullName}.{f.Name} ({f.Value.Encoding}) has no Rust form inside a raw struct")).ToList();
@@ -550,6 +502,9 @@ namespace Nino.Codegen.Targets
                         Hashable = fields.All(f => f.Hashable),
                     };
                 }
+                case ValueKind.RawTuple when value.Fallback != null:
+                    // Inside a raw struct, a struct of its items at their offsets, which implements nino::Raw.
+                    return Raw(value.Fallback);
                 case ValueKind.Unsupported:
                     throw new UnsupportedException(value.Problem!.Replace("{lang}", "Rust"));
                 default:
@@ -598,37 +553,18 @@ namespace Nino.Codegen.Targets
         // ---------------------------------------------------------------- names
 
         /// <summary>Names a generated type must not take: the prelude's and the generated code's own.</summary>
-        private static readonly HashSet<string> Reserved = new(StringComparer.Ordinal)
+        private static readonly HashSet<string> ReservedNames = new(StringComparer.Ordinal)
         {
             "Option", "Some", "None", "Result", "Ok", "Err", "Vec", "String", "Box", "Default", "Clone", "Copy",
             "Debug", "PartialEq", "Eq", "Hash", "Self", "AnyObject", "NinoVisit", "Any",
         };
 
-        private void AssignNames(IEnumerable<object> types)
-        {
-            var all = types.Select(Clr).Distinct().ToList();
-            var simple = all.ToLookup(t => GoTarget.Go(GoTarget.SimpleName(t)));
-            foreach (var type in all)
-            {
-                string name = GoTarget.Go(GoTarget.SimpleName(type));
-                if (simple[name].Count() > 1)
-                    name = GoTarget.Go((type.Namespace ?? "").Replace('.', '_')) + name;
-                if (Reserved.Contains(name))
-                    name += "Type";
-                _names[type] = name;
-            }
-        }
+        protected override string BaseName(Type type) => TypeNames.Joined(TypeNames.Definition(type));
 
-        private static Type Clr(object type) => type switch
-        {
-            TypeModel t => t.Clr,
-            EnumModel e => e.Clr,
-            RawStructModel s => s.Clr,
-            _ => throw new ArgumentException(type.ToString()),
-        };
+        protected override string Qualified(Type type, string name) =>
+            TypeNames.Joined((type.Namespace ?? "").Replace('.', '_')) + name;
 
-        internal string Name(object type) =>
-            _names.TryGetValue(Clr(type), out var name) ? name : GoTarget.Go(GoTarget.SimpleName(Clr(type)));
+        protected override bool Reserved(string name) => ReservedNames.Contains(name);
 
         private static readonly HashSet<string> Keywords = new(StringComparer.Ordinal)
         {
@@ -740,7 +676,7 @@ namespace Nino.Codegen.Targets
         /// <summary>Whether it is <c>Eq + Hash</c>: a set element or map key.</summary>
         public bool Hashable { get; internal set; }
 
-        /// <summary>Whether reading it may defer a class body: read through <c>read_in</c>.</summary>
+        /// <summary>Whether reading it may defer a class body: read through <c>read_member</c>.</summary>
         public bool MayDefer { get; internal set; }
 
         /// <summary>A string as <c>nino::WideString</c>.</summary>
@@ -843,7 +779,8 @@ namespace Nino.Codegen.Targets
             var names = RustTarget.FieldNames(model.Fields.Select(f => f.Name));
             Shape = target.RawShapes[model];
             Fields = model.Fields.Select((f, i) =>
-                new RustField(names[i].Field, f.Name, f.Offset, target.Shape(f.Value, false))
+                new RustField(names[i].Field, f.Name, f.Offset,
+                        target.Shape(f.Value is { Kind: ValueKind.RawTuple, Fallback: { } items } ? items : f.Value, false))
                     { SerdeRename = target.SerdeRename(names[i].Plain, f.Name) }).ToList();
             var used = new bool[Size];
             foreach (var f in Fields)
@@ -972,6 +909,12 @@ namespace Nino.Codegen.Targets
         /// (whose .NET formatter counts every one).
         /// </summary>
         public bool Counted => Model.IsValueType && !Model.Raw && (Model.IsGenericDefinition || _target.HoldsItself(Model));
+
+        /// <summary>
+        /// A struct whose members are all of fixed size (<see cref="TypeModel.FixedSize"/>): its <c>FIXED_SIZE</c> is
+        /// their sizes added up (0 when a type argument is not of fixed size), so a list of it is one block.
+        /// </summary>
+        public bool Fixed => Model.FixedSize;
 
         /// <summary>Whether reading a member may defer a class body.</summary>
         public bool MayDefer => Members.Any(m => m.Shape.MayDefer) || ElementsMember?.Shape.MayDefer == true;

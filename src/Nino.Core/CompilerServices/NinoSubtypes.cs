@@ -21,7 +21,7 @@ namespace Nino.Core.CompilerServices
     /// </para>
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static class NinoPolymorphic<TBase> where TBase : class
+    public static class NinoSubtypes<TBase> where TBase : class
     {
         private struct TypeEntry
         {
@@ -215,7 +215,7 @@ namespace Nino.Core.CompilerServices
         private static NinoSubtypeHandler FindSlow(Type type)
         {
             if (typeof(TBase) != typeof(object))
-                return Adopt(NinoPolymorphic<object>.Find(type));
+                return Adopt(NinoSubtypes<object>.Find(type));
 
             // Registration is lazy (and the subtype's assembly may not have run its registry's static constructor
             // yet where there is no module initializer support). A closed generic [NinoType] the generator did not
@@ -231,7 +231,7 @@ namespace Nino.Core.CompilerServices
         private static NinoSubtypeHandler FindSlow(int id)
         {
             if (typeof(TBase) != typeof(object))
-                return Adopt(NinoPolymorphic<object>.Find(id));
+                return Adopt(NinoSubtypes<object>.Find(id));
 
             // An id searched for in vain before, with nothing registered or loaded since, is not searched again.
             var before = NinoUnknownIds.Now();

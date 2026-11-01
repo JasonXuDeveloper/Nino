@@ -23,7 +23,7 @@ namespace Nino.Core.Internal
         public static void Read<T>(ReadOnlySpan<byte> data, ref T value)
         {
             var reader = new Reader(data);
-            NinoTopFormatter<T>.Get.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
             End(ref reader);
         }
 

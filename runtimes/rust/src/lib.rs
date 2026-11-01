@@ -13,9 +13,10 @@
 //! ```
 //!
 //! Guarantees: no input makes the reader panic, read out of bounds, allocate more than the data could fill, or
-//! recurse without bound; a read either returns the whole value or an [`Error`]. The only `unsafe` code is `simd.rs`
+//! recurse without bound; a read either returns the whole value or an [`Error`]. The `unsafe` code is `simd.rs`
 //! (checked under Miri): the string writer's transcoding, and the reader's decoding of text into a `String` it
-//! builds, from bytes the reader's safe code has already bounds-checked.
+//! builds, from bytes the reader's safe code has already bounds-checked; and one block in `shared.rs`, reading an
+//! object through a weak link inside a read's graph (checked under Miri by `tests/shared.rs`).
 
 #![deny(unsafe_code)]
 #![deny(
@@ -46,9 +47,9 @@ mod writer;
 pub use defer::Step;
 pub use error::{Error, ErrorKind, Result};
 pub use impls::dyn_step;
-pub use reader::{Reader, Region, DEPTH_INLINE, DEPTH_MAX};
+pub use reader::{Reader, Region, INLINE_DEPTH, MAX_DEPTH};
 pub use shared::Shared;
-pub use traits::{NinoRead, NinoReadBody, NinoWrite, NinoWriteBody};
+pub use traits::{decode_member, encode_member, sum_fixed_sizes, NinoRead, NinoReadBody, NinoWrite, NinoWriteBody};
 pub use types::{
     BigInteger, BitArray, DateOnly, DateTime, DateTimeKind, DateTimeOffset, Decimal, Grid, Guid, Half, Raw,
     RawNullables, Rune, TimeOnly, TimeSpan, Utf8, Version, WideString, MAX_TICKS, TICKS_PER_DAY, UNIX_EPOCH_TICKS,
@@ -83,6 +84,14 @@ pub fn serialize_into<T: NinoWrite + ?Sized>(value: &T, out: &mut Vec<u8>) -> Re
 /// ignored, as .NET ignores them; [`deserialize_exact`] rejects them.
 pub fn deserialize<T: NinoRead>(data: &[u8]) -> Result<T> {
     T::read(&mut Reader::new(data))
+}
+
+/// Deserializes one value into `value`, reusing what it holds ([`NinoRead::read_into`]: the members of a class or
+/// struct, the buffers and elements of a `Vec`, the buffers of maps and sets, a polymorphic value of the same type),
+/// as `NinoDeserializer.Deserialize(data, ref value)` does in .NET. Bytes after the value are ignored. On an error,
+/// `value` is a valid value holding what was read before it: read into it again, or drop it.
+pub fn deserialize_into<T: NinoRead>(data: &[u8], value: &mut T) -> Result<()> {
+    value.read_into(&mut Reader::new(data))
 }
 
 /// [`deserialize`], failing when bytes are left after the value.
@@ -142,13 +151,79 @@ const fn fnv_unit(hash: u32, unit: u32) -> u32 {
     (hash ^ (unit >> 8)).wrapping_mul(0x0100_0193)
 }
 
-/// A [`Step::Field`] from a type to one of its members, for [`Reader::read_in`]:
-/// `self.next = r.read_in(nino::field!(Self, next))?`.
+/// A [`Step::Field`] from a type to one of its members, for [`Reader::read_member`]:
+/// `self.next = r.read_member(nino::field!(Self, next))?`.
 #[macro_export]
 macro_rules! field {
     ($t:ty, $($member:tt)+) => {
         |p: &mut dyn ::core::any::Any| -> ::core::option::Option<&mut dyn ::core::any::Any> {
             ::core::option::Option::Some(&mut p.downcast_mut::<$t>()?.$($member)+ as &mut dyn ::core::any::Any)
+        }
+    };
+}
+
+/// The read methods of a sealed class's [`NinoRead`] impl (a class written behind a presence byte, never a type id),
+/// each forwarding to the [`Reader`]'s sealed-class read (`read_sealed_value`, `read_sealed`, ...). Generated code
+/// and the derive write it in the impl, after the constants:
+/// `impl NinoRead for Record { const MAY_DEFER: bool = true; nino::sealed_read!(); }`.
+#[macro_export]
+macro_rules! sealed_read {
+    () => {
+        #[inline]
+        fn read(r: &mut $crate::Reader<'_>) -> $crate::Result<Self> {
+            r.read_sealed_value()
+        }
+
+        #[inline]
+        fn read_option(r: &mut $crate::Reader<'_>) -> $crate::Result<::core::option::Option<Self>> {
+            r.read_sealed()
+        }
+
+        #[inline]
+        fn read_boxed(r: &mut $crate::Reader<'_>) -> $crate::Result<::std::boxed::Box<Self>> {
+            r.read_sealed_boxed_value()
+        }
+
+        #[inline]
+        fn read_boxed_option(
+            r: &mut $crate::Reader<'_>,
+        ) -> $crate::Result<::core::option::Option<::std::boxed::Box<Self>>> {
+            r.read_sealed_boxed()
+        }
+
+        #[inline]
+        fn read_into(&mut self, r: &mut $crate::Reader<'_>) -> $crate::Result<()> {
+            r.read_sealed_into(self)
+        }
+
+        #[inline]
+        fn read_option_into(slot: &mut ::core::option::Option<Self>, r: &mut $crate::Reader<'_>) -> $crate::Result<()> {
+            r.read_sealed_option_into(slot)
+        }
+
+        #[inline]
+        fn read_boxed_option_into(
+            slot: &mut ::core::option::Option<::std::boxed::Box<Self>>,
+            r: &mut $crate::Reader<'_>,
+        ) -> $crate::Result<()> {
+            r.read_sealed_boxed_option_into(slot)
+        }
+    };
+}
+
+/// The write methods of a sealed class's [`NinoWrite`] impl ([`sealed_read!`]'s counterpart), forwarding to
+/// [`Writer::write_sealed`]: `impl NinoWrite for Record { nino::sealed_write!(); }`.
+#[macro_export]
+macro_rules! sealed_write {
+    () => {
+        #[inline]
+        fn write<'a>(&'a self, w: &mut $crate::Writer<'a>) -> $crate::Result<()> {
+            w.write_sealed(::core::option::Option::Some(self))
+        }
+
+        #[inline]
+        fn write_option<'a>(value: ::core::option::Option<&'a Self>, w: &mut $crate::Writer<'a>) -> $crate::Result<()> {
+            w.write_sealed(value)
         }
     };
 }

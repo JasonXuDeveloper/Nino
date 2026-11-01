@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Nino.Generator.Common;
 using static Nino.Generator.Generation.Emit.MemberCode;
 using static Nino.Generator.Generation.TypeNames;
@@ -13,6 +14,7 @@ internal static class FormatterEmitter
         var names = new FormatterNames(m);
         var w = new CodeWriter(4096, indent: 1);
         EmitFormatter(w, m, names);
+        AccessorEmitter.EmitGenericUnsafeAccessors(w, m);
         // The type's own name, which most lines of a formatter repeat, through an alias: not a generic type's, whose
         // name has the formatter's type parameters.
         var aliases = new List<string>();
@@ -37,8 +39,9 @@ internal static class FormatterEmitter
             iface += $", {CoreCompilerServices}INinoRawBodyFormatter<{t}>";
         if (m.Block)
             iface += $", {CoreCompilerServices}INinoBlockFormatter<{t}>";
+        iface += Prefetch(m);
 
-        w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.Constraints}");
+        w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.FormatterConstraints}");
         var body = new BodyEmitter(m, w, names);
 
         // TypeId, Traits and Create are a few bytes of IL, which every runtime inlines without being told to. The
@@ -50,8 +53,8 @@ internal static class FormatterEmitter
         {
             // Behind a reference header, subtypes are dispatched without one of their own.
             if (m.TrackReferences)
-                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoPolymorphic<{t}>.SerializeReferenced(value, ref writer)",
-                    $"{CoreCompilerServices}NinoPolymorphic<{t}>.DeserializeReferenced(reader.UnsafeRead<int>(), ref value, ref reader)");
+                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoSubtypes<{t}>.SerializeReferenced(value, ref writer)",
+                    $"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeReferenced(reader.UnsafeRead<int>(), ref value, ref reader)");
             else
                 EmitDispatchingEntryPoints(w, m, names, ownId: false);
             w.Line();
@@ -61,6 +64,7 @@ internal static class FormatterEmitter
                 w.Line();
             }
 
+            EmitPrefetch(w, m, names);
             w.Close();
             return;
         }
@@ -90,7 +94,8 @@ internal static class FormatterEmitter
                     $"{CoreCompilerServices}NinoObject.DeserializeSealed<{t}, {self}, {self}{Shallow}>(ref value, ref reader, {m.Depth.Bound})");
                 break;
             case FormatterKind.SealedClass:
-                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoObject.SerializeSealed{Raw(m)}<{t}, {self}>(value, ref writer)",
+                EmitEntryPoints(w, m, names,
+                    $"{CoreCompilerServices}NinoObject.{(m.RawBody ? "SerializeSealedRaw" : "SerializeSealed")}<{t}, {self}>(value, ref writer)",
                     $"{CoreCompilerServices}NinoObject.DeserializeSealed<{t}, {self}>(ref value, ref reader)");
                 break;
             case FormatterKind.Class when m.TrackReferences:
@@ -101,7 +106,8 @@ internal static class FormatterEmitter
                 EmitDispatchingEntryPoints(w, m, names, ownId: true);
                 break;
             default:
-                EmitEntryPoints(w, m, names, $"{CoreCompilerServices}NinoObject.Serialize{Raw(m)}<{t}, {self}>(value, ref writer)",
+                EmitEntryPoints(w, m, names,
+                    $"{CoreCompilerServices}NinoObject.{(m.RawBody ? "SerializeRaw" : "Serialize")}<{t}, {self}>(value, ref writer)",
                     $"{CoreCompilerServices}NinoObject.Deserialize<{t}, {self}>(ref value, ref reader)");
                 break;
         }
@@ -148,8 +154,49 @@ internal static class FormatterEmitter
             EmitShallow(w, m, names, body);
         }
 
-        AccessorEmitter.EmitUnsafeAccessors(w, m);
+        EmitPrefetch(w, m, names);
+        if (!m.IsGeneric)
+            AccessorEmitter.EmitUnsafeAccessors(w, m);
 
+        w.Close();
+    }
+
+    /// <summary>The interface of a formatter whose collections prefetch (see <see cref="TypeModel.PrefetchBytes"/>).</summary>
+    private static string Prefetch(TypeModel m) =>
+        m.PrefetchBytes > 0 ? $", {CoreCompilerServices}INinoPrefetchFormatter" : "";
+
+    /// <summary>
+    /// INinoPrefetchFormatter of a formatter or twin: the bytes an element brings into the
+    /// cache, and the prefetch of the objects its members point to, which Nino.Core's helper for long collections
+    /// calls once per run of elements (inlined there).
+    /// </summary>
+    private static void EmitPrefetch(CodeWriter w, TypeModel m, FormatterNames names)
+    {
+        if (m.PrefetchBytes == 0)
+            return;
+        string t = m.TypeName;
+        string prefetch = $"{CoreCompilerServices}INinoPrefetchFormatter";
+        w.Line();
+        w.Line($"int {prefetch}.PrefetchBytes => {m.PrefetchBytes};");
+        w.Line(names.Inline);
+        if (m.PrefetchMembers.Length == 0)
+        {
+            w.Line($"int {prefetch}.PrefetchMembers(ref object first, int count) => 0;");
+            return;
+        }
+
+        w.Line($"int {prefetch}.PrefetchMembers(ref object first, int count)");
+        w.Open();
+        w.Line("int sum = 0;");
+        w.Line($"ref var item = ref global::System.Runtime.CompilerServices.Unsafe.As<object, {t}>(ref first);");
+        w.Line("for (; count > 0; count--, item = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref item, 1))");
+        w.Open();
+        w.Line("var v = item;");
+        w.Line("if (v != null)");
+        w.Indented(() => w.Line("sum += " + string.Join(" + ",
+            m.PrefetchMembers.Select(name => $"{CoreCompilerServices}NinoPrefetched.At(v.{name})")) + ";"));
+        w.Close();
+        w.Line("return sum;");
         w.Close();
     }
 
@@ -200,7 +247,7 @@ internal static class FormatterEmitter
             w.Line();
         }
 
-        OpenTwin(w, m, TopTwinName, $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>");
+        OpenTwin(w, m, TopTwinName, $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>{Prefetch(m)}");
         w.Line(names.Inline);
         w.Line(serializeTop
             ? $"{Signature.Serialize(t)} => __SerializeTop(value, ref writer);"
@@ -217,6 +264,7 @@ internal static class FormatterEmitter
             : $"public {t} Read(global::System.ReadOnlySpan<byte> data) => {CoreCompilerServices}NinoDirect.Deserialize<{t}, {top}>(data);");
         ForwardWriteBody(w, m, names, m.TopInline ? "__WriteBodyInline" : null);
         ForwardReadBody(w, m, names, m.TopInline ? "__ReadBodyInline" : null);
+        EmitPrefetch(w, m, names);
         w.Close();
     }
 
@@ -232,7 +280,7 @@ internal static class FormatterEmitter
         w.Line($"public {m.TypeName} Create() => default({m.Self}).Create();");
     }
 
-    /// <summary>A twin's <c>Serialize</c>: the null flag, then the body with no depth check.</summary>
+    /// <summary>A twin's <c>Serialize</c>: the presence byte, then the body with no depth check.</summary>
     private static string SerializeTop(TypeModel m, string twin) => m.RawBody
         ? $"{CoreCompilerServices}NinoObject.SerializeTopRaw<{m.TypeName}, {m.Self}>(value, ref writer)"
         : $"{CoreCompilerServices}NinoObject.SerializeTop<{m.TypeName}, {twin}>(value, ref writer)";
@@ -256,7 +304,7 @@ internal static class FormatterEmitter
         w.Line($"{Signature.ReadBody(m.TypeName)} => {body ?? $"default({m.Self}).ReadBody"}(ref value, ref reader);");
     }
 
-    /// <summary>The null flag and the body of <c>value</c>, on the local writer <c>__w</c>.</summary>
+    /// <summary>The presence byte and the body of <c>value</c>, on the local writer <c>__w</c>.</summary>
     private static void EmitTopWrite(CodeWriter w)
     {
         w.Line("if (value == null)");
@@ -278,7 +326,7 @@ internal static class FormatterEmitter
         string t = m.TypeName;
         string self = m.Self;
         string twin = self + Shallow;
-        OpenTwin(w, m, ShallowTwinName, $"{CoreCompilerServices}INinoBodyFormatter<{t}>");
+        OpenTwin(w, m, ShallowTwinName, $"{CoreCompilerServices}INinoBodyFormatter<{t}>{Prefetch(m)}");
         w.Line(names.Inline);
         w.Line(m.Kind == FormatterKind.Struct
             ? $"{Signature.Serialize(t)} => WriteBody(value, ref writer);"
@@ -301,11 +349,9 @@ internal static class FormatterEmitter
             ForwardReadBody(w, m, names, m.ShallowBodies ? "__ReadBodyShallow" : null);
         }
 
+        EmitPrefetch(w, m, names);
         w.Close();
     }
-
-    /// <summary>The suffix of the <c>NinoObject</c> methods for a body that is one raw block (<see cref="TypeModel.RawBody"/>).</summary>
-    private static string Raw(TypeModel m) => m.RawBody ? "Raw" : "";
 
     private static void EmitTypeId(CodeWriter w, TypeModel m)
     {
@@ -324,7 +370,7 @@ internal static class FormatterEmitter
     private static void EmitDeferral(CodeWriter w, TypeModel m)
     {
         string t = m.TypeName;
-        // NinoBody.Nests and NinoBody.Deferrable.
+        // NinoBodyTraits.Nests and NinoBodyTraits.Deferrable.
         int traits = (m.Depth.Nests ? 1 : 0) | (m.Depth.Deferrable ? 2 : 0);
         w.Line($"public int Traits => {traits};");
         if (!m.Depth.Deferrable)
@@ -386,16 +432,16 @@ internal static class FormatterEmitter
             rootType = m.Need(m.Inheritance.DispatchRoot, nameof(m.Inheritance.DispatchRoot));
         }
 
-        string write = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoPolymorphic<{t}>.Serialize(value, ref writer)"
+        string write = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer)"
             : root ? "__WriteSubtype(value, ref writer)"
             : $"{rootFormatter}.__WriteSubtype(value, ref writer)";
-        string read = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);"
+        string read = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref value, ref reader);"
             : root ? "__ReadSubtype(id, ref value, ref reader);"
             : $"{rootFormatter}.__ReadSubtype(id, ref {CoreCompilerServices}NinoObject.AsBaseSlot<{t}, {rootType}>(ref value), ref reader); {CoreCompilerServices}NinoObject.EnsureSubtype<{t}>(value);";
         w.Line(names.Inline);
         w.Line($"{Signature.Serialize(t)}");
         w.Indented(() => w.Line(ownId
-            ? $$"""{ if (!{{CoreCompilerServices}}NinoObject.TryWriteOwn{{Raw(m)}}<{{t}}, {{self}}>(value, ref writer)) {{write}}; }"""
+            ? $$"""{ if (!{{CoreCompilerServices}}NinoObject.{{(m.RawBody ? "TryWriteOwnRaw" : "TryWriteOwn")}}<{{t}}, {{self}}>(value, ref writer)) {{write}}; }"""
             : $$"""{ if (value == null) writer.UnsafeWrite({{NinoWire.NullTypeId}}); else {{write}}; }"""));
         w.Line();
         w.Line(names.Inline);

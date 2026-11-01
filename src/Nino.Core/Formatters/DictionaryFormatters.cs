@@ -93,7 +93,8 @@ namespace Nino.Core
             return (int)pos;
         }
 
-        /// <summary>Writes the <paramref name="count"/> raw pairs at <paramref name="pairs"/> (after the count).</summary>
+        /// <summary>Writes the <paramref name="count"/> raw pairs at <paramref name="pairs"/> (after the
+        /// count).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void WriteRaw(Dictionary<TKey, TValue> value, ref byte pairs, int count)
         {
@@ -108,22 +109,14 @@ namespace Nino.Core
                 return;
             }
 
-            if (count == 0)
-                return;
-            ref var entry = ref entries[0];
-            int left = count;
-            do
-            {
-                NinoUnsafe.Write(ref pairs, 0, entry.Key);
-                NinoUnsafe.Write(ref pairs, keySize, entry.Value);
-                NinoLayout<TKey>.ClearPadding(ref pairs);
-                NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref pairs, keySize));
-                entry = ref Unsafe.Add(ref entry, 1);
-                pairs = ref Unsafe.Add(ref pairs, pairSize);
-            } while (--left != 0);
+            // Several entries at a time where the CPU permutes vectors, each key and value packed out of its entry.
+            if (count != 0)
+                NinoBlockCollections.WriteAll<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryBlock<TKey, TValue>>(
+                    ref pairs, ref entries[0], count, pairSize);
         }
 
-        /// <summary>The <paramref name="count"/> raw pairs of a dictionary with free entries, in enumeration order.</summary>
+        /// <summary>The <paramref name="count"/> raw pairs of a dictionary with free entries, in enumeration
+        /// order.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void WriteEnumerated(Dictionary<TKey, TValue> value, ref byte pairs, int count)
         {
@@ -192,7 +185,8 @@ namespace Nino.Core
 
         private static readonly bool HeavyKeys = NinoElements.Heavy(Unsafe.SizeOf<TKey>(), MinPairSize);
 
-        /// <summary>Recycles and clears an existing dictionary before it is refilled with <paramref name="length"/> pairs.</summary>
+        /// <summary>Recycles and clears an existing dictionary before it is refilled with <paramref name="length"/>
+        /// pairs.</summary>
         public static void Reset(Dictionary<TKey, TValue> dictionary, int length, int remaining)
         {
             NinoRecycler.DiscardPairs<TKey, TValue>(dictionary);
@@ -284,7 +278,8 @@ namespace Nino.Core
             return true;
         }
 
-        /// <summary>Removes (and recycles) the entries whose key is not among the <paramref name="count"/> read.</summary>
+        /// <summary>Removes (and recycles) the entries whose key is not among the <paramref name="count"/>
+        /// read.</summary>
         private static void RemoveStale(Dictionary<TKey, TValue> dictionary, TKey[] keys, int count)
         {
             // A key read twice is one key (the last value won).
@@ -640,7 +635,7 @@ namespace Nino.Core
             get => RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>();
         }
 
-        int INinoBlockFormatter<KeyValuePair<TKey, TValue>>.BlockSize
+        int INinoFixedSizeFormatter<KeyValuePair<TKey, TValue>>.FixedSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => Raw ? NinoLayout<TKey>.Size + NinoLayout<TValue>.Size : -1;
@@ -659,12 +654,12 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoBlockFormatter<KeyValuePair<TKey, TValue>>.WriteBlock(ref byte destination,
-            in KeyValuePair<TKey, TValue> value) => WriteRaw(ref destination, in value);
+        void INinoFixedSizeFormatter<KeyValuePair<TKey, TValue>>.WriteFixed(in KeyValuePair<TKey, TValue> value,
+            ref byte destination) => WriteRaw(ref destination, in value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoBlockFormatter<KeyValuePair<TKey, TValue>>.ReadBlock(ref byte source,
-            ref KeyValuePair<TKey, TValue> value) => value = ReadRaw(ref source);
+        void INinoBlockFormatter<KeyValuePair<TKey, TValue>>.ReadBlock(ref KeyValuePair<TKey, TValue> value,
+            ref byte source) => value = ReadRaw(ref source);
 
         /// <summary>The key and the value of a pair of raw items, at <paramref name="destination"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

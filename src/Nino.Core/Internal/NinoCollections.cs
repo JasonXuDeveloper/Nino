@@ -46,7 +46,8 @@ namespace Nino.Core.Internal
             }
         }
 
-        /// <summary>Writes the count of <paramref name="values"/> (patched afterwards if unknown), then the elements.</summary>
+        /// <summary>Writes the count of <paramref name="values"/> (patched afterwards if unknown), then the
+        /// elements.</summary>
         public static void WriteEnumerable<T, TFormatter>(IEnumerable<T> values, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
@@ -298,9 +299,9 @@ namespace Nino.Core.Internal
         public static void WriteSpan<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            // Elements of a fixed size (BlockSize, a constant): the length and the block in one reservation, one
+            // Elements of a fixed size (BlockStride, a constant): the length and the block in one reservation, one
             // capacity check where the length and the block would each take one.
-            int block = NinoElements.BlockSize<T, TFormatter>();
+            int block = NinoElements.BlockStride<T, TFormatter>();
             if (block > 0)
             {
                 ref byte elements = ref writer.ReserveCounted(values.Length, block);

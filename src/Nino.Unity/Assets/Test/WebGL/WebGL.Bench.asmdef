@@ -1,0 +1,23 @@
+{
+    "name": "WebGL.Bench",
+    "rootNamespace": "",
+    "references": [
+        "Nino.WebGL"
+    ],
+    "includePlatforms": [
+        "WebGL"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Nino.Core.dll",
+        "System.Runtime.CompilerServices.Unsafe.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "NINO_WEBGL_BENCH"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

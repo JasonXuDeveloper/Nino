@@ -68,6 +68,69 @@ public class IncrementalGeneratorTests
     }
 
     [TestMethod]
+    public void CollectionsThatHoldThemselvesNameTheirNestingFormatter()
+    {
+        // Each level of a type that holds itself calls a generated struct directly (it counts the level), where
+        // CachedFormatter<T> made a call through the shared generic code's dictionary and a virtual one. Every struct
+        // a formatter, a top-level call or a closed generic names is declared once, whichever model named it first.
+        var compilation = Create(
+            ("Types.cs", Usings + """
+                public sealed class Tree : System.Collections.Generic.List<Tree> { }
+                public sealed class Map : System.Collections.Generic.Dictionary<string, Map> { }
+                public sealed class A : System.Collections.Generic.List<B> { }
+                public sealed class B : System.Collections.Generic.List<A> { }
+                [NinoType] public class Box<T> { public T Value; }
+                }
+                """),
+            ("Holder.cs", Usings + "[NinoType] public class Holder { public Tree T; [NinoUtf8] public Map M; public Box<Tree> X; }\n}"),
+            ("Other.cs", Usings + "[NinoType] public class Other { public B B; public Map M; }\n}"),
+            ("Calls.cs", Usings + """
+                public static class Calls
+                {
+                    public static byte[] Write(A a) => NinoSerializer.Serialize(a);
+                }
+                }
+                """));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
+        string nesting = driver.GetRunResult().Results[0].GeneratedSources
+            .Single(s => s.HintName == "NinoGen.Nesting.g.cs").SourceText.ToString();
+        // Tree, Map and Map with UTF-8 keys, and one of A and B (the cycle closes there).
+        Assert.AreEqual(4, nesting.Split("internal struct ").Length - 1, nesting);
+        StringAssert.Contains(nesting, "writer.EnterStruct(typeof(global::Inc.Tree));");
+        StringAssert.Contains(nesting, "reader.EnterStruct(typeof(global::Inc.Map));");
+        foreach (var file in driver.GetRunResult().Results[0].GeneratedSources)
+            Assert.IsFalse(file.SourceText.ToString().Contains("CachedFormatter"), file.HintName);
+        StringAssert.Contains(Output(driver, "Holder"),
+            "ListFormatter<global::Inc.Tree, global::Inc.Tree, global::NinoGen.Inc_Tree_");
+
+        // A model rebuilt alone after an edit still finds the structs the others declared.
+        compilation = Edit(compilation, "Other.cs", "public Map M;", "public Map M; public int I;");
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out output, out _);
+        errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
+    }
+
+    [TestMethod]
+    public void GenericTypesTakeTheFormattersOfTheirTypeArguments()
+    {
+        // A member of type T calls the formatter the closed type names: a direct call on every runtime, where
+        // CachedFormatter<T> is a virtual call on IL2CPP, Mono and NativeAOT.
+        var compilation = Create(
+            ("Box.cs", Usings + "[NinoType] public class Box<T> { public T Value; public System.Collections.Generic.List<T> Items; }\n}"),
+            ("Holder.cs", Usings + "[NinoType] public class Holder { public Box<int> Ints; }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGenerators(compilation);
+        string box = Output(driver, "Box_1");
+        StringAssert.Contains(box, "where __F_T : struct, global::Nino.Core.INinoFormatter<T>");
+        Assert.IsFalse(box.Contains("CachedFormatter"), box);
+        StringAssert.Contains(Output(driver, "Holder"),
+            "Inc_Box_1Formatter<int, global::Nino.Core.UnmanagedFormatter<int>>");
+    }
+
+    [TestMethod]
     public void EditedFormatterRegistrationsReachCachedModels()
     {
         // The registration is in a file no model depends on: models must still see it change.
@@ -229,10 +292,10 @@ public partial class Outer
 {
     internal partial class Middle
     {
-        [NinoType(containNonPublicMembers: true)]
+        [NinoType(includeNonPublicMembers: true)]
         public partial class Inner { private int _secret; public string Name; }
 
-        [NinoType(containNonPublicMembers: true)]
+        [NinoType(includeNonPublicMembers: true)]
         public partial struct InnerStruct { private long _value; }
     }
 }
@@ -319,7 +382,7 @@ public class MadeList : System.Collections.Generic.List<Made> { }
     {
         var compilation = Create(
             ("A.cs", Usings + "[NinoType] public class A { public int X; public System.Action Bad; }\n}"),
-            ("B.cs", Usings + "[NinoType(containNonPublicMembers: true)] public partial class B { private int _y; }\n}"),
+            ("B.cs", Usings + "[NinoType(includeNonPublicMembers: true)] public partial class B { private int _y; }\n}"),
             ("C.cs", Usings + "public static class C { public static byte[] W(System.Collections.Generic.List<A> a) => NinoSerializer.Serialize(a); }\n}"));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new Generator.Generation.NinoGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
@@ -541,7 +604,7 @@ public class holder { [NinoType] public class item { public int I; } }
         // .NET 8+: private members are reached through [UnsafeAccessor], which the compiler cannot see.
         var parse = new CSharpParseOptions(LanguageVersion.Latest).WithPreprocessorSymbols("NET8_0_OR_GREATER");
         var compilation = Create(("S.cs", Usings + @"
-[NinoType(containNonPublicMembers: true)] public class S { private int _never; private string _assigned = """"; }
+[NinoType(includeNonPublicMembers: true)] public class S { private int _never; private string _assigned = """"; }
 public class Plain { private int _unused; }
 }"));
         compilation = compilation.RemoveAllSyntaxTrees()

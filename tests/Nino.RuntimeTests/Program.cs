@@ -41,11 +41,6 @@ public struct StampedEvent { public int Id; public DateTime At; }
 [NinoType]
 public class EventLog { public HoldsDateTime First; public List<HoldsDateTimes> Rest; public StampedEvent Last; }
 
-// Plain structs holding a multi-field auto-layout struct (ValueTuple, DateTimeOffset): their layout is not measured,
-// they are copied as they lie in memory. Printed, not compared (see the end of Main).
-public struct HoldsTuple { public int A; public (int, long) B; }
-public struct HoldsDateTimeOffset { public int A; public DateTimeOffset B; }
-
 [NinoType]
 public class Item
 {
@@ -234,7 +229,7 @@ public static class Program
         Console.WriteLine($"{name,-24} {(ok ? "ok" : "WRONG")}");
     }
 
-    public static int Main()
+    public static int Main(string[] args)
     {
         var views = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.CollectionViews");
         // Informational, not compared: where this runtime keeps the fields.
@@ -292,6 +287,45 @@ public static class Program
             Case("Waypoint[" + n + "]", Enumerable.Range(0, n).Select(i => new Waypoint { X = i / 3f, Stamp = (i * 5, (short)-i), Visited = i % 3 == 0 }).ToArray());
             Case("List<Keyed>[" + n + "]", Enumerable.Range(0, n).Select(i => new Keyed { K = new KeyValuePair<int, short>(i, (short)i), On = i % 2 == 0 }).ToList());
             Case("(byte,short)[" + n + "]", Enumerable.Range(0, n).Select(i => ((byte)i, (short)(i * 3))).ToArray());
+            // Written from their entries, several at a time by the vector permutes where the CPU has them.
+            Case("Dictionary<int,int>[" + n + "]", Enumerable.Range(0, n).ToDictionary(i => i * 7919 % 1000 - 500, i => -i));
+            Case("HashSet<int>[" + n + "]", new HashSet<int>(Enumerable.Range(0, n).Select(i => i * 31 - 100)));
+        }
+        foreach (int n in new[] { 1, 3, 7, 33, 100 })
+        {
+            Case("Dictionary<long,short>[" + n + "]", Enumerable.Range(0, n).ToDictionary(i => (long)i << 33, i => (short)i));
+            Case("Dictionary<short,long>[" + n + "]", Enumerable.Range(0, n).ToDictionary(i => (short)-i, i => (long)i << 40));
+            Case("Dictionary<int,Padded>[" + n + "]", Enumerable.Range(0, n).ToDictionary(i => i, i => padded[i]));
+            Case("HashSet<Guid>[" + n + "]", new HashSet<Guid>(Enumerable.Range(0, n).Select(i => new Guid(i, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10))));
+            Case("HashSet<short>[" + n + "]", new HashSet<short>(Enumerable.Range(0, n).Select(i => (short)(i * 3))));
+        }
+        // A string read into an instance that holds one of the same length is compared with it (and kept when equal,
+        // ASCII text on every runtime): a difference at any position must give the new string.
+        {
+            bool kept = true;
+            for (int length = 1; length <= 80; length++)
+            {
+                bool ascii = length % 2 == 0;
+                string name = new string(Enumerable.Range(0, length)
+                    .Select(i => (char)(!ascii && i % 3 == 0 ? 0xE9 : 'a' + i % 26)).ToArray());
+                byte[] bytes = NinoSerializer.Serialize(new Item { Name = name });
+                for (int at = 0; at < length; at++)
+                {
+                    var chars = name.ToCharArray();
+                    chars[at] = chars[at] == 'z' ? 'y' : chars[at] == (char)0xE9 ? (char)0x1E9 : 'z';
+                    var into = new Item { Name = new string(chars) };
+                    NinoDeserializer.Deserialize(bytes, ref into);
+                    kept &= into.Name == name;
+                }
+
+                var same = new Item { Name = new string(name.ToCharArray()) };
+                string before = same.Name;
+                NinoDeserializer.Deserialize(bytes, ref same);
+                kept &= same.Name == name && (!ascii || ReferenceEquals(same.Name, before));
+            }
+
+            if (!kept) _failed++;
+            Console.WriteLine($"Latin-1 strings reused {(kept ? "ok" : "WRONG")}");
         }
         Case("(int,int)[]", ints.Select(i => (i, i * 3)).ToArray());
         Case("List<(int,long)>", ints.Select(i => (i, (long)i << 40)).ToList());
@@ -489,17 +523,13 @@ public static class Program
             Console.WriteLine($"DateTime after an int {(ok ? "ok" : "WRONG BYTES")}");
         }
 
-        // What this runtime aligns 8-byte fields to (NinoLayout's probes), and how it lays out the structs Nino does not
-        // measure: not compared.
+        // What this runtime aligns 8-byte fields to (NinoLayout's probes): not compared.
         var ninoLayout = typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal.NinoLayout");
         Console.WriteLine("# layout: " + string.Join(" ", new[] { "LongAlign", "DateTimeAlign", "DecimalAlign", "WideAlign", "KeepsDeclarationOrder" }
             .Select(n => n + "=" + ninoLayout?.GetField(n, BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null))));
-        foreach (var (name, bytes) in new[]
-                 {
-                     ("HoldsTuple", NinoSerializer.Serialize(new HoldsTuple { A = 1, B = (2, 3) })),
-                     ("HoldsDateTimeOffset", NinoSerializer.Serialize(new HoldsDateTimeOffset { A = 1, B = new DateTimeOffset(4, TimeSpan.Zero) })),
-                 })
-            Console.WriteLine($"# unmeasured {name}: {BitConverter.ToString(bytes)}");
+        // Every BCL struct inside a plain struct, and tuples and pairs: CoreCLR x64's bytes, both ways.
+        BclStructs.Run(args.Contains("--write-fixtures"));
+        _failed += BclStructs.Failed;
         Console.WriteLine(_failed == 0 ? "ALL OK" : _failed + " FAILED");
         return _failed;
     }

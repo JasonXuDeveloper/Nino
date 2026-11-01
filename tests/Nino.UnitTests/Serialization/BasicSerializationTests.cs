@@ -70,7 +70,7 @@ public class BasicSerializationTests
     }
 
     [TestMethod]
-    public void TestSubTypes()
+    public void TestSubtypes()
     {
         //Create an instance of TestClass
         var testClass = new TestClass3

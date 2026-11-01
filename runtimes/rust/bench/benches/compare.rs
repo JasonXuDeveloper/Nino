@@ -35,55 +35,8 @@ pub struct Point {
 // The Nino codecs below are what nino-gen's Rust templates generate for these two types
 // (src/Nino.Codegen/Templates/rust/types.sbn): a raw struct read and written as one block, a class's members one by
 // one, and a class held as `Option<Box<_>>` wherever it is a member, an element or the value written.
-impl nino::Raw for Point {
-    const SIZE: usize = 8;
-    const ALIGN: usize = 4;
-
-    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
-        let b = b.get(..8).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
-        Ok(Self {
-            x: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
-            y: <i32 as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
-        })
-    }
-
-    fn encode_raw(&self, out: &mut [u8]) {
-        if let Some(o) = out.get_mut(0..) {
-            nino::Raw::encode_raw(&self.x, o);
-        }
-        if let Some(o) = out.get_mut(4..) {
-            nino::Raw::encode_raw(&self.y, o);
-        }
-    }
-}
-
-impl NinoRead for Point {
-    const MIN_SIZE: usize = 8;
-    const FIXED_SIZE: usize = 8;
-
-    fn decode_fixed(b: &[u8]) -> Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
-    }
-}
-
-impl NinoWrite for Point {
-    const FIXED_SIZE: usize = 8;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        let mut b = [0u8; 8];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
-}
+#[path = "common/point.rs"]
+mod point;
 
 impl NinoReadBody for Record {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
@@ -113,30 +66,25 @@ impl NinoWriteBody for Record {
 
 impl NinoRead for Record {
     const MAY_DEFER: bool = true;
-
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        r.read_sealed_value()
-    }
-
-    fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
-        r.read_sealed()
-    }
-    fn read_boxed(r: &mut Reader<'_>) -> Result<Box<Self>> {
-        r.read_sealed_boxed_value()
-    }
-    fn read_boxed_option(r: &mut Reader<'_>) -> Result<Option<Box<Self>>> {
-        r.read_sealed_boxed()
-    }
+    nino::sealed_read!();
 }
 
 impl NinoWrite for Record {
-    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        w.write_sealed(Some(self))
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<String> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<i32>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.name.prefetch();
+        self.tags.prefetch();
     }
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-        w.write_sealed(value)
+    fn prefetch_members(&self) {
+        self.name.prefetch_members();
+        self.tags.prefetch_members();
     }
+
+    nino::sealed_write!();
 }
 
 fn record(i: i32) -> Record {
@@ -149,6 +97,22 @@ fn record(i: i32) -> Record {
         tags: Some((0..8).map(|k| k * i).collect()),
         origin: Point { x: i, y: -i },
     }
+}
+
+/// 1,000,000 records made in order and listed in a shuffled order (a fixed seed): each record, its name and its tags
+/// are then somewhere else in memory than the one before, as in a long-lived heap, so writing the list waits on cache
+/// misses (what Nino's prefetching takes on). The Go benchmark's `scattered-1m` lists the same.
+fn scattered_records() -> Vec<Option<Box<Record>>> {
+    let mut values: Vec<Option<Box<Record>>> = (0..1_000_000).map(|i| Some(Box::new(record(i)))).collect();
+    // Fisher-Yates with xorshift64.
+    let mut state = 0x9E37_79B9_7F4A_7C15u64;
+    for i in (1..values.len()).rev() {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        values.swap(i, (state % (i as u64 + 1)) as usize);
+    }
+    values
 }
 
 // ---------------------------------------------------------------------------------------------- protobuf
@@ -221,6 +185,34 @@ mod proto {
     }
 }
 
+/// 1,000 distinct non-negative integers in no order (xorshift64 from a fixed seed): a `HashSet<int>` as nino-gen
+/// writes it (an `IndexSet`, in the order of the data). The Go and TypeScript benchmarks' set cases have the same
+/// shape.
+fn set_ints() -> indexmap::IndexSet<i32> {
+    let mut set = indexmap::IndexSet::with_capacity(1000);
+    let mut state = 0x2545_F491_4F6C_DD1Du64;
+    while set.len() < 1000 {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        set.insert((state >> 33) as i32);
+    }
+    set
+}
+
+/// "member 0" to "member 999" in no order: a `HashSet<string>` as nino-gen writes it.
+fn set_strings() -> indexmap::IndexSet<String> {
+    let mut v: Vec<u32> = (0..1000).collect();
+    let mut state = 0x9E37_79B9_7F4A_7C15u64;
+    for i in (1..v.len()).rev() {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        v.swap(i, (state % (i as u64 + 1)) as usize);
+    }
+    v.into_iter().map(|k| format!("member {k}")).collect()
+}
+
 /// 1,000 strings of three kinds in turn: ASCII, Latin-1 (one byte a char in Nino) and other text (UTF-16 in Nino:
 /// Cyrillic, CJK and a char outside the BMP). The Go and TypeScript benchmarks use the same strings.
 fn mixed_strings() -> Vec<String> {
@@ -231,6 +223,78 @@ fn mixed_strings() -> Vec<String> {
             _ => format!("строка 字符串 🎉 {i}"),
         })
         .collect()
+}
+
+/// `[NinoType(trackReferences: true)] class Node { int Value; Node Next; Node Other; }`: no other serializer here
+/// has shared references, so the case is Nino's alone.
+#[derive(Default)]
+pub struct Node {
+    pub value: i32,
+    pub next: Option<nino::Shared<Node>>,
+    pub other: Option<nino::Shared<Node>>,
+}
+
+impl NinoReadBody for Node {
+    fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_into(&mut self.value)?;
+        r.read_member_into(&mut self.next, nino::field!(Self, next))?;
+        r.read_member_into(&mut self.other, nino::field!(Self, other))
+    }
+}
+
+impl NinoWriteBody for Node {
+    fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        w.write(&self.value)?;
+        w.write(&self.next)?;
+        w.write(&self.other)
+    }
+}
+
+/// 1,000 tracked nodes in a list, each the next of the one before it and the other of every tenth: the bytes of a
+/// ring of `n` nodes (each node's next the one after, the last one's the first), written from a chain built by hand
+/// (no cycle) whose last next is then a back reference to the first.
+fn tracked_nodes(n: i32) -> Vec<u8> {
+    const LAST: i32 = 0x5A5A_5A5A;
+    let mut nodes: Vec<nino::Shared<Node>> = Vec::new();
+    let mut next = None;
+    for i in (0..n).rev() {
+        let value = if i == n - 1 { LAST } else { i };
+        let other = nodes.get(((n - 1 - i) as usize / 10) * 10).cloned();
+        let node = nino::Shared::new(Node { value, next, other });
+        nodes.push(node.clone());
+        next = Some(node);
+    }
+    nodes.reverse();
+    let list: Vec<Option<nino::Shared<Node>>> = nodes.into_iter().map(Some).collect();
+    let mut bytes = nino::serialize(&list).unwrap();
+    let at = bytes.windows(4).position(|w| w == LAST.to_le_bytes()).unwrap();
+    bytes[at..at + 4].copy_from_slice(&(n - 1).to_le_bytes());
+    assert_eq!(bytes[at + 4..at + 8], 0i32.to_le_bytes());
+    bytes[at + 4..at + 8].copy_from_slice(&1i32.to_le_bytes());
+    bytes
+}
+
+/// The tracked graph: read (and dropped, which frees it) and written.
+fn tracked(c: &mut Criterion) {
+    type Graph = Vec<Option<nino::Shared<Node>>>;
+    let bytes = tracked_nodes(1000);
+    let value: Graph = nino::deserialize(&bytes).unwrap();
+    assert_eq!(nino::serialize(&value).unwrap(), bytes);
+    eprintln!("tracked-1000: {} bytes nino", bytes.len());
+    let mut g = c.benchmark_group("tracked-1000");
+    g.throughput(Throughput::Elements(1000));
+    let mut out = Vec::with_capacity(bytes.len());
+    g.bench_function(BenchmarkId::new("serialize", "nino"), |b| {
+        b.iter(|| {
+            out.clear();
+            nino::serialize_into(black_box(&value), &mut out).unwrap();
+            black_box(out.len())
+        })
+    });
+    g.bench_function(BenchmarkId::new("deserialize", "nino"), |b| {
+        b.iter(|| black_box(nino::deserialize::<Graph>(black_box(&bytes)).unwrap()))
+    });
+    g.finish();
 }
 
 // ---------------------------------------------------------------------------------------------- the harness
@@ -264,12 +328,21 @@ macro_rules! nino_only {
 const BINCODE: bincode::config::Configuration = bincode::config::standard();
 
 /// One group per case: serialize and deserialize with each serializer, Nino first. `$elements` is the number of
-/// values in the case (criterion's throughput); `$proto` is the case as a protobuf message of type `$p`.
+/// values in the case (criterion's throughput); `$proto` is the case as a protobuf message of type `$p`, and
+/// `$from_proto` (the message itself when left out) what the deserialize timing makes of a decoded message: the
+/// case's type where protobuf has no such type (a set).
 macro_rules! formats {
-    ($c:expr, $group:literal, $elements:expr, $value:expr, $t:ty, $proto:expr, $p:ty) => {{
+    ($c:expr, $group:literal, $elements:expr, $value:expr, $t:ty, $proto:expr, $p:ty) => {
+        formats!($c, $group, $elements, $value, $t, $proto, $p, |m: $p| m)
+    };
+    ($c:expr, $group:literal, $elements:expr, $value:expr, $t:ty, $proto:expr, $p:ty, $from_proto:expr) => {{
         let value: $t = $value;
         let message: $p = $proto(&value);
         let mut g = $c.benchmark_group($group);
+        if $elements >= 100_000 {
+            // A run of a large case takes milliseconds: ten samples, not a hundred.
+            g.sample_size(10);
+        }
         let nino_bytes = nino::serialize(&value).unwrap();
         g.throughput(Throughput::Elements($elements));
 
@@ -334,7 +407,7 @@ macro_rules! formats {
             b.iter(|| black_box(nino::deserialize::<$t>(black_box(&nino_bytes)).unwrap()))
         });
         g.bench_function(BenchmarkId::new("deserialize", "prost"), |b| {
-            b.iter(|| black_box(<$p as prost::Message>::decode(black_box(&prost_bytes[..])).unwrap()))
+            b.iter(|| black_box($from_proto(<$p as prost::Message>::decode(black_box(&prost_bytes[..])).unwrap())))
         });
         g.bench_function(BenchmarkId::new("deserialize", "bincode"), |b| {
             b.iter(|| {
@@ -369,6 +442,7 @@ fn benches(c: &mut Criterion) {
         many,
         proto::Records
     );
+    formats!(c, "scattered-1m", 1_000_000, scattered_records(), Vec<Option<Box<Record>>>, many, proto::Records);
     let i32s = |v: &Vec<i32>| proto::I32s { values: v.clone() };
     formats!(c, "i32-10000", 10_000, (0..10_000).map(|i| i * 7919).collect(), Vec<i32>, i32s, proto::I32s);
     let f64s = |v: &Vec<f64>| proto::F64s { values: v.clone() };
@@ -384,6 +458,23 @@ fn benches(c: &mut Criterion) {
         proto::Strings
     );
     formats!(c, "strings-mixed-1000", 1000, mixed_strings(), Vec<String>, strings, proto::Strings);
+    // Sets: protobuf has none, so its message is a repeated field of the elements, made into the set when read (as
+    // the others read theirs), without checking for a repeated element as Nino does.
+    let set_i32s = |v: &indexmap::IndexSet<i32>| proto::I32s { values: v.iter().copied().collect() };
+    let i32_set = |m: proto::I32s| m.values.into_iter().collect::<indexmap::IndexSet<i32>>();
+    formats!(c, "int-set-1000", 1000, set_ints(), indexmap::IndexSet<i32>, set_i32s, proto::I32s, i32_set);
+    let set_texts = |v: &indexmap::IndexSet<String>| proto::Strings { values: v.iter().cloned().collect() };
+    let text_set = |m: proto::Strings| m.values.into_iter().collect::<indexmap::IndexSet<String>>();
+    formats!(
+        c,
+        "string-set-1000",
+        1000,
+        set_strings(),
+        indexmap::IndexSet<String>,
+        set_texts,
+        proto::Strings,
+        text_set
+    );
     // The same strings as a `[NinoUtf8] string[]`: each as UTF-8 (wire format 4.2), read with the same checks
     // (strict UTF-8, the char count) as a `[NinoUtf8]` member, as the other serializers check theirs.
     nino_only!(
@@ -393,6 +484,7 @@ fn benches(c: &mut Criterion) {
         mixed_strings().into_iter().map(nino::Utf8).collect(),
         Vec<nino::Utf8>
     );
+    tracked(c);
 }
 
 criterion_group! {

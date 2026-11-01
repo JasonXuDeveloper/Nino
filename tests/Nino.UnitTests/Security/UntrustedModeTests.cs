@@ -16,6 +16,30 @@ public struct UntrustedRaw
     public DateTime When;
 }
 
+/// <summary>
+/// Every kind of checked field, at offsets of each lane size (bools on byte lanes, the decimal's flags and the
+/// DateOnly on 4-byte lanes, the times on 8-byte lanes): 48 bytes, so runs of it cover vector periods and tails. Not a
+/// [NinoType]: a raw struct, whose runs are checked in the data before one copy.
+/// </summary>
+public struct UntrustedMixed
+{
+    public bool A;
+    public DateOnly Day;
+    public decimal Price;
+    public TimeOnly Time;
+    public bool B;
+    public DateTime When;
+}
+
+/// <summary>Checked fields packed densely (8 bytes, three of them): checked as vectors where the CPU has them.</summary>
+public struct UntrustedDense
+{
+    public bool A;
+    public bool B;
+    public short C;
+    public DateOnly Day;
+}
+
 /// <summary>Not version tolerant: past the inline depth its bodies are deferred outside any region.</summary>
 [NinoType]
 public sealed class UntrustedChain
@@ -70,6 +94,9 @@ public class UntrustedModeTests
 
     [TestMethod]
     public void ValuesAreChecked() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedValues));
+
+    [TestMethod]
+    public void RunsOfValuesAreChecked() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedValueRuns));
 
     [TestMethod]
     public void TrailingBytesAreInvalid() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedTrailing));
@@ -209,6 +236,71 @@ public static partial class SettingsProbes
                Fails<KeyValuePair<int, DateTime>[]>(
                    With(Bytes(new[] { new KeyValuePair<int, DateTime>(1, when) }), 8, badTicks), "KeyValuePair[]") ??
                "ok";
+    }
+
+    /// <summary>
+    /// Arrays of each checked type and of a struct with every kind, at lengths around the vector widths and their
+    /// tails (NinoValueChecks): the largest valid values read, and an invalid field in the first, a middle or the last
+    /// value fails.
+    /// </summary>
+    public static unsafe string UntrustedValueRuns(byte[] _)
+    {
+        NinoSettings.Untrusted = true;
+        var lengths = Enumerable.Range(1, 20).Concat(new[] { 31, 32, 33, 63, 64, 65, 100, 1000 });
+        var when = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Local);
+        var price = new decimal(-1, -1, -1, true, 28);
+        var mixed = new UntrustedMixed
+        {
+            A = true, Day = DateOnly.MaxValue, Price = price, Time = TimeOnly.MaxValue, B = true, When = when,
+        };
+        var dense = new UntrustedDense { A = true, B = false, C = -1, Day = DateOnly.MaxValue };
+        var badTicks = BitConverter.GetBytes(BadTicks);
+        var scale29 = BitConverter.GetBytes(29 << 16);
+        var flagged = BitConverter.GetBytes(3 << 16 | 1);
+        var badDay = BitConverter.GetBytes(DateOnly.MaxValue.DayNumber + 1);
+        var badTime = BitConverter.GetBytes(TimeOnly.MaxValue.Ticks + 1);
+        var negativeTime = BitConverter.GetBytes(long.MinValue);
+        foreach (int n in lengths)
+        {
+            string failed =
+                Run(n, when, 0, badTicks, "DateTime") ??
+                Run(n, price, 0, scale29, "decimal (scale)") ??
+                Run(n, price, 0, flagged, "decimal (flags)") ??
+                Run(n, DateOnly.MaxValue, 0, badDay, "DateOnly") ??
+                Run(n, TimeOnly.MaxValue, 0, badTime, "TimeOnly") ??
+                Run(n, TimeOnly.MaxValue, 0, negativeTime, "TimeOnly (negative)") ??
+                Run(n, mixed, Offset(ref mixed, ref mixed.A), new byte[] { 2 }, "mixed A") ??
+                Run(n, mixed, Offset(ref mixed, ref mixed.Day), badDay, "mixed Day") ??
+                Run(n, mixed, Offset(ref mixed, ref mixed.Price), scale29, "mixed Price") ??
+                Run(n, mixed, Offset(ref mixed, ref mixed.Time), badTime, "mixed Time") ??
+                Run(n, mixed, Offset(ref mixed, ref mixed.B), new byte[] { 0x80 }, "mixed B") ??
+                Run(n, mixed, Offset(ref mixed, ref mixed.When), badTicks, "mixed When") ??
+                Run(n, dense, Offset(ref dense, ref dense.A), new byte[] { 2 }, "dense A") ??
+                Run(n, dense, Offset(ref dense, ref dense.B), new byte[] { 0xFF }, "dense B") ??
+                Run(n, dense, Offset(ref dense, ref dense.Day), badDay, "dense Day") ??
+                Run(n, dense, Offset(ref dense, ref dense.Day), BitConverter.GetBytes(-1), "dense Day (negative)");
+            if (failed != null)
+                return n + ": " + failed;
+        }
+
+        return "ok";
+
+        static int Offset<TValue, TField>(ref TValue value, ref TField field) =>
+            (int)System.Runtime.CompilerServices.Unsafe.ByteOffset(
+                ref System.Runtime.CompilerServices.Unsafe.As<TValue, byte>(ref value),
+                ref System.Runtime.CompilerServices.Unsafe.As<TField, byte>(ref field));
+
+        static string Run<T>(int n, T value, int offset, byte[] bad, string what) where T : unmanaged
+        {
+            var data = NinoSerializer.Serialize(Enumerable.Repeat(value, n).ToArray());
+            var back = NinoDeserializer.Deserialize<T[]>(data);
+            if (back.Length != n || back.Any(v => !EqualityComparer<T>.Default.Equals(v, value)))
+                return what + ": valid values";
+            foreach (int i in new[] { 0, n / 2, n - 1 })
+                if (Fails<T[]>(With(data, 4 + i * sizeof(T) + offset, bad), what + " at " + i) is { } failure)
+                    return failure;
+            return null;
+        }
     }
 
     public static string UntrustedTrailing(byte[] _)

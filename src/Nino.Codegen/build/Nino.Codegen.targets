@@ -78,6 +78,7 @@
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Names)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --names &quot;%(_NinoCodegenItem.Names)&quot;"/>
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.ImportExtension)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --import-extension &quot;%(_NinoCodegenItem.ImportExtension)&quot;"/>
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Runtime)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --runtime &quot;%(_NinoCodegenItem.Runtime)&quot;"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.NumericArrays)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --numeric-arrays &quot;%(_NinoCodegenItem.NumericArrays)&quot;"/>
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Package)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --package &quot;%(_NinoCodegenItem.Package)&quot;"/>
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Tags)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --tags &quot;%(_NinoCodegenItem.Tags)&quot;"/>
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.TagNames)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --tag-names &quot;%(_NinoCodegenItem.TagNames)&quot;"/>

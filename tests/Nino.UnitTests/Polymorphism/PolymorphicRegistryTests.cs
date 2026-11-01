@@ -127,7 +127,7 @@ namespace Nino.UnitTests
                 Assert.IsTrue(constructor.IsFamilyAndAssembly || constructor.IsAssembly || constructor.IsPrivate,
                     "a subclass outside Nino.Core could call " + constructor);
 
-            var register = typeof(NinoPolymorphic<object>).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            var register = typeof(NinoSubtypes<object>).GetMethods(BindingFlags.Public | BindingFlags.Static)
                 .Where(m => m.Name == "Register" && m.GetParameters().Any(p => p.ParameterType == typeof(NinoSubtypeHandler)));
             Assert.IsFalse(register.Any(), "Register(NinoSubtypeHandler) is public");
         }

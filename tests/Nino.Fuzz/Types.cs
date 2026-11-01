@@ -129,6 +129,19 @@ namespace Nino.Fuzz
         public Dictionary<string, Dictionary<int, List<string>>> DD; public List<Empty>[] Empties;
     }
 
+    // Reads that allocate their array uninitialized (from 6 KB) and can still reject the data once they have: blocks
+    // with a bool, raw T? and bools, raw structs with a bool, values Untrusted mode checks (DateTime, decimal), and
+    // entries of a dictionary and a set of such blocks. The Stale targets read invalid data into an existing value
+    // over poisoned freed memory (StaleMemory.cs).
+    [NinoType]
+    public sealed class Stale
+    {
+        public (int, bool)[] Pairs; public List<(int, bool)> PairList; public Memory<(int, bool)> PairMemory;
+        public int?[] Nullables; public List<int?> NullableList; public bool[] Bools; public List<bool> BoolList;
+        public RawS[] Raws; public List<DateTime> Times; public decimal[] Decimals;
+        public Dictionary<int, bool> Map; public HashSet<(int, bool)> Set;
+    }
+
     // Collections that hold themselves (Probes.cs: the "tree" and "dtree" probes) and colliding hashes ("hash").
     public class Tree : List<Tree> { }
     public class DTree : Dictionary<string, DTree> { }

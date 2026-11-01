@@ -12,9 +12,9 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::traits::{NinoRead, NinoReadBody};
 
 /// Open class bodies after which the next deferrable one is deferred (`NinoDepth.Inline`).
-pub const DEPTH_INLINE: u32 = 128;
+pub const INLINE_DEPTH: u32 = 128;
 /// Open bodies after which reading or writing fails, for types that cannot be deferred (`NinoDepth.Max`).
-pub const DEPTH_MAX: u32 = 512;
+pub const MAX_DEPTH: u32 = 512;
 /// Bytes of memory collections may allocate up front per byte of input.
 const PREALLOCATION: usize = 16;
 /// Set in the length of a region followed by a section of deferred bodies.
@@ -278,7 +278,7 @@ impl<'d> Reader<'d> {
     }
 
     /// A string in the default encoding: a header of 0 (null), `2n + 1` then `n` Latin-1 bytes (1 is empty), or `2n`
-    /// then `n` UTF-16 code units. Unpaired surrogates become U+FFFD; [`Reader::wide_string`] keeps them. Always
+    /// then `n` UTF-16 code units. Unpaired surrogates become U+FFFD; [`Reader::utf16`] keeps them. Always
     /// inlined (the text is decoded out of line): returned through memory, `Result<Option<String>>` is read back in
     /// pieces that span the stores that wrote it, which stalls.
     #[inline(always)]
@@ -335,7 +335,7 @@ impl<'d> Reader<'d> {
     }
 
     /// A string in the default encoding as its UTF-16 code units, unpaired surrogates included (lossless).
-    pub fn wide_string(&mut self) -> Result<Option<Vec<u16>>> {
+    pub fn utf16(&mut self) -> Result<Option<Vec<u16>>> {
         let header = self.header()?;
         let count = (header >> 1) as usize;
         if header & 1 != 0 {
@@ -424,19 +424,41 @@ impl<'d> Reader<'d> {
     /// Reads a member that may hold deferred bodies (generated code passes the step from its type to the member,
     /// see [`crate::field`]); for other members it is [`Reader::read`].
     #[inline]
-    pub fn read_in<T: NinoRead>(&mut self, step: fn(&mut dyn Any) -> Option<&mut dyn Any>) -> Result<T> {
+    pub fn read_member<T: NinoRead>(&mut self, step: fn(&mut dyn Any) -> Option<&mut dyn Any>) -> Result<T> {
         if !T::MAY_DEFER {
             return T::read(self);
         }
-        let mark = self.mark();
+        let mark = self.defer_mark();
         let value = T::read(self)?;
-        self.trail(mark, Step::Field(step));
+        self.defer_trail(mark, Step::Field(step));
         Ok(value)
     }
 
-    /// The deferral mark before reading a value that may hold deferred bodies (see [`Reader::trail`]).
+    /// Reads any [`NinoRead`] value into `value`, reusing what it holds ([`NinoRead::read_into`]).
     #[inline]
-    pub fn mark(&self) -> usize {
+    pub fn read_into<T: NinoRead>(&mut self, value: &mut T) -> Result<()> {
+        value.read_into(self)
+    }
+
+    /// [`Reader::read_into`] for a member that may hold deferred bodies (see [`Reader::read_member`]).
+    #[inline]
+    pub fn read_member_into<T: NinoRead>(
+        &mut self,
+        value: &mut T,
+        step: fn(&mut dyn Any) -> Option<&mut dyn Any>,
+    ) -> Result<()> {
+        if !T::MAY_DEFER {
+            return value.read_into(self);
+        }
+        let mark = self.defer_mark();
+        value.read_into(self)?;
+        self.defer_trail(mark, Step::Field(step));
+        Ok(())
+    }
+
+    /// The deferral mark before reading a value that may hold deferred bodies (see [`Reader::defer_trail`]).
+    #[inline]
+    pub fn defer_mark(&self) -> usize {
         match &self.defer {
             Some(d) => d.pending_len(),
             None => 0,
@@ -447,7 +469,7 @@ impl<'d> Reader<'d> {
     /// object or container it was read into, so the bodies can be put in place later. Cheap when nothing was
     /// deferred.
     #[inline]
-    pub fn trail(&mut self, mark: usize, step: Step) {
+    pub fn defer_trail(&mut self, mark: usize, step: Step) {
         if let Some(d) = &mut self.defer {
             d.trail(mark, step);
         }
@@ -458,7 +480,7 @@ impl<'d> Reader<'d> {
     #[inline]
     pub fn read_class<T: NinoReadBody>(&mut self) -> Result<T> {
         let depth = self.depth;
-        if depth >= DEPTH_INLINE {
+        if depth >= INLINE_DEPTH {
             return self.read_class_deep();
         }
         self.read_body_at(depth)
@@ -474,7 +496,7 @@ impl<'d> Reader<'d> {
             self.deferrals().defer::<T>(position, regions);
             return Ok(T::default());
         }
-        if depth.saturating_add(self.structs) >= DEPTH_MAX {
+        if depth.saturating_add(self.structs) >= MAX_DEPTH {
             return Err(Error::of(ErrorKind::TooDeep));
         }
         self.read_body_at(depth)
@@ -489,7 +511,62 @@ impl<'d> Reader<'d> {
         Ok(value)
     }
 
-    /// [`Reader::read_body_at`] into a value already in place (a fresh `T::default()`).
+    /// [`Reader::read_class`] into an existing object, whose members are read into ([`NinoRead::read_into`]). 128
+    /// bodies deep, a deferrable body is read later into a new object that replaces it, as [`Reader::read_class`]
+    /// reads it.
+    #[inline]
+    pub fn read_class_into<T: NinoReadBody>(&mut self, value: &mut T) -> Result<()> {
+        let depth = self.depth;
+        if depth >= INLINE_DEPTH {
+            *value = self.read_class_deep()?;
+            return Ok(());
+        }
+        self.read_body_into(depth, value)
+    }
+
+    /// [`Reader::read_sealed_value`] into an existing object ([`Reader::read_class_into`]).
+    #[inline]
+    pub fn read_sealed_into<T: NinoReadBody>(&mut self, value: &mut T) -> Result<()> {
+        if self.present()? {
+            self.read_class_into(value)
+        } else {
+            Err(Error::null())
+        }
+    }
+
+    /// [`Reader::read_sealed`] into a slot: an object it holds is read into, `None` gets a new one.
+    #[inline]
+    pub fn read_sealed_option_into<T: NinoReadBody>(&mut self, slot: &mut Option<T>) -> Result<()> {
+        if !self.present()? {
+            *slot = None;
+            return Ok(());
+        }
+        match slot {
+            Some(value) => self.read_class_into(value),
+            None => {
+                *slot = Some(self.read_class()?);
+                Ok(())
+            }
+        }
+    }
+
+    /// [`Reader::read_sealed_boxed`] into a slot: an object it holds is read into, `None` gets a new one.
+    #[inline]
+    pub fn read_sealed_boxed_option_into<T: NinoReadBody>(&mut self, slot: &mut Option<Box<T>>) -> Result<()> {
+        if !self.present()? {
+            *slot = None;
+            return Ok(());
+        }
+        match slot {
+            Some(value) => self.read_class_into(&mut **value),
+            None => {
+                *slot = Some(self.read_class_boxed()?);
+                Ok(())
+            }
+        }
+    }
+
+    /// [`Reader::read_body_at`] into a value already in place (a fresh `T::default()`, or an existing object).
     #[inline]
     fn read_body_into<T: NinoReadBody>(&mut self, depth: u32, value: &mut T) -> Result<()> {
         self.depth = depth.saturating_add(1);
@@ -505,7 +582,7 @@ impl<'d> Reader<'d> {
     #[inline]
     fn read_class_boxed<T: NinoReadBody>(&mut self) -> Result<Box<T>> {
         let depth = self.depth;
-        if depth >= DEPTH_INLINE {
+        if depth >= INLINE_DEPTH {
             return self.read_class_deep().map(Box::new);
         }
         let mut value = Box::<T>::default();
@@ -559,7 +636,7 @@ impl<'d> Reader<'d> {
     #[inline]
     pub fn enter_struct(&mut self) -> Result<()> {
         self.structs = self.structs.saturating_add(1);
-        if self.structs.saturating_add(self.depth) > DEPTH_MAX {
+        if self.structs.saturating_add(self.depth) > MAX_DEPTH {
             return Err(Error::of(ErrorKind::TooDeep));
         }
         Ok(())
@@ -609,7 +686,7 @@ impl<'d> Reader<'d> {
             section,
             section_at: at.saturating_add(members.len()),
             members_at: at,
-            pending_start: self.mark(),
+            pending_start: self.defer_mark(),
             log_start: self.defer.as_ref().map_or(0, |d| d.log_len()),
         };
         self.regions = self.regions.saturating_add(1);

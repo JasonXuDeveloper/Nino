@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"math/rand"
 	"strconv"
+	"unsafe"
 
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
@@ -33,8 +34,47 @@ func init() {
 	simpleClass = nino.Class[SimpleClass]{Read: readSimpleClassBody, Write: writeSimpleClassBody, Deferrable: true}
 }
 
-func ReadSimpleClass(r *nino.Reader) *SimpleClass     { return nino.ReadSealed(r, &simpleClass) }
-func WriteSimpleClass(w *nino.Writer, v *SimpleClass) { nino.WriteSealed(w, v, &simpleClass) }
+func ReadSimpleClass(r *nino.Reader) *SimpleClass {
+	if !r.Present() {
+		return nil
+	}
+	v := new(SimpleClass)
+	if d, ok := r.EnterBody(); ok {
+		readSimpleClassBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &simpleClass)
+	}
+	return v
+}
+func WriteSimpleClass(w *nino.Writer, v *SimpleClass) {
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeSimpleClassBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &simpleClass)
+	}
+}
+func ReadSimpleClassInto(r *nino.Reader, v **SimpleClass) {
+	if !r.Present() {
+		*v = nil
+		return
+	}
+	if *v == nil {
+		*v = new(SimpleClass)
+	}
+	if d, ok := r.EnterBody(); ok {
+		readSimpleClassBody(r, *v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, *v, &simpleClass)
+	}
+}
 
 func readSimpleClassBody(r *nino.Reader, v *SimpleClass) {
 	b := r.Take(21)
@@ -49,7 +89,7 @@ func readSimpleClassBody(r *nino.Reader, v *SimpleClass) {
 	v.Desc = r.UTF8()
 	v.Numbers = nino.ReadPrimitives[int32](r)
 	v.Dates = nino.ReadBlock[nino.DateTime](r)
-	v.Map1 = nino.ReadMap(r, 8, (*nino.Reader).I32, (*nino.Reader).String)
+	v.Map1 = readMap1(r)
 	v.Map2 = nino.ReadPrimitiveMap[int32, int32](r)
 }
 
@@ -69,14 +109,55 @@ func writeSimpleClassBody(w *nino.Writer, v *SimpleClass) {
 	w.UTF8(v.Desc)
 	nino.WritePrimitives(w, v.Numbers)
 	nino.WriteBlock(w, v.Dates)
-	nino.WriteMap(w, v.Map1, (*nino.Writer).I32, (*nino.Writer).String)
+	writeMap1(w, v.Map1)
 	nino.WritePrimitiveMap(w, v.Map2)
 }
 
 // ReadSimpleClasses and WriteSimpleClasses are a List<SimpleClass>.
-func ReadSimpleClasses(r *nino.Reader) []*SimpleClass { return nino.ReadSlice(r, 1, ReadSimpleClass) }
+func ReadSimpleClasses(r *nino.Reader) (v []*SimpleClass) {
+	ReadSimpleClassesInto(r, &v)
+	return v
+}
 
-func WriteSimpleClasses(w *nino.Writer, v []*SimpleClass) { nino.WriteSlice(w, v, WriteSimpleClass) }
+// ReadSimpleClassesInto reads into *p as nino-gen's readinto helpers do: its storage kept when it holds n elements, each
+// element read into the old one at its index.
+func ReadSimpleClassesInto(r *nino.Reader, p *[]*SimpleClass) {
+	n := r.Length(1)
+	if n < 0 {
+		*p = nil
+		return
+	}
+	old := *p
+	v := old[:0]
+	if old == nil || cap(old) < n {
+		var z *SimpleClass
+		v = make([]*SimpleClass, 0, r.SliceCap(n, int(unsafe.Sizeof(z))))
+	}
+	for i := range n {
+		var e *SimpleClass
+		if i < len(old) {
+			e = old[i]
+		}
+		ReadSimpleClassInto(r, &e)
+		if r.Failed() {
+			*p = nil
+			return
+		}
+		v = append(v, e)
+	}
+	*p = v
+}
+
+func WriteSimpleClasses(w *nino.Writer, v []*SimpleClass) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	for _, e := range v {
+		WriteSimpleClass(w, e)
+	}
+}
 
 // NewSimpleClass makes a value like the .NET benchmark's SimpleClass.Create, from a seeded source.
 func NewSimpleClass(rnd *rand.Rand) *SimpleClass {
@@ -110,4 +191,37 @@ func NewSimpleClass(rnd *rand.Rand) *SimpleClass {
 		v.Map2[i] = i * 2
 	}
 	return v
+}
+
+// readMap1 and writeMap1 are a Dictionary<int, string>, its loop written out as generated code writes it.
+func readMap1(r *nino.Reader) map[int32]string {
+	n := r.Length(8)
+	if n < 0 {
+		return nil
+	}
+	m := make(map[int32]string, r.SliceCap(n, 32))
+	for i := range n {
+		k := r.I32()
+		e := r.String()
+		if r.Failed() {
+			return nil
+		}
+		if m[k] = e; len(m) != i+1 {
+			r.Fail(nino.CodeDuplicateKey, "")
+			return nil
+		}
+	}
+	return m
+}
+
+func writeMap1(w *nino.Writer, m map[int32]string) {
+	if m == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(m))
+	for k, e := range m {
+		w.I32(k)
+		w.String(e)
+	}
 }

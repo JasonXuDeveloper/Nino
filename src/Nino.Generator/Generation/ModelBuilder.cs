@@ -63,6 +63,7 @@ internal static class ModelBuilder
             ct);
 
         bool instantiable = kind is FormatterKind.Class or FormatterKind.SealedClass;
+        bool fixedSize = !rawStruct && facts.IsFixedSize(type);
         return new TypeModel(
             TypeName: Global(type),
             OpenTypeName: generic ? OpenName(type) : Global(type),
@@ -92,9 +93,9 @@ internal static class ModelBuilder
             Pooled: pooled,
             Partial: partial,
             // The analyzer needs none of the types the registry names.
-            Registrations: BuildRegistrations(type, kind, generic, built, factories, facts,
+            Registrations: BuildRegistrations(type, kind, generic, built, collection?.Code, factories, facts,
                 namesTypes: diagnostics == null),
-            FixedSize: !rawStruct && facts.IsFixedSize(type),
+            FixedSize: fixedSize,
             Block: !rawStruct && facts.IsBlock(type),
             FreshRead: kind == FormatterKind.SealedClass && !construction.Recreate &&
                        construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
@@ -102,7 +103,9 @@ internal static class ModelBuilder
                        !members.Skip(built.BaseMemberCount).Any(static m => m.ReadsLoop) &&
                        ConstructsDefaults(type, ct),
             PublishesDeferrable: facts.Symbols.LayoutDeferrable,
-            RawLayout: rawStruct ? RawLayout.Describe(type) : "");
+            RawLayout: rawStruct ? RawLayout.Describe(type) : "",
+            PrefetchBytes: PrefetchRules.Bytes(type, kind, generic, fixedSize),
+            PrefetchMembers: PrefetchRules.Members(built.Models, built.Symbols));
     }
 
     /// <summary>
@@ -260,11 +263,12 @@ internal static class ModelBuilder
 
     /// <summary>
     /// What the assembly registers for the type (<see cref="RegistrationModel"/>): the built-in formatters and
-    /// creators its members use, and, when <paramref name="namesTypes"/>, the closed generic <c>[NinoType]</c>s and
-    /// the measured structs it names.
+    /// creators its members use, and, when <paramref name="namesTypes"/>, the closed generic <c>[NinoType]</c>s, the
+    /// measured structs and the nesting formatters (its members' and <paramref name="collection"/>'s) it names.
     /// </summary>
     private static RegistrationModel BuildRegistrations(INamedTypeSymbol type, FormatterKind kind, bool generic,
-        MemberSet members, List<FactoryRegistration> factories, TypeFacts facts, bool namesTypes)
+        MemberSet members, FormatterRef? collection, List<FactoryRegistration> factories, TypeFacts facts,
+        bool namesTypes)
     {
         var used = new List<FormatterRegistration>();
         if (!generic && kind != FormatterKind.Polymorphic)
@@ -306,7 +310,12 @@ internal static class ModelBuilder
                     .OrderBy(f => f.TypeName, System.StringComparer.Ordinal)),
             GenericTypes: new EquatableArray<TypeRegistration>(genericTypes.Distinct()
                 .OrderBy(g => g.TypeName, System.StringComparer.Ordinal)),
-            LayoutTypes: LayoutTypes.ToArray(layoutTypes));
+            LayoutTypes: LayoutTypes.ToArray(layoutTypes),
+            Nesting: namesTypes
+                ? facts.Resolver.Nesting(members.Models.Select(static m => m.Formatter.ToString())
+                    .Concat(genericTypes.Select(static g => g.Formatter))
+                    .Concat(collection != null ? new[] { collection.ToString() } : System.Array.Empty<string>()))
+                : EquatableArray<NestingModel>.Empty);
     }
 
     /// <summary>
@@ -326,15 +335,16 @@ internal static class ModelBuilder
         if (baseSymbols.Count > symbols.Count ||
             !baseSymbols.Select((x, i) => SymbolEqualityComparer.Default.Equals(x, symbols[i])).All(x => x))
             return 0;
-        baseFormatter = FormatterResolver.GeneratedFormatter(baseType).ToString();
+        baseFormatter = facts.Resolver.GeneratedFormatter(baseType).ToString();
         return baseSymbols.Count;
     }
 
     /// <summary>
     /// Whether a closed generic base runs the runtime's shared code: a type argument (of it or of a containing type)
     /// is a reference type, or a generic struct over one, such as <c>Box&lt;(Item, int)&gt;</c>. Its
-    /// <c>WriteMembers</c>/<c>ReadMembers</c> then look each <c>T</c> member's formatter up at run time and call it
-    /// virtually, so a subtype that is not generic itself writes and reads those members with their concrete types.
+    /// <c>WriteMembers</c>/<c>ReadMembers</c> are then the runtime's shared code, which looks up what depends on
+    /// <c>T</c> in its generic context, so a subtype that is not generic itself writes and reads those members with
+    /// their concrete types.
     /// A base over a subtype's own type parameters is shared either way, and stays reused.
     /// </summary>
     private static bool SharedInstance(INamedTypeSymbol type)
@@ -527,9 +537,16 @@ internal static class ModelBuilder
         if (formatter == null)
         {
             diagnostics?.Report(NinoDiagnostics.UnserializableMember, symbol, symbol.Name, memberType.ToDisplayString(),
-                type.ToDisplayString());
+                type.ToDisplayString(), "", "the member is skipped");
             return null;
         }
+
+        // The member is written, but a generic [NinoType] in its type cannot write what it holds (Box<Action>): its
+        // formatter takes CachedFormatter<Action>, which throws for every value. Only the analyzer asks.
+        if (diagnostics != null && custom == null && ArgumentWithoutFormatter(memberType, facts) is var (argument, generic))
+            diagnostics.Report(NinoDiagnostics.UnserializableMember, symbol, symbol.Name, argument.ToDisplayString(),
+                type.ToDisplayString(), $", a type argument of '{generic.ToDisplayString()}',",
+                "writing a value of it throws");
 
         var declaring = symbol.ContainingType;
         // A base member hidden by a derived member of the same name (`new`): generated code names it through a cast
@@ -602,6 +619,55 @@ internal static class ModelBuilder
                    (traits & replaces) == 0 && StartsDefault(symbol, ct),
             ReadsLoop: raw == null && readsLoop);
     }
+
+    /// <summary>
+    /// A type argument Nino has no formatter for, of a closed generic <c>[NinoType]</c> anywhere in
+    /// <paramref name="type"/> (<c>Box&lt;Action&gt;</c>, <c>List&lt;Box&lt;Action&gt;&gt;</c>, <c>Box&lt;Action&gt;[]</c>)
+    /// whose serialized members use that type parameter, with that generic; null when there is none. A type
+    /// parameter no member uses (<c>Tag&lt;T&gt;</c>) costs nothing: its formatter is never called.
+    /// </summary>
+    private static (ITypeSymbol Argument, INamedTypeSymbol Generic)? ArgumentWithoutFormatter(ITypeSymbol type,
+        TypeFacts facts)
+    {
+        switch (type)
+        {
+            case IArrayTypeSymbol array:
+                return ArgumentWithoutFormatter(array.ElementType, facts);
+            case INamedTypeSymbol named:
+                var arguments = AllTypeArguments(named);
+                if (arguments.Count != 0 && named.OriginalDefinition.GetNinoTypeOptions() is { } options)
+                {
+                    var definition = named.OriginalDefinition;
+                    var parameters = AllTypeParameters(definition);
+                    var members = facts.Members.Of(definition, options);
+                    for (int i = 0; i < arguments.Count; i++)
+                    {
+                        if (facts.Resolver.Resolve(arguments[i], false) == null &&
+                            members.Any(m => MemberCollector.MemberType(m) is { } t && Mentions(t, parameters[i])))
+                            return (arguments[i], named);
+                    }
+                }
+
+                foreach (var argument in arguments)
+                {
+                    if (ArgumentWithoutFormatter(argument, facts) is { } found)
+                        return found;
+                }
+
+                return null;
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>Whether <paramref name="type"/> is or contains the type parameter <paramref name="p"/>.</summary>
+    private static bool Mentions(ITypeSymbol type, ITypeParameterSymbol p) => type switch
+    {
+        ITypeParameterSymbol t => SymbolEqualityComparer.Default.Equals(t, p),
+        IArrayTypeSymbol a => Mentions(a.ElementType, p),
+        INamedTypeSymbol n => AllTypeArguments(n).Any(a => Mentions(a, p)),
+        _ => false,
+    };
 
     /// <summary>
     /// Whether an <c>[UnsafeAccessor]</c> extern in the formatter of <paramref name="type"/> reaches a member declared

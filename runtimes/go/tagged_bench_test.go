@@ -23,7 +23,7 @@ var benchTaggedClass = Class[benchTagged]{Deferrable: true,
 	Read: func(r *Reader, v *benchTagged) {
 		v.ID, v.Flag, v.Score, v.Ratio, v.Name = r.I32(), r.Bool(), r.I64(), r.F64(), r.String()
 		v.Numbers = ReadPrimitives[int32](r)
-		v.Kids = ReadSlice(r, 4, func(r *Reader) benchTaggedKid { return benchTaggedKid{r.I32(), r.StringPtr()} })
+		v.Kids = readSlice(r, 4, func(r *Reader) benchTaggedKid { return benchTaggedKid{r.I32(), r.StringPtr()} })
 	},
 	Write: func(w *Writer, v *benchTagged) {
 		w.I32(v.ID)
@@ -32,7 +32,7 @@ var benchTaggedClass = Class[benchTagged]{Deferrable: true,
 		w.F64(v.Ratio)
 		w.String(v.Name)
 		WritePrimitives(w, v.Numbers)
-		WriteSlice(w, v.Kids, func(w *Writer, k benchTaggedKid) { w.I32(k.A); w.StringPtr(k.B) })
+		writeSlice(w, v.Kids, func(w *Writer, k benchTaggedKid) { w.I32(k.A); w.StringPtr(k.B) })
 	},
 }
 

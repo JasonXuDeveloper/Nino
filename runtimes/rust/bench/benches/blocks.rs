@@ -1,5 +1,5 @@
 //! Nino's reader and writer on blocks of fixed-size elements other than numbers: `bool`, dates, decimals, GUIDs, a raw
-//! struct as nino-gen generates it, tuples, nullable values and a dictionary, 10,000 of each (1,000 entries for the
+//! struct as nino-gen generates it, plain structs as `#[derive]` writes them, tuples, nullable values and a dictionary, 10,000 of each (1,000 entries for the
 //! dictionary). For comparing changes to the block paths back to back on one machine; not part of the published
 //! comparison (`compare.rs`).
 //!
@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::hint::black_box;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use nino::{DateOnly, DateTime, DateTimeKind, Decimal, Guid, NinoRead, NinoWrite, Reader, Result, Writer};
+use nino::{DateOnly, DateTime, DateTimeKind, Decimal, Guid, NinoRead, NinoWrite};
 
 /// `[NinoType] struct Point { int X; int Y; }` (raw), as nino-gen's Rust templates generate it.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -18,54 +18,24 @@ pub struct Point {
     pub y: i32,
 }
 
-impl nino::Raw for Point {
-    const SIZE: usize = 8;
-    const ALIGN: usize = 4;
+#[path = "common/point.rs"]
+mod point;
 
-    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
-        let b = b.get(..8).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
-        Ok(Self {
-            x: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
-            y: <i32 as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
-        })
-    }
-
-    fn encode_raw(&self, out: &mut [u8]) {
-        if let Some(o) = out.get_mut(0..) {
-            nino::Raw::encode_raw(&self.x, o);
-        }
-        if let Some(o) = out.get_mut(4..) {
-            nino::Raw::encode_raw(&self.y, o);
-        }
-    }
+/// A plain (not raw) struct whose members are all fixed-size, derived: its wire bytes are its memory.
+#[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "struct")]
+pub struct Plain {
+    pub x: i32,
+    pub y: f32,
 }
 
-impl NinoRead for Point {
-    const MIN_SIZE: usize = 8;
-    const FIXED_SIZE: usize = 8;
-
-    fn decode_fixed(b: &[u8]) -> Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
-    }
-}
-
-impl NinoWrite for Point {
-    const FIXED_SIZE: usize = 8;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        let mut b = [0u8; 8];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+/// A plain struct whose wire bytes are not its memory (13 bytes, no padding; a `bool` checked on read), derived.
+#[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "struct")]
+pub struct PlainMixed {
+    pub id: i64,
+    pub flag: bool,
+    pub score: i32,
 }
 
 fn case<T>(c: &mut Criterion, name: &str, value: T)
@@ -107,6 +77,9 @@ fn benches(c: &mut Criterion) {
     );
     case(c, "guid", (0..N).map(|i| Guid((i as u128 * 0x9E37_79B9_7F4A_7C15).to_le_bytes())).collect::<Vec<_>>());
     case(c, "point", (0..N).map(|i| Point { x: i, y: -i }).collect::<Vec<_>>());
+    case(c, "struct-i32-f32", (0..N).map(|i| Plain { x: i, y: i as f32 * 0.5 }).collect::<Vec<_>>());
+    let mixed = |i: i32| PlainMixed { id: i64::from(i) * 7919, flag: i % 3 == 0, score: -i };
+    case(c, "struct-i64-bool-i32", (0..N).map(mixed).collect::<Vec<_>>());
     case(c, "tuple-i32-i32", (0..N).map(|i| (i, -i)).collect::<Vec<(i32, i32)>>());
     case(c, "tuple-i64-bool", (0..N).map(|i| (i64::from(i), i % 2 == 0)).collect::<Vec<(i64, bool)>>());
     case(c, "option-i32", (0..N).map(|i| (i % 4 != 0).then_some(i)).collect::<Vec<Option<i32>>>());

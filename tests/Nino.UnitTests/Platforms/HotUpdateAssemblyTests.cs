@@ -158,7 +158,65 @@ namespace HotSub
         Assert.AreEqual(1.5f, copy[1].Duration);
         Assert.AreEqual(2, copy[1].GetType().GetField("Turns")!.GetValue(copy[1]));
     }
+
+    private const string GenericSource = @"
+using System.Collections.Generic;
+using Nino.Core;
+namespace HotGeneric
+{
+    [NinoType] public class Item { public int X; }
+    [NinoType] public class Bag<T> { public T Value; public List<T> Values; }
+    [NinoType] public class Leaf : Nino.UnitTests.HotGenericBase<Item> { public int Y; }
+    [NinoType] public class Twin<T> : Nino.UnitTests.HotGenericBase<T> { public T Z; }
+
+    public static class Api
+    {
+        // An AOT generic over a loaded type, a loaded generic over an AOT one and over a loaded one, and a loaded
+        // subtype of an AOT generic base: their formatters take formatters of the other assembly.
+        public static string RoundTrip()
+        {
+            var a = NinoDeserializer.Deserialize<Nino.UnitTests.Box<Item>>(NinoSerializer.Serialize(new Nino.UnitTests.Box<Item> { Item = new Item { X = 1 } }));
+            var b = NinoDeserializer.Deserialize<Bag<Nino.UnitTests.Box<int>>>(NinoSerializer.Serialize(new Bag<Nino.UnitTests.Box<int>> { Value = new Nino.UnitTests.Box<int> { Item = 2 } }));
+            var c = NinoDeserializer.Deserialize<Bag<Item>>(NinoSerializer.Serialize(new Bag<Item> { Value = new Item { X = 3 }, Values = new List<Item> { new Item { X = 4 } } }));
+            Nino.UnitTests.HotGenericBase<Item> leaf = new Leaf { B = new Item { X = 5 }, Y = 6 };
+            var d = (Leaf)NinoDeserializer.Deserialize<Nino.UnitTests.HotGenericBase<Item>>(NinoSerializer.Serialize(leaf));
+            return """" + a.Item.X + b.Value.Item + c.Value.X + c.Values[0].X + d.B.X + d.Y;
+        }
+
+        public static object Box() => new Nino.UnitTests.Box<Item> { Item = new Item { X = 7 } };
+        public static object Bag() => new Bag<int> { Value = 8 };
+        public static Nino.UnitTests.HotGenericBase<int> Twin() => new Twin<int> { B = 9, Z = 10 };
+    }
+}";
+
+    [TestMethod]
+    public void LoadedGenericsAcrossTheAotBoundary()
+    {
+        var api = CompileWithoutInitializers(source: GenericSource).GetType("HotGeneric.Api")!;
+        Assert.AreEqual("123456", api.GetMethod("RoundTrip")!.Invoke(null, null));
+
+        // Closed generics of the loaded assembly read by AOT code through object: found by their type ids.
+        foreach (string name in new[] { "Box", "Bag" })
+        {
+            var value = api.GetMethod(name)!.Invoke(null, null)!;
+            Assert.AreEqual(value.GetType(), NinoDeserializer.Deserialize<object>(NinoSerializer.Serialize<object>(value)).GetType(), name);
+        }
+
+        // A loaded generic subtype next to an AOT one, in a list AOT code writes and reads.
+        var twin = (HotGenericBase<int>)api.GetMethod("Twin")!.Invoke(null, null)!;
+        var copy = NinoDeserializer.Deserialize<System.Collections.Generic.List<HotGenericBase<int>>>(
+            NinoSerializer.Serialize(new System.Collections.Generic.List<HotGenericBase<int>> { twin, new HotGenericLeaf { B = 11 } }));
+        Assert.AreEqual(9, copy[0].B);
+        Assert.AreEqual(10, copy[0].GetType().GetField("Z")!.GetValue(copy[0]));
+        Assert.AreEqual(11, copy[1].B);
+    }
 }
+
+[NinoType]
+public abstract class HotGenericBase<T> { public T B; }
+
+[NinoType]
+public class HotGenericLeaf : HotGenericBase<int> { }
 
 [NinoType]
 public abstract class HotEffect { public float Duration; }

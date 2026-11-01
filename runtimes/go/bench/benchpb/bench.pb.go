@@ -1,6 +1,6 @@
-// The Go benchmark's values as Protocol Buffers messages, field for field (simple.go, scattered.go, strings.go): SimpleClass, a
-// list of them, a list of records and a list of strings. A DateTime is its 8 bytes as .NET writes them (ticks and kind), a Guid
-// its 16 bytes.
+// The Go benchmark's values as Protocol Buffers messages, field for field (simple.go, scattered.go, strings.go,
+// sets.go): SimpleClass, a list of them, a list of records, a list of strings and a list of integers (protobuf has no
+// set: a repeated field holds one). A DateTime is its 8 bytes as .NET writes them (ticks and kind), a Guid its 16 bytes.
 //
 // Regenerate bench.pb.go (in runtimes/go/bench, with protoc-gen-go v1.36.12 on PATH):
 //   go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
@@ -347,6 +347,50 @@ func (x *Strings) GetValues() []string {
 	return nil
 }
 
+type Ints struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []int32                `protobuf:"varint,1,rep,packed,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Ints) Reset() {
+	*x = Ints{}
+	mi := &file_benchpb_bench_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Ints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Ints) ProtoMessage() {}
+
+func (x *Ints) ProtoReflect() protoreflect.Message {
+	mi := &file_benchpb_bench_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Ints.ProtoReflect.Descriptor instead.
+func (*Ints) Descriptor() ([]byte, []int) {
+	return file_benchpb_bench_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Ints) GetValues() []int32 {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
 var File_benchpb_bench_proto protoreflect.FileDescriptor
 
 const file_benchpb_bench_proto_rawDesc = "" +
@@ -382,7 +426,9 @@ const file_benchpb_bench_proto_rawDesc = "" +
 	"\aRecords\x12*\n" +
 	"\x06values\x18\x01 \x03(\v2\x12.nino.bench.RecordR\x06values\"!\n" +
 	"\aStrings\x12\x16\n" +
-	"\x06values\x18\x01 \x03(\tR\x06valuesB<Z:github.com/JasonXuDeveloper/Nino/runtimes/go/bench/benchpbb\x06proto3"
+	"\x06values\x18\x01 \x03(\tR\x06values\"\x1e\n" +
+	"\x04Ints\x12\x16\n" +
+	"\x06values\x18\x01 \x03(\x05R\x06valuesB<Z:github.com/JasonXuDeveloper/Nino/runtimes/go/bench/benchpbb\x06proto3"
 
 var (
 	file_benchpb_bench_proto_rawDescOnce sync.Once
@@ -396,19 +442,20 @@ func file_benchpb_bench_proto_rawDescGZIP() []byte {
 	return file_benchpb_bench_proto_rawDescData
 }
 
-var file_benchpb_bench_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_benchpb_bench_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_benchpb_bench_proto_goTypes = []any{
 	(*SimpleClass)(nil),   // 0: nino.bench.SimpleClass
 	(*SimpleClasses)(nil), // 1: nino.bench.SimpleClasses
 	(*Record)(nil),        // 2: nino.bench.Record
 	(*Records)(nil),       // 3: nino.bench.Records
 	(*Strings)(nil),       // 4: nino.bench.Strings
-	nil,                   // 5: nino.bench.SimpleClass.Map1Entry
-	nil,                   // 6: nino.bench.SimpleClass.Map2Entry
+	(*Ints)(nil),          // 5: nino.bench.Ints
+	nil,                   // 6: nino.bench.SimpleClass.Map1Entry
+	nil,                   // 7: nino.bench.SimpleClass.Map2Entry
 }
 var file_benchpb_bench_proto_depIdxs = []int32{
-	5, // 0: nino.bench.SimpleClass.map1:type_name -> nino.bench.SimpleClass.Map1Entry
-	6, // 1: nino.bench.SimpleClass.map2:type_name -> nino.bench.SimpleClass.Map2Entry
+	6, // 0: nino.bench.SimpleClass.map1:type_name -> nino.bench.SimpleClass.Map1Entry
+	7, // 1: nino.bench.SimpleClass.map2:type_name -> nino.bench.SimpleClass.Map2Entry
 	0, // 2: nino.bench.SimpleClasses.values:type_name -> nino.bench.SimpleClass
 	2, // 3: nino.bench.Records.values:type_name -> nino.bench.Record
 	4, // [4:4] is the sub-list for method output_type
@@ -429,7 +476,7 @@ func file_benchpb_bench_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_benchpb_bench_proto_rawDesc), len(file_benchpb_bench_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

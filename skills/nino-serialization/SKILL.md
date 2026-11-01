@@ -30,7 +30,7 @@ also served as Markdown: add `.md` to its URL (`https://nino.xgamedev.net/en/doc
 
 - `[NinoType]` on a `class`, `struct`, `record`, `record struct` or `interface`. The type and every type containing it
   are `public` or `internal`, never a `static` class or `ref struct` (NINO001).
-- Options: `[NinoType(autoCollect: true, containNonPublicMembers: false, allowInheritance: true, format:
+- Options: `[NinoType(autoCollect: true, includeNonPublicMembers: false, allowInheritance: true, format:
   NinoFormat.Positional, trackReferences: false)]`; use named arguments.
 - With `autoCollect: true` every public field and every public property with a getter and a `set`/`init` is written:
   `[NinoType]` base classes first (root first), then the type's own members in declaration order. Get-only
@@ -38,7 +38,7 @@ also served as Markdown: add `.md` to its URL (`https://nino.xgamedev.net/en/doc
   implementations are skipped; a member of a type Nino cannot write is skipped with NINO007.
 - `[NinoIgnore]` drops a member. `[NinoType(false)]` writes only `[NinoMember(index)]` members, by index ascending
   (`[property: NinoMember(n)]` on record parameters). Don't mix them up: NINO010 to NINO013.
-- Non-public members need `containNonPublicMembers: true` (a non-public `[NinoMember]` without it: NINO009). Before
+- Non-public members need `includeNonPublicMembers: true` (a non-public `[NinoMember]` without it: NINO009). Before
   .NET 8 (Unity, .NET Framework, `netstandard`), and for generic types before .NET 9, the type and every containing type
   must be `partial` (NINO002). Write `partial` on such types anyway when the code may build for Unity.
 - Subtypes inherit `[NinoType]` and its options from the nearest `[NinoType]` base class or interface. A subtype's own
@@ -68,7 +68,7 @@ public sealed class Order
 [NinoType]
 public struct OrderLine { public int ProductId; public int Quantity; } // raw: 8 bytes, one block per list
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class Account { private long _balance; public int Id; }
 ```
 
@@ -108,7 +108,7 @@ primary constructor); structs fall back to `new T()`; otherwise NINO004.
 ### Polymorphism and references
 
 - A slot declared as a non-sealed class, abstract class or interface writes a 4-byte type id (FNV-1a of the full
-  name), and reads back the runtime type; a sealed class writes a 1-byte null flag. **Seal classes without subtypes.**
+  name), and reads back the runtime type; a sealed class writes a presence byte. **Seal classes without subtypes.**
 - Serialize and deserialize through the common `[NinoType]` base (`Serialize<Message>(msg)`,
   `Deserialize<Message>(bytes)`), never `object`: `Serialize<object>` accepts only `[NinoType]` values and dispatches
   through the global registry. `SerializeBoxed(value, type)` / `DeserializeBoxed(data, type)` only for a type known
@@ -135,6 +135,9 @@ NinoDeserializer.Deserialize(bytes, ref copy);               // reuse: fills cop
   message, send `WrittenSpan`, `Dispose()` at the end (returns its array to the pool). `new
   NinoArrayBufferWriter(capacity, pool)` rents from your own `ArrayPool<byte>`. Nino writes into it in place; any other
   `IBufferWriter<byte>` (a `PipeWriter`) costs one copy. Call `Serialize(value)` only when an API needs a `byte[]`.
+- Build settings: Release, tiered compilation and Dynamic PGO left on (never `TieredCompilation` false), Native AOT
+  with `<IlcInstructionSet>` for AVX2/AVX-512, Unity IL2CPP Release/Master with Burst; Rust, Go and TypeScript in
+  https://nino.xgamedev.net/en/docs/v4/advanced/build-configuration.
 - Several values in one buffer: `var w = new Writer(buffer);` then `NinoSerializer.Serialize(a, ref w)`..., then
   `w.Flush(); w.ReleaseReferences();`; read with `var r = new Reader(span);`, `Deserialize<T>(ref r)`, then
   `r.ReleaseReferences()`. Release once per logical message.
@@ -180,7 +183,7 @@ NinoSettings.MaxDepth = 512;                // default 512, at least 128
 NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
 ```
 
-- Pool settings (`DefaultPoolMaxRetained`, `SetPoolMaxRetained<T>`, `SetRecycler<T>`) are also startup-only.
+- Pool settings (`PoolMaxRetained`, `SetPoolMaxRetained<T>`, `SetRecycler<T>`) are also startup-only.
 - Still your job: validate values (a negative health, an unnamed enum value), cap frame or request sizes before
   buffering, and version payloads yourself (the bytes carry no schema: data for another type with a compatible layout
   reads without error; put a magic number and version in front of stored files).
@@ -205,7 +208,7 @@ NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
 
 A formatter is a **struct** implementing `INinoFormatter<T>` (`Serialize(T, ref Writer)`, `Deserialize(ref T, ref
 Reader)`), called as `default(F)`: no instance state. Read exactly what you wrote, in order.
-- One member: `[NinoCustomFormatter(typeof(F))]`, `F` for exactly the member type (NINO008).
+- One member: `[NinoMemberFormatter(typeof(F))]`, `F` for exactly the member type (NINO008).
 - A type Nino does not know: `[assembly: NinoFormatter(typeof(F<,>))]`, generic formatters as open definitions; a
   type parameter constrained `struct, INinoFormatter<E>` gets the element formatter; `[NinoRaw]` and `[NinoCreated]`
   narrow what binds. Invalid registrations: NINO020. There is no runtime registration call.
@@ -235,7 +238,7 @@ public struct ZigZagLongFormatter : INinoFormatter<long>
 public sealed class BalanceChange
 {
     public int AccountId;
-    [NinoCustomFormatter(typeof(ZigZagLongFormatter))] public long DeltaCents;
+    [NinoMemberFormatter(typeof(ZigZagLongFormatter))] public long DeltaCents;
 }
 ```
 
@@ -244,8 +247,10 @@ public sealed class BalanceChange
 - Unity compiles against .NET Standard: no `[UnsafeAccessor]`, so private members and `[NinoPooled]` need `partial`
   (NINO002); no interceptors (same bytes). Assembly definitions need `Nino.Core.dll` (Auto Referenced, or listed under
   Override References; also `Nino.UnityTypes.dll` for the Unity classes).
-- With `com.unity.burst` 1.8+ installed, Burst SIMD kernels register on their own (`Nino.Burst.NinoBurst`); include
-  SSE4 and AVX2 in Burst AOT Settings for x64 players.
+- Install `com.unity.burst` 1.8+ for speed: Burst SIMD kernels then register on their own (`Nino.Burst.NinoBurst`) for
+  tuples, padded structs, Latin-1 strings and the ASCII text of `[NinoUtf8]` strings; include SSE4 and AVX2 in Burst
+  AOT Settings for x64 players. Without Burst, IL2CPP and Mono players take Nino's scalar paths (the same bytes);
+  WebGL players built with WebAssembly SIMD get the same kernels from `Nino.WebGL` with no setup.
 - IL2CPP and Native AOT: no reflection at serialization time; types must appear in code the generator sees (a member
   type, the type argument of a `NinoSerializer`/`NinoDeserializer` call, or the `typeof` argument of `SerializeBoxed`,
   `DeserializeBoxed` or `IsSupported`; a `Type` known only at run time registers nothing). Native AOT on x64 takes
@@ -303,6 +308,9 @@ data is silently dropped or an attribute does nothing: never suppress NINO006 or
   `ResetWrittenCount()`.
 - A recycler or `ReturnToPool()` on instances still referenced elsewhere: the pool hands them out again.
 - If the project sets `InterceptorsNamespaces` itself, append (`$(InterceptorsNamespaces);Mine`), don't replace.
+- Arrays or `List<T>` of classes much larger than the CPU cache, whose objects were replaced, shuffled or sorted:
+  `<NinoPrefetchLargeCollections>true</NinoPrefetchLargeCollections>` in the calling project makes their top-level
+  calls prefetch (same bytes; .NET 8+ through the interceptors, nothing in Unity). Short collections get a few % slower.
 - v3 code: `Serializer.Serialize` / `Deserializer.Deserialize(data, out v)` are now `NinoSerializer.Serialize` /
   `NinoDeserializer.Deserialize<T>(data)`; `[NinoExplicitOrder]` is gone (`[NinoType(false)]` + `[NinoMember]`). v4
   cannot read v3 data. Beta names: `[NinoRefDeserialization]` is `[NinoFactory]`, `DeserializeRef` is

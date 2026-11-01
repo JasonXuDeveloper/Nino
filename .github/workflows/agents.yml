@@ -3,6 +3,8 @@ name: Agent instructions
 # The AGENTS.md indexes, the CLAUDE.md imports, the skills' metadata and every directory's file map stay current
 # (tools/agents.sh --check). Runs on the paths that can make them stale: the instruction files and skills, and any
 # file added to or removed from a mapped directory.
+# It also compiles the Python scripts that only report.yml and release.yml run (benchmarks/*.py, .github/scripts/*.py)
+# and runs their tests, so a script that breaks fails on its push instead of at the next release.
 on:
   push:
     branches: [ "main" ]
@@ -19,6 +21,7 @@ on:
       - 'runtimes/**'
       - 'conformance/**'
       - 'docs/**'
+      - '.github/scripts/**'
       - '.github/workflows/agents.yml'
   pull_request:
     branches: [ "main" ]
@@ -44,3 +47,11 @@ jobs:
           persist-credentials: false
       - name: Check (tools/agents.sh --check)
         run: tools/agents.sh --check
+      # .github/scripts has no unittest tests (test_shards.py is ci.yml's shard checker); discover there would fail
+      # with "NO TESTS RAN" (exit 5 since Python 3.12).
+      - name: Compile and test the release scripts
+        env:
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
+        run: |
+          python3 -m py_compile benchmarks/*.py .github/scripts/*.py
+          python3 -m unittest discover -s benchmarks -p 'test_*.py'

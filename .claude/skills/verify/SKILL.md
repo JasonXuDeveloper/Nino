@@ -9,6 +9,9 @@ metadata:
 
 Run what the change touches; before a release, all of it. Every command runs under `flock -o /tmp/nino-heavy.lock`
 when other agents share the machine, after `export PATH=$HOME/.dotnet:$HOME/go/bin:$PATH DOTNET_ROOT=$HOME/.dotnet`.
+With the lock shared, run a long series as one detached script (`setsid nohup script.sh &`, each step under the
+lock, an exit line per step in a log, a done file at the end) and wait on the done file: a background task is killed
+at its time limit while it still waits for the lock (round 103 lost a fuzz series and a test run that way).
 
 ## .NET
 
@@ -21,13 +24,13 @@ dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.1
 dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoRegularCalls=true        # interceptors off
 dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoGeneratorBuild=4.8       # the .NET 8 SDK generator
 DOTNET_EnableHWIntrinsic=0 dotnet test tests/Nino.UnitTests -c Release     # no SIMD (also AVX512=0, AVX2=0 for vector code)
-dotnet test tests/Nino.AspNetCore.Tests tests/Nino.Codegen.Tests tests/Nino.Codegen.Integration.Tests
+for p in Nino.AspNetCore.Tests Nino.Codegen.Tests Nino.Codegen.Integration.Tests; do dotnet test tests/$p; done  # one project per call (MSB1008)
 ```
 
 - Runtime internals on every runtime a change to `CollectionViews`, mirrors or retyping reaches (`runtime-internals`,
   `platforms`: .NET, Mono, Arm64 and Arm32 under qemu); trimmed and Native AOT publish of `tests/Nino.AotTests`.
-- Read or security change: `dotnet run -c Release --project tests/Nino.Fuzz -- selftest`, then a timed `fuzz` with
-  and without `DOTNET_EnableHWIntrinsic=0` (`audit-security`).
+- Read or security change: `dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- selftest`, then a timed `fuzz`
+  with and without `DOTNET_EnableHWIntrinsic=0` (`audit-security`).
 - Read or write path: `python3 benchmarks/asm.py compare origin/main`, every listed method explained (`optimize`).
 - Bytes: `dotnet run --project conformance/Nino.Conformance -c Release -- --verify conformance/corpus` (`wire-format`).
 
@@ -51,6 +54,8 @@ Docs site change: in the nino.docs clone, `bun run check && bun run build`.
 
 - Read the diff once more as CI would: what would make a job fail? A red CI run costs a cycle and the owner's
   patience; never push to find out.
+- Check `git status --short` is empty (or run `tools/agents.sh --check` on a fresh clone) before pushing: --check
+  passes locally with an untracked new file (push 3ec8ee8f went red).
 - Cherry-pick or merge workers' branches onto `origin/main`, drop session lines from their messages, add the trailers
   a user-facing change needs; then fast-forward `main` (AGENTS.md, Rules). The test branch takes merges only.
 - Watch the runs of the pushed commit to the end, and fix a red one at once.

@@ -162,6 +162,40 @@ namespace Nino.Fuzz
             return nodes[0];
         }
 
+        /// <summary>
+        /// A Stale value of <paramref name="n"/> elements of 8 bytes or so per array (8 n bools, n / 2 decimals). From
+        /// 11,000 each array is on the large object heap, whose freed memory a new one takes as it is: with the round
+        /// 101 fixes undone, every rejected read there left one stale. Smaller ones come from the gen0 allocator,
+        /// which clears memory 8 KB ahead (lists of 8 KB were never found stale in 120 s; of 16 KB, once in 800
+        /// rejected inputs).
+        /// </summary>
+        public static Stale Stale(int n) => new Stale
+        {
+            Pairs = Enumerable.Range(0, n).Select(i => (i, i % 3 == 0)).ToArray(),
+            PairList = Enumerable.Range(0, n).Select(i => (-i, i % 2 == 0)).ToList(),
+            PairMemory = Enumerable.Range(0, n).Select(i => (i * 7, i % 5 == 0)).ToArray(),
+            Nullables = Enumerable.Range(0, n).Select(i => i % 4 == 0 ? (int?)null : i).ToArray(),
+            NullableList = Enumerable.Range(0, n).Select(i => i % 3 == 0 ? (int?)null : -i).ToList(),
+            Bools = Enumerable.Range(0, 8 * n).Select(i => i % 3 == 0).ToArray(),
+            BoolList = Enumerable.Range(0, 8 * n).Select(i => i % 2 == 0).ToList(),
+            Raws = Enumerable.Range(0, n / 2).Select(i => new RawS { A = i, B = i % 2 == 0, C = Color.Blue, D = -i }).ToArray(),
+            Times = Enumerable.Range(0, n).Select(i => DateTime.UnixEpoch.AddSeconds(i)).ToList(),
+            Decimals = Enumerable.Range(0, n / 2).Select(i => i / 100m).ToArray(),
+            Map = Enumerable.Range(0, n / 4).ToDictionary(i => i, i => i % 2 == 0),
+            Set = Enumerable.Range(0, n / 4).Select(i => (i, i % 3 == 0)).ToHashSet(),
+        };
+
+        /// <summary>
+        /// The value Stale data is read into: an array of one element each (a new array is needed), lists null (a new
+        /// list), a small dictionary and set.
+        /// </summary>
+        public static Stale StaleExisting() => new Stale
+        {
+            Pairs = new[] { (1, true) }, PairMemory = new[] { (2, false) }, Nullables = new int?[] { 3 }, Bools = new[] { true },
+            Raws = new[] { new RawS { A = 4, B = true } }, Decimals = new[] { 5m },
+            Map = new() { [6] = true }, Set = new() { (7, true) },
+        };
+
         public static Nest Nest()
         {
             var s = new SNode { V = 0 };

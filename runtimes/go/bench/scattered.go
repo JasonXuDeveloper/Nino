@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand"
 	"strconv"
+	"unsafe"
 
 	"github.com/JasonXuDeveloper/Nino/runtimes/go/bench/benchpb"
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
@@ -32,8 +33,47 @@ func init() {
 	record = nino.Class[Record]{Read: readRecordBody, Write: writeRecordBody, Deferrable: true}
 }
 
-func ReadRecord(r *nino.Reader) *Record     { return nino.ReadSealed(r, &record) }
-func WriteRecord(w *nino.Writer, v *Record) { nino.WriteSealed(w, v, &record) }
+func ReadRecord(r *nino.Reader) *Record {
+	if !r.Present() {
+		return nil
+	}
+	v := new(Record)
+	if d, ok := r.EnterBody(); ok {
+		readRecordBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &record)
+	}
+	return v
+}
+func WriteRecord(w *nino.Writer, v *Record) {
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeRecordBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &record)
+	}
+}
+func ReadRecordInto(r *nino.Reader, v **Record) {
+	if !r.Present() {
+		*v = nil
+		return
+	}
+	if *v == nil {
+		*v = new(Record)
+	}
+	if d, ok := r.EnterBody(); ok {
+		readRecordBody(r, *v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, *v, &record)
+	}
+}
 
 func readRecordBody(r *nino.Reader, v *Record) {
 	b := r.Take(12)
@@ -58,9 +98,50 @@ func writeRecordBody(w *nino.Writer, v *Record) {
 }
 
 // ReadRecords and WriteRecords are a List<Record>.
-func ReadRecords(r *nino.Reader) []*Record { return nino.ReadSlice(r, 1, ReadRecord) }
+func ReadRecords(r *nino.Reader) (v []*Record) {
+	ReadRecordsInto(r, &v)
+	return v
+}
 
-func WriteRecords(w *nino.Writer, v []*Record) { nino.WriteSlice(w, v, WriteRecord) }
+// ReadRecordsInto reads into *p as nino-gen's readinto helpers do: its storage kept when it holds n elements, each
+// element read into the old one at its index.
+func ReadRecordsInto(r *nino.Reader, p *[]*Record) {
+	n := r.Length(1)
+	if n < 0 {
+		*p = nil
+		return
+	}
+	old := *p
+	v := old[:0]
+	if old == nil || cap(old) < n {
+		var z *Record
+		v = make([]*Record, 0, r.SliceCap(n, int(unsafe.Sizeof(z))))
+	}
+	for i := range n {
+		var e *Record
+		if i < len(old) {
+			e = old[i]
+		}
+		ReadRecordInto(r, &e)
+		if r.Failed() {
+			*p = nil
+			return
+		}
+		v = append(v, e)
+	}
+	*p = v
+}
+
+func WriteRecords(w *nino.Writer, v []*Record) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	for _, e := range v {
+		WriteRecord(w, e)
+	}
+}
 
 // scatteredOrder returns the order the records are listed in: a seeded shuffle.
 func scatteredOrder() []int {

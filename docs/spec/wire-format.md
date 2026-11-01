@@ -1,6 +1,6 @@
 # Nino v4 wire format
 
-**Specification version 4.1 (draft), for Nino 4.0.0-rc.8.**
+**Specification version 4.2 (draft), for Nino 4.0.0-rc.8.**
 
 This document specifies the bytes Nino v4 writes and reads. A reader and a writer built from it, in any language,
 exchange data with the .NET implementation (`Nino.Core` plus the code `Nino.Generator` emits). Every rule here was
@@ -175,8 +175,9 @@ unit), `bool` and enums.
 
 A `nint` written on a 32-bit host is sign-extended to 8 bytes, and an `nuint` is zero-extended. A reader on a 32-bit
 host MUST reject a value that does not fit. The .NET reader builds it with `new IntPtr(long)`, which throws
-`OverflowException` on 32-bit hosts (from the source; **unverified: no 32-bit host was run**). The same holds only for
-`nint`/`nuint` written as values or members. Inside a raw struct they take the host's pointer size (§10, item 3).
+`OverflowException` on 32-bit hosts (from the source; **unverified: no 32-bit host was run**). Inside a raw struct
+they are 8 bytes too, extended the same way (§5.2); a 32-bit .NET host rejects a field that does not fit with
+`NinoDataException`.
 
 ### 3.1 `decimal`
 
@@ -236,7 +237,7 @@ local time outside `DateTime`'s range. The .NET reader does both (`Nino: invalid
 | `Version` | `i32 major`. If major is `-1`, the value is null and nothing follows. Otherwise `i32 minor, i32 build, i32 revision`. An undefined build or revision is `-1`. |
 | `BitArray` | `i32` bit count `n` (`-1` = null), then `ceil(n/8)` bytes. Bit `i` is bit `i % 8` (LSB first) of byte `i / 8`. Writers MUST zero the unused high bits of the last byte. |
 | `Uri` | its `OriginalString` as a string (§4). Null is a null string. |
-| `CultureInfo` | its `Name` as a string. The invariant culture is `""`. |
+| `CultureInfo` | its `Name` as a string. The invariant culture is `""`. A reader that creates cultures by name MUST accept only a bounded set of names (.NET 8+: the cultures the runtime ships, by names without a singleton subtag such as `-u-` or `-x-`; custom cultures are invalid data), since .NET keeps every culture it creates for the life of the process. |
 | `StringBuilder` | a string, always in the UTF-16 form (§4.1, even header), even when Latin-1 would fit. An empty builder is the empty string (`01`), since a UTF-16 header of `0` is null. Readers MUST accept both forms. |
 | `TimeZoneInfo` | the `Id` as a string (null = null zone, and nothing follows), then a second string: null for a zone the system knows (`FindSystemTimeZoneById`), otherwise .NET's `ToSerializedString()` of the custom zone. |
 
@@ -328,8 +329,9 @@ raw:
 
 1. Every type in the raw rows of §3 and every enum.
 2. An unmanaged struct that is not a `[NinoType]` (no reference fields at any depth), whatever its fields. This
-   excludes `Nullable<T>`, `ValueTuple<...>`, `KeyValuePair<,>` and `DateTimeOffset`, which have encodings of their
-   own (§6.5, §6.6, §3.4).
+   excludes `Nullable<T>`, `ValueTuple<...>`, `KeyValuePair<,>` and `DateTimeOffset` themselves, which have encodings
+   of their own (§6.5, §6.6, §3.4); as fields of such a struct they are part of its raw bytes, in the canonical layout
+   of §5.2.
 3. A `[NinoType]` struct that is unmanaged, positional (§7.4), has sequential layout, has no custom formatter on any
    member, serializes every instance field (backing fields included), and whose `[NinoType]` struct fields are all
    raw too. Its layout metadata has `raw=true`. A closed generic `[NinoType]` struct (`Pad<int>`) is raw exactly
@@ -343,13 +345,22 @@ encoding `raw(n)` / `raw(n){...}`. The rules above explain where that comes from
 
 ### 5.2 The canonical layout
 
-The canonical layout is the one CoreCLR uses for the struct on a 64-bit host. Implementations MUST compute it as
-follows (`NinoLayoutCore.Measure`, also given in [Appendix B.2](#b2-canonical-layout)):
+The canonical layout is the one CoreCLR uses for the struct on a 64-bit host (x64 and Arm64, .NET 8 and later),
+fixed where CoreCLR's own layout changed between versions (`DateTimeOffset`, below). It does not depend on the
+runtime that writes or reads it. Implementations MUST compute it as follows (`NinoLayoutCore.Measure`, also given in
+[Appendix B.2](#b2-canonical-layout)):
 
 - **Leaves** (size, alignment): 1-byte types (1, 1). 2-byte types (2, 2). 4-byte types (4, 4). 8-byte primitives,
   `DateTime` and `TimeSpan` (8, 8). `decimal` (16, 8). `Guid` (16, 4). `Int128` and `UInt128` (16, 16). Enums are
-  their underlying type.
-  `nint`/`nuint`/pointers are (P, P), where P is the host's pointer size (§10, item 3).
+  their underlying type. `nint`, `nuint` and pointers (8, 8): `nint` sign-extended, the others zero-extended where the
+  host's pointer is 4 bytes.
+- **BCL structs of private fields**, as .NET 10 declares them: `KeyValuePair<K, V>` is sequential `{ K key; V value; }`;
+  `Nullable<T>` is sequential `{ bool hasValue; T value; }` (`value` zero when there is none); `Complex`
+  `{ double; double; }`; `Range` `{ Index; Index; }`; `Half`, `DateOnly`, `TimeOnly`, `Index` and `Rune` are leaves of
+  their size. `DateTimeOffset` is auto-layout `{ DateTime dateTime; int offsetMinutes; }`, which the rule below places
+  as 16 bytes aligned to 8: the offset in minutes as an `i32` at 0, four zero bytes, then the UTC ticks as a `u64`
+  (kind bits zero) at 8. (.NET 8, .NET Framework and Mono keep the minutes in a `short`, and Mono puts the date
+  first; .NET 10 lays it out as here.)
 - **Structs**: fields in declaration order. The effective alignment of a field is `min(field alignment, Pack)`,
   where `Pack` comes from `[StructLayout(Pack = n)]` (0 means no limit).
   - Sequential layout: each field goes at the next multiple of its effective alignment after the end of the
@@ -358,7 +369,19 @@ follows (`NinoLayoutCore.Measure`, also given in [Appendix B.2](#b2-canonical-la
   - The struct's alignment is the largest effective alignment of its fields. Its size is the end of its furthest
     field rounded up to that alignment, then raised to `[StructLayout(Size = n)]` if that is larger.
   - Structs nest: a struct field is laid out the same way, then placed as one field.
-- `LayoutKind.Auto` with more than one field has no canonical layout (§10, item 3).
+- `LayoutKind.Auto` with more than one field (every `ValueTuple`, `DateTimeOffset`, and user structs that ask for it)
+  is placed by 64-bit CoreCLR's auto-layout rule (its type loader, and crossgen2's
+  `MetadataFieldLayoutAlgorithm.ComputeAutoFieldLayout`):
+  - **Primitive fields** (integers, `bool`, `char`, `float`, `double`, `nint`, `nuint`, pointers, enums) first, by
+    size from 8 bytes down to 1, in declaration order within a size, each at the next multiple of its size.
+  - **Struct fields** (every other value type: `DateTime`, `TimeSpan`, `decimal`, `Guid`, tuples...) after them, in
+    declaration order, each at the next multiple of its own alignment.
+  - The struct's alignment is 8 when it has a primitive field, else the largest alignment of its fields; where its
+    fields end within 8 bytes, it is instead the least power of two that holds them. Its size is the end of its
+    furthest field rounded up to its alignment. `Pack` and `Size` do not apply.
+  - So `(int, long)` is the `long` at 0 and the `int` at 8 (16 bytes); `(byte, short)` the `short` at 0 and the `byte`
+    at 2 (4 bytes, aligned to 4); `(int, int)` 8 bytes aligned to 8; `(int, int, int)` 16 bytes; `(byte, DateTime, int)`
+    the `int` at 0, the `byte` at 4, the `DateTime` at 8; `(byte, Guid)` 24 bytes.
 - An empty struct (no instance fields) is raw with a size of 1, as in CoreCLR: it is written as one `00` byte, at
   the top level, as a member and as each element of a collection. Its layout is the bare `raw` encoding
   (`raw=true; ... members=raw` for a `[NinoType]`). Readers MUST read and skip that byte (verified: corpus cases
@@ -373,15 +396,23 @@ follows (`NinoLayoutCore.Measure`, also given in [Appendix B.2](#b2-canonical-la
 | `{ int A; decimal D; }` = `{1, 1m}` | `01 00 00 00 00 00 00 00 \| 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00` (24) |
 | `{ bool A; int B; }` = `{true, 2}` | `01 00 00 00 02 00 00 00` (8) |
 | `{ byte A; Int128 B; }` = `{1, -2}` | `01`, 15 × `00`, `FE`, 15 × `FF` (32) |
+| `{ int A; (int, long) B; }` = `{1, (2, 3)}` | `01 00 00 00 00 00 00 00 \| 03 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00` (24) |
+| `{ byte A; (byte, short) B; }` = `{1, (2, 3)}` | `01 00 00 00 \| 03 00 02 00` (8) |
+| `{ byte A; KeyValuePair<int, long> B; }` = `{1, (2, 3)}` | `01`, 7 × `00`, `\|`, `02 00 00 00 00 00 00 00 03 00 00 00 00 00 00 00` (24) |
+| `{ int A; DateTimeOffset B; }`, `A` = 1, `B` at −01:30 | `01`, 7 × `00`, `\|`, `A6 FF FF FF 00 00 00 00`, `\|`, `B`'s UTC ticks as a `u64` (32) |
+| `{ int A; nint B; }` = `{1, -1}` | `01 00 00 00 00 00 00 00 FF FF FF FF FF FF FF FF` (16, on every host) |
 | `[NinoType] { int X; byte Y; }` = `{1, 2}` | `01 00 00 00 02 00 00 00` (8) |
 
 The bytes of a raw value are copied as they are. Readers MUST NOT normalize them: a `bool` field holding `2` is
 written as `02`.
 
-Runtimes whose memory layout differs (x86 aligns some 8-byte fields to 4, such as a `DateTime` field on Windows x86
-.NET; Mono and IL2CPP align `decimal` to 4; .NET 7
-aligns `Int128` to 8) convert
-each value field by field into the canonical layout. The bytes on the wire are the same on every runtime.
+Runtimes whose memory layout differs convert each value field by field into the canonical layout: x86 aligns some
+8-byte fields to 4 (a `DateTime` field on Windows x86 .NET); Mono and IL2CPP align `decimal` to 4 and keep a
+`ValueTuple`'s declaration order; .NET Framework reorders a struct holding a `DateTime` and places tuples by the
+pointer size; .NET 8 has a `short` in `DateTimeOffset`; 32-bit hosts have 4-byte `nint` and pack tuples into fewer
+bytes; .NET 7 aligns `Int128` to 8. The bytes on the wire are the same on every runtime: a writer in any runtime or
+language MUST write the canonical bytes, and a reader MUST read them as such. docs/layouts.md lists the layout of each
+BCL struct on each runtime.
 
 ---
 
@@ -591,7 +622,7 @@ id = h reinterpreted as i32
 ```
 
 The **id name** is the `[NinoFormerName("...")]` argument of the type, when it has one. Otherwise it is the
-runtime-form name (`NinoTypeId.GetName`):
+runtime-form name (`NinoTypeId.GetRuntimeName`):
 
 - `Namespace.Name`, or `Name` alone when the type has no namespace.
 - Nested types: `Namespace.Outer+Inner`, with the outer chain joined by `+`.
@@ -888,7 +919,7 @@ graphs MUST be trees.
 
 - **Pooling and reuse.** Object pooling (`NinoPool`, `NinoRecycler`) and reading into existing instances have no
   effect on the bytes.
-- **Custom formatters.** A member or type that uses a custom formatter (`[NinoCustomFormatter]`, `[NinoFormatter]`,
+- **Custom formatters.** A member or type that uses a custom formatter (`[NinoMemberFormatter]`, `[NinoFormatter]`,
   or a formatter from another library) is written however that formatter writes it. The layout shows it as
   `formatter(F)`. Its bytes are outside this specification.
 - **Formatter-backed BCL types.** Some BCL types are also published as `formatter(F)`, for example
@@ -980,7 +1011,7 @@ hexdigit      = digit | "A" | "B" | "C" | "D" | "E" | "F" ;
 | --- | --- |
 | `raw(n)` | `n` raw bytes (§3, §5) |
 | `raw(n){f:T@o:E,...}` | a raw struct of `n` canonical bytes, field `f` at offset `o` |
-| `raw` | a raw struct whose size depends on the host (§10, item 3) |
+| `raw` | a raw struct whose layout the generator could not publish (§10, item 3) |
 | `string`, `utf8` | §4.1, §4.2 |
 | `object` | `i32` type id (`0` = null), then that type's body (§7.8) |
 | `type(T)` | `T` as its own layout says (header and body). `T` may be a type parameter. |
@@ -1027,7 +1058,7 @@ checked one product at a time against overflow and the remaining bytes.
 
 A presence byte or a `bool` MUST be `0` or `1`, and readers MUST reject other values: a `bool` read as a value or a
 member, the elements of a `bool[]` or `List<bool>` (and other raw blocks of `bool`), the presence byte of a sealed
-class, `T?`, `Lazy<T>` or `Tuple<...>`, and the has-value bytes of a fixed-stride `T?[]` (§6.2). **.NET:** done
+class, `T?`, `Lazy<T>` or `Tuple<...>`, and the presence bytes of a fixed-stride `T?[]` (§6.2). **.NET:** done
 (`Nino: invalid bool byte`, `Nino: invalid presence byte`); so are the Go, Rust and TypeScript runtimes.
 
 Note: the .NET reader copies a `bool` field inside a raw struct (§5) with the struct's bytes, unchecked, unless
@@ -1086,7 +1117,10 @@ not compared, and such a map keeps both entries.
 `ImmutableDictionary` and `ImmutableHashSet` (more than that many keys with one hash code). Nino walks the bucket as
 it adds a key to a new table, and walks it after the table adds a key itself; string keys of tables that switch to a
 randomized comparer on their own (.NET's, and .NET Framework's `Dictionary` and `ConcurrentDictionary`) are left to
-them.
+them. **Go** and **Rust** fill tables hashed with a per-process seed (Go's maps and the duplicate checks' own tables;
+Rust's `RandomState`). **TypeScript:** V8 hashes number and `bigint` keys without a seed, so for a `Map` or `Set` of
+more than 128 such keys the reader counts the buckets of the table V8 ends with (`NinoKeyGuard`) and fails a key that
+would find more than 100 keys in its bucket; other engines hash differently, and there it bounds V8's buckets.
 
 Note: the .NET reader currently accepts a keyed body with a repeated key, and the last entry wins (verified).
 
@@ -1121,7 +1155,8 @@ have bits set other than the sign and the scale, or its scale exceeds 28; `DateO
 `DateOnly.MaxValue`'s, and `TimeOnly` when its ticks reach a day.
 
 **.NET:** with `NinoSettings.Untrusted` set, every such value is checked where it is read, as a value, a member, an
-element or a field of a raw struct or tuple, and so is every `bool` inside one (§9.3). Without it (the default) these
+element or a field of a raw struct or tuple, and so is every `bool` inside one (§9.3); a `DateTimeOffset` inside a raw
+struct gets the checks of §3.4, on its 32-bit offset. Without it (the default) these
 values are copied as they are, at no cost: a `DateTime` with out-of-range ticks, or a `decimal` with an invalid scale,
 then reaches the caller. `TimeSpan`, `Guid` and `char` have no invalid bits. Enum values are never checked against
 the enum's defined members (§2.5), in either mode: flags enums combine them, and data written by a newer version may
@@ -1131,6 +1166,13 @@ carry members this one lacks.
 
 Note: the .NET reader currently treats any negative build as undefined (and any negative revision, when the build is
 defined), not only `-1`.
+
+A reader that creates a `CultureInfo` from its name MUST accept only a bounded set of names (§3.5): .NET keeps
+every culture it creates for the life of the process, so names from the data could otherwise grow it without bound.
+**.NET:** done in the net8.0 and net10.0 builds: `""` is the invariant culture, a name with a one-character subtag
+(`-u-`, `-t-`, `-x-`, `i-`) is rejected, and any other name must be a culture the runtime ships
+(`GetCultureInfo(name, predefinedOnly: true)`); in invariant globalization mode only `""` reads back. The
+netstandard builds (.NET Framework, Mono, Unity) read the names their own culture tables know.
 
 ### 9.11 Unused bits
 
@@ -1187,11 +1229,14 @@ readers of layouts or data from earlier builds.
    resolver (`NinoFormatterResolver.IsRawUnmanaged` is false for every `[NinoType]`) writes each element as a single
    `T?`. Verified: 28 bytes against 14 bytes for `{p, null}`. A payload is therefore readable only by a reader that
    resolves the formatter the same way. The fixed stride (what the layout publishes) SHOULD be treated as normative.
-3. **Pointer-sized fields inside raw structs are not portable.** A raw struct with an `nint` field is laid out with
-   the host's pointer size: 16 bytes on 64-bit, 8 bytes on 32-bit. The layout publishes it as the bare `raw`
-   encoding. `nint` is fixed at 8 bytes only as a value or a member (§3). Structs with no canonical layout
-   (`LayoutKind.Auto` with several fields) fall back to the host's memory layout. Writers in other languages SHOULD
-   NOT produce either.
+3. **BCL structs inside raw structs were copied as the host lays them out (resolved).** A raw struct holding a
+   `ValueTuple`, a `DateTimeOffset` or an `nint` was written as its memory where Nino could not measure it: the
+   tuple's items in another order on Mono, IL2CPP and .NET Framework, other sizes on 32-bit hosts, the offset of a
+   `DateTimeOffset` in another place on Mono and .NET Framework and another width on .NET 8. Every runtime now writes
+   the canonical layout (§5.2), and the generator publishes tuples and pairs inside raw structs with their fields
+   (layouts from earlier builds showed tuples in declaration order and pairs as the bare `raw`). The bare `raw` remains
+   for structs whose fields the generator cannot see (a `DateTimeOffset` or an `nint` inside, private fields of another
+   library's struct): their layout is still canonical, but other languages cannot express it.
 4. **`TimeZoneInfo` custom zones** carry .NET's `ToSerializedString()` text, which no other runtime defines.
 5. **Deferrability was not published** (resolved): layouts now carry `deferrable=true|false` (§7.10.1,
    §8). Layouts from an older generator leave it out, and a reader can then only reconstruct it from the rules in
@@ -1377,8 +1422,8 @@ function measure(t) -> (size, align, leaves):
     if t is a leaf: return (leafSize(t), leafAlign(t), [(0, leafSize(t))])
         leaf sizes / aligns: 1/1, 2/2, 4/4, 8-byte primitives 8/8, decimal 16/8, Guid 16/4, Int128/UInt128 16/16,
         pointer P/P
-    fields = instance fields of t in declaration order
-    if layoutKind(t) == Auto and count(fields) > 1: fail
+    fields = instance fields of t in declaration order (DateTimeOffset: [DateTime, int]; §5.2)
+    if layoutKind(t) == Auto and count(fields) > 1: return measureAuto(fields)
     pack = Pack(t) if Pack(t) > 0 else infinity
     end = 0; align = 1; leaves = []
     for f in fields:
@@ -1392,5 +1437,23 @@ function measure(t) -> (size, align, leaves):
     if size == 0: fail
     return (size, align, leaves)
 ```
+
+```text
+function measureAuto(fields) -> (size, align, leaves):
+    m = [measure(type(f)) for f in fields]
+    largest = max(8 if isPrimitive(type(f)) else m[f].align for f in fields)
+    end = 0; off = []
+    for s in [8, 4, 2, 1]:                       # primitives, largest first, declaration order within a size
+        for f in fields where isPrimitive(type(f)) and m[f].size == s:
+            off[f] = roundUp(end, m[f].align); end = off[f] + m[f].size
+    for f in fields where not isPrimitive(type(f)):   # then structs, declaration order
+        off[f] = roundUp(end, m[f].align); end = off[f] + m[f].size
+    align = largest if end > 8 else leastPowerOfTwoAtLeast(end)
+    size = roundUp(end, align)
+    leaves = [(off[f] + o, s) for f in fields for (o, s) in m[f].leaves]     # declaration order
+    return (size, align, leaves)
+```
+
+`isPrimitive` holds for integers, `bool`, `char`, `float`, `double`, `nint`, `nuint`, pointers and enums.
 
 The wire bytes of a raw value are its leaves at their offsets, with every other byte zero.

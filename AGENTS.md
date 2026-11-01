@@ -56,8 +56,9 @@ runtimes/       go, rust, typescript: the wire format outside .NET
 conformance/    the corpus every runtime reads and writes (valid and malicious cases)
 docs/           design, wire-format spec, codegen, diagnostics, pitfalls, benchmark notes (Markdown in the repository)
 tools/          CodeGen (generated formatter families), agents.sh
-build/          the props users import to turn the generator on
-.github/        workflows, the setup-dotnet action, release and test scripts
+build/          UseNinoGenerator.props: the generator from source for this repository's own projects (tests,
+                fuzzing, conformance)
+.github/        workflows, composite actions (setup-dotnet, apt-install), release and CI scripts
 skills/         the public skill nino-serialization: how AI agents use Nino (`npx skills add JasonXuDeveloper/Nino`)
 .claude/skills/ the development skills (internal); .agents/skills links here
 ```
@@ -87,6 +88,7 @@ links to the same files for other agents, and anyone can follow them as checklis
 | [`audit`](.claude/skills/audit/SKILL.md) | Run an audit round of Nino with parallel agents in worktrees | when asked to review the whole codebase, to clean up, to find what is left, or to "do another round" |
 | [`benchmark`](.claude/skills/benchmark/SKILL.md) | How to measure Nino and what may be published | when running, adding or reading a benchmark, deciding whether a change is faster, or touching a number in README, docs or a release |
 | [`feature`](.claude/skills/feature/SKILL.md) | The definition of done for a Nino change | when building or reviewing any change before it lands; a fresh session working on a new request follows it |
+| [`optimize-runtimes`](.claude/skills/optimize-runtimes/SKILL.md) | Nino's optimization techniques in Go, Rust and TypeScript, measured and kept | when writing or reviewing a hot path in runtimes/ or in nino-gen's templates, when a runtime case got slower, or when a new trick is found there (record it here) |
 | [`optimize`](.claude/skills/optimize/SKILL.md) | Nino's optimization techniques, measured and kept | when writing or reviewing a hot path in any runtime, before committing a change to a read or write path, when a case got slower, or when a new trick is found (record it here) |
 | [`platforms`](.claude/skills/platforms/SKILL.md) | Every platform Nino runs on and how to test each locally | when a change adds a platform-specific path, when something fails on one platform only, or before landing a change to a read or write path |
 | [`runtime-internals`](.claude/skills/runtime-internals/SKILL.md) | How Nino reads and builds a runtime's own objects through their fields instead of the public API | when adding or changing such a path, when a collection reads or writes wrong on Mono, IL2CPP, .NET Framework or 32-bit, or when a startup check fails |
@@ -104,9 +106,9 @@ reusing is written down before the task ends, in the same series of commits as t
   blind); a trap that cost time (a qemu flag, a JIT behavior, a CI failure that slipped through); a check or command
   that proves something; a new place a change must reach (a test, a doc, a runtime).
 - **Where it goes**: into the skill that owns that kind of work (an optimization technique, faster or slower, to
-  `optimize`, how to measure to `benchmark`, a new place for wire changes to `wire-format`, a docs rule to `audit-docs`, a local fact
-  about some files to that directory's `AGENTS.md`, a rule for every task here). Nothing fits: a new skill, with its
-  row in the `audit` scopes.
+  `optimize`, or `optimize-runtimes` for Go, Rust and TypeScript; how to measure to `benchmark`; a new place for wire
+  changes to `wire-format`; a docs rule to `audit-docs`; a local fact about some files to that directory's
+  `AGENTS.md`; a rule for every task here). Nothing fits: a new skill, with its row in the `audit` scopes.
 - **How it is written**: one bullet, the rule first in the imperative, then why, then the evidence (the case, the
   numbers, the commit): "Mark every small helper a read path calls `AggressiveInlining` ... `NinoLanes.Paired` stayed a
   call per load: AVX2 writes took twice as long". Extend the bullet that already covers it rather than adding a second;
@@ -149,6 +151,9 @@ reusing is written down before the task ends, in the same series of commits as t
   "slower". v3 means 3.3.13.
 - **CI stays green** on `main` and on the test branch: run the checks for what you touch before every push, never push
   an experiment that fails on purpose, batch test-branch pushes (`verify`, `audit-ci`).
+- **CI is a budget**: the account runs a limited number of jobs at once. One A/B run in flight across all workers,
+  queued lines batched into the next push, fewest lines that decide the question, and one push to `main` per series
+  (docs and skills commits ride along with code) (`benchmark`, "Spend CI as a budget").
 - **Commits**: Conventional Commits, `type(scope): summary` and a body that says why (types `feat`, `fix`, `perf`,
   `refactor`, `docs`, `test`, `ci`, `build`, `chore`; scope = area). Author:
   `git -c "user.name=JasonXuDeveloper - 傑" -c user.email=jason@xgamedev.net -c commit.gpgsign=false commit`. The

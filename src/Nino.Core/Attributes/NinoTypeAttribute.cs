@@ -10,7 +10,7 @@ namespace Nino.Core
     public sealed class NinoTypeAttribute : Attribute
     {
         /// <param name="autoCollect">Serialize every public field and property (otherwise only <c>[NinoMember]</c>s).</param>
-        /// <param name="containNonPublicMembers">
+        /// <param name="includeNonPublicMembers">
         /// Non-public members can be serialized too: every one with <paramref name="autoCollect"/>, the
         /// <c>[NinoMember]</c>s without it. Otherwise a non-public <c>[NinoMember]</c> is an error (NINO009).
         /// </param>
@@ -25,11 +25,11 @@ namespace Nino.Core
         /// instance, so shared references and cycles round-trip. Costs 4 bytes and a hash lookup per object.
         /// Types that must be re-created from constructor arguments cannot be tracked.
         /// </param>
-        public NinoTypeAttribute(bool autoCollect = true, bool containNonPublicMembers = false,
+        public NinoTypeAttribute(bool autoCollect = true, bool includeNonPublicMembers = false,
             bool allowInheritance = true, NinoFormat format = NinoFormat.Positional, bool trackReferences = false)
         {
             AutoCollect = autoCollect;
-            ContainNonPublicMembers = containNonPublicMembers;
+            IncludeNonPublicMembers = includeNonPublicMembers;
             AllowInheritance = allowInheritance;
             Format = format;
             TrackReferences = trackReferences;
@@ -39,7 +39,7 @@ namespace Nino.Core
         public bool AutoCollect { get; }
 
         /// <summary>Non-public members are serialized too (all of them with <see cref="AutoCollect"/>, the <c>[NinoMember]</c>s otherwise).</summary>
-        public bool ContainNonPublicMembers { get; }
+        public bool IncludeNonPublicMembers { get; }
 
         /// <summary>Subtypes are serializable through this type.</summary>
         public bool AllowInheritance { get; }

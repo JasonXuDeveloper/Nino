@@ -115,22 +115,22 @@ public class ExampleWithCustomFormatters
 {
     public int NormalField;
 
-    [NinoCustomFormatter(typeof(SpecialValueFormatter))]
+    [NinoMemberFormatter(typeof(SpecialValueFormatter))]
     public SpecialValue CustomField;
 
     public string NormalString;
 
-    [NinoCustomFormatter(typeof(CompactIntFormatter))]
+    [NinoMemberFormatter(typeof(CompactIntFormatter))]
     public int CompactInt;
 }
 
 [NinoType]
 public class ExampleWithStructFormatter
 {
-    [NinoCustomFormatter(typeof(ZigZagLongFormatter))]
+    [NinoMemberFormatter(typeof(ZigZagLongFormatter))]
     public long Small;
 
-    [NinoCustomFormatter(typeof(ZigZagLongFormatter))]
+    [NinoMemberFormatter(typeof(ZigZagLongFormatter))]
     public long Negative { get; set; }
 
     public int After;

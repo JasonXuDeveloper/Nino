@@ -17,11 +17,11 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 [🌐 **Website**](https://nino.xgamedev.net/en) ·
 [🚀 **Getting Started**](https://nino.xgamedev.net/en/docs/v4/start) ·
 [**What's new in v4**](https://nino.xgamedev.net/en/docs/v4/whats-new) ·
-[**Benchmarks**](https://nino.xgamedev.net/en/docs/v4/perf) ·
+[**Benchmarks**](https://nino.xgamedev.net/en/docs/v4/benchmarks) ·
 [**vs MemoryPack**](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) ·
 [**中文**](https://github.com/JasonXuDeveloper/Nino/blob/main/README.zh.md)
 
-**Up to <!--bench:ser.max-->6.8<!--/bench-->× faster** serialization and **up to <!--bench:reuse.inplace-->8.7<!--/bench-->× faster** in-place deserialization than MemoryPack<br>
+**Up to <!--bench:ser.max-->6.8<!--/bench-->× faster** serialization and **up to <!--bench:reuse.inplace-->8.7<!--/bench-->× faster** reuse deserialization than MemoryPack<br>
 **Zero GC** allocations on hot paths · **221× faster** builds than v3
 
 </div>
@@ -80,8 +80,8 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
   adds MVC formatters and Minimal API bodies and results for `application/x-nino`;
   [Nino.Codegen](https://nino.xgamedev.net/en/docs/v4/advanced/codegen) writes your types and their codecs as TypeScript, Go or Rust after each build (or from a built
   assembly with the `nino-gen` tool, Nino.Codegen.Tool), so browsers, Node, Go services and Rust programs read and
-  write the same bytes as .NET, with the runtimes in `runtimes/` ([docs/codegen.md](docs/codegen.md)).
-- **Mistakes caught while you type.** 27 analyzer diagnostics (NINO001–NINO027), many with a one-click fix.
+  write the same bytes as .NET, with the runtimes in `runtimes/`.
+- **Mistakes caught while you type.** 28 analyzer diagnostics (NINO001–NINO028), many with a one-click fix.
 
 ## Built for
 
@@ -104,11 +104,11 @@ path writes the same bytes as the portable code, which takes over where a CPU or
 
 | Platform | Vector paths | Benchmark |
 |---|---|---|
-| .NET 8 and 10 | x64: AVX-512 (byte permutes, 64-byte copies), AVX2, SSSE3; Arm64: AdvSimd (`TBL` lookups, paired loads and stores); WebAssembly (.NET 10): `PackedSimd` swizzles; portable code elsewhere | [.NET](https://nino.xgamedev.net/en/docs/v4/perf) |
-| Unity (Mono, IL2CPP) | With `com.unity.burst`: Burst-compiled kernels, AVX2 (blocks of 256 values or more) and SSSE3 on x86 and x64, Neon on Arm64; Nino.Core's own paths on Armv7, WebGL and without Burst | [Unity](https://nino.xgamedev.net/en/docs/v4/perf-unity) |
-| .NET Framework, .NET Core 3.0–7 | No intrinsics (the netstandard builds): blocks through `memmove`, text a word at a time | |
-| Go | Strings in assembly: AVX2 and AVX-512 conversion on amd64, 16-byte ASCII copies (SSE2 on amd64, NEON on arm64); plain Go elsewhere and with the `purego` tag | [Go](https://nino.xgamedev.net/en/docs/v4/perf-runtimes#go) |
-| Rust | Strings, in its one `unsafe` module: AVX-512, AVX2, SSE4.1, SSSE3 and SSE2 on x86_64 (found at run time), NEON on Arm64; two `u64` words a step elsewhere | [Rust](https://nino.xgamedev.net/en/docs/v4/perf-runtimes#rust) |
+| .NET 8 and 10 | x64: AVX-512 (byte permutes, 64-byte copies), AVX2, SSSE3; Arm64: AdvSimd (`TBL` lookups, paired loads and stores); WebAssembly (.NET 10): `PackedSimd` swizzles; portable code elsewhere | [.NET](https://nino.xgamedev.net/en/docs/v4/benchmarks) |
+| Unity (Mono, IL2CPP) | With `com.unity.burst`: Burst-compiled kernels, AVX2 (blocks of 256 values or more) and SSSE3 on x86 and x64, Neon on Arm64; Nino.Core's own paths on Armv7, WebGL and without Burst | [Unity](https://nino.xgamedev.net/en/docs/v4/benchmarks-unity) |
+| .NET Framework, .NET Core 3.0–7 | No intrinsics (the netstandard builds): blocks over 64 bytes through `memmove`; long Latin-1 text and padded structs with `Vector<T>` where the JIT accelerates it, else a word at a time | |
+| Go | Strings in assembly: AVX2 and AVX-512 conversion on amd64, 16-byte ASCII copies (SSE2 on amd64, NEON on arm64); plain Go elsewhere and with the `purego` tag | [Go](https://nino.xgamedev.net/en/docs/v4/benchmarks-runtimes#go) |
+| Rust | Strings, in its one `unsafe` module: AVX-512, AVX2, SSE4.1, SSSE3 and SSE2 on x86_64 (found at run time), NEON on Arm64; two `u64` words a step elsewhere | [Rust](https://nino.xgamedev.net/en/docs/v4/benchmarks-runtimes#rust) |
 
 ## Install
 
@@ -285,7 +285,7 @@ New in v4:
 - **Integrations**: Nino.AspNetCore (MVC formatters, Minimal API `NinoBody<T>` and `NinoResults`) and Nino.Codegen
   (your types and codecs in TypeScript, Go or Rust, generated after each build; or from a built assembly with
   Nino.Codegen.Tool's `nino-gen`).
-- **Tooling**: an incremental generator and 27 analyzers (NINO001–NINO027) with code fixes, in Unity too.
+- **Tooling**: an incremental generator and 28 analyzers (NINO001–NINO028) with code fixes, in Unity too.
 
 See [what's new](https://nino.xgamedev.net/en/docs/v4/whats-new), the
 [changelog](https://nino.xgamedev.net/en/docs/v4/changelog) and the

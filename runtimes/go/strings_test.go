@@ -357,7 +357,7 @@ func BenchmarkWriteString(b *testing.B) {
 	}
 }
 
-// TestReadStrings checks ReadStrings against ReadSlice with Reader.String: the strings WriteStrings wrote (ASCII,
+// TestReadStrings checks ReadStrings against readSlice with Reader.String: the strings WriteStrings wrote (ASCII,
 // Latin-1, UTF-16, long), a null element, null, and every truncation.
 func TestReadStrings(t *testing.T) {
 	strs := []string{"", "a", "héllo", "日本語", strings.Repeat("x", 300), "\U0001F600", "end"}
@@ -380,7 +380,7 @@ func TestReadStrings(t *testing.T) {
 	}
 	// Short text of every length around the in-loop path's bounds (1 to 16 chars of ASCII), Latin-1 and UTF-16 among
 	// it, enough to grow the slice and to fill several blocks of r.text, then a byte after: the same strings as
-	// ReadSlice reads, and nothing past them read.
+	// readSlice reads, and nothing past them read.
 	var many []string
 	for i := range 5000 {
 		s := "abcdefghijklmnopqrstuvwxyz"[:i%20]
@@ -397,7 +397,7 @@ func TestReadStrings(t *testing.T) {
 	w.U8(0x7E)
 	for _, cut := range []int{len(w.Bytes()), len(w.Bytes()) - 1} {
 		r, ref := NewReader(w.Bytes()[:cut]), NewReader(w.Bytes()[:cut])
-		got, want := ReadStrings(r), ReadSlice(ref, 1, (*Reader).String)
+		got, want := ReadStrings(r), readSlice(ref, 1, (*Reader).String)
 		if strings.Join(got, "|") != strings.Join(want, "|") || r.Remaining() != ref.Remaining() ||
 			(r.Err() == nil) != (ref.Err() == nil) || r.Err() != nil && r.Err().Error() != ref.Err().Error() {
 			t.Fatalf("%d strings, cut at %d: %d read (%v), want %d (%v)", len(many), cut, len(got), r.Err(), len(want), ref.Err())
@@ -409,9 +409,103 @@ func TestReadStrings(t *testing.T) {
 	for cut := range len(data) {
 		r := NewReader(data[:cut])
 		ref := NewReader(data[:cut])
-		got, want := ReadStrings(r), ReadSlice(ref, 1, (*Reader).String)
+		got, want := ReadStrings(r), readSlice(ref, 1, (*Reader).String)
 		if got != nil || want != nil || r.Err() == nil || r.Err().Error() != ref.Err().Error() {
 			t.Fatalf("cut at %d: %q (%v), want %q (%v)", cut, got, r.Err(), want, ref.Err())
+		}
+	}
+}
+
+// BenchmarkUTF16 reads and writes strings of 1000 UTF-16 code units through Reader.UTF16 and Writer.UTF16: Latin-1
+// (written a byte a unit) and wider text (two bytes a unit), 16 variants of each in turn.
+func BenchmarkUTF16(b *testing.B) {
+	const variants = 16
+	for _, c := range []struct {
+		name string
+		unit func(rnd *rand.Rand) uint16
+	}{
+		{"latin1", func(rnd *rand.Rand) uint16 { return uint16(0x20 + rnd.Intn(0xE0)) }},
+		{"wide", func(rnd *rand.Rand) uint16 { return uint16(0x400 + rnd.Intn(0x5000)) }},
+	} {
+		rnd := rand.New(rand.NewSource(3))
+		texts := make([][]uint16, variants)
+		data := make([][]byte, variants)
+		for k := range texts {
+			texts[k] = make([]uint16, 1000)
+			for i := range texts[k] {
+				texts[k][i] = c.unit(rnd)
+			}
+			w := NewWriter(0)
+			w.UTF16(texts[k])
+			data[k] = w.Bytes()
+		}
+		b.Run(c.name+"/read", func(b *testing.B) {
+			r := NewReader(nil)
+			b.SetBytes(int64(len(data[0])))
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				r.Reset(data[i%variants])
+				if len(r.UTF16()) != 1000 {
+					b.Fatal(r.Err())
+				}
+			}
+		})
+		b.Run(c.name+"/write", func(b *testing.B) {
+			w := NewWriter(len(data[0]))
+			b.SetBytes(int64(len(data[0])))
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				w.Reset()
+				w.UTF16(texts[i%variants])
+			}
+		})
+	}
+}
+
+// TestUTF16Words checks Reader.UTF16 and Writer.UTF16, which take four units a word, against a unit at a time: every
+// length to 40, Latin-1 units (every byte value) and wider ones, with one wide unit at each position.
+func TestUTF16Words(t *testing.T) {
+	// payload is the bytes after the header: a byte a unit when all are Latin-1, else two.
+	payload := func(units []uint16) []byte {
+		var b []byte
+		for _, u := range units {
+			if u > 0xFF {
+				b = nil
+				for _, u := range units {
+					b = binary.LittleEndian.AppendUint16(b, u)
+				}
+				return b
+			}
+			b = append(b, byte(u))
+		}
+		return b
+	}
+	for n := 1; n <= 40; n++ {
+		latin := make([]uint16, n)
+		for i := range latin {
+			latin[i] = uint16((i*97 + n) & 0xFF)
+		}
+		cases := [][]uint16{latin}
+		for at := 0; at < n; at++ {
+			v := append([]uint16(nil), latin...)
+			v[at] = 0x100 + uint16(at)*0x3F1
+			cases = append(cases, v)
+		}
+		for _, v := range cases {
+			want := payload(v)
+			data := encode(t, func(w *Writer) { w.UTF16(v) })
+			if len(data) != headerSize(uint32(2*n))+len(want) || !bytes.HasSuffix(data, want) {
+				t.Fatalf("n=%d %x: wrote %x, want the payload %x", n, v, data, want)
+			}
+			back := NewReader(data).UTF16()
+			if len(back) != n {
+				t.Fatalf("n=%d: read %x, want %x", n, back, v)
+			}
+			for i := range v {
+				if back[i] != v[i] {
+					t.Fatalf("n=%d: read %x, want %x", n, back, v)
+				}
+			}
 		}
 	}
 }

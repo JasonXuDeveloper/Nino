@@ -28,6 +28,27 @@ namespace Nino.Fuzz
             Write = value => NinoSerializer.Serialize((Node)value),
         };
 
+        /// <summary>
+        /// A planted stale array: every read into an existing value stores a new array, uninitialized and on the large
+        /// object heap, before the data is checked, so each input Nino rejects leaves it holding freed memory (what
+        /// <see cref="StaleMemory"/> finds). A target of its own: a poisoned one costs a collection per rejected input,
+        /// which slowed the planted crashes past the self test's time.
+        /// </summary>
+        public static readonly Target Stale = new Target
+        {
+            Name = "SelfTestStale",
+            Covers = "a planted stale array, to test the fuzzer (selftest command)",
+            Seeds = Target.Seeds,
+            Read = data => NinoDeserializer.Deserialize<Node>(data),
+            ReadInto = ReadInto,
+            Fresh = () => new Existing(),
+            Poisoned = true,
+            Write = Target.Write,
+        };
+
+        /// <summary>The planted bugs' targets.</summary>
+        public static readonly Target[] All = { Target, Stale };
+
         static object Read(ReadOnlySpan<byte> data)
         {
             if (data.Length > 0)
@@ -41,6 +62,26 @@ namespace Nino.Fuzz
                 }
             }
             return NinoDeserializer.Deserialize<Node>(data);
+        }
+
+        /// <summary>What a reuse read goes into: a node, and the slot the stale array is planted in.</summary>
+        sealed class Existing
+        {
+            public Node Node = Samples.Chain(1);
+            public long[] Planted = { 1 };
+        }
+
+        static object ReadInto(ReadOnlySpan<byte> data, object existing)
+        {
+            // The value of another input (a node) when the fuzzer reads into one.
+            var into = existing as Existing ?? new Existing { Node = existing as Node };
+            // Up to as many as the poisoned memory holds, until one took some of it (the first, as a rule).
+            for (int i = 0; i < 64 && (i == 0 || StaleMemory.Find(into.Planted) == null); i++)
+                into.Planted = GC.AllocateUninitializedArray<long>(20_000);
+            NinoDeserializer.Deserialize(data, ref into.Node);
+            // Filled once the read succeeded, as a read that keeps its array would have.
+            Array.Clear(into.Planted);
+            return into.Node;
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -62,10 +103,12 @@ namespace Nino.Fuzz
                 Seconds = 45, Targets = { Target.Name }, FindingsDir = dir, Probes = false, HangSeconds = 1, MinimizeSeconds = 2,
             };
             Supervisor.Fuzz(o);
-            var found = Directory.Exists(Path.Combine(dir, Target.Name))
-                ? Directory.GetDirectories(Path.Combine(dir, Target.Name)).Select(d => File.ReadLines(Path.Combine(d, "info.txt")).First()).ToList()
-                : new List<string>();
-            var expected = new List<string> { "CRASH stack overflow", "EXCEPTION ArgumentException", "HANG" };
+            o.Seconds = 5;
+            o.Targets = new List<string> { Stale.Name };
+            Supervisor.Fuzz(o);
+            var found = All.Select(t => Path.Combine(dir, t.Name)).Where(Directory.Exists).SelectMany(Directory.GetDirectories)
+                .Select(d => File.ReadLines(Path.Combine(d, "info.txt")).First()).ToList();
+            var expected = new List<string> { "CRASH stack overflow", "EXCEPTION ArgumentException", "HANG", "STALE" };
             if (Guard.Available) expected.Add("CRASH access violation");
             int missing = 0;
             Console.WriteLine("Self test:");

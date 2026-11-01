@@ -562,40 +562,40 @@ func TestPrimitiveBlocks(t *testing.T) {
 
 func TestCollections(t *testing.T) {
 	strs := []string{"a", "", "中"}
-	got := encode(t, func(w *Writer) { WriteSlice(w, strs, (*Writer).String) })
+	got := encode(t, func(w *Writer) { writeSlice(w, strs, (*Writer).String) })
 	r := NewReader(got)
-	back := ReadSlice(r, 1, (*Reader).String)
+	back := readSlice(r, 1, (*Reader).String)
 	if len(back) != 3 || back[2] != "中" || r.Err() != nil {
 		t.Fatal(back)
 	}
 	expectBytes(t, encode(t, func(w *Writer) {
-		WriteEntries(w, []Entry[int32, string]{{1, "a"}}, (*Writer).I32, (*Writer).String)
+		writeEntries(w, []Entry[int32, string]{{1, "a"}}, (*Writer).I32, (*Writer).String)
 	}), "01000000 01000000 0361")
-	m := ReadMap(NewReader(hx("02000000 01000000 0361 02000000 01")), 5, (*Reader).I32, (*Reader).String)
+	m := readMap(NewReader(hx("02000000 01000000 0361 02000000 01")), 5, (*Reader).I32, (*Reader).String)
 	if len(m) != 2 || m[1] != "a" || m[2] != "" {
 		t.Fatal(m)
 	}
 	expectCode(t, hx("02000000 01000000 0361 01000000 01"), CodeDuplicateKey, func(r *Reader) {
-		ReadMap(r, 5, (*Reader).I32, (*Reader).String)
+		readMap(r, 5, (*Reader).I32, (*Reader).String)
 	})
-	expectCode(t, hx("02000000 01000000 01000000"), CodeDuplicateKey, func(r *Reader) { ReadSet(r, 4, (*Reader).I32) })
-	set := ReadSet(NewReader(hx("02000000 01000000 02000000")), 4, (*Reader).I32)
+	expectCode(t, hx("02000000 01000000 01000000"), CodeDuplicateKey, func(r *Reader) { readSet(r, 4, (*Reader).I32) })
+	set := readSet(NewReader(hx("02000000 01000000 02000000")), 4, (*Reader).I32)
 	if len(set) != 2 {
 		t.Fatal(set)
 	}
 	m2 := map[int32]int32{1: 2}
 	if got := encode(t, func(w *Writer) {
-		WriteMap(w, m2, (*Writer).I32, (*Writer).I32)
-		WriteMap[int32, int32](w, nil, nil, nil)
+		writeMap(w, m2, (*Writer).I32, (*Writer).I32)
+		writeMap[int32, int32](w, nil, nil, nil)
 	}); !bytes.Equal(got, hx("01000000 01000000 02000000 FFFFFFFF")) {
 		t.Fatalf("%X", got)
 	}
-	if got := encode(t, func(w *Writer) { WriteSet(w, map[int32]struct{}{7: {}}, (*Writer).I32) }); !bytes.Equal(got, hx("01000000 07000000")) {
+	if got := encode(t, func(w *Writer) { writeSet(w, map[int32]struct{}{7: {}}, (*Writer).I32) }); !bytes.Equal(got, hx("01000000 07000000")) {
 		t.Fatalf("%X", got)
 	}
 	// An element that fails ends the read with no result.
 	r = NewReader(hx("02000000 0361 03"))
-	if ReadSlice(r, 1, (*Reader).String) != nil || r.Err() == nil {
+	if readSlice(r, 1, (*Reader).String) != nil || r.Err() == nil {
 		t.Fatal("partial result")
 	}
 }
@@ -623,7 +623,7 @@ func TestSliceCapBoundsMemory(t *testing.T) {
 	r = NewReader(data)
 	allocs := testing.AllocsPerRun(1, func() {
 		r.Reset(data)
-		ReadSlice(r, 1, func(r *Reader) big { r.U8(); return big{} })
+		readSlice(r, 1, func(r *Reader) big { r.U8(); return big{} })
 	})
 	if r.Err() == nil || allocs > 64 {
 		t.Fatalf("err %v allocs %v", r.Err(), allocs)
@@ -642,9 +642,9 @@ func TestFixedAndShape(t *testing.T) {
 	dec := func(_ *Reader, b []byte) pair {
 		return pair{b[0], int32(b[1]) | int32(b[2])<<8 | int32(b[3])<<16 | int32(b[4])<<24}
 	}
-	got := encode(t, func(w *Writer) { WriteFixed(w, []pair{{1, 2}}, 5, enc) })
+	got := encode(t, func(w *Writer) { writeFixed(w, []pair{{1, 2}}, 5, enc) })
 	expectBytes(t, got, "01000000 0102000000")
-	if v := ReadFixed(NewReader(got), 5, dec); len(v) != 1 || v[0] != (pair{1, 2}) {
+	if v := readFixed(NewReader(got), 5, dec); len(v) != 1 || v[0] != (pair{1, 2}) {
 		t.Fatal(v)
 	}
 	r := NewReader(hx("02000000 03000000"))
@@ -783,6 +783,37 @@ func TestSerializeAPI(t *testing.T) {
 	}
 }
 
+// A Writer reused with Reset writes what Serialize returns, into the same memory, with no allocation.
+func TestWriterReuse(t *testing.T) {
+	want, err := Serialize("hello", (*Writer).String)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := NewWriter(0)
+	w.String("hello")
+	buf := w.Bytes()
+	allocs := testing.AllocsPerRun(100, func() {
+		w.Reset()
+		w.String("hello")
+	})
+	if !bytes.Equal(w.Bytes(), want) || &w.Bytes()[0] != &buf[0] {
+		t.Fatal(w.Bytes())
+	}
+	if allocs != 0 {
+		t.Fatalf("%v allocations", allocs)
+	}
+	// After a failure, Reset clears the error and the writer writes again.
+	w.DateTimeOffset(DateTimeOffset{OffsetMinutes: 2000})
+	if w.Err() == nil {
+		t.Fatal("no error")
+	}
+	w.Reset()
+	w.String("hello")
+	if w.Err() != nil || !bytes.Equal(w.Bytes(), want) {
+		t.Fatal(w.Err(), w.Bytes())
+	}
+}
+
 func TestValueRanges(t *testing.T) {
 	// decimal: scale above 28, or reserved flag bits.
 	expectCode(t, hx("00001D00 00000000 0100000000000000"), CodeInvalidData, func(r *Reader) { r.Decimal() })
@@ -812,5 +843,36 @@ func expectOK(t *testing.T, data []byte, f func(r *Reader)) {
 	r := NewReader(data)
 	if f(r); r.Err() != nil {
 		t.Fatal(r.Err())
+	}
+}
+
+// TestEnterBody: bodies open in place below InlineDepth and not from it on, on both sides, and ExitBody restores
+// the depth EnterBody returned.
+func TestEnterBody(t *testing.T) {
+	r, w := NewReader(nil), NewWriter(0)
+	var rd, wd []int32
+	for i := int32(0); i < InlineDepth; i++ {
+		d, ok := r.EnterBody()
+		e, wok := w.EnterBody()
+		if !ok || !wok || d != i || e != i {
+			t.Fatalf("depth %d: reader %d %v, writer %d %v", i, d, ok, e, wok)
+		}
+		rd, wd = append(rd, d), append(wd, e)
+	}
+	if d, ok := r.EnterBody(); ok || d != InlineDepth {
+		t.Fatalf("reader past InlineDepth: %d %v", d, ok)
+	}
+	if d, ok := w.EnterBody(); ok || d != InlineDepth {
+		t.Fatalf("writer past InlineDepth: %d %v", d, ok)
+	}
+	for i := len(rd) - 1; i >= 0; i-- {
+		r.ExitBody(rd[i])
+		w.ExitBody(wd[i])
+	}
+	if d, ok := r.EnterBody(); !ok || d != 0 || r.Err() != nil {
+		t.Fatalf("reader after closing every body: %d %v %v", d, ok, r.Err())
+	}
+	if d, ok := w.EnterBody(); !ok || d != 0 || w.Err() != nil {
+		t.Fatalf("writer after closing every body: %d %v %v", d, ok, w.Err())
 	}
 }

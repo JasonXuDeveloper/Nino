@@ -46,7 +46,7 @@ from the file name (`Nino.Benchmark.SimpleTest-report-github.md`), so keep that 
 Each of the two `SimpleTest` runners builds `v3/` and runs its half of it directly before the same half of v4, with the
 same settings; the workflow adds a
 **📊 v3 3.3.13 vs v4 (same machine)** section to the release notes, in front of the Performance Report: the
-`compare.py` table and the v3 runners (the v3 report, both halves merged, is attached). The documentation site takes its v4-vs-v3 ratios from that
+`compare_v3.py` table and the v3 runners (the v3 report, both halves merged, is attached). The documentation site takes its v4-vs-v3 ratios from that
 section of the newest v4 release. A v3 failure only leaves the section out; re-running the workflow for the tag
 adds whichever section is missing.
 
@@ -108,8 +108,10 @@ Performance Report of each release.
 | `VersionTolerantTest` | `SimpleClass`'s members as `NinoFormat.VersionTolerant` against MemoryPack's `GenerateType.VersionTolerant`, one and 100 (`TolerantClassSerialize`, `TolerantClassesSerialize`, `TolerantClassDeserialize`, `TolerantClassesDeserialize`) |
 | `FixedSizeTest` | Types of fixed size (`NinoSerializer.GetFixedSize<T>()` is not -1), serialized to a new `byte[]` of exactly that size: a 40-byte unmanaged struct, a sealed class of the same members, and an array of 100 of the classes (`FixedStructSerialize`, `FixedClassSerialize`, `FixedClassesSerialize` and the `Deserialize` ones) |
 | `CommonTypesTest` | Data shaped like that of common applications (`CommonTypes.cs`), to a reused buffer writer and into new instances: `List<Player>` (100), `List<Order>` (100), `List<Shape>` (1,000 through an abstract base), a `TreeNode` tree (1,365 nodes), `InventoryItem[1000]` (a padded struct), `Waypoint[1000]` (a struct of fixed size that is not raw: a value tuple member) and `Dictionary<string, string>` (1,000) (`PlayersSerialize`, `OrdersSerialize`, `ShapesSerialize`, `TreeSerialize`, `InventorySerialize`, `WaypointsSerialize`, `StringDictionarySerialize` and the `Deserialize` ones) |
-| `CollectionsTest` | Collections of the base class library, 1,000 elements each, to a reused buffer writer and into new instances: `List<(int, long)>`, `KeyValuePair<int, int>[]`, `HashSet<int>`, `Queue<int>`, `LinkedList<int>`, `SortedSet<int>`, `SortedDictionary<int, int>`, `SortedList<int, int>` and `ConcurrentDictionary<int, int>` (`TupleListSerialize`, `KeyValuePairsSerialize`, `HashSetSerialize`, `QueueSerialize`, `LinkedListSerialize`, `SortedSetSerialize`, `SortedDictionarySerialize`, `SortedListSerialize`, `ConcurrentDictionarySerialize` and the `Deserialize` ones) |
+| `CollectionsTest` | Collections of the base class library, 1,000 elements each, to a reused buffer writer and into new instances: `List<(int, long)>`, `KeyValuePair<int, int>[]`, `HashSet<int>`, `Dictionary<int, int>`, `Queue<int>`, `LinkedList<int>`, `SortedSet<int>`, `SortedDictionary<int, int>`, `SortedList<int, int>` and `ConcurrentDictionary<int, int>` (`TupleListSerialize`, `KeyValuePairsSerialize`, `HashSetSerialize`, `IntDictionarySerialize`, `QueueSerialize`, `LinkedListSerialize`, `SortedSetSerialize`, `SortedDictionarySerialize`, `SortedListSerialize`, `ConcurrentDictionarySerialize` and the `Deserialize` ones); and `SelfTree`, a class derived from `List<SelfTree>` nested 6 deep, 4 wide (5,461 lists, each level counted; Nino and MemoryPack: `SelfTreeSerialize`, `SelfTreeDeserialize`) |
 | `BclTypesTest` | Base class library types beyond the common collections, to a reused buffer writer and into new instances: `BigInteger` (3^1000), `Uri`, `Version`, `StringBuilder` (1,000 chars), `BitArray` (1,000 bits), `CultureInfo`, `TimeZoneInfo`, `Lazy<string>`, and with 1,000 elements `Memory<int>`, `ReadOnlySequence<int>`, `ReadOnlyCollection<int>`, `ILookup<int, int>`, `BlockingCollection<int>` and the immutable collections of Nino.Immutable (`ImmutableHashSet`, `ImmutableSortedSet`, `ImmutableQueue`, `ImmutableStack`, `ImmutableDictionary`, `ImmutableSortedDictionary`) (`BigIntegerSerialize`, ..., `ImmutableSortedDictionarySerialize` and the `Deserialize` ones). Nino only for `BigInteger` and `BitArray`: MemoryPack 1.21.4 reads back another `BigInteger` than it wrote (up to 255 bytes), and on .NET 10 writes a `BitArray` wrong and crashes reading one |
+| `ScatteredTest` | Arrays of 1,000,000 objects whose order in the array is not their order in memory (shuffled after allocation), as objects created and replaced over a program's life are: `Shape[]` through the abstract base and `ScatteredItem[]` (an int, a string allocated in an order of its own, a long) to a reused buffer writer, the items read into an existing shuffled array; the same shapes in allocation order, and 8,192 of them in order, which stay in the cache (`ScatteredShapesSerialize`, `InOrderShapesSerialize`, `HotShapesSerialize`, `ScatteredItemsSerialize`, `ScatteredItemsDeserializeInto`). Every other class allocates its objects in order and fits in the cache |
+| `UntrustedTest` | Reads with `NinoSettings.Untrusted` on (set before first use; the class runs in a process of its own): `List<CheckedSample>` of 1,000 raw structs whose `DateTime` and `bool` fields Nino checks before copying them (`UntrustedListDeserialize`). Against MemoryPack only, which copies them unchecked; under `--verify` the setting is already frozen and the case reads in trusted mode |
 
 Method names are unique across classes (`<Serializer><Serialize|Deserialize><Case>`, e.g. `NinoSerializeTolerantClass`,
 `MemoryPackDeserializeGraph`, `ProtobufSerializePlayers`; the serializers are `Nino`, `MemoryPack`, `MessagePack` and
@@ -145,6 +147,8 @@ A case a library cannot express with the same data has no method for it, never o
 | `GenericPolymorphicTest` | the five generic bases: its unions are attributes on the base, which cannot name other subtypes for each type argument | — |
 | `CommonTypesTest` | — | `Tree`: protobuf cannot tell an empty list from none, and the leaves' empty child lists read back as null |
 | `BclTypesTest` | `CultureInfo`, `TimeZoneInfo`, `BlockingCollection<T>`: it throws on them | everything but `Uri` and the immutable collections: no serializer for `BigInteger`, `Version`, `StringBuilder`, `BitArray`, `CultureInfo`, `TimeZoneInfo`, `Lazy<T>`, `Memory<T>`, `ReadOnlySequence<T>`, `ReadOnlyCollection<T>`, `ILookup<,>` or `BlockingCollection<T>` |
+| `ScatteredTest` | `ScatteredItemsDeserializeInto`: it reads new instances only | the same: deserializing into an instance merges instead of overwriting it |
+| `UntrustedTest` | the case: it times Nino's checks of untrusted data, which MessagePack and protobuf-net do not make either; MemoryPack is the unchecked copy to compare with | the same |
 
 The formats differ in what they write, and the Payload column shows it: MessagePack writes a `Guid` as a 36-character
 string and a `DateTime` as a UTC timestamp (it reads a local time back in UTC: the same instant), protobuf-net nests
@@ -233,7 +237,8 @@ serializer (Nino first), and the encoded sizes. Local numbers are for comparing 
 
 The string cases are the same in all three: 1,000 short ASCII strings (`"string 0"` to `"string 999"`), and 1,000
 strings of ASCII, Latin-1 (`"crème brûlée i"`, one byte a char in Nino) and other text (`"строка 字符串 🎉 i"`,
-UTF-16 in Nino, with a char outside the BMP) in turn.
+UTF-16 in Nino, with a char outside the BMP) in turn. TypeScript rotates these through 63 more variants of the
+same lengths and scripts (below).
 
 ### TypeScript
 
@@ -251,7 +256,18 @@ NINO_BENCH_TIME=300 runtimes/typescript/bench/run.sh strings   # 300 ms per task
 `Program.cs` declares the types and writes each scenario's values, serialized by Nino in .NET, to
 `bench/out/data`; `nino-gen --lang ts` generates their TypeScript into `bench/gen`. Before a scenario is timed, every
 value is read and written back in TypeScript and must give exactly the bytes .NET wrote, and every protobuf message
-must read back equal. A task is one pass over all of a scenario's values. MessagePack (standard maps, no msgpackr
+must read back equal. A task is one pass over all of a scenario's values. Nino has a third task, `serializeInto`: the
+same values written with `serializeInto` into one `NinoWriter` reset before each value, as an application that sends
+each value before the next one does; it allocates no `ArrayBuffer` once the writer is large enough, where `serialize`
+takes a new 64 KiB (or larger) buffer as its results fill the last one.
+
+Inputs rotate: `Program.cs` writes each scenario in 64 variants (the first is the original data; the others have their
+own random seed and scramble the fixed text letter for letter within its script, so shapes, lengths and encodings stay
+the same), every serializer gets all 64 ready before the timing, and each pass of every task, serialize and
+deserialize, takes the next variant in turn. Repeating one input lets V8 reuse work: a repeated JSON text parses along
+the hidden-class transitions and internalized keys of the previous parse (a Lookup-like text took 0.21 ms a parse
+repeated, 7.8 to 8.4 ms with 200 different texts in turn), which made `JSON.parse` look several times faster than it
+is. The sizes are a variant's mean. Holding every variant takes about 1.3 GB in Node. MessagePack (standard maps, no msgpackr
 records) gets the values Nino read, as they are (classes and `Map`s as maps, `bigint`s as 64-bit integers, read back
 as `bigint`); JSON gets them as plain JSON (64-bit integers as strings, maps as objects) and is not converted back to
 `bigint` or `Map`, so it does less work than Nino. Neither carries the type of a polymorphic value (`Zoo`, `Player.Pet`),

@@ -15,11 +15,15 @@ spec/
                              other languages: primitives, strings, raw layouts, collections, [NinoType] objects,
                              the [NinoTypeLayout] grammar (§8), reader validation (§9), worked examples
 v4-design.md                 the v4 architecture: goals, target frameworks, binary format, Nino.Core, the generator
-codegen.md                   nino-gen: usage, the build package, how it works, per-language notes, what is not generated
+codegen.md                   nino-gen for contributors: where it lives, the pipeline (layouts, IR, targets, templates),
+                             why each target writes what it does, adding a type, regenerating, tests; usage is the
+                             site's codegen page
 diagnostics.md               every NINO diagnostic with its fix (the analyzer's help links point here), and nino-gen's
                              NINOGEN ones
 pitfalls.md                  problems met building v4 (memory layouts across runtimes, the generator, benchmarking)
                              and what Nino does about them; read before changing the wire format or raw fast paths
+layouts.md                   the layout of every unmanaged BCL struct on every runtime CI runs (size, field offsets),
+                             against the canonical one, from tests/Nino.RuntimeTests' `# layout` lines
 v4-benchmarks.md             build-time and runtime numbers against v3 3.3.13 and MemoryPack; the runtime tables are
                              written by benchmarks/readme.py from a release's report
 assets/                      logo.png (README); benchmark.svg (the README chart, written by readme.py) and

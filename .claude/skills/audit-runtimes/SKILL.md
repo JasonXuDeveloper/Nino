@@ -17,22 +17,39 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
 - Stricter than .NET is allowed, looser never; each stricter check is listed in the runtime's README.
 - A C# feature users can declare is supported by each runtime and by nino-gen's templates, or reported as NINOGEN002
   naming the type, never generated code that reads differently.
+- A rename of a runtime's API that no release carries gets no alias (`audit-naming`, "Output and applying").
+- Each runtime offers .NET's API shapes in its own idiom, under the same concept names: a new value
+  (`Serialize`), memory the caller owns and reuses (`Serialize(value, bufferWriter)` with a `NinoArrayBufferWriter`:
+  TypeScript `serializeInto` with a `NinoWriter` and `reset`, or a `Uint8Array`; Go `Append` and `Writer.Reset`; Rust
+  `serialize_into`), and `Exact` reads. Why: the owner wants them "the same as C#" in every runtime, and in Node a new
+  `ArrayBuffer` per value adds up to full GCs (`benchmark`, "Keep only the running serializer's data live").
+  Reading into an existing value (`Deserialize(data, ref value)`) is TypeScript `deserializeInto` (`NinoCodec.readInto`),
+  Go `DeserializeInto` (`ReadXInto`) and Rust `deserialize_into` (`NinoRead::read_into`), with one read body per type:
+  the plain read builds a new value and reads into it (`readX(r, v = new X())`, `ReadX` calling `ReadXInto`, Rust's
+  struct `read` building `Default`), so a template change to a read path reaches both. The corpus tests read every
+  valid case into the previous case's value and every hostile input into a valid value (same verdict as a fresh read).
 
 ## Safety
 
 No input may panic, throw an unexpected error, read out of bounds, recurse without a bound or allocate out of
 proportion (Go: sticky errors, no `recover`; Rust: the crate's lints, `unsafe` only in `src/simd.rs` with SAFETY
 comments and Miri; TypeScript: bounds before allocating, `Map` for keys from the data). Fuzzers run on every change
-to a read path.
+to a read path. Rust has two fuzzers: the corpus mutation in `cargo test` (stable, CI) and coverage-guided
+`runtimes/rust/fuzz` (cargo-fuzz, nightly, local): run the second for a read-path change too, with LeakSanitizer on
+(a leak is a finding: `audit-security`, cyclic graphs). Round 103: its first run found that a cyclic `Shared` graph
+leaked; after the arena per read, 11.1 million inputs of nino-gen's code and 6.3 million of the hand-written codecs,
+nothing.
 
 ## Speed
 
 - Each runtime leads every case of its `bench` against its competitors, on x64 and Arm64, judged per CPU on runners
-  against the main-vs-main floor (`benchmark`).
+  against the main-vs-main floor (`benchmark`). A bench that times one input over and over is not a fair lead: its
+  parse cases must rotate their inputs, and each serializer runs with only its own data live (`benchmark`, "Adding a
+  case").
 - SIMD beyond strings where it measures faster (primitive blocks, bool validation, fixed-size records, transcoding),
   with the portable path kept and tested (Go `purego`, Rust without the features, TypeScript without WebAssembly).
 - Hot paths: one bounds check per run of fixed-size members and per loop (the idioms per language are in
-  `optimize`, "Bounds checks"), no reflection or boxing outside polymorphic slots, rare
+  `optimize-runtimes`, "Bounds checks"), no reflection or boxing outside polymorphic slots, rare
   paths out of line (`//go:noinline`, `#[inline(never)]`), writing a value free of allocations.
 
 ## Templates (nino-gen)

@@ -9,8 +9,8 @@ namespace Nino.Core.Internal
     /// (<c>class Tree : List&lt;Tree&gt;</c>, <c>class Map : Dictionary&lt;string, Map&gt;</c>). Class bodies count toward
     /// the read depth (<see cref="NinoDepth"/>) and generated struct bodies call <see cref="Reader.EnterStruct"/>, but a
     /// collection formatter counts nothing: data nesting such a type a million deep would overflow the stack. Their
-    /// formatters count each level instead (<see cref="NestingFormatter{T,TFormatter}"/>); every other type keeps its
-    /// formatter as it is.
+    /// formatters count each level instead (<see cref="NestingFormatter{T,TFormatter}"/>, and in generated code the
+    /// nesting struct the generator writes for such a type); every other type keeps its formatter as it is.
     /// </summary>
     internal static class NinoNesting
     {

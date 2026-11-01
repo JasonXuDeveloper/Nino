@@ -1,8 +1,9 @@
-// Arrays, sets, maps, nullables, byte arrays, the type id registry, and `serialize`'s shared buffers.
+// Arrays, sets, maps, nullables, byte arrays, the type id registry, `serialize`'s shared buffers, and `serializeInto`
+// into a reused writer or a caller's array.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deserialize, NinoError, NinoReader, NinoRegistry, NinoWriter, serialize, type NinoCodec } from "../src/nino.ts";
-import { hex, int32, toHex, strHeader } from "./codecs.ts";
+import { deserialize, NinoError, NinoReader, NinoSubtypes, NinoWriter, serialize, serializeInto, type NinoCodec } from "../src/nino.ts";
+import { chain, ChainCodec, hex, int32, toHex, strHeader, values } from "./codecs.ts";
 
 const i32: NinoCodec<number> = { read: (r) => r.i32(), write: (w, v) => w.i32(v) };
 const text: NinoCodec<string | null> = { read: (r) => r.string(), write: (w, v) => w.string(v) };
@@ -89,6 +90,51 @@ describe("collections", () => {
     assert.deepEqual([...bytes], [0, 1, 254, 255]);
     assert.equal(new NinoReader(hex("ffffffff")).bytes(), null);
   });
+
+  it("writes typed arrays as their elements little-endian, and reads them back as copies", () => {
+    assert.equal(toHex(write((w) => w.numbers(Int32Array.of(1, -2)))), "02000000 01000000 feffffff".replace(/ /g, ""));
+    assert.equal(toHex(write((w) => w.numbers(Float32Array.of(1.5)))), "01000000 0000c03f".replace(/ /g, ""));
+    assert.equal(toHex(write((w) => w.numbers(BigUint64Array.of(258n)))), "01000000 0201000000000000".replace(/ /g, ""));
+    assert.equal(toHex(write((w) => w.numbers(null))), "ffffffff");
+    assert.equal(new NinoReader(hex("ffffffff")).numbers(Int16Array), null);
+    const types = [Int8Array, Uint8Array, Int16Array, Uint16Array, Int32Array, Uint32Array, BigInt64Array,
+      BigUint64Array, Float32Array, Float64Array] as const;
+    // Empty, on-heap (up to 64 bytes), in the shared buffer and in their own; at every offset of the data.
+    for (const type of types)
+      for (const length of [0, 3, 40, 900, 3000]) {
+        const big = type === BigInt64Array || type === BigUint64Array;
+        const values = new (type as new (n: number) => Int32Array)(length) as unknown as Int32Array;
+        for (let i = 0; i < length; i++) (values as unknown as unknown[])[i] = big ? BigInt(i * 977 - 5000) : i * 7.25 - 900;
+        const bytes = write((w) => w.numbers(values));
+        // The length, then the elements' bytes (this host is little-endian).
+        assert.deepEqual(bytes, Uint8Array.from([...int32(length), ...new Uint8Array(values.buffer)]));
+        for (const shift of [0, 1, 3]) {
+          const data = new Uint8Array(shift + bytes.length);
+          data.set(bytes, shift);
+          const reader = new NinoReader(data.subarray(shift));
+          const read = reader.numbers(type as never) as unknown as Int32Array;
+          assert.equal(Object.getPrototypeOf(read), type.prototype, `${type.name} ${length} +${shift}`);
+          assert.deepEqual([...read], [...values], `${type.name} ${length} +${shift}`);
+          assert.equal(reader.pos, bytes.length);
+          data.fill(9);
+          assert.deepEqual([...read], [...values], `${type.name} ${length} +${shift}: a copy`);
+        }
+      }
+  });
+
+  it("reads typed arrays that share a buffer without overlapping, also from a Node Buffer", () => {
+    const one = Float64Array.from({ length: 100 }, (_, i) => i / 3), two = Int16Array.from({ length: 99 }, (_, i) => -i);
+    const data = Buffer.from(write((w) => {
+      w.numbers(one);
+      w.numbers(two);
+    }));
+    const reader = new NinoReader(data);
+    const a = reader.numbers(Float64Array)!, b = reader.numbers(Int16Array)!;
+    b.fill(1);
+    assert.deepEqual(a, one);
+    a.fill(2);
+    assert.deepEqual([...b], new Array(99).fill(1));
+  });
 });
 
 describe("registry", () => {
@@ -99,7 +145,7 @@ describe("registry", () => {
     lives = 0;
   }
   class Stray {}
-  const types = new NinoRegistry();
+  const types = new NinoSubtypes();
   types.add(10, Dog, (r) => Object.assign(new Dog(), { name: r.string() }), (w, v) => w.string(v.name));
   types.add(-20, Cat, (r) => Object.assign(new Cat(), { lives: r.i32() }), (w, v) => w.i32(v.lives));
 
@@ -174,5 +220,73 @@ describe("serialize", () => {
   it("keeps working after a value that fails to write", () => {
     assert.throws(() => serialize(i32, 1n as unknown as number), TypeError);
     assert.equal(toHex(serialize(i32, 7)), "07000000");
+  });
+});
+
+describe("serializeInto", () => {
+  const list: NinoCodec<number[]> = { read: (r) => r.array(i32.read)!, write: (w, v) => w.array(v, i32.write) };
+  // A tracked object: its reference header, then its value when new.
+  const box = { n: 5 };
+  const tracked: NinoCodec<{ n: number }> = {
+    read: () => { throw new Error("not read"); },
+    write: (w, v) => { if (w.ref(v)) w.i32(v.n); },
+  };
+
+  it("appends to a writer the bytes serialize returns, and returns their size", () => {
+    const w = new NinoWriter();
+    const deep = chain(300); // past 128 bodies: deferred
+    assert.equal(serializeInto(text, "first", w), 6);
+    const at = w.pos;
+    const size = serializeInto(ChainCodec, deep, w);
+    assert.equal(size, w.pos - at);
+    assert.deepEqual(w.written().subarray(0, 6), serialize(text, "first"));
+    assert.deepEqual(w.written().subarray(at), serialize(ChainCodec, deep));
+    assert.deepEqual(values(deserialize(ChainCodec, w.written().subarray(at))), values(deep));
+  });
+
+  it("counts references per value, as each .NET call does", () => {
+    const w = new NinoWriter();
+    serializeInto(tracked, box, w);
+    serializeInto(tracked, box, w);
+    assert.equal(toHex(w.written()), "ffffffff05000000" + "ffffffff05000000");
+  });
+
+  it("reuses a reset writer's buffer: no new memory once it is large enough", () => {
+    const w = new NinoWriter();
+    const big = Array.from({ length: 10000 }, (_, i) => i);
+    serializeInto(list, big, w);
+    const buffer = w.view.buffer;
+    for (let i = 0; i < 100; i++) {
+      w.reset();
+      assert.equal(serializeInto(list, big.slice(0, i * 100), w), 4 + 400 * i);
+      assert.deepEqual(w.written(), serialize(list, big.slice(0, i * 100)));
+      assert.equal(w.view.buffer, buffer);
+    }
+  });
+
+  it("leaves a writer as it was when the value fails to write", () => {
+    const w = new NinoWriter();
+    serializeInto(i32, 7, w);
+    assert.throws(() => serializeInto(i32, 1n as unknown as number, w), TypeError);
+    assert.equal(toHex(w.written()), "07000000");
+    serializeInto(i32, 8, w);
+    assert.equal(toHex(w.written()), "0700000008000000");
+  });
+
+  it("writes into an array that fits, at any offset, and reports the size needed when it does not", () => {
+    const expected = serialize(text, "array");
+    for (let offset = 0; offset < 9; offset++) {
+      const buffer = new Uint8Array(expected.length + offset + 3).fill(0xaa);
+      const target = buffer.subarray(offset);
+      assert.equal(serializeInto(text, "array", target), expected.length);
+      assert.deepEqual(target.subarray(0, expected.length), expected);
+      assert.equal(target[expected.length], 0xaa);
+    }
+    const small = new Uint8Array(3).fill(0xaa);
+    assert.equal(serializeInto(text, "array", small), expected.length);
+    assert.deepEqual(small, new Uint8Array(3).fill(0xaa));
+    assert.equal(serializeInto(text, "array", new Uint8Array(expected.length)), expected.length);
+    assert.throws(() => serializeInto(i32, 1n as unknown as number, small), TypeError);
+    assert.equal(serializeInto(i32, 7, small.subarray(0, 0)), 4);
   });
 });

@@ -25,6 +25,8 @@ import os
 import re
 import sys
 
+from bdn import show
+
 HEADINGS = {
     "typescript": "## 🌐 TypeScript runtime benchmark",
     "go": "## 🐹 Go runtime benchmark",
@@ -39,14 +41,6 @@ ARM64_HEADINGS = {
 
 # Set by --arch: the headings and the words that name the machine.
 ARCH = None
-
-
-def time(ns):
-    """A time in the unit that keeps it readable: 151.2 ns, 17.04 μs, 3.21 ms."""
-    for unit, size in (("s", 1e9), ("ms", 1e6), ("μs", 1e3)):
-        if ns >= size:
-            return f"{ns / size:.2f} {unit}"
-    return f"{ns:.1f} ns"
 
 
 def size(n):
@@ -87,16 +81,21 @@ def typescript(path, tag):
     for r in data["rows"]:
         hz = f"{r['hz']:,.0f}/s" if r["hz"] >= 10 else f"{r['hz']:.1f}/s"
         cells.setdefault((r["scenario"], r["op"]), {})[r["serializer"]] = \
-            f"{time(r['mean'] * 1e6)}{spread(r['rme'])} ({hz})"
+            f"{show(r['mean'] * 1e6)}{spread(r['rme'])} ({hz})"
         if r["op"] == "serialize":
             cells.setdefault((r["scenario"], "size"), {})[r["serializer"]] = size(r["bytes"])
-    scenarios, ops = list(dict.fromkeys(c for c, _ in cells)), ["serialize", "deserialize", "size"]
+    # serializeInto: Nino's serialize into one NinoWriter reset per value (bench.ts, operations).
+    scenarios, ops = list(dict.fromkeys(c for c, _ in cells)), ["serialize", "serializeInto", "deserialize", "size"]
     cells = {k: cells[k] for k in sorted(cells, key=lambda k: (scenarios.index(k[0]), ops.index(k[1])))}
     who = pivot(cells, ["Nino", "Protobuf", "MessagePack", "JSON"])
+    # Benches since the rotation take a different variant of the values on each pass (bench.ts, "Inputs rotate").
+    variants = max((r.get("variants", 1) for r in data["rows"]), default=1)
+    turn = (f" (each pass the next of {variants} variants, so that no pass reads what the one before read)"
+            if variants > 1 else "")
     intro = (f"The code nino-gen generates for `runtimes/typescript/bench` (`Program.cs`'s types), against Protocol "
              f"Buffers (protobuf-es), MessagePack (msgpackr) and `JSON` (to and from UTF-8 bytes), in Node {data.get('node', '')}, on data .NET "
              f"wrote, timed by tinybench {data.get('tinybench', '')}: the mean time of a pass over each scenario's "
-             "values, ± its relative margin of error, and passes per second.")
+             f"values{turn}, ± its relative margin of error, and passes per second.")
     return section("typescript", tag, f"Generated TypeScript of {tag} against Protocol Buffers, MessagePack and JSON, "
                    "in Node", intro, grid(cells, who, "Scenario"))
 
@@ -106,7 +105,7 @@ def typescript_json_only(data, tag):
     rows = ["| Scenario | Nino serialize | JSON.stringify | Nino deserialize | JSON.parse | Nino size | JSON size |",
             "|---|--:|--:|--:|--:|--:|--:|"]
     for r in data["rows"]:
-        ms = lambda x: time(x * 1e6)
+        ms = lambda x: show(x * 1e6)
         rows.append(f"| {r['name']} | {ms(r['serialize'])} | {ms(r['stringify'])} | {ms(r['deserialize'])} | "
                     f"{ms(r['parse'])} | {size(r['ninoBytes'])} | {size(r['jsonBytes'])} |")
     intro = (f"The code nino-gen generates for `runtimes/typescript/bench` (`Program.cs`'s types), against `JSON`, "
@@ -148,7 +147,7 @@ def go(path, tag):
 
     for name, (sec, ci) in units["sec/op"].items():
         case, op, who = key(name)
-        cells.setdefault((case, op), {})[who] = time(sec * 1e9) + (f" ±{ci}" if ci and ci != "∞" else "")
+        cells.setdefault((case, op), {})[who] = show(sec * 1e9) + (f" ±{ci}" if ci and ci != "∞" else "")
     for name, (v, _) in units.get("allocs/op", {}).items():
         case, op, who = key(name)
         cells.setdefault((case, f"{op} allocs"), {})[who] = f"{v:.0f}"
@@ -196,7 +195,7 @@ def rust(directory, tag, log=None):
     for group in dict.fromkeys(group for group, _ in times):
         for op in ("serialize", "deserialize"):
             for w, (mean, pct) in times.get((group, op), {}).items():
-                cells.setdefault((group, op), {})[w] = time(mean) + spread(pct)
+                cells.setdefault((group, op), {})[w] = show(mean) + spread(pct)
         for w, n in sizes.get(group, {}).items():
             cells.setdefault((group, "size"), {})[w] = size(n)
     who = pivot(cells, ["nino", "prost", "rmp-serde", "bincode", "postcard", "serde_json"])

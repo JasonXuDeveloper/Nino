@@ -758,6 +758,111 @@ fn derived_values() {
     std::mem::forget(chain);
 }
 
+#[test]
+fn derived_read_into() {
+    fn addr<T>(b: &Option<Box<T>>) -> *const T {
+        &**b.as_ref().unwrap()
+    }
+    // Nested objects are read into in place; a null in the data clears the slot, an object where the slot is empty
+    // is created.
+    let mut outer = Outer {
+        name: Some("old".into()),
+        point: Some(Box::new(Point { x: 9, y: 9 })),
+        middle: Some(Box::new(Middle { first: None, second: Some(Box::new(Point { x: 5, y: 5 })), inner: None })),
+    };
+    let (point, middle) = (addr(&outer.point), addr(&outer.middle));
+    let data = Outer {
+        name: Some("new".into()),
+        point: Some(Box::new(Point { x: 1, y: 2 })),
+        middle: Some(Box::new(Middle {
+            first: Some(Box::new(Point { x: 3, y: 4 })),
+            second: None,
+            inner: Some(Box::new(Inner { value: 7, text: None, point: None })),
+        })),
+    };
+    let bytes = nino::serialize(&data).unwrap();
+    nino::deserialize_into(&bytes, &mut outer).unwrap();
+    assert_eq!(outer, data);
+    assert_eq!(addr(&outer.point), point);
+    assert_eq!(addr(&outer.middle), middle);
+
+    // A Vec's elements are read into by index and its buffer kept; extra elements are dropped.
+    let list = |n: i32| PointList { values: Some((0..n).map(|i| Some(Box::new(Point { x: i, y: -i }))).collect()) };
+    let mut target = list(8);
+    let (buffer, first) = (target.values.as_ref().unwrap().as_ptr(), addr(&target.values.as_ref().unwrap()[0]));
+    nino::deserialize_into(&nino::serialize(&list(3)).unwrap(), &mut target).unwrap();
+    assert_eq!(target, list(3));
+    assert_eq!(target.values.as_ref().unwrap().as_ptr(), buffer);
+    assert_eq!(addr(&target.values.as_ref().unwrap()[0]), first);
+    let mut ints = IntArray { values: Some(Vec::with_capacity(64)) };
+    let buffer = ints.values.as_ref().unwrap().as_ptr();
+    nino::deserialize_into(&nino::serialize(&IntArray { values: Some(vec![1, 2, 3]) }).unwrap(), &mut ints).unwrap();
+    assert_eq!(ints.values.as_deref(), Some(&[1, 2, 3][..]));
+    assert_eq!(ints.values.as_ref().unwrap().as_ptr(), buffer);
+
+    // A map is cleared, then filled: no entry of the old value survives.
+    let mut map = IntMap { values: Some([(1, 1), (2, 2), (3, 3)].into_iter().collect()) };
+    let data = IntMap { values: Some([(4, 40), (2, 20)].into_iter().collect()) };
+    nino::deserialize_into(&nino::serialize(&data).unwrap(), &mut map).unwrap();
+    assert_eq!(map, data);
+
+    // A polymorphic slot is read into only when the data holds the same type; another type replaces it.
+    let mut link = RedLink { value: 0, next: Some(LinkRef::Red(Box::new(RedLink { value: 1, next: None }))) };
+    let red = match &link.next {
+        Some(LinkRef::Red(r)) => &**r as *const RedLink,
+        _ => unreachable!(),
+    };
+    let same = RedLink { value: 2, next: Some(LinkRef::Red(Box::new(RedLink { value: 3, next: None }))) };
+    nino::deserialize_into(&nino::serialize(&same).unwrap(), &mut link).unwrap();
+    assert_eq!(link, same);
+    assert!(matches!(&link.next, Some(LinkRef::Red(r)) if std::ptr::eq(&**r, red)));
+    let other = RedLink {
+        value: 4,
+        next: Some(LinkRef::Blue(Box::new(BlueLink { value: 5, next: None, note: Some("b".into()) }))),
+    };
+    nino::deserialize_into(&nino::serialize(&other).unwrap(), &mut link).unwrap();
+    assert_eq!(link, other);
+
+    // Hostile input: an error, and the target is still a value (the members read before the error are the new ones,
+    // the rest as they were) that can be written and read into again.
+    let good = nino::serialize(&data_outer()).unwrap();
+    for n in 0..good.len() {
+        let mut target = data_outer();
+        target.name = Some("x".into());
+        assert!(nino::deserialize_into(&good[..n], &mut target).is_err(), "prefix {n}");
+        nino::serialize(&target).unwrap();
+        nino::deserialize_into(&good, &mut target).unwrap();
+        assert_eq!(target, data_outer());
+    }
+
+    // Deep chains: bodies past the inline depth are deferred and replace what the target held there.
+    let chain = |n: i32, base: i32| {
+        let mut c = None;
+        for v in (1..=n).rev() {
+            c = Some(Box::new(TolerantChain { value: v + base, next: c }));
+        }
+        c
+    };
+    let data = chain(400, 0);
+    let mut target = chain(300, 1000);
+    nino::deserialize_into(&nino::serialize(&data).unwrap(), &mut target).unwrap();
+    assert_eq!(nino::serialize(&target).unwrap(), nino::serialize(&data).unwrap());
+    std::mem::forget(target);
+    std::mem::forget(data);
+}
+
+fn data_outer() -> Outer {
+    Outer {
+        name: Some("name".into()),
+        point: Some(Box::new(Point { x: 1, y: 2 })),
+        middle: Some(Box::new(Middle {
+            first: Some(Box::new(Point { x: 3, y: 4 })),
+            second: None,
+            inner: Some(Box::new(Inner { value: 7, text: Some("t".into()), point: None })),
+        })),
+    }
+}
+
 #[cfg(feature = "serde")]
 #[test]
 fn serde_names() {
@@ -769,4 +874,124 @@ fn serde_names() {
     assert_eq!(back, k);
     let s = StringCollections { utf8_a: Some("x".into()), ..Default::default() };
     assert!(serde_json::to_string(&s).unwrap().contains(r#""utf8A":"x""#));
+}
+
+/// A plain struct whose members are all fixed-size: a list of it is one block.
+#[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "struct")]
+pub struct FixedPlain {
+    pub id: i64,
+    pub flag: bool,
+    pub rune: nino::Rune,
+    pub pair: (i16, bool),
+    pub vec: Vec2,
+}
+
+/// Generic, with a skipped field (left at its default on read).
+#[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "struct")]
+pub struct FixedGeneric<T: Default> {
+    pub value: T,
+    #[nino(skip)]
+    pub note: String,
+    pub count: u8,
+}
+
+/// A plain struct with a member written as UTF-8.
+#[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "struct")]
+pub struct VariablePlain {
+    pub id: i32,
+    #[nino(utf8)]
+    pub name: String,
+}
+
+/// Fixed-size members, but version-tolerant: its body has a size header, so it is not fixed-size.
+#[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(kind = "struct", format = "version_tolerant")]
+pub struct TolerantFixed {
+    pub id: i32,
+}
+
+#[test]
+fn plain_fixed_structs() {
+    // 8 + 1 + 4 + (2 + 1) + 8 (a raw struct) bytes.
+    assert_eq!(<FixedPlain as NinoRead>::FIXED_SIZE, 24);
+    assert_eq!(<FixedPlain as NinoWrite>::FIXED_SIZE, 24);
+    assert_eq!(<FixedGeneric<i32> as NinoRead>::FIXED_SIZE, 5);
+    assert_eq!(<FixedGeneric<String> as NinoRead>::FIXED_SIZE, 0);
+    assert_eq!(<VariablePlain as NinoRead>::FIXED_SIZE, 0);
+    assert_eq!(<VariablePlain as NinoWrite>::FIXED_SIZE, 0);
+    assert_eq!(<TolerantFixed as NinoRead>::FIXED_SIZE, 0);
+    assert_eq!(<TolerantFixed as NinoWrite>::FIXED_SIZE, 0);
+
+    let value = |i: i32| FixedPlain {
+        id: i64::from(i) * -7919,
+        flag: i % 3 == 0,
+        rune: nino::Rune(char::from_u32(0x1F600 + i as u32).unwrap()),
+        pair: (i as i16, i % 2 == 0),
+        vec: Vec2 { x: i as f32, y: -0.5 },
+    };
+    for n in [0, 1, 2, 7, 33, 300] {
+        let list: Vec<FixedPlain> = (0..n).map(value).collect();
+        let bytes = nino::serialize(&list).unwrap();
+        // The block writes what each element writes on its own, after the length.
+        let mut each = n.to_le_bytes().to_vec();
+        for v in &list {
+            each.extend(nino::serialize(v).unwrap());
+        }
+        assert_eq!(bytes, each, "{n}");
+        assert_eq!(bytes.len(), 4 + 24 * n as usize);
+        assert_eq!(nino::deserialize_exact::<Vec<FixedPlain>>(&bytes).unwrap(), list, "{n}");
+        // Every truncation fails.
+        for cut in 0..bytes.len() {
+            assert!(nino::deserialize::<Vec<FixedPlain>>(&bytes[..cut]).is_err(), "{n} cut at {cut}");
+        }
+        if n == 0 {
+            continue;
+        }
+        // A bad bool (the struct's own and the tuple's) or rune in the last element.
+        let last = 4 + 24 * (n as usize - 1);
+        for (at, bad, kind) in [
+            (8, 2u8, nino::ErrorKind::InvalidBool),
+            (15, 0xFF, nino::ErrorKind::InvalidBool),
+            (12, 0x11, nino::ErrorKind::InvalidChar),
+        ] {
+            let mut b = bytes.clone();
+            b[last + at] = bad;
+            let e = nino::deserialize::<Vec<FixedPlain>>(&b).unwrap_err();
+            assert_eq!(e.kind(), kind, "{n} byte {at}");
+        }
+    }
+    // A surrogate is not a rune.
+    let mut b = nino::serialize(&vec![value(1)]).unwrap();
+    b[4 + 9..4 + 13].copy_from_slice(&0xD800u32.to_le_bytes());
+    assert_eq!(nino::deserialize::<Vec<FixedPlain>>(&b).unwrap_err().kind(), nino::ErrorKind::InvalidChar);
+    // A count past the bytes left is rejected before anything is allocated.
+    let mut b = i32::MAX.to_le_bytes().to_vec();
+    b.extend([0u8; 24]);
+    assert!(nino::deserialize::<Vec<FixedPlain>>(&b).is_err());
+
+    // The skipped field stays at its default; the generic one round-trips.
+    let g = vec![FixedGeneric { value: -5i32, note: "skipped".into(), count: 9 }; 3];
+    let bytes = nino::serialize(&g).unwrap();
+    assert_eq!(bytes.len(), 4 + 5 * 3);
+    let back = nino::deserialize_exact::<Vec<FixedGeneric<i32>>>(&bytes).unwrap();
+    assert!(back.iter().all(|v| *v == FixedGeneric { value: -5, note: String::new(), count: 9 }));
+    // A map of fixed-size keys and values takes the same path.
+    let map: std::collections::HashMap<i32, FixedGeneric<i32>> =
+        (0..50).map(|i| (i, FixedGeneric { value: i * 3, note: String::new(), count: i as u8 })).collect();
+    let bytes = nino::serialize(&map).unwrap();
+    assert_eq!(nino::deserialize_exact::<std::collections::HashMap<i32, FixedGeneric<i32>>>(&bytes).unwrap(), map);
+}
+
+#[test]
+fn utf8_members_take_one_byte_at_least() {
+    // A string written as UTF-8 may be its header alone, or two bytes and its text: 7 bytes an element here, so a
+    // minimum of 4 bytes for the string rejected the list's length.
+    assert_eq!(<VariablePlain as NinoRead>::MIN_SIZE, 5);
+    let v = vec![VariablePlain { id: 1, name: "a".into() }, VariablePlain { id: 2, name: String::new() }];
+    let bytes = nino::serialize(&v).unwrap();
+    assert_eq!(bytes.len(), 4 + 7 + 5);
+    assert_eq!(nino::deserialize_exact::<Vec<VariablePlain>>(&bytes).unwrap(), v);
 }

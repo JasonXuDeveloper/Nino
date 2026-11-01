@@ -4,6 +4,8 @@ using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics;
+#else
+using System.Numerics;
 #endif
 
 namespace Nino.Core.Internal
@@ -425,13 +427,17 @@ namespace Nino.Core.Internal
         private static unsafe bool NarrowWords(ref char source, ref byte destination, nuint n)
         {
 #if !NET8_0_OR_GREATER
-            // The netstandard builds (Unity, .NET Framework): the registered kernels (NinoKernels), for long text.
-            if (n >= (uint)NinoKernelHook.MinChars && NinoKernelHook.Kernels is { } kernels)
+            // The netstandard builds (Unity, .NET Framework): the registered kernels (NinoKernels), for long text; else
+            // Vector<T> where it is fast (TextVectors).
+            if (n >= (uint)NinoKernelHook.MinNarrow)
             {
-                fixed (char* from = &source)
-                fixed (byte* to = &destination)
-                    return kernels.Narrow(from, to, (int)n);
+                int narrowed = NinoKernelHook.TryNarrow(ref source, ref destination, (int)n);
+                if (narrowed >= 0)
+                    return narrowed != 0;
             }
+
+            if (NinoUnsafe.NumericVectors && n >= (uint)(2 * Vector<ushort>.Count))
+                return TextVectors.Narrow(ref source, ref destination, n);
 #endif
             nuint i = 0;
             for (; i + 4 <= n; i += 4)
@@ -693,11 +699,12 @@ namespace Nino.Core.Internal
         {
 #if !NET8_0_OR_GREATER
             // As in NarrowWords.
-            if (n >= (uint)NinoKernelHook.MinChars && NinoKernelHook.Kernels is { } kernels)
+            if (n >= (uint)NinoKernelHook.MinWiden && NinoKernelHook.TryWiden(ref source, ref destination, (int)n))
+                return;
+
+            if (NinoUnsafe.NumericVectors && n >= (uint)Vector<byte>.Count)
             {
-                fixed (byte* from = &source)
-                fixed (ushort* to = &destination)
-                    kernels.Widen(from, (char*)to, (int)n);
+                TextVectors.Widen(ref source, ref destination, n);
                 return;
             }
 #endif
@@ -712,6 +719,64 @@ namespace Nino.Core.Internal
                 Unsafe.Add(ref destination, (nint)i) = Unsafe.Add(ref source, (nint)i);
         }
 
+#if !NET8_0_OR_GREATER
+        /// <summary>
+        /// The netstandard builds' narrowing and widening of long text with <see cref="Vector{T}"/>, where it is fast
+        /// (<see cref="NinoUnsafe.NumericVectors"/>: .NET Framework and .NET Core, never Mono or Unity, which take
+        /// their Burst kernels, tested first). Measured with the netstandard2.0 build on .NET 10 (the only runtime
+        /// here that accelerates it; .NET Framework is not measured): 1,024 chars written in 200 ns instead of 450 to
+        /// 770, read in 310 instead of 530 to 780. The same bytes as the scalar loops.
+        /// </summary>
+        private static class TextVectors
+        {
+            /// <summary>
+            /// <see cref="NinoStrings.Narrow"/> of at least two vectors of chars: two at a time, then the last two
+            /// again, overlapping the previous (the chars are the same).
+            /// </summary>
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static bool Narrow(ref char source, ref byte destination, nuint n)
+            {
+                nuint count = (nuint)Vector<ushort>.Count, step = 2 * count;
+                var high = new Vector<ushort>(0xFF00);
+                ref byte from = ref Unsafe.As<char, byte>(ref source);
+                nuint i = 0;
+                while (true)
+                {
+                    var a = Unsafe.ReadUnaligned<Vector<ushort>>(ref Unsafe.Add(ref from, (nint)(i * 2)));
+                    var b = Unsafe.ReadUnaligned<Vector<ushort>>(ref Unsafe.Add(ref from, (nint)((i + count) * 2)));
+                    if (!Vector.EqualsAll((a | b) & high, Vector<ushort>.Zero))
+                        return false;
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)i), Vector.Narrow(a, b));
+                    if (i + step == n)
+                        return true;
+                    i = i + 2 * step <= n ? i + step : n - step;
+                }
+            }
+
+            /// <summary>
+            /// <see cref="NinoStrings.Widen"/> of at least one vector of bytes: one at a time, then the last one again,
+            /// overlapping the previous.
+            /// </summary>
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static void Widen(ref byte source, ref ushort destination, nuint n)
+            {
+                nuint step = (nuint)Vector<byte>.Count;
+                ref byte to = ref Unsafe.As<ushort, byte>(ref destination);
+                nuint i = 0;
+                while (true)
+                {
+                    Vector.Widen(Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, (nint)i)),
+                        out Vector<ushort> lower, out Vector<ushort> upper);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref to, (nint)(i * 2)), lower);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref to, (nint)(i * 2 + step)), upper);
+                    if (i + step == n)
+                        return;
+                    i = i + 2 * step <= n ? i + step : n - step;
+                }
+            }
+        }
+#endif
+
         /// <summary>Whether the Latin-1 chars at <paramref name="source"/> are those of <paramref name="value"/> (as long).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static bool SameLatin1(ref byte source, string value)
@@ -720,13 +785,7 @@ namespace Nino.Core.Internal
             // ASCII text compared vectorized; other Latin-1 text is read again.
             return SameAscii(ref source, value);
 #else
-            for (int i = 0; i < value.Length; i++)
-            {
-                if (Unsafe.Add(ref source, i) != value[i])
-                    return false;
-            }
-
-            return true;
+            return SameBytes(ref source, value, 0);
 #endif
         }
 
@@ -739,16 +798,57 @@ namespace Nino.Core.Internal
 #if NET8_0_OR_GREATER
             return System.Text.Ascii.Equals(MemoryMarshal.CreateReadOnlySpan(ref source, value.Length), value.AsSpan());
 #else
-            for (int i = 0; i < value.Length; i++)
+            return SameBytes(ref source, value, 0x8080_8080_8080_8080);
+#endif
+        }
+
+#if !NET8_0_OR_GREATER
+        /// <summary>
+        /// Whether the bytes at <paramref name="source"/> are the chars of <paramref name="value"/> (as long), none
+        /// with a bit of <paramref name="high"/> set (0x80 in each byte: ASCII only; 0: any Latin-1). Eight at a time
+        /// (SWAR): each half of eight bytes widened to four chars in a ulong by two shifts and masks, compared with
+        /// the chars as two ulongs; the last eight again, overlapping, rather than one at a time. Byte by byte on a
+        /// big-endian CPU and for strings under eight chars.
+        /// </summary>
+        private static bool SameBytes(ref byte source, string value, ulong high)
+        {
+            int length = value.Length;
+            ref byte chars = ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(value.AsSpan()));
+            if (BitConverter.IsLittleEndian && length >= 8)
+            {
+                int i = 0;
+                while (true)
+                {
+                    ulong bytes = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, i));
+                    ref byte at = ref Unsafe.Add(ref chars, i * 2);
+                    if (((bytes & high) | (Widen((uint)bytes) ^ Unsafe.ReadUnaligned<ulong>(ref at)) |
+                         (Widen((uint)(bytes >> 32)) ^ Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref at, 8)))) != 0)
+                        return false;
+                    if (i == length - 8)
+                        return true;
+                    i = i + 16 <= length ? i + 8 : length - 8;
+                }
+            }
+
+            for (int i = 0; i < length; i++)
             {
                 byte b = Unsafe.Add(ref source, i);
-                if (b >= 0x80 || b != value[i])
+                if ((b & (byte)high) != 0 || b != value[i])
                     return false;
             }
 
             return true;
-#endif
         }
+
+        /// <summary>Four bytes as the four chars they are in Latin-1 (little-endian).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ulong Widen(uint bytes)
+        {
+            ulong x = bytes;
+            x = (x | x << 16) & 0x0000_FFFF_0000_FFFF;
+            return (x | x << 8) & 0x00FF_00FF_00FF_00FF;
+        }
+#endif
 
         /// <summary>Whether the UTF-16 chars at <paramref name="source"/> are those of <paramref name="value"/> (as long).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]

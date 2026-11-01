@@ -164,7 +164,11 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoLayout<T>.Size, out int length))
                 return;
 
-            reader.ReadUnmanagedRaw(NinoElements.EnsureLength(ref value, length, uninitialized: true).AsSpan());
+            // Bools and Untrusted mode's values are checked by the read: a new array takes the slot once filled.
+            var current = value;
+            var array = NinoElements.NewOrSame(current, length);
+            reader.ReadUnmanagedRaw(array.AsSpan());
+            NinoElements.Publish(ref value, current, array);
         }
     }
 
@@ -172,7 +176,7 @@ namespace Nino.Core
     /// <c>T?[]</c> of raw <typeparamref name="T"/>: length, then every element at a fixed stride in the canonical
     /// <c>Nullable&lt;T&gt;</c> layout (see <see cref="NinoNullables{T}"/>), written into one reservation and read
     /// without per-element calls. Not the bytes of <see cref="ArrayFormatter{T,TFormatter}"/> with
-    /// <see cref="NullableFormatter{T,TFormatter}"/> (a has-value byte, then the value only when present), which
+    /// <see cref="NullableFormatter{T,TFormatter}"/> (a presence byte, then the value only when present), which
     /// sequences declared as interfaces (<c>IList&lt;T?&gt;</c>, <c>IEnumerable&lt;T?&gt;</c>) write.
     /// </summary>
     public struct NullableArrayFormatter<[NinoRaw] T> : INinoFormatter<T?[]> where T : unmanaged
@@ -190,15 +194,24 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoNullables<T>.Stride, out int length))
                 return;
 
-            // Uninitialized only for a block copy (NinoElements.CopiedWhole).
-            NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, NinoNullables<T>.Raw, overwritten: true),
-                ref reader);
+            // Uninitialized only for a block copy, after which the presence bytes are checked: such a new array
+            // takes the slot once filled (see NinoElements.CopiedWhole).
+            if (NinoNullables<T>.Raw)
+            {
+                var current = value;
+                var array = NinoElements.NewOrSame(current, length);
+                NinoNullables<T>.Read(array, ref reader);
+                NinoElements.Publish(ref value, current, array);
+                return;
+            }
+
+            NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, overwritten: true), ref reader);
         }
     }
 
     /// <summary>
     /// <c>T?</c> sequences with unmanaged <c>T</c>, in the canonical (64-bit corefx) <c>Nullable&lt;T&gt;</c> layout:
-    /// a has-value byte, zero padding up to T's alignment, then T in its canonical layout (zero when null).
+    /// a presence byte, zero padding up to T's alignment, then T in its canonical layout (zero when null).
     /// Where the runtime lays <c>T?</c> out the same way the elements are copied as one block (padding cleared);
     /// elsewhere (old Mono puts the value first, x86 aligns 8-byte values to 4) they are converted one by one.
     /// </summary>
@@ -262,7 +275,7 @@ namespace Nino.Core
             ref byte src = ref reader.ReadElements(destination.Length, Stride);
             if (destination.IsEmpty)
                 return;
-            // Has-value bytes other than 0 or 1 are invalid data (copied as they are, they would make HasValue true
+            // Presence bytes other than 0 or 1 are invalid data (copied as they are, they would make HasValue true
             // and the value unequal to any other).
             NinoChecks.Flags(ref src, destination.Length, Stride);
             ref T? item = ref MemoryMarshal.GetReference(destination);

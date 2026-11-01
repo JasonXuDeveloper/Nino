@@ -12,6 +12,11 @@ export const ninoVersion = "__NINO_VERSION__";
 export interface NinoCodec<T> {
   read(reader: NinoReader): T;
   write(writer: NinoWriter, value: T): void;
+  /**
+   * Reads a value into `value` where it can (see `deserializeInto`) and returns the value read: `value` itself when it
+   * was reused. Optional: a codec without it reads a new value.
+   */
+  readInto?(reader: NinoReader, value: T): T;
 }
 
 let shared: NinoWriter | null = null;
@@ -37,6 +42,48 @@ export function serialize<T>(codec: NinoCodec<T>, value: T): Uint8Array<ArrayBuf
   }
 }
 
+/** The writer `serializeInto` writes a `Uint8Array`'s value with: null while it is in use, or before the first call. */
+let scratchWriter: NinoWriter | null = null;
+
+/**
+ * Serializes `value` with `codec` into memory the caller owns, and returns the value's size in bytes:
+ *
+ * - into a `NinoWriter`, after what it holds (what `NinoSerializer.Serialize(value, bufferWriter)` does in .NET),
+ *   growing it as needed; `written()` views the bytes until the writer writes again. A writer reused with `reset` keeps
+ *   its buffer, so once it is large enough writing allocates no memory at all: no new `ArrayBuffer` per value, which
+ *   V8 counts toward a full garbage collection (about every 64 MB of them in Node 24) until a scavenge frees them. If
+ *   `codec` throws, the writer is left as it was before the call.
+ * - into a `Uint8Array`, from its start, when the value fits. A size larger than `target.length` means it did not:
+ *   `target` is then unchanged, and a call with that many bytes succeeds.
+ *
+ * Not for a writer that is writing a value (from a custom codec): references and depth are counted per call.
+ */
+export function serializeInto<T>(codec: NinoCodec<T>, value: T, target: NinoWriter | Uint8Array): number {
+  if (target instanceof NinoWriter) {
+    const start = target.pos;
+    target["begin"]();
+    try {
+      codec.write(target, value);
+    } catch (e) {
+      target.pos = start;
+      throw e;
+    }
+    return target.pos - start;
+  }
+  // A codec that serializes (a custom one) while this runs gets a writer of its own.
+  const writer = scratchWriter ?? new NinoWriter();
+  scratchWriter = null;
+  try {
+    writer.reset();
+    codec.write(writer, value);
+    const size = writer.pos;
+    if (size <= target.length) target.set(writer.written());
+    return size;
+  } finally {
+    if (writer.capacity <= 1 << 20) scratchWriter = writer;
+  }
+}
+
 /**
  * Deserializes one value written by `NinoSerializer.Serialize<T>` (or `serialize`). Nothing it returns refers to
  * `data`, which it does not change. Bytes after the value are not read (see `deserializeExact`).
@@ -48,6 +95,17 @@ export function deserialize<T>(codec: NinoCodec<T>, data: Uint8Array): T {
 /** `deserialize` that also throws a `NinoError` when bytes follow the value. */
 export function deserializeExact<T>(codec: NinoCodec<T>, data: Uint8Array): T {
   return readValue(codec, data, true);
+}
+
+/**
+ * Deserializes one value into `value`, as `NinoDeserializer.Deserialize(data, ref value)` does in .NET, and returns
+ * the value read: the members of objects are read into the objects `value` holds (of the same class), arrays keep
+ * their storage and read their elements into the old ones by index, maps and sets are cleared and refilled, and a
+ * polymorphic member is read into only when the data holds the same class (tracked objects are read new). Bytes after
+ * the value are not read. If it throws, `value` holds what was read before the error, the rest as it was.
+ */
+export function deserializeInto<T>(codec: NinoCodec<T>, data: Uint8Array, value: T): T {
+  return readValue({ read: (r) => r.into(codec, value), write: codec.write }, data, false);
 }
 
 function readValue<T>(codec: NinoCodec<T>, data: Uint8Array, exact: boolean): T {
@@ -90,6 +148,60 @@ function makeScratch(): NinoReader {
   scratchMade = true;
   const k = nodeText === null ? wasm() : null;
   return new NinoReader(k !== null ? new Uint8Array(k.memory.buffer, 0, scratchSize) : new Uint8Array(scratchSize));
+}
+
+/**
+ * A typed array of a fixed-size number type: how generated code holds an array or list of `sbyte`, `byte`, `short`,
+ * `ushort`, `int`, `uint`, `long`, `ulong`, `float` or `double` (`NinoReader.numbers`, `NinoWriter.numbers`).
+ */
+export type NinoNumbers = Int8Array | Uint8Array | Int16Array | Uint16Array | Int32Array | Uint32Array |
+  BigInt64Array | BigUint64Array | Float32Array | Float64Array;
+
+/** The constructor of a `NinoNumbers` type (`Int32Array`, ...). */
+export interface NinoNumbersType<T extends NinoNumbers> {
+  readonly BYTES_PER_ELEMENT: number;
+  new (length: number): T;
+  new (buffer: ArrayBuffer, byteOffset: number, length: number): T;
+}
+
+/** Whether this host stores numbers little-endian, as Nino writes them: typed arrays are then copied as bytes. */
+const littleEndian = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+
+/** Reverses the bytes of each `size`-byte element in `bytes` from `at` to `end`: Nino's order and a big-endian host's. */
+function swapBytes(bytes: Uint8Array, at: number, end: number, size: number): void {
+  for (; at < end; at += size) {
+    for (let i = at, j = at + size - 1; i < j; i++, j--) {
+      const b = bytes[i];
+      bytes[i] = bytes[j];
+      bytes[j] = b;
+    }
+  }
+}
+
+/**
+ * Typed arrays `NinoReader.numbers` reads up to this many bytes are views of a shared buffer (numbersSlab bytes), as
+ * Node's small `Buffer`s share a pool: one over 64 bytes has its memory outside V8's heap, and allocating that costs
+ * more than the copy (in Node 22 about 2 µs for 1,000 int32s against 0.6 µs for a pool view). Generated code reads
+ * those of up to 64 bytes one element at a time into a typed array of their own, which V8 keeps on its heap: viewing
+ * such an array's bytes (`.buffer`) allocates outside memory for it, which made reading 4 int64s 5 times slower than
+ * reading them into an array (test branch 97deeca).
+ */
+const numbersPooled = 8192;
+const numbersSlab = 64 * 1024;
+let numbersBuffer = new ArrayBuffer(0);
+let numbersBytes = new Uint8Array(0);
+let numbersPos = 0;
+
+/** Where `bytes` bytes start in the shared buffer (8-byte aligned, as a view must be aligned to its elements). */
+function poolNumbers(bytes: number): number {
+  let at = numbersPos;
+  if (bytes > numbersBytes.length - at) {
+    numbersBuffer = new ArrayBuffer(numbersSlab);
+    numbersBytes = new Uint8Array(numbersBuffer);
+    at = 0;
+  }
+  numbersPos = (at + bytes + 7) & ~7;
+  return at;
 }
 
 /** Thrown for data that is not a valid value of the type read, or a value that cannot be written. */
@@ -192,6 +304,170 @@ class NinoDeferrals<S> {
   add(item: NinoDeferred<S>, regions: number): void {
     (regions === 0 ? this.top : this.region).push(item);
   }
+}
+
+/**
+ * The most keys a key read from the data may find in its bucket of the `Map` or `Set` it goes into, as
+ * `NinoSettings.MaxHashCollisions`'s default in .NET. See `NinoKeyGuard`.
+ */
+const maxHashCollisions = 100;
+/** Maps and sets of up to this many keys are not guarded: their keys cannot cost more than this many probes each. */
+const guardedKeys = 128;
+
+/**
+ * Bounds what keys read from the data cost a `Map` or `Set` (hash flooding), as `NinoSettings.MaxHashCollisions`
+ * does in .NET. V8 hashes strings with a per-process seed, but numbers and bigints without one (its
+ * `ComputeUnseededHash` and `ComputeLongHash`), and a string that is an array index ("0" to "4294967294") by its
+ * value (`MakeArrayIndexHash`), so data can choose keys that share a bucket, and each insert then scans every key
+ * before it: 8,000 such ints took 40 times as long as ordinary ones in Node 22, 4,000 such strings 117 times, and
+ * the read grows with the square of their count. The guard counts the keys of each bucket of the table V8 ends with
+ * (`OrderedHashTable`: a power of two from 4 that holds them all, half as many buckets, a bucket by the hash's low
+ * bits) and throws a `NinoError` when a key would find more than `maxHashCollisions` keys in its bucket. The smaller
+ * tables V8 fills on the way are not counted (that would cost twice as much per key): one of `b` buckets holds at most
+ * `2b` keys and its buckets gather those of the final one, so a key there scans at most the smaller of `2b` and
+ * `maxHashCollisions` times the ratio of the two tables' sizes, which keeps a read within O(n log n) probes. It is
+ * exact for V8 (Node, Chromium, Deno); other engines (JavaScriptCore in Safari and Bun, SpiderMonkey in Firefox) hash
+ * differently, and there it bounds V8's buckets, not theirs. Generated code makes one for a map or set of more than
+ * `guardedKeys` number, bigint or string keys (`NinoReader.keyGuard`) and passes each key through it before adding it.
+ */
+export class NinoKeyGuard {
+  // Keys per bucket of the final table.
+  private readonly counts: Int32Array;
+  private readonly mask: number;
+
+  constructor(length: number) {
+    let capacity = 4;
+    while (capacity < length) capacity *= 2;
+    this.counts = new Int32Array(capacity >>> 1);
+    this.mask = (capacity >>> 1) - 1;
+  }
+
+  /** An int32 key (of a type no wider than `int`), after checking its bucket. */
+  int(key: number): number {
+    this.add(unseededHash(key));
+    return key;
+  }
+
+  /** A number key, after checking its bucket. */
+  number(key: number): number {
+    this.add(numberHash(key));
+    return key;
+  }
+
+  /** A key of either kind or null (a nullable number or bigint), after checking its bucket. */
+  key<K>(key: K): K {
+    return guardKey(this, key);
+  }
+
+  /** A bigint key, after checking its bucket. */
+  bigint(key: bigint): bigint {
+    this.add(bigintHash(key));
+    return key;
+  }
+
+  /** A string key, after checking its bucket when V8 hashes it by its value (an array index, `arrayIndexHash`). */
+  string<S extends string | null>(key: S): S {
+    if (key !== null && key.length <= 10) {
+      const first = key.charCodeAt(0);
+      if (first >= 0x30 && first <= 0x39) this.index(key, key.length);
+    }
+    return key;
+  }
+
+  private index(key: string, length: number): void {
+    const hash = arrayIndexHash(key, length);
+    if (hash >= 0) this.add(hash);
+  }
+
+  private add(hash: number): void {
+    if (this.counts[hash & this.mask]++ === maxHashCollisions + 1) throw flooded();
+  }
+}
+
+function flooded(): NinoError {
+  return new NinoError(`more than ${maxHashCollisions} keys of a map or set share a hash bucket (hash flooding).`);
+}
+
+/** V8's hash of a number key (`Object::GetSimpleHash`): int32 values (and -0) by `ComputeUnseededHash`, others by bits. */
+function numberHash(key: number): number {
+  if ((key | 0) === key) return unseededHash(key | 0);
+  if (key !== key) return 0x3FFFFFFF;
+  keyBits[0] = key;
+  return longHash(keyWords[1], keyWords[0]);
+}
+
+/** V8's hash of a bigint key (`BigInt::Hash`): the low 64 bits of its magnitude by `ComputeLongHash`, 0 for 0n. */
+function bigintHash(key: bigint): number {
+  const magnitude = BigInt.asUintN(64, key < 0n ? -key : key);
+  return magnitude === 0n ? 0 : longHash(Number(magnitude >> 32n), Number(magnitude & 0xFFFFFFFFn));
+}
+
+const keyBits = new Float64Array(1);
+const keyWords = new Uint32Array(keyBits.buffer);
+
+/**
+ * V8's hash of a string that is an array index (`StringHasher::MakeArrayIndexHash`: its value and its length, no
+ * seed), or -1 for any other string of up to 10 chars starting with a digit (those V8 hashes with its seed).
+ */
+function arrayIndexHash(key: string, length: number): number {
+  if (length > 1 && key.charCodeAt(0) === 0x30) return -1;
+  let value = 0;
+  for (let i = 0; i < length; i++) {
+    const digit = key.charCodeAt(i) - 0x30;
+    if (digit < 0 || digit > 9) return -1;
+    value = value * 10 + digit;
+  }
+  if (value > 4294967294) return -1;
+  return (((value << 2) | (length << 26)) >>> 2) & 0x3FFFFFFF;
+}
+
+/** V8's `ComputeUnseededHash`, of a 32-bit key (in int32 arithmetic, the same bits). */
+function unseededHash(key: number): number {
+  let h = key | 0;
+  h = (~h + (h << 15)) | 0;
+  h ^= h >>> 12;
+  h = (h + (h << 2)) | 0;
+  h ^= h >>> 4;
+  h = Math.imul(h, 2057);
+  h ^= h >>> 16;
+  return h & 0x3FFFFFFF;
+}
+
+/** V8's `ComputeLongHash`, of the 64-bit key `hi:lo` (in 32-bit halves). */
+function longHash(hi: number, lo: number): number {
+  // h = ~h + (h << 18)
+  let nh = ~hi >>> 0, nl = ~lo >>> 0;
+  let sh = ((hi << 18) | (lo >>> 14)) >>> 0, sl = (lo << 18) >>> 0;
+  let l = (nl + sl) >>> 0, h = (nh + sh + (l < nl ? 1 : 0)) >>> 0;
+  // h ^= h >> 31
+  l = (l ^ ((h << 1) | (l >>> 31))) >>> 0;
+  h = (h ^ (h >>> 31)) >>> 0;
+  // h *= 21: h + (h << 2) + (h << 4)
+  let ah = ((h << 2) | (l >>> 30)) >>> 0, al = (l << 2) >>> 0;
+  let bh = ((h << 4) | (l >>> 28)) >>> 0, bl = (l << 4) >>> 0;
+  let tl = (l + al) >>> 0, th = (h + ah + (tl < l ? 1 : 0)) >>> 0;
+  l = (tl + bl) >>> 0;
+  h = (th + bh + (l < tl ? 1 : 0)) >>> 0;
+  // h ^= h >> 11
+  l = (l ^ ((h << 21) | (l >>> 11))) >>> 0;
+  h = (h ^ (h >>> 11)) >>> 0;
+  // h += h << 6
+  sh = ((h << 6) | (l >>> 26)) >>> 0;
+  sl = (l << 6) >>> 0;
+  tl = (l + sl) >>> 0;
+  h = (h + sh + (tl < l ? 1 : 0)) >>> 0;
+  l = tl;
+  // h ^= h >> 22
+  l = (l ^ ((h << 10) | (l >>> 22))) >>> 0;
+  return l & 0x3FFFFFFF;
+}
+
+/** A key of a type known only at run time through `guard`: numbers, bigints and strings (see `NinoKeyGuard`). */
+function guardKey<K>(guard: NinoKeyGuard, key: K): K {
+  if (typeof key === "number") guard.number(key);
+  else if (typeof key === "bigint") guard.bigint(key);
+  else if (typeof key === "string") guard.string(key);
+  return key;
 }
 
 function tooDeep(): NinoError {
@@ -556,8 +832,8 @@ export class NinoReader {
     if (b > 1) throw new NinoError(`invalid bool byte ${b}.`);
     return b === 1;
   }
-  /** The has-value flag of a nullable at `at` (0 or 1, as `boolAt`). */
-  flagAt(at: number): boolean {
+  /** The presence byte of a nullable at `at`: true when a value follows (0 or 1, as `boolAt`). */
+  presentAt(at: number): boolean {
     const b = this.view.getUint8(at);
     if (b > 1) throw new NinoError(`invalid presence byte ${b}.`);
     return b === 1;
@@ -790,6 +1066,29 @@ export class NinoReader {
     return new Uint8Array(this.data.subarray(at, at + length));
   }
 
+  /**
+   * An array or list of a fixed-size number type (`int[]`, `List<double>`...) as a typed array of `type`: its length
+   * (unless given, when the caller read it), then the elements copied in one block (from a view of the data when the
+   * data is aligned to the elements, else from its bytes). Those of up to 8 KB are views of a buffer they share: read
+   * one by its `byteOffset` and `length`.
+   */
+  numbers<T extends NinoNumbers>(type: NinoNumbersType<T>, length: number = this.length()): T | null {
+    if (length < 0) return null;
+    const size = type.BYTES_PER_ELEMENT, bytes = length * size, at = this.take(bytes), data = this.data;
+    if (bytes > numbersPooled) {
+      const values = new type(length), start = data.byteOffset + at;
+      if (start % size === 0) (values as Uint8Array).set(new type(data.buffer as ArrayBuffer, start, length) as Uint8Array);
+      else new Uint8Array(values.buffer).set(data.subarray(at, at + bytes));
+      if (!littleEndian) swapBytes(new Uint8Array(values.buffer), 0, bytes, size);
+      return values;
+    }
+    const to = poolNumbers(bytes), pool = numbersBytes;
+    pool.set(data.subarray(at, at + bytes), to);
+    if (!littleEndian) swapBytes(pool, to, to + bytes, size);
+    return new type(numbersBuffer, to, length);
+  }
+
+
   /** An array, list or other sequence: length, then each element. */
   array<T>(read: (reader: NinoReader) => T): T[] | null {
     const length = this.length();
@@ -803,20 +1102,28 @@ export class NinoReader {
   set<T>(read: (reader: NinoReader) => T): Set<T> | null {
     const length = this.length();
     if (length < 0) return null;
-    const values = new Set<T>();
-    for (let i = 0; i < length; i++) values.add(read(this));
+    const values = new Set<T>(), guard = this.keyGuard(length);
+    for (let i = 0; i < length; i++) values.add(guard === null ? read(this) : guardKey(guard, read(this)));
     if (values.size !== length) throw this.duplicateKey();
     return values;
+  }
+
+  /**
+   * The guard against hash flooding (`NinoKeyGuard`) for a map or set of `length` number, bigint or string keys read
+   * from the data, or null for one of up to 128 keys, which cannot be flooded far.
+   */
+  keyGuard(length: number): NinoKeyGuard | null {
+    return length > guardedKeys ? new NinoKeyGuard(length) : null;
   }
 
   /** A dictionary: length, then each key and value. A key read twice is invalid data, as in .NET (see `duplicateKey`). */
   map<K, V>(readKey: (reader: NinoReader) => K, readValue: (reader: NinoReader) => V): Map<K, V> | null {
     const length = this.length();
     if (length < 0) return null;
-    const map = new Map<K, V>();
+    const map = new Map<K, V>(), guard = this.keyGuard(length);
     for (let i = 0; i < length; i++) {
       const key = readKey(this);
-      map.set(key, readValue(this));
+      map.set(guard === null ? key : guardKey(guard, key), readValue(this));
     }
     if (map.size !== length) throw this.duplicateKey();
     return map;
@@ -834,11 +1141,16 @@ export class NinoReader {
 
   /** A nullable value, `Tuple` or sealed class: a presence byte, then the value if present. */
   nullable<T>(read: (reader: NinoReader) => T): T | null {
-    return this.notNull() ? read(this) : null;
+    return this.present() ? read(this) : null;
   }
 
-  /** A presence byte: true when a value follows. */
-  notNull(): boolean {
+  /** Reads a value with `codec` into `value` when the codec can (`NinoCodec.readInto`), else a new one. */
+  into<T>(codec: NinoCodec<T>, value: T): T {
+    return codec.readInto === undefined ? codec.read(this) : codec.readInto(this, value);
+  }
+
+  /** The presence byte of a nullable, `Tuple` or sealed class: true when a value follows (0 or 1). */
+  present(): boolean {
     const flag = this.u8();
     if (flag > 1) throw new NinoError(`invalid presence byte ${flag}.`);
     return flag === 1;
@@ -848,7 +1160,7 @@ export class NinoReader {
    * A version tolerant or keyed body (or a keyed member): its byte length. Returns the offset where its members end
    * (a section of deferred bodies may follow them).
    */
-  region(): number {
+  beginRegion(): number {
     const length = this.i32();
     this.regions++;
     if (length >= 0 && length <= this.end - this.pos) return this.pos + length;
@@ -857,7 +1169,7 @@ export class NinoReader {
 
   /**
    * A region whose length has `sectionFlag` set: where its members end, before the section and its offset. Checks the
-   * section as .NET, Go and Rust do, before any member is read: only the outermost region holds one (`region` has
+   * section as .NET, Go and Rust do, before any member is read: only the outermost region holds one (`beginRegion` has
    * counted it already), and its entries `(int32 key, int32 length, body)` fill it exactly, at least one, keyed in
    * increasing order by positions no later than the entry itself (where the body deferred to it would have begun: in
    * the members, at most at their end, or in the body of an earlier entry).
@@ -935,7 +1247,7 @@ export class NinoReader {
   }
 
   /** Generated code: closes a class body opened when `depth` bodies were open; at 0, reads the deferred bodies. */
-  exit(depth: number): void {
+  exitBody(depth: number): void {
     this.depth = depth;
     if (depth === 0 && this.deferrals !== null) this.readTop();
   }
@@ -1133,7 +1445,20 @@ export class NinoWriter {
       at = 0;
     }
     this.start = this.pos = at;
-    // A value that failed may have left bodies open.
+    this.begin();
+  }
+
+  /**
+   * Empties the writer, keeping its buffer: the next value is written from offset 0, and allocates nothing while it
+   * fits (see `serializeInto`).
+   */
+  reset(): void {
+    this.start = this.pos = 0;
+    this.begin();
+  }
+
+  /** Starts a value: closes what a value that failed may have left open, and forgets the last value's references. */
+  private begin(): void {
     this.depth = this.regions = this.structs = 0;
     this.deferrals = null;
     this.refs = null;
@@ -1460,6 +1785,17 @@ export class NinoWriter {
     this.buffer.set(value, at);
   }
 
+  /** An array or list of a fixed-size number type (`int[]`, `List<double>`...): length, then its bytes as one block. */
+  numbers(values: NinoNumbers | null): void {
+    if (values === null || values === undefined) { this.i32(-1); return; }
+    const length = values.length, bytes = values.byteLength;
+    this.i32(length);
+    const at = this.reserve(bytes);
+    this.buffer.set(new Uint8Array(values.buffer, values.byteOffset, bytes), at);
+    if (!littleEndian) swapBytes(this.buffer, at, at + bytes, values.BYTES_PER_ELEMENT);
+  }
+
+
   array<T>(values: readonly T[] | null, write: (writer: NinoWriter, value: T) => void): void {
     if (values === null || values === undefined) { this.i32(-1); return; }
     this.i32(values.length);
@@ -1490,7 +1826,7 @@ export class NinoWriter {
   }
 
   /** Starts a version tolerant or keyed body (or a keyed member): returns where its length goes. */
-  region(): number {
+  beginRegion(): number {
     this.regions++;
     return this.reserve(4);
   }
@@ -1533,7 +1869,7 @@ export class NinoWriter {
   }
 
   /** Generated code: closes a class body opened when `depth` bodies were open; at 0, writes the deferred bodies. */
-  exit(depth: number): void {
+  exitBody(depth: number): void {
     this.depth = depth;
     if (depth === 0 && this.deferrals !== null) this.writeTop();
   }
@@ -1627,7 +1963,7 @@ interface NinoEntry {
  * The [NinoType]s written behind a type id (non-sealed classes, interfaces, `object`): the generated code adds every
  * type it declares, by its `NinoTypeId`.
  */
-export class NinoRegistry {
+export class NinoSubtypes {
   private readonly byId = new Map<number, NinoEntry>();
   private readonly byType = new Map<Function, NinoEntry>();
 

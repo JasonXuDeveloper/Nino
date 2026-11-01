@@ -24,7 +24,7 @@ using Nino.Core;
 
 namespace NS
 {
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public PARTIALclass Box<T>
     {
         private T _value;
@@ -34,7 +34,7 @@ namespace NS
         public string Show() => _value + ""/"" + _count + ""/"" + Prop;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public PARTIALstruct SBox<T>
     {
         private T _value;
@@ -42,7 +42,7 @@ namespace NS
         public string Show() => """" + _value;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public PARTIALclass Constrained<T> where T : class, new()
     {
         private T _value;
@@ -52,7 +52,7 @@ namespace NS
 
     public PARTIALclass Outer<T>
     {
-        [NinoType(containNonPublicMembers: true)]
+        [NinoType(includeNonPublicMembers: true)]
         public PARTIALclass Inner<U>
         {
             private T _t;
@@ -61,7 +61,7 @@ namespace NS
             public string Show() => _t + ""/"" + _u;
         }
 
-        [NinoType(containNonPublicMembers: true)]
+        [NinoType(includeNonPublicMembers: true)]
         public PARTIALclass Plain
         {
             private List<T> _items;
@@ -70,7 +70,7 @@ namespace NS
         }
     }
 
-    [NinoType(format: NinoFormat.Keyed, containNonPublicMembers: true)]
+    [NinoType(format: NinoFormat.Keyed, includeNonPublicMembers: true)]
     public PARTIALclass Keyed<T>
     {
         private T _value;
@@ -78,7 +78,7 @@ namespace NS
         public string Show() => """" + _value;
     }
 
-    [NinoType(format: NinoFormat.VersionTolerant, containNonPublicMembers: true)]
+    [NinoType(format: NinoFormat.VersionTolerant, includeNonPublicMembers: true)]
     public PARTIALclass Tolerant<T>
     {
         private T _value;
@@ -88,7 +88,7 @@ namespace NS
 
     // Members declared in a generic base: reached through the base, whose type arguments are the subtype's first
     // type parameters.
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public PARTIALclass GBase<T>
     {
         protected T Value;
@@ -96,7 +96,7 @@ namespace NS
         public T GetBase() => Value;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public sealed PARTIALclass GDerived<T> : GBase<T>
     {
         private int _own;
@@ -104,7 +104,7 @@ namespace NS
         public int GetOwn() => _own;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public sealed PARTIALclass GTwo<T, U> : GBase<T>
     {
         private U _u;
@@ -113,7 +113,7 @@ namespace NS
     }
 
     // A base member hidden by `new`: only an accessor naming the base reaches it (NINO022 otherwise).
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public sealed PARTIALclass GHiding<T> : GBase<T>
     {
         public new string Value;
@@ -126,7 +126,7 @@ namespace NS
         public T A;
     }
 
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public sealed PARTIALclass PLeaf<T> : PBase<T>
     {
         private int _w;
@@ -248,7 +248,7 @@ using Nino.Core;
 
 namespace NS
 {
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public class GBase<T>
     {
         protected T Value;
@@ -256,10 +256,10 @@ namespace NS
         public T GetBase() => Value;
     }
 
-    [NinoType(containNonPublicMembers: true)] public sealed class OfList<T> : GBase<List<T>> { }
-    [NinoType(containNonPublicMembers: true)] public sealed class OfInt<T> : GBase<int> { }
-    [NinoType(containNonPublicMembers: true)] public sealed class Second<T, U> : GBase<U> { }
-    [NinoType(containNonPublicMembers: true)] public sealed partial class Partial<T> : GBase<List<T>> { }
+    [NinoType(includeNonPublicMembers: true)] public sealed class OfList<T> : GBase<List<T>> { }
+    [NinoType(includeNonPublicMembers: true)] public sealed class OfInt<T> : GBase<int> { }
+    [NinoType(includeNonPublicMembers: true)] public sealed class Second<T, U> : GBase<U> { }
+    [NinoType(includeNonPublicMembers: true)] public sealed partial class Partial<T> : GBase<List<T>> { }
 
     public static class Api
     {

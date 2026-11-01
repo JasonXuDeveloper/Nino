@@ -211,9 +211,9 @@ public class PoolTests
     [TestMethod]
     public void SettingsRejectNegativePoolSizes()
     {
-        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => NinoSettings.DefaultPoolMaxRetained = -1);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => NinoSettings.PoolMaxRetained = -1);
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => NinoSettings.SetPoolMaxRetained<PooledChild>(-1));
-        Assert.AreEqual(256, NinoSettings.DefaultPoolMaxRetained);
+        Assert.AreEqual(256, NinoSettings.PoolMaxRetained);
         Assert.AreEqual(256, NinoPool<PooledChild>.Shared.MaxRetained);
     }
 }

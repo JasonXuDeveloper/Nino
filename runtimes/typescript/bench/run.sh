@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Nino's generated TypeScript against Protocol Buffers (protobuf-es), MessagePack (msgpackr) and JSON, timed by
-# tinybench, in Node and in headless Chromium, on data written by Nino in .NET.
+# tinybench, in Node and in headless Chromium, on data written by Nino in .NET: 64 variants of each scenario, one a
+# pass in turn (bench.ts says why).
 #
 # usage: runtimes/typescript/bench/run.sh [scenario]   (e.g. lookup; default: all)
 # NINO_BENCH_TIME: tinybench's time per task in milliseconds (default 1000).

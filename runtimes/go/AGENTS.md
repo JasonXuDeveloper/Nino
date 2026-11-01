@@ -24,15 +24,14 @@ block.go                     ReadBlock / WriteBlock: lists of dates, Decimal, Gu
                              each value checked as when read alone
 endian_little.go             littleEndian = true on little-endian architectures (blocks copied as memory)
 endian_other.go              littleEndian = false elsewhere (blocks converted element by element)
-unique.go                    duplicate keys of sets and maps read in data order: integer keys compared pairwise or
-                             sorted, no map
-collections.go               slices, maps, sets, entries, fixed-size runs, multidimensional shapes; counts checked
-                             against the bytes left, unique keys
+unique.go                    duplicate keys of sets and maps read in data order: numbers and strings compared as .NET
+                             does, pairwise or in a seeded open-addressing table (the reader's scratch), no map
+collections.go               slices, maps, sets, entries, fixed-size runs, multidimensional shapes (the func-value
+                             helpers unexported, for the runtime's rare paths); counts checked against the bytes left
 depth.go                     class bodies (Class, ReadClass, WriteClass), regions, deferral past 128, the 512 limit
 poly.go                      polymorphism: TypeID (FNV-1a), Subtype, TypeSet, ReadAny / WriteAny (allowed ids only)
 refs.go                      reference tracking (wire-format spec §7.9): reference headers, Track, Back
 layout.go                    layout strings: a type's NinoLayout in the [NinoTypeLayout] grammar (spec §8), parsed
-deprecated.go                the old Reader / Writer method names, each inlining to the new one
 strings.go                   strings: the default encoding's header, Latin-1 / UTF-16 / [NinoUtf8], the readers
 strings_write.go             writing strings straight into the buffer, eight bytes at a time
 strings_wire.go              what the string paths' Go code and kernels share (constants for go_asm.h)
@@ -54,12 +53,14 @@ tagged_build.go              the builder: the codec of each Go type a plan reach
 tagged_codec.go              the codecs plans are made of
 tagged_cache.go              built codecs cached per reflect.Type (safe and unsafe field access)
 marshal.go                   Marshal / Unmarshal through the tag plans
-block_test.go                block sizes and ReadBlock / WriteBlock against element-by-element reads
+block_test.go                block sizes and ReadBlock / WriteBlock against element-by-element reads; BenchmarkBlocks
+                             (checked blocks: dates, decimals, bools, raw structs with a bool; Guids as the copy alone)
 raw_test.go                  bool blocks, raw struct blocks and padded structs
 unique_test.go               duplicate keys: integer keys, large sets, primitive entries
+collections_ref_test.go      the func-value collection helpers the runtime dropped, as the tests' references
 reader_test.go               the Reader and Writer against hand-written bytes
 race_test.go, norace_test.go  raceEnabled: allocation counts are checked without the race detector (sync.Pool drops)
-strings_test.go              strings against a plain char-by-char reference
+strings_test.go              strings against a plain char-by-char reference; BenchmarkWriteString, BenchmarkUTF16
 strings_utf8_test.go         the [NinoUtf8] paths against the plain ones
 strings_wire_test.go         each vector tier against the Go loops, byte for byte
 strings_wire_amd64_test.go   tier detection (NINO_WANT_TIERS) and darwin
@@ -74,13 +75,15 @@ internal/
   corpustest/                runs the conformance corpus (valid, malicious, truncations) over a set of codecs;
                              render.go: values to the corpus's JSON (reflection, test code only)
   sample/                    the corpus's types (conformance/Nino.Conformance/Types.cs) with hand-written codecs in the
-                             style a generator emits (codec_*.go), their ids, layouts and tags; conformance, deep,
-                             registry and tagged tests; FuzzDecode, FuzzTaggedDecode
-  generated/                 nino_types.go: the corpus's types as nino-gen writes them (do not edit) and its corpus test;
+                             style a generator emits (codec_*.go; their collection loops and raw values in loops.go, as
+                             the template writes them), their ids, layouts and tags; conformance, deep, registry and
+                             tagged tests; FuzzDecode, FuzzTaggedDecode
+  generated/                 nino_types.go: the corpus's types as nino-gen writes them (do not edit), its corpus test and
+                             into_test.go (DeserializeInto: objects, slices, slots, failures, deferral);
                              shapes/: tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it, round-tripped
 bench/                       module of its own: the runtime against Protocol Buffers (benchpb/, buf), MessagePack,
-                             encoding/json and encoding/gob on the .NET benchmark's SimpleClass, strings and a
-                             scattered list of 1,000,000 records (scattered.go);
+                             encoding/json and encoding/gob on the .NET benchmark's SimpleClass, strings, sets
+                             (sets.go) and a scattered list of 1,000,000 records (scattered.go);
                              tiers_amd64_test.go checks tier detection against golang.org/x/sys/cpu
 ```
 
@@ -104,11 +107,15 @@ requirements:
   of allocations (`bench`, `-benchmem`). A collection of fixed-size elements takes a block helper
   (`ReadPrimitives`, `ReadPrimitiveEntries`, `ReadPrimitiveMap`), never the generic helpers that take element
   functions: those are an indirect call per element (`(*Reader).I32` is never inlined through a func value) and a
-  bounds check per value. `ReadPrimitiveMap` read a 10-pair `map[int32]int32` 31 % faster than `ReadMap`, and
+  bounds check per value. Any other collection loop in generated code is written out with the element's call made directly
+  (nino-gen's `read_loop` / `write_loop`), never a helper taking a func value (the runtime keeps `readSlice` and the like unexported, for its own rare paths) (`optimize-runtimes`, "Dispatch
+  outside .NET"). `ReadPrimitiveMap` read a 10-pair `map[int32]int32` 31 % faster than `ReadMap` (now unexported), and
   SimpleClass 4-7 % faster on runners (7ac8b46). Walk a block with a cursor (`for len(b) >= wire { ...; b =
   b[wire:] }`): indexing `b[i*wire:]` kept a bounds check per pair. A runner A/B can move code you did not touch by
   layout: the first map round left the untouched tag write 1.5-7.7 % slower on x64 only; make that path faster too
   (it then measured 7-14 % faster) rather than land a loss.
+- Checks over a block (ranges of dates and decimals, the bools of raw structs) and UTF-16 copies: what measured
+  faster and slower is in the `optimize-runtimes` skill, "Checking blocks in Go"; time them with BenchmarkBlocks and BenchmarkUTF16.
 - Struct tags (`tagged.go`, `layout.go`, `marshal.go`) are the one place reflection is allowed: a plan built once
   per type, then walked. Anything the wire format cannot express is a `*TagError` naming the field when the plan
   is built, never a silent default; reads go through the same `Reader` calls as generated code, so the guarantees
@@ -119,4 +126,7 @@ requirements:
   previous commit for a change to a read or write path. The runtime's module has no dependencies; competitors live in the `bench` module.
 - The module says Go 1.22 and CI builds and tests it with Go 1.22: no API newer than that outside the `bench` module,
   tests and benchmarks included (`testing.B.Loop` is Go 1.24: loop with `for range b.N`). Check with
-  `GOTOOLCHAIN=go1.22.12 go vet ./...` before pushing.
+  `GOTOOLCHAIN=go1.22.12 go vet ./...` before pushing. CI also tests 386, Arm32 and big-endian s390x: run
+  `GOARCH=386 go test ./...` (a constant such as `1<<31` compared with an `int` does not build there, and a test that
+  hard-codes a pointer's size as 8 reads past its slice; both reached main in r101) and, with qemu-user,
+  `GOARCH=arm GOMAXPROCS=1 go test -exec qemu-arm ./...` (several Ps crash Go 1.27 under qemu: `platforms`) and `GOARCH=s390x go test -exec qemu-s390x ./...`.

@@ -553,7 +553,7 @@ impl Drop for LinkFirst {
 
 impl NinoReadBody for LinkFirst {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.next = r.read_in(field!(Self, next))?;
+        self.next = r.read_member(field!(Self, next))?;
         self.v = r.i32()?;
         Ok(())
     }
@@ -631,7 +631,7 @@ impl NinoReadBody for LinkTol {
             self.v = r.read()?;
         }
         if r.has_more() {
-            self.next = r.read_in(field!(Self, next))?;
+            self.next = r.read_member(field!(Self, next))?;
         }
         r.end_region(body, self)
     }
@@ -714,7 +714,7 @@ impl NinoReadBody for LinkKeyed {
             let member = r.begin_region()?;
             match key {
                 Self::V => self.v = r.read()?,
-                Self::NEXT => self.next = r.read_in(field!(Self, next))?,
+                Self::NEXT => self.next = r.read_member(field!(Self, next))?,
                 _ => {
                     r.end_region(member, self)?;
                     continue;
@@ -789,7 +789,7 @@ impl Tree {
 impl NinoReadBody for Tree {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.value = r.i32()?;
-        self.children = r.read_in(field!(Self, children))?;
+        self.children = r.read_member(field!(Self, children))?;
         Ok(())
     }
 }
@@ -880,14 +880,14 @@ impl NinoRead for Node {
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         let id = r.i32()?;
-        let mark = r.mark();
+        let mark = r.defer_mark();
         let value = match id {
             0 => return Ok(None),
             Link::TYPE_ID => Node::Link(Box::new(r.read_class()?)),
             Leaf::TYPE_ID => Node::Leaf(Box::new(r.read_class()?)),
             _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
         };
-        r.trail(mark, Step::Field(|p| Some(p.downcast_mut::<Node>()?.body())));
+        r.defer_trail(mark, Step::Field(|p| Some(p.downcast_mut::<Node>()?.body())));
         Ok(Some(value))
     }
 }
@@ -920,7 +920,7 @@ impl NinoWrite for Node {
 impl NinoReadBody for Link {
     fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
         self.id = r.i32()?;
-        self.next = r.read_in(field!(Self, next))?;
+        self.next = r.read_member(field!(Self, next))?;
         Ok(())
     }
 }

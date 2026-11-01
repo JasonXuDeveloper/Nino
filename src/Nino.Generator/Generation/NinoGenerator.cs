@@ -91,7 +91,13 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
         // Both streams produce the same models; Roslyn 4.3 cannot concatenate value providers, so every output
         // below is registered for (or collected from) each of them.
-        var models = new[] { Gate(marked, enabled), Gate(inherited, enabled) };
+        // NinoPrefetchLargeCollections (an MSBuild property): only then do classes' formatters implement
+        // INinoPrefetchFormatter and the interceptors of their arrays and lists prefetch; otherwise the models carry
+        // no prefetch, and the generated code is what it is without the property.
+        var prefetching = context.AnalyzerConfigOptionsProvider.Select(static (o, _) =>
+            o.GlobalOptions.TryGetValue("build_property." + PrefetchProperty, out var value) &&
+            string.Equals(value, "true", StringComparison.OrdinalIgnoreCase));
+        var models = new[] { Gate(marked, enabled, prefetching), Gate(inherited, enabled, prefetching) };
         // Hint names are compared ignoring case (and so are file names on Windows and macOS): formatter names that
         // differ only by case (types RawS and Raws) take a suffix of their own. Usually empty, so an edit that changes
         // no such name re-emits nothing.
@@ -156,6 +162,19 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 : EquatableArray<string>.Empty)
             .WithTrackingName("LayoutTypes");
 
+        // The nesting formatters of the types that hold themselves (FormatterResolver.Nesting), declared once: one per
+        // name, whose body models built in different compilations may have resolved differently (both correct).
+        var nesting = Merge(usages, CollectAll(models, static m => m.Registrations.Nesting), static u => u.Nesting,
+                static all => all.GroupBy(static n => n.Name)
+                    .Select(static g => g.OrderBy(static n => n.Body, StringComparer.Ordinal).First())
+                    .OrderBy(static n => n.Name, StringComparer.Ordinal))
+            .WithTrackingName("Nesting");
+        context.RegisterImplementationSourceOutput(nesting.Combine(enabled), static (spc, x) =>
+        {
+            if (x.Right && x.Left.Length != 0)
+                spc.AddSource("NinoGen.Nesting.g.cs", NestingEmitter.Emit(x.Left));
+        });
+
         context.RegisterImplementationSourceOutput(
             registrations.Combine(factories).Combine(generics).Combine(layouts).Combine(enabled),
             static (spc, x) =>
@@ -180,13 +199,16 @@ public sealed class NinoGenerator : IIncrementalGenerator
         // (see DepthModel.Shallow).
         var top = NamesWhere(models, static m => m.HasTop).WithTrackingName("TopTwins");
         var shallow = NamesWhere(models, static m => m.Depth.Shallow).WithTrackingName("ShallowTwins");
+        // Formatters whose arrays and lists prefetch at the top level (see TypeModel.PrefetchBytes).
+        var prefetch = NamesWhere(models, static m => m.PrefetchBytes > 0).WithTrackingName("Prefetchers");
         context.RegisterImplementationSourceOutput(
-            intercepted.Combine(fileLocal).Combine(enabled).Combine(top).Combine(shallow),
+            intercepted.Combine(fileLocal).Combine(enabled).Combine(top).Combine(shallow).Combine(prefetch),
             static (spc, x) =>
             {
-                var ((((calls, local), on), tops), twins) = x;
+                var (((((calls, local), on), tops), twins), prefetchers) = x;
                 if (on && calls.Length != 0)
-                    spc.AddSource("NinoGen.Interceptors.g.cs", Interceptors.Emit(calls, local, tops, twins));
+                    spc.AddSource("NinoGen.Interceptors.g.cs",
+                        Interceptors.Emit(calls, local, tops, twins, prefetchers));
             });
 
 #endif
@@ -214,11 +236,16 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
     /// <summary>The models of a stream, in compilations that reference Nino.Core.</summary>
     private static IncrementalValuesProvider<TypeModel> Gate(IncrementalValuesProvider<TypeModel?> models,
-        IncrementalValueProvider<bool> enabled) =>
+        IncrementalValueProvider<bool> enabled, IncrementalValueProvider<bool> prefetching) =>
         models.Where(static m => m != null)
-            .Combine(enabled)
-            .Where(static x => x.Right)
-            .Select(static (x, _) => x.Left!);
+            .Combine(enabled.Combine(prefetching))
+            .Where(static x => x.Right.Left)
+            .Select(static (x, _) => x.Right.Right || x.Left!.PrefetchBytes == 0
+                ? x.Left!
+                : x.Left with { PrefetchBytes = 0, PrefetchMembers = EquatableArray<string>.Empty });
+
+    /// <summary>The MSBuild property a project sets to true to prefetch its long top-level collections.</summary>
+    public const string PrefetchProperty = "NinoPrefetchLargeCollections";
 
     /// <summary><paramref name="select"/> of every model of every stream, collected.</summary>
     private static IncrementalValueProvider<ImmutableArray<T>> CollectAll<T>(
@@ -379,7 +406,11 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var formatter = facts.Resolver.Resolve(type, false);
         bool registered = formatter is { Registered: true } && !facts.Raw.IsRawUnmanaged(type) &&
                           facts.Visibility.CanName(type);
-        if (!registered && generics.Count == 0 && layouts.Count == 0)
+        // The nesting formatters the registration, the closed generics or the interceptor (the same formatter) name.
+        var nesting = formatter is { } named
+            ? facts.Resolver.Nesting(generics.Select(static g => g.Formatter).Append(named.Code.ToString()))
+            : EquatableArray<NestingModel>.Empty;
+        if (!registered && generics.Count == 0 && layouts.Count == 0 && nesting.Length == 0)
             return null;
         return new UsageRegistration(
             registered
@@ -387,11 +418,11 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 : null,
             registered ? formatter!.Value.Factories : EquatableArray<FactoryRegistration>.Empty,
             new EquatableArray<TypeRegistration>(generics.Distinct()),
-            LayoutTypes.ToArray(layouts));
+            LayoutTypes.ToArray(layouts), nesting);
     }
 
     private static RegistryEntry ToEntry(TypeModel model) =>
-        new(model.FormatterName, model.TypeParameters.Length, RegistryEmitter.Registration(model));
+        new(model.FormatterName, model.FormatterArity, RegistryEmitter.Registration(model));
 
     /// <summary>
     /// Emits the formatter of <paramref name="model"/>; <paramref name="clashes"/>: another formatter's name differs

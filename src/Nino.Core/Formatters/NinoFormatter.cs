@@ -50,7 +50,21 @@ namespace Nino.Core
         /// <summary>Whether <typeparamref name="TFormatter"/> may know sizes: a JIT-time constant.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Is<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+#if NET8_0_OR_GREATER
             default(TFormatter) is INinoSizedFormatter<T>;
+#else
+            Of<T, TFormatter>.Formatter != null;
+
+        /// <summary>
+        /// The formatter boxed once: IL2CPP (its C++ shows it) and runtimes without RyuJIT's box removal box
+        /// <c>default(TFormatter)</c> at every cast to an interface, a GC allocation per top-level call, where RyuJIT
+        /// calls the struct directly.
+        /// </summary>
+        private static class Of<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
+        {
+            public static readonly INinoSizedFormatter<T> Formatter = default(TFormatter) as INinoSizedFormatter<T>;
+        }
+#endif
 
         /// <summary>
         /// <paramref name="value"/> as a new array of exactly its bytes, written straight into it; null when its size is
@@ -59,7 +73,11 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
         {
+#if NET8_0_OR_GREATER
             int size = ((INinoSizedFormatter<T>)default(TFormatter)).Size(value);
+#else
+            int size = Of<T, TFormatter>.Formatter.Size(value);
+#endif
             if (size < 0)
                 return null;
             // Bytes are written little-endian, as Writer does (which rejects other hosts).
@@ -68,7 +86,11 @@ namespace Nino.Core
             // Zeroed, not uninitialized: the clearing brings the lines into the cache (as a fast string store), where
             // vector stores into fresh lines first read each one; 1,000 (int, long) took 1.3 times as long.
             var bytes = new byte[size];
+#if NET8_0_OR_GREATER
             ((INinoSizedFormatter<T>)default(TFormatter)).WriteSized(value, ref NinoUnsafe.GetArrayDataReference(bytes));
+#else
+            Of<T, TFormatter>.Formatter.WriteSized(value, ref NinoUnsafe.GetArrayDataReference(bytes));
+#endif
             return bytes;
         }
     }
@@ -242,9 +264,11 @@ namespace Nino.Core
     /// <summary>
     /// The formatter of a type that can hold itself through collections (<see cref="NinoNesting"/>): each read
     /// counts toward <see cref="NinoSettings.MaxDepth"/>, as a class body does, so data nested deeper throws instead of
-    /// overflowing the stack. Each level of such data passes through here: a type reached again inside its own
-    /// formatter is read through <see cref="CachedFormatter{T}"/> (the generator's and the resolver's rule), and
-    /// <see cref="StructType"/> is null, so the resolver does not inline the formatter as an element's. Writes count
+    /// overflowing the stack. The resolver reads a type reached again inside its own formatter through
+    /// <see cref="CachedFormatter{T}"/>, so each level of such data passes through here, and <see cref="StructType"/>
+    /// is null, so it does not inline the formatter as an element's. Generated code counts each level in a struct of
+    /// its own instead (the generator's nesting formatter: <c>EnterStruct</c>, then this formatter's
+    /// <typeparamref name="TFormatter"/>, which names that struct for its elements), a direct call. Writes count
     /// too (<see cref="Writer.EnterStruct"/>): an object graph nested too deep, or a collection that holds itself,
     /// throws <see cref="InvalidOperationException"/> instead of overflowing the stack.
     /// </summary>
@@ -302,15 +326,17 @@ namespace Nino.Core
 
     /// <summary>
     /// Forwards to <see cref="NinoFormatterCache{T}.Instance"/>. Used for generic type parameters and types whose
-    /// formatter is only known at runtime. Costs one virtual call.
+    /// formatter is only known at runtime. Tier1 code calls (and inlines) the formatter directly where
+    /// <typeparamref name="T"/> is exact (<see cref="NinoTopFormatter{T}"/>); shared generic code and AOT runtimes
+    /// make one virtual call.
     /// </summary>
     public struct CachedFormatter<T> : INinoFormatter<T>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Serialize(T value, ref Writer writer) => NinoTopFormatter<T>.Get.Serialize(value, ref writer);
+        public void Serialize(T value, ref Writer writer) => NinoTopFormatter<T>.Formatter.Serialize(value, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T value, ref Reader reader) =>
-            NinoTopFormatter<T>.Get.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
     }
 }

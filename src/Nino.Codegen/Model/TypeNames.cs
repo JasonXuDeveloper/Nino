@@ -15,7 +15,7 @@ namespace Nino.Codegen.Model
             return tick < 0 ? name : name.Substring(0, tick);
         }
 
-        /// <summary>The runtime-form name (<c>NinoTypeId.GetName</c>): <c>Namespace.Outer+Inner</c>, <c>Box&lt;System.Int32&gt;</c>.</summary>
+        /// <summary>The runtime-form name (<c>NinoTypeId.GetRuntimeName</c>): <c>Namespace.Outer+Inner</c>, <c>Box&lt;System.Int32&gt;</c>.</summary>
         internal static string Runtime(Type type)
         {
             var sb = new StringBuilder();
@@ -123,18 +123,29 @@ namespace Nino.Codegen.Model
         public static string Pascal(string name) =>
             name.Length == 0 || char.IsUpper(name[0]) ? name : char.ToUpperInvariant(name[0]) + name.Substring(1);
 
-        /// <summary>FNV-1a over the UTF-16 code units, 0 mapped to 1 (wire-format spec, appendix B.1).</summary>
-        public static int Hash(string name)
-        {
-            uint h = 0x811C9DC5;
-            foreach (char c in name)
-            {
-                h = unchecked((h ^ (uint)(c & 0xFF)) * 0x01000193);
-                h = unchecked((h ^ (uint)(c >> 8)) * 0x01000193);
-            }
+        /// <summary>
+        /// <see cref="Simple"/>, but a generic definition by its name alone (<c>Box</c>, not <c>Box_T</c>): its
+        /// parameters are the generated type's.
+        /// </summary>
+        internal static string Definition(Type type) => type.IsGenericTypeDefinition
+            ? (type.IsNested ? Definition(type.DeclaringType!) + "_" : "") + WithoutArity(type.Name)
+            : Simple(type);
 
-            return unchecked((int)(h == 0 ? 1 : h));
-        }
+        /// <summary>
+        /// The parts of a C# name joined, each with a capital (<c>Outer_Inner</c> → <c>OuterInner</c>): an exported Go
+        /// name, a Rust type name.
+        /// </summary>
+        internal static string Joined(string name) =>
+            string.Concat(name.Split(Underscore, StringSplitOptions.RemoveEmptyEntries).Select(Pascal));
+
+        private static readonly char[] Underscore = { '_' };
+
+        /// <summary>
+        /// The name of a closed generic type in a slot, as every language names one (<c>BoxInt32</c>,
+        /// <c>BoxInt32Array</c> for <c>Box&lt;int[]&gt;</c>): an identifier in each.
+        /// </summary>
+        internal static string Closed(Type type) => Joined(new string(Simple(type).Replace("[", "Array_")
+            .Where(c => char.IsAsciiLetterOrDigit(c) || c == '_').ToArray()));
 
         /// <summary><c>0x1234ABCD</c>.</summary>
         public static string Hex(int value) => "0x" + value.ToString("X8", CultureInfo.InvariantCulture);

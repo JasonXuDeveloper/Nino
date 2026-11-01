@@ -63,6 +63,9 @@ end
 
 # The type of an element of a sequence (without `| null`).
 func seq_ts(s)
+  if s.array_type
+    ret s.array_type
+  end
   if s.set
     ret "Set<" + ts(s.element) + ">"
   end
@@ -163,6 +166,8 @@ func elements_def(s)
   when "seq"
     if s.set
       ret "new " + seq_ts(s) + "()"
+    else if s.array_type
+      ret "new " + s.array_type + "(0)"
     end
     ret "[]"
   when "map"
@@ -231,7 +236,7 @@ func read(s)
   when "bytes"
     ret "r.bytes()"
   when "nullable"
-    ret "(r.notNull() ? " + read(s.inner) + " : null)"
+    ret "(r.present() ? " + read(s.inner) + " : null)"
   when "type"
     if s.header == "typeid"
       ret name(s.type) + "Codec.read(r)"
@@ -243,6 +248,40 @@ func read(s)
   when "param", "generic"
     ret s.field + ".read(r)"
   end
+end
+
+# An expression reading the value into `cur` (an expression of its current value, read once; undefined or null for
+# none): the objects, arrays, maps and sets it holds are reused where they can be (`deserializeInto`), else a new value.
+func read_into(s, cur)
+  case s.kind
+  when "seq", "map"
+    if s.array_type
+      ret read(s)
+    end
+    # A null one is read new, through the read helper: one that only reads (the read path measured slower with the
+    # into branches in it).
+    ret "(" + cur + " == null ? " + read(s) + " : " + helper(s, "readinto") + "(r" + s.codecs_argument + ", " + cur + "))"
+  when "nullable"
+    $inner = read_into(s.inner, cur)
+    if $inner == read(s.inner)
+      ret read(s)
+    end
+    if s.inner.kind == "type"
+      $inner = "(" + cur + " == null ? " + read(s.inner) + " : " + read_into(s.inner, cur + "!") + ")"
+    end
+    ret "(r.present() ? " + $inner + " : null)"
+  when "type"
+    if s.header == "typeid"
+      ret "(" + cur + " == null ? " + read(s) + " : r.into(" + name(s.type) + "Codec, " + cur + "))"
+    else if s.header == "ref"
+      ret read(s)
+    end
+    # A struct member always holds one (its default): read into it.
+    ret "read" + name(s.type) + "(r, " + cur + ")"
+  when "param", "generic"
+    ret "(" + cur + " == null ? " + read(s) + " : r.into(" + s.field + ", " + cur + "))"
+  end
+  ret read(s)
 end
 
 # A statement (maybe without its `;`) writing the value `v` (an expression it may evaluate more than once).
@@ -305,7 +344,7 @@ func read_at(s, off)
   when "rawstruct"
     ret "read" + name(s.struct) + "(r, " + at(off) + ")"
   when "rawnullable"
-    ret "(r.flagAt(" + at(off + s.flag_offset) + ") ? " + read_at(s.inner, off + s.value_offset) + " : null)"
+    ret "(r.presentAt(" + at(off + s.flag_offset) + ") ? " + read_at(s.inner, off + s.value_offset) + " : null)"
   when "fixedtuple"
     $parts = []
     for $item in s.items

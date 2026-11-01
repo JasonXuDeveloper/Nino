@@ -25,11 +25,14 @@ test/
   collections.test.ts        arrays, sets, maps, nullables, the type id registry, serialize's shared buffers
   nesting.test.ts            deferral past 128 bodies, the 512 limit, cycles
   malicious.test.ts          truncations, forged lengths, bad presence bytes, unknown ids, fast-check mutations
+  flooding.test.ts           hash flooding: number and bigint keys V8 puts in one bucket, rejected by NinoKeyGuard
   wasm.test.ts               the kernels against the JavaScript paths; text.wat matches what nino.ts embeds
+  into.test.ts               deserializeInto: objects read in place, arrays, maps, polymorphic members, failed reads
   corpus.test.ts             the conformance corpus (conformance/corpus or NINO_CORPUS) over generated/Nino.Conformance.ts
   codecs.ts                  codecs written as nino-gen generates them, for the runtime's tests
   runtime.ts                 --import hook: NINO_TEST_RUNTIME=browser (no Buffer), NINO_WASM=0 (no kernels)
-  generated/                 Nino.Conformance.ts and Nino.Codegen.Tests.ts: nino-gen's output for the corpus's types and
+  generated/                 Nino.Conformance.ts (also as .TypedArrays.ts, --numeric-arrays typed) and
+                             Nino.Codegen.Tests.ts: nino-gen's output for the corpus's types and
                              tests/Nino.Codegen.Tests/Shapes.cs (do not edit)
 bench/                       the generated TypeScript against protobuf-es, msgpackr and JSON (tinybench) in Node
                              (node.ts) and headless Chromium (browser.mjs); Bench.csproj + Program.cs write the data in

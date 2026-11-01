@@ -142,6 +142,28 @@ namespace Samples
         public decimal[] Decimals;
     }
 
+    /// <summary>
+    /// Arrays and lists of every fixed-size number (typed arrays in TypeScript, copied in one block, at offsets of every
+    /// alignment), and of the primitives that stay arrays.
+    /// </summary>
+    [NinoType]
+    public sealed class Numbers
+    {
+        public byte Odd;
+        public sbyte[] SBytes;
+        public List<byte> ByteList;
+        public short[] Shorts;
+        public List<ushort> UShorts;
+        public int[] Ints;
+        public List<uint> UInts;
+        public long[] Longs;
+        public List<ulong> ULongs;
+        public float[] Floats;
+        public List<double> Doubles;
+        public bool[] Bools;
+        public List<char> Chars;
+    }
+
     // Deep nesting: past 128 open class bodies, a body is deferred (see "Deep nesting" in docs/v4-design.md).
 
     /// <summary>Deferred bodies follow the top-level object.</summary>

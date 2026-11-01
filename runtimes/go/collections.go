@@ -13,12 +13,13 @@ import (
 // and grows as its elements are read (see [Reader.SliceCap]): data claiming more elements than it holds fails
 // after allocating a bounded multiple of what it held.
 //
-// These helpers take the element's functions as values (an indirect call per element); generated code may write
-// the same loops inline.
+// The unexported helpers below take the element's functions as values (an indirect call per element), for the
+// runtime's own rare paths (struct tags, element-by-element fallbacks on big-endian hosts); generated code writes its
+// loops with direct calls, and so should hand-written codecs (internal/sample/loops.go shows how).
 
-// ReadSlice reads a sequence (an array, a list, a set read in order...): nil for null. minSize is the fewest bytes
+// readSlice reads a sequence (an array, a list, a set read in order...): nil for null. minSize is the fewest bytes
 // an element takes on the wire (1 unless it is of fixed size).
-func ReadSlice[T any](r *Reader, minSize int, read func(*Reader) T) []T {
+func readSlice[T any](r *Reader, minSize int, read func(*Reader) T) []T {
 	n := r.Length(minSize)
 	if n < 0 {
 		return nil
@@ -37,6 +38,44 @@ func ReadSlice[T any](r *Reader, minSize int, read func(*Reader) T) []T {
 	return v
 }
 
+// writeSlice writes a sequence: nil is null.
+func writeSlice[T any](w *Writer, v []T, write func(*Writer, T)) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	for _, e := range v {
+		write(w, e)
+	}
+}
+
+// readMap reads a dictionary: nil for null. A key read twice fails with CodeDuplicateKey (as .NET's dictionaries
+// do when filled from empty). minSize is the fewest bytes a pair takes on the wire.
+func readMap[K comparable, V any](r *Reader, minSize int, readKey func(*Reader) K, readValue func(*Reader) V) map[K]V {
+	n := r.Length(minSize)
+	if n < 0 {
+		return nil
+	}
+	var k K
+	var v V
+	m := make(map[K]V, capacity(n, int(unsafe.Sizeof(k))+int(unsafe.Sizeof(v))+hashSlot, len(r.buf)))
+	nan := false
+	for i := 0; i < n; i++ {
+		key := readKey(r)
+		value := readValue(r)
+		if r.err != nil {
+			return nil
+		}
+		// One hash operation: a repeated key leaves the size unchanged, but for a NaN (see repeatedNaN).
+		if m[key] = value; len(m) != i+1 || repeatedNaN(key, &nan) {
+			r.Fail(CodeDuplicateKey, "")
+			return nil
+		}
+	}
+	return m
+}
+
 // growSlice returns v with its elements in a slice twice as long (at most n).
 //
 //go:noinline
@@ -46,76 +85,25 @@ func growSlice[T any](v []T, n int) []T {
 	return grown
 }
 
-// WriteSlice writes a sequence: nil is null.
-func WriteSlice[T any](w *Writer, v []T, write func(*Writer, T)) {
-	if v == nil {
-		w.Null()
-		return
-	}
-	w.Length(len(v))
-	for _, e := range v {
-		write(w, e)
-	}
-}
-
-// ReadMap reads a dictionary: nil for null. A key read twice fails with CodeDuplicateKey (as .NET's dictionaries
-// do when filled from empty). minSize is the fewest bytes a pair takes on the wire.
-func ReadMap[K comparable, V any](r *Reader, minSize int, readKey func(*Reader) K, readValue func(*Reader) V) map[K]V {
-	n := r.Length(minSize)
-	if n < 0 {
-		return nil
-	}
-	var k K
-	var v V
-	m := make(map[K]V, capacity(n, int(unsafe.Sizeof(k))+int(unsafe.Sizeof(v))+hashSlot, len(r.buf)))
-	for i := 0; i < n; i++ {
-		key := readKey(r)
-		value := readValue(r)
-		if r.err != nil {
-			return nil
-		}
-		// One hash operation: a repeated key leaves the size unchanged.
-		if m[key] = value; len(m) != i+1 {
-			r.Fail(CodeDuplicateKey, "")
-			return nil
-		}
-	}
-	return m
-}
-
-// WriteMap writes a dictionary in Go's map order (any order reads back the same map): nil is null. Use
-// [WriteEntries] where the order of the bytes matters.
-func WriteMap[K comparable, V any](w *Writer, m map[K]V, writeKey func(*Writer, K), writeValue func(*Writer, V)) {
-	if m == nil {
-		w.Null()
-		return
-	}
-	w.Length(len(m))
-	for k, v := range m {
-		writeKey(w, k)
-		writeValue(w, v)
-	}
-}
-
 // Entry is one pair of a dictionary read or written in order.
 type Entry[K, V any] struct {
 	Key   K
 	Value V
 }
 
-// ReadEntries reads a dictionary as its pairs in the order of the data (nil for null), without checking for
+// readEntries reads a dictionary as its pairs in the order of the data (nil for null), without checking for
 // repeated keys.
-func ReadEntries[K, V any](r *Reader, minSize int, readKey func(*Reader) K, readValue func(*Reader) V) []Entry[K, V] {
-	return ReadSlice(r, minSize, func(r *Reader) Entry[K, V] {
+func readEntries[K, V any](r *Reader, minSize int, readKey func(*Reader) K, readValue func(*Reader) V) []Entry[K, V] {
+	return readSlice(r, minSize, func(r *Reader) Entry[K, V] {
 		k := readKey(r)
 		return Entry[K, V]{k, readValue(r)}
 	})
 }
 
-// WriteEntries writes a dictionary as its pairs, in order: nil is null.
-func WriteEntries[K, V any](w *Writer, e []Entry[K, V], writeKey func(*Writer, K), writeValue func(*Writer, V)) {
+// writeEntries writes a dictionary as its pairs, in order: nil is null.
+func writeEntries[K, V any](w *Writer, e []Entry[K, V], writeKey func(*Writer, K), writeValue func(*Writer, V)) {
 	if e == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(e))
@@ -125,43 +113,9 @@ func WriteEntries[K, V any](w *Writer, e []Entry[K, V], writeKey func(*Writer, K
 	}
 }
 
-// ReadSet reads a set: nil for null. An element read twice fails with CodeDuplicateKey (as .NET's HashSet does
-// when filled from empty).
-func ReadSet[T comparable](r *Reader, minSize int, read func(*Reader) T) map[T]struct{} {
-	n := r.Length(minSize)
-	if n < 0 {
-		return nil
-	}
-	var e T
-	m := make(map[T]struct{}, capacity(n, int(unsafe.Sizeof(e))+hashSlot, len(r.buf)))
-	for i := 0; i < n; i++ {
-		v := read(r)
-		if r.err != nil {
-			return nil
-		}
-		if m[v] = struct{}{}; len(m) != i+1 {
-			r.Fail(CodeDuplicateKey, "")
-			return nil
-		}
-	}
-	return m
-}
-
-// WriteSet writes a set in Go's map order: nil is null.
-func WriteSet[T comparable](w *Writer, s map[T]struct{}, write func(*Writer, T)) {
-	if s == nil {
-		w.Null()
-		return
-	}
-	w.Length(len(s))
-	for v := range s {
-		write(w, v)
-	}
-}
-
-// ReadFixed reads a sequence of elements of size bytes each (raw structs, tuples of raw values...) with one bounds
+// readFixed reads a sequence of elements of size bytes each (raw structs, tuples of raw values...) with one bounds
 // check: decode gets each element's bytes (and the reader, to fail on an invalid value). nil for null.
-func ReadFixed[T any](r *Reader, size int, decode func(r *Reader, b []byte) T) []T {
+func readFixed[T any](r *Reader, size int, decode func(r *Reader, b []byte) T) []T {
 	n := r.Length(size)
 	if n < 0 {
 		return nil
@@ -184,11 +138,11 @@ func ReadFixed[T any](r *Reader, size int, decode func(r *Reader, b []byte) T) [
 	return v
 }
 
-// WriteFixed writes a sequence of elements of size bytes each with one reservation: encode fills each element's
+// writeFixed writes a sequence of elements of size bytes each with one reservation: encode fills each element's
 // bytes, cleared first (padding is written as zeros). nil is null.
-func WriteFixed[T any](w *Writer, v []T, size int, encode func(b []byte, e T)) {
+func writeFixed[T any](w *Writer, v []T, size int, encode func(b []byte, e T)) {
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -201,7 +155,7 @@ func WriteFixed[T any](w *Writer, v []T, size int, encode func(b []byte, e T)) {
 	}
 }
 
-// ReadRaw reads a sequence of raw elements of size bytes each, as [ReadFixed] does, copying them as one block where
+// ReadRaw reads a sequence of raw elements of size bytes each, as [readFixed] does, copying them as one block where
 // T's memory is their bytes. Generated code passes asIs, a constant that says so for a type without pointers whose
 // size and field offsets (unsafe.Sizeof, unsafe.Offsetof) are those of the wire; bools, the offsets of its bools in
 // an element, whose bytes must be 0 or 1; and decode, for the hosts where the block is not the memory (big-endian
@@ -209,7 +163,7 @@ func WriteFixed[T any](w *Writer, v []T, size int, encode func(b []byte, e T)) {
 func ReadRaw[T any](r *Reader, size int, asIs bool, bools []int, decode func(r *Reader, b []byte) T) []T {
 	var zero T
 	if !asIs || !littleEndian || int(unsafe.Sizeof(zero)) != size {
-		return ReadFixed(r, size, decode)
+		return readFixed(r, size, decode)
 	}
 	n := r.Length(size)
 	if n < 0 {
@@ -223,35 +177,57 @@ func ReadRaw[T any](r *Reader, size int, asIs bool, bools []int, decode func(r *
 		r.Fail(CodeInvalidData, "invalid bool")
 		return nil
 	}
-	// As many bytes of memory as of data: no more than ReadFixed's bound.
+	// As many bytes of memory as of data: no more than readFixed's bound.
 	v := make([]T, n)
 	copy(unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), n*size), b)
 	return v
 }
 
-// rawBools reports whether the bytes at each offset of bools in each element (size bytes) of b are 0 or 1.
+// rawBools reports whether the bytes at each offset of bools in each element (size bytes) of b are 0 or 1: ORed into
+// four accumulators, four elements a step, read through the slice's pointer (an index per byte kept a bounds check
+// per element). An offset outside an element takes the bounds-checked loop.
 func rawBools(b []byte, size int, bools []int) bool {
-	var acc byte
+	if size <= 0 {
+		return true // no bytes (Take of n*size)
+	}
+	var a0, a1, a2, a3 byte
+	p, s, n := unsafe.Pointer(unsafe.SliceData(b)), uintptr(size), len(b)/size
 	for _, o := range bools {
-		for i := uint(o); i < uint(len(b)); i += uint(size) {
-			acc |= b[i]
+		if uint(o) >= uint(size) {
+			for i := uint(o); i < uint(len(b)); i += uint(size) {
+				a0 |= b[i]
+			}
+			continue
+		}
+		// Element k's byte is at o + k*size, k < n: within b (only in-range offsets are added to p).
+		i, k := uintptr(o), n
+		for ; k >= 4; k -= 4 {
+			a0 |= *(*byte)(unsafe.Add(p, i))
+			a1 |= *(*byte)(unsafe.Add(p, i+s))
+			a2 |= *(*byte)(unsafe.Add(p, i+2*s))
+			a3 |= *(*byte)(unsafe.Add(p, i+3*s))
+			i += 4 * s
+		}
+		for ; k > 0; k-- {
+			a0 |= *(*byte)(unsafe.Add(p, i))
+			i += s
 		}
 	}
-	return acc <= 1
+	return a0|a1|a2|a3 <= 1
 }
 
-// WriteRaw writes a sequence of raw elements of size bytes each, as [WriteFixed] does, copying their memory as one
+// WriteRaw writes a sequence of raw elements of size bytes each, as [writeFixed] does, copying their memory as one
 // block where it is their bytes: asIs and bools as for [ReadRaw], and pads the offsets of the bytes no field fills
-// (padding), which [WriteFixed] writes as zeros and so does the block once copied. A bool whose byte is not 0 or 1
+// (padding), which [writeFixed] writes as zeros and so does the block once copied. A bool whose byte is not 0 or 1
 // (set through unsafe) is written as 1.
 func WriteRaw[T any](w *Writer, v []T, size int, asIs bool, bools, pads []int, encode func(b []byte, e T)) {
 	var zero T
 	if !asIs || !littleEndian || int(unsafe.Sizeof(zero)) != size {
-		WriteFixed(w, v, size, encode)
+		writeFixed(w, v, size, encode)
 		return
 	}
 	if v == nil {
-		w.Null()
+		w.NullLength()
 		return
 	}
 	w.Length(len(v))
@@ -381,81 +357,54 @@ func (w *Writer) WriteShape(dims ...int) {
 	}
 }
 
-// ReadUnique reads a set as its elements in the order of the data (nil for null): an element read twice fails with
-// CodeDuplicateKey, as .NET's HashSet and SortedSet do when filled from empty. Unlike [ReadSet], writing the slice
-// back gives the same bytes.
-func ReadUnique[T comparable](r *Reader, minSize int, read func(*Reader) T) []T {
-	n := r.Length(minSize)
-	if n < 0 {
+// CheckUniqueValues returns v, the elements of a set read in the order of the data, unless two of them are equal: then
+// it fails r with CodeDuplicateKey (as .NET's HashSet and SortedSet do when filled from empty) and returns nil. It
+// returns nil for nil and after r failed. Generated code reads the elements with direct calls, then checks them
+// once here, as [CheckUniqueKeys] does for a dictionary's keys. Numbers and strings are compared as .NET compares them
+// (a NaN equals every NaN), without a map; other values as Go compares them (unique.go).
+func CheckUniqueValues[T comparable](r *Reader, v []T) []T {
+	if v == nil || r.err != nil {
 		return nil
 	}
-	var zero T
-	size := int(unsafe.Sizeof(zero))
-	keySize := intKeySize[T]()
-	v := make([]T, r.SliceCap(n, size))
-	var seen map[T]struct{}
-	if keySize == 0 {
-		seen = make(map[T]struct{}, capacity(n, size+hashSlot, len(r.buf)))
-	}
-	for i := 0; i < n; i++ {
-		if i == len(v) {
-			v = growSlice(v, n)
-		}
-		e := read(r)
-		if r.err != nil {
-			return nil
-		}
-		if keySize == 0 {
-			if seen[e] = struct{}{}; len(seen) != i+1 {
-				r.Fail(CodeDuplicateKey, "")
-				return nil
-			}
-		}
-		v[i] = e
-	}
-	if keySize != 0 && repeatedKey(unsafe.Pointer(unsafe.SliceData(v)), n, size, keySize) {
+	var e T
+	if repeated[T](unsafe.Pointer(unsafe.SliceData(v)), len(v), int(unsafe.Sizeof(e)), &r.keys) {
 		r.Fail(CodeDuplicateKey, "")
 		return nil
 	}
 	return v
 }
 
-// ReadUniqueEntries reads a dictionary as its pairs in the order of the data (nil for null): a key read twice
-// fails with CodeDuplicateKey, as .NET's dictionaries do when filled from empty.
-func ReadUniqueEntries[K comparable, V any](r *Reader, minSize int, readKey func(*Reader) K, readValue func(*Reader) V) []Entry[K, V] {
-	n := r.Length(minSize)
-	if n < 0 {
+// CheckUniqueStrings is [CheckUniqueValues] for a set of nullable strings (a HashSet<string> as nino-gen's Go holds
+// it): two equal strings, or two nulls, fail r with CodeDuplicateKey.
+func CheckUniqueStrings(r *Reader, v []*string) []*string {
+	if v == nil || r.err != nil {
 		return nil
 	}
-	var e Entry[K, V]
-	var k K
-	size := int(unsafe.Sizeof(e))
-	keySize := intKeySize[K]()
-	v := make([]Entry[K, V], r.SliceCap(n, size))
-	var seen map[K]struct{}
-	if keySize == 0 {
-		seen = make(map[K]struct{}, capacity(n, int(unsafe.Sizeof(k))+hashSlot, len(r.buf)))
-	}
-	for i := 0; i < n; i++ {
-		if i == len(v) {
-			v = growSlice(v, n)
-		}
-		key := readKey(r)
-		value := readValue(r)
-		if r.err != nil {
-			return nil
-		}
-		if keySize == 0 {
-			if seen[key] = struct{}{}; len(seen) != i+1 {
-				r.Fail(CodeDuplicateKey, "")
-				return nil
-			}
-		}
-		v[i] = Entry[K, V]{key, value}
-	}
-	if keySize != 0 && repeatedKey(unsafe.Pointer(unsafe.SliceData(v)), n, size, keySize) {
+	if repeatedStrings(unsafe.Pointer(unsafe.SliceData(v)), len(v), int(unsafe.Sizeof(v[0])), true, &r.keys) {
 		r.Fail(CodeDuplicateKey, "")
 		return nil
 	}
 	return v
+}
+
+// readUniqueEntries reads a dictionary as its pairs in the order of the data (nil for null): a key read twice
+// fails with CodeDuplicateKey, as .NET's dictionaries do when filled from empty.
+func readUniqueEntries[K comparable, V any](r *Reader, minSize int, readKey func(*Reader) K, readValue func(*Reader) V) []Entry[K, V] {
+	return CheckUniqueKeys(r, readEntries(r, minSize, readKey, readValue))
+}
+
+// CheckUniqueKeys returns e, the pairs of a dictionary read in the order of the data, unless two of its keys are equal:
+// then it fails r with CodeDuplicateKey (as .NET's dictionaries do when filled from empty) and returns nil. It
+// returns nil for nil and after r failed. Generated code reads the pairs with direct calls, then checks them once
+// here. Keys are compared as [CheckUniqueValues] compares elements.
+func CheckUniqueKeys[K comparable, V any](r *Reader, e []Entry[K, V]) []Entry[K, V] {
+	if e == nil || r.err != nil {
+		return nil
+	}
+	var pair Entry[K, V]
+	if repeated[K](unsafe.Pointer(unsafe.SliceData(e)), len(e), int(unsafe.Sizeof(pair)), &r.keys) {
+		r.Fail(CodeDuplicateKey, "")
+		return nil
+	}
+	return e
 }

@@ -15,7 +15,7 @@ export function readChain(r: NinoReader): Chain {
   if (depth >= 128) return r.defer(v, readBody$Chain);
   r.depth = depth + 1;
   readBody$Chain(r, v);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -27,12 +27,12 @@ export function writeChain(w: NinoWriter, v: Chain): void {
   }
   w.depth = depth + 1;
   writeBody$Chain(w, v);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$Chain(r: NinoReader, v: Chain): void {
   v.value = r.i32();
-  v.next = r.notNull() ? readChain(r) : null;
+  v.next = r.present() ? readChain(r) : null;
 }
 
 function writeBody$Chain(w: NinoWriter, v: Chain): void {
@@ -45,7 +45,7 @@ function writeBody$Chain(w: NinoWriter, v: Chain): void {
 }
 
 export const ChainCodec: NinoCodec<Chain | null> = {
-  read: (r) => (r.notNull() ? readChain(r) : null),
+  read: (r) => (r.present() ? readChain(r) : null),
   write: (w, v) => {
     if (v === null || v === undefined) w.u8(0);
     else {
@@ -66,7 +66,7 @@ function readRecord(r: NinoReader): Record {
   if (depth >= 128) return r.deep(v, readBody$Record);
   r.depth = depth + 1;
   readBody$Record(r, v);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -78,12 +78,12 @@ function writeRecord(w: NinoWriter, v: Record): void {
   }
   w.depth = depth + 1;
   writeBody$Record(w, v);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$Record(r: NinoReader, v: Record): void {
   v.value = r.i32();
-  v.next = r.notNull() ? readRecord(r) : null;
+  v.next = r.present() ? readRecord(r) : null;
 }
 
 function writeBody$Record(w: NinoWriter, v: Record): void {
@@ -96,7 +96,7 @@ function writeBody$Record(w: NinoWriter, v: Record): void {
 }
 
 export const RecordCodec: NinoCodec<Record | null> = {
-  read: (r) => (r.notNull() ? readRecord(r) : null),
+  read: (r) => (r.present() ? readRecord(r) : null),
   write: (w, v) => {
     if (v === null) w.u8(0);
     else {
@@ -117,7 +117,7 @@ function readTolerant(r: NinoReader): Tolerant {
   if (depth >= 128) return r.defer(v, readBody$Tolerant);
   r.depth = depth + 1;
   readBody$Tolerant(r, v);
-  r.exit(depth);
+  r.exitBody(depth);
   return v;
 }
 
@@ -129,18 +129,18 @@ function writeTolerant(w: NinoWriter, v: Tolerant): void {
   }
   w.depth = depth + 1;
   writeBody$Tolerant(w, v);
-  w.exit(depth);
+  w.exitBody(depth);
 }
 
 function readBody$Tolerant(r: NinoReader, v: Tolerant): void {
-  const end = r.region();
+  const end = r.beginRegion();
   if (r.pos < end) v.value = r.i32();
-  if (r.pos < end) v.next = r.notNull() ? readTolerant(r) : null;
+  if (r.pos < end) v.next = r.present() ? readTolerant(r) : null;
   r.endRegion(end);
 }
 
 function writeBody$Tolerant(w: NinoWriter, v: Tolerant): void {
-  const start = w.region();
+  const start = w.beginRegion();
   w.i32(v.value);
   if (v.next === null) w.u8(0);
   else {
@@ -151,7 +151,7 @@ function writeBody$Tolerant(w: NinoWriter, v: Tolerant): void {
 }
 
 export const TolerantCodec: NinoCodec<Tolerant | null> = {
-  read: (r) => (r.notNull() ? readTolerant(r) : null),
+  read: (r) => (r.present() ? readTolerant(r) : null),
   write: (w, v) => {
     if (v === null) w.u8(0);
     else {

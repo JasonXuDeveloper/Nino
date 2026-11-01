@@ -10,7 +10,8 @@ name: Unity
 # built as a release build (Test.Editor.Burst.BenchmarkPlayerBuild) and runs the correctness tests and the Burst
 # benchmark (Test.Runtime.Burst.BurstBenchmark, measured with the Unity Performance Testing package), and its results
 # are uploaded per Unity version (artifacts unity-bench-<version>) for benchmarks/unity_report.py. A called run joins the same concurrency group, so
-# it waits for a running Unity job and is never cancelled while it runs.
+# it waits for a running Unity job and is never cancelled while it runs. The webgl job then builds a WebGL player per
+# version and runs it in headless Chrome (Nino.WebGL's kernels; timed too in the benchmark's run).
 
 on:
   push:
@@ -27,6 +28,7 @@ on:
       - 'global.json'
       - 'nuget.config'
       - '.github/workflows/unity.yml'
+      - '.github/scripts/webgl_run.mjs'
       - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
       - '!**/CLAUDE.md'
   pull_request:
@@ -99,6 +101,8 @@ jobs:
     env:
       # The image with the Linux IL2CPP module, which the player step below needs: one image for both steps.
       UNITY_IMAGE: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
+      # Debug builds for the tests (their assertions), Release for the benchmark (what the package ships).
+      NINO_CONFIG: ${{ inputs.benchmark && 'Release' || 'Debug' }}
 
     steps:
       - name: Checkout code
@@ -116,12 +120,13 @@ jobs:
           nohup bash -c 'docker pull -q "$UNITY_IMAGE" > "$RUNNER_TEMP/pull.log" 2>&1; echo $? > "$RUNNER_TEMP/pull.status"' \
             > /dev/null 2>&1 &
 
-      - name: Setup .NET
+      # setup-dotnet itself, not ./.github/actions/setup-dotnet: report.yml calls this workflow on a release tag's
+      # tree, and tags up to v4.0.0-rc.7 have no such action.
+      - &setup-dotnet
+        name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
-            10.0.x
+          dotnet-version: 10.0.x
 
       - name: Cache NuGet packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -132,22 +137,21 @@ jobs:
             nuget-${{ runner.os }}-${{ runner.arch }}-unity-
             nuget-${{ runner.os }}-${{ runner.arch }}-
 
-      # Debug builds for the tests (their assertions), Release for the benchmark (what the package ships).
-      - name: Build the DLLs Unity loads
-        env:
-          CONFIG: ${{ env.BENCHMARK == 'true' && 'Release' || 'Debug' }}
+      # The commit's code over the DLLs committed in the package, in the job's NINO_CONFIG.
+      - &build-dlls
+        name: Build the DLLs Unity loads
         run: |
-          dotnet build src/Nino.Core/Nino.Core.csproj -c "$CONFIG" -f netstandard2.1
-          dotnet build src/Nino.Generator/Nino.Generator.csproj -c "$CONFIG"
-          dotnet build src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj -c "$CONFIG"
-          dotnet build src/Nino.UnityTypes/Nino.UnityTypes.csproj -c "$CONFIG"
-          cp "./src/Nino.Core/bin/$CONFIG/netstandard2.1/Nino.Core.dll" ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
+          dotnet build src/Nino.Core/Nino.Core.csproj -c "$NINO_CONFIG" -f netstandard2.1
+          dotnet build src/Nino.Generator/Nino.Generator.csproj -c "$NINO_CONFIG"
+          dotnet build src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj -c "$NINO_CONFIG"
+          dotnet build src/Nino.UnityTypes/Nino.UnityTypes.csproj -c "$NINO_CONFIG"
+          runtime=./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime
+          cp "./src/Nino.Core/bin/$NINO_CONFIG/netstandard2.1/Nino.Core.dll" "$runtime/"
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
-          cp "./src/Nino.Generator/bin/$CONFIG/netstandard2.0/Nino.Generator.dll" ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+          cp "./src/Nino.Generator/bin/$NINO_CONFIG/netstandard2.0/Nino.Generator.dll" "$runtime/"
           # Code fixes, for Rider and Visual Studio: Unity lists RoslynAnalyzer DLLs in the projects it generates.
-          cp "./src/Nino.Generator.CodeFixes/bin/$CONFIG/netstandard2.0/Nino.Generator.CodeFixes.dll" ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.CodeFixes.dll
-          cp "./src/Nino.UnityTypes/bin/$CONFIG/netstandard2.1/Nino.UnityTypes.dll" ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
-          echo "NINO_CONFIG=$CONFIG" >> "$GITHUB_ENV"
+          cp "./src/Nino.Generator.CodeFixes/bin/$NINO_CONFIG/netstandard2.0/Nino.Generator.CodeFixes.dll" "$runtime/"
+          cp "./src/Nino.UnityTypes/bin/$NINO_CONFIG/netstandard2.1/Nino.UnityTypes.dll" "$runtime/"
 
       # Keyed by the project's sources, not by the DLLs the step above built into Packages: those differ in every
       # commit, so every run missed the key and saved another 800 MB per version, which pushed the other caches out
@@ -171,18 +175,36 @@ jobs:
             echo "::warning::pulling $UNITY_IMAGE failed; the test step pulls it again"
           fi
 
-      # Edit mode and play mode tests in the editor (Mono, Burst's JIT).
-      - name: Run the editor's tests
+      # Unity can hang in batch mode: the 2022.3 editor stopped twice after loading the project, its log ending at
+      # "Unloading 3 Unused Serialized files" where a normal launch goes on to "Unloading 45 unused Assets" and quits
+      # (runs 41082628657 and 41172149972, each a later launch in its container, licensing already done), and the job
+      # held the license seat until its 100-minute timeout. So every Unity launch is bounded inside the container:
+      # game-ci CLI v0.1.72 prefixes each `unity-editor` call (activation, tests, builds; not the license return) with
+      # ENGINE_LAUNCH_WRAPPER, read from the action's environment. `timeout` kills the editor's process group (SIGKILL a
+      # minute after SIGTERM), the step fails, and the container's script still returns the license. The step's own
+      # timeout-minutes is only the backstop: a cancelled step never returns the seat (the script in the container
+      # runs as PID 1 and gets no signal it handles), and the next step would start Unity beside the hung one. Bounds
+      # are some five to ten times the normal durations (run 41169746541 and the nine runs before it: both editor test
+      # launches together at most 2.7 minutes, a player step 3.5, a WebGL build 8.5).
+      #
+      # Edit mode and play mode tests in the editor (Mono, Burst's JIT), one step each: `testMode: all` adds a third
+      # launch (COMBINE_RESULTS: the editor opened with -quit, for the Code Coverage package to merge its results),
+      # and the project has no such package, so that launch did nothing ("Coverage results directory does not exist")
+      # but take another 10 seconds and another chance to hang. The edit mode step runs after a failure of the play
+      # mode one too, so one run shows both.
+      - name: Run the editor's play mode tests
         if: env.BENCHMARK != 'true'
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
-        id: editor-tests
+        id: playmode-tests
+        timeout-minutes: 25
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          ENGINE_LAUNCH_WRAPPER: timeout -k 60 15m
         with:
           projectPath: ./src/Nino.Unity
-          testMode: all
+          testMode: playmode
           artifactsPath: artifacts/editor
           customImage: ${{ env.UNITY_IMAGE }}
           # No githubToken: posting the results as a check run calls the GitHub API, and a timeout there failed a run
@@ -191,21 +213,44 @@ jobs:
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
 
-      # The play mode tests in a Linux player built with IL2CPP (ProjectSettings: Standalone scripting backend 1) and
-      # Burst AOT, where the paths through the runtime's own collections and the Burst function pointers run as they do
-      # on devices. It runs after a failure of the editor's tests too, so one run shows both; the steps run one after
-      # the other, so the job still holds one seat at a time.
-      # With the benchmark, -ninoBenchmark builds the player without the Development flag and with the benchmark in it
-      # (Test.Editor.Burst.BenchmarkPlayerBuild). Code coverage stays on: it instruments only the editor's code, but
-      # game-ci CLI v0.1.72 rejects the --no-coverageEnabled that coverageEnabled: false passes to it.
-      - name: Run the IL2CPP player's tests
-        if: success() || steps.editor-tests.conclusion == 'failure'
+      - name: Run the editor's edit mode tests
+        if: env.BENCHMARK != 'true' && (success() || steps.playmode-tests.conclusion == 'failure')
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
-        id: player-tests
+        id: editmode-tests
+        timeout-minutes: 25
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          ENGINE_LAUNCH_WRAPPER: timeout -k 60 15m
+        with:
+          projectPath: ./src/Nino.Unity
+          testMode: editmode
+          artifactsPath: artifacts/editor
+          customImage: ${{ env.UNITY_IMAGE }}
+          unityVersion: ${{ matrix.unity }}
+          cliVersion: 'v0.1.72'
+
+      # The play mode tests in a Linux player built with IL2CPP (ProjectSettings: Standalone scripting backend 1) and
+      # Burst AOT, where the paths through the runtime's own collections and the Burst function pointers run as they do
+      # on devices. It runs after a failure of the editor's tests too, so one run shows both; the steps run one after
+      # the other, so the job still holds one seat at a time. The player itself runs outside ENGINE_LAUNCH_WRAPPER (under
+      # xvfb-run), bounded only by the step's timeout.
+      # With the benchmark, -ninoBenchmark builds the player without the Development flag and with the benchmark in it
+      # (Test.Editor.Burst.BenchmarkPlayerBuild). Code coverage stays on: it instruments only the editor's code, but
+      # game-ci CLI v0.1.72 rejects the --no-coverageEnabled that coverageEnabled: false passes to it.
+      - name: Run the IL2CPP player's tests
+        if: >-
+          success() || steps.playmode-tests.conclusion == 'failure' || steps.editmode-tests.conclusion == 'failure'
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        id: player-tests
+        # The benchmark's run adds a few minutes of timing to the player.
+        timeout-minutes: 35
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          ENGINE_LAUNCH_WRAPPER: timeout -k 60 20m
         with:
           projectPath: ./src/Nino.Unity
           testMode: standalone
@@ -257,9 +302,7 @@ jobs:
         continue-on-error: true
         with:
           name: test-results-unity-${{ matrix.unity }}
-          path: |
-            ./artifacts
-            ${{ steps.editor-tests.outputs.coveragePath }}
+          path: ./artifacts
           retention-days: 30
 
       - name: Check the benchmark ran
@@ -267,3 +310,87 @@ jobs:
         run: |
           echo "::error::The IL2CPP player's results hold no performance test result (see its log in test-results-unity-${{ matrix.unity }})"
           exit 1
+
+  # Nino.WebGL's WebAssembly SIMD kernels (Packages/com.jasonxudeveloper.nino/WebGL) in a WebGL player run in headless
+  # Chrome: the kernels against Nino.Core's scalar references, and every case's bytes with and without them; the
+  # benchmark's run also times each case both ways (artifact webgl-<version>). Unity 6 builds with WebAssembly 2023
+  # (SIMD on); 2022.3, which has no such setting, with -msimd128 passed to the compiler, as a project that opts in would.
+  webgl:
+    name: WebGL (${{ matrix.unity }})
+    needs: unity-tests
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    env:
+      # The player as it ships.
+      NINO_CONFIG: Release
+    strategy:
+      fail-fast: false
+      # One version after the other, as unity-tests: the build activates the license.
+      max-parallel: 1
+      matrix:
+        include:
+          - unity: '2022.3.62f2'
+            il2cpp_args: '--compiler-flags=-msimd128'
+          - unity: '6000.3.27f1'
+            il2cpp_args: ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || '' }}
+          persist-credentials: false
+
+      - *setup-dotnet
+
+      - *build-dlls
+
+      - name: Set the IL2CPP arguments
+        if: matrix.il2cpp_args != ''
+        env:
+          ARGS: ${{ matrix.il2cpp_args }}
+        run: |
+          sed -i "s|^  additionalIl2CppArgs:.*|  additionalIl2CppArgs: $ARGS|" src/Nino.Unity/ProjectSettings/ProjectSettings.asset
+          grep -q "additionalIl2CppArgs: $ARGS" src/Nino.Unity/ProjectSettings/ProjectSettings.asset
+
+      # Each Unity launch bounded, as in unity-tests (ENGINE_LAUNCH_WRAPPER there).
+      - name: Build the WebGL player
+        uses: game-ci/unity-builder@eb1b9fba120c6e62c9fb7a7a81d6c107ce004c45 # v6.0.0
+        timeout-minutes: 40
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          ENGINE_LAUNCH_WRAPPER: timeout -k 60 25m
+        with:
+          projectPath: ./src/Nino.Unity
+          targetPlatform: WebGL
+          unityVersion: ${{ matrix.unity }}
+          customImage: unityci/editor:ubuntu-${{ matrix.unity }}-webgl-3
+          buildMethod: Test.Editor.WebGL.WebGLBenchBuild.Build
+          customParameters: ${{ env.BENCHMARK == 'true' && '-ninoTiming' || '' }}
+          versioning: None
+          allowDirtyBuild: true
+          # unity-builder 6 runs the game-ci CLI, as unity-test-runner does: the same fixed release, since "latest"
+          # asks the GitHub API for it on every run.
+          cliVersion: 'v0.1.72'
+
+      - name: Run the player in headless Chrome
+        timeout-minutes: 10
+        run: |
+          sudo chmod -R a+rX src/Nino.Unity/Build
+          (cd src/Nino.Unity/Build/WebGL && python3 -m http.server 8123 > "$RUNNER_TEMP/http.log" 2>&1 &)
+          mkdir -p "$RUNNER_TEMP/pw"
+          (cd "$RUNNER_TEMP/pw" && npm init -y > /dev/null && npm install --no-audit --no-fund playwright-core@1.55.0 > /dev/null)
+          cp .github/scripts/webgl_run.mjs "$RUNNER_TEMP/pw/"
+          node "$RUNNER_TEMP/pw/webgl_run.mjs" http://localhost:8123/index.html 2400 | tee webgl.txt
+          # Both builds have SIMD: the kernels must be registered.
+          grep -q 'simd=True|registered=True' webgl.txt
+
+      - name: Upload the WebGL results
+        if: always() && env.BENCHMARK == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: webgl-${{ matrix.unity }}
+          path: webgl.txt
+          retention-days: 30

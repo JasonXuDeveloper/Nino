@@ -3,9 +3,8 @@
 > Read when: reading or changing anything in `src/Nino.Core` (the runtime: the public API, formatters, Reader/Writer, settings, polymorphism, pooling, the internal fast paths).
 
 The runtime every generated formatter calls, packed as `Nino.Serialization`; netstandard2.0, netstandard2.1 (Unity,
-.NET Framework: no hardware intrinsics), net8.0 and net10.0 (trimmable, NativeAOT compatible). The root CLAUDE.md's
-"Machine code" and "Security" sections apply to every read and write path here. `audit-core` audits this directory,
-`audit-security` its read paths, `optimize` their machine code.
+.NET Framework: no hardware intrinsics), net8.0 and net10.0 (trimmable, NativeAOT compatible).
+`audit-core` audits this directory, `audit-security` its read paths, `optimize` their machine code.
 
 When you add, rename or delete a file here, update its line (`tools/agents.sh --check` fails on a `.cs` file it does
 not find named here).
@@ -20,15 +19,16 @@ NinoDeserializer.cs          the public Deserialize<T> (a new value, or into an 
 NinoSettings.cs              every process-wide setting (MaxDepth, MaxCollectionLength, MaxHashCollisions, Untrusted,
                              pool sizes, SetRecycler<T>), plain fields frozen on first use (NinoLimits)
 NinoDataException.cs         the exception every check of the data throws (an InvalidOperationException)
-NinoKernels.cs               NinoKernels: native Permute / Narrow / Widen kernels the netstandard builds call when one is
-                             registered (Unity's Burst kernels), with their scalar forms; NinoKernelHook holds them
+NinoKernels.cs               NinoKernels: the function pointers of native Permute / Narrow / Widen / NarrowAscii /
+                             WidenAscii kernels the netstandard builds call when registered (Unity's Burst and WebGL
+                             kernels), with their scalar forms; NinoKernelHook holds them in static fields
 Properties.cs                [module: SkipLocalsInit]
 ```
 
 ## Attributes/
 
 ```
-NinoTypeAttribute.cs         [NinoType]: marks a type for the generator (autoCollect, containNonPublicMembers,
+NinoTypeAttribute.cs         [NinoType]: marks a type for the generator (autoCollect, includeNonPublicMembers,
                              allowInheritance, format, trackReferences)
 NinoFormat.cs                NinoFormat: Positional, VersionTolerant, Keyed (also compiled into the generator)
 NinoMemberAttribute.cs       [NinoMember(index)]: selects and orders members under [NinoType(false)]
@@ -38,7 +38,7 @@ NinoFormerNameAttribute.cs   [NinoFormerName]: a type's former name (its type id
 NinoConstructorAttribute.cs  [NinoConstructor]: the constructor deserialization uses
 NinoFactoryAttribute.cs      [NinoFactory]: a static method Nino calls to create an instance (a pool, ...)
 NinoPooledAttribute.cs       [NinoPooled]: the generator adds ReturnToPool() and pool hooks to a sealed class
-NinoCustomFormatterAttribute.cs  [NinoCustomFormatter(typeof(F))]: a member written by a formatter of the user's
+NinoMemberFormatterAttribute.cs  [NinoMemberFormatter(typeof(F))]: a member written by a formatter of the user's
 NinoFormatterAttribute.cs    [assembly: NinoFormatter(typeof(F<>))]: registers a struct formatter for the generator and
                              the runtime resolver alike (rules shared through NinoFormatterBinding)
 NinoCreatedAttribute.cs      [NinoCreated] on a formatter's type parameter: the formatter creates it (NinoActivator)
@@ -50,15 +50,20 @@ NinoTypeLayoutAttribute.cs   [assembly: NinoTypeLayout]: the published wire layo
 ## CompilerServices/ (public, for generated code)
 
 ```
-FormatterInterfaces.cs       INinoBodyFormatter<T> (+ NinoBody flags), INinoRawBodyFormatter<T>, INinoTopFormatter<T>
-                             (__Top twins), INinoFixedSizeFormatter<T>, INinoBlockFormatter<T>, INinoRawFormatter
-NinoObject.cs                header handling of generated class formatters: null flag / type id / reference header, then
-                             the body; the ...Raw forms write header and raw body into one reservation
-NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call)
+FormatterInterfaces.cs       INinoBodyFormatter<T> (+ NinoBodyTraits), INinoRawBodyFormatter<T>, INinoTopFormatter<T>
+                             (__Top twins), INinoFixedSizeFormatter<T>, INinoBlockFormatter<T>, INinoRawFormatter,
+                             INinoPrefetchFormatter (classes whose long collections prefetch, in a
+                             project built with NinoPrefetchLargeCollections)
+NinoPrefetched.cs            NinoPrefetched.At: the prefetch generated INinoPrefetchFormatter.PrefetchMembers calls
+NinoObject.cs                header handling of generated class formatters: presence byte / type id / reference header,
+                             then the body; the ...Raw forms write header and raw body into one reservation
+NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;
+                             ...Prefetched for arrays and lists of INinoPrefetchFormatter classes)
 NinoBlockMap.cs              NinoBlockMap (where a block's bytes lie in a value's memory) and NinoBlocks (constrained
                              calls on block formatters)
-NinoPolymorphicOf.cs         NinoPolymorphic<TBase>: the registry of a base type's subtypes by type id
-NinoRegistration.cs          [NinoGenerated] on an assembly and INinoRegistry (lazy registration by type id)
+NinoSubtypes.cs              NinoSubtypes<TBase>: the registry of a base type's subtypes by type id
+NinoGeneratedAttribute.cs    [NinoGenerated]: marks an assembly with generated code, names its registry
+INinoRegistry.cs             INinoRegistry: an assembly's generated registry (lazy registration by type id)
 NinoSubtypeHandler.cs        NinoSubtypeHandler: writes and reads one registered type; the registry's entry
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
 NinoUnsafe.cs                unaligned little-endian memory access, block copies (vector loops, paired loads),
@@ -72,7 +77,8 @@ NinoFormatter.cs             INinoFormatter<T>; NinoFormatter<T> and its struct 
                              FixedStructFormatter, TopStructFormatter, NestingFormatter), RawFormatter,
                              INinoSizedFormatter / NinoSized, CachedFormatter<T>
 NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (registered by generated code, else resolved);
-                             NinoRaw<T>, NinoTopFormatter<T>, NinoRawArray<T> as static readonly fields
+                             NinoRaw<T>, NinoTopFormatter<T>, NinoRawArray<T> as static readonly fields;
+                             NinoMissingFormatter<T> (the never-null stand-in of a type without one)
 NinoFormatterResolver.cs     builds formatter types by reflection for unregistered types, applying the
                              [NinoFormatter] registrations with the generator's rules
 BuiltInFormatters.cs         the [assembly: NinoFormatter] table of the BCL formatters below (generator and resolver read it)
@@ -88,8 +94,9 @@ CollectionFormatters.cs      ICollection<T>, HashSet, Queue, Stack, IProducerCon
                              NinoCollectionViews (reads into a Stack's or Queue's backing array)
 DictionaryFormatters.cs      Dictionary and derived, any IDictionary, dictionary interfaces, KeyValuePair
 InterfaceFormatters.cs       IEnumerable/IList/ICollection/IReadOnly* (read as List<T>), ISet/IReadOnlySet (HashSet<T>)
-BclCollectionPaths.cs        BclCollections / BclDictionaries: the runtime's own collections through their methods or
-                             fields (CollectionViews), with the general path's bytes; ReadLinked (LinkedList ring)
+BclCollections.cs            BclCollections: the runtime's own collections through their methods or fields
+                             (CollectionViews), with the general path's bytes; ReadLinked (LinkedList ring)
+BclDictionaries.cs           BclDictionaries: the runtime's own dictionaries likewise (Concurrent, Sorted*)
 BclTypeFormatters.cs         BigInteger, Uri, Version, StringBuilder, BitArray, CultureInfo, TimeZoneInfo, Lazy,
                              Memory / ReadOnlyMemory / ReadOnlySequence, IGrouping, ILookup, BlockingCollection
 PriorityQueueFormatter.cs    PriorityQueue (net8.0 and net10.0 builds only)
@@ -124,7 +131,8 @@ NinoUnknownIds.cs            type ids a polymorphic read did not find, cached so
 ```
 NinoActivator.cs             NinoActivator<T>: creates the instances Nino needs (a registered creator: the [NinoFactory]
                              method, else new T(); resolved by reflection for types generated code never saw)
-NinoPool.cs                  INinoPooled, NinoPool<T> (per-thread stacks over a shared one), NinoPoolLine
+NinoPool.cs                  INinoPooled, NinoPool<T> (per-thread stacks over a shared one); NinoPoolLine and
+                             NinoPoolThreadLine, the padded structs that keep its hot fields on a cache line of their own
 NinoRecycler.cs              NinoRecycler<T> / NinoRecycler: where reuse deserialization sends the instances it drops,
                              and the ownership rules of a formatter's Deserialize(ref T)
 ```
@@ -136,21 +144,29 @@ NinoThrow.cs                 throw helpers, out of line (NinoDataException for t
 NinoLimits.cs                the settings read paths check, frozen as static readonly fields
 NinoUntrusted.cs             the top-level reads in NinoSettings.Untrusted mode (trailing bytes, value checks)
 NinoChecks.cs                checks of values Nino never writes (bools other than 0 or 1) where each costs least
+NinoValueChecks.cs           the fields of a raw type Untrusted mode checks (bool, DateTime, decimal, DateOnly, TimeOnly,
+                             DateTimeOffset), checked a field at a time over a run of values, as vectors with periodic
+                             masks on .NET 8+
 NinoSeededHash.cs            SipHash-1-3 comparers for the tables Nino creates in Untrusted mode
 HashTables.cs                fills new HashSet / Dictionary entries and buckets directly, counting collisions
                              against MaxHashCollisions (Plan, TryFill, Insert, Added, Walk)
 ConcurrentTables.cs          the same for ConcurrentDictionary (mirror classes per runtime, Builder)
 NinoNesting.cs               which types can hold themselves through collections (they count depth per level)
 NinoHash.cs                  FNV-1a behind type ids and member keys (also compiled into the generator)
-NinoLayout.cs                canonical (64-bit CoreCLR) layout of raw structs, padding masks, conversion where the
-                             runtime differs (x86, Mono, IL2CPP); NinoLayout<T>, NinoMask
-NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout)
+NinoLayout.cs                canonical (64-bit CoreCLR) layout of raw structs, BCL structs inside them included (tuples,
+                             DateTimeOffset, nint), padding masks, conversion where the runtime differs (x86, Mono,
+                             IL2CPP, .NET Framework), offsets read from an instance (MeasureMemory); NinoLayout<T>, NinoMask
+NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout), CoreCLR's auto layout
+                             (PlaceAuto)
 NinoReflection.cs            what Nino.Core reads by reflection with the generator's rules (NinoType, raw, tracking)
 NinoFormatterBinding.cs      binding of [NinoFormatter] registrations, shared with the generator (INinoTypeSystem)
 NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed)
+NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
+                             length against the last-level cache, allocation order sampled), the loops in runs, the
+                             out-of-line helper per run
 NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
-NinoBlock.cs                 collections of INinoBlockFormatter values: whole-block reads and writes, vector groups
-NinoBlockPlan.cs             NinoBlock<T, TFormatter>: the per-type block plan (ReadPlan, LanePlan, KernelTables)
+NinoBlockCollections.cs      collections of INinoBlockFormatter values: whole-block reads and writes, vector groups
+NinoBlockPlan.cs             NinoBlockPlan<T, TFormatter>: the per-type block plan (ReadPlan, LanePlan, KernelTables)
 NinoBlockBytes.cs            a value's bytes matched to its block's, built once per type for the plans
 NinoLanes.cs                 how LanePlan moves a group: shuffles within 16-byte lanes (SSSE3, AVX2, Arm64, Wasm)
 NinoStrings.cs               the default string encoding (header, then Latin-1 or UTF-16 chars), FastAllocateString;
@@ -165,7 +181,8 @@ ListAccess.cs                a List<T>'s elements as a span (CollectionsMarshal,
 ObjectFields.cs              an object's fields at byte offsets
 ObjectTypes.cs               mirror-class instances retyped to the runtime's class (also compiled into Nino.Immutable)
 SortedSetNodes.cs            SortedSet<T> red-black trees built in one pass (SortedSetTrees, node layouts)
-ValueViews.cs                where value types' fields are on this runtime (DateTimeOffset)
+ValueViews.cs                where value types' fields are on this runtime (DateTimeOffset: UTC ticks, minutes and their
+                             width, found through its public API)
 ```
 
 ## Rules for these files

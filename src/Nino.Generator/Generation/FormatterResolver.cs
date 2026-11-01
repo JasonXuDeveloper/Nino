@@ -47,6 +47,9 @@ internal sealed class FormatterResolver
     private readonly ConcurrentDictionary<ITypeSymbol, ResolvedFormatter?> _plain = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ITypeSymbol, ResolvedFormatter?> _utf8 = new(SymbolEqualityComparer.Default);
 
+    /// <summary>The nesting formatters named so far (<see cref="NestingFormatter"/>), by name: their type and encoding.</summary>
+    private readonly ConcurrentDictionary<string, (ITypeSymbol Type, bool Utf8)> _nesting = new();
+
     [System.ThreadStatic] private static HashSet<ITypeSymbol>? t_resolving;
 
     public FormatterResolver(Compilation compilation, NinoSymbols symbols, RawRules raw, Visibility visibility)
@@ -64,14 +67,24 @@ internal sealed class FormatterResolver
     private static ResolvedFormatter CachedFormatter(ITypeSymbol type) =>
         new(Cached(type), false, WireEncoding.Type(type), Traits: FormatterTraitsOf.Of("CachedFormatter"));
 
-    public static FormatterRef GeneratedFormatter(INamedTypeSymbol type) =>
-        FormatterRef.Generic(TypeNames.Gen + TypeNames.FormatterName(type.OriginalDefinition),
-            TypeNames.AllTypeArguments(type).Select(FormatterRef.Of), generated: true);
+    /// <summary>
+    /// The generated formatter of <paramref name="type"/>: for a generic type, its type arguments and then the
+    /// formatter of each (<see cref="TypeNames.FormatterParameter"/>), resolved here as for a member of that type, or
+    /// <c>CachedFormatter&lt;T&gt;</c> where there is none (the runtime reports it when a value is written).
+    /// </summary>
+    public FormatterRef GeneratedFormatter(INamedTypeSymbol type)
+    {
+        var arguments = TypeNames.AllTypeArguments(type);
+        return FormatterRef.Generic(TypeNames.Gen + TypeNames.FormatterName(type.OriginalDefinition),
+            arguments.Select(FormatterRef.Of)
+                .Concat(arguments.Select(a => Resolve(a, false)?.Code ?? Cached(a))), generated: true);
+    }
 
     /// <summary>
     /// Returns the formatter for <paramref name="type"/>, or null if Nino cannot serialize it at all.
-    /// Type parameters (and <c>[NinoType]</c>s generated elsewhere) are resolved at runtime through
-    /// <c>CachedFormatter&lt;T&gt;</c>.
+    /// A type's type parameters are the formatter parameters its generated formatter declares
+    /// (<see cref="TypeNames.FormatterParameter"/>); a method's (and <c>[NinoType]</c>s generated elsewhere) are
+    /// resolved at runtime through <c>CachedFormatter&lt;T&gt;</c>.
     /// </summary>
     public ResolvedFormatter? Resolve(ITypeSymbol type, bool utf8)
     {
@@ -83,10 +96,10 @@ internal sealed class FormatterResolver
         var memo = utf8 ? _utf8 : _plain;
         if (memo.TryGetValue(type, out var formatter))
             return formatter;
-        // A collection of itself (class Tree : List<Tree>) reaches its own type again: resolve that at runtime.
+        // A collection of itself (class Tree : List<Tree>) reaches its own type again: its nesting formatter.
         var resolving = t_resolving ??= new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
         if (!resolving.Add(type))
-            return CachedFormatter(type);
+            return NestingFormatter(type, utf8);
         try
         {
             formatter = ResolveCore(type, utf8);
@@ -101,6 +114,62 @@ internal sealed class FormatterResolver
     }
 
     /// <summary>
+    /// The formatter of <paramref name="type"/> where its own formatter reaches it again (<c>class Tree :
+    /// List&lt;Tree&gt;</c>, <c>class Map : Dictionary&lt;string, Map&gt;</c>, no <c>[NinoType]</c> body in between): a
+    /// struct generated for it (<see cref="Nesting"/>) that counts the level (<c>EnterStruct</c>, as Nino.Core's
+    /// <c>NestingFormatter</c> does for the runtime's formatters) and calls that formatter, which names the struct
+    /// again for the next level. A type argument cannot name the formatter it is part of, and a named struct can:
+    /// every level is a direct call on every runtime, where <c>CachedFormatter&lt;T&gt;</c> made one through the
+    /// shared generic code's dictionary and a virtual one, and kept the element checks of the collection's formatter
+    /// from folding. <c>CachedFormatter&lt;T&gt;</c> stays for types generated code cannot name in a struct of its own
+    /// (open, inaccessible) and for value types, which the runtime does not count either.
+    /// </summary>
+    private ResolvedFormatter NestingFormatter(ITypeSymbol type, bool utf8)
+    {
+        if (type is not INamedTypeSymbol { TypeKind: TypeKind.Class } named || TypeNames.ContainsTypeParameter(type) ||
+            !_visibility.CanName(type))
+            return CachedFormatter(type);
+        string global = TypeNames.Global(named);
+        string name = TypeNames.FormatterName(named.OriginalDefinition);
+        name = name.Substring(0, name.Length - "Formatter".Length) +
+               $"_{TypeNames.ComputeId(utf8 ? global + " utf8" : global):X8}Nesting";
+        _nesting.TryAdd(name, (type, utf8));
+        return CachedFormatter(type) with
+        {
+            Code = FormatterRef.Named(TypeNames.Gen + name), Traits = FormatterTraits.None,
+        };
+    }
+
+    /// <summary>
+    /// The nesting formatters (<see cref="NestingFormatter"/>) that <paramref name="code"/> (generated code naming
+    /// formatters) names, with the ones their formatters name in turn, sorted by name: what the assembly declares
+    /// for it.
+    /// </summary>
+    public EquatableArray<NestingModel> Nesting(IEnumerable<string> code)
+    {
+        if (_nesting.IsEmpty)
+            return EquatableArray<NestingModel>.Empty;
+        var found = new SortedDictionary<string, NestingModel>(System.StringComparer.Ordinal);
+        var pending = new Stack<string>(code);
+        while (pending.Count != 0)
+        {
+            string text = pending.Pop();
+            foreach (var entry in _nesting)
+            {
+                if (found.ContainsKey(entry.Key) ||
+                    text.IndexOf(TypeNames.Gen + entry.Key, System.StringComparison.Ordinal) < 0)
+                    continue;
+                // Null when no rule binds the type after all (its elements did): written as its formatter would be.
+                string body = (Resolve(entry.Value.Type, entry.Value.Utf8)?.Code ?? Cached(entry.Value.Type)).ToString();
+                found.Add(entry.Key, new NestingModel(entry.Key, TypeNames.Global(entry.Value.Type), body));
+                pending.Push(body);
+            }
+        }
+
+        return new EquatableArray<NestingModel>(found.Values);
+    }
+
+    /// <summary>
     /// The collection formatter of a <c>[NinoType]</c> class that is also a collection (derived from
     /// <c>List&lt;T&gt;</c>, implementing <c>ICollection&lt;T&gt;</c>...), used for its elements; null if none.
     /// </summary>
@@ -110,8 +179,15 @@ internal sealed class FormatterResolver
     {
         switch (type)
         {
-            case ITypeParameterSymbol:
-                return CachedFormatter(type);
+            // The formatter the generated formatter in scope takes for it; a method's type parameter at run time.
+            case ITypeParameterSymbol p:
+                return TypeNames.HasFormatterParameter(p)
+                    ? CachedFormatter(type) with
+                    {
+                        Code = new FormatterRef(TypeNames.FormatterParameter(p.Name),
+                            EquatableArray<FormatterRef>.Empty, false, true),
+                    }
+                    : CachedFormatter(type);
             case IArrayTypeSymbol array:
                 return FirstMatch(_rules.ForArray(array.IsSZArray ? 1 : -array.Rank), type, utf8);
             case INamedTypeSymbol named:

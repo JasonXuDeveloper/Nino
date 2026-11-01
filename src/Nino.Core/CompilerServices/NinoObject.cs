@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Nino.Core.Internal;
 
@@ -7,7 +8,7 @@ namespace Nino.Core.CompilerServices
     /// Header handling for generated class formatters. A generated formatter implements
     /// <see cref="INinoBodyFormatter{T}"/> and forwards <c>Serialize</c>/<c>Deserialize</c> to one of these.
     /// </summary>
-    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static class NinoObject
     {
         /// <summary>
@@ -30,7 +31,7 @@ namespace Nino.Core.CompilerServices
                 return;
             }
 
-            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
+            if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
             {
                 default(TFormatter).WriteBody(sub, ref writer);
                 return;
@@ -205,7 +206,7 @@ namespace Nino.Core.CompilerServices
             int depth = reader.Depth;
             if (depth >= NinoDepth.Inline)
             {
-                if ((default(TFormatter).Traits & NinoBody.Deferrable) != 0)
+                if ((default(TFormatter).Traits & NinoBodyTraits.Deferrable) != 0)
                 {
                     if (value == null)
                         value = default(TFormatter).Create();
@@ -216,7 +217,7 @@ namespace Nino.Core.CompilerServices
                 return;
             }
 
-            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
+            if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
             {
                 default(TFormatter).ReadBody(ref value, ref reader);
                 return;
@@ -243,7 +244,7 @@ namespace Nino.Core.CompilerServices
                 return;
             }
 
-            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
+            if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
             {
                 // Nothing nests in this body: the depth it would count is seen by no other body.
                 default(TFormatter).WriteBody(value, ref writer);
@@ -261,7 +262,7 @@ namespace Nino.Core.CompilerServices
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
-            if ((default(TFormatter).Traits & NinoBody.Deferrable) != 0)
+            if ((default(TFormatter).Traits & NinoBodyTraits.Deferrable) != 0)
             {
                 writer.DeferBody<T, TFormatter>(value);
                 return;
@@ -304,7 +305,7 @@ namespace Nino.Core.CompilerServices
             int depth = reader.Depth;
             if (depth >= NinoDepth.Inline)
             {
-                if ((default(TFormatter).Traits & NinoBody.Deferrable) != 0)
+                if ((default(TFormatter).Traits & NinoBodyTraits.Deferrable) != 0)
                 {
                     // The instance is created here and passed by value: a local whose address reaches a call is
                     // an untracked GC slot, zeroed in the prolog and again after every inlined copy of this path
@@ -328,7 +329,7 @@ namespace Nino.Core.CompilerServices
                 return;
             }
 
-            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
+            if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
             {
                 // Nothing nests in this body: the depth it would count is seen by no other body.
                 default(TFormatter).ReadBody(ref value, ref reader);
@@ -420,7 +421,7 @@ namespace Nino.Core.CompilerServices
             where TFormatter : struct, INinoBodyFormatter<T>
         {
             if (!TryWriteOwn<T, TFormatter>(value, ref writer))
-                NinoPolymorphic<T>.Serialize(value, ref writer);
+                NinoSubtypes<T>.Serialize(value, ref writer);
         }
 
         /// <summary><see cref="Serialize{T,TFormatter}"/> of a class whose body is one raw block.</summary>
@@ -430,7 +431,7 @@ namespace Nino.Core.CompilerServices
             where TFormatter : struct, INinoRawBodyFormatter<T>
         {
             if (!TryWriteOwnRaw<T, TFormatter>(value, ref writer))
-                NinoPolymorphic<T>.Serialize(value, ref writer);
+                NinoSubtypes<T>.Serialize(value, ref writer);
         }
 
         /// <summary>Non-sealed class: reads what <see cref="Serialize{T,TFormatter}"/> wrote.</summary>
@@ -441,7 +442,7 @@ namespace Nino.Core.CompilerServices
         {
             int id = reader.UnsafeRead<int>();
             if (!TryReadOwn<T, TFormatter>(id, ref value, ref reader))
-                NinoPolymorphic<T>.Deserialize(id, ref value, ref reader);
+                NinoSubtypes<T>.Deserialize(id, ref value, ref reader);
         }
 
         /// <summary>
@@ -456,7 +457,7 @@ namespace Nino.Core.CompilerServices
         {
             if (value.GetType() != typeof(T))
             {
-                NinoPolymorphic<T>.SerializeReferenced(value, ref writer);
+                NinoSubtypes<T>.SerializeReferenced(value, ref writer);
                 return;
             }
 
@@ -472,10 +473,10 @@ namespace Nino.Core.CompilerServices
         {
             int id = reader.UnsafeRead<int>();
             if (!TryReadOwn<T, TFormatter>(id, ref value, ref reader))
-                NinoPolymorphic<T>.DeserializeReferenced(id, ref value, ref reader);
+                NinoSubtypes<T>.DeserializeReferenced(id, ref value, ref reader);
         }
 
-        /// <summary>Sealed class: 1-byte null flag, then the body.</summary>
+        /// <summary>Sealed class: a presence byte, then the body.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SerializeSealed<T, TFormatter>(T value, ref Writer writer)
             where T : class
@@ -573,7 +574,7 @@ namespace Nino.Core.CompilerServices
         /// <summary>
         /// Generated <c>__Top</c> formatters: <see cref="SerializeSealed{T,TFormatter}"/> with a writer that the
         /// top-level call just created (no body open, so none is deferred), for a body that opens no class body
-        /// (no <see cref="NinoBody.Nests"/>): the depth stays 0. Little IL: inlined into the caller
+        /// (no <see cref="NinoBodyTraits.Nests"/>): the depth stays 0. Little IL: inlined into the caller
         /// with the body, it leaves the JIT's inlining budget to the body's own helpers.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

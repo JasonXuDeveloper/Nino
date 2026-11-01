@@ -74,7 +74,7 @@ hosts are not supported: `Writer`/`Reader` throw `PlatformNotSupportedException`
 | --- | --- |
 | Unmanaged value (`int`, `Guid`, unmanaged structs, enums) | raw bytes, `Unsafe.SizeOf<T>()` |
 | `bool` | 1 byte (0/1) |
-| `T?` (nullable value type) | 1 byte has-value flag, then the value if present |
+| `T?` (nullable value type) | a presence byte, then the value if present |
 | Collection / array length | `int32`; `-1` means `null` |
 | `string` (default) | header (1, 3 or 5 bytes, minimal: the value itself up to 127, else `0x80` and a `u16`, else `0x81` and a `u32`): `0` = null; `2n + 1` (odd, `1` = empty) then `n` Latin-1 bytes when every char is at most U+00FF; else `2n` then `n` UTF-16 code units (see below) |
 | `string` with `[NinoUtf8]` | char count plus one as a header (`0` = null, `1` = empty; nothing follows either), then the byte count as a header and the UTF-8 bytes (see below) |
@@ -140,13 +140,13 @@ members first. Consecutive unmanaged members are written as one block
 
 The serialized members are the type's fields and properties (its own and its `[NinoType]` bases'):
 
-* Public ones, and non-public ones with `containNonPublicMembers` (private members of a base class are never
+* Public ones, and non-public ones with `includeNonPublicMembers` (private members of a base class are never
   part of a subtype). Properties need a getter and a setter (`set` or `init`).
 * Get-only auto-properties (`public int Id { get; }`) only when a constructor (or `[NinoConstructor]` factory)
   takes them: a parameter of the same name, ignoring case, or a name the `[NinoConstructor]` lists. Nothing
   else can restore them, so otherwise they are skipped.
 * Explicit interface implementations (`int IHasId.Id { get; set; }`) never, even with
-  `containNonPublicMembers`: they have no name generated code can use on the type. A `[NinoType]` interface
+  `includeNonPublicMembers`: they have no name generated code can use on the type. A `[NinoType]` interface
   serializes its own members through the implementing type's members of the same name.
 * An `override` is the member it overrides, collected once with the base. A member hiding a base member with
   `new` is another member: both are serialized, the base one first. Generated code reaches the hidden one
@@ -228,7 +228,7 @@ at any depth.
 
 * One length per object, whatever the depth of the hierarchy (earlier v4 builds wrote one length per level:
   `header | { int32 levelLength | level members... } per level`). Example, a sealed `Leaf : Base` with
-  `Base { int A; }` and `Leaf { int B; }`, `A = 1, B = 7` (after the not-null flag `01`):
+  `Base { int A; }` and `Leaf { int B; }`, `A = 1, B = 7` (after the presence byte `01`):
 
   ```
   per level (old):   01 | 04000000 01000000 | 04000000 07000000
@@ -424,12 +424,13 @@ deserialization.
 * **Generated formatters** are structs in `<Assembly>.NinoGen`, one per `[NinoType]`. Members call
   their formatter as `default(TFormatter).Serialize(...)`, which is a direct, inlinable call.
 * **`CachedFormatter<T>`** is a struct that forwards to the formatter `NinoFormatterCache<T>` holds (an internal
-  `NinoFormatter<T>` class wrapping the struct formatter). It is used for type parameters of generic `[NinoType]`s,
-  for types from other assemblies, and for types resolved at runtime. It costs one virtual call.
-* **Custom formatters**: `[NinoCustomFormatter(typeof(F))]`, where `F` is a struct implementing `INinoFormatter<T>`
+  `NinoFormatter<T>` class wrapping the struct formatter). It is used for type parameters of generic methods, for
+  `[NinoType]`s from other assemblies, for types that hold themselves, and for types resolved at runtime. It costs
+  one virtual call.
+* **Custom formatters**: `[NinoMemberFormatter(typeof(F))]`, where `F` is a struct implementing `INinoFormatter<T>`
   for exactly the member type (NINO008 otherwise), called as `default(F)` and inlined. Every formatter a user
   writes is a struct: `NinoFormatter<T>` is only the runtime dispatch carrier and is internal. There is no
-  run-time registration API: formatters are declared with `[assembly: NinoFormatter]` or `[NinoCustomFormatter]`.
+  run-time registration API: formatters are declared with `[assembly: NinoFormatter]` or `[NinoMemberFormatter]`.
 
 ### Formatter registrations
 
@@ -511,7 +512,7 @@ and readers never lock. A registered formatter never changes, except when its as
 `NinoRegistry.Remove(assembly)` lets a collectible `AssemblyLoadContext` unload an assembly with generated code
 (issue #199). Every static cache keyed by `Type` (the registries, the resolver's scanned assemblies and
 `[assembly: NinoFormatter]` rules, `NinoFormatterCache` registrations, boxed formatters, type ids, raw layouts and
-the `NinoPolymorphic<TBase>` tables) drops the entries whose type mentions the assembly, including arrays and
+the `NinoSubtypes<TBase>` tables) drops the entries whose type mentions the assembly, including arrays and
 generics built from its types. Generic statics closed over its types (`NinoFormatterCache<T>.Instance`) belong to
 the collectible loader allocator and go with it. The net8.0/net10.0 builds of Nino.Core call `Remove` from the
 context's `Unloading` event, hooked when the assembly registers; the netstandard builds cannot reference
@@ -519,9 +520,9 @@ context's `Unloading` event, hooked when the assembly registers; the netstandard
 
 ### Polymorphism
 
-Every `[NinoType]` registers one handler, once, in the global (`NinoPolymorphic<object>`) registry, from the
+Every `[NinoType]` registers one handler, once, in the global (`NinoSubtypes<object>`) registry, from the
 generated code of its own assembly. Registration is decentralized, so the generator never scans referenced
-assemblies. Each base type (non-sealed class or interface) has its own `NinoPolymorphic<TBase>` table, which
+assemblies. Each base type (non-sealed class or interface) has its own `NinoSubtypes<TBase>` table, which
 adopts a subtype from the global registry on its first lookup after checking that it derives from `TBase`.
 Registering per type instead of per (base, subtype) pair keeps generated code linear in the number of types
 rather than in the sum of hierarchy depths, and avoids one generic instantiation per pair.
@@ -562,7 +563,7 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
     are all raw values, see `INinoRawBodyFormatter<T>`) is written by `NinoObject.WriteExactRaw`: one capacity
     check (`Reserve`) for its type id and body together, then constant-offset stores, instead of one check for the
     id and another for the body. The same merge applies where the formatter writes its own subtype (`TryWriteOwnRaw`,
-    `SerializeRaw`, `SerializeSealedRaw`: id or null flag with the body) and to the top-level twins
+    `SerializeRaw`, `SerializeSealedRaw`: id or presence byte with the body) and to the top-level twins
     (`SerializeTopRaw`). The bytes are the same; the deep path (nesting at `NinoDepth.Inline`) is unchanged.
 * **Serialize (registry)**: other subtypes (other assemblies, generic subtypes, tracked types, more than 64): look up
   the runtime type in a lock-free open-addressing table and call the subtype's body serializer through its
@@ -622,9 +623,12 @@ Cache-line reasoning assumes 64-byte lines.
   (it follows a struct, `n + NinoUnsafe.SizeOf<S>()`) made the reference a temporary and cost an `lea`/`add` per
   member (x64 and ARM64).
 * `NinoPool<T>` reads its generation (and warmup flag) on every take and add. They sit on a 64-byte line of their
-  own (`NinoPoolLine`, a non-generic explicit-layout base class, since generic classes cannot have one: 56 bytes
-  of padding before and after), away from the shared stack's count and lock, which batch transfers write, and
-  from neighbouring objects. Measured with 4 threads churning 100 instances each, the cost there is the lock
+  own (`NinoPoolLine`, a struct field with an explicit layout and 64 bytes of padding on each side, so the line
+  stays clear wherever the runtime places the struct among the pool's fields; a base class did not: CoreCLR put the
+  derived class's `_count` directly after the base's last padding byte, on the line of `Filled` whenever the object's
+  fields started on a 64-byte boundary), away from the shared stack's count and lock, which batch transfers write, and
+  from neighbouring objects. A thread stack's count and generation, written on every take and add, are padded the
+  same way (`NinoPoolThreadLine`), so another thread's stack never shares their line. Measured with 4 threads churning 100 instances each, the cost there is the lock
   itself; the padding is kept so the fast path never shares a line with a writer.
 * No static field is written on a hot path: formatter instances, `NinoRecycler.PoolsInUse`
   are written once; scratch buffers and reference tables are thread-static.
@@ -707,7 +711,7 @@ serialization call on any thread.
 | Setting | Meaning |
 | --- | --- |
 | `SetRecycler<T>(Action<T>)` | handler for instances dropped from slots declared as `T` (null removes it) |
-| `DefaultPoolMaxRetained` | shared-stack size of pools created from now on (default 256) |
+| `PoolMaxRetained` | shared-stack size of pools created from now on (default 256) |
 | `SetPoolMaxRetained<T>(int)` | shared-stack size of `T`'s pool |
 | `MaxDepth` | open bodies (classes, and structs and collections that can hold themselves) a read or write may nest (default 512, at least 128) |
 | `MaxCollectionLength` | the most elements a collection in the data may claim (default `int.MaxValue`; the bytes left bound it anyway) |
@@ -890,10 +894,10 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 * **Fixed-size types.** A generated struct, or sealed class, whose members are all unmanaged portable values or
   such structs (not raw itself, not version tolerant, keyed, tracked or a collection, no custom formatters) is
   written in the same number of bytes for every value. Its formatter also implements `INinoFixedSizeFormatter<T>`
-  (`FixedSize`, and `WriteFixed(value, ref byte destination)`, which stores each member at a constant offset), and
+  (`FixedSize`, and `WriteFixed(in value, ref byte destination)`, which stores each member at a constant offset), and
   `NinoSerializer.Serialize(T)` returning `byte[]` is intercepted to `NinoDirect.SerializeFixed<T, TFormatter>`:
   it allocates the array at its final size and writes into it, with no writer, scratch buffer, growth checks or
-  final copy. A null sealed class is its null flag, `new byte[1]`. The regular call does the same through the
+  final copy. A null sealed class is its presence byte, `new byte[1]`. The regular call does the same through the
   cached formatter (`NinoFormatter<T>.FixedSize`, a constant check in Tier1 code), and
   `NinoSerializer.GetFixedSize<T>()` returns the size (raw values: their size; -1 when not fixed). The bytes are the
   regular writer's. Measured (x64, a 10-member struct of 30 bytes, `Serialize(T)` to `byte[]`): 216 → 108
@@ -904,13 +908,14 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 * **Block formatters.** A fixed-size generated struct (above) whose bytes can all be found in its memory (every
   instance field a member, or an auto-property's backing field, each directly assignable, no `[NinoConstructor]`, and
   each member raw and portable, a value tuple or `KeyValuePair` of such items, or another such struct) also implements
-  `INinoBlockFormatter<T>` (`BlockSize`, `BlockMap()`, `WriteBlock`, `ReadBlock`; the model's `TypeModel.Block`,
-  `TypeFacts.IsBlock`), as the tuple and pair formatters of Nino.Core do. Arrays, lists and spans of it then take the
-  paths of `NinoBlock<T, TFormatter>`: one bounds check for the collection, and where the block map gives every wire
+  `INinoBlockFormatter<T>`, which extends `INinoFixedSizeFormatter<T>` with `BlockMap()` and `ReadBlock` (the model's
+  `TypeModel.Block`, `TypeFacts.IsBlock`), as the tuple and pair formatters of Nino.Core do (their `FixedSize` is -1
+  when an item is not raw). One write serves both: a block is the bytes of `WriteFixed`. Arrays, lists and spans of it then take the
+  paths of `NinoBlockPlan<T, TFormatter>`: one bounds check for the collection, and where the block map gives every wire
   byte one memory byte (`NinoBlockMap.Runs`) the vector shuffles and permutes (AVX-512 VBMI groups and 64-byte
   permutes, AVX2 or SSSE3 lanes, Arm64 `tbl`, WebAssembly's swizzle; with VBMI, values of more than 16 bytes in
   memory, which its groups and permutes do not take, are written in the AVX2 lane plan's partial groups); elsewhere (no SIMD, a map that overlaps, Mono,
-  .NET Framework and the netstandard builds of Nino.Core) the scalar loop of `WriteBlock`/`ReadBlock`, inlined, one
+  .NET Framework and the netstandard builds of Nino.Core) the scalar loop of `WriteFixed`/`ReadBlock`, inlined, one
   value after another, unless kernels are registered (below). `BlockMap()` is built once per type from `NinoBlockMap` (`Raw<TItem>(memory, wire)` for a raw
   item, `Block<TItem, TFormatter>` for a nested block, whose map is merged); the memory offset of a field is
   `NinoBlocks.Offset`, of an auto-property's backing field (which generated code cannot name) `NinoBlocks.Find`, which
@@ -919,16 +924,16 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   byte, so they are not of fixed size. The bytes are those of the values written one at a time.
 * Reads of blocks keep every check a value's own read makes. The `bool` offsets of a block (`NinoBlockMap`, from its
   `bool` items) are checked over the whole collection before the vector paths move the bytes (`NinoChecks.Bools` with
-  the block's stride, out of line, `NinoBlock.CheckBools`): the shuffles copy bytes without looking at them, so a
+  the block's stride, out of line, `NinoBlockCollections.CheckBools`): the shuffles copy bytes without looking at them, so a
   `(bool, int)[]` read as blocks accepted a bool byte of 2 on the vector paths and rejected it on the scalar ones.
   With `NinoSettings.Untrusted`, a block with values to check (`NinoLayout<T>.Checks`, a `DateTime` member) is read
-  one value at a time through its formatter (`NinoBlock<T, TFormatter>.ReadSize` is -1), as raw structs are.
+  one value at a time through its formatter (`NinoBlockPlan<T, TFormatter>.ReadSize` is -1), as raw structs are.
 * **Native AOT.** ILC compiles x64 code for its baseline (SSE2) and emits a later instruction set only inside that
   set's `IsSupported` test, which it compiles to a check at run time for the sets it may use when present (SSSE3 and
   SSE4.1 among them) and to false for the others (AVX and later), unless `IlcInstructionSet` raises the baseline. The plans of
-  `NinoBlock<T, TFormatter>` are chosen at run time from `Ssse3.IsSupported`, `Avx2.IsSupported` and so on, so every
+  `NinoBlockPlan<T, TFormatter>` are chosen at run time from `Ssse3.IsSupported`, `Avx2.IsSupported` and so on, so every
   instruction a plan leads to is written as that set's own intrinsic under its own test
-  (`NinoBlock<T, TFormatter>.Shuffle`: `Ssse3.Shuffle`, `AdvSimd.Arm64.VectorTableLookup`, `PackedSimd.Swizzle`),
+  (`NinoBlockPlan<T, TFormatter>.Shuffle`: `Ssse3.Shuffle`, `AdvSimd.Arm64.VectorTableLookup`, `PackedSimd.Swizzle`),
   never as a cross-platform API whose form ILC picks from the baseline: `Vector128.ShuffleNative` was compiled to its
   software form while the plan said SSSE3. The JIT folds each test to a constant, so its code is the same either way.
   `tests/Nino.AotTests` checks that the shuffle is `pshufb` under Native AOT. The AVX2 and AVX-512 paths run there
@@ -936,18 +941,32 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   every path.
 * **Kernels for the netstandard builds.** The netstandard builds have no hardware intrinsics, so on Unity (Mono,
   IL2CPP, HybridCLR) and .NET Framework the block paths above, the masked copy of raw structs with padding
-  (`NinoMask.Copy`) and the narrowing and widening of Latin-1 text (`NinoStrings.NarrowWords`/`WidenWords`) are scalar.
-  `NinoKernels` (public, netstandard builds only) lets a host register native kernels for them: `Permute` (a byte
-  table per value, 0xFF for a zero byte; strides 1 to 64), `Narrow`, `Widen`. Nino calls them for runs of at least
-  `MinBlocks` values or `MinChars` chars, from the paths that are already out of line, after one static load and
-  compare (`NinoKernelHook`), and checks bools before a kernel reads blocks. The tables are built once per type, in
+  (`NinoMask.Copy`) and the narrowing and widening of Latin-1 text (`NinoStrings.NarrowWords`/`WidenWords`) are scalar,
+  except where `System.Numerics.Vector<T>` is fast for the operation. The text uses `Vector.Narrow`/`Widen` on .NET
+  Framework and .NET Core where the JIT accelerates them (`NinoUnsafe.NumericVectors`), never on Mono: classic Mono's
+  JIT (mono/mono 6.x, Unity's fork) accelerates only `Vector<T>`'s own operators, constructors, `Equals` and `CopyTo`,
+  and runs `Narrow` and `Widen` in software, over ten times slower than the scalar loops. The masked copy uses loads,
+  stores and `&` of `Vector<byte>` there and also on classic Mono with the System.Numerics.Vectors package
+  (`NinoUnsafe.VectorMasks`), where that `Vector<T>` is compiled to SSE; never where `Vector<T>` is Mono's own (in
+  mscorlib, Unity included), which no Mono JIT accelerates.
+  `NinoKernels` (public, netstandard builds only) lets a host register native kernels for them, as a table of
+  `delegate* unmanaged[Cdecl]` function pointers with two thresholds: `Permute` (a byte table per value, 0xFF for a
+  zero byte; strides 1 to 64), `Narrow`, `Widen`, and for `[NinoUtf8]` strings `NarrowAscii` and `WidenAscii`, which
+  move the leading ASCII text and return how much there was (the encoder and the strict decoder do the rest from the
+  first other char or byte, which starts a char, so what is accepted and rejected does not change). `Register` copies
+  each pointer into a static field of `NinoKernelHook` and sets its threshold (`MinBlocks` values or `MinChars`
+  chars; int.MaxValue for a null pointer, which is never called): a call site tests one static int, then loads the
+  pointer, tests it for null and calls it (`calli`), with no object and no virtual call. Nino calls them from the paths
+  that are already out of line and checks bools before a kernel reads blocks. The tables are built once per type, in
   unmanaged memory. A kernel must write the bytes of its scalar reference (`PermuteScalar`, `NarrowScalar`,
-  `WidenScalar`); `KernelHookTests` registers those references through the hook. The Unity package registers
-  Burst-compiled kernels (`Nino.Burst`, compiled only with `com.unity.burst` installed): SSSE3 on x86 and x64, Neon
-  on AArch64, called through Burst function pointers; Armv7, WebGL and players where Burst does not run register none.
-  A player's kernels are compiled ahead of time for the CPU targets in Burst's AOT settings (on x64 by default SSE2
-  and SSE4, chosen at startup), so each intrinsic sits under its own `IsXxxSupported` test (Burst error BC1200
-  otherwise); a CPU without SSSE3 registers none.
+  `WidenScalar`, `NarrowAsciiScalar`, `WidenAsciiScalar`); `KernelHookTests` registers those references through the
+  hook ([UnmanagedCallersOnly]). The Unity package registers Burst-compiled kernels (`Nino.Burst`, compiled only with
+  `com.unity.burst` installed): SSSE3 on x86 and x64, Neon on AArch64, Burst's function pointers handed over as they
+  are; WebGL players built with SIMD register the same kernels in C (`Nino.WebGL`, `nino_wasm.c`, whose
+  `nino_wasm_kernels` hands out their pointers once). Armv7 and IL2CPP or Mono players without Burst register none
+  and keep the scalar paths. A player's kernels are compiled ahead of time for the CPU targets in Burst's AOT settings
+  (on x64 by default SSE2 and SSE4, chosen at startup), so each intrinsic sits under its own `IsXxxSupported` test
+  (Burst error BC1200 otherwise); a CPU without SSSE3 registers none.
   The .NET 8 and 10 builds have no hook (`#if !NET8_0_OR_GREATER`).
 * A sealed class with a small body that opens no class body (at most eight members, one or two of which call
   formatters) also gets a `__Top` twin of its formatter, whose body is inlined into the caller, so the reader or writer
@@ -975,10 +994,10 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   `WriteMembers`) reserves the region's length and those members together (`Writer.BeginRegion(size, out
   lengthPosition)`): one capacity check instead of two.
 * Body formatters report whether they open class bodies and can be read later in one `Traits` property
-  (`NinoBody.Nests | NinoBody.Deferrable`, constants the JIT folds), not two, and the registration of each type
-  (`TryRegister`/`TryRegisterTop`/`TryRegisterFixed` and `NinoPolymorphic.Register`) is emitted straight into the
-  assembly's registry instead of a `__Register()` method per formatter called from it: fewer members per type for
-  the compiler to bind and emit (see `v4-benchmarks.md`, compile time).
+  (`NinoBodyTraits.Nests | NinoBodyTraits.Deferrable`, constants the JIT folds), not two, and the registration of
+  each type (`TryRegister`/`TryRegisterTop`/`TryRegisterFixed` and `NinoPolymorphic.Register`) is emitted straight
+  into the assembly's registry instead of a `__Register()` method per formatter called from it: fewer members per type
+  for the compiler to bind and emit (see `v4-benchmarks.md`, compile time).
 
 ### The API generated code calls
 
@@ -988,7 +1007,7 @@ Generated formatters call Nino.Core directly: `Writer`/`Reader`, the built-in fo
 (and Nino's own packages: Nino.Immutable, Nino.UnityTypes) live in the namespace `Nino.Core.CompilerServices`, folder
 `CompilerServices/`: `NinoObject`, `NinoDirect`, `NinoUnsafe`, `INinoBodyFormatter<T>`, `INinoTopFormatter<T>`,
 `INinoRawBodyFormatter<T>`, `INinoFixedSizeFormatter<T>`, `INinoBlockFormatter<T>` with `NinoBlockMap` and `NinoBlocks`,
-`INinoRawFormatter`, `NinoBody`, `NinoPolymorphic<TBase>`
+`INinoRawFormatter`, `NinoBodyTraits`, `NinoSubtypes<TBase>`
 and the `NinoSubtypeHandler` it returns, `[NinoGenerated]`, `INinoRegistry` and `NinoEffectiveSettings`. The name
 says who calls them: user code never needs a `using` for it, generated code names them with `global::`, and a
 namespace of their own keeps them out of completion lists and away from user types of the same name (Nino.AspNetCore's
@@ -1050,10 +1069,15 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
 ### Generated code per type
 
 * `struct <Name>Formatter : INinoFormatter<T>` with `Serialize`, `Deserialize`, `WriteBody`, `ReadBody`.
-* Generic `[NinoType]`s produce generic formatters (one per definition, not one per closed type).
-  Type-parameter members use `CachedFormatter<T>`.
+* Generic `[NinoType]`s produce generic formatters (one per definition, not one per closed type) that take the
+  formatter of each type parameter too: `Box<T>`'s is `Box_1Formatter<T, __F_T> where __F_T : struct,
+  INinoFormatter<T>`, and a member of type `T` calls `default(__F_T)`. A closed type names its arguments' formatters
+  (`Box_1Formatter<int, UnmanagedFormatter<int>>`), chosen as for a member of that type, so every member is a direct
+  call on every runtime (`CachedFormatter<T>` is a virtual call that only RyuJIT devirtualizes); the runtime resolver
+  binds them the same way for closed types the generator did not see.
 * Private members use `[UnsafeAccessor]` when the compilation targets .NET 8+ (generic types: .NET 9+, declared
-  in the generic formatter, whose type parameters are the type's; a member of a generic base qualifies when the
+  in a class next to the generic formatter, `__NinoAccessors_<Formatter><T...>`, whose type parameters are exactly
+  the type's, as the runtime requires; a member of a generic base qualifies when the
   base's type arguments are the type's first type parameters in order), and generated `partial` accessors
   otherwise. The form is chosen from the compilation's preprocessor symbols (`NET8_0_OR_GREATER`,
   `NET9_0_OR_GREATER`); the output has no `#if`.
@@ -1064,7 +1088,7 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   boundary would otherwise be written as one block, since splitting that block costs an extra reservation.
 * `[assembly: NinoTypeLayout(typeof(T), format, header, trackReferences, raw, typeId, "members", Deferrable = ...)]`
   publishes what the formatter writes (issue #197): whether a body nested past `NinoDepth.Inline` is deferred (the
-  formatter's `NinoBody.Deferrable` trait, which readers in other languages need), and each member as
+  formatter's `NinoBodyTraits.Deferrable` trait, which readers in other languages need), and each member as
   `name:type:encoding` (keyed members add `:key=0x...`).
   The encoding describes the bytes, not the formatter class (`WireEncoding`, computed by `FormatterResolver` next
   to each formatter): `string`, `utf8`, `object`, `type(T)` for a `[NinoType]`, `nullable(E)`, `seq(E)`,

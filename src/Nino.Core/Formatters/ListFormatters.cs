@@ -108,10 +108,13 @@ namespace Nino.Core
             // Bools too: ReadUnmanagedRaw checks them (NinoLayout<T>.CopiesAsIs).
             if (!ListAccess.Direct || !NinoLayout<T>.CopiesAsIs)
             {
-                var list = value ??= ListAccess.CreateOverwritten<TList, T>(length, uninitialized: true);
+                // The read checks bools and Untrusted mode's values: a new list over an uninitialized array takes the
+                // slot once filled.
+                var list = value ?? ListAccess.CreateOverwritten<TList, T>(length, uninitialized: true);
                 var span = ListAccess.Open(list, length, overwritten: true, out var buffer);
                 reader.ReadUnmanagedRaw(span);
                 ListAccess.Close(list, length, buffer);
+                value = list;
                 return;
             }
 
@@ -149,11 +152,13 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoNullables<T>.Stride, out int length))
                 return;
 
-            // Uninitialized only for a block copy (NinoElements.CopiedWhole).
-            var list = value ??= ListAccess.CreateOverwritten<TList, T?>(length, NinoNullables<T>.Raw);
+            // Uninitialized only for a block copy, after which the presence bytes are checked: a new list takes the
+            // slot once filled (see NinoElements.CopiedWhole).
+            var list = value ?? ListAccess.CreateOverwritten<TList, T?>(length, NinoNullables<T>.Raw);
             var span = ListAccess.Open(list, length, overwritten: true, out var buffer);
             NinoNullables<T>.Read(span, ref reader);
             ListAccess.Close(list, length, buffer);
+            value = list;
         }
     }
 }

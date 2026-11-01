@@ -15,6 +15,14 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
 
 - Every declaration the generator cannot serialize gets a rule (Error when it cannot work, Warning when it works but
   costs or is likely wrong), so a user never meets "no formatter" at run time for something the compiler could see.
+  That includes what generated code writes but cannot: a generic `[NinoType]` closed over a type without a formatter
+  (`Box<Action>`, anywhere in a member's type) is NINO007 with "writing a value of it throws", because its formatter
+  takes `CachedFormatter<Action>`; the generator keeps the member, so the bytes stay (the owner's call, round 101).
+  Only type parameters a serialized member uses count (`Tag<Action>` writes fine).
+- An attribute that cannot do what it says is reported, not left to a rule whose message would be wrong:
+  `[NinoMember]` on a static, constant, indexer, get-only computed property or backing field was NINO010 ("collected
+  already") with autoCollect and nothing without it, while nothing was written; NINO028 now reports it alone, with
+  the reason (`MemberCollector.NotSerializable`, the one test that decides membership too).
 - Every pattern that works but costs (a member that defeats raw copying, a format that adds bytes nobody needs, a
   pooled type without its hooks) gets a Warning that names the cheaper form.
 - Mistakes from the FAQ and the pitfalls pages (`docs/pitfalls.md`, the site's FAQ) that no rule catches are findings.
@@ -25,8 +33,13 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   reports (the same model rules and `NinoSymbols` helpers); a rule never re-derives it.
 - **One mistake, one diagnostic**: when two rules fire on the same code, the one whose fix removes the other's case
   reports it.
-- **Messages** name the type or member and what to write instead; placeholders are all filled.
+- **Messages** name the type or member, what happens (skipped, throws when written, never called) and what to write
+  instead; placeholders are all filled; attributes are spelled `[NinoMember]`, never `NinoMemberAttribute`. A title
+  or message may change (round 101 reworded NINO003, 005, 007, 010-012 and 017); the id never does, and the title
+  in `AnalyzerReleases.Shipped.md` follows the descriptor (`ReleaseTrackingMatchesTheDescriptors`).
 - **A code fix for every rule whose fix is mechanical and always correct**; otherwise the message says what to do.
+  Removing an attribute that has no effect (NINO010, 011, 024, 025) is always correct; removing one that changes the
+  bytes (NINO027's former name changes the type id) or choosing between two (NINO026) is not.
 - **Ids are stable**; a removed id is never reused; new ids are taken at landing (two branches can pick the same).
 - **Cost**: rules run on every build and keystroke. `EnableConcurrentExecution`, no analysis of generated code,
   symbols resolved once per compilation, cheapest rejection first (syntax kind and names before the semantic
@@ -39,7 +52,8 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
 
 ## Tests: every rule, every edge
 
-`tests/Nino.UnitTests/Generator/AnalyzerTests.cs` and `CodeFixTests.cs`:
+`tests/Nino.UnitTests/Generator/AnalyzerTests.cs` and `CodeFixTests.cs` (locations as markup, `{|#0:Name|}` and
+`.WithLocation(0)`, never line and column spans):
 - each NINO id appears in a test that expects it and one that expects it not to fire; each code fix has a case per
   form it rewrites, its output compiles and reports nothing, and applying it twice changes nothing;
 - edge cases where they apply: generic, nested and partial types, records and structs, inheritance across

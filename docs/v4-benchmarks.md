@@ -195,24 +195,24 @@ the result objects.
 * **Blocks instead of fields.** Consecutive unmanaged members are reserved and written as one block (one
   bounds check), unmanaged arrays, lists and raw `[NinoType]` structs are single block copies, and arrays and
   lists of fixed-size elements are written straight into a `byte[]` of their exact size, without a scratch buffer.
-  A raw nullable reads its has-value byte and its value under one bounds check, and multi-dimensional arrays take
+  A raw nullable reads its presence byte and its value under one bounds check, and multi-dimensional arrays take
   the block paths of flat ones.
 * **Copies sized to the CPU.** Up to 64 bytes (on 64-bit runtimes) or 128 bytes (with 32-byte vectors) are copied
-  inline, as overlapping loads and stores of the widest vector that fits; up to 32 KB (64-byte vectors) or 16 KB
-  (32-byte vectors, from 256 bytes) as vectors with aligned stores; on Arm64 up to 64 KB as pairs of 16-byte loads
-  and stores (`ldp`/`stp`), 64 bytes a step from an aligned source address, which beats the C library's `memcpy`
-  there (with only 16-byte vectors on x64 with SSE and WebAssembly, `memmove` from 65 bytes); beyond, with `memmove`, which is several times slower than
-  the vector loop at these sizes on some CPUs (GitHub's EPYC 7763 runners). Reads of 6 KB or more into a new array use
-  `memmove`, whose `rep movsb` writes fresh cache lines without reading them first, except on AMD CPUs, where it is
-  slower than vector stores there too (1,000 `KeyValuePair<int, int>` read in 418 ns instead of 465 ns on GitHub's
-  EPYC 7763 runners); a list of up to 64 bytes read in place calls `memmove` directly, cheaper than the out-of-line
-  copy for so few bytes.
-* **Zeroing only where it pays.** A new array that one block copy fills is allocated uninitialized from 6 KB: below,
-  the runtime's uninitialized allocation costs more than zeroing on GitHub's x64 and Arm64 runners.
-  One filled by vector shuffles or value by value (padded tuples, `DateTimeOffset`s) is allocated zeroed: the
-  clearing brings its lines into the cache, where each store into an uninitialized line first reads it from
-  memory. Slots a read overwrites are not cleared
-  first, in new or existing lists and arrays.
+  inline, as overlapping loads and stores of the widest vector that fits (up to 64 bytes the same way in one call on
+  32-bit x86, WebAssembly and .NET on Arm32, where unaligned 8-byte accesses cannot fault); up to 32 KB (64-byte
+  vectors) or 16 KB (32-byte vectors, from 256 bytes) as vectors with aligned stores; on Arm64 up to 64 KB as pairs of
+  16-byte loads and stores (`ldp`/`stp`), 64 bytes a step from an aligned source address, which beats the C library's
+  `memcpy` there (with only 16-byte vectors on x64 with SSE and WebAssembly, `memmove` from 65 bytes); beyond, with
+  `memmove`, which is several times slower than the vector loop at these sizes on some CPUs (GitHub's EPYC 7763
+  runners). Reads of 6 KB or more into a new array use `memmove`, whose `rep movsb` writes fresh cache lines without
+  reading them first, except on AMD CPUs, where it is slower than vector stores there too (1,000
+  `KeyValuePair<int, int>` read in 418 ns instead of 465 ns on GitHub's EPYC 7763 runners); a list of up to 64 bytes
+  read in place calls `memmove` directly, cheaper than the out-of-line copy for so few bytes.
+* **Zeroing only where it pays.** A new array that a read fills whole, as one block copy or as blocks (padded tuples
+  and block structs, their padding written as zero), is allocated uninitialized from 6 KB: below, the runtime's
+  uninitialized allocation costs more than zeroing on GitHub's x64 and Arm64 runners. One filled value by value
+  (`DateTimeOffset`s, values Untrusted mode checks a field at a time) is allocated zeroed. Slots a read overwrites
+  are not cleared first, in new or existing lists and arrays.
 * **Padded tuples as vector shuffles.** Arrays and lists of value tuples, `KeyValuePair`s and other padded values are
   written and read a group of values at a time: with AVX-512, by permutes across a vector; elsewhere, each 16-byte
   lane is shuffled from at most two 16-byte windows (`vpshufb` on AVX2 and SSSE3, `TBL` on Arm64, swizzle on
@@ -255,7 +255,10 @@ the result objects.
   making the whole loop shared generic code); exact `Dictionary<,>` members get a formatter without the
   dictionary type parameter, which also shortens generated code. Raw `HashSet<T>` and `Dictionary<TKey, TValue>` are written from their
   entries array when none has been removed (the layouts of .NET 64-bit and 32-bit and of .NET Framework and Mono are
-  checked at startup), without the enumerator's version check and field reloads on every element; with removed
+  checked at startup), without the enumerator's version check and field reloads on every element: as blocks of a
+  struct whose memory is the entry (`SetEntryBlock`, `MapEntryBlock`), so the vector permutes that pack padded
+  structs move several entries at a time, each key and value taken out of its entry (the netstandard builds: the
+  registered kernels, else one at a time); with removed
   entries, or no layout recognized, through the enumerator, out of line. A new one that a read creates (default
   comparer) is filled the other way round: entries and buckets written as `Add` would, after the constructor or
   `EnsureCapacity` sized it, without `Add`'s comparer, free-list, resize and version checks per element; the bucket
@@ -329,7 +332,7 @@ dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*'
 dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*ReferenceTest*' '*VersionTolerantTest*' '*FixedSizeTest*'   # some classes only
 ```
 
-The suite has eleven classes, all against MemoryPack 1.21.4, and against MessagePack and protobuf-net wherever they
+The suite has twelve classes, all against MemoryPack 1.21.4, and against MessagePack and protobuf-net wherever they
 can write the same data ([benchmarks/README.md](../benchmarks/README.md#messagepack-and-protobuf-net) lists the cases
 they cannot): `SimpleTest`, `PolymorphicTest`, `GenericPolymorphicTest` (subtypes through a
 non-generic base and through closed instances of a generic base, whose union MemoryPack registers at runtime), `PooledTest` and `PooledGraphTest` (reuse and
@@ -338,8 +341,9 @@ pooling), `ReferenceTest` (a graph with shared references and cycles: `trackRefe
 against MemoryPack's `GenerateType.VersionTolerant`, one and 100) and `FixedSizeTest` (types of fixed size serialized
 to a `byte[]` of exactly that size: an unmanaged struct, a sealed class of the same members and an array of 100 of
 them), `CommonTypesTest` (players, orders, shapes, a tree, padded structs and a string dictionary), `CollectionsTest`
-(collections of the base class library) and `BclTypesTest` (other base class library types and the immutable
-collections).
+(collections of the base class library), `BclTypesTest` (other base class library types and the immutable
+collections) and `ScatteredTest` (arrays of a million objects whose order in the array is not their order in memory,
+which every other class's data, allocated in order and in the cache, never shows).
 [benchmarks/README.md](../benchmarks/README.md) lists their cases.
 
 The v3 numbers come from the v3 build of [`benchmarks/Nino.Benchmark`](../benchmarks/Nino.Benchmark)

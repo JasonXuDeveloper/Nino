@@ -159,7 +159,7 @@ using Nino.Core;
 
 public class Container
 {
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     private class {|#0:Hidden|}
     {
         private int _value;
@@ -181,7 +181,7 @@ using Nino.Core;
 
 public class Outer
 {
-    [NinoType(containNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true)]
     public class {|#0:TestClass|}
     {
         private int _value;
@@ -189,7 +189,7 @@ public class Outer
     }
 }
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class PartialClass
 {
     private int _value;
@@ -240,7 +240,7 @@ public class Outer
     }
 }
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public class {|#1:Box|}<T>
 {
     private T _value;
@@ -266,7 +266,7 @@ public class PublicMembersOnly
         var code = @"
 using Nino.Core;
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class TestClass
 {
     private int _a;
@@ -284,7 +284,7 @@ public partial class TestClass
     }
 
     [TestMethod]
-    public async Task NINO003_SubTypeWithoutNinoType()
+    public async Task NINO003_SubtypeWithoutNinoType()
     {
         var code = @"
 using Nino.Core;
@@ -820,7 +820,7 @@ public class InitOnly
     }
 }
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class PrivateReadOnly
 {
     private readonly int {|#0:_a|};
@@ -936,10 +936,59 @@ public class TestClassWithTask
 
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO007").WithLocation(0)
-                .WithArguments("UnsupportedDelegate", "System.Action", "TestClassWithDelegate"),
+                .WithArguments("UnsupportedDelegate", "System.Action", "TestClassWithDelegate", "", "the member is skipped"),
             Verify.Diagnostic("NINO007").WithLocation(1)
-                .WithArguments("UnsupportedTask", "System.Threading.Tasks.Task<int>", "TestClassWithTask")
+                .WithArguments("UnsupportedTask", "System.Threading.Tasks.Task<int>", "TestClassWithTask", "", "the member is skipped")
         ).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO007_TypeArgumentWithoutFormatter()
+    {
+        // The member is written, but Box<Action>'s formatter cannot write its Action: every value throws. Reported
+        // nested in collections, arrays and other generics too; not where no member uses the argument (Tag<T>), the
+        // argument has a formatter, or the member is ignored.
+        var code = @"
+using System;
+using System.Collections.Generic;
+using Nino.Core;
+
+[NinoType]
+public class Box<T> { public T Value; }
+
+[NinoType]
+public class Tag<T> { public int X; }
+
+[NinoType]
+public class Wrapped<T> : Box<T> { }
+
+[NinoType]
+public class Holder
+{
+    public Box<Action> {|#0:Direct|};
+    public List<Box<Func<int>>> {|#1:Listed|};
+    public Box<Box<Action>> {|#2:Nested|};
+    public Box<Action>[] {|#3:Array|};
+    public Wrapped<Action> {|#4:Inherited|};
+    public Tag<Action> Unused;
+    public Box<int> Fine;
+    [NinoIgnore] public Box<Action> Ignored;
+}
+";
+
+        const string Throws = "writing a value of it throws";
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO007").WithLocation(0)
+                .WithArguments("Direct", "System.Action", "Holder", ", a type argument of 'Box<System.Action>',", Throws),
+            Verify.Diagnostic("NINO007").WithLocation(1)
+                .WithArguments("Listed", "System.Func<int>", "Holder", ", a type argument of 'Box<System.Func<int>>',", Throws),
+            Verify.Diagnostic("NINO007").WithLocation(2)
+                .WithArguments("Nested", "System.Action", "Holder", ", a type argument of 'Box<System.Action>',", Throws),
+            Verify.Diagnostic("NINO007").WithLocation(3)
+                .WithArguments("Array", "System.Action", "Holder", ", a type argument of 'Box<System.Action>',", Throws),
+            Verify.Diagnostic("NINO007").WithLocation(4)
+                .WithArguments("Inherited", "System.Action", "Holder", ", a type argument of 'Wrapped<System.Action>',", Throws))
+            .RunAsync();
     }
 
     [TestMethod]
@@ -968,8 +1017,8 @@ public class Derived : AbstractBase
 
         // Abstract types report nothing themselves; the subtype reports the inherited member where it is declared.
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO007").WithLocation(0).WithArguments("Callback", "System.Action", "Derived"),
-            Verify.Diagnostic("NINO007").WithLocation(1).WithArguments("Factory", "System.Func<int>", "Derived"))
+            Verify.Diagnostic("NINO007").WithLocation(0).WithArguments("Callback", "System.Action", "Derived", "", "the member is skipped"),
+            Verify.Diagnostic("NINO007").WithLocation(1).WithArguments("Factory", "System.Func<int>", "Derived", "", "the member is skipped"))
             .RunAsync();
     }
 
@@ -998,20 +1047,20 @@ public class NotAFormatter
 [NinoType]
 public class TestClass
 {
-    [NinoCustomFormatter(typeof(StringFormatter))]
+    [NinoMemberFormatter(typeof(StringFormatter))]
     public int {|#0:A|};
 
-    [NinoCustomFormatter(typeof(NotAFormatter))]
+    [NinoMemberFormatter(typeof(NotAFormatter))]
     public int {|#1:B|};
 
-    [NinoCustomFormatter(typeof(IntFormatter))]
+    [NinoMemberFormatter(typeof(IntFormatter))]
     public int C;
 }
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("StringFormatter", "int"),
-            Verify.Diagnostic("NINO008").WithLocation(1).WithArguments("NotAFormatter", "int")).RunAsync();
+            Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("StringFormatter", "int", "A", "TestClass"),
+            Verify.Diagnostic("NINO008").WithLocation(1).WithArguments("NotAFormatter", "int", "B", "TestClass")).RunAsync();
     }
 
     [TestMethod]
@@ -1048,35 +1097,35 @@ public struct GenericFormatter<T> : INinoFormatter<T>
 [NinoType]
 public class TestClass
 {
-    [NinoCustomFormatter(typeof(IntFormatter))]
+    [NinoMemberFormatter(typeof(IntFormatter))]
     public int Property { get; set; }
 
-    [NinoCustomFormatter(typeof(NullableIntFormatter))]
+    [NinoMemberFormatter(typeof(NullableIntFormatter))]
     public int {|#0:Nullable|} { get; set; }
 
-    [NinoCustomFormatterAttribute(typeof(IntFormatter))]
+    [NinoMemberFormatterAttribute(typeof(IntFormatter))]
     public int? {|#1:NullableMember|};
 
-    [NinoCustomFormatter(typeof(IntFormatter))]
+    [NinoMemberFormatter(typeof(IntFormatter))]
     public long {|#2:WrongType|};
 
-    [NinoCustomFormatter(typeof(ClassIntFormatter))]
+    [NinoMemberFormatter(typeof(ClassIntFormatter))]
     public int {|#3:Class|};
 
-    [NinoCustomFormatter(typeof(GenericFormatter<int>))]
+    [NinoMemberFormatter(typeof(GenericFormatter<int>))]
     public int Generic;
 
-    [NinoCustomFormatter(typeof(GenericFormatter<>))]
+    [NinoMemberFormatter(typeof(GenericFormatter<>))]
     public int {|#4:Open|};
 }
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("NullableIntFormatter", "int"),
-            Verify.Diagnostic("NINO008").WithLocation(1).WithArguments("IntFormatter", "int?"),
-            Verify.Diagnostic("NINO008").WithLocation(2).WithArguments("IntFormatter", "long"),
-            Verify.Diagnostic("NINO008").WithLocation(3).WithArguments("ClassIntFormatter", "int"),
-            Verify.Diagnostic("NINO008").WithLocation(4).WithArguments("GenericFormatter<>", "int")).RunAsync();
+            Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("NullableIntFormatter", "int", "Nullable", "TestClass"),
+            Verify.Diagnostic("NINO008").WithLocation(1).WithArguments("IntFormatter", "int?", "NullableMember", "TestClass"),
+            Verify.Diagnostic("NINO008").WithLocation(2).WithArguments("IntFormatter", "long", "WrongType", "TestClass"),
+            Verify.Diagnostic("NINO008").WithLocation(3).WithArguments("ClassIntFormatter", "int", "Class", "TestClass"),
+            Verify.Diagnostic("NINO008").WithLocation(4).WithArguments("GenericFormatter<>", "int", "Open", "TestClass")).RunAsync();
     }
 
     [TestMethod]
@@ -1109,7 +1158,7 @@ public partial class TestClass2
     }
 
     [TestMethod]
-    public async Task NINO009_NestedTypeMayContainNonPublicMembers()
+    public async Task NINO009_NestedTypeMayIncludeNonPublicMembers()
     {
         var code = @"
 using Nino.Core;
@@ -1179,7 +1228,7 @@ public class TestClass
 }
 ";
 
-        // Protected and internal [NinoMember]s are not collected without containNonPublicMembers either.
+        // Protected and internal [NinoMember]s are not collected without includeNonPublicMembers either.
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO009").WithLocation(0).WithArguments("A", "TestClass"),
             Verify.Diagnostic("NINO009").WithLocation(1).WithArguments("B", "TestClass")).RunAsync();
@@ -1218,6 +1267,55 @@ public class TestClass2
     }
 
     [TestMethod]
+    public async Task NINO028_NinoMemberOnAMemberThatIsNeverSerialized()
+    {
+        // NINO028 alone, whatever else the [NinoMember] would be: redundant (NINO010 with autoCollect), non-public
+        // (NINO009) or a duplicate index (NINO013). Not for members Nino serializes: settable properties, fields
+        // and a get-only auto-property a constructor takes.
+        var code = @"
+using System;
+using Nino.Core;
+
+[NinoType]
+public class Collected
+{
+    [NinoMember(0)] public static int {|#0:Shared|};
+    [NinoMember(1)] public const int {|#1:Constant|} = 1;
+    [NinoMember(2)] public int {|#2:Sum|} => 1;
+    [NinoMember(3)] private static int {|#3:Hidden|};
+    public int A { get; set; }
+}
+
+[NinoType(autoCollect: false)]
+public partial class OptedIn
+{
+    [NinoMember(0)] public int A;
+    [NinoMember(0)] public static int {|#4:Repeats|};
+    [NinoMember(1)] public int {|#5:this|}[int i] => i;
+    [NinoMember(2)] public int {|#6:GetOnly|} { get; }
+    [field: NinoMember(3)] public int {|#7:Backed|} { get; set; }
+    [NinoMember(4)] public int Taken { get; }
+    [NinoMember(5)] public int Settable { get; private set; }
+
+    public OptedIn(int taken) => Taken = taken;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO028").WithLocation(0).WithArguments("Shared", "Collected", "it is static"),
+            Verify.Diagnostic("NINO028").WithLocation(1).WithArguments("Constant", "Collected", "it is a constant"),
+            Verify.Diagnostic("NINO028").WithLocation(2)
+                .WithArguments("Sum", "Collected", "it has no setter, and no constructor takes it"),
+            Verify.Diagnostic("NINO028").WithLocation(3).WithArguments("Hidden", "Collected", "it is static"),
+            Verify.Diagnostic("NINO028").WithLocation(4).WithArguments("Repeats", "OptedIn", "it is static"),
+            Verify.Diagnostic("NINO028").WithLocation(5).WithArguments("this[]", "OptedIn", "it is an indexer"),
+            Verify.Diagnostic("NINO028").WithLocation(6)
+                .WithArguments("GetOnly", "OptedIn", "it has no setter, and no constructor takes it"),
+            Verify.Diagnostic("NINO028").WithLocation(7).WithArguments("Backed", "OptedIn",
+                "it is the backing field of a property or event; mark the property instead")).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO010_PropertiesPartialDeclarationsAndSpellings()
     {
         var code = @"
@@ -1240,7 +1338,7 @@ public partial class TestClass
 }
 ";
 
-        // A non-public [NinoMember] in an autoCollect type is not collected without containNonPublicMembers:
+        // A non-public [NinoMember] in an autoCollect type is not collected without includeNonPublicMembers:
         // that is NINO009, not NINO010.
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO010").WithLocation(0).WithArguments("A", "TestClass"),
@@ -1432,14 +1530,14 @@ public class AutoCollect
         var code = @"
 using Nino.Core;
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class Base
 {
     protected int {|#0:Value|};
     public string Name;
 }
 
-[NinoType(containNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true)]
 public partial class Derived : Base
 {
     public new string Value;
@@ -1513,7 +1611,7 @@ public sealed class EmptyClass
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO023").WithLocation(0).WithArguments("AllIgnored"),
             Verify.Diagnostic("NINO007").WithLocation(2)
-                .WithArguments("Callback", "System.Action", "AllSkipped"),
+                .WithArguments("Callback", "System.Action", "AllSkipped", "", "the member is skipped"),
             Verify.Diagnostic("NINO023").WithLocation(1).WithArguments("AllSkipped")).RunAsync();
     }
 

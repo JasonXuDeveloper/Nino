@@ -44,6 +44,27 @@ fn benches(c: &mut Criterion) {
             g.finish();
         }
     }
+    // 1,000,000 strings of the mixed kinds (compare.rs's three) made in order and listed shuffled (a fixed seed): each
+    // string's text somewhere else in memory than the one before, as in a long-lived heap (prefetching's case).
+    let mut values: Vec<String> = (0..1_000_000).map(|i| sample(["ascii", "latin1", "mixed"][i % 3], 16, i)).collect();
+    let mut state = 0x9E37_79B9_7F4A_7C15u64;
+    for i in (1..values.len()).rev() {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        values.swap(i, (state % (i as u64 + 1)) as usize);
+    }
+    let mut g = c.benchmark_group("text");
+    g.sample_size(10).throughput(Throughput::Elements(1_000_000));
+    let mut out = Vec::new();
+    g.bench_function(BenchmarkId::new("write", "scattered-1m"), |b| {
+        b.iter(|| {
+            out.clear();
+            nino::serialize_into(black_box(&values), &mut out).unwrap();
+            black_box(out.len())
+        })
+    });
+    g.finish();
 }
 
 criterion_group! {

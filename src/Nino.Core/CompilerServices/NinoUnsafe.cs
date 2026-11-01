@@ -45,6 +45,132 @@ namespace Nino.Core.CompilerServices
             get => IntPtr.Size == 8;
         }
 
+        /// <summary>
+        /// In a 32-bit process, whether a value of 8 bytes or more is loaded and stored at any address in one access
+        /// (<c>Unsafe.ReadUnaligned</c> / <c>WriteUnaligned</c>), as every 64-bit process does in
+        /// <see cref="Read{T}(ref byte)"/>, <see cref="Write{T}(ref byte, T)"/> and the sizes up to 64 of
+        /// <see cref="Copy"/>: x86 (<see cref="IsX86"/>, a constant) and the processes <see cref="WideAccess"/> names.
+        /// Elsewhere such values are copied byte by byte, and <see cref="Copy"/> calls Memmove. Each test is written
+        /// <c>Is64Bit || IsX86 || ... || UnalignedWide32</c>: a 64-bit process folds the first and an x86 one the
+        /// second before the rest is imported, so their code stays as it was (a property holding the whole test, with
+        /// a branch, was inlined through a temporary and changed how x64 copied structs); the probe folds once its
+        /// class is initialized (Tier1).
+        /// </summary>
+        private static bool UnalignedWide32
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => WideAccess.Unaligned;
+        }
+
+        /// <summary>
+        /// Tested after <see cref="Is64Bit"/>: whether a 32-bit process runs on x86 (the .NET 8 and later builds; a
+        /// constant to the JIT, without a branch, so that it folds where it is inlined).
+        /// </summary>
+        private static bool IsX86
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => X86Base.IsSupported;
+#else
+            get => false;
+#endif
+        }
+
+        /// <summary>
+        /// The 32-bit processes where an unaligned access of 8 bytes or more cannot fault: .NET Framework and .NET on
+        /// x86 and .NET on WebAssembly, which never fault on alignment, and .NET (CoreCLR) on 32-bit Arm, whose JIT
+        /// compiles an unaligned load or store of 8 bytes or more to ldr/str of 4 bytes each (and vmov for a double),
+        /// which take any address. Mono (Unity's, and .NET's on Android) and IL2CPP on 32-bit Arm may emit
+        /// ldrd/strd/vldr/vstr, which fault on an address that is not a multiple of 4: they keep the byte-wise copies,
+        /// as does every runtime not named here (Unity, Mono and IL2CPP on any 32-bit CPU included). Its own class, so
+        /// that NinoUnsafe gets no static constructor.
+        /// </summary>
+        private static class WideAccess
+        {
+            internal static readonly bool Unaligned = !Is64Bit && Probe();
+
+            private static bool Probe()
+            {
+                var architecture = RuntimeInformation.ProcessArchitecture;
+#if NET8_0_OR_GREATER
+                if (architecture == Architecture.Wasm)
+                    return true;
+#endif
+                if (architecture != Architecture.X86 && architecture != Architecture.Arm)
+                    return false;
+                // .NET Framework, .NET Core and .NET 5+ start with ".NET"; Mono's and IL2CPP's class libraries say
+                // "Mono ...". .NET's Mono (Android, .NET 6 and later) says ".NET" too, and is told by its types.
+                string framework = RuntimeInformation.FrameworkDescription;
+                if (!framework.StartsWith(".NET", StringComparison.Ordinal) ||
+                    Type.GetType("Mono.RuntimeStructs") != null || Type.GetType("Mono.Runtime") != null)
+                    return false;
+                return architecture == Architecture.X86 ||
+                       !framework.StartsWith(".NET Framework", StringComparison.Ordinal);
+            }
+        }
+
+        /// <summary>
+        /// Whether <c>Vector.Narrow</c> and <c>Vector.Widen</c> (with <c>Vector.EqualsAll</c>, the text kernels) are
+        /// worth using: the JIT accelerates <c>Vector&lt;T&gt;</c> and, in the netstandard builds, the runtime is .NET
+        /// Framework or .NET (Core), whose descriptions start with ".NET". Never on Mono or Unity: classic Mono's JIT
+        /// (mono/mono 6.x, and Unity's fork) accelerates only <c>Vector&lt;T&gt;</c>'s own operators, constructors,
+        /// <c>Equals</c> and <c>CopyTo</c> (<c>vector_t_intrinsics</c> in mono/mini/simd-intrinsics.c), and runs
+        /// <c>Vector.Narrow</c> and <c>Widen</c> in the package's software form (element by element through a stack
+        /// buffer): with plain loads (see <see cref="VectorMasks"/>), Mono 6.8 on x64 narrowed 1,024 chars in 5,400
+        /// ns against 550 for the 8-byte loop and widened them in 6,700 against 400 (local), while the check before
+        /// Narrow (<c>|</c>, <c>&amp;</c>, <c>EqualsAll</c>) took 120. Unity's runtimes say "Mono ..." too and take
+        /// their Burst kernels (<see cref="NinoKernels"/>). Constant-folded by the JIT (the probe once its class is
+        /// initialized).
+        /// </summary>
+        internal static bool NumericVectors
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => System.Numerics.Vector.IsHardwareAccelerated;
+#else
+            get => NumericVectorProbe.Fast;
+#endif
+        }
+
+        /// <summary>
+        /// Whether loads, stores and <c>&amp;</c> of <c>Vector&lt;byte&gt;</c> (<see cref="NinoMask"/>) are worth
+        /// using: where <see cref="NumericVectors"/> is, and on classic Mono with the System.Numerics.Vectors package
+        /// Nino.Core brings, the one <c>Vector&lt;T&gt;</c> its JIT compiles to SSE registers (class-init.c marks
+        /// <c>Vector`1</c> a SIMD type only in an assembly of that name) as <c>movups</c> and <c>pand</c>. Mono 6.8 on
+        /// x64 serialized an array of 1,000 padded structs of 16 bytes in 8.4 to 9.2 µs against 11.8 to 13.4 with
+        /// ulongs, of 12 bytes in 6.6 to 7.7 against 8.2 to 8.7, 16 of them in 90 to 110 ns against 140 (local); with
+        /// <c>Unsafe.ReadUnaligned</c> loads, which Mono compiles to calls to memcpy, 36 to 40 µs (see
+        /// <see cref="NinoMask"/>). Not where <c>Vector&lt;T&gt;</c> is Mono's own (in mscorlib): no Mono JIT
+        /// accelerates it, and Unity 2022.3.47f1 and 6000.0.20f1 reported it accelerated all the same (UUM-77339;
+        /// Unity-Technologies/mono made <c>IsHardwareAccelerated</c> true for mscorlib's type in July 2024 and reverted
+        /// it in February 2025).
+        /// </summary>
+        internal static bool VectorMasks
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => System.Numerics.Vector.IsHardwareAccelerated;
+#else
+            get => NumericVectorProbe.Masks;
+#endif
+        }
+
+#if !NET8_0_OR_GREATER
+        /// <summary>
+        /// <see cref="NumericVectors"/> and <see cref="VectorMasks"/> in the netstandard builds (a class of its own,
+        /// see <see cref="WideAccess"/>).
+        /// </summary>
+        private static class NumericVectorProbe
+        {
+            internal static readonly bool Fast = System.Numerics.Vector.IsHardwareAccelerated &&
+                                                 RuntimeInformation.FrameworkDescription.StartsWith(".NET",
+                                                     StringComparison.Ordinal);
+
+            internal static readonly bool Masks = Fast || System.Numerics.Vector.IsHardwareAccelerated &&
+                typeof(System.Numerics.Vector<byte>).Assembly.GetName().Name == "System.Numerics.Vectors";
+        }
+#endif
+
         /// <summary>Size of <typeparamref name="T"/> in bytes. Constant-folded by the JIT.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int SizeOf<T>() => Unsafe.SizeOf<T>();
@@ -56,10 +182,10 @@ namespace Nino.Core.CompilerServices
         public static void Write<T>(ref byte destination, T value)
         {
             // 32-bit ARM faults on unaligned 8-byte (LDRD/STRD/VSTR) accesses, which some runtimes emit for
-            // unaligned stores of 8+ byte values. A byte-wise block copy is always safe there. It takes the value's
-            // address, so it is in another method: an address taken here, even on a branch the JIT folds away,
-            // would make every inlined caller pass the value through a stack temporary.
-            if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
+            // unaligned stores of 8+ byte values (UnalignedWide32). A byte-wise block copy is always safe there. It
+            // takes the value's address, so it is in another method: an address taken here, even on a branch the JIT
+            // folds away, would make every inlined caller pass the value through a stack temporary.
+            if (Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32)
                 Unsafe.WriteUnaligned(ref destination, value);
             else
                 WriteBytes(ref destination, value);
@@ -78,7 +204,7 @@ namespace Nino.Core.CompilerServices
             // a computed reference handed to another inlined method becomes a temporary when the offset is not an
             // IL constant (offset + NinoUnsafe.SizeOf<S>()), and the store then no longer folds the offset into its
             // address (an extra lea/add per member). Same in WriteIn, WriteValue(In) and Read below.
-            if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
+            if (Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32)
                 Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, offset), value);
             else
                 WriteBytes(ref Unsafe.Add(ref destination, offset), value);
@@ -104,25 +230,27 @@ namespace Nino.Core.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteIn<T>(ref byte destination, in T value)
         {
-            if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
+            if (Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32)
                 Unsafe.WriteUnaligned(ref destination, value);
             else
                 Unsafe.CopyBlockUnaligned(ref destination, ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)),
                     (uint)Unsafe.SizeOf<T>());
         }
 
-        /// <summary><see cref="WriteIn{T}(ref byte, in T)"/> at <paramref name="destination"/> + <paramref name="offset"/>.</summary>
+        /// <summary><see cref="WriteIn{T}(ref byte, in T)"/> at <paramref name="destination"/> +
+        /// <paramref name="offset"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteIn<T>(ref byte destination, int offset, in T value)
         {
-            if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
+            if (Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32)
                 Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, offset), value);
             else
                 Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref destination, offset),
                     ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), (uint)Unsafe.SizeOf<T>());
         }
 
-        /// <summary><see cref="WriteValue{T}"/> from a reference (see <see cref="WriteIn{T}(ref byte, in T)"/>).</summary>
+        /// <summary><see cref="WriteValue{T}"/> from a reference (see
+        /// <see cref="WriteIn{T}(ref byte, in T)"/>).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteValueIn<T>(ref byte destination, int offset, in T value)
         {
@@ -137,11 +265,14 @@ namespace Nino.Core.CompilerServices
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Read<T>(ref byte source) =>
-            Is64Bit || Unsafe.SizeOf<T>() <= 4 ? Unsafe.ReadUnaligned<T>(ref source) : ReadBytes<T>(ref source);
+            Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32
+                ? Unsafe.ReadUnaligned<T>(ref source)
+                : ReadBytes<T>(ref source);
 
         // Not AggressiveInlining, unlike WriteBytes: the 32-bit branch of Read is imported before it folds away, and
         // this body inlined there takes inlining budget from large methods (with it, on x64, a generated __WriteBody
-        // made 9 stack accesses instead of 3, and a generated __ReadTop 83 instead of 69). Only 32-bit runtimes call it.
+        // made 9 stack accesses instead of 3, and a generated __ReadTop 83 instead of 69). Only the 32-bit runtimes
+        // UnalignedWide32 leaves out call it.
         private static T ReadBytes<T>(ref byte source)
         {
             T value = default;
@@ -154,7 +285,7 @@ namespace Nino.Core.CompilerServices
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Read<T>(ref byte source, int offset) =>
-            Is64Bit || Unsafe.SizeOf<T>() <= 4
+            Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32
                 ? Unsafe.ReadUnaligned<T>(ref Unsafe.Add(ref source, offset))
                 : ReadBytes<T>(ref Unsafe.Add(ref source, offset));
 
@@ -207,14 +338,15 @@ namespace Nino.Core.CompilerServices
         /// <summary>
         /// Copies <paramref name="size"/> bytes. Up to 64 (most strings) inline, as overlapping loads and stores of the
         /// largest width that fits (33 to 64 bytes: two 32-byte vectors where they are accelerated, else four 16-byte
-        /// moves); more out of line (<see cref="CopyOver64"/>, as every size in a 32-bit process), 65 to 128 as four
-        /// 32-byte vectors where they are accelerated: a block copy of a size that is not a constant calls Memmove.
-        /// Beyond, up to 32 KB with 64-byte vectors where they are accelerated, else from 256
-        /// bytes to 16 KB with 32-byte ones (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an
-        /// AVX-512 Xeon (.NET 10, source and destination of different alignments), with AVX-512 on or off: 33 to 64
-        /// bytes in 4.0 to 4.5 ns instead of 4.7 to 5.4 (Memmove), 65 to 128 in about 4.2 ns instead of 5.4 to 6.6. A
-        /// loop of 16-byte vectors (WebAssembly, SSE only) is slower than Memmove from 2 KB, so those CPUs call Memmove
-        /// from 65 bytes; Arm64 copies up to 64 KB with <see cref="CopyPairs"/>, out of line.
+        /// moves); more out of line (<see cref="CopyOver64"/>, as every size in a 32-bit process, where up to 64 bytes
+        /// are copied the same way on x86 and where <see cref="UnalignedWide32"/>), 65 to 128 as four 32-byte vectors
+        /// where they are accelerated: a block copy of a size that is not a constant calls Memmove. Beyond, up to 32 KB
+        /// with 64-byte vectors where they are accelerated, and from there on Intel (else from 256 bytes) to 1 MB with
+        /// 32-byte ones (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an AVX-512 Xeon (.NET 10,
+        /// source and destination of different alignments), with AVX-512 on or off: 33 to 64 bytes in 4.0 to 4.5 ns
+        /// instead of 4.7 to 5.4 (Memmove), 65 to 128 in about 4.2 ns instead of 5.4 to 6.6. A loop of 16-byte vectors
+        /// (WebAssembly, SSE only) is slower than Memmove from 2 KB, so those CPUs call Memmove from 65 bytes; Arm64
+        /// copies up to 64 KB with <see cref="CopyPairs"/>, out of line.
         /// </summary>
         // In parts, each AggressiveInlining: the JIT checks an inline against the caller's inlining budget by the
         // callee's whole IL, before the branches the sizes and the CPU decide fold away. Copy in one method (662 bytes
@@ -303,20 +435,35 @@ namespace Nino.Core.CompilerServices
         }
 
         /// <summary>
-        /// More than 64 bytes (any size in a 32-bit process): 65 to 128 as four 32-byte vectors where they are
-        /// accelerated, then <see cref="CopyVectors{TVector}"/> or <see cref="CopyBlock"/>. Out of line (see
-        /// <see cref="Copy"/>).
+        /// More than 64 bytes, or any size in a 32-bit process (up to 64 as Copy does on x86 and where
+        /// <see cref="UnalignedWide32"/>): 65 to 128 as
+        /// four 32-byte vectors where they are accelerated, then <see cref="CopyVectors{TVector}"/> or
+        /// <see cref="CopyBlock"/>. Out of line (see <see cref="Copy"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void CopyOver64(ref byte destination, ref byte source, uint size)
         {
+            // Up to 64 bytes in a 32-bit process that accesses 8 bytes at any address: the parts Copy inlines, here
+            // so that Copy's IL, which callers' inlining budgets count, is the same in every process (written in Copy,
+            // this test changed what the JIT inlined into an ImmutableSortedDictionary write on x64).
+            if (!Is64Bit && (IsX86 || UnalignedWide32) && size <= 64)
+            {
+                if (size > 32)
+                    Copy33To64(ref destination, ref source, size);
+                else if (size >= 16)
+                    Copy16To32(ref destination, ref source, size);
+                else
+                    CopyUpTo15(ref destination, ref source, size);
+                return;
+            }
+
 #if NET8_0_OR_GREATER
             if (Vector256.IsHardwareAccelerated)
             {
                 if (size <= 128)
                 {
-                    // 65 to 128 bytes (32-bit processes, which skip the small sizes above, go to Memmove).
-                    if (Is64Bit)
+                    // 65 to 128 bytes (processes that skip the small sizes above go to Memmove).
+                    if (Is64Bit || IsX86 || UnalignedWide32)
                     {
                         var a = Vector256.LoadUnsafe(ref source);
                         var b = Vector256.LoadUnsafe(ref Unsafe.Add(ref source, 32));
@@ -329,9 +476,17 @@ namespace Nino.Core.CompilerServices
                         return;
                     }
                 }
-                else if (Vector512.IsHardwareAccelerated ? size <= MaxVectorCopy : size - 256 <= MaxVector256Copy - 256)
+                else if ((Vector512.IsHardwareAccelerated
+                              ? size <= (AmdCopy ? MaxVectorCopy : MaxVector256Copy)
+                              : size - 256 <= MaxVector256Copy - 256) &&
+                         !(IceLakeMemmove && size - MinIceLakeMemmove <= MaxVectorCopy - MinIceLakeMemmove))
                 {
-                    if (Vector512.IsHardwareAccelerated)
+                    // With 64-byte vectors up to MaxVectorCopy, then on Intel 32-byte ones up to MaxVector256Copy:
+                    // beyond 32 KB the 64-byte loop lost to Memmove, the 32-byte one still beats it there (GitHub's
+                    // Xeon Platinum 8370C, 160,000 bytes into a new zeroed array: 3.18 µs instead of 3.51); on AMD's
+                    // Zen 5 Memmove beats it into such an array (EPYC 9V45: 1.81 µs against 1.67). CopyToNew is the
+                    // other way round.
+                    if (Vector512.IsHardwareAccelerated && size <= MaxVectorCopy)
                         CopyVectors<Vector512<byte>>(ref destination, ref source, size);
                     else
                         CopyVectors<Vector256<byte>>(ref destination, ref source, size);
@@ -379,16 +534,67 @@ namespace Nino.Core.CompilerServices
             return ebx == 0x68747541 && edx == 0x69746E65 && ecx == 0x444D4163;
         }
 
+        /// <summary>
+        /// An x64 CPU whose 64-byte vector work beats 32-byte vectors where the two disagree: AMD's (Zen 4 and later)
+        /// and Intel's other than the Sunny Cove generation (<see cref="IsIceLake"/>), where both kernels below lost.
+        /// Not by AVX512-FP16 (Sapphire Rapids and later): Azure's Xeon Platinum 8573C (Emerald Rapids) does not report
+        /// it, and with 32-byte masks there it wrote 1,000 8-byte structs with a padding byte in 92 ns instead of 60
+        /// (.NET A/B run 41020623184). Two CPUIDs at startup.
+        /// </summary>
+        internal static readonly bool Wide512 = X86Base.IsSupported && (IsAmd() || !IsIceLake());
+
+        /// <summary>
+        /// An Intel CPU of the Sunny Cove generation (<see cref="IsIceLake"/>): on GitHub's Xeon Platinum 8370C a
+        /// 64-byte load across two cache lines costs about twice an aligned one, so its block writes load memory
+        /// vectors from 64-byte boundaries (<see cref="NinoBlockCollections"/>.WriteAligned).
+        /// </summary>
+        internal static readonly bool IceLake = X86Base.IsSupported && !IsAmd() && IsIceLake();
+
+        /// <summary>
+        /// Ice Lake on Linux: <see cref="CopyOver64"/> leaves blocks from <see cref="MinIceLakeMemmove"/> to
+        /// <see cref="MaxVectorCopy"/> to Memmove, which glibc runs there as one rep movsb from a 64-byte aligned
+        /// destination (FSRM; rep_movsb_threshold 2,112). Nino's vector loop stores aligned but loads wherever the
+        /// source is, and on GitHub's Xeon Platinum 8370C a 64-byte load across two lines costs about twice an aligned
+        /// one (16,000 bytes: 190 ns from a line, 377 from 8 bytes past one; rep movsb 117 to 247). Linux only: other C
+        /// runtimes' memmove was not measured there.
+        /// </summary>
+        private static readonly bool IceLakeMemmove = IceLake && OperatingSystem.IsLinux();
+
+        /// <summary>The smallest block <see cref="IceLakeMemmove"/> hands to Memmove: glibc's rep movsb threshold with FSRM.</summary>
+        private const uint MinIceLakeMemmove = 2112;
+
+        /// <summary>
+        /// An Intel CPU of the Sunny Cove generation and its client relatives (Ice Lake server and client, Tiger Lake,
+        /// Rocket Lake), by family 6 and model: the first cores with AVX-512 VBMI, whose 64-byte permutes and masked
+        /// copies ran slower than 32-byte ones on GitHub's Xeon Platinum 8370C.
+        /// </summary>
+        private static bool IsIceLake()
+        {
+            int eax = X86Base.CpuId(1, 0).Eax;
+            int family = (eax >> 8) & 0xF, model = ((eax >> 4) & 0xF) | ((eax >> 12) & 0xF0);
+            return family == 6 && model is 0x6A or 0x6C or 0x7D or 0x7E or 0x9D or 0x8C or 0x8D or 0xA7;
+        }
+
+        /// <summary>
+        /// An x64 CPU with AVX-512 VBMI whose two-source 64-byte byte permute (vpermt2b) writes values of more than 16
+        /// bytes faster than lane groups of 32-byte vectors (<see cref="NinoBlockCollections"/>.WritePairs),
+        /// <see cref="Wide512"/>. Measured on GitHub's runners, 1,000 values of 24 bytes as 15-byte blocks (.NET 10):
+        /// Xeon Platinum 8573C 0.65 and EPYC 9V45 0.76 times the time of lane groups, Xeon Platinum 8370C (Ice Lake)
+        /// 1.44 times.
+        /// </summary>
+        internal static readonly bool PairPermutes = Avx512Vbmi.IsSupported && Wide512;
+
 #endif
         /// <summary>
         /// <see cref="Copy"/> into memory that may have just been allocated (a read into a new array): Memmove from
         /// <see cref="MinUninitializedArrayBytes"/>, where a new array is uninitialized and vector stores read each of
-        /// its lines from memory first (Memmove's rep movsb writes whole lines without reading them). Below, where a new
-        /// array was zeroed into the cache, as <see cref="Copy"/>. Measured on an AVX-512 Xeon (.NET 10): 1,000 ints
-        /// read into a new uninitialized array in 470 to 710 ns with Memmove, 760 to 830 with vector stores; into an existing
-        /// array of 250, 14 ns instead of 23 with vector stores. Out of line: a size that is not a constant takes every
-        /// branch of Copy, and inlined into each raw list and array read that code slowed the reads around it (a list
-        /// of 8 classes holding a List&lt;int&gt; each, read in place: 680 to 710 ns inline, 570 to 610 out of line).
+        /// its lines from memory first (Memmove's rep movsb writes whole lines without reading them). Below, where a
+        /// new array was zeroed into the cache, as <see cref="Copy"/>. Measured on an AVX-512 Xeon (.NET 10): 1,000
+        /// ints read into a new uninitialized array in 470 to 710 ns with Memmove, 760 to 830 with vector stores; into
+        /// an existing array of 250, 14 ns instead of 23 with vector stores. Out of line: a size that is not a constant
+        /// takes every branch of Copy, and inlined into each raw list and array read that code slowed the reads around
+        /// it (a list of 8 classes holding a List&lt;int&gt; each, read in place: 680 to 710 ns inline, 570 to 610 out
+        /// of line).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void CopyToNew(ref byte destination, ref byte source, uint size)
@@ -399,6 +605,16 @@ namespace Nino.Core.CompilerServices
                 Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
                 return;
             }
+
+            // On AMD with 64-byte vectors, 32-byte ones beyond 32 KB too, where Copy calls Memmove: into a new
+            // uninitialized array they beat it (GitHub's EPYC 9V45 and 9V74, 160,000 bytes: 0.92 to 0.96 times the
+            // time).
+            if (AmdCopy && Vector512.IsHardwareAccelerated &&
+                size - (MaxVectorCopy + 1) <= MaxVector256Copy - (MaxVectorCopy + 1))
+            {
+                CopyVectors<Vector256<byte>>(ref destination, ref source, size);
+                return;
+            }
 #endif
             Copy(ref destination, ref source, size);
         }
@@ -406,9 +622,9 @@ namespace Nino.Core.CompilerServices
 #if NET8_0_OR_GREATER
         /// <summary>
         /// Largest copy done with 64-byte vectors by <see cref="CopyVectors{TVector}"/>; Memmove (the C library's from
-        /// 2 KB) beyond. Measured on an AVX-512 Xeon (.NET 10, the destination 4 bytes past a 64-byte boundary):
-        /// 16,000 bytes in 111 ns instead of 145, 32,000 in 249 instead of 283, on par at 64,000, slower beyond (160,000:
-        /// 3.2 µs instead of 2.9).
+        /// 2 KB) beyond. Measured on an AVX-512 Xeon (.NET 10, the destination 4 bytes past a 64-byte boundary): 16,000
+        /// bytes in 111 ns instead of 145, 32,000 in 249 instead of 283, on par at 64,000, slower beyond (160,000: 3.2
+        /// µs instead of 2.9).
         /// </summary>
         private const uint MaxVectorCopy = 32 * 1024;
 
@@ -462,7 +678,8 @@ namespace Nino.Core.CompilerServices
 
 #if NET8_0_OR_GREATER
         /// <summary>
-        /// Largest copy done by <see cref="CopyPairs"/> on Arm64 instead of Memmove; above it the two take the same time.
+        /// Largest copy done by <see cref="CopyPairs"/> on Arm64 instead of Memmove; above it the two take the same
+        /// time.
         /// </summary>
         private const uint MaxArm64VectorCopy = 64 * 1024;
 
@@ -471,10 +688,10 @@ namespace Nino.Core.CompilerServices
         /// out of line, so Copy inlined into every read and write gains only this call): the first 16 bytes, then from
         /// the first 16-byte aligned source address 64 bytes a step through cursors, four 16-byte loads and stores that
         /// the JIT pairs into two ldp and two stp of q registers, then the last 64 bytes, overlapping. Measured on
-        /// GitHub's Arm64 runners (Neoverse N2, .NET 10, the destination 4 bytes past a 64-byte boundary, the source 0, 4
-        /// or 8 bytes past one) against the C library's memcpy: 128 bytes in 0.80 to 0.84 of its time, 1,024 in 0.73 to
-        /// 0.91, 8,000 in 0.76 to 1.00, 64,000 and more the same. Without aligning the loads the loop was faster than
-        /// memcpy from an aligned source but up to 1.31 times slower from one 4 bytes past it.
+        /// GitHub's Arm64 runners (Neoverse N2, .NET 10, the destination 4 bytes past a 64-byte boundary, the source 0,
+        /// 4 or 8 bytes past one) against the C library's memcpy: 128 bytes in 0.80 to 0.84 of its time, 1,024 in 0.73
+        /// to 0.91, 8,000 in 0.76 to 1.00, 64,000 and more the same. Without aligning the loads the loop was faster
+        /// than memcpy from an aligned source but up to 1.31 times slower from one 4 bytes past it.
         /// </summary>
         // Fully optimized from the first call (see NinoMask.CopyVectors).
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
@@ -529,7 +746,8 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>
         /// Allocates an array whose contents are not zeroed when the runtime supports it and it is large enough for
-        /// that to be cheaper (<see cref="NewArray{T}"/>). Only use when every element is overwritten before being read.
+        /// that to be cheaper (<see cref="NewArray{T}"/>). Only use when every element is overwritten before being
+        /// read.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T[] AllocateUninitializedArray<T>(int length) => NewArray<T>(length, uninitialized: true);
@@ -592,7 +810,8 @@ namespace Nino.Core.CompilerServices
         }
 #endif
 
-        /// <summary>Whether <paramref name="type"/> is an unmanaged type (no references anywhere in its layout).</summary>
+        /// <summary>Whether <paramref name="type"/> is an unmanaged type (no references anywhere in its
+        /// layout).</summary>
         // Reached from the runtime resolver (dynamic code only) and the netstandard2.0 build.
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070",
             Justification = NinoLayout.FieldsJustification)]
