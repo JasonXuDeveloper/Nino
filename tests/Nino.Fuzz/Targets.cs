@@ -49,7 +49,9 @@ namespace Nino.Fuzz
             Make("Prims", "primitives, enums, BCL value types, Nullable, BigInteger, Uri, Version, CultureInfo, StringBuilder, BitArray, Lazy, Half, Int128, Rune",
                 Samples.Prims, Samples.PrimsSparse),
             Make("Strings", "ASCII, Latin-1, UTF-16 and [NinoUtf8] strings, string collections, chars", Samples.Strings),
-            Make("Raws", "raw (unmanaged) structs, arrays and lists of them, blittable tuples, Guid and decimal arrays", Samples.RawRoot),
+            Make("Raws", "raw (unmanaged) structs, arrays and lists of them, blittable tuples, Guid and decimal arrays, BCL structs inside raw structs (tuples, pairs, DateTimeOffset, nint, Int128, nullables, Vector64 to Vector512)", Samples.RawRoot),
+            Untrusted(Make("RawsUntrusted", "Untrusted mode's checks of raw structs: nullables' flags, bools, dates and decimals inside them, BCL structs inside them",
+                Samples.RawUntrusted)),
             Make("Colls", "List, arrays, multi-dimensional arrays, HashSet, Dictionary, Sorted*, LinkedList, Queue, Stack, Concurrent*, ILookup, interfaces, Memory, ArraySegment",
                 Samples.Colls, Samples.CollsLarge),
             Make("Imm", "Nino.Immutable: ImmutableArray, List, HashSet, Dictionary, SortedSet, SortedDictionary, Queue, Stack",
@@ -87,6 +89,12 @@ namespace Nino.Fuzz
             Write = value => NinoSerializer.Serialize((T)value),
         };
 
+        static Target Untrusted(Target target)
+        {
+            target.Untrusted = true;
+            return target;
+        }
+
         /// <summary>
         /// Large arrays allocated uninitialized whose read can reject the data after the allocation, read into a value
         /// of small ones over poisoned memory (<see cref="Target.Poisoned"/>).
@@ -95,7 +103,7 @@ namespace Nino.Fuzz
         {
             var target = Make(name, untrusted
                     ? "Stale in Untrusted mode, which also rejects DateTime and decimal values"
-                    : "rejected reads into an existing value leave no freed memory in it: blocks with a bool, T?, bools, raw structs with a bool, dictionary and set entries",
+                    : "rejected reads into an existing value leave no freed memory in it: blocks with a bool, T?, bools, raw structs with a bool or BCL structs, dictionary and set entries",
                 () => Samples.Stale(11_000));
             target.Fresh = Samples.StaleExisting;
             target.Poisoned = true;

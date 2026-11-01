@@ -45,6 +45,39 @@ namespace Nino.Fuzz
             Wide = Enumerable.Range(0, 17).Select(i => ((short)i, (long)i << 40)).ToList(),
             Guids = new[] { Guid.Empty, new Guid("0f8fad5b-d9cb-469f-a165-70867728950e") }, Decimals = new[] { 1.5m, -0.0001m },
             Maybe = new RawS { A = 3 }, ById = new() { [1] = new RawS { A = 1 }, [2] = default },
+            Bcl = Bcl(1), Bcls = Enumerable.Range(0, 5).Select(Bcl).ToArray(), BclList = new() { Bcl(-2), default },
+            MaybeBcl = Bcl(3),
+            DtoTuples = Enumerable.Range(0, 6).Select(i => ((byte)i, DateTimeOffset.UnixEpoch.AddDays(i).ToOffset(TimeSpan.FromMinutes(-30 * i)))).ToArray(),
+            PairArray = Enumerable.Range(0, 4).Select(i => new KeyValuePair<long, (int, long)>(-i, (i, (long)i << 33))).ToArray(),
+            ByTuple = Enumerable.Range(0, 3).ToDictionary(i => (i, -(long)i), Bcl),
+        };
+
+        /// <summary>A <see cref="RawBcl"/> whose every field depends on <paramref name="i"/>.</summary>
+        public static RawBcl Bcl(int i) => new RawBcl
+        {
+            A = (byte)i, T = (i, -(long)i << 40), S = ((byte)(i + 1), (short)-i), P = new KeyValuePair<int, long>(-i, i),
+            O = new DateTimeOffset(2020, 1, 1 + (i & 15), 0, 0, 0, TimeSpan.FromMinutes(i % 2 == 0 ? 330 : -840)),
+            N = -i, U = (nuint)i, W = (Int128)i << 70, D = i / 7m, Dt = DateTime.UnixEpoch.AddHours(i), Ts = TimeSpan.FromTicks(-i),
+            G = new Guid(i, (short)i, 3, 4, 5, 6, 7, 8, 9, 10, 11), Do = DateOnly.FromDayNumber(i & 0xFFFF),
+            To = new TimeOnly(i & 0xFFFF),
+            B = i % 2 == 0, H = (Half)i, TO = ((byte)i, DateTimeOffset.UnixEpoch.AddMinutes(i)),
+            V64 = System.Runtime.Intrinsics.Vector64.Create(i), V128 = System.Runtime.Intrinsics.Vector128.Create(i, -i),
+            V256 = System.Runtime.Intrinsics.Vector256.Create((long)i), V512 = System.Runtime.Intrinsics.Vector512.Create((byte)i),
+        };
+
+        /// <summary>A <see cref="RawFlags"/> of <paramref name="i"/>, its nullables null for odd ones.</summary>
+        public static RawFlags Flags(int i) => new RawFlags
+        {
+            A = (byte)i, L = i % 2 == 0 ? -i : null, T = i % 2 == 0 ? (i, i) : null,
+            O = i % 2 == 0 ? DateTimeOffset.UnixEpoch.AddDays(i).ToOffset(TimeSpan.FromHours(-i % 14)) : null, B = i % 3 == 0,
+        };
+
+        public static RawUntrusted RawUntrusted() => new RawUntrusted
+        {
+            One = Flags(2), Many = Enumerable.Range(0, 7).Select(Flags).ToArray(), List = new() { Flags(4), Flags(5) },
+            ById = Enumerable.Range(0, 4).ToDictionary(i => i, Flags),
+            Bcl = Bcl(9), Bcls = Enumerable.Range(0, 3).Select(Bcl).ToArray(),
+            ByTuple = Enumerable.Range(0, 3).ToDictionary(i => (i, -(long)i), Bcl),
         };
 
         public static Keyed Keyed() => new Keyed
@@ -183,6 +216,7 @@ namespace Nino.Fuzz
             Decimals = Enumerable.Range(0, n / 2).Select(i => i / 100m).ToArray(),
             Map = Enumerable.Range(0, n / 4).ToDictionary(i => i, i => i % 2 == 0),
             Set = Enumerable.Range(0, n / 4).Select(i => (i, i % 3 == 0)).ToHashSet(),
+            Bcls = Enumerable.Range(0, n / 16).Select(Bcl).ToArray(),
         };
 
         /// <summary>
@@ -193,7 +227,7 @@ namespace Nino.Fuzz
         {
             Pairs = new[] { (1, true) }, PairMemory = new[] { (2, false) }, Nullables = new int?[] { 3 }, Bools = new[] { true },
             Raws = new[] { new RawS { A = 4, B = true } }, Decimals = new[] { 5m },
-            Map = new() { [6] = true }, Set = new() { (7, true) },
+            Map = new() { [6] = true }, Set = new() { (7, true) }, Bcls = new[] { Bcl(8) },
         };
 
         public static Nest Nest()
