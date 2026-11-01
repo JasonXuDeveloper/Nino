@@ -29,66 +29,43 @@ versions. Nino defines the bytes instead:
   1 + 4 bytes otherwise, whatever collection it holds. Changing a member between the two kinds changes the
   format.
 
-### `ValueTuple` uses `LayoutKind.Auto`
+### `ValueTuple`, `DateTimeOffset`, `decimal` and other BCL structs differ by runtime
 
-`System.ValueTuple<...>` is `[StructLayout(LayoutKind.Auto)]` in every runtime, and each runtime places auto-layout
-fields its own way: 64-bit CoreCLR puts the primitive items first, largest first, then the struct items
-(`(int, long)` is the `long`, then the `int`); Mono and IL2CPP keep declaration order (`(byte, long, int)` is 24 bytes
-there, 16 on CoreCLR); 32-bit runtimes align to 4 and pack into fewer bytes; .NET Framework reorders by its own rule.
-Reference assemblies do not even show the attribute (they declare tuples sequential), which once made the generator
-publish tuples inside raw structs in declaration order while .NET x64 wrote them reordered. So:
+`ValueTuple` is `[StructLayout(LayoutKind.Auto)]` and every runtime places its items its own way; `DateTimeOffset`
+has another field order or width on .NET 8, .NET Framework and Mono; `decimal` is aligned to 8 by CoreCLR and Mono
+6.14 but to 4 by .NET Framework and IL2CPP; `nint` is 4 bytes on 32-bit hosts; the wide SIMD vectors are aligned
+differently on Arm. [layouts.md](layouts.md) has the measured layout of each on every runtime CI runs. Reference
+assemblies hide some of it (they declare tuples sequential), which once made the generator publish tuples inside raw
+structs in declaration order while .NET x64 wrote them reordered. So Nino defines the bytes instead of copying the
+host's memory:
 
-- On their own (values, members, elements, dictionary entries), `ValueTuple` and `KeyValuePair` are always written
-  item by item, in declaration order and without padding, never as raw memory: arrays and lists of them with
-  unmanaged items move between the runtime's layout and those packed bytes in blocks (vector shuffles).
-- Inside a plain raw struct, they are part of its bytes, in the canonical layout (below): tuples placed by 64-bit
-  CoreCLR's auto-layout rule, pairs sequential. Runtimes that lay them out otherwise convert.
-
-### BCL structs
-
-Before treating a BCL struct as raw, verify its layout on every runtime:
-
-- `DateTime`, `TimeSpan`: one 8-byte field.
-- `Guid`: `int, short, short, 8 bytes`, the same everywhere.
-- `decimal`: 16 bytes with the same byte order everywhere, but CoreCLR declares
-  `int _flags; uint _hi32; ulong _lo64` (alignment 8) while Mono/IL2CPP declare four ints (alignment 4).
-  So `struct { int a; decimal d; }` puts `d` at 8 on CoreCLR and at 4 on Unity. Measured in CI: .NET Framework aligns
-  `decimal` to 4 as well; Mono 6.8 and 6.14 (whose `decimal` overlays a `ulong`) to 8.
-- `DateTimeOffset`: auto-layout, and different everywhere: .NET 10 has an `int` offset in minutes at 0 and the UTC
-  date at 8; .NET 8 a `short` at 0 (the same place, other width); .NET Framework and Mono the date at 0 and a `short`
-  at 8; 32-bit runtimes 12 bytes. On its own Nino writes it as UTC ticks plus offset minutes (10 bytes), never raw;
-  inside a raw struct, as .NET 10 lays it out (16 bytes: `i32` minutes, 4 zero bytes, UTC ticks), so .NET 10 copies it
-  and every other runtime converts (.NET 8 sign-extends its `short`).
-- `Nullable<T>`, `ValueTuple`, `KeyValuePair`: never raw on their own (see above). A raw `[NinoType]` struct requires
-  all of its fields to be raw, so a struct holding one of these is written member by member. A plain struct (no
-  `[NinoType]`) is raw as a whole, with these inside it in the canonical layout: `Nullable<T>` and `KeyValuePair`
-  sequential with their real fields, `ValueTuple` and `DateTimeOffset` as above. Where the runtime's layout of such a
-  struct is not the canonical one, the offsets of its fields are read from an instance (`MeasureMemory`: tuples,
-  `DateTimeOffset`, `Nullable` fields included) and each value is converted; where it is (64-bit CoreCLR), it is
-  copied as it is.
-- `nint`, `nuint` and pointers inside a raw struct are 8 bytes on the wire on every host (sign- or zero-extended on
-  32-bit; a value that does not fit a 32-bit host's field is rejected there).
+- On their own (values, members, elements, dictionary entries), `ValueTuple`, `KeyValuePair` and `Nullable<T>` are
+  written item by item, never as raw memory; `DateTimeOffset` as UTC ticks plus offset minutes (10 bytes).
+- Inside a plain raw struct they take the canonical layout (spec §5.2: 64-bit CoreCLR's, with `DateTimeOffset` as
+  .NET 10 lays it out, `nint`/`nuint`/pointers and function pointers as 8 bytes, the SIMD vectors aligned as on x64). A runtime whose
+  layout is the canonical one copies the struct; every other one finds its field offsets once from an instance
+  (`MeasureMemory`) and converts field by field. A raw `[NinoType]` struct requires all of its fields to be raw, so
+  one holding a tuple, pair or nullable is written member by member.
+- A function pointer (`delegate*`) is a pointer: 8 bytes, zero-extended. Each runtime reports its field differently
+  (.NET 8+ a function pointer type, .NET Framework and .NET 7 an `IntPtr` only its signature tells apart), so layouts
+  read field types through `NinoReflection.LayoutFieldType`. Mono and IL2CPP cannot resolve the signature and see an
+  `IntPtr`, which they sign-extend: the same bytes on 64-bit hosts, different on a 32-bit Unity player only for an
+  address with its top bit set.
 - `Vector<T>` is not serializable (next section).
-- `Vector64/128/256/512<T>` are aligned to their size inside raw structs, as x64 CoreCLR does; Arm64 aligns
-  `Vector256` and `Vector512` to 16 and Arm32 every one to 8, so a raw struct holding one after a smaller field is
-  converted there.
-- docs/layouts.md has the measured layout of every BCL struct on every runtime CI has.
 
 ### `Vector<T>` is not serializable
 
-`Vector<T>` has the size of the CPU's vectors: 32 bytes on x64 with AVX2 or AVX-512 (the default; check
-`DOTNET_PreferredVectorBitWidth` and `DOTNET_MaxVectorTBitWidth`, which can make it 64), 16 on Arm64, Arm32, .NET
-Framework x86, Mono, IL2CPP (Unity, on x64 too) and x64 without AVX2. Its declared fields are two `ulong`s whatever its
-size. No wire format can carry it between hosts: 32 bytes written on x64 do not fit a 16-byte `Vector<T>` on Arm64 or in
+`Vector<T>` is 16, 32 or 64 bytes, chosen by the CPU (the spec's §3 lists which host has which; `DOTNET_MaxVectorTBitWidth`
+can change it). Its declared fields are two `ulong`s whatever its size. No wire format can carry it between hosts: 32 bytes written on x64 do not fit a 16-byte `Vector<T>` on Arm64 or in
 Unity. Nino up to rc.7 measured it by its fields and wrote 16 bytes, silently dropping the upper half on AVX2 machines.
 Now no type that is or holds one is serializable (alone, in arrays, collections, tuples, `Nullable`, a type argument a
 `[NinoType]` uses, a base type or the `IEnumerable<T>` of a collection, as in `class Lanes : List<Vector<int>>`, or a
 field at any depth of a plain struct): the analyzer reports NINO029 on the member or the
 `NinoSerializer`/`NinoDeserializer` call (not NINO007, though such a type has no formatter either), the generator emits
 nothing for it, and the runtime throws `NotSupportedException` when the formatter is first resolved, or, for code that
-skips the resolver (an `UnmanagedFormatter<T>` made by hand, `Writer.Write<T>`), when the value is written or read
-(`NinoReflection.VariableVectorIn`, the generator's `RawRules.VariableVectorIn`; `NinoLayout<T>` refuses it in its
-converted paths, never in its static initializer, which Mono runs when a method naming it is compiled).
+skips the resolver (an `UnmanagedFormatter<T>` made by hand, `Writer.Write<T>`), when the value is written or read;
+`NinoLayout<T>` refuses it in its converted paths, never in its static initializer, which Mono runs when a method
+naming it is compiled.
 `Vector64<T>` to `Vector512<T>` are fixed size and stay serializable; so does a member with a `[NinoMemberFormatter]`
 of your own.
 
@@ -131,8 +108,10 @@ public sealed partial class Particle
 ```
 
 The bytes are the same whatever `Vector<float>.Count` is (`tests/Nino.UnitTests/Layout/VectorTTests.cs` with
-`DOTNET_EnableAVX2=0` and `DOTNET_MaxVectorTBitWidth=512`, and `LaneParticle` in `tests/Nino.RuntimeTests` on every CI
-runtime). A span is a ref struct, so `Vectors` could not be serialized anyway; `[NinoIgnore]` says it is meant. Data
+`DOTNET_EnableAVX2=0` and `DOTNET_MaxVectorTBitWidth=512`, and `LaneParticle`, declared in
+`src/Nino.Unity/Assets/Test/Runtime/BclFixtureTypes.cs` and compiled into `tests/Nino.RuntimeTests`, on every CI
+runtime). CI runs the `DOTNET_MaxVectorTBitWidth=512` lines only on runners with AVX-512 (GitHub's Xeons); on an EPYC
+7763 runner it skips them with a notice. A span is a ref struct, so `Vectors` could not be serialized anyway; `[NinoIgnore]` says it is meant. Data
 read from an untrusted source may hold another number of lanes: check `Lanes.Length` before using the view. A fixed
 buffer or `Vector128<T>`/`Vector256<T>` fields (.NET only) serve as storage too.
 
@@ -185,6 +164,15 @@ data there. Copied as is, two equal values could serialize to different bytes, a
 into the output. Nino clears padding on write. Blocks use a masked copy (SIMD when accelerated) rather
 than a copy followed by masking, which would reload freshly stored bytes and stall on store forwarding.
 Types without padding pay nothing: the check is a JIT-time constant.
+
+### A raw struct's `bool` fields and `Nullable` flags are unchecked by default
+
+Reading a raw struct copies its block, so the default mode does not check a `bool` field or a `Nullable` flag inside
+it: the default mode copies raw blocks as they are, at no cost (the owner's decision, round 104). A byte other than 0 or 1 there is undefined
+behavior to the JIT, not only a wrong value: a `long?` with a flag of 2 was boxed as null by one compiled body and as
+a value by another, so the struct compared unequal to itself and was lost in a `Dictionary`. `NinoSettings.Untrusted`
+rejects such bytes (the corpus's `presence-raw-*` cases are `untrusted`), and the docs tell users to read untrusted
+data with it (spec §9.3; the site's security page). The Go, Rust and TypeScript runtimes always reject them.
 
 ### Reordering fields of a raw struct changes the format
 

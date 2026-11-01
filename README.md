@@ -36,7 +36,9 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 > `NinoSettings.MaxDepth` and `MaxCollectionLength` tighten the limits. For data from outside, set
 > `NinoSettings.Untrusted = true` at startup: the dictionaries and sets Nino creates hash integer, `char`, `Guid` and
 > `string` keys with a per-process secret, `bool`, `DateTime`, `decimal`, `DateOnly` and `TimeOnly` values are checked
-> even inside raw structs, and bytes after the value are rejected; with it off (the default) none of this costs anything.
+> even inside raw structs (where, unchecked, a `bool` or `Nullable` flag other than 0 or 1 is undefined behavior to the
+> JIT: the value can compare unequal to itself), and bytes after the value are rejected; with it off (the default)
+> none of this costs anything.
 > Fuzzed and hand-crafted payloads were run against every built-in type, and what they found is fixed in 4.0.0-rc.7.
 > [What Nino checks, and what stays your code's job](https://nino.xgamedev.net/en/docs/v4/security). (MemoryPack now
 > [recommends itself for trusted data only](https://github.com/Cysharp/MemoryPack#readme); see the [comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack#untrusted-input).)

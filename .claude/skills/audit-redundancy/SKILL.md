@@ -34,5 +34,12 @@ skills fix what it finds in their files (the `audit` scopes table says who owns 
   a merged public API or attribute needs the owner and a migration note.
 - Merging must not cost speed: hot paths keep their inlining (`optimize`), with runner numbers when in doubt.
 - A rule merged between skills stays in full in its owner, with a one-line pointer in the others.
+- Give a predicate that must stay mirrored (the generator's and Nino.Core's copy of one decision, which cannot share
+  code across the analyzer and the runtime) a parity test that runs both over the same cases, since nothing else
+  notices one drifting: r104's `RawRules.HostSizedVectorIn` and `NinoReflection.HostSizedVectorIn`
+  (`tests/Nino.UnitTests/Corner/HostSizedVectorAgreementTests.cs`).
+- Give a fixture that is copied by hand between projects a sync check, or better make it one file linked into both:
+  r104 replaced the copy of the BCL layout fixtures with `src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs`, which
+  `tests/Nino.RuntimeTests` links and Unity's `BclLayoutTests` read.
 - Report: what was merged or deleted (old → new), what you kept twice on purpose and why (a fast path beside its
   portable fallback, a per-platform copy, a history page), and what is left for the owner.

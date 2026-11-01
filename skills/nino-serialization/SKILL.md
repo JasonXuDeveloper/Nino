@@ -183,6 +183,11 @@ NinoSettings.MaxDepth = 512;                // default 512, at least 128
 NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
 ```
 
+- Data from an untrusted source must be read with `NinoSettings.Untrusted = true`. The default mode copies a raw
+  struct as one block, so a `bool` field or a `Nullable` flag inside one is not checked: a byte other than 0 or 1
+  there is undefined behavior to the .NET JIT, not only a wrong value (the struct can compare unequal to itself and
+  be lost in a `Dictionary`). Untrusted mode rejects it, and also bytes after the value and out-of-range `decimal`,
+  `DateTime`, `DateOnly` and `TimeOnly`.
 - Pool settings (`PoolMaxRetained`, `SetPoolMaxRetained<T>`, `SetRecycler<T>`) are also startup-only.
 - Still your job: validate values (a negative health, an unnamed enum value), cap frame or request sizes before
   buffering, and version payloads yourself (the bytes carry no schema: data for another type with a compatible layout
@@ -204,8 +209,8 @@ NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
   your own id), non-generic collections, abstract or struct collections, Unity/Godot classes except Unity's
   `AnimationCurve`, `Gradient`, `RectOffset`. Fix with `[NinoIgnore]` or a custom formatter.
 - Never serializable (NINO029, an error; `NotSupportedException` at run time): `System.Numerics.Vector<T>`, alone or
-  inside anything (arrays, collections and classes deriving from one, tuples, `T?`, plain structs): it is 16, 32 or 64
-  bytes by the CPU. `Vector64<T>` to `Vector512<T>` are fixed size and fine. Store 16 lanes of a 4-byte type (whole
+  inside anything (arrays, collections and classes deriving from one, tuples, `T?`, plain structs, a generic
+  `[NinoType]` whose members name `T`, as `Box<Vector<int>>`): it is 16, 32 or 64 bytes, chosen by the CPU. `Vector64<T>` to `Vector512<T>` are fixed size and fine. Store 16 lanes of a 4-byte type (whole
   vectors on every CPU) and view them as vectors ([why](https://nino.xgamedev.net/en/docs/v4/struct-layouts#vector-t)):
 
   ```csharp

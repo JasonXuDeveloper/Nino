@@ -188,7 +188,8 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
 - `typeId=0x...`: the type id, for polymorphic slots (or implement `nino.Typed`'s `NinoTypeID()`; the two must agree).
 - `raw=true|false`, with `members=raw(n){f:T@off:E,...}` for a raw struct's offsets (`Pack`, `Size`, explicit
   layouts). Without them a struct whose fields are all fixed-size values is raw in the canonical layout (spec §5.2:
-  natural alignment, CoreCLR 64-bit); `raw=false` declares a `ValueTuple`, which is written item by item.
+  natural alignment, CoreCLR 64-bit; `Int128` and `UInt128` aligned to 16, so `{ byte; Int128; int }` is 48 bytes and
+  an `Int128?` element 32); `raw=false` declares a `ValueTuple`, which is written item by item.
 - `members=...`: the published members. With them the plan is checked against the layout: the number of members
   (all for positional, a prefix for version-tolerant, any subset for keyed), each field's encoding against the
   member's, and the keys and former keys (the published ones are used, as the spec requires).

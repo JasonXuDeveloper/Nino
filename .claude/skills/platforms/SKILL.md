@@ -62,49 +62,39 @@ builds of Nino.Core, Mono).
 - Measure a struct layout of a target you cannot run the same way, and never assume one rule per field size: a
   `[NoInlining]` method `ref T F(ref S s) => ref s.B` compiles to `lea eax, [ecx+offset]` and `Unsafe.SizeOf<S>()` to
   `mov eax, size` (crossgen2 with `--parallelism 1`, or the listings interleave; `--inputbubble --inputbubbleref` with
-  the target's CoreLib so BCL sizes fold). Windows x86 .NET 10 aligns `long`, `double` and sequential structs holding
-  one (`TimeSpan`, `decimal`, `Nullable<long>`, user structs) to 8 but auto-layout structs (`DateTime`, `ValueTuple`,
-  `DateTimeOffset`) and the 8-byte fields inside them to 4: `NinoLayout` once took `{byte; long}` for `DateTime` too
-  and copied `{ int; DateTime }` as 12 bytes of x86 memory (fixed by a `{byte; DateTime}` probe). .NET Framework
-  (x64 and x86) reorders a sequential struct holding a `DateTime` as auto-layout (`{ byte; DateTime; int }`: the int
-  at 0, 16 bytes): `NinoLayout` detects it (`KeepsDeclarationOrder`) and reads offsets from an instance there
-  (`MeasureMemory`). What `NinoLayout` probes on each runtime is printed by tests/Nino.RuntimeTests (`# layout:`),
-  which checks such structs on every runtime CI has.
-  Value tuples (and any `LayoutKind.Auto` struct with several fields) are placed per runtime: 64-bit CoreCLR by its
-  auto rule (`NinoLayoutCore.PlaceAuto`, from crossgen2's `MetadataFieldLayoutAlgorithm.ComputeAutoFieldLayout`:
-  primitives largest first, then structs, the size rounded to 8 or to a power of two up to 8), Mono 6.8 and IL2CPP in
-  declaration order, 32-bit runtimes with a 4-byte pointer in that rule; `DateTimeOffset` is `{ int; DateTime }` on
-  .NET 10, `{ short; DateTime }` on .NET 8, `{ DateTime; short }` on Mono and .NET Framework. The canonical layout is
-  64-bit CoreCLR's (so x64 and Arm64 copy) with .NET 10's `DateTimeOffset`; every other runtime measures and converts
-  (`MeasureMemory`, which also reads `Nullable` fields). Reference assemblies declare tuples sequential (no
-  `[StructLayout(Auto)]` in them): the generator once published raw structs' tuples in declaration order while .NET
-  x64 wrote them reordered, so `RawLayout` forces `Auto` for `System.ValueTuple`. `Vector<T>` is as wide as the
-  CPU's vectors (32 bytes on x64 with AVX2 or AVX-512 by default, 64 with `DOTNET_MaxVectorTBitWidth=512`, 16 on
-  Arm64, Arm32, .NET Framework x86, without AVX2 and on Mono and IL2CPP, Unity on x64 included), and its declared
-  fields are two `ulong`s whatever its size: never measure a vector by its fields (Nino did, and wrote 16 bytes,
-  dropping the upper half on AVX2 hosts). Never serialize a type whose size depends on the host: no bytes of it read
-  everywhere (a 32-byte draft encoding made x64 data unreadable on Arm64 and in Unity), so the owner's rule is that
-  such a type is refused, by the analyzer (NINO029) and at run time (`NotSupportedException`), with a fixed-size form
-  documented instead (16 lanes, a `[NinoIgnore]` span view: `tests/Nino.UnitTests.Subset/VectorLanes.cs`). Vector64
-  to Vector512 are fixed size and stay: aligned 8/16/32/64 on x64, 16/16/16 on Arm64, 8 on Arm32 (`NinoLeaf.Vector`).
-  Test every `Vector<T>` width on one x64 machine: `DOTNET_EnableAVX2=0` (16 bytes), `DOTNET_MaxVectorTBitWidth=512`
-  (64), the default (32); `tests/Nino.RuntimeTests` prints `# Vector<float>.Count`.
-  CI covers all three: the no-AVX2 unit tests (16), the default (32), and 64 in the net10.0 unit-test job (VectorTTests)
-  and the Linux runtime-internals job (Nino.RuntimeTests, which must print Count 16) with `DOTNET_MaxVectorTBitWidth=512`.
-  GitHub's x64 runners are Xeon 6973P-C (AVX-512) or EPYC 7763 (none): a check that needs AVX-512 asks
-  `.github/scripts/has_avx512.sh` (F, BW, CD, DQ, VL, as .NET needs) and posts a notice instead of failing without it.
-  Each CI runtime prints its layout of
-  every BCL struct (`# layout` lines of `tests/Nino.RuntimeTests`, the table in docs/layouts.md) and must write and
-  read CoreCLR x64's bytes for each (`BclStructs.cs` against `BclFixtures.cs`, which Unity's `BclLayoutTests` read too,
-  in play mode and the IL2CPP player). Check a change to `NinoLayout` / `NinoLayoutCore` against random shapes, not only the listed ones: generate nested
+  the target's CoreLib so BCL sizes fold). Evidence: Windows x86 .NET 10 aligns `long`, `double` and sequential
+  structs holding one to 8 but auto-layout structs (`DateTime`, `ValueTuple`, `DateTimeOffset`) and the 8-byte fields
+  inside them to 4; `NinoLayout` once took `{byte; long}` for `DateTime` too and copied `{ int; DateTime }` as 12
+  bytes of x86 memory (fixed by a `{byte; DateTime}` probe). How a listing proves a platform test folds is `optimize`'s.
+- Take the layout of a BCL struct on a runtime from docs/layouts.md (the measured tables, from the `# layout:` lines
+  `tests/Nino.RuntimeTests` prints on every CI runtime), never from memory or from reference assemblies: these declare
+  tuples sequential, so the generator once published raw structs' tuples in declaration order while .NET x64 wrote
+  them reordered (`RawLayout` now forces `Auto` for `System.ValueTuple`). The canonical layout is the spec's §5.2;
+  a runtime that differs measures and converts (`NinoLayout`, `MeasureMemory`, which also reads `Nullable` fields;
+  `KeepsDeclarationOrder` detects .NET Framework's reordering).
+- Check that every CI runtime writes and reads CoreCLR x64's bytes for each BCL struct: `BclStructs.cs` against the
+  one fixture file `src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs`, which Unity's `BclLayoutTests` read too, in
+  play mode and the IL2CPP player.
+- Check a change to `NinoLayout` / `NinoLayoutCore` against random shapes, not only the listed ones: generate nested
   value tuples of every leaf (with `Nullable`, `KeyValuePair`, `DateTimeOffset`, `nint`) inside a sequential struct,
   fill them through reflection, `NinoSerializer.Serialize` them and diff the hex across runtimes (.NET 10, .NET 8 and
   Mono's net472 build on x64, the self-contained `linux-arm64` publish under qemu); in-process, `NinoLayout.Compute`
   with `measured: true` must give the model's result for every shape on x64. Round 104: 5,000 shapes wrote the same
   bytes on all four, and the measured path threw for a top-level `T?` (created as null by `Activator`, so
-  `MeasureMemory` takes its flag and value from `NullableValue`). Never read a pointer field by reflection (`FieldInfo.GetValue` on `IntPtr`'s `void*`
-  crashed Mono 6.8 with SIGSEGV).
-  Read every field type a layout needs through `NinoReflection.LayoutFieldType`: a function pointer (`delegate*`) is a
+  `MeasureMemory` takes its flag and value from `NullableValue`).
+- Never measure a vector by its declared fields: `Vector<T>`'s are two `ulong`s whatever its size (16, 32 or 64
+  bytes, chosen by the CPU; the spec's §3 lists which host has which), and Nino did, writing 16 bytes and dropping the
+  upper half on AVX2 hosts. A type whose size depends on the host is never serialized (`wire-format` owns that rule;
+  NINO029 is `audit-analyzer`'s). `Vector64` to `Vector512` are fixed size: aligned 8/16/32/64 on x64, 16/16/16 on
+  Arm64, 8 on Arm32 (`NinoLeaf.Vector`).
+- Test every `Vector<T>` width on one x64 machine: `DOTNET_EnableAVX2=0` (16 bytes), the default (32),
+  `DOTNET_MaxVectorTBitWidth=512` (64); `tests/Nino.RuntimeTests` prints `# Vector<float>.Count`. CI covers all three:
+  the no-AVX2 unit tests (16), the default (32), and 64 in the net10.0 unit-test job (`VectorTTests`) and the Linux
+  runtime-internals job (Nino.RuntimeTests, which must print Count 16). GitHub's x64 runners are Xeon 6973P-C
+  (AVX-512) or EPYC 7763 (none): a check that needs AVX-512 asks `.github/scripts/has_avx512.sh` (F, BW, CD, DQ, VL,
+  as .NET needs) and posts a notice instead of failing without it.
+- Never read a pointer field by reflection: `FieldInfo.GetValue` on `IntPtr`'s `void*` crashed Mono 6.8 with SIGSEGV.
+- Read every field type a layout needs through `NinoReflection.LayoutFieldType`: a function pointer (`delegate*`) is a
   pointer, 8 bytes zero-extended as the generator publishes it, but .NET 8 and later report the field as a function
   pointer type (`IsFunctionPointer`; `IsClass` true, `IsValueType` false, no base type), which `NinoLayout` took for
   unsupported and copied as it lay in memory (4 bytes on 32-bit), and .NET Framework and .NET 7 report `IntPtr`
@@ -112,8 +102,8 @@ builds of Nino.Core, Mono).
   ELEMENT_TYPE_FNPTR 0x1B after any modifier; Mono resolves only StandAloneSig tokens, IL2CPP none, so there it stays
   an `IntPtr`). Mono 6.8 overflows its stack loading any struct with a `delegate*` field, even one only a generated
   registry names: tests/Nino.RuntimeTests declares its case in net10.0 only (r105: ok on x64 and on Arm32 under qemu).
-  To run the unit suite under qemu-arm, call its `[TestMethod]`s by reflection from a small program run by the Arm32
-  `dotnet` (`dotnet test` starts its host with the machine's own runtime); leave out the Roslyn compilations,
+- Run the unit suite under qemu-arm by calling its `[TestMethod]`s by reflection from a small program run by the
+  Arm32 `dotnet` (`dotnet test` starts its host with the machine's own runtime); leave out the Roslyn compilations,
   too slow emulated: `Generator` and `ShapeMatrixTests` (in `Corner/` but namespace `Nino.UnitTests`, so a filter on
   `Corner` misses it: it ran over 50 minutes and looked like a hang; analyzer and code fix tests take 9 minutes).
   Under `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` only the two `BclTypeTests` culture tests fail (and
