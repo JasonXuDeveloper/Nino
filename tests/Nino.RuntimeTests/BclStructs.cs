@@ -133,6 +133,9 @@ public static class BclStructs
         Top("Dictionary<int,(byte,long)>", new Dictionary<int, (byte, long)> { [1] = (2, 3), [-4] = (5, -6) });
         Top("Dictionary<long,KVP<int,byte>>", new Dictionary<long, KeyValuePair<int, byte>>
             { [1] = new KeyValuePair<int, byte>(2, 3) });
+        // T?[] of a raw struct holding a tuple: the presence byte padded to the struct's alignment (8).
+        Top("Around<(int,long)>?[]", new Around<(int, long)>?[] { new Around<(int, long)> { A = 1, B = (2, 3), C = 4 }, null });
+        Top("List<Around<DateTimeOffset>?>", new List<Around<DateTimeOffset>?> { null, new Around<DateTimeOffset> { A = 5, B = dto1, C = 6 } });
         Top("(int,long)", (1, -2L));
         Top("KVP<byte,DateTime>", new KeyValuePair<byte, DateTime>(1, dt1));
 
