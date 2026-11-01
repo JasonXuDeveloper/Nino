@@ -60,6 +60,8 @@ fn optional(case: &Value) -> bool {
 const NOT_GENERATED: &[&str] = &[
     // Nest<T> holds Nest<List<T>>: a type that needs ever more instantiations, which Rust rejects (E0320).
     "Conformance.NestHolder",
+    // Nullables inside a raw struct: no Rust form there (nino::Raw has no Option).
+    "Conformance.BclRawNullables",
 ];
 
 fn run() {

@@ -148,6 +148,417 @@ impl EmptyStruct {
     pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x18A30154; deferrable=false; members=raw";
 }
 
+/// `Conformance.HoldsBclLeaves`: raw, 112 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct HoldsBclLeaves {
+    pub a: u8,
+    pub g: nino::Guid,
+    pub d: nino::Decimal,
+    pub s: nino::TimeSpan,
+    pub t: ValueTupleInt32TimeSpan,
+    pub m: ValueTupleByteDecimal,
+    pub u: ValueTupleByteGuid,
+}
+
+impl nino::Raw for HoldsBclLeaves {
+    const SIZE: usize = 112;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..112).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [1, 2, 3, 20, 21, 22, 23].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            a: <u8 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            g: <nino::Guid as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
+            d: <nino::Decimal as nino::Raw>::decode_raw(b.get(24..).unwrap_or_default())?,
+            s: <nino::TimeSpan as nino::Raw>::decode_raw(b.get(40..).unwrap_or_default())?,
+            t: <ValueTupleInt32TimeSpan as nino::Raw>::decode_raw(b.get(48..).unwrap_or_default())?,
+            m: <ValueTupleByteDecimal as nino::Raw>::decode_raw(b.get(64..).unwrap_or_default())?,
+            u: <ValueTupleByteGuid as nino::Raw>::decode_raw(b.get(88..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.a, o);
+        }
+        if let Some(o) = out.get_mut(4..) {
+            nino::Raw::encode_raw(&self.g, o);
+        }
+        if let Some(o) = out.get_mut(24..) {
+            nino::Raw::encode_raw(&self.d, o);
+        }
+        if let Some(o) = out.get_mut(40..) {
+            nino::Raw::encode_raw(&self.s, o);
+        }
+        if let Some(o) = out.get_mut(48..) {
+            nino::Raw::encode_raw(&self.t, o);
+        }
+        if let Some(o) = out.get_mut(64..) {
+            nino::Raw::encode_raw(&self.m, o);
+        }
+        if let Some(o) = out.get_mut(88..) {
+            nino::Raw::encode_raw(&self.u, o);
+        }
+    }
+}
+
+impl NinoRead for HoldsBclLeaves {
+    const MIN_SIZE: usize = 112;
+    const FIXED_SIZE: usize = 112;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<112>()?)
+    }
+}
+
+impl NinoWrite for HoldsBclLeaves {
+    const FIXED_SIZE: usize = 112;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 112];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `Conformance.HoldsNestedTuples`: raw, 48 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct HoldsNestedTuples {
+    pub a: u8,
+    pub x: ValueTupleInt32ValueTupleByteInt64,
+    pub y: ValueTupleValueTupleByteInt16Int64,
+}
+
+impl nino::Raw for HoldsNestedTuples {
+    const SIZE: usize = 48;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..48).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [1, 2, 3, 4, 5, 6, 7].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            a: <u8 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            x: <ValueTupleInt32ValueTupleByteInt64 as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+            y: <ValueTupleValueTupleByteInt16Int64 as nino::Raw>::decode_raw(b.get(32..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.a, o);
+        }
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.x, o);
+        }
+        if let Some(o) = out.get_mut(32..) {
+            nino::Raw::encode_raw(&self.y, o);
+        }
+    }
+}
+
+impl NinoRead for HoldsNestedTuples {
+    const MIN_SIZE: usize = 48;
+    const FIXED_SIZE: usize = 48;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<48>()?)
+    }
+}
+
+impl NinoWrite for HoldsNestedTuples {
+    const FIXED_SIZE: usize = 48;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 48];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `Conformance.HoldsPairs`: raw, 40 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct HoldsPairs {
+    pub a: u8,
+    pub p: KeyValuePairInt32Int64,
+    pub q: KeyValuePairInt64Byte,
+}
+
+impl nino::Raw for HoldsPairs {
+    const SIZE: usize = 40;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..40).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [1, 2, 3, 4, 5, 6, 7].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            a: <u8 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            p: <KeyValuePairInt32Int64 as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+            q: <KeyValuePairInt64Byte as nino::Raw>::decode_raw(b.get(24..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.a, o);
+        }
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.p, o);
+        }
+        if let Some(o) = out.get_mut(24..) {
+            nino::Raw::encode_raw(&self.q, o);
+        }
+    }
+}
+
+impl NinoRead for HoldsPairs {
+    const MIN_SIZE: usize = 40;
+    const FIXED_SIZE: usize = 40;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<40>()?)
+    }
+}
+
+impl NinoWrite for HoldsPairs {
+    const FIXED_SIZE: usize = 40;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 40];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `Conformance.HoldsTuples`: raw, 48 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct HoldsTuples {
+    pub a: i32,
+    pub b: ValueTupleInt32Int64,
+    pub c: ValueTupleByteInt16,
+    pub d: ValueTupleByteInt64Int32,
+}
+
+impl nino::Raw for HoldsTuples {
+    const SIZE: usize = 48;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..48).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [4, 5, 6, 7, 28, 29, 30, 31].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            a: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            b: <ValueTupleInt32Int64 as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+            c: <ValueTupleByteInt16 as nino::Raw>::decode_raw(b.get(24..).unwrap_or_default())?,
+            d: <ValueTupleByteInt64Int32 as nino::Raw>::decode_raw(b.get(32..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.a, o);
+        }
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.b, o);
+        }
+        if let Some(o) = out.get_mut(24..) {
+            nino::Raw::encode_raw(&self.c, o);
+        }
+        if let Some(o) = out.get_mut(32..) {
+            nino::Raw::encode_raw(&self.d, o);
+        }
+    }
+}
+
+impl NinoRead for HoldsTuples {
+    const MIN_SIZE: usize = 48;
+    const FIXED_SIZE: usize = 48;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<48>()?)
+    }
+}
+
+impl NinoWrite for HoldsTuples {
+    const FIXED_SIZE: usize = 48;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 48];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `System.Collections.Generic.KeyValuePair<System.Int32,System.Int64>`: raw, 16 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct KeyValuePairInt32Int64 {
+    pub key: i32,
+    pub value: i64,
+}
+
+impl nino::Raw for KeyValuePairInt32Int64 {
+    const SIZE: usize = 16;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..16).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [4, 5, 6, 7].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            key: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            value: <i64 as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.key, o);
+        }
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.value, o);
+        }
+    }
+}
+
+impl NinoRead for KeyValuePairInt32Int64 {
+    const MIN_SIZE: usize = 16;
+    const FIXED_SIZE: usize = 16;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
+    }
+}
+
+impl NinoWrite for KeyValuePairInt32Int64 {
+    const FIXED_SIZE: usize = 16;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 16];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `System.Collections.Generic.KeyValuePair<System.Int64,System.Byte>`: raw, 16 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct KeyValuePairInt64Byte {
+    pub key: i64,
+    pub value: u8,
+}
+
+impl nino::Raw for KeyValuePairInt64Byte {
+    const SIZE: usize = 16;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..16).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [9, 10, 11, 12, 13, 14, 15].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            key: <i64 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            value: <u8 as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.key, o);
+        }
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.value, o);
+        }
+    }
+}
+
+impl NinoRead for KeyValuePairInt64Byte {
+    const MIN_SIZE: usize = 16;
+    const FIXED_SIZE: usize = 16;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
+    }
+}
+
+impl NinoWrite for KeyValuePairInt64Byte {
+    const FIXED_SIZE: usize = 16;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 16];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
 /// `Conformance.Mixed`: raw, 12 bytes.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -515,6 +926,560 @@ impl Sized {
     pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0xB3C0D1F7; deferrable=false; members=raw(16){A:int@0:raw(4)}";
 }
 
+/// `System.ValueTuple<System.Byte,System.Decimal>`: raw, 24 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct ValueTupleByteDecimal {
+    pub item1: u8,
+    pub item2: nino::Decimal,
+}
+
+impl nino::Raw for ValueTupleByteDecimal {
+    const SIZE: usize = 24;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..24).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [1, 2, 3, 4, 5, 6, 7].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            item1: <u8 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            item2: <nino::Decimal as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.item1, o);
+        }
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.item2, o);
+        }
+    }
+}
+
+impl NinoRead for ValueTupleByteDecimal {
+    const MIN_SIZE: usize = 24;
+    const FIXED_SIZE: usize = 24;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<24>()?)
+    }
+}
+
+impl NinoWrite for ValueTupleByteDecimal {
+    const FIXED_SIZE: usize = 24;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 24];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `System.ValueTuple<System.Byte,System.Guid>`: raw, 24 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct ValueTupleByteGuid {
+    pub item1: u8,
+    pub item2: nino::Guid,
+}
+
+impl nino::Raw for ValueTupleByteGuid {
+    const SIZE: usize = 24;
+    const ALIGN: usize = 4;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..24).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [1, 2, 3, 20, 21, 22, 23].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            item1: <u8 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            item2: <nino::Guid as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.item1, o);
+        }
+        if let Some(o) = out.get_mut(4..) {
+            nino::Raw::encode_raw(&self.item2, o);
+        }
+    }
+}
+
+impl NinoRead for ValueTupleByteGuid {
+    const MIN_SIZE: usize = 24;
+    const FIXED_SIZE: usize = 24;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<24>()?)
+    }
+}
+
+impl NinoWrite for ValueTupleByteGuid {
+    const FIXED_SIZE: usize = 24;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 24];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `System.ValueTuple<System.Byte,System.Int16>`: raw, 4 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct ValueTupleByteInt16 {
+    pub item1: u8,
+    pub item2: i16,
+}
+
+impl nino::Raw for ValueTupleByteInt16 {
+    const SIZE: usize = 4;
+    const ALIGN: usize = 2;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..4).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [3].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            item1: <u8 as nino::Raw>::decode_raw(b.get(2..).unwrap_or_default())?,
+            item2: <i16 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(2..) {
+            nino::Raw::encode_raw(&self.item1, o);
+        }
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.item2, o);
+        }
+    }
+}
+
+impl NinoRead for ValueTupleByteInt16 {
+    const MIN_SIZE: usize = 4;
+    const FIXED_SIZE: usize = 4;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<4>()?)
+    }
+}
+
+impl NinoWrite for ValueTupleByteInt16 {
+    const FIXED_SIZE: usize = 4;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 4];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `System.ValueTuple<System.Byte,System.Int64>`: raw, 16 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct ValueTupleByteInt64 {
+    pub item1: u8,
+    pub item2: i64,
+}
+
+impl nino::Raw for ValueTupleByteInt64 {
+    const SIZE: usize = 16;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..16).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [9, 10, 11, 12, 13, 14, 15].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            item1: <u8 as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+            item2: <i64 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.item1, o);
+        }
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.item2, o);
+        }
+    }
+}
+
+impl NinoRead for ValueTupleByteInt64 {
+    const MIN_SIZE: usize = 16;
+    const FIXED_SIZE: usize = 16;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
+    }
+}
+
+impl NinoWrite for ValueTupleByteInt64 {
+    const FIXED_SIZE: usize = 16;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 16];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `System.ValueTuple<System.Byte,System.Int64,System.Int32>`: raw, 16 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct ValueTupleByteInt64Int32 {
+    pub item1: u8,
+    pub item2: i64,
+    pub item3: i32,
+}
+
+impl nino::Raw for ValueTupleByteInt64Int32 {
+    const SIZE: usize = 16;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..16).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [13, 14, 15].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            item1: <u8 as nino::Raw>::decode_raw(b.get(12..).unwrap_or_default())?,
+            item2: <i64 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            item3: <i32 as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(12..) {
+            nino::Raw::encode_raw(&self.item1, o);
+        }
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.item2, o);
+        }
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.item3, o);
+        }
+    }
+}
+
+impl NinoRead for ValueTupleByteInt64Int32 {
+    const MIN_SIZE: usize = 16;
+    const FIXED_SIZE: usize = 16;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
+    }
+}
+
+impl NinoWrite for ValueTupleByteInt64Int32 {
+    const FIXED_SIZE: usize = 16;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 16];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `System.ValueTuple<System.Int32,System.Int64>`: raw, 16 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct ValueTupleInt32Int64 {
+    pub item1: i32,
+    pub item2: i64,
+}
+
+impl nino::Raw for ValueTupleInt32Int64 {
+    const SIZE: usize = 16;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..16).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [12, 13, 14, 15].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            item1: <i32 as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+            item2: <i64 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.item1, o);
+        }
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.item2, o);
+        }
+    }
+}
+
+impl NinoRead for ValueTupleInt32Int64 {
+    const MIN_SIZE: usize = 16;
+    const FIXED_SIZE: usize = 16;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
+    }
+}
+
+impl NinoWrite for ValueTupleInt32Int64 {
+    const FIXED_SIZE: usize = 16;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 16];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `System.ValueTuple<System.Int32,System.TimeSpan>`: raw, 16 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct ValueTupleInt32TimeSpan {
+    pub item1: i32,
+    pub item2: nino::TimeSpan,
+}
+
+impl nino::Raw for ValueTupleInt32TimeSpan {
+    const SIZE: usize = 16;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..16).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [4, 5, 6, 7].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            item1: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            item2: <nino::TimeSpan as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.item1, o);
+        }
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.item2, o);
+        }
+    }
+}
+
+impl NinoRead for ValueTupleInt32TimeSpan {
+    const MIN_SIZE: usize = 16;
+    const FIXED_SIZE: usize = 16;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
+    }
+}
+
+impl NinoWrite for ValueTupleInt32TimeSpan {
+    const FIXED_SIZE: usize = 16;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 16];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `System.ValueTuple<System.Int32,System.ValueTuple<System.Byte,System.Int64>>`: raw, 24 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct ValueTupleInt32ValueTupleByteInt64 {
+    pub item1: i32,
+    pub item2: ValueTupleByteInt64,
+}
+
+impl nino::Raw for ValueTupleInt32ValueTupleByteInt64 {
+    const SIZE: usize = 24;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..24).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [4, 5, 6, 7].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            item1: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            item2: <ValueTupleByteInt64 as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.item1, o);
+        }
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.item2, o);
+        }
+    }
+}
+
+impl NinoRead for ValueTupleInt32ValueTupleByteInt64 {
+    const MIN_SIZE: usize = 24;
+    const FIXED_SIZE: usize = 24;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<24>()?)
+    }
+}
+
+impl NinoWrite for ValueTupleInt32ValueTupleByteInt64 {
+    const FIXED_SIZE: usize = 24;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 24];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
+/// `System.ValueTuple<System.ValueTuple<System.Byte,System.Int16>,System.Int64>`: raw, 16 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct ValueTupleValueTupleByteInt16Int64 {
+    pub item1: ValueTupleByteInt16,
+    pub item2: i64,
+}
+
+impl nino::Raw for ValueTupleValueTupleByteInt16Int64 {
+    const SIZE: usize = 16;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..16).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [12, 13, 14, 15].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            item1: <ValueTupleByteInt16 as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+            item2: <i64 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.item1, o);
+        }
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.item2, o);
+        }
+    }
+}
+
+impl NinoRead for ValueTupleValueTupleByteInt16Int64 {
+    const MIN_SIZE: usize = 16;
+    const FIXED_SIZE: usize = 16;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
+    }
+}
+
+impl NinoWrite for ValueTupleValueTupleByteInt16Int64 {
+    const FIXED_SIZE: usize = 16;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 16];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
 /// `Conformance.Vec2`: raw, 8 bytes.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -724,6 +1689,74 @@ impl BagHolder {
     pub const NINO_TYPE_NAME: &str = "Conformance.BagHolder";
     /// The layout this code was generated from (`NinoTypeLayout`).
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x79A1F522; deferrable=true; members=Bag:Conformance.Bag:type(Conformance.Bag);Tolerant:Conformance.TolerantBag:type(Conformance.TolerantBag);Keyed:Conformance.KeyedBag:type(Conformance.KeyedBag);Set:Conformance.PointSet:type(Conformance.PointSet);Bags:System.Collections.Generic.List<Conformance.Bag>:seq(type(Conformance.Bag))";
+}
+
+/// `Conformance.BclRaw`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct BclRaw {
+    pub tuples: HoldsTuples,
+    pub pairs: HoldsPairs,
+    pub nested: HoldsNestedTuples,
+    pub leaves: HoldsBclLeaves,
+    pub tuple_array: Option<Vec<HoldsTuples>>,
+    pub pair_list: Option<Vec<HoldsPairs>>,
+}
+
+impl NinoReadBody for BclRaw {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.tuples)?;
+        r.read_into(&mut self.pairs)?;
+        r.read_into(&mut self.nested)?;
+        r.read_into(&mut self.leaves)?;
+        r.read_into(&mut self.tuple_array)?;
+        r.read_into(&mut self.pair_list)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for BclRaw {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.tuples)?;
+        w.write(&self.pairs)?;
+        w.write(&self.nested)?;
+        w.write(&self.leaves)?;
+        w.write(&self.tuple_array)?;
+        w.write(&self.pair_list)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for BclRaw {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for BclRaw {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<Vec<HoldsTuples>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<HoldsPairs>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.tuple_array.prefetch();
+        self.pair_list.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.tuple_array.prefetch_members();
+        self.pair_list.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl BclRaw {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0xE128DA27u32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.BclRaw";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xE128DA27; deferrable=true; members=Tuples:Conformance.HoldsTuples:raw(48){A:int@0:raw(4),B:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)},C:System.ValueTuple<byte, short>@24:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},D:System.ValueTuple<byte, long, int>@32:raw(16){Item1:byte@12:raw(1),Item2:long@0:raw(8),Item3:int@8:raw(4)}};Pairs:Conformance.HoldsPairs:raw(40){A:byte@0:raw(1),P:System.Collections.Generic.KeyValuePair<int, long>@8:raw(16){key:int@0:raw(4),value:long@8:raw(8)},Q:System.Collections.Generic.KeyValuePair<long, byte>@24:raw(16){key:long@0:raw(8),value:byte@8:raw(1)}};Nested:Conformance.HoldsNestedTuples:raw(48){A:byte@0:raw(1),X:System.ValueTuple<int, System.ValueTuple<byte, long>>@8:raw(24){Item1:int@0:raw(4),Item2:System.ValueTuple<byte, long>@8:raw(16){Item1:byte@8:raw(1),Item2:long@0:raw(8)}},Y:System.ValueTuple<System.ValueTuple<byte, short>, long>@32:raw(16){Item1:System.ValueTuple<byte, short>@8:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},Item2:long@0:raw(8)}};Leaves:Conformance.HoldsBclLeaves:raw(112){A:byte@0:raw(1),G:System.Guid@4:raw(16),D:decimal@24:raw(16),S:System.TimeSpan@40:raw(8),T:System.ValueTuple<int, System.TimeSpan>@48:raw(16){Item1:int@0:raw(4),Item2:System.TimeSpan@8:raw(8)},M:System.ValueTuple<byte, decimal>@64:raw(24){Item1:byte@0:raw(1),Item2:decimal@8:raw(16)},U:System.ValueTuple<byte, System.Guid>@88:raw(24){Item1:byte@0:raw(1),Item2:System.Guid@4:raw(16)}};TupleArray:Conformance.HoldsTuples[]:seq(raw(48){A:int@0:raw(4),B:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)},C:System.ValueTuple<byte, short>@24:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},D:System.ValueTuple<byte, long, int>@32:raw(16){Item1:byte@12:raw(1),Item2:long@0:raw(8),Item3:int@8:raw(4)}});PairList:System.Collections.Generic.List<Conformance.HoldsPairs>:seq(raw(40){A:byte@0:raw(1),P:System.Collections.Generic.KeyValuePair<int, long>@8:raw(16){key:int@0:raw(4),value:long@8:raw(8)},Q:System.Collections.Generic.KeyValuePair<long, byte>@24:raw(16){key:long@0:raw(8),value:byte@8:raw(1)}})";
 }
 
 /// `Conformance.Targets.BigSlot`: Positional, header NullFlag.
@@ -5500,6 +6533,7 @@ pub enum AnyObject {
     AnimalSlot(Box<AnimalSlot>),
     Bag(Box<Bag>),
     BagHolder(Box<BagHolder>),
+    BclRaw(Box<BclRaw>),
     BigSlot(Box<BigSlot>),
     BigValues(Box<BigValues>),
     BlueLink(Box<BlueLink>),
@@ -5631,6 +6665,7 @@ impl AnyObject {
             Self::AnimalSlot(v) => &mut **v,
             Self::Bag(v) => &mut **v,
             Self::BagHolder(v) => &mut **v,
+            Self::BclRaw(v) => &mut **v,
             Self::BigSlot(v) => &mut **v,
             Self::BigValues(v) => &mut **v,
             Self::BlueLink(v) => &mut **v,
@@ -5772,6 +6807,10 @@ impl NinoRead for AnyObject {
                 true
             }
             Some(Self::BagHolder(v)) if id == BagHolder::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::BclRaw(v)) if id == BclRaw::TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -6186,6 +7225,7 @@ impl NinoRead for AnyObject {
                 AnimalSlot::TYPE_ID => Self::AnimalSlot(Box::new(r.read_class()?)),
                 Bag::TYPE_ID => Self::Bag(Box::new(r.read_class()?)),
                 BagHolder::TYPE_ID => Self::BagHolder(Box::new(r.read_class()?)),
+                BclRaw::TYPE_ID => Self::BclRaw(Box::new(r.read_class()?)),
                 BigSlot::TYPE_ID => Self::BigSlot(Box::new(r.read_class()?)),
                 BigValues::TYPE_ID => Self::BigValues(Box::new(r.read_class()?)),
                 BlueLink::TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
@@ -6312,6 +7352,10 @@ impl NinoWrite for AnyObject {
             }
             Self::BagHolder(v) => {
                 w.i32(BagHolder::TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::BclRaw(v) => {
+                w.i32(BclRaw::TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BigSlot(v) => {
@@ -7926,6 +8970,7 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Conformance.Animal" => f.visit::<Option<AnimalRef>>(),
         "Conformance.Bag" => f.visit::<Option<BagRef>>(),
         "Conformance.BagHolder" => f.visit::<Option<Box<BagHolder>>>(),
+        "Conformance.BclRaw" => f.visit::<Option<Box<BclRaw>>>(),
         "Conformance.BigValues" => f.visit::<Option<Box<BigValues>>>(),
         "Conformance.BlueLink" => f.visit::<Option<Box<BlueLink>>>(),
         "Conformance.Bytes" => f.visit::<Option<Box<Bytes>>>(),

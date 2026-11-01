@@ -54,8 +54,9 @@ internal static class RawLayout
     private static bool Describe(ITypeSymbol type, StringBuilder sb)
     {
         var offsets = new List<int>();
+        // Auto-layout structs (value tuples) placed as 64-bit CoreCLR places them: the canonical layout.
         if (!NinoLayoutCore.Measure(new SymbolView(type), type, 8, 8, 8, 0, new List<NinoLayoutCore.Leaf>(),
-                out int size, out _, offsets))
+                out int size, out _, offsets, autoPointerSize: 8))
             return false;
         sb.Append("raw(").Append(size.ToString(CultureInfo.InvariantCulture)).Append(')');
         if (Leaf(type) != NinoLeaf.None)
@@ -198,8 +199,8 @@ internal static class RawLayout
 
     /// <summary>
     /// The fields of the BCL structs of several private fields, as the runtimes declare them (reference assemblies
-    /// show placeholders): <c>Nullable&lt;T&gt;</c>, <c>Complex</c>, <c>Range</c>, <c>Int128</c> and <c>UInt128</c>
-    /// (little endian). Null for any other type.
+    /// show placeholders): <c>Nullable&lt;T&gt;</c>, <c>KeyValuePair&lt;TKey, TValue&gt;</c>, <c>Complex</c>,
+    /// <c>Range</c>, <c>Int128</c> and <c>UInt128</c> (little endian). Null for any other type.
     /// </summary>
     private static List<Field>? Known(ITypeSymbol type)
     {
@@ -211,6 +212,8 @@ internal static class RawLayout
         if (TypeNames.HasMetadataName(definition, "System.Numerics.Complex") &&
             PropertyType(named, "Real") is { } real)
             return Pair(real, "m_real", real, "m_imaginary");
+        if (TypeNames.HasMetadataName(definition, "System.Collections.Generic.KeyValuePair`2"))
+            return Pair(named.TypeArguments[0], "key", named.TypeArguments[1], "value");
         if (TypeNames.HasMetadataName(definition, "System.Range") && PropertyType(named, "Start") is { } index)
             return Pair(index, "Start", index, "End");
         if ((TypeNames.HasMetadataName(definition, "System.Int128") ||
@@ -224,6 +227,12 @@ internal static class RawLayout
                 ? null
                 : new List<Field> { new(firstName, first, null), new(secondName, second, null) };
     }
+
+    /// <summary><c>System.ValueTuple</c> of any arity: <c>[StructLayout(LayoutKind.Auto)]</c> in every runtime.</summary>
+    private static bool IsValueTuple(ITypeSymbol type) =>
+        type is INamedTypeSymbol { TypeKind: TypeKind.Struct } named &&
+        named.OriginalDefinition.ContainingNamespace?.ToDisplayString() == "System" &&
+        named.OriginalDefinition.MetadataName.StartsWith("ValueTuple", System.StringComparison.Ordinal);
 
     private static ITypeSymbol? PropertyType(INamedTypeSymbol type, string name) =>
         type.GetMembers(name).OfType<IPropertySymbol>().FirstOrDefault()?.Type;
@@ -320,15 +329,23 @@ internal static class RawLayout
     {
         public NinoLeaf Leaf(ITypeSymbol type) => RawLayout.Leaf(type);
 
+        // For the canonical layout Describe publishes (a struct with several fields of an auto layout is never portable).
+        public bool Primitive(ITypeSymbol type) =>
+            type.TypeKind is TypeKind.Enum or TypeKind.Pointer ||
+            type.SpecialType is >= SpecialType.System_Boolean and <= SpecialType.System_UInt64 or
+                SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_IntPtr or
+                SpecialType.System_UIntPtr;
+
         public bool Struct(ITypeSymbol type, List<KeyValuePair<ITypeSymbol, int>> fields, out LayoutKind kind,
             out int pack, out int minSize)
         {
-            // A known layout is sequential, without Pack or Size.
+            // A known layout is sequential, without Pack or Size; the value tuples are auto-layout, which reference
+            // assemblies do not show (they declare them sequential).
             var metadata = ReadLayout(type, out kind, out pack, out minSize);
-            if (Known(type) != null)
+            if (Known(type) != null || IsValueTuple(type))
             {
                 metadata = null;
-                kind = LayoutKind.Sequential;
+                kind = IsValueTuple(type) ? LayoutKind.Auto : LayoutKind.Sequential;
                 pack = minSize = 0;
             }
 

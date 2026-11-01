@@ -188,11 +188,9 @@ namespace Nino.UnitTests
             AssertSameLayout<Mixed>();
             AssertSameLayout<Overlapping>();
             AssertSameLayout<WideAfterByteOrLong>();
-            // A Nullable field is boxed as its value, so its offset cannot be read: copied as memory, as before.
-            var nullable = NinoLayout.Compute(typeof(HoldsNullable), Unsafe.SizeOf<HoldsNullable>(), 8, 8, 0, 0, true);
-            Assert.IsTrue(nullable.Canonical);
-            Assert.IsNull(nullable.Map);
-            Assert.IsNull(nullable.Mask);
+            // A Nullable field is boxed as null or as its value: its flag's offset from which, its value's from the
+            // sizes of T? and T.
+            AssertSameLayout<HoldsNullable>();
         }
 
         private static void AssertSameLayout<T>() where T : struct

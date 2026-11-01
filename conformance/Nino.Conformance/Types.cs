@@ -211,6 +211,72 @@ namespace Conformance
         public KeyValuePair<string, Vec2> Pair;
     }
 
+    // Plain structs (no [NinoType]) holding BCL structs: raw, in the canonical layout (spec §5.2), the value tuples
+    // placed by 64-bit CoreCLR's auto-layout rule, which Mono, IL2CPP, .NET Framework and 32-bit runtimes convert to.
+
+    /// <summary>Value tuples of mixed sizes: (int, long) is the long then the int; (byte, short) the short then the byte.</summary>
+    public struct HoldsTuples
+    {
+        public int A;
+        public (int, long) B;
+        public (byte, short) C;
+        public (byte, long, int) D;
+    }
+
+    /// <summary>Pairs: sequential, key then value.</summary>
+    public struct HoldsPairs
+    {
+        public byte A;
+        public KeyValuePair<int, long> P;
+        public KeyValuePair<long, byte> Q;
+    }
+
+    /// <summary>Tuples inside tuples: a struct item comes after the primitive ones.</summary>
+    public struct HoldsNestedTuples
+    {
+        public byte A;
+        public (int, (byte, long)) X;
+        public ((byte, short), long) Y;
+    }
+
+    /// <summary>BCL leaves, alone and inside tuples.</summary>
+    public struct HoldsBclLeaves
+    {
+        public byte A;
+        public Guid G;
+        public decimal D;
+        public TimeSpan S;
+        public (int, TimeSpan) T;
+        public (byte, decimal) M;
+        public (byte, Guid) U;
+    }
+
+    /// <summary>Nullables inside a raw struct: the flag, then the value at its alignment.</summary>
+    public struct HoldsNullables
+    {
+        public byte A;
+        public int? B;
+        public (int, long)? C;
+    }
+
+    [NinoType]
+    public sealed class BclRaw
+    {
+        public HoldsTuples Tuples;
+        public HoldsPairs Pairs;
+        public HoldsNestedTuples Nested;
+        public HoldsBclLeaves Leaves;
+        public HoldsTuples[] TupleArray;
+        public List<HoldsPairs> PairList;
+    }
+
+    [NinoType]
+    public sealed class BclRawNullables
+    {
+        public HoldsNullables Nullables;
+        public HoldsNullables[] Array;
+    }
+
     [NinoType]
     public sealed class Outer
     {

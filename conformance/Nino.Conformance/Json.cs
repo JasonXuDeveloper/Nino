@@ -287,6 +287,22 @@ namespace Conformance
                 return;
             }
 
+            if (type.IsValueType && !type.IsPrimitive && !type.IsEnum && type.Namespace == "Conformance")
+            {
+                // A plain (raw) struct of the corpus: its fields, as a [NinoType]'s members.
+                Seen.TryAdd(Layouts.Name(type), type);
+                w.WriteStartObject();
+                w.WriteString("$type", Layouts.Name(type));
+                foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public))
+                {
+                    w.WritePropertyName(field.Name);
+                    Write(w, field.GetValue(value));
+                }
+
+                w.WriteEndObject();
+                return;
+            }
+
             if (value is ITuple tuple)
             {
                 w.WriteStartArray();

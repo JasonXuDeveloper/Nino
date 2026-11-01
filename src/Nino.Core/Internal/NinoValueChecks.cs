@@ -19,8 +19,11 @@ namespace Nino.Core.Internal
     {
         // Kinds: bool (0 or 1); DateTime: the ticks of its 64 bits (the top two are its kind), at most
         // DateTime.MaxValue's; decimal: flags first in every runtime's decimal, the sign (bit 31), the scale (bits 16
-        // to 23, at most 28), nothing else; DateOnly: day numbers up to DateOnly.MaxValue's; TimeOnly: ticks below one day.
-        public const int Bool = 1, DateTime = 2, Decimal = 3, DateOnly = 4, TimeOnly = 5;
+        // to 23, at most 28), nothing else; DateOnly: day numbers up to DateOnly.MaxValue's; TimeOnly: ticks below one day;
+        // DateTimeOffset (its fields where ValueViews found them): an offset of at most 14 hours, and a UTC and a local
+        // time that are both valid dates, as its constructor requires.
+        public const int Bool = 1, DateTime = 2, Decimal = 3, DateOnly = 4, TimeOnly = 5, DateTimeOffset = 6;
+        private const int MaxOffsetMinutes = 14 * 60;
 
         private const ulong DateTimeTicksMask = 0x3FFF_FFFF_FFFF_FFFF;
         private const ulong MaxDateTimeTicks = 3155378975999999999;
@@ -82,6 +85,21 @@ namespace Nino.Core.Internal
                     for (int n = count; n > 0; n--, at = ref Unsafe.Add(ref at, stride))
                         bad |= (ulong)((long)MaxDayNumber - Unsafe.ReadUnaligned<uint>(ref at));
                     return bad >> 63 == 0;
+                case DateTimeOffset:
+                    // Rare (a DateTimeOffset inside a raw struct): one value at a time.
+                    for (int n = count; n > 0; n--, at = ref Unsafe.Add(ref at, stride))
+                    {
+                        ulong utc = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref at, ValueViews.DateTimeOffsetUtc));
+                        ref byte offset = ref Unsafe.Add(ref at, ValueViews.DateTimeOffsetMinutes);
+                        long minutes = ValueViews.DateTimeOffsetMinutesSize == 4
+                            ? Unsafe.ReadUnaligned<int>(ref offset)
+                            : Unsafe.ReadUnaligned<short>(ref offset);
+                        if ((ulong)(minutes + MaxOffsetMinutes) > 2 * MaxOffsetMinutes || utc > MaxDateTimeTicks ||
+                            (ulong)((long)utc + minutes * System.TimeSpan.TicksPerMinute) > MaxDateTimeTicks)
+                            return false;
+                    }
+
+                    return true;
                 default:
                     // Ticks of 2^63 and more fail as well: unsigned, any carry out is caught by the second term.
                     for (int n = count; n > 0; n--, at = ref Unsafe.Add(ref at, stride))
@@ -155,6 +173,9 @@ namespace Nino.Core.Internal
                         case DateOnly:
                             Add(passes, 4, offset, stride, period, int.MaxValue, MaxDayNumber);
                             Add(passes, 4, offset, stride, period, 1u << 31, 0);
+                            break;
+                        case DateTimeOffset:
+                            passes.Add(null); // no vector form: the scalar loop
                             break;
                         default:
                             Add(passes, 8, offset, stride, period, long.MaxValue, MaxTimeTicks);

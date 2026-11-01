@@ -37,7 +37,9 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
                              Unity's own classes), UsageTests (the v4 API through Unity's compiler and the 4.3 generator,
                              no interceptors), RuntimePathsInEditMode
   Runtime/                   RuntimePathsTests (CollectionViews, ObjectTypes.Retype, SortedSetNodes, ReadLinked,
-                             ConcurrentTables against the public API), run in play mode and in the IL2CPP player
+                             ConcurrentTables against the public API), BclLayoutTests (BCL structs in raw structs, and
+                             tuples and pairs, against CoreCLR's bytes from tests/Nino.RuntimeTests/BclFixtures.cs; logs
+                             this runtime's tuple layouts), run in play mode and in the IL2CPP player
   Runtime/Burst/             BurstKernelTests (the kernels against the scalar paths, byte for byte; asserts the pointer
                              calls), BurstBenchmark (only in the release benchmark's player: NINO_UNITY_BENCH) and its
                              BenchClasses (SimpleClass, as in the .NET suite)

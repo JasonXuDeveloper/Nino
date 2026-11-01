@@ -297,6 +297,34 @@ namespace Conformance
                 Labels = Array.Empty<Label>(),
             }, "raw-struct", "struct", "seq");
 
+            Add("bcl-raw-default", "Plain structs holding BCL structs (value tuples, pairs, Guid, decimal), zero.",
+                new BclRaw(), "raw-struct", "struct", "seq");
+            Add("bcl-raw-values", "Plain structs holding BCL structs in the canonical layout: tuples in 64-bit CoreCLR's auto-layout order, padding zeroed.",
+                new BclRaw
+                {
+                    Tuples = new HoldsTuples { A = -1, B = (2, long.MinValue), C = (0xAB, -3), D = (0x80, long.MaxValue, int.MinValue) },
+                    Pairs = new HoldsPairs
+                    {
+                        A = 1, P = new KeyValuePair<int, long>(-2, 3), Q = new KeyValuePair<long, byte>(-4, 0xFE),
+                    },
+                    Nested = new HoldsNestedTuples { A = 5, X = (6, (7, -8)), Y = ((9, -10), 11) },
+                    Leaves = new HoldsBclLeaves
+                    {
+                        A = 12, G = new Guid(0x01020304, 0x0506, 0x0708, 9, 10, 11, 12, 13, 14, 15, 16), D = -1.5m,
+                        S = TimeSpan.FromTicks(-13),
+                        T = (14, TimeSpan.FromDays(-2)), M = (15, 0.0000000000000000000000000001m),
+                        U = (16, new Guid("f0e1d2c3-b4a5-9687-7869-5a4b3c2d1e0f")),
+                    },
+                    TupleArray = new[] { new HoldsTuples { A = 21, B = (22, 23), C = (24, 25), D = (26, 27, 28) }, default },
+                    PairList = new List<HoldsPairs> { new() { A = 29, P = new KeyValuePair<int, long>(30, 31) } },
+                }, "raw-struct", "struct", "seq");
+            Add("bcl-raw-nullables", "Nullables inside a plain struct: the flag, then the value at its alignment.",
+                new BclRawNullables
+                {
+                    Nullables = new HoldsNullables { A = 17, B = -18, C = (19, -20) },
+                    Array = new[] { new HoldsNullables { A = 1 }, new HoldsNullables { B = 2, C = (3, 4) } },
+                }, "raw-struct", "struct", "seq", "nullable");
+
             Add("struct-root-raw", "A raw struct at the top level: its bytes alone, no header.",
                 new Padded { A = 1, B = -2 }, "raw-struct");
             Add("struct-root-nested-raw", "A raw struct holding raw structs at the top level.", new Nested

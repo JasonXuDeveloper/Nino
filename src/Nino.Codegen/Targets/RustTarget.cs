@@ -251,14 +251,17 @@ namespace Nino.Codegen.Targets
                     return Raw(value);
                 case ValueKind.RawTuple:
                 {
-                    // Items one after another with no gap are the same bytes as a tuple of them.
+                    // Items one after another with no gap are the same bytes as a tuple of them; others (padding, or
+                    // CoreCLR's auto layout, which puts larger items first) a struct of the items at their offsets.
                     var items = value.Items.Select(Raw).ToList();
                     int at = 0;
                     for (int i = 0; i < items.Count; i++)
                     {
                         if (value.Offsets[i] != at)
-                            throw new UnsupportedException(
-                                $"{value.ClrName} ({value.Encoding}) has padding, which a Rust tuple cannot hold");
+                            return value.Fallback != null
+                                ? Raw(value.Fallback)
+                                : throw new UnsupportedException(
+                                    $"{value.ClrName} ({value.Encoding}) has padding, which a Rust tuple cannot hold");
                         at += items[i].Size;
                     }
 
@@ -480,6 +483,7 @@ namespace Nino.Codegen.Targets
                 {
                     var model = value.Struct!;
                     var fields = model.Fields.Select(f => f.Value.Kind is ValueKind.Primitive or ValueKind.Enum or ValueKind.RawStruct
+                            or ValueKind.RawTuple
                         ? Raw(f.Value)
                         : throw new UnsupportedException(
                             $"{model.FullName}.{f.Name} ({f.Value.Encoding}) has no Rust form inside a raw struct")).ToList();
@@ -498,6 +502,9 @@ namespace Nino.Codegen.Targets
                         Hashable = fields.All(f => f.Hashable),
                     };
                 }
+                case ValueKind.RawTuple when value.Fallback != null:
+                    // Inside a raw struct, a struct of its items at their offsets, which implements nino::Raw.
+                    return Raw(value.Fallback);
                 case ValueKind.Unsupported:
                     throw new UnsupportedException(value.Problem!.Replace("{lang}", "Rust"));
                 default:
@@ -772,7 +779,8 @@ namespace Nino.Codegen.Targets
             var names = RustTarget.FieldNames(model.Fields.Select(f => f.Name));
             Shape = target.RawShapes[model];
             Fields = model.Fields.Select((f, i) =>
-                new RustField(names[i].Field, f.Name, f.Offset, target.Shape(f.Value, false))
+                new RustField(names[i].Field, f.Name, f.Offset,
+                        target.Shape(f.Value is { Kind: ValueKind.RawTuple, Fallback: { } items } ? items : f.Value, false))
                     { SerdeRename = target.SerdeRename(names[i].Plain, f.Name) }).ToList();
             var used = new bool[Size];
             foreach (var f in Fields)
