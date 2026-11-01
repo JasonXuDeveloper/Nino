@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
+using Nino.Core.Internal;
 
 namespace Nino.Core.CompilerServices
 {
@@ -28,7 +29,24 @@ namespace Nino.Core.CompilerServices
         internal static readonly bool Visible =
             typeof(UnmanagedFormatter<>).GetGenericArguments()[0].IsDefined(typeof(NinoRawAttribute), false);
 
-        /// <summary>The marks of each registered formatter definition: bit <c>i</c> for its type parameter <c>i</c>.</summary>
+        /// <summary>A mark a type parameter can carry.</summary>
+        internal enum Mark
+        {
+            /// <summary><c>[NinoRaw]</c>.</summary>
+            Raw,
+
+            /// <summary>The <c>unmanaged</c> constraint.</summary>
+            Unmanaged,
+
+            /// <summary><c>[NinoCreated]</c>.</summary>
+            Created,
+        }
+
+        /// <summary>
+        /// The marks of each registered formatter definition: bit <c>i</c> for its type parameter <c>i</c>. Entries of a
+        /// removed assembly's formatters are dropped (<see cref="NinoRegistry.Remove"/>), so a collectible assembly whose
+        /// generated registry registered marks can unload.
+        /// </summary>
         private static readonly ConcurrentDictionary<Type, (int Raw, int Unmanaged, int Created)> Marks = BuiltIn();
 
         /// <summary>
@@ -37,7 +55,7 @@ namespace Nino.Core.CompilerServices
         /// </summary>
         private static ConcurrentDictionary<Type, (int, int, int)> BuiltIn()
         {
-            var marks = new ConcurrentDictionary<Type, (int, int, int)>();
+            var marks = NinoUnload.Cache<(int, int, int)>();
             marks[typeof(UnmanagedFormatter<>)] = (1, 1, 0);
             marks[typeof(UnmanagedArrayFormatter<>)] = (1, 1, 0);
             marks[typeof(NullableArrayFormatter<>)] = (1, 1, 0);
@@ -69,25 +87,25 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>Whether <paramref name="parameter"/> is <c>[NinoRaw]</c>.</summary>
         internal static bool Raw(Type parameter) =>
-            Visible ? parameter.IsDefined(typeof(NinoRawAttribute), false) : Registered(parameter, 0);
+            Visible ? parameter.IsDefined(typeof(NinoRawAttribute), false) : Registered(parameter, Mark.Raw);
 
         /// <summary>Whether <paramref name="parameter"/> is <c>unmanaged</c>.</summary>
         internal static bool Unmanaged(Type parameter) =>
-            Visible ? NinoActivator.HasAttribute(parameter, UnmanagedAttribute) : Registered(parameter, 1);
+            Visible ? NinoActivator.HasAttribute(parameter, UnmanagedAttribute) : Registered(parameter, Mark.Unmanaged);
 
         /// <summary>Whether <paramref name="parameter"/> is <c>[NinoCreated]</c>.</summary>
         internal static bool Created(Type parameter) =>
-            Visible ? parameter.IsDefined(typeof(NinoCreatedAttribute), false) : Registered(parameter, 2);
+            Visible ? parameter.IsDefined(typeof(NinoCreatedAttribute), false) : Registered(parameter, Mark.Created);
 
         /// <summary>
-        /// The registered answer for <paramref name="parameter"/>: <paramref name="mark"/> 0 for <c>[NinoRaw]</c>, 1 for
-        /// <c>unmanaged</c>, 2 for <c>[NinoCreated]</c>; false for a formatter nothing registered.
+        /// Whether the registered marks give <paramref name="parameter"/> <paramref name="mark"/>; false for a formatter
+        /// nothing registered.
         /// </summary>
-        internal static bool Registered(Type parameter, int mark)
+        internal static bool Registered(Type parameter, Mark mark)
         {
             if (parameter.DeclaringType == null || !Marks.TryGetValue(parameter.DeclaringType, out var marks))
                 return false;
-            int bits = mark == 0 ? marks.Raw : mark == 1 ? marks.Unmanaged : marks.Created;
+            int bits = mark == Mark.Raw ? marks.Raw : mark == Mark.Unmanaged ? marks.Unmanaged : marks.Created;
             return (bits >> parameter.GenericParameterPosition & 1) != 0;
         }
     }

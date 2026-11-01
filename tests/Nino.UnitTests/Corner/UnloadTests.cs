@@ -25,8 +25,29 @@ namespace Nino.UnitTests
 using System.Collections.Generic;
 using Nino.Core;
 
+// A formatter of its own with marked type parameters: its generated registry registers their marks.
+[assembly: NinoFormatter(typeof(Unloadable.CellFormatter<>))]
+
 namespace Unloadable
 {
+    public sealed class Cell<T> { public T Value; }
+
+    public struct CellFormatter<[NinoRaw] T> : INinoFormatter<Cell<T>> where T : unmanaged
+    {
+        public void Serialize(Cell<T> value, ref Writer writer)
+        {
+            writer.Write(value != null);
+            if (value != null)
+                writer.WriteValue(value.Value);
+        }
+
+        public void Deserialize(ref Cell<T> value, ref Reader reader)
+        {
+            reader.Read(out bool present);
+            value = present ? new Cell<T> { Value = reader.ReadValue<T>() } : null;
+        }
+    }
+
     [NinoType]
     public abstract class Shape { public int Id; }
 
@@ -45,7 +66,8 @@ namespace Unloadable
             var shape = NinoDeserializer.Deserialize<Shape>(NinoSerializer.Serialize<Shape>(circle)) as Circle;
             var boxed = (Circle)NinoDeserializer.Deserialize<object>(NinoSerializer.Serialize<object>(circle));
             var moves = NinoDeserializer.Deserialize<Move[]>(NinoSerializer.Serialize(new[] { new Move { X = 3 } }));
-            return shape != null && shape.Radius == 2.5f && ((Circle)shape.Children[0]).Id == 2 &&
+            var cell = NinoDeserializer.Deserialize<Cell<long>>(NinoSerializer.Serialize(new Cell<long> { Value = -7 }));
+            return cell.Value == -7 && shape != null && shape.Radius == 2.5f && ((Circle)shape.Children[0]).Id == 2 &&
                    boxed.Children.Count == 1 && moves[0].X == 3 && NinoSerializer.GetFixedSize<Move>() == 8;
         }
     }

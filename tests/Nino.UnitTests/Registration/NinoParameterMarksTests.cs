@@ -52,8 +52,8 @@ namespace Nino.UnitTests
             var marked = parameters.Select(p => $"{Name(p)} raw={NinoParameterMarks.Raw(p)} " +
                                                 $"unmanaged={NinoParameterMarks.Unmanaged(p)} created={NinoParameterMarks.Created(p)}")
                 .OrderBy(s => s).ToArray();
-            var table = parameters.Select(p => $"{Name(p)} raw={NinoParameterMarks.Registered(p, 0)} " +
-                                               $"unmanaged={NinoParameterMarks.Registered(p, 1)} created={NinoParameterMarks.Registered(p, 2)}")
+            var table = parameters.Select(p => $"{Name(p)} raw={NinoParameterMarks.Registered(p, NinoParameterMarks.Mark.Raw)} " +
+                                               $"unmanaged={NinoParameterMarks.Registered(p, NinoParameterMarks.Mark.Unmanaged)} created={NinoParameterMarks.Registered(p, NinoParameterMarks.Mark.Created)}")
                 .OrderBy(s => s).ToArray();
             CollectionAssert.AreEqual(marked, table, string.Join("\n", marked));
         }
@@ -65,9 +65,9 @@ namespace Nino.UnitTests
             // the resolver: what IL2CPP, which drops the attributes, binds by.
             NinoRegistry.EnsureInitialized(typeof(CellFormatter<>).Assembly);
             var parameter = typeof(CellFormatter<>).GetGenericArguments()[0];
-            Assert.IsTrue(NinoParameterMarks.Registered(parameter, 0));
-            Assert.IsTrue(NinoParameterMarks.Registered(parameter, 1));
-            Assert.IsFalse(NinoParameterMarks.Registered(parameter, 2));
+            Assert.IsTrue(NinoParameterMarks.Registered(parameter, NinoParameterMarks.Mark.Raw));
+            Assert.IsTrue(NinoParameterMarks.Registered(parameter, NinoParameterMarks.Mark.Unmanaged));
+            Assert.IsFalse(NinoParameterMarks.Registered(parameter, NinoParameterMarks.Mark.Created));
             var cell = NinoDeserializer.Deserialize<Cell<long>>(NinoSerializer.Serialize(new Cell<long> { Value = -7 }));
             Assert.AreEqual(-7L, cell.Value);
         }
