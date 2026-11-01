@@ -91,6 +91,9 @@ public static class BclStructs
         Bcl("DateTimeOffset?", (DateTimeOffset?)dto1, (DateTimeOffset?)null);
         Bcl("IntPtr", new IntPtr(-1), new IntPtr(int.MaxValue));
         Bcl("Complex", new System.Numerics.Complex(1.5, -2.5), new System.Numerics.Complex(double.MaxValue, 0));
+        // Vector<T>: 32 bytes canonically (x64's width), its low 16 bytes set (every CPU holds them).
+        Bcl("Vector<int>", Low(1, -2, 3, -4), Low(int.MaxValue, 0, 0, int.MinValue));
+        Top("Vector<int>[]", new[] { Low(1, 2, 3, 4), Low(-5, 0, 0, 0) });
 #if NET8_0_OR_GREATER
         // .NET only (the net472 build has none of these): checked against the fixtures, printed as comments so the
         // outputs of the .NET Framework and Mono runs stay comparable with .NET's.
@@ -120,6 +123,8 @@ public static class BclStructs
             System.Runtime.Intrinsics.Vector128.Create(5));
         Bcl("Vector256<long>", System.Runtime.Intrinsics.Vector256.Create(1L, -2, 3, -4),
             System.Runtime.Intrinsics.Vector256.Create(5L));
+        Bcl("Vector512<long>", System.Runtime.Intrinsics.Vector512.Create(1L, -2, 3, -4, 5, -6, 7, -8),
+            System.Runtime.Intrinsics.Vector512.Create(9L));
         _netOnly = false;
 #endif
 
@@ -168,6 +173,17 @@ public static class BclStructs
     }
 
     private static void Top<T>(string name, T value) => Fixture(name, value);
+
+    /// <summary>A <c>Vector&lt;int&gt;</c> of these four items, then zeros (as wide as this CPU's vectors).</summary>
+    private static System.Numerics.Vector<int> Low(int a, int b, int c, int d)
+    {
+        var items = new int[System.Numerics.Vector<int>.Count];
+        items[0] = a;
+        items[1] = b;
+        items[2] = c;
+        items[3] = d;
+        return new System.Numerics.Vector<int>(items);
+    }
 
     /// <summary>
     /// Writes <paramref name="value"/> and compares the bytes with CoreCLR x64's (<see cref="BclFixtures"/>), then reads

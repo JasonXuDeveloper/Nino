@@ -42,6 +42,13 @@ namespace Nino.Core.Internal
         public static void InvalidData(string message) =>
             throw new NinoDataException("Nino: " + message);
 
+        /// <summary>A value this runtime holds that its canonical layout cannot (the caller's value, not invalid data).</summary>
+        [MethodImpl(Cold)]
+        public static void TooWideForWire() =>
+            throw new InvalidOperationException(
+                "Nino: a Vector<T> with bytes set past the 32 its canonical layout keeps (this CPU's vectors are wider; " +
+                "wire format §3): write its elements as an array instead.");
+
         [MethodImpl(Cold)]
         public static void NullElements(Type type) =>
             throw new NinoDataException($"Nino: the elements of {type.FullName} are null (it is a collection itself).");

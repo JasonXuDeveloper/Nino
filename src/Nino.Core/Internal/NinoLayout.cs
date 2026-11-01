@@ -139,6 +139,107 @@ namespace Nino.Core.Internal
         private static int WideProbeSize<T>() => Unsafe.SizeOf<WideProbe<T>>();
 #endif
 
+        /// <summary>A byte, then a <typeparamref name="T"/>: its alignment inside structs on this runtime.</summary>
+        private struct AlignProbe<T>
+        {
+#pragma warning disable CS0649
+            public byte A;
+            public T B;
+#pragma warning restore CS0649
+        }
+
+        private static int AlignOf<T>() => Unsafe.SizeOf<AlignProbe<T>>() - Unsafe.SizeOf<T>();
+
+        /// <summary>
+        /// The canonical size of <c>Vector&lt;T&gt;</c>: 32 bytes, its size on 64-bit CoreCLR x64 with the default
+        /// settings (AVX2 and AVX-512 CPUs), where it is copied. CPUs with 16-byte vectors (Arm64, x64 without AVX2,
+        /// Mono, IL2CPP, .NET Framework without RyuJIT's AVX2) zero-extend it on write and reject nonzero upper bytes on
+        /// read; 64-byte vectors (<c>DOTNET_MaxVectorTBitWidth=512</c>) are written as their low 32 bytes, and a value
+        /// with any upper byte set cannot be written (docs/spec/wire-format.md §3).
+        /// </summary>
+        internal const int CanonicalVectorSize = 32;
+
+        /// <summary>The size and alignment of <c>Vector&lt;T&gt;</c> on this runtime (any <c>T</c>).</summary>
+        private static readonly int VectorSize = Unsafe.SizeOf<Vector<byte>>(), VectorAlign = AlignOf<Vector<byte>>();
+
+        /// <summary>
+        /// The alignments of <c>Vector64&lt;T&gt;</c> to <c>Vector512&lt;T&gt;</c> inside structs on this runtime (0 where
+        /// the type does not exist or could not be probed). The canonical ones are x64 CoreCLR's: their sizes (Arm64
+        /// aligns the 32- and 64-byte vectors to 16, Arm32 every one of them to 8).
+        /// </summary>
+#if NET8_0_OR_GREATER
+        private static readonly int[] IntrinsicAligns =
+        {
+            AlignOf<Vector64<byte>>(), AlignOf<Vector128<byte>>(), AlignOf<Vector256<byte>>(),
+            AlignOf<Vector512<byte>>(),
+        };
+#else
+        private static readonly int[] IntrinsicAligns = ProbeIntrinsicAligns();
+
+        // The netstandard builds name none of them (they exist from .NET Core 3.0, .NET 8 for Vector512).
+        private static int[] ProbeIntrinsicAligns()
+        {
+            var aligns = new int[4];
+            for (int i = 0; i < aligns.Length; i++)
+            {
+                try
+                {
+                    var definition = typeof(object).Assembly.GetType("System.Runtime.Intrinsics.Vector" + (64 << i) + "`1");
+                    if (definition != null)
+                        aligns[i] = (int)typeof(NinoLayout).GetMethod(nameof(AlignOf), BindingFlags.NonPublic | BindingFlags.Static)!
+                            .MakeGenericMethod(definition.MakeGenericType(typeof(byte))).Invoke(null, null)!;
+                }
+                catch
+                {
+                    // Unknown: a struct with one is not laid out (Measure fails, the runtime size is used).
+                }
+            }
+
+            return aligns;
+        }
+#endif
+
+        /// <summary>
+        /// Which vector <paramref name="type"/> is: 0 for <c>Vector&lt;T&gt;</c>, 1 to 4 for <c>Vector64&lt;T&gt;</c> to
+        /// <c>Vector512&lt;T&gt;</c>, -1 for none.
+        /// </summary>
+        private static int VectorIndex(Type type)
+        {
+            if (!type.IsGenericType || type.IsGenericTypeDefinition)
+                return -1;
+            var definition = type.GetGenericTypeDefinition();
+            if (definition == typeof(Vector<>))
+                return 0;
+            if (definition.Assembly != typeof(object).Assembly)
+                return -1;
+            switch (definition.FullName)
+            {
+                case "System.Runtime.Intrinsics.Vector64`1": return 1;
+                case "System.Runtime.Intrinsics.Vector128`1": return 2;
+                case "System.Runtime.Intrinsics.Vector256`1": return 3;
+                case "System.Runtime.Intrinsics.Vector512`1": return 4;
+                default: return -1;
+            }
+        }
+
+        /// <summary>The size and alignment of a vector (<see cref="VectorIndex"/>) canonically or on this runtime.</summary>
+        private static bool VectorLayout(Type type, bool canonical, out int size, out int align)
+        {
+            int index = VectorIndex(type);
+            if (index == 0)
+            {
+                size = canonical ? CanonicalVectorSize : VectorSize;
+                align = canonical ? 8 : VectorAlign;
+            }
+            else
+            {
+                size = index > 0 ? 4 << index : 0; // 8, 16, 32, 64
+                align = index <= 0 ? 0 : canonical ? size : IntrinsicAligns[index - 1];
+            }
+
+            return size > 0 && align > 0;
+        }
+
         private static readonly ConcurrentDictionary<Type, Info> Cache = NinoUnload.Cache<Info>();
 
         internal sealed class Info
@@ -159,9 +260,10 @@ namespace Nino.Core.Internal
             public int[] Map;
 
             /// <summary>
-            /// When not canonical, the integers whose size differs between memory and wire (<c>nint</c> on 32-bit, the
-            /// minutes of a <c>DateTimeOffset</c> where they are a <c>short</c>): (memory offset, memory size, wire
-            /// offset, wire size, 1 when signed) quintuples; null for none.
+            /// When not canonical, the integers and vectors whose size differs between memory and wire (<c>nint</c> on
+            /// 32-bit, the minutes of a <c>DateTimeOffset</c> where they are a <c>short</c>, <c>Vector&lt;T&gt;</c> where
+            /// the CPU's vectors are not 32 bytes): (memory offset, memory size, wire offset, wire size, 1 when signed)
+            /// quintuples, the unsigned ones zero-extended; null for none.
             /// </summary>
             public int[] Resized;
         }
@@ -228,6 +330,7 @@ namespace Nino.Core.Internal
                         {
                             Offset = value.Value, Size = size,
                             Signed = value.Key == typeof(IntPtr) || value.Key == typeof(short) || value.Key == typeof(int),
+                            Vector = VectorIndex(value.Key) >= 0,
                         });
                 }
 
@@ -239,9 +342,11 @@ namespace Nino.Core.Internal
 
             if (wire.Count != memory.Count)
                 return new Info { Size = runtimeSize };
-            // A leaf of another size is an integer of another width (nint, a DateTimeOffset's minutes), and only that.
+            // A leaf of another size is an integer of another width (nint, a DateTimeOffset's minutes) or a vector of
+            // another width (Vector<T>), and only that.
             for (int i = 0; i < wire.Count; i++)
-                if (wire[i].Size != memory[i].Size && !(Resizable(wire[i].Size) && Resizable(memory[i].Size)))
+                if (wire[i].Size != memory[i].Size && (wire[i].Vector != memory[i].Vector ||
+                                                       !wire[i].Vector && !(Resizable(wire[i].Size) && Resizable(memory[i].Size))))
                     return new Info { Size = runtimeSize };
 
             var info = new Info { Size = wireSize, Align = wireAlign, Canonical = wireSize == memorySize };
@@ -312,6 +417,8 @@ namespace Nino.Core.Internal
                 case NinoLeaf.Pointer:
                 case NinoLeaf.SignedPointer:
                     return IntPtr.Size;
+                case NinoLeaf.Vector:
+                    return VectorLayout(type, false, out int size, out _) ? size : 0;
                 case NinoLeaf.None:
                 case NinoLeaf.Unsupported:
                     return 0;
@@ -370,7 +477,7 @@ namespace Nino.Core.Internal
             }
 
             if (type.IsEnum || type.IsPrimitive || type.IsPointer || !type.IsValueType || type == typeof(Guid) ||
-                type == typeof(TimeSpan))
+                type == typeof(TimeSpan) || VectorIndex(type) >= 0)
                 return true;
             // The offsets of its own fields in memory, in the order RuntimeView.Struct lists them.
             var offsets = new List<int>();
@@ -566,25 +673,56 @@ namespace Nino.Core.Internal
             {
                 ref byte m = ref Unsafe.Add(ref memory, resized[i]);
                 ref byte w = ref Unsafe.Add(ref wire, resized[i + 2]);
-                bool signed = resized[i + 4] != 0;
-                if (toWire)
+                int memorySize = resized[i + 1], wireSize = resized[i + 3];
+                if (resized[i + 4] == 0)
                 {
-                    Store(ref w, resized[i + 3], Load(ref m, resized[i + 1], signed));
+                    // Unsigned integers and vectors: their low bytes, zero-extended; the bytes past the narrower side
+                    // must be zero (the wire's past this runtime's field is invalid data, a field's past the wire's
+                    // a value the wire cannot hold).
+                    int common = memorySize < wireSize ? memorySize : wireSize;
+                    if (toWire)
+                    {
+                        if (!Zero(ref Unsafe.Add(ref m, common), memorySize - common))
+                            NinoThrow.TooWideForWire();
+                        Unsafe.CopyBlockUnaligned(ref w, ref m, (uint)common);
+                        continue;
+                    }
+
+                    if (!Zero(ref Unsafe.Add(ref w, common), wireSize - common))
+                        NinoThrow.InvalidData("a value too wide for this runtime's field (an nuint past 32 bits, a " +
+                                              "Vector<T> with bytes past this CPU's vector width).");
+                    Unsafe.CopyBlockUnaligned(ref m, ref w, (uint)common);
+                    Unsafe.InitBlockUnaligned(ref Unsafe.Add(ref m, common), 0, (uint)(memorySize - common));
                     continue;
                 }
 
-                long value = Load(ref w, resized[i + 3], signed);
-                if (Load(ref Unsafe.As<long, byte>(ref value), resized[i + 1], signed) != value)
+                if (toWire)
+                {
+                    Store(ref w, wireSize, Load(ref m, memorySize));
+                    continue;
+                }
+
+                long value = Load(ref w, wireSize);
+                if (Load(ref Unsafe.As<long, byte>(ref value), memorySize) != value)
                     NinoThrow.InvalidData("an integer too large for this runtime's field.");
-                Store(ref m, resized[i + 1], value);
+                Store(ref m, memorySize, value);
             }
         }
 
-        /// <summary>The little-endian integer of <paramref name="size"/> bytes (2, 4 or 8) at <paramref name="at"/>.</summary>
-        private static long Load(ref byte at, int size, bool signed) => size switch
+        /// <summary>Whether the <paramref name="length"/> bytes at <paramref name="at"/> are all zero.</summary>
+        private static bool Zero(ref byte at, int length)
         {
-            2 => signed ? Unsafe.ReadUnaligned<short>(ref at) : Unsafe.ReadUnaligned<ushort>(ref at),
-            4 => signed ? Unsafe.ReadUnaligned<int>(ref at) : Unsafe.ReadUnaligned<uint>(ref at),
+            for (int i = 0; i < length; i++)
+                if (Unsafe.Add(ref at, i) != 0)
+                    return false;
+            return true;
+        }
+
+        /// <summary>The little-endian signed integer of <paramref name="size"/> bytes (2, 4 or 8) at <paramref name="at"/>.</summary>
+        private static long Load(ref byte at, int size) => size switch
+        {
+            2 => Unsafe.ReadUnaligned<short>(ref at),
+            4 => Unsafe.ReadUnaligned<int>(ref at),
             _ => Unsafe.ReadUnaligned<long>(ref at),
         };
 
@@ -623,6 +761,8 @@ namespace Nino.Core.Internal
 
             public bool Primitive(Type type) => type.IsPrimitive || type.IsEnum || type.IsPointer;
 
+            public bool Vector(Type type, out int size, out int align) => VectorLayout(type, Canonical, out size, out align);
+
             public NinoLeaf Leaf(Type type)
             {
                 if (type.IsEnum)
@@ -639,6 +779,8 @@ namespace Nino.Core.Internal
                     return NinoLeaf.SignedPointer;
                 if (type.IsPointer || type == typeof(UIntPtr))
                     return NinoLeaf.Pointer;
+                if (VectorIndex(type) >= 0)
+                    return NinoLeaf.Vector;
                 // By name: the netstandard builds name no Int128. Without a known alignment (the probe failed), its
                 // two ulongs (8-byte aligned), as before.
                 if (WideAlign > 0 && type.Assembly == typeof(object).Assembly &&

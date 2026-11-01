@@ -76,7 +76,21 @@ namespace Test.Runtime
             Check("List<(byte,long,int)>", new List<(byte, long, int)> { (1, 2, 3), (255, -1, int.MaxValue) }, "0200000001020000000000000003000000FFFFFFFFFFFFFFFFFFFFFFFF7F");
             Check("KVP<int,long>[]", new[] { new KeyValuePair<int, long>(1, 2), new KeyValuePair<int, long>(-3, -4) }, "02000000010000000200000000000000FDFFFFFFFCFFFFFFFFFFFFFF");
             Check("Dictionary<int,(byte,long)>", new Dictionary<int, (byte, long)> { [1] = (2, 3), [-4] = (5, -6) }, "0200000001000000020300000000000000FCFFFFFF05FAFFFFFFFFFFFFFF");
+            // Vector<T>: 32 bytes on the wire (x64's width), zero-extended from this runtime's 16.
+            Check("Around<Vector<int>>", new Around<System.Numerics.Vector<int>> { A = 1, B = Low(1, -2, 3, -4), C = -1 }, "010000000000000001000000FEFFFFFF03000000FCFFFFFF00000000000000000000000000000000FFFFFFFF00000000");
+            Check("Vector<int>[]", new[] { Low(1, 2, 3, 4), Low(-5, 0, 0, 0) }, "020000000100000002000000030000000400000000000000000000000000000000000000FBFFFFFF00000000000000000000000000000000000000000000000000000000");
             CollectionAssert.IsEmpty(failed);
+        }
+
+        /// <summary>A <c>Vector&lt;int&gt;</c> of these four items, then zeros (as wide as this runtime's vectors).</summary>
+        private static System.Numerics.Vector<int> Low(int a, int b, int c, int d)
+        {
+            var items = new int[System.Numerics.Vector<int>.Count];
+            items[0] = a;
+            items[1] = b;
+            items[2] = c;
+            items[3] = d;
+            return new System.Numerics.Vector<int>(items);
         }
 
         /// <summary>Offsets of some tuples' items and of DateTimeOffset's fields on this runtime.</summary>
@@ -94,7 +108,8 @@ namespace Test.Runtime
                    $"(byte,long,int) {Unsafe.SizeOf<(byte, long, int)>()}: {Offset(ref c, ref c.Item1)},{Offset(ref c, ref c.Item2)},{Offset(ref c, ref c.Item3)}; " +
                    $"KVP<int,long> {Unsafe.SizeOf<KeyValuePair<int, long>>()}; " +
                    $"DateTimeOffset {Unsafe.SizeOf<DateTimeOffset>()}: UTC at {Field("DateTimeOffsetUtc")}, minutes at {Field("DateTimeOffsetMinutes")} ({Field("DateTimeOffsetMinutesSize")} bytes); " +
-                   $"Around<(int,long)> {Unsafe.SizeOf<Around<(int, long)>>()}";
+                   $"Around<(int,long)> {Unsafe.SizeOf<Around<(int, long)>>()}; " +
+                   $"Vector<byte> {Unsafe.SizeOf<System.Numerics.Vector<byte>>()}, in Around {Unsafe.SizeOf<Around<System.Numerics.Vector<byte>>>()}";
         }
 
         private static long Offset<TS, TF>(ref TS s, ref TF f) =>
