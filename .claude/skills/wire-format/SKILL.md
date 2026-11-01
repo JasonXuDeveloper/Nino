@@ -27,7 +27,7 @@ them is deliberate, complete in one landing, and called out.
 | `conformance/` | regenerate (`dotnet run --project conformance/Nino.Conformance -c Release -- --out conformance/corpus`), new valid and malicious cases for the new encoding's edges (`untrusted` cases where .NET checks only with `NinoSettings.Untrusted`), `corpusVersion` when the corpus layout or schema changes |
 | `runtimes/go`, `runtimes/rust`, `runtimes/typescript` | reader, writer, fast paths, their tests and fuzzers; each reads the new corpus |
 | `src/Nino.Codegen/Templates` | the generated readers and writers; regenerate the committed output (`NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests`) |
-| golden-bytes tests | `tests/Nino.UnitTests/Serialization/GoldenBytesTests.cs`, `tests/Nino.Fuzz/Golden`, Unity's, any test with expected hex; for raw layouts `tests/Nino.RuntimeTests/BclFixtures.cs` (rewrite with `dotnet Nino.RuntimeTests.dll --write-fixtures 2> BclFixtures.cs` on .NET 10 x64) and the copy of its hex in Unity's `Assets/Test/Runtime/BclLayoutTests.cs` |
+| golden-bytes tests | `tests/Nino.UnitTests/Serialization/GoldenBytesTests.cs`, `tests/Nino.Fuzz/Golden`, Unity's, any test with expected hex; for raw layouts `src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs`, which `tests/Nino.RuntimeTests` links and Unity's `BclLayoutTests` read (rewrite with `dotnet Nino.RuntimeTests.dll --write-fixtures 2> src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs` on .NET 10 x64) |
 | docs | byte examples in README, `docs/`, the runtimes' READMEs and the nino.docs pages (`audit-docs`) |
 | benchmarks | sizes shown in reports; the old-main baseline for the A/B (`benchmark`) |
 

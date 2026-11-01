@@ -33,6 +33,10 @@ projects or languages.
 - **One source of truth for a fact**: a name, a constant, a layout or a limit is declared once and referenced
   (`NinoNames` for the generator's view of Nino.Core, `wire.go` / `NinoWire` for wire constants, `Options.cs` for
   nino-gen's options); a second copy in another language is generated or checked against the first by a test.
+  A fixture two C# test suites read lives where the stricter build can compile it and the other links it
+  (`<Compile Include=... Link=...>`): Unity compiles only files under its `Assets/`, so CoreCLR's bytes for raw BCL
+  layouts (`BclFixtures.cs`, `BclFixtureTypes.cs`) live in `src/Nino.Unity/Assets/Test/Runtime` and
+  `tests/Nino.RuntimeTests` links them; Unity's `BclLayoutTests` had held a hand-copied hex string per case (round 104).
 - Kept twice on purpose (a fast path beside its portable fallback, a per-platform or per-language copy the bytes are
   tested against) says so in a comment. The sweep across layers is `audit-redundancy`.
 

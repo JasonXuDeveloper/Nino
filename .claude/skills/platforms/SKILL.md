@@ -91,8 +91,8 @@ builds of Nino.Core, Mono).
   (64), the default (32); `tests/Nino.RuntimeTests` prints `# Vector<float>.Count`.
   Each CI runtime prints its layout of
   every BCL struct (`# layout` lines of `tests/Nino.RuntimeTests`, the table in docs/layouts.md) and must write and
-  read CoreCLR x64's bytes for each (`BclStructs.cs` against `BclFixtures.cs`; Unity's `BclLayoutTests` in play mode
-  and the IL2CPP player). Check a change to `NinoLayout` / `NinoLayoutCore` against random shapes, not only the listed ones: generate nested
+  read CoreCLR x64's bytes for each (`BclStructs.cs` against `BclFixtures.cs`, which Unity's `BclLayoutTests` read too,
+  in play mode and the IL2CPP player). Check a change to `NinoLayout` / `NinoLayoutCore` against random shapes, not only the listed ones: generate nested
   value tuples of every leaf (with `Nullable`, `KeyValuePair`, `DateTimeOffset`, `nint`) inside a sequential struct,
   fill them through reflection, `NinoSerializer.Serialize` them and diff the hex across runtimes (.NET 10, .NET 8 and
   Mono's net472 build on x64, the self-contained `linux-arm64` publish under qemu); in-process, `NinoLayout.Compute`
