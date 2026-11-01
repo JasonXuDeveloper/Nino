@@ -104,6 +104,14 @@ builds of Nino.Core, Mono).
   bytes on all four, and the measured path threw for a top-level `T?` (created as null by `Activator`, so
   `MeasureMemory` takes its flag and value from `NullableValue`). Never read a pointer field by reflection (`FieldInfo.GetValue` on `IntPtr`'s `void*`
   crashed Mono 6.8 with SIGSEGV).
+  Read every field type a layout needs through `NinoReflection.LayoutFieldType`: a function pointer (`delegate*`) is a
+  pointer, 8 bytes zero-extended as the generator publishes it, but .NET 8 and later report the field as a function
+  pointer type (`IsFunctionPointer`; `IsClass` true, `IsValueType` false, no base type), which `NinoLayout` took for
+  unsupported and copied as it lay in memory (4 bytes on 32-bit), and .NET Framework and .NET 7 report `IntPtr`
+  (sign-extended), which only the field's signature tells apart (`Module.ResolveSignature` of its FieldDef token,
+  ELEMENT_TYPE_FNPTR 0x1B after any modifier; Mono resolves only StandAloneSig tokens, IL2CPP none, so there it stays
+  an `IntPtr`). Mono 6.8 overflows its stack loading any struct with a `delegate*` field, even one only a generated
+  registry names: tests/Nino.RuntimeTests declares its case in net10.0 only (r105: ok on x64 and on Arm32 under qemu).
   To run the unit suite under qemu-arm, call its `[TestMethod]`s by reflection from a small program run by the Arm32
   `dotnet` (`dotnet test` starts its host with the machine's own runtime); leave out the Roslyn compilations,
   too slow emulated: `Generator` and `ShapeMatrixTests` (in `Corner/` but namespace `Nino.UnitTests`, so a filter on
