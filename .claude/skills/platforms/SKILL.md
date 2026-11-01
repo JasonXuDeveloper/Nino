@@ -157,7 +157,10 @@ Why the qemu flags:
   branch. A `NotSupportedException` thrown by `NinoLayout.Create` for `Vector<T>` reached `NinoSerializer.Serialize`
   through `NinoRaw<T>`'s initializer on Mono 6.14 (`tests/Nino.RuntimeTests`, net472), while CoreCLR threw it from the
   resolver as meant. Give such a type a layout that is neither raw nor sized, and throw where its formatter is
-  resolved (`NinoReflection.RefuseVariableVector`).
+  resolved (`NinoReflection.RefuseVariableVector`) and, for code that skips the resolver (a hand-made
+  `UnmanagedFormatter<T>`, `Writer.Write<T>`), on the layout's converted paths behind a `static readonly bool`
+  (`NinoLayout<T>.HoldsVariableVector`): a JIT constant, folded away on canonical types (`asm.py compare`: no method
+  changed), where the layout of no size threw `NullReferenceException` before.
 - IL2CPP has no `Reflection.Emit` and shares generic code: no runtime code generation, and the mirror-class rules of
   `runtime-internals` (static code only).
 - WebGL has no Burst: Burst compiles jobs with LLVM into a native library the player calls, and the WebGL player (IL2CPP

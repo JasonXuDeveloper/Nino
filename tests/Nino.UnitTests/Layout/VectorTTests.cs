@@ -50,6 +50,74 @@ namespace Nino.UnitTests
             Refused(new Dictionary<int, Vector<long>> { [1] = default });
             Refused(new Around<Vector<int>> { A = 1, B = vector, C = -1 });
             Refused(new[] { new Around<Around<Vector<byte>>>() });
+            // In a base type or the IEnumerable<T> of a collection that names no vector itself.
+            Refused(new VectorList { vector });
+            Refused(new Dictionary<int, VectorList> { [1] = new VectorList() });
+            Refused(new VectorBag());
+        }
+
+        /// <summary>A collection whose base type holds the vectors (NINO029, not NINO007).</summary>
+        public class VectorList : List<Vector<int>>
+        {
+        }
+
+        /// <summary>A collection whose IEnumerable&lt;T&gt; holds the vectors.</summary>
+        public class VectorBag : IEnumerable<Vector<float>>
+        {
+            public IEnumerator<Vector<float>> GetEnumerator() =>
+                ((IEnumerable<Vector<float>>)Array.Empty<Vector<float>>()).GetEnumerator();
+
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+        }
+
+        /// <summary>
+        /// A formatter used without the resolver: <see cref="UnmanagedFormatter{T}"/> made by hand, or the
+        /// <see cref="Writer"/> and <see cref="Reader"/> value methods, refuse the type as the resolver does, with the same
+        /// <see cref="NotSupportedException"/> (it was a <see cref="NullReferenceException"/> from the layout of no size).
+        /// </summary>
+        private static void RefusedByHand<T>(T value) where T : unmanaged
+        {
+            var buffer = new NinoArrayBufferWriter();
+            var refusal = Assert.ThrowsExactly<NotSupportedException>(() =>
+            {
+                var writer = new Writer(buffer);
+                new UnmanagedFormatter<T>().Serialize(value, ref writer);
+            });
+            StringAssert.Contains(refusal.Message, "System.Numerics.Vector`1");
+            Assert.ThrowsExactly<NotSupportedException>(() =>
+            {
+                var writer = new Writer(buffer);
+                writer.Write(value);
+            });
+            Assert.ThrowsExactly<NotSupportedException>(() =>
+            {
+                var reader = new Reader(new byte[64]);
+                T into = default;
+                new UnmanagedFormatter<T>().Deserialize(ref into, ref reader);
+            });
+            Assert.ThrowsExactly<NotSupportedException>(() =>
+            {
+                var reader = new Reader(new byte[64]);
+                reader.Read<T>();
+            });
+        }
+
+        [TestMethod]
+        public void FormattersMadeByHandRefuseIt()
+        {
+            RefusedByHand(new Vector<int>(7));
+            RefusedByHand(new Around<Vector<long>> { A = 1, C = -1 });
+            RefusedByHand(new Around<Around<Vector<byte>>>());
+            // Every other type keeps its bytes through the same calls.
+            var buffer = new NinoArrayBufferWriter();
+            var writer = new Writer(buffer);
+            new UnmanagedFormatter<Around<Vector4>>().Serialize(new Around<Vector4> { A = 1, B = Vector4.One, C = -1 },
+                ref writer);
+            writer.Flush();
+            var reader = new Reader(buffer.WrittenSpan);
+            Around<Vector4> back = default;
+            new UnmanagedFormatter<Around<Vector4>>().Deserialize(ref back, ref reader);
+            Assert.AreEqual(Vector4.One, back.B);
         }
 
         [TestMethod]

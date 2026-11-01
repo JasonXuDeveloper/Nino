@@ -55,25 +55,57 @@ internal sealed class RawRules
 
     /// <summary>
     /// The <c>System.Numerics.Vector&lt;T&gt;</c> that <paramref name="type"/> is or holds, or null: as an array
-    /// element, a type argument (of a <c>[NinoType]</c>, only one its serialized members use), or a field at any depth
-    /// of a struct that is not a <c>[NinoType]</c> (whose members are checked on their own declaration).
-    /// <c>Vector&lt;T&gt;</c> is as wide as the CPU's vectors (16 or 32 bytes), so no layout of it reads on every host:
-    /// such a type has no formatter (<see cref="FormatterResolver"/>), is never raw, and a member or top-level call
-    /// with one is NINO029. Nino.Core refuses the same types at run time (<c>NinoReflection.VariableVectorIn</c>).
+    /// element, a type argument (of a <c>[NinoType]</c>, only one its serialized members use), in a base type or the
+    /// element of an <c>IEnumerable&lt;T&gt;</c> it implements (<c>class Lanes : List&lt;Vector&lt;int&gt;&gt;</c>), or
+    /// a field at any depth of a struct that is not a <c>[NinoType]</c> (whose members are checked on their own
+    /// declaration). <c>Vector&lt;T&gt;</c> is as wide as the CPU's vectors (16 or 32 bytes), so no layout of it reads
+    /// on every host: such a type has no formatter (<see cref="FormatterResolver"/>), is never raw, and a member or
+    /// top-level call with one is NINO029 (not NINO007). Nino.Core refuses the same types at run time
+    /// (<c>NinoReflection.VariableVectorIn</c>).
     /// </summary>
     public ITypeSymbol? VariableVectorIn(ITypeSymbol type)
     {
         if (_vectors.TryGetValue(type, out var found))
             return found;
-        return _vectors.GetOrAdd(type, ComputeVariableVector(type));
+        HashSet<ITypeSymbol>? open = null;
+        bool cut = false;
+        return _vectors.GetOrAdd(type, ComputeVariableVector(type, ref open, ref cut));
     }
 
-    private ITypeSymbol? ComputeVariableVector(ITypeSymbol type)
+    /// <summary>
+    /// <see cref="VariableVectorIn(ITypeSymbol)"/> of <paramref name="child"/>, met while searching
+    /// <paramref name="parent"/>. <paramref name="open"/> holds the types being searched (created at the first step
+    /// down): a type that holds itself (<c>class Tree : List&lt;Tree&gt;</c>, <c>struct Node { List&lt;Node&gt; C; }</c>)
+    /// is not searched again (<paramref name="cut"/>), and a null found under such a cut is not memoized, since the
+    /// rest of that type may still hold a vector.
+    /// </summary>
+    private ITypeSymbol? VariableVectorIn(ITypeSymbol parent, ITypeSymbol child, ref HashSet<ITypeSymbol>? open,
+        ref bool cut)
+    {
+        if (_vectors.TryGetValue(child, out var found))
+            return found;
+        var searching = open ??= new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default) { parent };
+        if (!searching.Add(child))
+        {
+            cut = true;
+            return null;
+        }
+
+        bool childCut = false;
+        found = ComputeVariableVector(child, ref open, ref childCut);
+        searching.Remove(child);
+        if (found != null || !childCut)
+            _vectors.TryAdd(child, found);
+        cut |= childCut;
+        return found;
+    }
+
+    private ITypeSymbol? ComputeVariableVector(ITypeSymbol type, ref HashSet<ITypeSymbol>? open, ref bool cut)
     {
         switch (type)
         {
             case IArrayTypeSymbol array:
-                return VariableVectorIn(array.ElementType);
+                return VariableVectorIn(type, array.ElementType, ref open, ref cut);
             case INamedTypeSymbol named:
                 var definition = named.OriginalDefinition;
                 if (definition.Arity == 1 && TypeNames.HasMetadataName(definition, "System.Numerics.Vector`1"))
@@ -91,7 +123,7 @@ internal sealed class RawRules
                     var members = _members.Of(definition, options);
                     for (int i = 0; i < arguments.Count; i++)
                     {
-                        if (VariableVectorIn(arguments[i]) is { } inArgument &&
+                        if (VariableVectorIn(type, arguments[i], ref open, ref cut) is { } inArgument &&
                             members.Any(m => MemberCollector.MemberType(m) is { } t && TypeNames.Mentions(t, parameters[i])))
                             return inArgument;
                     }
@@ -101,8 +133,20 @@ internal sealed class RawRules
 
                 foreach (var argument in arguments)
                 {
-                    if (VariableVectorIn(argument) is { } inArgument)
+                    if (VariableVectorIn(type, argument, ref open, ref cut) is { } inArgument)
                         return inArgument;
+                }
+
+                // What a collection formatter writes of a type that names no vector itself: its base type's
+                // (class Lanes : List<Vector<int>>) and the elements of the IEnumerable<T> it implements.
+                if (named.BaseType is { SpecialType: SpecialType.None } baseType &&
+                    VariableVectorIn(type, baseType, ref open, ref cut) is { } inBase)
+                    return inBase;
+                foreach (var face in named.AllInterfaces)
+                {
+                    if (face.OriginalDefinition.SpecialType == SpecialType.System_Collections_Generic_IEnumerable_T &&
+                        VariableVectorIn(type, face.TypeArguments[0], ref open, ref cut) is { } inElements)
+                        return inElements;
                 }
 
                 if (named.TypeKind != TypeKind.Struct)
@@ -110,7 +154,7 @@ internal sealed class RawRules
                 foreach (var member in named.GetMembers())
                 {
                     if (member is IFieldSymbol { IsStatic: false, IsConst: false } field &&
-                        VariableVectorIn(field.Type) is { } inField)
+                        VariableVectorIn(type, field.Type, ref open, ref cut) is { } inField)
                         return inField;
                 }
 

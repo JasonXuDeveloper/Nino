@@ -246,6 +246,12 @@ namespace Nino.Core.Internal
             /// null for none.
             /// </summary>
             public int[] Resized;
+
+            /// <summary>
+            /// Whether the type is or holds <c>Vector&lt;T&gt;</c> (<see cref="NinoReflection.VariableVectorIn"/>): not
+            /// canonical and of no size, and <see cref="NinoLayout{T}"/> refuses to write or read it.
+            /// </summary>
+            public bool VariableVector;
         }
 
         /// <summary>Layout info for <paramref name="type"/>; <paramref name="runtimeSize"/> validates the model.</summary>
@@ -266,7 +272,7 @@ namespace Nino.Core.Internal
             // formatter of it exists (NinoReflection.RefuseVariableVector throws when one is resolved). Not thrown here:
             // Mono and IL2CPP run NinoLayout<T>'s initializer whenever a method naming it is compiled.
             if (NinoReflection.VariableVectorIn(type) != null)
-                return new Info { Canonical = false };
+                return new Info { Canonical = false, VariableVector = true };
             try
             {
                 return Compute(type, runtimeSize, LongAlign, DecimalAlign, WideAlign, DateTimeAlign,
@@ -1196,6 +1202,15 @@ namespace Nino.Core.Internal
         public static readonly bool IsCanonical = Info.Canonical;
 
         /// <summary>
+        /// Whether <typeparamref name="T"/> is or holds <c>Vector&lt;T&gt;</c>: its converted paths throw
+        /// <see cref="NotSupportedException"/>, so code that writes it without the resolver (a hand-made
+        /// <see cref="UnmanagedFormatter{T}"/>, <see cref="Writer.WriteValue{T}"/>) is refused as the resolver refuses it.
+        /// A JIT-time constant, false for every other type and folded away on canonical ones; the throw is never in this
+        /// initializer, which Mono runs when a method naming the class is compiled.
+        /// </summary>
+        private static readonly bool HoldsVariableVector = Info.VariableVector;
+
+        /// <summary>
         /// In <see cref="NinoSettings.Untrusted"/> mode, the fields of <typeparamref name="T"/> with invalid values
         /// (<see cref="NinoLayout.ValueChecks"/>: offset and kind pairs in the wire layout); null otherwise, and for a
         /// type without such fields. Declared before <see cref="CopiesAsIs"/>, which reads it.
@@ -1295,8 +1310,12 @@ namespace Nino.Core.Internal
         // Its own method: taking the parameter's address in Write, even on a branch the JIT folds away, makes every
         // inlined caller pass the value through a stack temporary.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteConverted(ref byte destination, in T value) =>
+        private static void WriteConverted(ref byte destination, in T value)
+        {
+            if (HoldsVariableVector)
+                NinoReflection.RefuseVariableVector(typeof(T));
             NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), ref destination, true);
+        }
 
         /// <summary>Reads a value stored in its wire layout (a <c>bool</c> other than 0 or 1 is invalid data).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1319,6 +1338,8 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static T ReadConverted(ref byte source)
         {
+            if (HoldsVariableVector)
+                NinoReflection.RefuseVariableVector(typeof(T));
             T value = default;
             if (Info.Canonical)
                 value = NinoUnsafe.Read<T>(ref source);

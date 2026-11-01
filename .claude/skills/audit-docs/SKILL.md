@@ -70,7 +70,10 @@ is a finding, and so is a page that teaches a feature before the one it builds o
 ## 3. Across pages and repositories
 
 - **One owner per explanation**: other pages say it in a sentence and link. README, the site, `docs/` and the public
-  skill do not repeat each other's long sections; README summarizes and links the site.
+  skill do not repeat each other's long sections; README summarizes and links the site. Within `docs/`, the page that
+  explains a pitfall owns its example: the `Vector<T>` fixed-lane class was copied whole into diagnostics.md, layouts.md
+  and the public skill; pitfalls.md keeps it, the others a sentence and a link, and the public skill, installed without
+  the repository, one compact form of it and a link to the site.
   For code generation: the site's codegen page owns the user guide (options and their naming rules, type mapping,
   per-language usage, generics, reference tracking, untrusted data, what is not generated); each `runtimes/*/README.md`
   owns its install, API reference and implementation notes and links the guide; `docs/codegen.md` is for
