@@ -248,6 +248,7 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Primitive:
                 case ValueKind.Enum:
                 case ValueKind.RawStruct:
+                case ValueKind.RawNullable:
                     return Raw(value);
                 case ValueKind.RawTuple:
                 {
@@ -313,10 +314,7 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Sequence:
                 {
                     if (value.Element!.Kind == ValueKind.RawNullable)
-                    {
-                        var raw = Raw(value.Element.Element!);
-                        return new RustShape("seq") { Element = raw, Mode = "rawnullables" };
-                    }
+                        return new RustShape("seq") { Element = Raw(value.Element).Inner, Mode = "rawnullables" };
 
                     var element = Shape(value.Element, true);
                     bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
@@ -483,7 +481,7 @@ namespace Nino.Codegen.Targets
                 {
                     var model = value.Struct!;
                     var fields = model.Fields.Select(f => f.Value.Kind is ValueKind.Primitive or ValueKind.Enum or ValueKind.RawStruct
-                            or ValueKind.RawTuple
+                            or ValueKind.RawTuple or ValueKind.RawNullable
                         ? Raw(f.Value)
                         : throw new UnsupportedException(
                             $"{model.FullName}.{f.Name} ({f.Value.Encoding}) has no Rust form inside a raw struct")).ToList();
@@ -493,6 +491,18 @@ namespace Nino.Codegen.Targets
                     {
                         Struct = model, Size = model.Empty ? 1 : model.Size, Align = model.Align,
                         Hashable = fields.All(f => f.Hashable),
+                    };
+                }
+                case ValueKind.RawNullable:
+                {
+                    // nino::Raw for Option<T>: the flag, then T at T's alignment, as Nullable<T>'s canonical layout.
+                    var inner = Raw(value.Element!);
+                    if (value.FlagOffset != 0 || value.ValueOffset != inner.Align || value.Size != inner.Align + inner.Size)
+                        throw new UnsupportedException(
+                            $"{value.ClrName} ({value.Encoding}) is not the flag then the value at its alignment");
+                    return new RustShape("rawnullable")
+                    {
+                        Inner = inner, Size = value.Size, Align = inner.Align, Hashable = inner.Hashable,
                     };
                 }
                 case ValueKind.RawTuple when value.Fallback != null:

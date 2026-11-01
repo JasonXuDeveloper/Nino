@@ -300,6 +300,72 @@ impl NinoWrite for HoldsNestedTuples {
     }
 }
 
+/// `Conformance.HoldsNullables`: raw, 40 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct HoldsNullables {
+    pub a: u8,
+    pub b: Option<i32>,
+    pub c: Option<ValueTupleInt32Int64>,
+}
+
+impl nino::Raw for HoldsNullables {
+    const SIZE: usize = 40;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..40).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [1, 2, 3, 12, 13, 14, 15].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            a: <u8 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            b: <Option<i32> as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
+            c: <Option<ValueTupleInt32Int64> as nino::Raw>::decode_raw(b.get(16..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.a, o);
+        }
+        if let Some(o) = out.get_mut(4..) {
+            nino::Raw::encode_raw(&self.b, o);
+        }
+        if let Some(o) = out.get_mut(16..) {
+            nino::Raw::encode_raw(&self.c, o);
+        }
+    }
+}
+
+impl NinoRead for HoldsNullables {
+    const MIN_SIZE: usize = 40;
+    const FIXED_SIZE: usize = 40;
+
+    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(b)
+    }
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        <Self as nino::Raw>::decode_raw(&r.array::<40>()?)
+    }
+}
+
+impl NinoWrite for HoldsNullables {
+    const FIXED_SIZE: usize = 40;
+
+    fn encode_fixed(&self, out: &mut [u8]) {
+        nino::Raw::encode_raw(self, out);
+    }
+
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let mut b = [0u8; 40];
+        nino::Raw::encode_raw(self, &mut b);
+        w.array(b);
+        Ok(())
+    }
+}
+
 /// `Conformance.HoldsPairs`: raw, 40 bytes.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -1757,6 +1823,59 @@ impl BclRaw {
     pub const NINO_TYPE_NAME: &str = "Conformance.BclRaw";
     /// The layout this code was generated from (`NinoTypeLayout`).
     pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xE128DA27; deferrable=true; members=Tuples:Conformance.HoldsTuples:raw(48){A:int@0:raw(4),B:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)},C:System.ValueTuple<byte, short>@24:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},D:System.ValueTuple<byte, long, int>@32:raw(16){Item1:byte@12:raw(1),Item2:long@0:raw(8),Item3:int@8:raw(4)}};Pairs:Conformance.HoldsPairs:raw(40){A:byte@0:raw(1),P:System.Collections.Generic.KeyValuePair<int, long>@8:raw(16){key:int@0:raw(4),value:long@8:raw(8)},Q:System.Collections.Generic.KeyValuePair<long, byte>@24:raw(16){key:long@0:raw(8),value:byte@8:raw(1)}};Nested:Conformance.HoldsNestedTuples:raw(48){A:byte@0:raw(1),X:System.ValueTuple<int, System.ValueTuple<byte, long>>@8:raw(24){Item1:int@0:raw(4),Item2:System.ValueTuple<byte, long>@8:raw(16){Item1:byte@8:raw(1),Item2:long@0:raw(8)}},Y:System.ValueTuple<System.ValueTuple<byte, short>, long>@32:raw(16){Item1:System.ValueTuple<byte, short>@8:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},Item2:long@0:raw(8)}};Leaves:Conformance.HoldsBclLeaves:raw(112){A:byte@0:raw(1),G:System.Guid@4:raw(16),D:decimal@24:raw(16),S:System.TimeSpan@40:raw(8),T:System.ValueTuple<int, System.TimeSpan>@48:raw(16){Item1:int@0:raw(4),Item2:System.TimeSpan@8:raw(8)},M:System.ValueTuple<byte, decimal>@64:raw(24){Item1:byte@0:raw(1),Item2:decimal@8:raw(16)},U:System.ValueTuple<byte, System.Guid>@88:raw(24){Item1:byte@0:raw(1),Item2:System.Guid@4:raw(16)}};TupleArray:Conformance.HoldsTuples[]:seq(raw(48){A:int@0:raw(4),B:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)},C:System.ValueTuple<byte, short>@24:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},D:System.ValueTuple<byte, long, int>@32:raw(16){Item1:byte@12:raw(1),Item2:long@0:raw(8),Item3:int@8:raw(4)}});PairList:System.Collections.Generic.List<Conformance.HoldsPairs>:seq(raw(40){A:byte@0:raw(1),P:System.Collections.Generic.KeyValuePair<int, long>@8:raw(16){key:int@0:raw(4),value:long@8:raw(8)},Q:System.Collections.Generic.KeyValuePair<long, byte>@24:raw(16){key:long@0:raw(8),value:byte@8:raw(1)}})";
+}
+
+/// `Conformance.BclRawNullables`: Positional, header NullFlag.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct BclRawNullables {
+    pub nullables: HoldsNullables,
+    pub array: Option<Vec<HoldsNullables>>,
+}
+
+impl NinoReadBody for BclRawNullables {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.nullables)?;
+        r.read_into(&mut self.array)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for BclRawNullables {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.nullables)?;
+        w.write(&self.array)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for BclRawNullables {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for BclRawNullables {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<Vec<HoldsNullables>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.array.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.array.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl BclRawNullables {
+    /// The .NET type's id, written in front of its body in a polymorphic slot.
+    pub const TYPE_ID: i32 = 0xA24BE90Du32 as i32;
+    /// The .NET type's name (`Namespace.Outer+Inner`).
+    pub const NINO_TYPE_NAME: &str = "Conformance.BclRawNullables";
+    /// The layout this code was generated from (`NinoTypeLayout`).
+    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA24BE90D; deferrable=true; members=Nullables:Conformance.HoldsNullables:raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}};Array:Conformance.HoldsNullables[]:seq(raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}})";
 }
 
 /// `Conformance.Targets.BigSlot`: Positional, header NullFlag.
@@ -6534,6 +6653,7 @@ pub enum AnyObject {
     Bag(Box<Bag>),
     BagHolder(Box<BagHolder>),
     BclRaw(Box<BclRaw>),
+    BclRawNullables(Box<BclRawNullables>),
     BigSlot(Box<BigSlot>),
     BigValues(Box<BigValues>),
     BlueLink(Box<BlueLink>),
@@ -6666,6 +6786,7 @@ impl AnyObject {
             Self::Bag(v) => &mut **v,
             Self::BagHolder(v) => &mut **v,
             Self::BclRaw(v) => &mut **v,
+            Self::BclRawNullables(v) => &mut **v,
             Self::BigSlot(v) => &mut **v,
             Self::BigValues(v) => &mut **v,
             Self::BlueLink(v) => &mut **v,
@@ -6811,6 +6932,10 @@ impl NinoRead for AnyObject {
                 true
             }
             Some(Self::BclRaw(v)) if id == BclRaw::TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::BclRawNullables(v)) if id == BclRawNullables::TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -7226,6 +7351,7 @@ impl NinoRead for AnyObject {
                 Bag::TYPE_ID => Self::Bag(Box::new(r.read_class()?)),
                 BagHolder::TYPE_ID => Self::BagHolder(Box::new(r.read_class()?)),
                 BclRaw::TYPE_ID => Self::BclRaw(Box::new(r.read_class()?)),
+                BclRawNullables::TYPE_ID => Self::BclRawNullables(Box::new(r.read_class()?)),
                 BigSlot::TYPE_ID => Self::BigSlot(Box::new(r.read_class()?)),
                 BigValues::TYPE_ID => Self::BigValues(Box::new(r.read_class()?)),
                 BlueLink::TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
@@ -7356,6 +7482,10 @@ impl NinoWrite for AnyObject {
             }
             Self::BclRaw(v) => {
                 w.i32(BclRaw::TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::BclRawNullables(v) => {
+                w.i32(BclRawNullables::TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BigSlot(v) => {
@@ -8971,6 +9101,7 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Conformance.Bag" => f.visit::<Option<BagRef>>(),
         "Conformance.BagHolder" => f.visit::<Option<Box<BagHolder>>>(),
         "Conformance.BclRaw" => f.visit::<Option<Box<BclRaw>>>(),
+        "Conformance.BclRawNullables" => f.visit::<Option<Box<BclRawNullables>>>(),
         "Conformance.BigValues" => f.visit::<Option<Box<BigValues>>>(),
         "Conformance.BlueLink" => f.visit::<Option<Box<BlueLink>>>(),
         "Conformance.Bytes" => f.visit::<Option<Box<Bytes>>>(),

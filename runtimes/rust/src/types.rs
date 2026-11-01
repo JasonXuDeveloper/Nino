@@ -1108,6 +1108,36 @@ impl NinoWrite for Utf8 {
     }
 }
 
+/// `Nullable<T>` of a raw `T` in the canonical layout (the specification, 5.2 and 6.2): the presence byte, zeros up to
+/// `T`'s alignment, then `T` (zero when absent). What a raw struct holds as a `T?` field and a [`RawNullables`]
+/// element is.
+impl<T: Raw> Raw for Option<T> {
+    const SIZE: usize = T::ALIGN.saturating_add(T::SIZE);
+    const ALIGN: usize = T::ALIGN;
+
+    #[inline]
+    fn decode_raw(bytes: &[u8]) -> Result<Self> {
+        let (flag, value) = bytes.split_at_checked(T::ALIGN).ok_or_else(Error::end)?;
+        match flag.first() {
+            Some(0) => Ok(None),
+            Some(1) => T::decode_raw(value).map(Some),
+            Some(&b) => Err(Error::new(ErrorKind::InvalidPresence, i32::from(b))),
+            None => Err(Error::end()),
+        }
+    }
+
+    #[inline]
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(v) = self {
+            let (flag, value) = out.split_at_mut(T::ALIGN.min(out.len()));
+            if let Some(f) = flag.first_mut() {
+                *f = 1;
+            }
+            v.encode_raw(value);
+        }
+    }
+}
+
 // ---------------------------------------------------------------------- arrays
 
 /// A `T?[]` or `List<T?>` of a raw `T` (the specification, 6.2): each element at a fixed stride of
@@ -1116,7 +1146,7 @@ impl NinoWrite for Utf8 {
 pub struct RawNullables<T>(pub Vec<Option<T>>);
 
 impl<T: Raw> RawNullables<T> {
-    const STRIDE: usize = T::ALIGN.saturating_add(T::SIZE);
+    const STRIDE: usize = <Option<T> as Raw>::SIZE;
 }
 
 impl<T: Raw> NinoRead for RawNullables<T> {
@@ -1131,13 +1161,7 @@ impl<T: Raw> NinoRead for RawNullables<T> {
         let bytes = r.take(count.checked_mul(Self::STRIDE).ok_or_else(Error::too_large)?)?;
         let mut values = Vec::with_capacity(count);
         for element in bytes.chunks_exact(Self::STRIDE.max(1)) {
-            let (flag, value) = element.split_at_checked(T::ALIGN).ok_or_else(Error::end)?;
-            values.push(match flag.first() {
-                Some(0) => None,
-                Some(1) => Some(T::decode_raw(value)?),
-                Some(&b) => return Err(Error::new(ErrorKind::InvalidPresence, i32::from(b))),
-                None => return Err(Error::end()),
-            });
+            values.push(Option::<T>::decode_raw(element)?);
         }
         Ok(Some(Self(values)))
     }
@@ -1148,13 +1172,7 @@ impl<T: Raw> NinoWrite for RawNullables<T> {
         w.length(self.0.len())?;
         let out = w.reserve(self.0.len().saturating_mul(Self::STRIDE));
         for (element, value) in out.chunks_exact_mut(Self::STRIDE.max(1)).zip(&self.0) {
-            if let Some(v) = value {
-                let (flag, rest) = element.split_at_mut(T::ALIGN.min(element.len()));
-                if let Some(f) = flag.first_mut() {
-                    *f = 1;
-                }
-                v.encode_raw(rest);
-            }
+            value.encode_raw(element);
         }
         Ok(())
     }
