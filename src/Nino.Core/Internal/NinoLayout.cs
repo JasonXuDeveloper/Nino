@@ -459,7 +459,7 @@ namespace Nino.Core.Internal
             if (fields.Length != offsets.Count)
                 return false;
             for (int i = 0; i < fields.Length; i++)
-                if (!AddChecks(fields[i].FieldType, offset + offsets[i], checks))
+                if (!AddChecks(NinoReflection.LayoutFieldType(fields[i]), offset + offsets[i], checks))
                     return false;
             return true;
         }
@@ -584,11 +584,13 @@ namespace Nino.Core.Internal
                 return true;
             foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
-                if (field.FieldType.IsPointer)
+                // A function pointer reads as a boxed IntPtr, measured as the UIntPtr it is laid out as.
+                var fieldType = NinoReflection.LayoutFieldType(field);
+                if (fieldType.IsPointer)
                     return false;
-                var underlying = Nullable.GetUnderlyingType(field.FieldType);
-                if (underlying == null ? !Visit(field.GetValue(value), field.FieldType, bit, values)
-                    : !VisitNullable(field.GetValue(value) != null, field.FieldType, underlying, bit, values))
+                var underlying = Nullable.GetUnderlyingType(fieldType);
+                if (underlying == null ? !Visit(field.GetValue(value), fieldType, bit, values)
+                    : !VisitNullable(field.GetValue(value) != null, fieldType, underlying, bit, values))
                     return false;
             }
 
@@ -809,7 +811,7 @@ namespace Nino.Core.Internal
                 pack = layout != null && layout.Pack > 0 ? layout.Pack : 0;
                 minSize = layout?.Size ?? 0;
                 foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
-                    fields.Add(new KeyValuePair<Type, int>(field.FieldType,
+                    fields.Add(new KeyValuePair<Type, int>(NinoReflection.LayoutFieldType(field),
                         kind == LayoutKind.Explicit ? (int)Marshal.OffsetOf(type, field.Name) : -1));
                 return true;
             }

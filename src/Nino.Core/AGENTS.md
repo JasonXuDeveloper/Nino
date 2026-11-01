@@ -162,7 +162,8 @@ NinoLayout.cs                canonical (64-bit CoreCLR) layout of raw structs, B
 NinoMask.cs                  NinoMask: padding cleared while copying values to the wire (vector masks, 8-byte words)
 NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout): NinoLeaf, NinoLayoutModel
                              (one runtime's rules; Canonical), Measure, CoreCLR's auto layout (PlaceAuto)
-NinoReflection.cs            what Nino.Core reads by reflection with the generator's rules (NinoType, raw, tracking)
+NinoReflection.cs            what Nino.Core reads by reflection with the generator's rules (NinoType, raw, tracking,
+                             a struct field's type as layouts see it: delegate* as UIntPtr)
 NinoFormatterBinding.cs      binding of [NinoFormatter] registrations, shared with the generator (INinoTypeSystem)
 NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed)
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,

@@ -342,8 +342,9 @@ internal static class RawLayout
     /// The generator's view of a type. For portability (<see cref="IsPortable"/>): pointer-sized fields are never
     /// portable, and neither is a struct with fields of unknown layout (<see cref="Fields"/>) or with an
     /// <c>Int128</c> in it (<see cref="IsInt128"/>; one on its own, <paramref name="top"/>, is). For the canonical
-    /// layout (<paramref name="canonical"/>, <see cref="Describe"/>): <c>nint</c>, <c>nuint</c> and pointers are 8
-    /// bytes, <c>Int128</c> and <c>UInt128</c> 16 aligned to 16, as on 64-bit .NET 8 and later (spec §5.2).
+    /// layout (<paramref name="canonical"/>, <see cref="Describe"/>): <c>nint</c>, <c>nuint</c> and pointers
+    /// (<c>delegate*</c> too) are 8 bytes, <c>Int128</c> and <c>UInt128</c> 16 aligned to 16, as on 64-bit .NET 8 and
+    /// later (spec §5.2).
     /// </summary>
     private readonly struct SymbolView(ITypeSymbol top, bool canonical) : INinoLayoutView<ITypeSymbol>
     {
@@ -353,7 +354,9 @@ internal static class RawLayout
             {
                 if (type.SpecialType == SpecialType.System_IntPtr)
                     return NinoLeaf.SignedPointer;
-                if (type.SpecialType == SpecialType.System_UIntPtr || type is IPointerTypeSymbol)
+                // Function pointers (delegate*) are pointers too, as Nino.Core lays them out (LayoutFieldType).
+                if (type.SpecialType == SpecialType.System_UIntPtr ||
+                    type is IPointerTypeSymbol or IFunctionPointerTypeSymbol)
                     return NinoLeaf.Pointer;
                 if (IsInt128(type))
                     return NinoLeaf.Int128;
@@ -372,7 +375,7 @@ internal static class RawLayout
         }
 
         public bool IsAutoPrimitive(ITypeSymbol type) =>
-            type.TypeKind is TypeKind.Enum or TypeKind.Pointer ||
+            type.TypeKind is TypeKind.Enum or TypeKind.Pointer or TypeKind.FunctionPointer ||
             type.SpecialType is >= SpecialType.System_Boolean and <= SpecialType.System_UInt64 or
                 SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_IntPtr or
                 SpecialType.System_UIntPtr;

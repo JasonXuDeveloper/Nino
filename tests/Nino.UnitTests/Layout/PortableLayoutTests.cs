@@ -279,6 +279,105 @@ namespace Nino.UnitTests
             CollectionAssert.AreEqual(array, NinoDeserializer.Deserialize<System.UIntPtr[]>(NinoSerializer.Serialize(array)));
         }
 
+        private unsafe struct HoldsFunctionPointer
+        {
+            public byte A;
+            public delegate*<int> F;
+            public int* P;
+            public nint N;
+        }
+
+        /// <summary>
+        /// The canonical bytes of <see cref="HoldsFunctionPointer"/> { 1, 0x87654321, 0x80000004, -2 }: the function
+        /// pointer zero-extended like the pointer, the nint sign-extended, so a 32-bit host writes them too.
+        /// </summary>
+        private static readonly byte[] FunctionPointerBytes =
+        {
+            1, 0, 0, 0, 0, 0, 0, 0,
+            0x21, 0x43, 0x65, 0x87, 0, 0, 0, 0,
+            4, 0, 0, 0x80, 0, 0, 0, 0,
+            0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        };
+
+        /// <summary>
+        /// A function pointer (<c>delegate*</c>) inside a raw struct is a pointer: 8 bytes zero-extended, like
+        /// <c>T*</c> (spec §5.2), as the generator publishes it. .NET 8 and later report it as a function pointer type,
+        /// which the layout did not know (copied as it lay in memory), and earlier runtimes as an <c>IntPtr</c>
+        /// (sign-extended).
+        /// </summary>
+        [TestMethod]
+        public unsafe void FunctionPointersAreZeroExtendedPointers()
+        {
+            var value = new HoldsFunctionPointer
+            {
+                A = 1, F = (delegate*<int>)(nuint)0x87654321u, P = (int*)(nuint)0x80000004u, N = -2,
+            };
+            CollectionAssert.AreEqual(FunctionPointerBytes, NinoSerializer.Serialize(value));
+            var back = NinoDeserializer.Deserialize<HoldsFunctionPointer>(FunctionPointerBytes);
+            Assert.AreEqual((nuint)0x87654321u, (nuint)back.F);
+            Assert.AreEqual((nuint)0x80000004u, (nuint)back.P);
+            Assert.AreEqual((nint)(-2), back.N);
+            var array = NinoSerializer.Serialize(new[] { value, value });
+            CollectionAssert.AreEqual(FunctionPointerBytes.Concat(FunctionPointerBytes).ToArray(), array.Skip(4).ToArray());
+            Assert.AreEqual((nuint)0x87654321u, (nuint)NinoDeserializer.Deserialize<HoldsFunctionPointer[]>(array)[1].F);
+
+            // The runtime resolver's rules: unmanaged, written raw.
+            Assert.IsTrue(Nino.Core.CompilerServices.NinoUnsafe.IsUnmanaged(typeof(HoldsFunctionPointer)));
+            Assert.IsTrue(NinoReflection.IsRawUnmanaged(typeof(HoldsFunctionPointer)));
+            var field = typeof(HoldsFunctionPointer).GetField(nameof(HoldsFunctionPointer.F));
+            Assert.AreEqual(typeof(System.UIntPtr), NinoReflection.LayoutFieldType(field));
+        }
+
+        private unsafe struct SignatureProbe
+        {
+#pragma warning disable CS0649
+            public delegate*<int> F;
+            public volatile delegate*<int> VolatileF;
+            public volatile int* VolatileP;
+            public nint N;
+#pragma warning restore CS0649
+        }
+
+        /// <summary>
+        /// Where a runtime reports a function pointer as an <c>IntPtr</c> (.NET Framework, .NET 7 and earlier), the
+        /// netstandard builds read the field's signature: ELEMENT_TYPE_FNPTR after any custom modifier (volatile).
+        /// Checked here on the netstandard builds (-p:NinoCoreTfm), whose CoreCLR reads field signatures as .NET
+        /// Framework does; the net8.0 build has no such path.
+        /// </summary>
+        [TestMethod]
+        public void FunctionPointerSignaturesAreReadWhereTheTypeIsAnIntPtr()
+        {
+            var read = typeof(NinoReflection).GetMethod("HasFunctionPointerSignature",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            if (read == null)
+                return;
+            foreach (var (name, expected) in new[] { ("F", true), ("VolatileF", true), ("VolatileP", false), ("N", false) })
+                Assert.AreEqual(expected, read.Invoke(null, new object[] { typeof(SignatureProbe).GetField(name) }), name);
+        }
+
+        /// <summary>
+        /// On a 32-bit host the function pointer is converted as the pointer is, zero-extended, and the nint
+        /// sign-extended: a 4-byte pointer model over the same struct (16 bytes there) writes the canonical bytes.
+        /// </summary>
+        [TestMethod]
+        public void FunctionPointersAreZeroExtendedOn32Bit()
+        {
+            var info = NinoLayout.Compute(typeof(HoldsFunctionPointer), 16,
+                new NinoLayoutModel(8, 8, 4, NinoLayout.Int128Align, NinoLayout.DateTimeAlign));
+            Assert.IsFalse(info.Canonical);
+            Assert.AreEqual(32, info.Size);
+            // (memory offset, memory size, wire offset, wire size, signed) per resized leaf.
+            CollectionAssert.AreEqual(new[] { 4, 4, 8, 8, 0, 8, 4, 16, 8, 0, 12, 4, 24, 8, 1 }, info.Resized);
+
+            var memory = new byte[] { 1, 0, 0, 0, 0x21, 0x43, 0x65, 0x87, 4, 0, 0, 0x80, 0xFE, 0xFF, 0xFF, 0xFF };
+            var wire = new byte[info.Size];
+            NinoLayout.Convert(info, ref memory[0], ref wire[0], true);
+            CollectionAssert.AreEqual(FunctionPointerBytes, wire);
+            var back = new byte[16];
+            NinoLayout.Convert(info, ref back[0], ref FunctionPointerBytes[0], false);
+            CollectionAssert.AreEqual(memory, back);
+        }
+
         [TestMethod]
         public void DateTimeOffsetIsTicksAndOffset()
         {

@@ -138,6 +138,36 @@ namespace Canonical
         }
 
         /// <summary>
+        /// A function pointer (<c>delegate*</c>) inside a raw struct is a pointer: published as 8 bytes like <c>T*</c>
+        /// and <c>nuint</c> (spec §5.2), which Nino.Core writes zero-extended. It was the bare <c>raw</c>, and Nino.Core
+        /// sign-extended it on 32-bit .NET Framework and Mono (an <c>IntPtr</c> there) and copied it as it lay in
+        /// memory on 32-bit .NET 8 and later.
+        /// </summary>
+        [TestMethod]
+        public void PublishesFunctionPointersAsPointers()
+        {
+            var result = CornerCompiler.Compile(@"
+using Nino.Core;
+namespace Calls
+{
+    public unsafe struct Table { public byte A; public delegate*<int, void> F; public int* P; public delegate* unmanaged<int> G; }
+    [NinoType] public sealed class Holder { public Table T; }
+}", allowUnsafe: true);
+            Assert.AreEqual(0, result.Errors.Length, result.ErrorText);
+            var assembly = result.Assembly;
+            Assert.AreEqual(
+                "T:Calls.Table:raw(32){A:byte@0:raw(1),F:delegate*<int, void>@8:raw(8),P:int*@16:raw(8)," +
+                "G:delegate* unmanaged<int>@24:raw(8)}",
+                Layout(assembly, "Calls.Holder").Members);
+
+            var serialize = typeof(NinoSerializer).GetMethods()
+                .Single(m => m.Name == nameof(NinoSerializer.Serialize) && m.IsGenericMethod && m.GetParameters().Length == 1);
+            var table = assembly.GetType("Calls.Table");
+            var bytes = (byte[])serialize.MakeGenericMethod(table).Invoke(null, new[] { Activator.CreateInstance(table) });
+            Assert.AreEqual(32, bytes.Length);
+        }
+
+        /// <summary>
         /// Whether a class body can be deferred (read after its instance is in its slot) is published as
         /// <c>Deferrable</c>, and <c>ToString</c> writes it before the members.
         /// </summary>

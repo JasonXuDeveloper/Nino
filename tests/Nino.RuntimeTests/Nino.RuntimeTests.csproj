@@ -9,6 +9,7 @@
         <TargetFrameworks>net10.0;net472</TargetFrameworks>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <!-- -p:NinoX86=true: a 32-bit process (.NET Framework x86 in CI's Windows job), built beside the AnyCPU one.

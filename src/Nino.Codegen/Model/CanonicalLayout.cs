@@ -29,7 +29,7 @@ namespace Nino.Codegen.Model
             {
                 if (type.IsEnum)
                     type = type.GetEnumUnderlyingType();
-                if (type.IsPointer)
+                if (type.IsPointer || type.IsFunctionPointer)
                     return NinoLeaf.Pointer;
                 if (VectorSize(type) > 0)
                     return NinoLeaf.Vector;
@@ -89,7 +89,8 @@ namespace Nino.Codegen.Model
                 return true;
             }
 
-            public bool IsAutoPrimitive(Type type) => type.IsPrimitive || type.IsEnum || type.IsPointer;
+            public bool IsAutoPrimitive(Type type) =>
+                type.IsPrimitive || type.IsEnum || type.IsPointer || type.IsFunctionPointer;
 
             public bool TryGetVector(Type type, out int size, out int align)
             {
