@@ -69,7 +69,8 @@ The Go, Rust and TypeScript readers always check.
 `System.Numerics.Vector<T>` is 16, 32 or 64 bytes, chosen by the CPU, so no bytes can carry it between hosts (32
 bytes written on an AVX2 server do not fit a 16-byte `Vector<T>` on an Arm phone). Alone or inside anything (arrays,
 collections and classes deriving from one, tuples, `T?`, plain structs at any depth, a generic `[NinoType]` whose
-members name `T`, as `Box<Vector<int>>`) it is NINO029, an error, and `NotSupportedException` at run time.
+formatter or a generic subtype writes that argument, as `Box<Vector<int>>` of `Box<T> { T Value; }`) it is NINO029,
+an error, and `NotSupportedException` at run time.
 `Vector64<T>` to `Vector512<T>` are fixed size and fine.
 
 Store a fixed number of lanes that is a multiple of `Vector<T>.Count` on every host (16 lanes of a 4-byte type, 64

@@ -123,9 +123,24 @@ generic). That member is not skipped: it is written, and null works, but writing
 `InvalidOperationException` ("no formatter for System.Action"). Only a type argument the closed type's formatter
 writes is reported: one that a serialized member writes (its own or a `[NinoType]` base's, directly, in an array, a
 collection, a dictionary, a tuple or `Nullable`, or through another generic `[NinoType]` that writes it), the elements
-of a collection class, or one a generic subtype writes. A type parameter used only by `[NinoIgnore]` members, methods,
-constraints or a nested generic that never writes it is not (`Tag<Action>` of `class Tag<T> { int X; }`, nor
-`Outer<Action>` of `class Outer<T> { Tag<T> Inner; }`, nor anything inside it, `Tag<Box<Action>>`).
+of a collection class, or what a generic subtype writes of it. A slot (an interface, an abstract or unsealed class)
+holds the generic subtypes whose base matches its argument, at any depth of inheritance, and they write the part of
+the argument they match: with `class TagShelf<U> : Shelf<Tag<U>> { public U Value; }`, a `Shelf<Tag<Action>>` is
+reported though `Tag<T>` writes no `T`, and a `Shelf<Box<Action>>` is not when no subtype of that shape writes it. A
+type parameter used only by `[NinoIgnore]` members, methods, constraints or a nested generic that never writes it is
+not (`Tag<Action>` of `class Tag<T> { int X; }`, nor `Outer<Action>` of `class Outer<T> { Tag<T> Inner; }`, nor
+anything inside it, `Tag<Box<Action>>`).
+
+Types in referenced assemblies are read from their symbols, with two limits. A compilation sees only the public and
+protected members of a referenced class, so a private serialized member is read from the layout Nino publishes for
+the type (`[assembly: NinoTypeLayout]`): every type argument such a member's type names counts as written, and every
+type argument of a referenced generic class without a layout does. Subtypes are searched in the compilation and in
+every referenced assembly that is the base's or references it; a subtype declared in an assembly that references this
+one, and a subtype's type parameter its base does not name (`class S<U, W> : Shelf<U>` writing `W`), cannot be seen
+from the slot, and are not reported there. A subtype that holds its base over its own type parameter matches
+arguments nested without end (`Tag<Tag<...>>`): beyond a few levels, every type inside the argument counts. A generic
+that is not a `[NinoType]` writes every type argument: Nino.Core's formatters (collections, dictionaries, `Nullable`,
+tuples, `KeyValuePair`) write them all, and refuse any other such generic with `Vector<T>` in an argument.
 
 ### NINO008
 
@@ -191,8 +206,8 @@ one (as an element, a type argument, a base type or a field of a plain struct), 
 by the CPU, so Nino serializes no such type; the runtime throws `NotSupportedException` for it. A generic
 `[NinoType]` counts when its formatter writes the type argument, by the same rule as NINO007's type arguments:
 `Box<Vector<int>>` of `class Box<T> { public T Value; }` is reported, and so is `ListBox<Vector<short>>` of
-`class ListBox<T> : Box<List<T>>`; `Outer<Vector<int>>` of `class Outer<T> { Tag<T> Inner; }` is not when `Tag<T>`
-writes no `T`. The message reads: "... cannot be serialized: '{type}' is a Vector<T> (or holds
+`class ListBox<T> : Box<List<T>>`, and `Shelf<Tag<Vector<int>>>` when a subtype `class TagShelf<U> : Shelf<Tag<U>>`
+writes `U`; `Outer<Vector<int>>` of `class Outer<T> { Tag<T> Inner; }` is not when `Tag<T>` writes no `T`. The message reads: "... cannot be serialized: '{type}' is a Vector<T> (or holds
 '...'), and Vector<T> is 16, 32 or 64 bytes by the CPU; store a fixed number of lanes (an array, a fixed buffer,
 Vector128<T> or Vector256<T>) and view them as Vector<T> in [NinoIgnore] members". A formatter of your
 own that writes the lanes its way is never reported, nor a Nino.Core collection formatter over it. Store a fixed
