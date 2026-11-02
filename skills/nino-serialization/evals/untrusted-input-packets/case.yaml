@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: untrusted-input-packets
+expected_outcome: |
+  The server sets NinoSettings.Untrusted = true once at startup (because bool fields and Nullable flags inside a raw struct such as InputFrame are not checked in the default mode, which is undefined behavior for the JIT), catches NinoDataException per packet, validates frame count and value ranges itself, declares InputPacket sealed, and SECURITY.md separates Nino's checks from the game's. No invented Nino API.

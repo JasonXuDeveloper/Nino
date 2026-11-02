@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: simd-state-for-unity-clients
+expected_outcome: |
+  FlockState.cs serializes no System.Numerics.Vector<T> (NINO029): positions and weights are stored as fixed float lanes (a multiple of 16 per group, or chunked by Vector<float>.Count) with Vector<float> views in [NinoIgnore] members; the delegate* callback is not serialized; the saved type uses a format that tolerates later changes; NOTES.md explains that Vector<T> is 16, 32 or 64 bytes by the CPU and so differs between the x64 server and Arm64 clients. No invented Nino API.
