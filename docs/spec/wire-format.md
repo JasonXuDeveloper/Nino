@@ -372,9 +372,9 @@ runtime that writes or reads it. Implementations MUST compute it as follows (`Ni
 - **Leaves** (size, alignment): 1-byte types (1, 1). 2-byte types (2, 2). 4-byte types (4, 4). 8-byte primitives,
   `DateTime` and `TimeSpan` (8, 8). `decimal` (16, 8). `Guid` (16, 4). `Int128` and `UInt128` (16, 16). Enums are
   their underlying type. `nint`, `nuint`, pointers and function pointers (`delegate*`) (8, 8): `nint` sign-extended,
-  the others zero-extended where the host's pointer is 4 bytes. (Mono and IL2CPP report a `delegate*` field as an
-  `IntPtr`, so the .NET reader and writer there sign-extend it: the same bytes on 64-bit hosts; on a 32-bit Unity
-  player an address with its top bit set differs.) `Vector64<T>` (8, 8), `Vector128<T>` (16, 16), `Vector256<T>` (32, 32), `Vector512<T>`
+  the others zero-extended where the host's pointer is 4 bytes. (.NET knows a `delegate*` field from the generated
+  registry, not from reflection, which reports it as an `IntPtr` on Mono and IL2CPP: every runtime zero-extends it.)
+  `Vector64<T>` (8, 8), `Vector128<T>` (16, 16), `Vector256<T>` (32, 32), `Vector512<T>`
   (64, 64): x64 CoreCLR's alignments (Arm64 aligns the last two to 16, Arm32 every one to 8). `Vector<T>` is not a
   leaf: a struct holding one is not serializable (§3).
 - **BCL structs of private fields**, as .NET 10 declares them: `KeyValuePair<K, V>` is sequential `{ K key; V value; }`;

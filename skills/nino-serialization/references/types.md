@@ -50,9 +50,10 @@ field by field (measured once at startup). So raw data written on a .NET 10 serv
 32-bit player, and in Go, Rust and TypeScript. You do not need to do anything for this; do not hand-pack structs
 "for portability".
 
-- A `delegate*` field in a plain unmanaged struct is 8 bytes like `T*`. Mono and IL2CPP see it as an `IntPtr` and
-  sign-extend it: the same bytes on 64-bit hosts; on a 32-bit Unity player an address with its top bit set differs.
-  An address means nothing in another process anyway: keep pointers out of data you store or send.
+- A `delegate*` field in a plain unmanaged struct is 8 bytes like `T*`, zero-extended on every runtime (32-bit Unity
+  players included) when Nino's generator sees the struct (declared in a project that uses it, or named by a member
+  or a `NinoSerializer`/`NinoDeserializer` call). An address means nothing in another process anyway: keep pointers
+  out of data you store or send.
 
 ### `bool` and `Nullable` flags inside raw structs are unchecked by default
 

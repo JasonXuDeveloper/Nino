@@ -46,11 +46,14 @@ host's memory:
   layout is the canonical one copies the struct; every other one finds its field offsets once from an instance
   (`MeasureMemory`) and converts field by field. A raw `[NinoType]` struct requires all of its fields to be raw, so
   one holding a tuple, pair or nullable is written member by member.
-- A function pointer (`delegate*`) is a pointer: 8 bytes, zero-extended. Each runtime reports its field differently
-  (.NET 8+ a function pointer type, .NET Framework and .NET 7 an `IntPtr` only its signature tells apart), so layouts
-  read field types through `NinoReflection.LayoutFieldType`. Mono and IL2CPP cannot resolve the signature and see an
-  `IntPtr`, which they sign-extend: the same bytes on 64-bit hosts, different on a 32-bit Unity player only for an
-  address with its top bit set.
+- A function pointer (`delegate*`) is a pointer: 8 bytes, zero-extended, on every runtime. Reflection reports its
+  field differently (.NET 8+ a function pointer type; .NET Framework, Mono and IL2CPP an `IntPtr`, which would be
+  sign-extended), so the generator, which sees the field's type, lists the `delegate*` fields of every struct it
+  sees (declared in the project, or named by a member or a top-level call) in the assembly's registry
+  (`NinoFunctionPointerFields`), and layouts read field types through `NinoReflection.LayoutFieldType`, which asks
+  that list. A struct that only a project without Nino's generator declares, reached only through generic code
+  (`Save<T>` calling `Serialize<T>`), is not listed: .NET 8+ refuses it (no formatter), other runtimes sign-extend the
+  field, which differs from the canonical bytes on a 32-bit host only for an address with its top bit set.
 - `Vector<T>` is not serializable (next section).
 
 ### `Vector<T>` is not serializable
