@@ -1,0 +1,193 @@
+# Bounds checks and vector loops (.NET)
+
+Part of the `optimize` skill: removing bounds checks, and the vector loops on x64 (AVX-512, AVX2, SSSE3), Arm64
+(tbl, ldp/stp) and the netstandard builds, with the per-CPU decisions (Ice Lake, Zen, Neoverse) and the kernels
+measured and not taken. Read it before writing or changing a loop over elements, a block copy, a permute or a check
+of bytes in a block.
+
+## Bounds checks
+
+- Index an array or span on a hot path through a ref to its first element and `Unsafe.Add`, never `a[i]` or
+  `span[i]`: take `ref MemoryMarshal.GetReference(span)` or `ref NinoUnsafe.GetArrayDataReference(array)` once (the
+  wrapper covers netstandard2.0, which lacks `MemoryMarshal.GetArrayDataReference`), check the length once against
+  what the loop will touch, then walk with `Unsafe.Add(ref first, i)` or a bumped cursor. Why: the JIT removes a
+  check only when it can prove `i < Length` (a `for` over `0..Length` of the same local); anything else (two arrays,
+  an index from the data, a count read earlier, `i + 1`) leaves a compare and a `CORINFO_HELP_RNGCHKFAIL` call per
+  access, and the throw block also costs the method its inlining budget. On IL2CPP the gain is larger: it emits its
+  own check on every array access unless the project turns it off, and `Unsafe.Add` has none.
+- The one check you keep is what makes it safe: on a read path it is the length check against the bytes left
+  (`audit-security`), and every `Unsafe.Add` must stay inside what that check covered. Never `ref array[0]` (throws
+  on an empty array, and is a bounds check itself); `GetReference` of an empty span is a valid ref that must not be
+  read. `ref span.GetPinnableReference()` is the same as `GetReference` but returns a null ref for an empty span:
+  use it only with `fixed`.
+- Find the checks left: `CORINFO_HELP_RNGCHKFAIL` in the Tier1 listing (`benchmarks/asm.py dump --asm FILE`),
+  counted per method; a hot method with one in its loop is a finding, one on a cold path out of line is not.
+- Go, Rust and TypeScript: `optimize-runtimes`, references/blocks.md.
+
+## Vector loops
+
+- Bump `ref` cursors and count down (`at = ref Unsafe.Add(ref at, step)`, `while (--n != 0)`), never
+  `(nuint)i * size` per iteration; take everything that does not change per iteration (masks, indices) out of the
+  loop into locals. Scalar tails too: `NinoBlockCollections.WriteEach`'s per-value loop with an index scaled twice per
+  value wrote 1,000 dictionary entries in 658 ns without hardware intrinsics, with cursors 393 (main's per-entry
+  loop: 399).
+- On Arm64 (and anywhere without AVX-512) `Vector512<T>` and `Vector256<T>` are structs of 16-byte vectors: passed
+  into an inlined loop body they are copied through the stack every iteration. Take their `Vector128` parts out once,
+  before the loop, and pass those.
+- ARM64 is a load/store architecture: what x64 does in one instruction on memory is a load, an operation and a store
+  there, and 64-bit constants and addresses take several instructions. Keep hot state in registers.
+- Arm64 `tbl` with two to four table registers needs consecutive registers: build the tuples from loads made once per
+  iteration, before any lookup (`(w0, w1)`, `(w1, w2)`), never from per-lookup loads, or the JIT adds `mov`s. Each table
+  register is a micro-op on Neoverse cores: give each lookup only the registers its bytes come from, and store only the
+  bytes the values fill (`NinoBlockCollections.WireTables64`); check each shape, as types that compile to the same code
+  can differ by the data (`(byte, int)` took twice as long as `(short, int)`).
+- Load and store a `Vector<T>` in the netstandard builds with `Unsafe.As<byte, Vector<T>>(ref at)` (plain `ldobj`
+  / `stobj`), never `Unsafe.ReadUnaligned` / `WriteUnaligned`: classic Mono compiles the `unaligned.` prefix on a
+  struct wider than its inline-copy limit to a call to memcpy through a stack slot (`mini_emit_memory_load` in
+  mono/mini/memory-access.c), and plain ones to `movups`. RyuJIT never assumes a vector aligned, so its code is the
+  same. Evidence: `NinoMask.CopyVectors` on Mono 6.8 serialized 1,000 padded structs in 36 to 40 µs with
+  `ReadUnaligned`, 8.4 to 9.2 with `Unsafe.As` (11.8 to 13.4 with ulongs); its .NET 10 listings (netstandard2.0 and
+  net10.0 builds) were identical. Which `Vector<T>` operations Mono accelerates at all is `platforms`.
+
+## Checks of values in a block
+
+- Check a block read's bools in the pass that moves the values, not in a strided pass before it: OR the stored vectors
+  (read back from the store buffer) into one accumulator per vector and mask them once after the last group
+  (`NinoBlockCollections.LanesChecked`, AVX2 lane groups; AVX-512 groups OR their loads, `ReadPlan.Checks`). 1,000
+  `Waypoint`s deserialized in 0.922 times the time on EPYC 7763 (1,360 to 1,240 ns, floor 1.000) and 0.965 on 9V74 VMs
+  without AVX-512, writes unchanged (.NET A/B run 41079230729). On Arm64 the same check in `Lanes` cost the inlining of
+  `Lanes16` (`jit.md`, "Inlining budget"), so Neoverse-N2 keeps the strided pass (0.967 measured with the check, run 41052335826).
+- Check bytes spread at a fixed stride (the bools of a block, `NinoChecks.Strided`) eight at a time into four
+  accumulators, OR-ed once at the end: one accumulator is a chain of dependent ORs, one cycle per byte. Evidence:
+  1,000 bytes 15 apart in 155 ns instead of 535 on a 2.1 GHz AVX-512 Xeon (four a step: 195); on GitHub's runners
+  1,000 `Waypoint`s (a bool at offset 14 of 15) deserialized in 0.81 to 0.93 times the time on every CPU (EPYC 7763,
+  9V45, 9V74, Xeon 8573C and 8370C, Neoverse-N2). Rejected: a vector check with a periodic mask of the bool
+  positions, 211 ns with 64-byte vectors and 325 with 32-byte ones against the scalar 155.
+- Check ranges of values in a run (Untrusted mode's bool, DateTime, decimal, DateOnly and TimeOnly fields,
+  `NinoValueChecks`) with a subtract and an OR, never with compares: per stride, tables of masks and bounds repeat over
+  lcm(stride, vector width), each vector ORs `bound - (v & mask)` into an accumulator (bytes: `v & 0xFE`) and only its
+  sign bits are tested at the end. Use the vectors only when they cost less than the branch-free scalar loop
+  (`2 * passes * stride <= fields * width`). Evidence (local Xeon, AVX-512, 1,000 values): unsigned `GreaterThan`
+  compares were slower than scalar (a bool/DateTime/int/double struct 1,616 ns against 1,526; a 48-byte struct of
+  every kind 9,849 against 5,658); subtract and OR with the cost rule took 1,535 and 5,644 against main's 3,806 and
+  12,040 (main branched per field), DateTime[] 382 against 1,914; on runners the Untrusted list case (1,000 structs
+  with a DateTime and a bool) took 0.47-0.69 times main's time on every CPU.
+
+## Blocks, permutes and copies
+
+- Write a runtime's strided entries (a `HashSet<T>`'s or `Dictionary<K, V>`'s entry array) through the block path
+  (`SetEntryBlock`, `MapEntryBlock`: a block map of the key and value at their offsets in the entry), never one
+  `Write` per entry: the permutes pack them like any padded struct. Evidence (GitHub runners, runs 40842440261 and
+  40865180098, n=12-48 a CPU, floors 0.99-1.01): 1,000-entry `HashSet<int>` serialize 0.34-0.49 times the time,
+  `Dictionary<int, int>` 0.29-0.56, the polymorphic class array holding both 0.69-0.84.
+- Compare bytes with chars eight at a time where no vectors are (netstandard `NinoStrings.SameBytes`): widen a
+  ulong of bytes to two ulongs of chars (`x = (x | x << 16) & 0x0000FFFF0000FFFF; x = (x | x << 8) &
+  0x00FF00FF00FF00FF`) on little-endian machines, with an overlapping last step, instead of one char a step.
+- Gate an instruction choice per CPU where the runners disagree, by CPUID at startup in a `static readonly` (the JIT
+  folds it), never by a `Vector512.IsHardwareAccelerated`-style ISA flag alone: AVX-512 VBMI is on Ice Lake, Sapphire
+  Rapids and Zen 4/5 alike. `NinoBlockCollections.WritePairs` (four 24-byte values per `vpermt2b` of 128 bytes of memory
+  into 64 of blocks) wrote 1,000 `Waypoint`s in 0.64 times the time of 32-byte lane groups on Xeon Platinum 8573C, 0.74
+  on EPYC 9V45 and 0.97 on 9V74, but 1.44 times on Xeon Platinum 8370C (Ice Lake): `NinoUnsafe.Wide512` takes AMD and
+  every Intel CPU but the Sunny Cove generation, by family 6 and model (`IsIceLake`: 0x6A, 0x6C, 0x7D, 0x7E, 0x9D, 0x8C,
+  0x8D, 0xA7). Never gate on a feature bit a newer CPU merely adds: Azure's Xeon Platinum 8573C (Emerald Rapids) hides
+  AVX512-FP16 and AMX from its guests (lscpu in the job log), so the first gate, on FP16 (CPUID 7.0 EDX bit 23), turned
+  the 64-byte masks off there and wrote 1,000 padded 8-byte structs in 92 ns instead of 60 (.NET A/B run 41020623184);
+  gated by model, 8573C wrote them in 0.80 times the time of the FP16 gate and 1,000 `Waypoint`s in 0.81 (pair permutes,
+  336 to 259 ns), the 8370C unchanged (run 41079230729). Include `Xeon` in the A/B line's CPU regex for any AVX-512
+  path, or Ice Lake goes unmeasured.
+- On Arm64, move values over 8 bytes in partial lane groups (`NinoLanes.Solve` with `partial`), as x64 without VBMI
+  does: one at a time they took 1.44 µs for 1,000 `Waypoint`s on Neoverse-N2, in lane groups 0.43 (MemoryPack's copy
+  of their memory 0.39). Take the partial groups' windows on the 16-byte grid there (the grid pass first, kept on a
+  tie): two `Waypoint`s a step from `ldp` + `ldr` at 0, 16 and 32 and two 2-register lookups, against loads anywhere
+  (0, 9, 25; a 2- and a 1-register lookup) at the same `Cost`, wrote 1,000 in 0.757 of the time (430 to 325 ns, floor
+  1.002, .NET A/B run 41164356389; every other case on par). Measured and not taken (`WaypointPackProbe`, run
+  41159851472, against the old groups on Neoverse-N2): four values a step from six grid loads with a 3-register lookup
+  0.62-0.67 and the grid pair twice a step 0.61-0.66 (no clear gain over the pair's 0.66-0.70, and two groups a step
+  cost `HashSet<int>` writes before), a scalar pair of 8-byte loads with the bool put in by `bfi` 1.34, a 16-byte load
+  with the bool loaded into lane 14 (`ld1` lane) 1.20.
+- Copy long blocks per vendor and per destination: past 32 KB a 32-byte vector loop beats Memmove into a new zeroed
+  array on Intel (Xeon 8370C, 160,000 bytes: 3.18 µs instead of 3.51) and loses there on Zen 5 (EPYC 9V45: 1.81
+  against 1.67), while on AMD it beats Memmove into a new uninitialized array (9V45 and 9V74: 0.93 to 0.95 times the
+  time). `NinoUnsafe.CopyOver64` (zeroed or existing memory) takes it on Intel only, `CopyToNew` on AMD only.
+  From 2,112 bytes to 32 KB, Ice Lake under Linux takes Memmove instead of the 64-byte loop
+  (`NinoUnsafe.IceLakeMemmove`): glibc runs it as one rep movsb from an aligned destination (FSRM), while the loop's
+  loads split two lines unless source and destination sit alike in a line. Xeon 8370C (run 41188054612, n=12):
+  1,000 `KeyValuePair<int, int>` serialize 151 -> 128 ns (median 0.846; head 60 or 128 ns by process, base 106, 151
+  or 181), a `Queue<int>` of 1,000 94 -> 74 (0.783; head 43 or 74, base 61 or 94), TupleList (not a copy) 1.015; the
+  floor line drew no 8370C. Confirmed with a floor (run 41203402942, n=24, base rounds against each other as the floor):
+  `KeyValuePair<int, int>` 0.844 (head 128 ns in 22 of 24 rounds; base 105, 151 or 182; floor median 1.006), `Queue<int>`
+  0.690 (head 74 or 43, base 93-109 or 58; floor 0.999). Not on other CPUs: AMD's rep movsb lost to the loop 2-30 times up to 16 KB, and other C
+  runtimes' memmove was not measured.
+- Allocate a new array uninitialized only where the read writes every byte of it, padding included
+  (`NinoElements.CopiedWhole`), or it hands stale heap memory to `MemoryMarshal.AsBytes` or a raw re-serializer: block
+  reads write a padded value's padding as zero (`NinoBlockCollections.ReadOne` clears a value before `ReadBlock`;
+  AVX-512's `vpermb`/`vpermt2b` read only an index's low bits, so their padding bytes are masked with a `vpand` per
+  vector, `ReadPlan.Keeps`, `KeepMemory64`; pshufb, tbl and Arm64's lookups write 0 for index 0x80 by themselves), and
+  the tests read into 0xFF-filled and recycled 0xCC memory and compare every byte
+  (`BlockStructTests.ReadsWriteEveryByte`; without the masks they fail on AVX-512). Values read a field at a time
+  (Untrusted mode, `ReadSize` -1) keep a zeroed array. Evidence: rejected first with the padding unwritten (Waypoints
+  0.68-0.76 times main's time); landed with it written, together with the read groups below (run 40935400095). Where the
+  read can still reject the data after the allocation (a bool of a block: `NinoBlockPlan<T, TFormatter>.Rejects`),
+  `NinoBlockCollections.ReadAll` reads them out of line under a try/finally that clears the values when it throws
+  (`ReadRejecting`; `audit-security`). Never allocate those arrays zeroed instead: 1,000 Waypoints read into a new array
+  took 1.15 to 1.27 times as long (A/B run 41110873514, every CPU). Add nothing to `ArrayFormatter` or
+  `ListFormatter.Deserialize`, not even a test that folds in Release: they recurse through collections nested in
+  themselves, and Debug builds (CI's Windows unit tests, 1 MB stacks) compile every branch and keep a temp per call. A
+  test of a static field and an out-of-line call there grew the two frames from 672 + 448 to 768 + 576 bytes
+  (`DOTNET_JitDisasm` under Debug, `sub rsp`) and 400 nested `List<SelfArrays[]>` ran out of stack on Windows
+  (`SelfNestingCollectionTests`, main e2e28fe7). In Release the same test through an inlined method returning a
+  constant, though it folded, made `ArrayFormatter<int, ...>` stop inlining `NinoElements.Read` into the
+  ImmutableHashSet, ImmutableDictionary, ReadOnlyCollection and Memory<int> reads (1 stack access to 15, `asm.py`).
+- Read values over 16 bytes whose blocks never fill whole vectors in four of memory in groups that fill whole memory
+  vectors (`ReadPlan.Group`: 8 24-byte values in three vectors, each one `vpermt2b` of two 64-byte loads, aligned
+  stores), and check their bools in those loads (`ReadPlan.Checks`: OR `load & 0xFE-at-bools` into one accumulator,
+  test once, the strided pass only to name the bad one). Evidence (GitHub runners, run 40935400095, n=12): 1,000
+  `Waypoint`s deserialize in 0.77-0.85 times the time on EPYC 7763 and 9V74, Xeon 8370C and Neoverse-N2. Rejected: one
+  64-byte load permuted into 128 bytes of memory per four values (`vpermb` twice, overlapping stores), 1.3 to 1.4 times
+  the time of lane groups on a local AVX-512 Xeon. Not built: the same fused check in Arm64's lane groups, whose
+  windows overlap per output vector (an AND and ORR per window against the strided pass's one load per bool).
+- On Ice Lake, mask padded raw structs with 32-byte vectors (`NinoUnsafe.Wide512` gates `NinoMask`'s 64-byte masks
+  as it gates the pair permutes): GitHub's Xeon Platinum 8370C wrote 1,000 8-byte structs with a padding byte in 116
+  ns with 64-byte vectors and 83 with 32-byte ones (MemoryPack 88). Its 64-byte kernels on 8,000 bytes (aligned
+  stores 145 ns, a zero-masking load `Avx512BW.MaskLoad` instead of the `vpand` 147, unaligned 167-287) ran no faster
+  than 32-byte ones (144) and slower than Memmove (122) (`MaskKernelProbe`, run 40935400095): a zero-masking load
+  buys nothing there, nor locally on Emerald Rapids (1.06 against 1.07 of Memmove). Keep the 64-byte write groups
+  (`Permute64x2`, vpermt2d) on Ice Lake: 32-byte ones (vpermt2d ymm, AVX-512VL) took 0.76-0.79 of their time in a
+  native-buffer probe there (`TuplePackProbe`, run 41159851472: 167-173 ns against 220-226), yet in the benchmark
+  1,000 `(int, long)` serialized 4.5 % slower on the 8370C (234 to 245 ns, n=12, every round above 1.0; run
+  41164356389). Ice Lake's VM there pays heavily for loads across cache lines (a 32-byte copy loop of 16,000 bytes
+  from 8 bytes past a line: 430 ns, aligned 222, Memmove 160; 64-byte: 377 and 190): a probe kernel with fixed
+  alignments does not predict the case, whose list and buffer land where the process puts them. MemoryPack's copy
+  there is bimodal by alignment (117 or 250 ns in the probe, 112 in the case).
+- Before probing kernels for a gap on one CPU, research that microarchitecture (Intel's optimization manual, uops.info,
+  Agner Fog, Travis Downs, Chips and Cheese) and read the code both sides run, IL and asm, instruction by instruction: a
+  probe then confirms a cost model instead of searching (the owner: "you keep guessing"). The Ice Lake TupleList gap
+  (round 103): MemoryPack writes the raw 16-byte `(int, long)`s with one `CopyBlockUnaligned`, which .NET hands to glibc
+  past 2 KB and glibc runs as one `rep movsb` past 2,112 bytes on FSRM CPUs (destination aligned, so its time depends on
+  the source's offset to it: 117 or 247 ns); Nino packs 16 to 12 bytes with 4 loads, 3 `vpermt2d` and 3
+  destination-aligned 64-byte stores per 16 values, and its loads split two lines unless the list's group starts on one:
+  the 234 / 162 ns modes. On a Xeon 8573C (run 41180010041, `TupleCostProbe`): 188 split 64-byte stores 142 ns against
+  59 aligned, 250 split loads 97 against 80, 188 `vpermt2d` 59, the clock 4.0 GHz scalar and 3.1 under zmm code; Nino's
+  own write 74 to 144 ns by the list's place (identical code both sides). On Ice Lake (Xeon 8370C) Nino's write groups
+  therefore load from the line below each group (`NinoBlockCollections.WriteAligned`, tables per place in the line, a
+  second `vpermt2d` for the vector of blocks that spans three lines): 1,000 `(int, long)` serialized in 0.917 of the
+  time (235 to 221 ns, every round 0.85-0.96, n=24, run 41181295487) and the `Dictionary<int, int>` entries in 0.809
+  (250 to 200 ns); other CPUs fold the gate (listings identical to main). Less than the 0.65 the model gave: the rest is
+  the stores and the clock. Confirmed against main before it with a floor (run 41203402942, two 8370C jobs, n=24,
+  base round against base round in the same jobs as the floor, `benchmark`): TupleList 0.925 (235 to 222 ns, every
+  round 0.84-0.97; floor 1.001, 0.93-1.08), the dictionary 0.797 (every round below 0.93; floor 0.994), MemoryPack
+  (same code both sides) 0.998.
+- Do not retry the remaining Ice Lake TupleList gap (Nino 222 ns, MemoryPack 114 on the 8370C) with these; each loses by
+  the model, so none was built (round 104). The gap is the store path: 12 bytes a value (the wire format) are at least
+  188 64-byte lines, and the 8370C writes lines with vector stores at about 0.76 ns each (16,000 bytes copied with
+  aligned 64-byte vectors in 190 ns, r102) but with `rep movsb` at about 0.46 (MemoryPack's 16,000 bytes in 112-117):
+  188 lines cost about 143 ns before any permute. 256-bit aligned groups (vpermt2d ymm): `vpermt2d zmm` and 512-bit
+  loads and stores are light AVX-512, which costs Ice Lake server parts at most about 200 MHz all-core (Intel in
+  golang.org/issue/43925; Phoronix measured about 175 MHz on a Xeon 8380 under heavy AVX-512), so 256-bit code wins
+  back at most about 6 %, while it needs 375 stores and about 525 permutes against 188 and 235, and the 8370C's 32-byte
+  aligned copy already lost to the 64-byte one (222 against 190 ns); locally (Emerald Rapids, `TupleGroupProbe`) they
+  took 1.7-1.9 times the time at every source shift. Non-temporal stores: they evict the reused buffer and run at
+  memory bandwidth (188 64-byte ones 757 ns locally against 68 cached). `rep movsb` with packing, either way round
+  (pack into scratch then `rep movsb` it, or `rep movsb` the raw values then compact): two passes, at least the current
+  pass plus about 85 ns.
+- Rust's fixed-size blocks: `optimize-runtimes`, references/blocks.md.

@@ -4,14 +4,14 @@ description: "Nino's optimization techniques, measured and kept - what made read
 metadata:
   internal: true
 ---
-
 # Optimization techniques
 
 The tricks that made Nino fast, the ones that made it slower, and how to see which you have. This skill owns the
-techniques; how to measure is `benchmark`, where the next win is `audit-perf`, and the
-platforms each technique must hold on are `platforms`; the techniques of the Go, Rust and TypeScript runtimes are
-`optimize-runtimes`. A technique found and measured (faster or slower) is added
-here, as a bullet: the rule, why, the evidence.
+techniques for .NET and Unity and the prefetch design of every runtime; how to measure is `benchmark`, where the next
+win is `audit-perf`, the platforms each technique must hold on are `platforms`, and the Go, Rust and TypeScript
+techniques are `optimize-runtimes`.
+
+## Before committing a read or write path
 
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) can slow cases it does not
 touch: everything a top-level call reaches is inlined into one method, under one inlining budget. Before committing
@@ -20,401 +20,48 @@ fix every method it lists. To prove the code unchanged, dump both sides with `DO
 variable around `asm.py dump [--ref REF] --runs 1 --asm FILE`) and compare the listings per method: FullOpts code
 has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in code a change did not reach.
 
-## What has gone wrong before
+## The techniques, by topic
 
-- A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
-  inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,
-  element by element loops, string allocation, recycling) out of line (`NoInlining`), with only the common path inline.
-  This holds for a test that folds away too: callers' budgets count an inlinee's whole IL, so a branch for one platform
-  goes in the out-of-line part, never in the inline one. Evidence: `Is64Bit || IsX86 || UnalignedWide32` written in
-  `NinoUnsafe.Copy` changed the x64 code of an ImmutableSortedDictionary write (`NinoBlockCollections.WriteAll` inlined,
-  `Copy` left a call) in an `asm.py` dump with `DOTNET_TieredCompilation=0`; moved into `CopyOver64`, all 990 methods
-  were identical to main (`CopyBlock` keeps Arm64's branch out of `Copy` for the same reason). The root's own IL counts
-  the other way: the JIT sizes a method's whole inlining budget from its IL size (estimate 60 + 3 per IL byte, times
-  10), dead branches included, so a folded test in a root that is otherwise one call (an interceptor) raises the budget
-  and changes what is inlined under it. Never add an option to the default path as a run-time branch, not even a `static
-  readonly` one: decide it at generation time (an MSBuild property the generator reads, `NinoRegularCalls`,
-  `NinoPrefetchLargeCollections`). Evidence: an interceptor `NinoPrefetched.Enabled ? SerializePrefetched(...) :
-  Serialize(...)`, folded at Tier1, made PolymorphicClassArray's `Serialize(in PolymorphicClassBase[], IBufferWriter)`
-  1,060 bytes instead of main's 770 (single-block inlinees 142 to 155; `DOTNET_TieredPGO=0` dumps), while
-  NonGenericBase's 1,112 methods stayed identical.
-- Never pass `ref reader` or `ref writer` to a method that is not inlined, even in a dead branch: the address keeps
-  the struct in memory for the whole method. Pass it by value and return it (`reader = ReadEach(values, reader)`).
-  An instance method of `Reader` or `Writer` left out of line passes `this` the same way: `Reader.ReadString(current)`
-  calls `ReadStringOver` with the reader's address whenever `current` may be non-null, so generated code reads a new
-  instance's strings with `ReadString()` (`MemberModel.Fresh`): SimpleClass's `__ReadTop` went from 108 stack
-  accesses to 10, TolerantClass's from 174 to 10. Look for `Reader:...:this` and `Writer:...:this` calls in a listing.
-- Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
-  and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
-  with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
-  twice as long as SSSE3's. Look for such calls in the Tier1 listing of every ISA a path takes (`--asm`, with
-  `DOTNET_EnableAVX512=0` and `DOTNET_EnableAVX2=0` too).
-- Write a platform test that must fold as `A || B || ...` at each site, each operand a branch-free property (a
-  constant or one `static readonly` field), never as one property whose body has `||`: the inliner gives a property
-  with several returns a temporary, so the branch folds only after struct promotion was decided. Evidence: with
-  `NinoUnsafe`'s 32-bit gate as one property (`Is64Bit || X86Base.IsSupported || WideAccess.Unaligned`), x64 read a
-  24-byte struct with three `vmovsd` pairs instead of `vmovdqu` + `mov` and a 16-byte one with six `mov`s instead of
-  two `vmovups`; written `Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32` at each site, the x64
-  listing was identical to main. A `|` of a constant and a field does not fold either: R2R x86 kept the field load
-  and its class-init helper call.
-- Keep a field that a hot path reads off the cache line of anything another thread writes by putting it in a non-generic
-  struct with `LayoutKind.Explicit`, 64 bytes of padding on each side (`Size = 64 + fields + 64`), held as a field,
-  never as an explicit-layout base class or padding fields of the class itself. The runtime orders a class's fields as
-  it likes and packs a derived class's fields right after the base's last byte, and objects are only 8-byte aligned,
-  while a struct moves as one block with its padding. `NinoPool<T>` had the base-class form: CoreCLR put the derived
-  `_count`, which batch transfers write, at offset 124, on `Filled`'s line (64) whenever the object's fields started on
-  a 64-byte boundary, one placement in eight (field offsets read with `ldflda`; locally, 4 threads, the 7 of 40 runs
-  placed so took a median 1134 ms against the other 33 runs' 940 ms, though the struct form's own spread was as wide);
-  `NinoPoolLine` and `NinoPoolThreadLine` are the struct form. Generic classes cannot take an explicit layout either;
-  the struct field works there. Read and write such a field through a local (`count = s.Line.Count` ... `s.Line.Count =
-  count + 1`), not with `s.Line.Count++` in an expression: that took the field's address and loaded it a second time in
-  `TryTake` and `Add` (one `add` and one load more per call); with the local the listing is main's, one `add` fewer.
-- Check a block read's bools in the pass that moves the values, not in a strided pass before it: OR the stored vectors
-  (read back from the store buffer) into one accumulator per vector and mask them once after the last group
-  (`NinoBlockCollections.LanesChecked`, AVX2 lane groups; AVX-512 groups OR their loads, `ReadPlan.Checks`). 1,000
-  `Waypoint`s deserialized in 0.922 times the time on EPYC 7763 (1,360 to 1,240 ns, floor 1.000) and 0.965 on 9V74 VMs
-  without AVX-512, writes unchanged (.NET A/B run 41079230729). On Arm64 the same check in `Lanes` cost the inlining of
-  `Lanes16` (next bullet), so Neoverse-N2 keeps the strided pass (0.967 measured with the check, run 41052335826).
-- Add nothing to a method whose inlinee sits at the edge of the JIT's inlining budget, not even code that is dead for
-  the instantiation at hand: the budget is spent by IL size, before branches fold. `NinoBlockCollections.Lanes16` (three
-  inlined copies in `Lanes`) became a call per group on Arm64 when `Lanes` gained a fused bool check (accumulators by
-  reference, two groups a step, or groups returned by value), every lane path 1.4 to 5 times as slow on Neoverse-N2
-  (TupleList and `HashSet<int>` writes included, run 41035440735), while x64 inlined everything. Put the new path in a
-  method of its own and pick it by a `static readonly` (`LanesChecked`, AVX2 only), and check the Tier1 Arm64 listing
-  under qemu (`platforms`, with tiering on: `DOTNET_TieredCompilation=0` listings inlined what Tier1 did not) for `blr`
-  in such a loop. Two groups a step (a smaller loop share for one-vector groups) measured nothing on AVX2 Zen and lost 3
-  to 8 % on `HashSet<int>` writes (run 41052335826): not landed.
-- A JIT-time check made of several helper calls is one `static readonly` field instead (`NinoElements.Traits`,
-  `NinoBlockPlan<T, TFormatter>.Size`): one load, nothing to inline.
-- Decide "copy memory" against "convert" by a `static readonly` computed before Tier1 (`NinoLayout<T>.IsCanonical`,
-  `CopiesAsIs`, `HasPadding`, `Size`), so the common platform (64-bit CoreCLR) pays nothing and every other one adapts
-  to it (the owner's rule: 32-bit adapts to 64-bit, never the reverse). Prove it with JitDisasm of a scratch program
-  that calls the array, list and value paths in a loop until Tier1 (`DOTNET_JitDisasm='P:* Nino*:* NinoGen*:*'`): no
-  `NinoLayout` field or call is left (`NinoLayout<T>.Size` compiles to `mov eax, 32`, `CopyToWire` to a tail jump
-  into `NinoMask.Copy`), for `Vector<int>[]` and raw structs holding tuples alike (round of the Vector<T> layout).
-- Call a formatter known only at run time through a `static readonly` field read directly, never through
-  `field ?? fallback` or a local that merges two sources: Tier1 knows the exact class of an initialized class's
-  `static readonly` object and calls (and inlines) its overrides, but a merge loses it, and the JIT then loads the
-  field, compares its method table and keeps a virtual call behind the compare. Keep such a field never null (a
-  stand-in object whose calls report the error, `NinoMissingFormatter<T>`) instead of checking it. Evidence:
-  `NinoTopFormatter<T>.Get` was `Formatter ?? NinoFormatterCache<T>.Instance`; every `CachedFormatter<T>` call (24
-  sites in the benchmark, the `ProbeBox<T>` subtypes) was such a guard and virtual call, none after (6d711cb:
-  GenericUnmanagedTupleBase deserializes in 0.86-0.94 of the time on EPYC 7763, 9V45, 9V74 and Neoverse-N2, floor
-  0.99-1.01); a
-  scratch program shows the same for any `static readonly` base-class field read with `??`. Find them with
-  `call [rax+0x..]Nino...:Serialize` after a `cmp qword ptr [rdi], <method table>` in a Tier1 listing.
-- No virtual dispatch on a serialize or deserialize path where a direct form exists (the owner's rule): formatters are
-  structs passed as constrained type arguments, generated code names them directly, collections test their concrete
-  types (`List<T>`, `T[]`) before their interfaces, and the one indirect call a polymorphic or user-extensible point
-  needs (an unknown subtype through `NinoSubtypeHandler`, a recycler or `[NinoFactory]` delegate, a user collection's
-  enumerator) sits behind the generated exact-type checks, out of line. What is left in the Tier1 listings and why is
-  the inventory of the 6d711cb round: subtype handlers after the exact-type dispatch (cold), `NinoActivator<T>`
-  delegates for user-derived collection types only, BCL internals (`ArrayPool`, string comparers inside `Dictionary`),
-  calls through a shared generic's dictionary (`T` a class: `CORINFO_HELP_RUNTIMEHANDLE_METHOD` then `call rax`), and
-  the enumerator of a collection declared as an interface whose object is neither a list nor an array. `SortedSet`,
-  `LinkedList`, `SortedDictionary`, `SortedList` and `ConcurrentBag` read into null are created by the activator's
-  delegate (`Func<T>.Invoke` once per collection; `HashSet`, `Queue`, `Stack`, `List` and `Dictionary` test their type
-  and call `new`). Creating them with `new` behind `typeof(TCollection) == typeof(SortedSet<T>)` (`Unsafe.As` back,
-  since a cast is a `CORINFO_HELP_CHKCASTANY` call in shared code; 4a7fc8e0) was measured and not landed: the sorted
-  and concurrent reads were on par, but 1,000-node `LinkedList<int>` reads, about 8 us of allocation, took 1.023 and
-  1.027 times as long on EPYC 7763 in two runs (n=48 each, floors 0.995 and 0.994) and 1.022 and 1.012 on 9V45 (floors
-  1.009 and 0.984): .NET A/B runs 41211412057 and 41216990263. The one delegate call per collection is worth less than
-  that; try again only with the creation out of the method that reads the elements. Under NativeAOT, IL2CPP and Mono a
-  `static readonly` field is a load, not a constant (ILC does not preinitialize `NinoTopFormatter<T>.Formatter`: its
-  initializer runs the registry), so the call through it is virtual. The round 104 inventory beyond the JIT's
-  (NativeAOT listings of the whole suite, `Reading the listings`; IL2CPP C++ of unity.yml run 40969941689): per value,
-  (1) `CachedFormatter<T>` of a `[NinoType]` generated in another assembly: a virtual call on
-  NativeAOT, a `VirtualActionInvoker` on IL2CPP, a virtual call on Mono; locally under NativeAOT 1,000 classes of
-  another assembly as an array member serialized in 1.5 times and read in 1.37 times the time of the same class
-  declared in the calling assembly, on par under the JIT (local numbers, to choose only). The direct form names the
-  other assembly's formatter, which is `internal`. The owner decided to keep it (round 104): `InternalsVisibleTo`
-  needs the referenced assembly to name its referencers, so it helps only one author's assemblies, never a library;
-  public formatters would add generated types to every user's public API; and nothing reaches a type from an
-  assembly loaded at run time (HybridCLR hot updates), which only polymorphism or the registry sees. The docs site's
-  build configuration page advises declaring heavily serialized types in the serializing assembly instead. The benchmark suite has no such member (its DLL
-  names `CachedFormatter` nowhere). A collection that holds itself without a `[NinoType]` body (`SelfTree : List<SelfTree>`,
-  `Map : Dictionary<string, Map>`) was in this row too and is fixed: the generator writes a struct per such type
-  (`NinoGen.Nesting.g.cs`, `FormatterResolver.GeneratedNestingFormatter`: `EnterStruct`, the type's formatter, `ExitStruct`),
-  and that formatter's elements name the struct, since a named struct can name itself where a type argument cannot.
-  `CachedFormatter<T>` was not devirtualized by the JIT there either: `T` is a class, so
-  `ListFormatter<__Canon, __Canon, CachedFormatter<__Canon>>` is shared code everywhere, a dictionary call per
-  element (`call [r12-2]`), the generic static base helper and a virtual jump, and `RawFormatter.Is` /
-  `FixedSize` stayed calls per list; NativeAOT's level went from 826 bytes with four indirect calls to one 309-byte
-  method calling itself directly. On runners (.NET A/B run 41253800850, `CollectionsTest.*SelfTree`, 5,461
-  lists, head 70fe1544 against its bench base, base-vs-base floors 0.99-1.01, MemoryPack's rows 0.99-1.01 as the null
-  control) serialize took 0.35 (EPYC 7763, n=36) to 0.42 (Xeon 8573C) of the time and deserialize 0.52 (Neoverse-N2)
-  to 0.58 (EPYC 9V74), the JIT included. (2) Shared generic code where a formatter's type argument holds a class
-  (`NinoElements.ReadEach` over `Box<(class, int)>`): the element's `Deserialize` is found in the generic dictionary,
-  a fat-pointer call per element on NativeAOT, `call rax` at Tier1, `il2cpp_rgctx_method` on IL2CPP: no direct form.
-  (3) The netstandard builds' block loops (`NinoBlockCollections.WriteValue`/`ReadValue` through
-  `NinoBlockPlan.Formatter`): one interface call per element where no Burst kernel runs (IL2CPP, Mono, .NET
-  Framework); the direct form puts the loop in the formatter, which the owner declined. (4) The user-extensible points
-  above. Per top-level call, not per value: calls the interceptors leave alone (generic methods, another assembly's
-  types, Unity's Roslyn 4.3, raw values and arrays of raw elements) read `NinoTopFormatter<T>`, `NinoRaw<T>` and
-  `NinoRawArray<T>` as loads, so an array of raw elements is one `INinoRawArrayFormatter` interface call per call
-  under NativeAOT, and the dead virtual branches stay in the code; generic `[NinoType]`s use no `CachedFormatter`
-  (Unity kernels and IL2CPP).
-- Do not inline a generic method that needs a runtime lookup into shared code on a hot path.
-- Past the JIT's tracking limit, locals are zeroed in the prolog: rare paths out of line also keep the local count
-  down.
-- A smaller listing is not a faster one: measure. Reading TimeZoneInfo's two strings through one out-of-line helper
-  with two `out` strings cut the listing but put both on the stack: 7.5 to 12.8 % slower on runners. A constant
-  parameter at each call site (`share: false`) let the inliner drop the dead branch per caller instead, with the
-  listing as before and the string classes 17 to 21 % faster.
-- The inlining budget and GC in Go, Rust and TypeScript: `optimize-runtimes`.
-- Replace `%` by the runtime's fast modulo (multiply-high, `HashTables.Bucket`) on x64 only: on Arm64 `udiv`/`msub`
-  is cheap and the multiply sequence lost. ConcurrentDictionary's build with fast modulo read 18-23 % faster on EPYC
-  7763, on par on Zen 4 (9V45, 9V74), and 1.1 % slower on Neoverse-N2 in two rounds (3d4baf2).
+Each line is the rule; the reference file holds it in full with why and the runner numbers that set it. Read the file
+for the topic you touch before changing code there: most of these were learned by a slower commit, and the evidence
+says which CPUs and cases moved.
 
-## Bounds checks
+- **The JIT** ([references/jit.md](references/jit.md)): keep rare or large paths out of line (`NoInlining`), platform
+  branches in the out-of-line part, and decide options at generation time, never as a run-time branch on the default
+  path (the root's budget is sized from its IL); never pass `ref reader` / `ref writer` (or call an out-of-line
+  `Reader`/`Writer` instance method) where it is not inlined; mark every small helper `AggressiveInlining`; add nothing
+  to a method whose inlinee sits at the edge of the budget; write a platform test as `A || B` of branch-free operands at
+  each site; fold JIT-time checks into one `static readonly`; keep locals few; a smaller listing is not a faster one;
+  fast modulo on x64 only; keep a hot field off other threads' cache lines with a padded struct field.
+- **Dispatch** ([references/dispatch.md](references/dispatch.md)): no virtual dispatch on a serialize or deserialize
+  path where a direct form exists (the owner's rule); call a formatter known only at run time through a `static
+  readonly` field read directly, never through `??`, and keep it never null; the inventory of the indirect calls that
+  stay (another assembly's `[NinoType]`, shared generic code, the netstandard block loops, user-extensible points, one
+  per top-level call in shared code) and why.
+- **Bounds checks and vector loops** ([references/vectors.md](references/vectors.md)): index through a ref to the first
+  element and `Unsafe.Add` behind the one length check; bump `ref` cursors and count down; take `Vector128` parts out
+  of the loop on Arm64; consecutive `tbl` registers; `Unsafe.As` for `Vector<T>` in the netstandard builds; checks of
+  strided bytes and value ranges with accumulators and subtract-and-OR; strided runtime entries through the block path;
+  per-CPU gates by CPUID model (Ice Lake), per-vendor block copies, Arm64 lane groups on the 16-byte grid; allocate
+  uninitialized only when every byte is written; nothing added to `ArrayFormatter` / `ListFormatter.Deserialize`;
+  research the microarchitecture before probing a gap on one CPU, and the Ice Lake attempts not to retry.
+- **Unity, Burst and IL2CPP** ([references/unity.md](references/unity.md)): a generic formatter takes its type
+  parameters' formatters as type parameters; never cast `default(TFormatter)` to an interface per value; native
+  kernels as function pointers in static fields, each `calli` in its own `NoInlining` helper; thresholds from a sweep;
+  build only the mask a call needs; where the WebGL kernels pay; what an IL2CPP class read costs.
+- **Prefetch, every runtime** ([references/prefetch.md](references/prefetch.md)): decided at generation time for
+  references in contiguous containers, how each platform prefetches, and every attempt in .NET, Go and Rust with why it
+  did or did not land (.NET as the opt-in `NinoPrefetchLargeCollections`, Rust gated on the last-level cache, Go not
+  landed).
 
-- Index an array or span on a hot path through a ref to its first element and `Unsafe.Add`, never `a[i]` or
-  `span[i]`: take `ref MemoryMarshal.GetReference(span)` or `ref NinoUnsafe.GetArrayDataReference(array)` once (the
-  wrapper covers netstandard2.0, which lacks `MemoryMarshal.GetArrayDataReference`), check the length once against
-  what the loop will touch, then walk with `Unsafe.Add(ref first, i)` or a bumped cursor. Why: the JIT removes a
-  check only when it can prove `i < Length` (a `for` over `0..Length` of the same local); anything else (two arrays,
-  an index from the data, a count read earlier, `i + 1`) leaves a compare and a `CORINFO_HELP_RNGCHKFAIL` call per
-  access, and the throw block also costs the method its inlining budget. On IL2CPP the gain is larger: it emits its
-  own check on every array access unless the project turns it off, and `Unsafe.Add` has none.
-- The one check you keep is what makes it safe: on a read path it is the length check against the bytes left
-  (`audit-security`), and every `Unsafe.Add` must stay inside what that check covered. Never `ref array[0]` (throws
-  on an empty array, and is a bounds check itself); `GetReference` of an empty span is a valid ref that must not be
-  read. `ref span.GetPinnableReference()` is the same as `GetReference` but returns a null ref for an empty span:
-  use it only with `fixed`.
-- Find the checks left: `CORINFO_HELP_RNGCHKFAIL` in the Tier1 listing (`benchmarks/asm.py dump --asm FILE`),
-  counted per method; a hot method with one in its loop is a finding, one on a cold path out of line is not.
-- Go, Rust and TypeScript: `optimize-runtimes`, "Bounds checks".
+## Recording a technique
 
-## Vector loops
-
-- Bump `ref` cursors and count down (`at = ref Unsafe.Add(ref at, step)`, `while (--n != 0)`), never
-  `(nuint)i * size` per iteration; take everything that does not change per iteration (masks, indices) out of the
-  loop into locals. Scalar tails too: `NinoBlockCollections.WriteEach`'s per-value loop with an index scaled twice per
-  value wrote 1,000 dictionary entries in 658 ns without hardware intrinsics, with cursors 393 (main's per-entry
-  loop: 399).
-- On Arm64 (and anywhere without AVX-512) `Vector512<T>` and `Vector256<T>` are structs of 16-byte vectors: passed
-  into an inlined loop body they are copied through the stack every iteration. Take their `Vector128` parts out once,
-  before the loop, and pass those.
-- Arm64 `tbl` with two to four table registers needs consecutive registers: build the tuples from loads made once per
-  iteration, before any lookup (`(w0, w1)`, `(w1, w2)`), never from per-lookup loads, or the JIT adds `mov`s. Each table
-  register is a micro-op on Neoverse cores: give each lookup only the registers its bytes come from, and store only the
-  bytes the values fill (`NinoBlockCollections.WireTables64`); check each shape, as types that compile to the same code
-  can differ by the data (`(byte, int)` took twice as long as `(short, int)`).
-- Load and store a `Vector<T>` in the netstandard builds with `Unsafe.As<byte, Vector<T>>(ref at)` (plain `ldobj`
-  / `stobj`), never `Unsafe.ReadUnaligned` / `WriteUnaligned`: classic Mono compiles the `unaligned.` prefix on a
-  struct wider than its inline-copy limit to a call to memcpy through a stack slot (`mini_emit_memory_load` in
-  mono/mini/memory-access.c), and plain ones to `movups`. RyuJIT never assumes a vector aligned, so its code is the
-  same. Evidence: `NinoMask.CopyVectors` on Mono 6.8 serialized 1,000 padded structs in 36 to 40 µs with
-  `ReadUnaligned`, 8.4 to 9.2 with `Unsafe.As` (11.8 to 13.4 with ulongs); its .NET 10 listings (netstandard2.0 and
-  net10.0 builds) were identical. Which `Vector<T>` operations Mono accelerates at all is `platforms`.
-- ARM64 is a load/store architecture: what x64 does in one instruction on memory is a load, an operation and a store
-  there, and 64-bit constants and addresses take several instructions. Keep hot state in registers.
-- Check bytes spread at a fixed stride (the bools of a block, `NinoChecks.Strided`) eight at a time into four
-  accumulators, OR-ed once at the end: one accumulator is a chain of dependent ORs, one cycle per byte. Evidence:
-  1,000 bytes 15 apart in 155 ns instead of 535 on a 2.1 GHz AVX-512 Xeon (four a step: 195); on GitHub's runners
-  1,000 `Waypoint`s (a bool at offset 14 of 15) deserialized in 0.81 to 0.93 times the time on every CPU (EPYC 7763,
-  9V45, 9V74, Xeon 8573C and 8370C, Neoverse-N2). Rejected: a vector check with a periodic mask of the bool
-  positions, 211 ns with 64-byte vectors and 325 with 32-byte ones against the scalar 155.
-- Check ranges of values in a run (Untrusted mode's bool, DateTime, decimal, DateOnly and TimeOnly fields,
-  `NinoValueChecks`) with a subtract and an OR, never with compares: per stride, tables of masks and bounds repeat over
-  lcm(stride, vector width), each vector ORs `bound - (v & mask)` into an accumulator (bytes: `v & 0xFE`) and only its
-  sign bits are tested at the end. Use the vectors only when they cost less than the branch-free scalar loop
-  (`2 * passes * stride <= fields * width`). Evidence (local Xeon, AVX-512, 1,000 values): unsigned `GreaterThan`
-  compares were slower than scalar (a bool/DateTime/int/double struct 1,616 ns against 1,526; a 48-byte struct of
-  every kind 9,849 against 5,658); subtract and OR with the cost rule took 1,535 and 5,644 against main's 3,806 and
-  12,040 (main branched per field), DateTime[] 382 against 1,914; on runners the Untrusted list case (1,000 structs
-  with a DateTime and a bool) took 0.47-0.69 times main's time on every CPU.
-- Write a runtime's strided entries (a `HashSet<T>`'s or `Dictionary<K, V>`'s entry array) through the block path
-  (`SetEntryBlock`, `MapEntryBlock`: a block map of the key and value at their offsets in the entry), never one
-  `Write` per entry: the permutes pack them like any padded struct. Evidence (GitHub runners, runs 40842440261 and
-  40865180098, n=12-48 a CPU, floors 0.99-1.01): 1,000-entry `HashSet<int>` serialize 0.34-0.49 times the time,
-  `Dictionary<int, int>` 0.29-0.56, the polymorphic class array holding both 0.69-0.84.
-- Compare bytes with chars eight at a time where no vectors are (netstandard `NinoStrings.SameBytes`): widen a
-  ulong of bytes to two ulongs of chars (`x = (x | x << 16) & 0x0000FFFF0000FFFF; x = (x | x << 8) &
-  0x00FF00FF00FF00FF`) on little-endian machines, with an overlapping last step, instead of one char a step.
-- Gate an instruction choice per CPU where the runners disagree, by CPUID at startup in a `static readonly` (the JIT
-  folds it), never by a `Vector512.IsHardwareAccelerated`-style ISA flag alone: AVX-512 VBMI is on Ice Lake, Sapphire
-  Rapids and Zen 4/5 alike. `NinoBlockCollections.WritePairs` (four 24-byte values per `vpermt2b` of 128 bytes of memory
-  into 64 of blocks) wrote 1,000 `Waypoint`s in 0.64 times the time of 32-byte lane groups on Xeon Platinum 8573C, 0.74
-  on EPYC 9V45 and 0.97 on 9V74, but 1.44 times on Xeon Platinum 8370C (Ice Lake): `NinoUnsafe.Wide512` takes AMD and
-  every Intel CPU but the Sunny Cove generation, by family 6 and model (`IsIceLake`: 0x6A, 0x6C, 0x7D, 0x7E, 0x9D, 0x8C,
-  0x8D, 0xA7). Never gate on a feature bit a newer CPU merely adds: Azure's Xeon Platinum 8573C (Emerald Rapids) hides
-  AVX512-FP16 and AMX from its guests (lscpu in the job log), so the first gate, on FP16 (CPUID 7.0 EDX bit 23), turned
-  the 64-byte masks off there and wrote 1,000 padded 8-byte structs in 92 ns instead of 60 (.NET A/B run 41020623184);
-  gated by model, 8573C wrote them in 0.80 times the time of the FP16 gate and 1,000 `Waypoint`s in 0.81 (pair permutes,
-  336 to 259 ns), the 8370C unchanged (run 41079230729). Include `Xeon` in the A/B line's CPU regex for any AVX-512
-  path, or Ice Lake goes unmeasured.
-- On Arm64, move values over 8 bytes in partial lane groups (`NinoLanes.Solve` with `partial`), as x64 without VBMI
-  does: one at a time they took 1.44 µs for 1,000 `Waypoint`s on Neoverse-N2, in lane groups 0.43 (MemoryPack's copy
-  of their memory 0.39). Take the partial groups' windows on the 16-byte grid there (the grid pass first, kept on a
-  tie): two `Waypoint`s a step from `ldp` + `ldr` at 0, 16 and 32 and two 2-register lookups, against loads anywhere
-  (0, 9, 25; a 2- and a 1-register lookup) at the same `Cost`, wrote 1,000 in 0.757 of the time (430 to 325 ns, floor
-  1.002, .NET A/B run 41164356389; every other case on par). Measured and not taken (`WaypointPackProbe`, run
-  41159851472, against the old groups on Neoverse-N2): four values a step from six grid loads with a 3-register lookup
-  0.62-0.67 and the grid pair twice a step 0.61-0.66 (no clear gain over the pair's 0.66-0.70, and two groups a step
-  cost `HashSet<int>` writes before), a scalar pair of 8-byte loads with the bool put in by `bfi` 1.34, a 16-byte load
-  with the bool loaded into lane 14 (`ld1` lane) 1.20.
-- Copy long blocks per vendor and per destination: past 32 KB a 32-byte vector loop beats Memmove into a new zeroed
-  array on Intel (Xeon 8370C, 160,000 bytes: 3.18 µs instead of 3.51) and loses there on Zen 5 (EPYC 9V45: 1.81
-  against 1.67), while on AMD it beats Memmove into a new uninitialized array (9V45 and 9V74: 0.93 to 0.95 times the
-  time). `NinoUnsafe.CopyOver64` (zeroed or existing memory) takes it on Intel only, `CopyToNew` on AMD only.
-  From 2,112 bytes to 32 KB, Ice Lake under Linux takes Memmove instead of the 64-byte loop
-  (`NinoUnsafe.IceLakeMemmove`): glibc runs it as one rep movsb from an aligned destination (FSRM), while the loop's
-  loads split two lines unless source and destination sit alike in a line. Xeon 8370C (run 41188054612, n=12):
-  1,000 `KeyValuePair<int, int>` serialize 151 -> 128 ns (median 0.846; head 60 or 128 ns by process, base 106, 151
-  or 181), a `Queue<int>` of 1,000 94 -> 74 (0.783; head 43 or 74, base 61 or 94), TupleList (not a copy) 1.015; the
-  floor line drew no 8370C. Confirmed with a floor (run 41203402942, n=24, base rounds against each other as the floor):
-  `KeyValuePair<int, int>` 0.844 (head 128 ns in 22 of 24 rounds; base 105, 151 or 182; floor median 1.006), `Queue<int>`
-  0.690 (head 74 or 43, base 93-109 or 58; floor 0.999). Not on other CPUs: AMD's rep movsb lost to the loop 2-30 times up to 16 KB, and other C
-  runtimes' memmove was not measured.
-- Allocate a new array uninitialized only where the read writes every byte of it, padding included
-  (`NinoElements.CopiedWhole`), or it hands stale heap memory to `MemoryMarshal.AsBytes` or a raw re-serializer: block
-  reads write a padded value's padding as zero (`NinoBlockCollections.ReadOne` clears a value before `ReadBlock`;
-  AVX-512's `vpermb`/`vpermt2b` read only an index's low bits, so their padding bytes are masked with a `vpand` per
-  vector, `ReadPlan.Keeps`, `KeepMemory64`; pshufb, tbl and Arm64's lookups write 0 for index 0x80 by themselves), and
-  the tests read into 0xFF-filled and recycled 0xCC memory and compare every byte
-  (`BlockStructTests.ReadsWriteEveryByte`; without the masks they fail on AVX-512). Values read a field at a time
-  (Untrusted mode, `ReadSize` -1) keep a zeroed array. Evidence: rejected first with the padding unwritten (Waypoints
-  0.68-0.76 times main's time); landed with it written, together with the read groups below (run 40935400095). Where the
-  read can still reject the data after the allocation (a bool of a block: `NinoBlockPlan<T, TFormatter>.Rejects`),
-  `NinoBlockCollections.ReadAll` reads them out of line under a try/finally that clears the values when it throws
-  (`ReadRejecting`; `audit-security`). Never allocate those arrays zeroed instead: 1,000 Waypoints read into a new array
-  took 1.15 to 1.27 times as long (A/B run 41110873514, every CPU). Add nothing to `ArrayFormatter` or
-  `ListFormatter.Deserialize`, not even a test that folds in Release: they recurse through collections nested in
-  themselves, and Debug builds (CI's Windows unit tests, 1 MB stacks) compile every branch and keep a temp per call. A
-  test of a static field and an out-of-line call there grew the two frames from 672 + 448 to 768 + 576 bytes
-  (`DOTNET_JitDisasm` under Debug, `sub rsp`) and 400 nested `List<SelfArrays[]>` ran out of stack on Windows
-  (`SelfNestingCollectionTests`, main e2e28fe7). In Release the same test through an inlined method returning a
-  constant, though it folded, made `ArrayFormatter<int, ...>` stop inlining `NinoElements.Read` into the
-  ImmutableHashSet, ImmutableDictionary, ReadOnlyCollection and Memory<int> reads (1 stack access to 15, `asm.py`).
-- Read values over 16 bytes whose blocks never fill whole vectors in four of memory in groups that fill whole memory
-  vectors (`ReadPlan.Group`: 8 24-byte values in three vectors, each one `vpermt2b` of two 64-byte loads, aligned
-  stores), and check their bools in those loads (`ReadPlan.Checks`: OR `load & 0xFE-at-bools` into one accumulator,
-  test once, the strided pass only to name the bad one). Evidence (GitHub runners, run 40935400095, n=12): 1,000
-  `Waypoint`s deserialize in 0.77-0.85 times the time on EPYC 7763 and 9V74, Xeon 8370C and Neoverse-N2. Rejected: one
-  64-byte load permuted into 128 bytes of memory per four values (`vpermb` twice, overlapping stores), 1.3 to 1.4 times
-  the time of lane groups on a local AVX-512 Xeon. Not built: the same fused check in Arm64's lane groups, whose
-  windows overlap per output vector (an AND and ORR per window against the strided pass's one load per bool).
-- On Ice Lake, mask padded raw structs with 32-byte vectors (`NinoUnsafe.Wide512` gates `NinoMask`'s 64-byte masks
-  as it gates the pair permutes): GitHub's Xeon Platinum 8370C wrote 1,000 8-byte structs with a padding byte in 116
-  ns with 64-byte vectors and 83 with 32-byte ones (MemoryPack 88). Its 64-byte kernels on 8,000 bytes (aligned
-  stores 145 ns, a zero-masking load `Avx512BW.MaskLoad` instead of the `vpand` 147, unaligned 167-287) ran no faster
-  than 32-byte ones (144) and slower than Memmove (122) (`MaskKernelProbe`, run 40935400095): a zero-masking load
-  buys nothing there, nor locally on Emerald Rapids (1.06 against 1.07 of Memmove). Keep the 64-byte write groups
-  (`Permute64x2`, vpermt2d) on Ice Lake: 32-byte ones (vpermt2d ymm, AVX-512VL) took 0.76-0.79 of their time in a
-  native-buffer probe there (`TuplePackProbe`, run 41159851472: 167-173 ns against 220-226), yet in the benchmark
-  1,000 `(int, long)` serialized 4.5 % slower on the 8370C (234 to 245 ns, n=12, every round above 1.0; run
-  41164356389). Ice Lake's VM there pays heavily for loads across cache lines (a 32-byte copy loop of 16,000 bytes
-  from 8 bytes past a line: 430 ns, aligned 222, Memmove 160; 64-byte: 377 and 190): a probe kernel with fixed
-  alignments does not predict the case, whose list and buffer land where the process puts them. MemoryPack's copy
-  there is bimodal by alignment (117 or 250 ns in the probe, 112 in the case).
-- Before probing kernels for a gap on one CPU, research that microarchitecture (Intel's optimization manual, uops.info,
-  Agner Fog, Travis Downs, Chips and Cheese) and read the code both sides run, IL and asm, instruction by instruction: a
-  probe then confirms a cost model instead of searching (the owner: "you keep guessing"). The Ice Lake TupleList gap
-  (round 103): MemoryPack writes the raw 16-byte `(int, long)`s with one `CopyBlockUnaligned`, which .NET hands to glibc
-  past 2 KB and glibc runs as one `rep movsb` past 2,112 bytes on FSRM CPUs (destination aligned, so its time depends on
-  the source's offset to it: 117 or 247 ns); Nino packs 16 to 12 bytes with 4 loads, 3 `vpermt2d` and 3
-  destination-aligned 64-byte stores per 16 values, and its loads split two lines unless the list's group starts on one:
-  the 234 / 162 ns modes. On a Xeon 8573C (run 41180010041, `TupleCostProbe`): 188 split 64-byte stores 142 ns against
-  59 aligned, 250 split loads 97 against 80, 188 `vpermt2d` 59, the clock 4.0 GHz scalar and 3.1 under zmm code; Nino's
-  own write 74 to 144 ns by the list's place (identical code both sides). On Ice Lake (Xeon 8370C) Nino's write groups
-  therefore load from the line below each group (`NinoBlockCollections.WriteAligned`, tables per place in the line, a
-  second `vpermt2d` for the vector of blocks that spans three lines): 1,000 `(int, long)` serialized in 0.917 of the
-  time (235 to 221 ns, every round 0.85-0.96, n=24, run 41181295487) and the `Dictionary<int, int>` entries in 0.809
-  (250 to 200 ns); other CPUs fold the gate (listings identical to main). Less than the 0.65 the model gave: the rest is
-  the stores and the clock. Confirmed against main before it with a floor (run 41203402942, two 8370C jobs, n=24,
-  base round against base round in the same jobs as the floor, `benchmark`): TupleList 0.925 (235 to 222 ns, every
-  round 0.84-0.97; floor 1.001, 0.93-1.08), the dictionary 0.797 (every round below 0.93; floor 0.994), MemoryPack
-  (same code both sides) 0.998.
-- Do not retry the remaining Ice Lake TupleList gap (Nino 222 ns, MemoryPack 114 on the 8370C) with these; each loses by
-  the model, so none was built (round 104). The gap is the store path: 12 bytes a value (the wire format) are at least
-  188 64-byte lines, and the 8370C writes lines with vector stores at about 0.76 ns each (16,000 bytes copied with
-  aligned 64-byte vectors in 190 ns, r102) but with `rep movsb` at about 0.46 (MemoryPack's 16,000 bytes in 112-117):
-  188 lines cost about 143 ns before any permute. 256-bit aligned groups (vpermt2d ymm): `vpermt2d zmm` and 512-bit
-  loads and stores are light AVX-512, which costs Ice Lake server parts at most about 200 MHz all-core (Intel in
-  golang.org/issue/43925; Phoronix measured about 175 MHz on a Xeon 8380 under heavy AVX-512), so 256-bit code wins
-  back at most about 6 %, while it needs 375 stores and about 525 permutes against 188 and 235, and the 8370C's 32-byte
-  aligned copy already lost to the 64-byte one (222 against 190 ns); locally (Emerald Rapids, `TupleGroupProbe`) they
-  took 1.7-1.9 times the time at every source shift. Non-temporal stores: they evict the reused buffer and run at
-  memory bandwidth (188 64-byte ones 757 ns locally against 68 cached). `rep movsb` with packing, either way round
-  (pack into scratch then `rep movsb` it, or `rep movsb` the raw values then compact): two passes, at least the current
-  pass plus about 85 ns.
-- Rust's fixed-size blocks: `optimize-runtimes`, "Fixed-size blocks in Rust".
-
-## Unity kernels and IL2CPP
-
-- Give a generic formatter the formatter of each type parameter as a type parameter of its own (`Box_1Formatter<T,
-  __F_T> where __F_T : struct, INinoFormatter<T>`), never `CachedFormatter<T>`: a closed type names its arguments'
-  formatters, so a `T` member is `default(__F_T).Serialize`, a direct call IL2CPP specializes for the value-type
-  formatter argument, where `CachedFormatter<T>` is a `VirtualActionInvoker` per value on IL2CPP (its C++ in
-  `CachedFormatter_1_Deserialize`, unity.yml run 40818519412) and a virtual call on Mono and NativeAOT, which do not
-  devirtualize `static readonly` fields. `[UnsafeAccessor]` externs then move to a class of their own with exactly
-  the type's type parameters (the runtime rejects a declaring class with more: "Generic type constraints do not
-  match"). Leave RyuJIT's inlining of a closed generic base's subtype switch (`__NinoDispatchN.__ReadSubtype`) alone:
-  with per-formatter instances it inlines into the generic `Deserialize` of a box of `(class, int)` (237 to 559
-  bytes, the same instructions per element). Keeping it out of line where two closed bases share code reproduced
-  main's listings yet read boxes of `(class, int)` 3 to 8% slower on every CPU (run 41005255972), and `NoInlining` on
-  every switch made every generic polymorphic deserialize 4 to 18% slower (it also stopped the switch inlining into
-  the element loop over value types, `ReadEach` 375 to 124 bytes; run 40973200874). Inlined, the one loss is that
-  case on Xeon 8573C, 3.6 to 4.9% (runs 40935400095, 40967495867): code placement, not executed work.
-- Never cast `default(TFormatter)` to an interface on a path IL2CPP (or Mono) runs per value: IL2CPP compiles
-  `((IFoo)default(TFormatter)).M()` as a GC `Box()` and an `InterfaceFuncInvoker` on every call, where RyuJIT removes
-  the box and inlines the struct's method. In the netstandard builds take a boxed instance cached once in a `static
-  readonly` field (`NinoBlockPlan<T, TFormatter>.Formatter`, `NinoSized.Of<T, TFormatter>`), and keep the cast under
-  `#if NET8_0_OR_GREATER`. Evidence (IL2CPP C++, unity.yml run 40818519412, artifact `il2cpp-cpp-6000.3.27f1`):
-  `NinoBlockCollections.WriteEach<(int, long), ...>` boxed the formatter and made an interface call per element whenever
-  no Burst kernel ran, and `NinoSized.Is`/`Serialize` boxed one to three times per top-level `Serialize` (87 and 174
-  `Box()` sites); after (run 40969941689, exp/devirt-unity) no `Box()` there, a static field load and one interface
-  call. The .NET 8+ FullOpts listings stayed identical (1,048 methods). No call at all needs the loop inside the
-  formatter (a public `INinoBlockFormatter` member, the owner's decision).
-
-- Leave the one indirect call a top-level call makes in shared generic code (T a class, the caller not inlined with T
-  exact: `NinoDeserializer.Deserialize<__Canon>`'s `INinoRawArrayFormatter.Read`, `NinoTopFormatter<T>.Formatter`'s
-  virtual members): which formatter runs is known only from the generic dictionary there, so every form (an interface,
-  a virtual on an abstract class, a `delegate*` in a static field) is an indirect call, once per top-level call and not
-  per element, and callers with T exact (interceptors, Tier1 code that inlines the call) read the `static readonly`
-  field as its exact type and inline it. A per-element or per-value interface or virtual call where the type is known
-  is the one to remove (round 103: kept after review; no form without an indirect call exists).
-
-- Hold native kernels as function pointers in static fields, never behind a virtual base: `NinoKernels` is a table of
-  `delegate* unmanaged[Cdecl]` that `Register` copies into `NinoKernelHook`'s static fields, a missing pointer leaves
-  its threshold at `int.MaxValue`, so a call site is one static load, a compare and a `calli` (IL2CPP: a C function
-  pointer call), with no object, null check or vtable slot. The abstract class it replaced cost, in IL2CPP's C++ of
-  `NarrowWords`, a load of the registered object, a `NullCheck` and `VirtualFuncInvoker3<...>::Invoke(7, ...)` into
-  a `PointerKernels_Narrow` that then called the pointer (unity.yml run 40818519412, artifact `il2cpp-cpp-*`).
-  Burst gives the pointers (`FunctionPointer<T>.Value`); per call they were 0.3 to 0.6 ns faster than `.Invoke`
-  delegates (Narrow16 5.99 against 6.29 ns, Permute1 16.2 against 17.2 on 2022.3, run 40717516438), and the delegate
-  fallback is gone: a table only `calli` can call holds nothing else. With the table registered, cases under every
-  threshold were on par with no kernels (Latin-1 8 chars, one tuple, 15-char `[NinoUtf8]` text: within 2 %, IL2CPP
-  x64, unity.yml run 40822269653).
-- Put every `calli` in its own `NoInlining` helper (`NinoKernelHook.TryNarrow`, `NarrowAsciiPrefix`, ...) and keep the
-  threshold compare in the caller: classic Mono never inlines a method that contains a `calli`, so a pointer call
-  written into `NinoStrings.NarrowWords` stopped it inlining into `WriteLong` and every Latin-1 write paid a call with
-  no kernel registered (Mono 6.8 local, 1000 chars 469 against 564 ns; on par once the call moved out, the listing of
-  `WriteLong` showing `NarrowWords` inlined again with `MONO_VERBOSE_METHOD`).
-- Set each kernel threshold from a sweep that forces the kernels from 1 value or 16 chars, per call site, with
-  allocation kept out (`SerializeTo` into a reused writer, `GC.Collect` before each group, groups A B B A, the lower of
-  each pair: `benchmark`). The sweep of unity.yml run 40735278928 (IL2CPP x64 players, 2022.3 and 6000.3): blocks of
-  tuples gain from 1 to 2 values (1.04 to 1.30x at 1 to 2, 1.5 to 1.9x at 4); Latin-1 strings from 16 chars (1.24 to
-  1.55x); text above U+00FF costs up to 10 % at any length (the failed narrowing), so a lower MinChars adds no new loss;
-  the padded copy (`NinoLayout.Copy`, whose own path copies masked words) breaks even at 12 to 16 values, hence its own
-  floor (`NinoKernelHook.CopyFloor`).
-- Build only the mask a call needs: `PermuteVectors` built all sixteen 16-byte masks on the stack before its one-load,
-  one-store loop, about 35 ns per call; the table itself as one mask moved the padded copy's break-even from about 24
-  values to 12 (0.69 to 0.75x at 1 to 2 values before, 0.75 to 0.80x after; 1.06 to 1.09x at 16).
-- On WebGL (wasm SIMD, `Nino.WebGL`) the same kernels pay off only for strings from 16 chars (1.07 to 1.45x, 2 to 10x
-  from 1000) and the padded copy from 32 values (2.3 to 5.3x from 1000); blocks of tuples gained nothing consistent
-  (Unity 6000.3 and 2022.3, headless Chrome, run 40735278928).
-- IL2CPP class formatters: a `SimpleClass` read (3.4 us on 6000.3, 2.1 on 2022.3) is mostly objects and collections
-  built, not Nino's code: per member, `Dictionary<int, string>`(10) 1.2 us, `Dictionary<int, int>`(10) 0.9 us (the
-  `HashTables` fill is on there: `RuntimePathsTests` asserts every flag), a `List<class>`(10) about 0.1 us per new
-  element, the 360-char UTF-8 string 0.65 us; Burst changes the class only through its strings (`Name` 1.2 to 1.4x). The
-  generated C++ shows shared generic code where a type argument is a class (`ListFormatter<__Canon, ...>`: an
-  `il2cpp_rgctx_method` lookup per call, `il2cpp_codegen_runtime_class_init_inline(Reader)` before Reader calls) but no
-  per-element cost that a change in Nino removes was found; time classes of one member each (the run above did) before
-  changing a formatter for IL2CPP.
+A technique found and measured, faster or slower, goes into the reference file of its topic as one bullet: the rule in
+the imperative, why, then the evidence (case, CPUs, runner numbers, commit or run), extending the bullet that already
+covers it. A new topic gets a file and a line above. Go, Rust and TypeScript techniques go to `optimize-runtimes`.
 
 ## Reading the listings
+
 
 - x64: `--asm` of `benchmarks/asm.py`, once per ISA (`DOTNET_EnableAVX512=0`, `DOTNET_EnableAVX2=0`).
 - NativeAOT: ILC compiles with the JIT, which takes the same options as `--codegenopt`: publish
@@ -444,109 +91,6 @@ has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in 
   again with the narrowest filter and compare the instructions with addresses and labels normalized.
 - Timings on a shared machine vary by ±15 %: read the code before trusting a local difference, and take the decision
   from runners (`benchmark`). The wire format must not change unless that is the point: compare the bytes.
-
-## Prefetch
-
-- Decide whether a collection loop prefetches when the code is generated, never per element at run time (the owner's
-  design). Eligible: elements of a reference type in a contiguous container (array, `List<T>`, a span of references),
-  since each object and each of its reference members (strings, children) is a separate cache miss. Not eligible:
-  structs, unmanaged and block elements (contiguous; the hardware prefetcher covers them) and linked containers
-  (LinkedList, trees, SortedSet nodes: the next address is known only after loading the node). The decision and a
-  per-type threshold, a cache budget divided by the element's estimated bytes (object size plus a cost per reference
-  member), are `static readonly` values the JIT folds: an ineligible type's listing stays identical to main, an
-  eligible one adds one length compare (`cmp r14d, <const>; jg`) and a cold call. Enter the long loop through the
-  formatter type (the generated forwarder calls `NinoPrefetched.Write<T, Self>`), never through a method keyed on the
-  element type: with T = __Canon that is a runtime generic lookup in every caller. Two stages for elements with
-  reference members: at element i prefetch element i+2D, at i+D prefetch its members' targets. Why: a prefetch on
-  every element cost 14-15 % on 1,000 cached objects, and a large-collection branch that needed a runtime generic
-  lookup spilled the caller (Shapes 1 to 7 stack accesses). Platforms: .NET x64 `Sse.Prefetch0`; .NET Arm64 has no
-  scalar prefetch (only SVE's), a load of the object's first byte summed into a sink stands in; Unity through a
-  `NinoKernels` hook to Burst's `Common.Prefetch`, which exists only with the scripting define
-  `UNITY_BURST_EXPERIMENTAL_PREFETCH_INTRINSIC`; Rust `_mm_prefetch` on x86 and `asm!("prfm pldl1keep, ...")` on
-  aarch64, both in `src/simd.rs`; Go only through an assembly stub, one call per batch; wasm and TypeScript have
-  none. .NET, measured and not landed (land/prefetch 10c2f5b, land/prefetch-llc cdd36a9 and 9e28b7d against
-  5d474be, `ScatteredTest`; test branch runs 40666897058 and 40691513998): how the long loop takes the writer or
-  reader decides the cost for every caller, and none of the three ways was free. By reference, the address of the
-  caller's writer is taken where `NinoElements.Write` is inlined, so the caller's whole loop keeps it in memory
-  (FixedClasses 6 to 66 stack accesses). By value and returned, x64 copies it into the outgoing argument area of the
-  cold block (+125 bytes, +5 stack accesses, hot loop unchanged; fixed-size classes, whose bodies inline with every
-  writer field in a register, spilled the element pointer, so they were excluded at generation time), but where
-  nothing folds (Debug, Tier0) the argument and the result are two more writers in every collection loop's frame: a
-  read of 400 nested `SelfArrays` needed 1,459 KB of stack instead of 1,219 KB, and
-  `SelfNestingCollectionTests.EveryCollectionKindThrowsPastTheLimit` threw on Windows' 1 MB stack. Through a copy
-  passed by reference (the copy's address taken, not the caller's), Debug needed 541-758 KB, but the copy holds GC
-  references and is zeroed in the prolog of every caller: CommonTypes `NinoSerializeTree` (short child lists, one
-  Write per node) 3-4 % slower on EPYC 7763, 9V45 and 9V74 and Neoverse-N2 (floors 0.99-1.015). A `default(TFormatter)
-  is INinoPrefetchFormatter` test in the loop's own IL changed what the JIT inlined into polymorphic arrays
-  (`NinoSerializePolymorphicClassArray` 20-28 % slower on EPYC 7763 and 9V45); `Takes` inlined folds it as well. The
-  gate at the whole last-level cache (sysfs index*/size, GetLogicalProcessorInformationEx, 32 MB default) left 1M
-  shapes of 24 bytes out on EPYC (32 MB L3) and Neoverse-N2, which a fixed budget made 1.9-2.4 times as fast; at a
-  quarter of the cache: 1M shuffled `ScatteredItem`s serialized 3.0-3.3 times as fast on EPYC (7763, 9V45, 9V74),
-  2.0 on Xeon 8573C (one job) and 2.4 on Neoverse-N2 (the Arm64 load), read into existing objects 2.6-5.4 times on
-  EPYC and 1.18 on Xeon, unchanged on N2; scattered shapes 1.8-2.4 times on EPYC, +10 % on N2, 6.5 % slower on Xeon
-  8573C (one job, no floor on that CPU; CommonTypes Shapes, which does not prefetch, moved 7 % there too). But the
-  same shapes in allocation order (where the hardware prefetcher already works) were 8 % slower on EPYC 9V74 (15 %
-  faster on 7763), and Players and PolymorphicClassArray 2 % slower on 7763. A second attempt (land/prefetch2 against
-  4beee30, `ScatteredTest` plus every class with arrays or lists of classes; test branch runs 40717864662,
-  40738931705, 40765079561, per-job medians against main-against-itself floors) passed neither the writer nor the
-  reader: a `NoInlining` helper keyed on the formatter, `Ahead<TFormatter>(ref object, int)`, prefetched objects 32-47
-  ahead and the reference members of the next 16 (`INinoPrefetchFormatter.PrefetchMembers`, emitted for non-generic
-  classes of varying size), called once per 16 elements; the gate, a quarter of the last-level cache over
-  `PrefetchBytes`, and the platform test fold into one `static readonly` threshold, and a sample of the first 17
-  addresses (8 or more of the 16 deltas in (0, 1024]) leaves objects in allocation order alone. That fixed EPYC 9V74
-  (shapes in allocation order 0.996-1.005, from 0.92) and kept the gains: 1M shuffled `ScatteredItem`s serialized in
-  0.49-0.50 of the time on EPYC 7763, 0.39-0.40 on 9V45, 0.44-0.48 on 9V74 and 0.21 on Neoverse-N2, read into existing
-  objects in 0.44-0.47, 0.38-0.41, 0.25-0.32 and 0.30, scattered shapes 0.55-0.66 on EPYC (N2 on par); Xeon 6973P-C,
-  whose cache holds the set, on par. It did not land. In the shared loops (`NinoElements.Write`/`ReadEach`, a length
-  test before a second, chunked loop), every short nested collection paid: Orders 3.3-6.5 % slower on EPYC 7763, 9V45,
-  9V74 and Xeon 8573C and 6973P-C, Tree 1.3-2.2 %, Shapes 5 % on Xeon 8573C, and in Debug, where nothing folds, each nesting
-  level's frame grew 144 bytes (the deep-nesting test's stack 1,471 KB instead of 1,351; `Type.IsAssignableFrom`
-  instead of `is` was worse, 1,516 KB). A separate copy of the loop behind the test only moved the cost. So the second
-  variant prefetched only top-level calls: the interceptors send `Serialize`/`Deserialize(data, ref value)` of an
-  array or `List<T>` of an eligible class to `NinoDirect.SerializePrefetched`/`DeserializePrefetched`, whose formatter
-  (`INinoPrefetchTopFormatter<T>`) tests `value != null && length > threshold` inline and calls the out-of-line loop
-  only past it; nested collections, `NinoRegularCalls` and every other method compile exactly as main (`asm.py
-  compare`, Debug frames identical). Inlining more than that test into the top-level call cost the JIT's budget
-  elsewhere (PooledGraph `LeavesInPlace` 20 to 36 stack accesses). Still not landed: the 33-80 bytes the test adds
-  before the loop (sizes 940 to 1,001, 1,316 to 1,386, 1,955 to 2,019; stack accesses unchanged) moved the loop (0xC4
-  to 0xE5; the JIT does not align loops that make calls), and on EPYC 7763 `NinoSerializeNonGenericBase` was 2.0-6.6 %
-  slower in 6 of 6 jobs and `PolymorphicClassArray` 0.6-5.8 % (floor 0.987-1.021), `HotShapes` (8,192 shapes, never
-  prefetched) on EPYC 9V45 -0.5 to +13 % (floor 1.009-1.013), while the same cases were on par or up to 3 % faster on 9V45 and N2:
-  the cost is where the code lands, not the work. Controls in one run against main 7d4d6b0 (test branch run
-  40829244512, floor runs 40798121552 and 40829186191) proved it: a placebo with variant 2's exact code but a run-time
-  threshold no collection reaches and an empty `Ahead` (case sizes identical, 1,001 and 1,001; HotShapes 1,386 and
-  1,381) was as slow as variant 2 on EPYC 7763, NonGenericBase 0.98-1.07 (median 1.04) against 1.04-1.08,
-  PolymorphicClassArray 1.03-1.07 against 0.97-1.04, while a null change (one more benchmark case, so other generated
-  code moves) stayed in the floor: 0.98-1.01 and 0.98-1.00 (floor 0.98-1.01 and 0.99-1.02, 10 jobs). So it is not
-  random placement: the length test's bytes before the loop cost those cases 3-7 % on 7763 every time, the scattered
-  gains held in the same run (items 0.50-0.51, read into 0.47-0.51, shapes 0.63-0.66 on 7763; items 0.21 on N2), and
-  it did not land. Any test in the top-level path costs this, so it landed as the owner's opt-in, the MSBuild
-  property `NinoPrefetchLargeCollections` (unset, the generated code is main's byte for byte; a run-time setting
-  could not do that, see "What has gone wrong before" on the root's inlining budget). Test branch run 40916374747
-  against main 9d71c04, per-job medians: unset 0.98-1.03 on EPYC 7763, 9V74 and N2, as the floor (0.97-1.03); set,
-  items written 2.0x (7763), 2.1-2.6x (9V74, 9V45), 4.8x (N2), read into 2.0-3.6x, shapes 1.5-1.75x (N2 1.02), with
-  NonGenericBase 0.94-0.95 on 7763 and 9V74, the cost the property's docs name.
-  Go, measured and not landed: a stub `prefetch8` (eight PREFETCHT0 / PRFM PLDL1KEEP a
-  call) in `WriteSlice` above a per-type threshold, objects 16 elements ahead and their strings 8 ahead, wrote
-  1,000,000 shuffled records 2.2-3.1 times as fast on EPYC 7763, 9V45 and 9V74 and 4-5.5 times on Neoverse-N2, but
-  13-38 % slower on Xeon 6973P-C, whose L3 holds the 100 MB set (its base was already 2-3 times as fast: nothing to
-  hide, only the extra loads and calls), and moved short-slice cases 1.5-4.7 % on x64 (test branch 4e2099b, 42ae966
-  against c44171f). Keep only the length compare inline: a plan lookup that does not inline (cost 147) in every
-  `WriteSlice` cost 1-3.8 % on SimpleClass. A third round gated it on the last-level cache (sysfs index*/size,
-  sysctl hw.l3cachesize, 32 MB default; on when length times the object plus 64 bytes a string exceeds it; the long
-  path a `//go:noinline` function behind one compare, inlining as main) and still did not land (test branch
-  dbd9b65 against 2958379): EPYC 0.32-0.46 and Neoverse-N2 0.18 on scattered-1m, but Xeon Platinum 8573C 1.29 with
-  a base of 57 ms (cache-resident speed: the gate did not turn it off, so the VM's sysfs size or the per-string
-  estimate is wrong there; log what sysfs reports on each runner before trying again), and
-  `Serialize/simple-class-100` 0.8 % slower on Neoverse-N2 (n=10, floor 0.998-1.003) for the one compare.
-  Rust, landed (869408d): `NinoWrite::PREFETCH_BYTES` (bytes read through pointers, summed by the derive and nino-gen) is a
-  const, so `write_many` of every other type folds the test away; a slice of 512 or more whose estimated data
-  outgrows the last-level cache (sysfs, 32 MiB default) takes the prefetching loop, the size test `#[cold]` out of
-  line. 1,000,000 shuffled records took 67-78 % less time on EPYC 7763, 9V45, 9V74 and Neoverse-N2, 39 % on Xeon
-  8370C, on par on Xeon 8573C (its cache holds the set). Gate on the cache, not a fixed budget: prefetching every
-  list over 1 MiB (b93fe69) had the same gains but moved cached records-1000 1.5-3 % on EPYC and Neoverse-N2; gated,
-  records-1000 stayed within a null change's spread measured in the same run (`benchmark`). Putting the eligible
-  loop out of line at a 64-byte boundary (8dc3b04) did not help: +2.7 % on 7763 and N2.
 
 ## Owned elsewhere
 

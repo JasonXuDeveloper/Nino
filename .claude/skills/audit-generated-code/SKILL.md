@@ -62,7 +62,7 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - No indirect call in a generated read or write path where a direct one exists (`optimize`, the owner's rule): a
   member's formatter is named directly (a generic type's formatter takes its arguments' formatters), and
   `CachedFormatter<T>` only for a method's type parameter or a `[NinoType]` generated in another assembly (a type
-  that holds itself gets a generated nesting struct, `optimize`); read the IL2CPP C++ as well as the Tier1 listing (`optimize`, Unity kernels and IL2CPP); look for `call [rax+0x..]`, `call [r11]` and `call rax` in the Tier1
+  that holds itself gets a generated nesting struct, `optimize`); read the IL2CPP C++ as well as the Tier1 listing (`optimize`, references/unity.md); look for `call [rax+0x..]`, `call [r11]` and `call rax` in the Tier1
   listing and explain each.
 - Check the Tier1 listing of generated serializers for the benchmark types on each ISA (`benchmarks/asm.py`), and
   compare with the hand-written equivalent where one exists: generated code is not slower than what a user would
@@ -70,7 +70,7 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - nino-gen output follows each runtime's performance and safety rules (`runtimes/*/AGENTS.md`): one bounds check per
   run of fixed-size members, bounds checked before allocating, depth counted as .NET does, rare paths out of line.
 - No dispatch per element: every loop nino-gen writes calls the element's code directly (no func value, interface
-  call or closure per element; `optimize-runtimes`, "Dispatch outside .NET").
+  call or closure per element; `optimize-runtimes`, references/dispatch.md).
 
 ## Proof
 
