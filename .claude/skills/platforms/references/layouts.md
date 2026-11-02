@@ -33,7 +33,8 @@ write CoreCLR x64's bytes, `Vector<T>` widths, and reading field types by reflec
   as .NET needs) and posts a notice instead of failing without it. A job's runner is drawn at random (3 of 7 net10.0
   jobs on main ran on an EPYC, round 121), so a path only one CPU kind takes is checked from several jobs: the
   no-avx512, no-avx2 and no-simd jobs rerun the vector-path tests with every set on when their runner has AVX-512
-  ("Test the AVX-512 paths"), and a run misses the net10.0 AVX-512 paths only when all four x64 jobs drew EPYCs.
+  ("Test the AVX-512 paths"), and a run misses the net10.0 AVX-512 paths only when all four x64 jobs drew EPYCs. Do not add a pinned
+  AVX-512 runner or Intel SDE for certainty: the owner decided against it (round 121).
 - Never read a pointer field by reflection: `FieldInfo.GetValue` on `IntPtr`'s `void*` crashed Mono 6.8 with SIGSEGV.
 - Take a fact about a type that the generator sees from generated code, never from reflection at run time (the
   owner's rule): reflection differs per runtime, NativeAOT keeps only the metadata it is asked for, and every probe

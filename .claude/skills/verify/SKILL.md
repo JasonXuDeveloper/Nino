@@ -56,9 +56,9 @@ Docs site change: in the nino.docs clone, `bun run check && bun run build`, and 
 - Read the diff once more as CI would: what would make a job fail? A red CI run costs a cycle and the owner's
   patience; never push to find out.
 - A change to the public API of Nino.Core or Nino.UnityTypes refreshes the Unity package's DLLs in its series
-  (`src/Nino.Unity/AGENTS.md`, Rules): `UnityPackageDllTests` fails in the netstandard2.1 run otherwise. Why: Unity
-  users who install from the repository compile against the committed DLLs, and after rc.7 Nino.Burst named
-  `NinoKernels`, which the committed Nino.Core.dll lacked (round 121). Compare APIs, never bytes: each DLL embeds the
+  (`src/Nino.Unity/AGENTS.md`, Rules; the owner's decision, round 121): `UnityPackageDllTests` fails in the
+  netstandard2.1 run otherwise. Why: Unity users who install from the repository compile against the committed
+  DLLs, and after rc.7 Nino.Burst named `NinoKernels`, which the committed Nino.Core.dll lacked (round 121). Compare APIs, never bytes: each DLL embeds the
   commit it was built from, and a cold build ordered PolySharp's polyfill types differently from a warm one (field
   tokens of `RequiresDynamicCodeAttribute`), while two warm builds were identical.
 - Check `git status --short` is empty (or run `tools/agents.sh --check` on a fresh clone) before pushing: --check
