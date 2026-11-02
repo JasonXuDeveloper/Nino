@@ -32,6 +32,23 @@ and when `asm.py compare` lists methods the change did not touch.
   in such a loop. Two groups a step (a smaller loop share for one-vector groups) measured nothing on AVX2 Zen and lost 3
   to 8 % on `HashSet<int>` writes (run 41052335826): not landed.
 
+- Give an out-of-line kernel one out-of-line entry with its loops inlined into it, and keep that entry at Tier1:
+  a size dispatch (`NinoUnsafe.CopyOver64`) that called the vector loop (`CopyVectors`) out of line made two calls per
+  copy of 129 bytes to 32 KB, three through `CopyToNew`, where rc.7's inlined `Copy` made one: 100 12-byte structs
+  serialized in 0.98-1.27 times rc.7's time (.NET A/B run 41413072278). The loops are now `AggressiveInlining` into
+  `CopyOver64Inline`, which `CopyOver64` and `CopyToNew` both inline. Never mark such an entry `AggressiveOptimization`
+  to keep the loops' layout: fully optimized code folds no `static readonly` field (it tested `NinoUnsafe`'s class init
+  and loaded `AmdCopy` and `IceLakeMemmove` per copy) and the class-init call made it save four registers in the prolog
+  of every copy, the 65-128 byte ones included; that form measured Inventory serialize 1.114 times main on EPYC 7763
+  (run 41455371503). Check the Tier1 listing on x64 and with the Arm64 cross JIT (`benchmarks/cross-jit.sh`): one
+  method, a two-instruction prolog.
+- Inlining a small out-of-line method that the JIT left as a call can be a wash: `NinoLookup.Add` inlined into the
+  `ILookup` read (one call per grouping instead of two) measured 1.002 and 1.003 times main on EPYC 7763 and
+  Neoverse-N2 (run 41455371503); not landed. Forcing `NinoDictionary.Refill` (the merge into an existing dictionary)
+  inline, as the JIT chose for rc.7, grew every read into an existing dictionary (PooledSimpleClass `__ReadBody` 2,731
+  to 3,514 bytes, 127 to 189 stack accesses) and made `NinoDeserializePooled` no faster in an in-process timing loop
+  (`benchmark`); not landed.
+
 ## Registers
 
 - Never pass `ref reader` or `ref writer` to a method that is not inlined, even in a dead branch: the address keeps
@@ -45,6 +62,24 @@ and when `asm.py compare` lists methods the change did not touch.
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
   twice as long as SSSE3's. Look for such calls in the Tier1 listing of every ISA a path takes (`--asm`, with
   `DOTNET_EnableAVX512=0` and `DOTNET_EnableAVX2=0` too).
+
+- Read a collection whose shape repeats into its existing instance with a loop of its own over the data, as the fresh
+  read does: `Reader.RefillStringPairs` (raw keys and strings into an existing `Dictionary`, the position and the end in
+  registers, the value read over the current one with the compare its only call) instead of the general merge, whose
+  value formatter read through the caller's reader copy in memory and called `ReadStringOver` and then `SameLatin1`
+  per value. In-process timing loop (`benchmark`): a pooled class holding only a 10-entry `Dictionary<int, string>`
+  139-162 ns against main's 183-213 and rc.7's 178-198.
+- Compare an unchanged short string read into an existing object inside the out-of-line `ReadStringOver`, never in
+  the inlined `Reader.ReadString(current)` nor in a loop: `NinoStrings.Same` (one-byte Latin-1 header, length, the chars
+  widened eight at a time and compared) before `NinoStrings.Read` saves `SameLatin1`'s call (`Ascii.Equals`); 1,000
+  objects with a short name read into existing ones took 6.9-7.5 us against main's 11.1-11.5 and rc.7's 9.9-11.4,
+  `NinoDeserializePooled` 223-271 ns against main's 251-268 and rc.7's 224-273 (in-process timing, `benchmark`). The
+  same test inline in `ReadString(current)` pushed callers past the inlining budget (the `Lazy<string>` read left
+  `Reader.Skip` a call, 7 stack accesses to 22) and read the pooled class in 277-295 ns; inlined into
+  `RefillStringPairs`' loop it made that loop slower (a pooled class with only the dictionary 179-206 ns against
+  139-162, `NinoDeserializePooled` 275-307); added before `RefillStringPairs` existed, the dictionary merge's general
+  loop, which reads each value through `ReadStringOver`, read the pooled class in 284-293 ns against 256-265 without it
+  (round 123).
 
 ## Tests that must fold
 
