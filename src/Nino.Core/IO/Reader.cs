@@ -887,17 +887,29 @@ namespace Nino.Core
         /// rarely short: only the call and the position's update inline. The data, not the reader, goes to the call, so the
         /// reader stays in registers.
         /// </summary>
+        // Null, the usual case of such a string, inline: a call for it made TimeZoneInfo reads 1.09-1.17 times as long
+        // as rc.7's, which read it inline.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal string ReadStringOutOfLine()
         {
-            string value = ReadStringAt(ref Cur, Avail, out int size);
-            Skip(size);
-            return value;
+            if (Avail > 0 && Cur == NinoStrings.NullHeader)
+            {
+                Skip(1);
+                return null;
+            }
+
+            SizedString read = ReadStringAt(ref Cur, Avail);
+            Skip(read.Size);
+            return read.Value;
         }
 
+        // Returned in registers: an out size kept a stack slot in the caller.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static string ReadStringAt(ref byte source, int available, out int size) =>
-            NinoStrings.Read(ref source, available, null, out size, share: false);
+        private static SizedString ReadStringAt(ref byte source, int available)
+        {
+            string value = NinoStrings.Read(ref source, available, null, out int size, share: false);
+            return new SizedString(value, size);
+        }
 
         /// <summary>
         /// Reads <paramref name="count"/> strings into the slots starting at <paramref name="first"/> (the
