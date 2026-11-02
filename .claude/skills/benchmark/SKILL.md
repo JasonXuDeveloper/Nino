@@ -47,7 +47,15 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    `<go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]` runs
    `runtime-ab.yml`; .NET lines run `dotnet-ab.yml`. Keep other workers' lines, mark finished ones `# done:`, batch
    requests into one push, merge only, never force-push. `ab-bench.yml` on `main` compares a ref with the previous
-   release or its base on one runner. Limits: at most 8 runtime lines per push, 10 jobs each (the workflow measures
+   release or its base on one runner, but a session's dispatch returns 403 (round 105), and a tag older than the
+   `benchmarks/` layout does not build head's benchmarks (v4.0.0-rc.7 kept them in `src/Nino.Benchmark`, without
+   central package versions), so it measures head alone. Compare such a tag with dotnet-ab instead: base = the tag
+   plus an empty root `Directory.Build.props` and `benchmarks/Directory.Packages.props` (0af6bb5e), head = the commit
+   plus `NinoBenchLegacy` set in `benchmarks/Nino.Benchmark/Directory.Build.props` (dotnet-ab passes no property)
+   and `#if !NINO_BENCH_LEGACY` around the classes the tag cannot compile (20054c4a: CpuProbe, UntrustedTest; 115 of
+   128 Nino cases; run 41413072278). The whole suite in one line, `*Test.Nino*` (128 cases, quick), takes about 24 minutes a round on
+   every runner: 5 rounds are 2 hours a job, and an A/B line, its floor and a second Neoverse line took 6 h 17 min
+   (run 41364890698); a filter of 13 cases at 12 rounds took 2 hours (41399172268). Limits: at most 8 runtime lines per push, 10 jobs each (the workflow measures
    the first 8 and warns; `[ab: new lines only]` in the commit message runs only the lines that push added); `.github/dotnet-ab-request.txt` takes at most 3 active lines across all workers, and Arm64 runs one job
    per line, so more Neoverse-N2 samples need duplicate lines. To run a line again or twice, add or change a note after
    ` #` (`rust <base> <head> records-1000 # copy 2`), since a push measures only the lines its parent did not have.
@@ -60,7 +68,14 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    under `flock`, not /tmp, which a container restart wipes) and wait; whoever pushes next takes every queued line in
    one commit and tells their owners the run id. Request only lines that decide a question (narrow filters, one floor
    per base shared by everyone, repeats only for a verdict), and skip an A/B whose code is unchanged (identical
-   generated files or machine code prove it). The workflows cap themselves (`max-parallel` 10 runtime, 8 .NET jobs);
+   generated files or machine code prove it). Prove it per runtime before requesting the line: Go, `go test -c` the
+   bench at both commits and diff `go tool objdump` with paths and addresses stripped; TypeScript, runtime-ab runs the
+   head's `bench.ts` on both sides, so the sides differ only in `src/nino.ts`, what nino-gen writes for
+   `bench/Bench.dll` and the data `Bench.dll` writes (diff all three); Rust, `objdump -d` the bench binary each side
+   builds with the line's `RUSTFLAGS=-Cllvm-args=-align-all-functions=6`, addresses stripped; .NET, the generated files
+   (`-p:EmitCompilerGeneratedFiles=true`) and the FullOpts listings (`optimize`). Round 105 needed 2 runtime lines of
+   8 (Go: only the codec builder differed; TypeScript: all three identical; Rust `compare` and `text`: identical code,
+   `blocks`: not). The workflows cap themselves (`max-parallel` 10 runtime, 8 .NET jobs);
    cancelling and re-running from a session returns 403, so a run started is a run spent: 8 queued runtime runs of
    25 lines (250 jobs each) once blocked every other workflow for hours.
    Match x64 runners with `cpu='EPYC|Neoverse'`, not `'7763|Neoverse'`: runners are also EPYC 9V45 and 9V74, and a
@@ -97,6 +112,11 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    one-job floor with IL identical to main). Pool rounds of the same code before judging; a single round is not n.
    Read the rounds of a surprising median: a case can take one of a few times per process on both sides (Xeon
    8370C, `NinoSerializeKeyValuePairs` 105, 151 or 212 ns on identical code), and its median then follows the draw.
+   Which time a side draws can follow the filter, so a confirmation line can turn a case it did not touch: with
+   identical Tier1 code (x64 apart from loop-alignment padding, Arm64 through the cross JIT) `NinoSerializeTupleList`
+   was 1.01 against round 105's base on EPYC 7763 in the full suite (n=20, both sides 209-216 ns) and 1.21 in a
+   13-case line (n=72: base 190, head 210 or 245 ns), 0.98 and 1.39 on Xeon 6975P (base 69 or 98, head 97), 1.035 and
+   1.065 on Neoverse-N2 (runs 41364890698, 41399172268).
    On the test branch, `runtime-ab.yml` builds both sides of a Rust line with
    `RUSTFLAGS=-Cllvm-args=-align-all-functions=6` (every function at a 64-byte boundary): on Zen 5 identical code
    moved by 16 bytes changed timings by 10–50%. A side's env `NINO_AB_RUSTFLAGS=` builds without it. A side's env
