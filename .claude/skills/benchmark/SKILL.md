@@ -25,6 +25,16 @@ Every number that counts comes from a GitHub runner. Local runs only choose betw
 | TypeScript | `runtimes/typescript/bench/run.sh [scenario]` (Node and headless Chromium) |
 | Unity, IL2CPP and Burst | `unity.yml` only (one license seat, `audit-ci`) |
 
+To choose between local variants of a read or write path when BenchmarkDotNet's quick mode varies more than the
+difference (±15 % on a shared 4-core machine), time the benchmark's own method in a loop in one process per build: a
+console app that references each tree's built `Nino.Benchmark.dll`, binds the case to a `Func<int>` with
+`Delegate.CreateDelegate`, warms it past Tier1 (two rounds of 200,000 calls and a pause), then times 2,000,000 calls;
+run the builds alternated six times (`DOTNET_gcServer=1` where the class has `[GcServer(true)]`) and compare minimum
+and median. `NinoDeserializePooled` read 213-284 ns (rc.7), 250-296 (main) round after round there, where quick mode
+gave overlapping ranges. Never pin it to one CPU (`taskset`): the tiering thread starves and the loop times Tier0 code
+(1,000 ns instead of 250); `DOTNET_TieredCompilation=0` times code whose `static readonly` fields do not fold, not what
+runners measure. Runners still decide (round 123).
+
 In the Unity player, time small cases without allocation: `NinoSerializer.Serialize` to a new array made the
 6000.3 player's string rows bimodal (the same case 1.0x or 1.3x from run to run); `SerializeTo` a reused
 `NinoArrayBufferWriter`, `GC.Collect` before each sample group and groups in the order A B B A, keeping the lower of

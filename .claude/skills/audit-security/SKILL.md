@@ -68,7 +68,7 @@ the runtime it targets.
   `CultureInfo.GetCultureInfo` and `new CultureInfo` accept any well-formed name and keep each (CultureData's cache:
   200,000 names such as `en-x0001` held 160 MB), and `predefinedOnly: true` still keeps names with a singleton subtag
   (`en-US-x-<n>`: 31 MB per 50,000), so `CultureInfoFormatter` reads shipped cultures only, by names without one
-  (`CultureNamesFromTheDataCannotGrowTheProcess`, round 103). Checked and bounded: `TimeZoneInfo.FindSystemTimeZoneById`
+  (`CultureNamesFromTheDataCannotGrowTheProcess`, round 103). A check that asks the runtime on every read (`predefinedOnly` asks ICU each call: 544 ns a CultureInfo read against rc.7's 164) gets a cache of the names it accepted, keyed as the runtime compares them (case ignored), filled only after the check, with a hard cap (`CultureInfoFormatter.MaxAccepted`): rejected names never enter it, so the data can grow it no further than the runtime's own cache (round 123). Checked and bounded: `TimeZoneInfo.FindSystemTimeZoneById`
   (keeps found zones only; 20,000 unknown ids and case variants kept under 20 KB), `NinoUnknownIds` (1,024 ids).
 - A recursive path without depth counting (a struct holding a collection of itself, polymorphic slots, tuples,
   `object` members, reference tracking's back references).
