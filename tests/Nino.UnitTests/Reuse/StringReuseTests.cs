@@ -89,6 +89,52 @@ namespace Nino.UnitTests
         }
 
         [TestMethod]
+        public void ShortLatin1StringsAreKeptOrReplaced()
+        {
+            // Every length a one-byte Latin-1 header holds (compared inline) and around it: ASCII text is kept when
+            // unchanged (Latin-1 text above ASCII may be read again), one char changed anywhere replaces it, longer
+            // and shorter text replaces it, data cut short throws.
+            for (int length = 1; length <= 66; length++)
+            {
+                foreach (bool ascii in new[] { true, false })
+                {
+                    var chars = new char[length];
+                    for (int i = 0; i < length; i++)
+                        chars[i] = (char)(ascii || i % 2 == 0 ? 'a' + i % 26 : 0xE0 + i % 32);
+                    string text = new string(chars);
+                    var bytes = NinoSerializer.Serialize(new StringReuseKeyed { Name = text });
+                    var target = new StringReuseKeyed { Name = new string(chars) };
+                    var kept = target.Name;
+                    NinoDeserializer.Deserialize(bytes, ref target);
+                    Assert.AreEqual(text, target.Name, $"{length}");
+                    if (ascii)
+                        Assert.AreSame(kept, target.Name, $"{length}");
+
+                    for (int at = 0; at < length; at++)
+                    {
+                        var changed = (char[])chars.Clone();
+                        changed[at] = (char)(changed[at] ^ 1);
+                        target = new StringReuseKeyed { Name = new string(changed) };
+                        NinoDeserializer.Deserialize(bytes, ref target);
+                        Assert.AreEqual(text, target.Name, $"{length} at {at}");
+                    }
+
+                    foreach (string other in new[] { text + "x", text.Substring(1) })
+                    {
+                        target = new StringReuseKeyed { Name = other };
+                        NinoDeserializer.Deserialize(bytes, ref target);
+                        Assert.AreEqual(text, target.Name, $"{length}: {other.Length}");
+                    }
+
+                    target = new StringReuseKeyed { Name = text };
+                    var cut = bytes;
+                    Assert.ThrowsExactly<NinoDataException>(() =>
+                        NinoDeserializer.Deserialize(new System.ReadOnlySpan<byte>(cut, 0, cut.Length - 1), ref target));
+                }
+            }
+        }
+
+        [TestMethod]
         public void LongUtf8StringsAreKeptOrReplaced()
         {
             // ASCII of every length around the header sizes (one byte up to 126 chars, three from 128 to 65,534),
