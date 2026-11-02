@@ -52,6 +52,13 @@ namespace Nino.Generator.Generation;
 /// parameter its base does not name (<c>S&lt;U, W&gt; : Shelf&lt;U&gt;</c> writing <c>W</c>: a <c>Shelf&lt;int&gt;</c>
 /// slot holds an <c>S&lt;int, W&gt;</c> for any <c>W</c>).
 /// </para>
+/// <para>
+/// A subtype's pattern counts only for an argument the subtype can give its base: its fixed types equal
+/// (<c>int</c> of <c>S&lt;U&gt; : Shelf&lt;Pair&lt;int, U&gt;&gt;</c>, <see cref="PatternKind.Exact"/>) and a parameter it
+/// names more than once one type in every place, within an argument or across them (<c>Pair&lt;U, U&gt;</c>,
+/// <c>Twin&lt;U, U&gt;</c>, <see cref="PatternKind.Bound"/>), as <see cref="ClosedGenerics"/> unifies them for
+/// registration. Where a part names a type parameter (inside a definition), it may be any type and fits.
+/// </para>
 /// </remarks>
 internal sealed class WrittenParameters
 {
@@ -89,11 +96,38 @@ internal sealed class WrittenParameters
         if (arguments.Count == 0)
             return Array.Empty<(ITypeSymbol, bool)>();
         var written = Of(type.OriginalDefinition);
-        var values = new List<(ITypeSymbol, bool)>();
+        // The patterns the arguments fit, with the subtype parameters each binds (Pair<U, U> of S<U> binds U twice).
+        var fits = new List<(int Argument, Pattern Pattern, Dictionary<ISymbol, ITypeSymbol>? Bindings)>();
         for (int i = 0; i < arguments.Count; i++)
         {
             foreach (var pattern in written[i])
-                pattern.Match(arguments[i], values);
+            {
+                Dictionary<ISymbol, ITypeSymbol>? bindings = null;
+                if (pattern.Fits(arguments[i], ref bindings))
+                    fits.Add((i, pattern, bindings));
+            }
+        }
+
+        // A parameter bound to two types across the arguments (S<U> : Shelf2<U, U> in a Shelf2<int, long>) means the
+        // subtype it belongs to is not what the slot holds: none of the patterns that bind it count.
+        var bound = new Dictionary<ISymbol, ITypeSymbol>(SymbolEqualityComparer.Default);
+        var conflicting = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        foreach (var fit in fits)
+        {
+            foreach (var binding in fit.Bindings ?? Enumerable.Empty<KeyValuePair<ISymbol, ITypeSymbol>>())
+            {
+                if (!bound.TryGetValue(binding.Key, out var other))
+                    bound.Add(binding.Key, binding.Value);
+                else if (Pattern.Differ(other, binding.Value))
+                    conflicting.Add(binding.Key);
+            }
+        }
+
+        var values = new List<(ITypeSymbol, bool)>();
+        foreach (var fit in fits)
+        {
+            if (fit.Bindings == null || !fit.Bindings.Keys.Any(conflicting.Contains))
+                fit.Pattern.Collect(arguments[fit.Argument], values);
         }
 
         return values;
@@ -337,13 +371,45 @@ internal sealed class WrittenParameters
         foreach (var (subtype, arguments) in node.Subtypes)
         {
             var subtypeParameters = TypeNames.AllTypeParameters(subtype);
+            var repeated = Repeated(arguments, subtypeParameters);
             var written = WrittenOf(subtype, pending);
             for (int q = 0; q < written.Count; q++)
             {
                 if (written[q].Count == 0 || !TypeNames.Mentions(arguments[index], subtypeParameters[q]))
                     continue;
                 foreach (var pattern in written[q])
-                    yield return Pattern.Of(arguments[index], subtypeParameters, subtypeParameters[q], pattern);
+                    yield return Pattern.Of(arguments[index], subtypeParameters, subtypeParameters[q], pattern, repeated);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The parameters of a subtype named more than once by the arguments it gives its base (<c>U</c> of
+    /// <c>S&lt;U&gt; : Shelf&lt;Pair&lt;U, U&gt;&gt;</c>): a slot holds the subtype only when they all name one type.
+    /// </summary>
+    private static HashSet<ITypeParameterSymbol> Repeated(List<ITypeSymbol> arguments,
+        List<ITypeParameterSymbol> parameters)
+    {
+        var counts = new Dictionary<ITypeParameterSymbol, int>(SymbolEqualityComparer.Default);
+        foreach (var argument in arguments)
+            Count(argument);
+        return new HashSet<ITypeParameterSymbol>(counts.Where(static c => c.Value > 1).Select(static c => c.Key),
+            SymbolEqualityComparer.Default);
+
+        void Count(ITypeSymbol type)
+        {
+            switch (type)
+            {
+                case ITypeParameterSymbol p when parameters.Contains(p, SymbolEqualityComparer.Default):
+                    counts[p] = counts.TryGetValue(p, out var n) ? n + 1 : 1;
+                    return;
+                case IArrayTypeSymbol array:
+                    Count(array.ElementType);
+                    return;
+                case INamedTypeSymbol named:
+                    foreach (var argument in TypeNames.AllTypeArguments(named))
+                        Count(argument);
+                    return;
             }
         }
     }
@@ -432,6 +498,10 @@ internal sealed class WrittenParameters
                 return Find(argument, parameter, pending);
             case PatternKind.Inside:
                 return TypeNames.Mentions(argument, parameter) ? new[] { Pattern.Inside } : Array.Empty<Pattern>();
+            case PatternKind.Bound:
+                // Which types the parameters of the argument stand for is not known here: the binding cannot be
+                // checked, and the pattern counts as if each place were free (wider, never narrower).
+                return Compose(pattern.Parts[0], argument, parameter, pending);
             case PatternKind.Named or PatternKind.Array:
                 // The parameter itself: its argument must have the pattern's shape.
                 if (argument is ITypeParameterSymbol p)
@@ -441,8 +511,12 @@ internal sealed class WrittenParameters
                         : Array.Empty<Pattern>();
                 }
 
-                // An argument of another shape never holds the subtype the pattern comes from.
+                // An argument of another shape, or with another fixed type where the pattern has one, never holds the
+                // subtype the pattern comes from.
                 if (pattern.PartsOf(argument) is not { } parts)
+                    return Array.Empty<Pattern>();
+                Dictionary<ISymbol, ITypeSymbol>? unused = null;
+                if (!pattern.Fits(argument, ref unused))
                     return Array.Empty<Pattern>();
                 return pattern.Parts.SelectMany((part, i) => Compose(part, parts[i], parameter, pending));
             default:
@@ -471,6 +545,12 @@ internal enum PatternKind
 
     /// <summary>An array of <see cref="Pattern.Rank"/>, its element matched by the one part.</summary>
     Array,
+
+    /// <summary>
+    /// A place of the subtype parameter <see cref="Pattern.Symbol"/> that its base names more than once: every place
+    /// must hold one type; the one part says what is written of it.
+    /// </summary>
+    Bound,
 }
 
 /// <summary>
@@ -492,7 +572,7 @@ internal sealed class Pattern : IEquatable<Pattern>
         Symbol = symbol;
         Rank = rank;
         Parts = parts;
-        Depth = parts.Length == 0 ? 0 : 1 + parts.Max(static p => p.Depth);
+        Depth = parts.Length == 0 ? 0 : kind == PatternKind.Bound ? parts[0].Depth : 1 + parts.Max(static p => p.Depth);
         int hash = (int)kind * 31 + rank;
         if (symbol != null)
             hash = hash * 31 + SymbolEqualityComparer.Default.GetHashCode(symbol);
@@ -520,20 +600,21 @@ internal sealed class Pattern : IEquatable<Pattern>
     /// its parameter <paramref name="parameter"/> (and nothing of the others).
     /// </summary>
     public static Pattern Of(ITypeSymbol argument, List<ITypeParameterSymbol> parameters,
-        ITypeParameterSymbol parameter, Pattern written)
+        ITypeParameterSymbol parameter, Pattern written, ICollection<ITypeParameterSymbol> repeated)
     {
         switch (argument)
         {
             case ITypeParameterSymbol p:
-                if (SymbolEqualityComparer.Default.Equals(p, parameter))
-                    return written;
-                return parameters.Contains(p, SymbolEqualityComparer.Default) ? Free : new Pattern(PatternKind.Exact, p, 0, System.Array.Empty<Pattern>());
+                var place = SymbolEqualityComparer.Default.Equals(p, parameter) ? written
+                    : parameters.Contains(p, SymbolEqualityComparer.Default) ? Free
+                    : new Pattern(PatternKind.Exact, p, 0, System.Array.Empty<Pattern>());
+                return repeated.Contains(p) ? new Pattern(PatternKind.Bound, p, 0, new[] { place }) : place;
             case IArrayTypeSymbol array when parameters.Any(p => TypeNames.Mentions(array, p)):
                 return new Pattern(PatternKind.Array, null, array.Rank,
-                    new[] { Of(array.ElementType, parameters, parameter, written) });
+                    new[] { Of(array.ElementType, parameters, parameter, written, repeated) });
             case INamedTypeSymbol named when parameters.Any(p => TypeNames.Mentions(named, p)):
                 return new Pattern(PatternKind.Named, named.OriginalDefinition, 0,
-                    TypeNames.AllTypeArguments(named).Select(a => Of(a, parameters, parameter, written)).ToArray());
+                    TypeNames.AllTypeArguments(named).Select(a => Of(a, parameters, parameter, written, repeated)).ToArray());
             default:
                 return new Pattern(PatternKind.Exact, argument, 0, System.Array.Empty<Pattern>());
         }
@@ -560,8 +641,55 @@ internal sealed class Pattern : IEquatable<Pattern>
         }
     }
 
-    /// <summary>Adds the values this pattern writes of the closed argument <paramref name="type"/> to <paramref name="values"/>.</summary>
-    public void Match(ITypeSymbol type, List<(ITypeSymbol Value, bool Inside)> values)
+    /// <summary>
+    /// Whether <paramref name="type"/> can be the argument this pattern comes from: its shape, its fixed types
+    /// (<c>int</c> of <c>S&lt;U&gt; : Shelf&lt;Pair&lt;int, U&gt;&gt;</c>) and one type in every place of a repeated
+    /// parameter, which it adds to <paramref name="bindings"/> (checked across arguments by
+    /// <see cref="WrittenParameters.ValuesOf"/>). A part that names a type parameter fits anything: it may be any type.
+    /// </summary>
+    public bool Fits(ITypeSymbol type, ref Dictionary<ISymbol, ITypeSymbol>? bindings)
+    {
+        switch (Kind)
+        {
+            case PatternKind.Exact:
+                return Symbol is ITypeParameterSymbol || !Differ(Symbol!, type);
+            case PatternKind.Named or PatternKind.Array:
+                // A type parameter may be of any shape (nothing is collected from it).
+                if (PartsOf(type) is not { } parts)
+                    return type is ITypeParameterSymbol;
+                for (int i = 0; i < Parts.Length; i++)
+                {
+                    if (!Parts[i].Fits(parts[i], ref bindings))
+                        return false;
+                }
+
+                return true;
+            case PatternKind.Bound:
+                bindings ??= new Dictionary<ISymbol, ITypeSymbol>(SymbolEqualityComparer.Default);
+                if (bindings.TryGetValue(Symbol!, out var other))
+                {
+                    if (Differ(other, type))
+                        return false;
+                }
+                else
+                    bindings.Add(Symbol!, type);
+
+                return Parts[0].Fits(type, ref bindings);
+            default:
+                return true;
+        }
+    }
+
+    /// <summary>Whether two types are surely different: equal, or naming a type parameter (which may be either), is not.</summary>
+    public static bool Differ(ITypeSymbol a, ITypeSymbol b) =>
+        !SymbolEqualityComparer.Default.Equals(a, b) && !TypeNames.ContainsTypeParameter(a) &&
+        !TypeNames.ContainsTypeParameter(b);
+
+    /// <summary>
+    /// Adds the values this pattern writes of the argument <paramref name="type"/>, which <see cref="Fits"/>, to
+    /// <paramref name="values"/>.
+    /// </summary>
+    public void Collect(ITypeSymbol type, List<(ITypeSymbol Value, bool Inside)> values)
     {
         switch (Kind)
         {
@@ -571,9 +699,12 @@ internal sealed class Pattern : IEquatable<Pattern>
             case PatternKind.Inside:
                 values.Add((type, true));
                 return;
+            case PatternKind.Bound:
+                Parts[0].Collect(type, values);
+                return;
             case PatternKind.Named or PatternKind.Array when PartsOf(type) is { } parts:
                 for (int i = 0; i < Parts.Length; i++)
-                    Parts[i].Match(parts[i], values);
+                    Parts[i].Collect(parts[i], values);
                 return;
         }
     }

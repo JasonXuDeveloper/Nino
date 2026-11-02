@@ -2228,6 +2228,55 @@ public class Holder
     }
 
     [TestMethod]
+    public async Task NINO029_OnlyArgumentsASubtypeCanBe()
+    {
+        // A slot holds a subtype only when its argument can be what the subtype gives its base: a parameter the base
+        // names twice (Same<U> : Shelf<KeyValuePair<U, U>>, TwinOf<U> : Twin<U, U>) stands for one type in every
+        // place, and a fixed type (Fixed<U> : Shelf<KeyValuePair<int, U[]>>) must be that type. Arguments no
+        // subtype can be are not searched.
+        var code = @"
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+[NinoType]
+public abstract class Shelf<T> { public int Id; }
+
+[NinoType]
+public class Same<U> : Shelf<KeyValuePair<U, U>> { public U Value; }
+
+[NinoType]
+public class Fixed<U> : Shelf<KeyValuePair<int, U[]>> { public U[] Values; }
+
+[NinoType]
+public abstract class Twin<A, B> { public int Id; }
+
+[NinoType]
+public class TwinOf<U> : Twin<U, U> { public U Value; }
+
+[NinoType]
+public class Holder
+{
+    public Shelf<KeyValuePair<Vector<int>, Vector<int>>> {|#0:SameFits|};
+    public Shelf<KeyValuePair<int, Vector<int>[]>> {|#1:FixedFits|};
+    public Twin<Vector<int>, Vector<int>> {|#2:TwinFits|};
+    public Shelf<KeyValuePair<long, Vector<int>[]>> NeitherFits;
+    public Shelf<KeyValuePair<int, Vector<int>>> NotTheSame;
+    public Twin<int, Vector<int>> TwinNeverHolds;
+}
+";
+
+        const string Vector = "System.Numerics.Vector<int>";
+        await SetUpAnalyzerTest(code,
+            Nino029(0, "SameFits", "Holder",
+                "Shelf<System.Collections.Generic.KeyValuePair<System.Numerics.Vector<int>, System.Numerics.Vector<int>>>", Vector),
+            Nino029(1, "FixedFits", "Holder",
+                "Shelf<System.Collections.Generic.KeyValuePair<int, System.Numerics.Vector<int>[]>>", Vector),
+            Nino029(2, "TwinFits", "Holder", "Twin<System.Numerics.Vector<int>, System.Numerics.Vector<int>>", Vector))
+            .RunAsync();
+    }
+
+    [TestMethod]
     public void NINO029_AcrossAssemblies()
     {
         // A referenced class's private members are not in its symbols (a compilation imports only public and
