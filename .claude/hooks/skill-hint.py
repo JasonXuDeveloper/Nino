@@ -69,7 +69,7 @@ def matches(word, prompt):
     if not word.isascii():
         return word in prompt
     if re.fullmatch(r"[A-Za-z][A-Za-z0-9 \-]*", word):  # a word or phrase: whole words only
-        return re.search(r"(?<![A-Za-z0-9])" + re.escape(word.lower()) + r"(?![A-Za-z0-9])", prompt.lower()) is not None
+        return re.search(r"(?<![A-Za-z0-9_])" + re.escape(word.lower()) + r"(?![A-Za-z0-9_])", prompt.lower()) is not None
     return word.lower() in prompt.lower()  # a path, file name or symbol
 
 
