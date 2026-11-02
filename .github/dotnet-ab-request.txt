@@ -191,6 +191,10 @@
 # r105-bench rc.7: new main against the last release, v4.0.0-rc.7. 0af6bb5e = rc.7 + an empty Directory.Build.props and benchmarks/Directory.Packages.props (so the current benchmarks build against it); 20054c4a = ca00c13f + the benchmarks with NinoBenchLegacy on and CpuProbe/UntrustedTest left out (115 Nino cases rc.7 can run); floors from run 41364890698
 # done (run 41413072278): cpu='EPYC|Xeon|Neoverse' 0af6bb5e 20054c4a 5 *Test.Nino* # r105-bench rc.7 -> ca00c13f
 # r123-perf: r123/perf (affc106c: culture cache, TimeZoneInfo null rules inline, NinoLookup.Add inline, vector copies inlined into CopyOver64/CopyToNew) against main c170967c and against v4.0.0-rc.7 (0af6bb5e = rc.7 + build props; 4d1caf36 = affc106c + NinoBenchLegacy on), every Nino case
-cpu='EPYC|Xeon|Neoverse' c170967c affc106c 5 *Test.Nino* # r123-perf head vs main
-cpu='EPYC|Xeon|Neoverse' c170967c c170967c 5 *Test.Nino* # r123-perf floor on main
-cpu='EPYC|Xeon|Neoverse' 0af6bb5e 4d1caf36 5 *Test.Nino* # r123-perf rc.7 -> r123
+# done (run 41455371503): cpu='EPYC|Xeon|Neoverse' c170967c affc106c 5 *Test.Nino* # r123-perf head vs main
+# done (run 41455371503): cpu='EPYC|Xeon|Neoverse' c170967c c170967c 5 *Test.Nino* # r123-perf floor on main
+# done (run 41455371503): cpu='EPYC|Xeon|Neoverse' 0af6bb5e 4d1caf36 5 *Test.Nino* # r123-perf rc.7 -> r123
+# r123-perf round 2: the final r123/perf (14d54033: culture cache, TimeZoneInfo null rules inline, one call per block copy, Refill's hash-walk plan per new key, RefillStringPairs, same-string compare in ReadStringOver) against main c170967c (floor: run 41455371503 line 2) and against v4.0.0-rc.7 (0af6bb5e; 1a6354cc = 14d54033 + NinoBenchLegacy on), every Nino case; line 3 more rounds of the cases past rc.7 in round 1, MemoryPack's overwrite read as the null control
+cpu='EPYC|Xeon|Neoverse' c170967c 14d54033 5 *Test.Nino* # r123-perf final head vs main
+cpu='EPYC|Xeon|Neoverse' 0af6bb5e 1a6354cc 5 *Test.Nino* # r123-perf rc.7 -> final head
+cpu='EPYC|Xeon|Neoverse' 0af6bb5e 1a6354cc 12 *PooledTest.NinoDeserializePooled *ScatteredTest.NinoDeserializeScatteredItemsInto *BclTypesTest.NinoDeserializeLookup *PolymorphicTest.NinoDeserializePolymorphicClassArray *BclTypesTest.NinoDeserializeTimeZoneInfo *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.NinoDeserializeSimpleStructs *PooledTest.MemoryPackDeserializeOverwrite # r123-perf rc.7 confirm
