@@ -58,6 +58,34 @@ public class RefReuseTests
     }
 
     [TestMethod]
+    public void StringValuesMergeByKey()
+    {
+        // Raw keys and strings (their own merge loop): unchanged strings kept, changed ones replaced, missing keys
+        // removed, new ones added, in any order; data cut short is invalid.
+        var one = new string('o', 1) + "ne";
+        var target = new Dictionary<int, string> { [1] = one, [2] = "two", [3] = "three", [5] = "five" };
+        var data = NinoSerializer.Serialize(new Dictionary<int, string> { [5] = "five!", [1] = "one", [4] = null, [3] = "3" });
+        var dictionary = target;
+        NinoDeserializer.Deserialize(data, ref target);
+        Assert.AreSame(dictionary, target);
+        Assert.AreSame(one, target[1]);
+        CollectionAssert.AreEquivalent(new[] { 1, 3, 4, 5 }, new List<int>(target.Keys));
+        Assert.AreEqual("five!", target[5]);
+        Assert.AreEqual("3", target[3]);
+        Assert.IsNull(target[4]);
+
+        var same = new Dictionary<int, string> { [5] = "five!", [1] = "one", [4] = null, [3] = "3" };
+        NinoDeserializer.Deserialize(data, ref same);
+        CollectionAssert.AreEqual(new[] { 5, 1, 4, 3 }, new List<int>(same.Keys));
+        for (int cut = 1; cut < data.Length; cut++)
+        {
+            var existing = new Dictionary<int, string> { [1] = "one" };
+            Assert.ThrowsExactly<NinoDataException>(
+                () => NinoDeserializer.Deserialize(new System.ReadOnlySpan<byte>(data, 0, cut), ref existing), $"{cut}");
+        }
+    }
+
+    [TestMethod]
     public void RemovedDictionaryValuesAreRecycled()
     {
         var recycled = new List<ReuseItem>();

@@ -984,6 +984,59 @@ namespace Nino.Core
             return pos;
         }
 
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Merges <paramref name="count"/> pairs of a raw key and a string into an existing
+        /// <paramref name="dictionary"/> (NinoDictionary.Refill): each key into <paramref name="seen"/>, each value read
+        /// over the one the key maps to (kept when the data holds the same chars). Returns how many keys were already
+        /// there. <see cref="ReadStringPairs{TKey}(System.Collections.Generic.Dictionary{TKey, string}, int)"/> for a
+        /// dictionary read again.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal int RefillStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary, TKey[] seen,
+            int count)
+        {
+            ulong done = RefillStringPairs(dictionary, seen, ref Cur, Avail, count);
+            Skip((int)(done >> 32));
+            return (int)done;
+        }
+
+        // One loop with the data, the position and the end in registers, the value read inline with the compare its
+        // only call: through the general merge each value took the reader's copy in memory and two calls
+        // (ReadStringOver, then SameLatin1), and a pooled class with such a dictionary read in 1.11 to 1.20 times
+        // rc.7's time (dotnet-ab run 41413072278). Returns the bytes read (high half) and the keys matched (low half).
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ulong RefillStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary,
+            TKey[] seen, ref byte data, int end, int count)
+        {
+            int keySize = Unsafe.SizeOf<TKey>();
+            int pos = 0;
+            int matched = 0;
+            bool walk = Internal.HashTables.Plan<TKey, string>.Walks;
+            ref TKey slot = ref NinoUnsafe.GetArrayDataReference(seen);
+            for (int i = 0; i < count; i++)
+            {
+                if ((uint)(end - pos) < (uint)keySize)
+                    NinoThrow.EndOfData();
+                if (!NinoLayout<TKey>.CopiesAsIs)
+                    NinoChecks.Values<TKey>(ref Unsafe.Add(ref data, pos), 1, keySize);
+                TKey key = NinoUnsafe.Read<TKey>(ref Unsafe.Add(ref data, pos));
+                pos += keySize;
+                Unsafe.Add(ref slot, i) = key;
+                ref string value = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrAddDefault(
+                    dictionary, key, out bool exists);
+                if (exists)
+                    matched++;
+                else if (walk)
+                    Internal.HashTables.Walk(dictionary, key);
+                value = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, value, out int size);
+                pos += size;
+            }
+
+            return ((ulong)(uint)pos << 32) | (uint)matched;
+        }
+#endif
+
         /// <summary>
         /// Reads <paramref name="count"/> pairs of strings into <paramref name="dictionary"/>: <see cref="ReadStrings"/>
         /// for a <c>Dictionary&lt;string, string&gt;</c>.

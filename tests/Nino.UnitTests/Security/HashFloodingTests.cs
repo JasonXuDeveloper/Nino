@@ -100,6 +100,10 @@ public class HashFloodingTests
         var set = new HashSet<long>(new LongComparer()) { 5 };
         Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize(NinoSerializer.Serialize(Colliding(Max + 2).ToHashSet()), ref set));
+        // Raw keys and strings, merged by their own loop.
+        var strings = new Dictionary<long, string> { [5] = "5" };
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(
+            NinoSerializer.Serialize(Colliding(Max + 2).ToDictionary(k => k, k => "v")), ref strings));
         var holder = new FloodHolder { Map = new Dictionary<long, int> { [1] = 1 } };
         var flooded = NinoSerializer.Serialize(new FloodHolder { Map = Colliding(Max + 2).ToDictionary(k => k, k => 1) });
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(flooded, ref holder));

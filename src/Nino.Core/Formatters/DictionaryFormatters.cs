@@ -219,6 +219,13 @@ namespace Nino.Core
             try
             {
                 int matched = 0;
+#if NET8_0_OR_GREATER
+                if (RawFormatter.Is<TKey, TKeyFormatter>() && typeof(TValueFormatter) == typeof(StringFormatter))
+                    // Raw keys and strings: one loop with the state in registers (see Reader.ReadStringPairs).
+                    matched = reader.RefillStringPairs(Unsafe.As<Dictionary<TKey, string>>(dictionary), seen,
+                        length);
+                else
+#endif
                 for (int i = 0; i < length; i++)
                 {
                     TKey key = default;
