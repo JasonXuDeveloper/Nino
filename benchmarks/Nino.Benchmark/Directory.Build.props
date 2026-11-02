@@ -10,4 +10,8 @@
         <BaseIntermediateOutputPath>obj/v3/</BaseIntermediateOutputPath>
         <BaseOutputPath>bin/v3/</BaseOutputPath>
     </PropertyGroup>
+    <!-- A/B against v4.0.0-rc.7 only: both sides leave out what rc.7 cannot compile (dotnet-ab passes no property). -->
+    <PropertyGroup>
+        <NinoBenchLegacy>true</NinoBenchLegacy>
+    </PropertyGroup>
 </Project>
