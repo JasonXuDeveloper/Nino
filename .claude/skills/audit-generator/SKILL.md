@@ -64,7 +64,8 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 
 `benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
 the analyzer); compare base and head back to back, keep a change only if time and allocations both improve beyond
-the error. A new stage gets input in the incremental tests, or its caching assertion checks nothing.
+the error. `--generics` adds generic slots, subtypes and closed members, which make the analyzer run
+`WrittenParameters` and its subtype scan; pass `--generator <base Nino.Generator.dll>` for the base side. A new stage gets input in the incremental tests, or its caching assertion checks nothing.
 
 ## Look for
 

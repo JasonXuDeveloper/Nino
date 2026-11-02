@@ -49,17 +49,40 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   returns through every step, so a type met again is null. Forgetting nulls found under a cut made a ring of
   collection classes (`C0 : List<C1>` ... `Cn : List<C0>`) exponential, 18 classes two minutes in the IDE
   (`NINO029_TypesHoldingEachOtherAreSearchedOnce`, round 104).
-- Decide what a closed generic `[NinoType]` writes from its definition, by type parameter, never by building its
-  closed member types and never by "the parameter appears in a member type": `WrittenParameters` computes, per
-  definition, which parameters reach a written position (a serialized member from `MemberCache`, not one a
-  `[NinoMemberFormatter]` writes; a class's own `IEnumerable<T>` elements; a generic subtype of a slot) as a least
-  fixpoint over every definition reachable from it, and NINO029 and NINO007 search only the closed type's arguments
-  in those positions. Closed member types grow without end for a type holding itself over a bigger argument
-  (`Expanding<T>` holding `Expanding<List<T>>`: a stack overflow), and "T is mentioned" reported
-  `Outer<Vector<int>>` of `Outer<T> { Tag<T> Inner; }` and `Tag<Box<Action>>` though nothing writes them, and missed
-  `Bag<T> : List<T>` and `Shelf<T>` with a `ListShelf<T>` subtype (round 106,
-  `NINO029_NotForTypeArgumentsNeverWritten`, `NINO029_TypeArgumentsWritten`,
-  `NINO007_TypeArgumentsTheFormatterWrites`; a ring of 40 generics over growing arguments decides at once).
+- Decide what a closed generic `[NinoType]` writes from its definition, never by building its closed member types
+  and never by "the parameter appears in a member type": `WrittenParameters` computes, per definition, what its
+  formatter writes of each type argument (a serialized member from `MemberCache`, not one a `[NinoMemberFormatter]`
+  writes; a class's own `IEnumerable<T>` elements; the generic subtypes of a slot) as a least fixpoint over every
+  definition reachable from it, and NINO029 and NINO007 search only the values it finds (`ValuesOf`). Closed member
+  types grow without end for a type holding itself over a bigger argument (`Expanding<T>` holding
+  `Expanding<List<T>>`: a stack overflow), and "T is mentioned" reported `Outer<Vector<int>>` of `Outer<T> { Tag<T>
+  Inner; }` though nothing writes it, and missed `Bag<T> : List<T>` (round 106, `NINO029_NotForTypeArgumentsNeverWritten`,
+  `NINO029_TypeArgumentsWritten`, `NINO007_TypeArgumentsTheFormatterWrites`; a ring of 40 generics decides at once).
+- **What a definition writes of an argument is a set of patterns, not a bit**: a subtype `S<U> : Shelf<Tag<U>>` that
+  writes `U` writes the `X` of a `Shelf<Tag<X>>`, which `Tag<T>`'s own rules never write; a bit per parameter missed
+  it (round 119). Its pattern is the base's argument with the subtype's pattern in place of `U` (`Tag<Whole>`), passed
+  on through bases between them, interfaces, types nested in generics and generics that pass the argument to the slot
+  (`NINO029_PartsOfArgumentsSubtypesWrite`, `NINO007_PartsOfArgumentsSubtypesWrite`); an argument of another shape, or
+  a part no subtype writes, is not searched (`NINO029_NotForPartsSubtypesNeverWrite`).
+- **Bound the patterns and widen, never drop**: a subtype holding its base over its own parameter matches
+  `Tag<Tag<...>>` at every depth, so a pattern deeper than `MaxDepth`, or more than `MaxPatterns` for one argument,
+  becomes `Inside` (every type inside the argument counts). Widening may report what nothing writes; dropping would
+  miss a vector, which NINO029 must never do.
+- **A referenced class hides its private members**: a compilation imports only the public and protected members of a
+  referenced class (`MetadataImportOptions.Public`, the compiler's default), so `Hidden<T> { [NinoMember] private T
+  _v; }` from a package looked like it wrote no `T`. Read the members its symbols lack from its published
+  `[assembly: NinoTypeLayout]` (every parameter their type names counts, as `Inside`); a referenced class without a
+  layout counts all its parameters (`NINO029_AcrossAssemblies`). Structs import their private fields.
+- **Search subtypes wherever the compilation can see them**: this compilation and every referenced assembly that is the
+  base's or references it (`TypeFacts.GenericSubtypesOf`), nested in generic types too, indexed by ancestor once per
+  compilation (a pass over every generic definition per slot was quadratic) and, for referenced assemblies, cached
+  across edits. A subtype in an assembly
+  that references this one, and a subtype's parameter its base does not name (`S<U, W> : Shelf<U>` writing `W`), are
+  invisible from the slot: documented, not reported.
+- **A generic that is not a `[NinoType]` writes every type argument**: Nino.Core's formatters (collections,
+  dictionaries, `Nullable`, tuples, `KeyValuePair`) write them all, and `NinoReflection.HostSizedVectorIn` refuses any
+  other generic with a `Vector<T>` in an argument at run time, so the analyzer mirrors it; narrowing it would need the
+  runtime check narrowed in the same change.
 - An attribute that cannot do what it says is reported, not left to a rule whose message would be wrong:
   `[NinoMember]` on a static, constant, indexer, get-only computed property or backing field was NINO010 ("collected
   already") with autoCollect and nothing without it, while nothing was written; NINO028 now reports it alone, with
