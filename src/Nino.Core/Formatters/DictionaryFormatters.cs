@@ -216,8 +216,6 @@ namespace Nino.Core
             }
 
             var seen = System.Buffers.ArrayPool<TKey>.Shared.Rent(length);
-            // A new key's bucket walked after the dictionary adds it (HashTables.Plan, read once).
-            bool walk = HashTables.Plan<TKey, TValue>.Walks;
             try
             {
                 int matched = 0;
@@ -234,8 +232,8 @@ namespace Nino.Core
                         dictionary, key, out bool exists);
                     if (exists)
                         matched++;
-                    else if (walk)
-                        HashTables.Walk(dictionary, key);
+                    else
+                        Walked(dictionary, key);
                     default(TValueFormatter).Deserialize(ref slot, ref reader);
 #else
                     bool exists = dictionary.TryGetValue(key, out TValue item);
@@ -243,8 +241,8 @@ namespace Nino.Core
                         matched++;
                     default(TValueFormatter).Deserialize(ref item, ref reader);
                     dictionary[key] = item;
-                    if (!exists && walk)
-                        HashTables.Walk(dictionary, key);
+                    if (!exists)
+                        Walked(dictionary, key);
 #endif
                 }
 
@@ -257,6 +255,16 @@ namespace Nino.Core
             {
                 NinoCollections.ReturnRented(seen);
             }
+        }
+
+        // A key Refill added (not in the dictionary before): its bucket walked (HashTables.Plan). Out of line, with the
+        // plan's lookup (a run-time lookup in shared code): read once per Refill, it cost every read into an existing
+        // dictionary, where keys are rarely new.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void Walked(Dictionary<TKey, TValue> dictionary, TKey key)
+        {
+            if (HashTables.Plan<TKey, TValue>.Walks)
+                HashTables.Walk(dictionary, key);
         }
 
         /// <summary>
