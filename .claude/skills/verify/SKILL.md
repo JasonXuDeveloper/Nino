@@ -48,7 +48,8 @@ tools/agents.sh --check                     # indexes, CLAUDE.md = @AGENTS.md, f
 npx -y skills add . --list                  # lists only `nino-serialization`: every development skill is internal
 ```
 
-Docs site change: in the nino.docs clone, `bun run check && bun run build`.
+Docs site change: in the nino.docs clone, `bun run check && bun run build`, and `bun run check:csharp` (with
+`NINO_DIR` at this checkout) when a page's C# changed or Nino's public API did: it compiles every v4 C# fence.
 
 ## Landing
 
