@@ -1,6 +1,6 @@
 ---
 name: verify
-description: "The full Nino gate before anything reaches main or the test branch - build, the unit test matrix, runtime internals, AOT, fuzz, conformance, Go/Rust/TypeScript checks, codegen, actionlint, agent instructions, the docs site - then landing by fast-forward and how the owner cuts a release. Use before any push to main or the test branch, after landing other branches, and before a release. Triggers: push, land, merge to main, cherry-pick, release, rc, \"is it ready\", CI red, 合并, 合入, 推送, 发版, 发布, 能不能合."
+description: "The full Nino gate before anything reaches main or the test branch - build, the unit test matrix, runtime internals, AOT, fuzz, conformance, Go/Rust/TypeScript checks, codegen, actionlint, agent instructions, the docs site - then landing by fast-forward and how the owner cuts a release. Use before any push to main or the test branch, after landing other branches, and before a release. Triggers: push, landing, land on main, merge to main, fast-forward, cherry-pick, release, \"is it ready\", all checks, 合入, 合进, 合到 main, 分支能不能合, 推送, 推到, 发版, 发布, 全部检查."
 metadata:
   internal: true
 ---

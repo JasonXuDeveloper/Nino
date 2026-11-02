@@ -1,6 +1,6 @@
 ---
 name: audit-redundancy
-description: "Find and remove redundancy everywhere in Nino - duplicated or dead code, unused files, generator stages or emitters that do the same work, analyzer rules that overlap, generated code repeated per type or per file, two APIs or options for one job, skills that state the same rule twice, docs that repeat each other, CI steps run twice - and merge each into one owner. Use in every audit round, after large merges or a burst of feature work, and whenever something looks familiar (\"didn't we already have this?\"). Triggers: redundant, duplicate, duplicated, dead code, unused, copy-paste, two ways, overlap, merge, consolidate, DRY, 冗余, 重复, 冗余代码, 冗余文件, 没用的, 合并, 去重."
+description: "Find and remove redundancy everywhere in Nino - duplicated or dead code, unused files, generator stages or emitters that do the same work, analyzer rules that overlap, generated code repeated per type or per file, two APIs or options for one job, skills that state the same rule twice, docs that repeat each other, CI steps run twice - and merge each into one owner. Use in every audit round, after large merges or a burst of feature work, and whenever something looks familiar (\"didn't we already have this?\"). Triggers: redundant, redundancy, duplicate, duplicated, dead code, unused, copy-paste, two ways, already have, overlap, consolidate, 冗余, 去重, 两遍, 两份, 两套, 重复实现, 干一件事, 合成一个, 没用的, 死代码."
 metadata:
   internal: true
 ---

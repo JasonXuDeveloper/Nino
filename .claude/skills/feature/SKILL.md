@@ -1,6 +1,6 @@
 ---
 name: feature
-description: "The definition of done for a Nino change - runtime, generator, diagnostics and code fixes, wire format, runtimes in other languages, tests, security, machine code, benchmarks, docs and commits. Use when building or reviewing any change before it lands; a fresh session working on a new request follows it. Triggers: any edit under src/, runtimes/ or conformance/, a new attribute, API, option, built-in type or NINO diagnostic, a bug fix, \"add\", \"implement\", \"support\", \"fix\", 加功能, 实现, 支持, 修复, 改一下."
+description: "The definition of done for a Nino change - runtime, generator, diagnostics and code fixes, wire format, runtimes in other languages, tests, security, machine code, benchmarks, docs and commits. Use when building, fixing or reviewing any change before it lands; a fresh session working on a new request follows it. Triggers: add, implement, support, bug fix, new attribute, new option, new API, new built-in type, regression test, definition of done, 加功能, 加个, 实现, 支持, 修复, 改一下, 做完了吗."
 metadata:
   internal: true
 ---

@@ -1,6 +1,6 @@
 ---
 name: audit-perf
-description: "Find the next performance win in Nino (.NET, Unity/Burst, Go, Rust, TypeScript) - where wins come from, gaps against MemoryPack, MessagePack, protobuf-net and each language's competitors, and the plan to prove each (measuring is the benchmark skill, techniques the optimize skill). Use for a performance round, when a case is slower than a competitor or than the previous main, or when asked to optimize further. Triggers: faster, slower, performance round, gap, MemoryPack, MessagePack, protobuf-net, competitor, regression, allocation, beat, lead every case, 性能, 更快, 反超, 领先, 差距, 还能优化吗."
+description: "Find the next performance win in Nino (.NET, Unity/Burst, Go, Rust, TypeScript) - gaps against MemoryPack, MessagePack, protobuf-net and each language's competitors per CPU, work that is not needed, SIMD beyond strings, and the plan to prove each; measuring is benchmark, the techniques and the diagnosis of a case that got slower than main are optimize and optimize-runtimes. Use for a performance round, when Nino trails a competitor in a case, or when asked to optimize further. Triggers: performance round, gap, MemoryPack, MessagePack, protobuf-net, rmp-serde, msgpackr, competitor, trails, beat, lead every case, 性能, 反超, 领先, 差距, 输给, 还能优化吗, 还能更快吗."
 metadata:
   internal: true
 ---

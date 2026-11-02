@@ -1,6 +1,6 @@
 ---
 name: wire-format
-description: "Everything a change to Nino's bytes must update - the spec (docs/spec/wire-format.md), the conformance corpus and its version, the Go, Rust and TypeScript runtimes, nino-gen's templates and the committed generated code, the Unity Burst kernels, every golden-bytes test, byte examples in the docs and the Wire-Format trailer. Use when a change alters what Nino writes or accepts for any type, or when a golden-bytes or conformance test fails. Triggers: wire format, bytes change, header, encoding, layout, golden bytes, GoldenBytesTests, BurstKernelTests, conformance corpus, corpusVersion, docs/spec, Wire-Format trailer, 线格式, 字节格式, 编码, 兼容性."
+description: "Everything a change to Nino's bytes must update - the spec (docs/spec/wire-format.md), the conformance corpus and its version, the Go, Rust and TypeScript runtimes, nino-gen's templates and the committed generated code, the Unity Burst kernels, every golden-bytes test, byte examples in the docs and the Wire-Format trailer. Use when a change alters what Nino writes or accepts for any type, or when a golden-bytes or conformance test fails. Triggers: wire format, bytes change, encoding, golden bytes, GoldenBytesTests, BurstKernelTests, conformance, corpus, corpusVersion, docs/spec, Wire-Format trailer, 线格式, 字节格式, 编码, 兼容性."
 metadata:
   internal: true
 ---

@@ -1,6 +1,6 @@
 ---
 name: audit-core
-description: "Audit Nino's runtime libraries (src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes) for correctness and design - redundant mechanisms, duplicated logic, coupling, API shapes that differ for one act, lifecycle bugs (pooling, reuse, recycling, unloading), thread safety of registries and caches, unbounded memory, platform fallbacks - and fix what is proven. Use for a core review round, before a release, or when a bug shows up in serialization, deserialization into existing instances, pooling or registration. Triggers: src/Nino.Core, NinoSerializer, NinoDeserializer, Reader, Writer, NinoSettings, formatters, registries, pools, NinoPooled, reuse, thread safety, races, leaks, 核心, 运行时, 冗余, 线程安全, 正确性."
+description: "Audit Nino's runtime libraries (src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes) for correctness and design - redundant mechanisms, duplicated logic, coupling, API shapes that differ for one act, lifecycle bugs (pooling, reuse, recycling, unloading), thread safety of registries and caches, unbounded memory, platform fallbacks - and fix what is proven. Use for a core review round, before a release, or when a bug shows up in serialization, deserialization into existing instances, pooling or registration. Triggers: core, src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes, NinoSerializer, NinoDeserializer, NinoSettings, registry, NinoPool, NinoPooled, pooling, thread safety, race, leak, unload, 核心, 竞态, 线程安全, 正确性, 复用."
 metadata:
   internal: true
 ---

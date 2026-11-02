@@ -1,6 +1,6 @@
 ---
 name: audit-security
-description: "Audit and extend Nino's defenses against hostile input in every runtime (.NET, Go, Rust, TypeScript and the code nino-gen writes) - NinoDataException through NinoThrow, lengths checked before allocating, depth limits, canonical bytes only, hash-flooding limits, the Untrusted settings - and run the fuzzers, hostile-input tests and the malicious corpus. Use for any change to a read path, a new type or collection, a new setting, or a security review. Triggers: NinoDataException, NinoThrow, NinoLimits, TryReadLength, MaxDepth, MaxHashCollisions, Untrusted, EnterStruct, HashTables, tests/Nino.Fuzz, malicious corpus, StrictReadTests, crash, OOM, DoS, untrusted data, 安全, 恶意数据, 不可信输入, 模糊测试."
+description: "Audit and extend Nino's defenses against hostile input in every runtime (.NET, Go, Rust, TypeScript and the code nino-gen writes) - NinoDataException through NinoThrow, lengths checked before allocating, depth limits, canonical bytes only, hash-flooding limits, the Untrusted settings - and run the fuzzers, hostile-input tests and the malicious corpus. Use for any change to a read path, a new type or collection, a new setting, or a security review. Triggers: NinoDataException, NinoThrow, NinoLimits, TryReadLength, MaxDepth, MaxHashCollisions, Untrusted, EnterStruct, HashTables, tests/Nino.Fuzz, fuzz, malicious, hostile input, hash flooding, OOM, DoS, untrusted data, 安全性, 安全审查, 恶意, 不可信输入, 模糊测试, 哈希碰撞."
 metadata:
   internal: true
 ---

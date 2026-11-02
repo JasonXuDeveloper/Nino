@@ -1,6 +1,6 @@
 ---
 name: audit-layout
-description: "Audit and fix Nino's directory structure - where each project, script, test, fixture and doc lives, folders that mix concerns or hold one file, dead or one-off files, names of folders and files, and the agent instruction files that describe the tree (every AGENTS.md file map, the root index, CLAUDE.md imports, the skills links) - moving files with every reference updated. Use when adding a project, folder or script, when the tree feels messy, after a large merge, or when tools/agents.sh --check fails. Triggers: directory structure, folder, move, rename a file, file map, AGENTS.md, CLAUDE.md, tools/agents.sh, layout, misplaced file, 目录结构, 整理目录, 文件放哪, 文件清单."
+description: "Audit and fix Nino's directory structure - where each project, script, test, fixture and doc lives, folders that mix concerns or hold one file, dead or one-off files, names of folders and files, and the agent instruction files that describe the tree (every AGENTS.md file map, the root index, CLAUDE.md imports, the skills links) - moving files with every reference updated. Use when adding a project, folder or script, when the tree feels messy, after a large merge, or when tools/agents.sh --check fails. Triggers: directory structure, folder, move, rename a file, file map, AGENTS.md, CLAUDE.md, tools/agents.sh, layout, misplaced file, 目录结构, 整理目录, 目录太乱, 整理一下目录, 文件放哪, 文件清单."
 metadata:
   internal: true
 ---

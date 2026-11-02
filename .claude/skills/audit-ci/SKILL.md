@@ -1,6 +1,6 @@
 ---
 name: audit-ci
-description: "Audit and change Nino's GitHub Actions (ci.yml, runtimes.yml, unity.yml, fuzz.yml, codeql.yml, release.yml, report.yml, ab-bench.yml and the test branch's A/B workflows) - as fast and parallel as possible, green on main and the test branch, every action pinned to a SHA, path filters that run what a change touches, one Unity license seat, secrets only through Trusted Publishing or repository secrets. Use when changing a workflow, when CI is slow or red, or before a release. Triggers: .github/workflows, .github/actions, actionlint, CI, runner, matrix, shards, cache, path filter, failed run, slow CI, Unity license, dependabot, 工作流, 持续集成, CI 失败, CI 慢, 并行."
+description: "Audit and change Nino's GitHub Actions (ci.yml, runtimes.yml, unity.yml, fuzz.yml, codeql.yml, release.yml, report.yml, agents.yml, ab-bench.yml and the test branch's A/B workflows) - as fast and parallel as possible, green on main and the test branch, every action pinned to a SHA, path filters that run what a change touches, one Unity license seat, secrets only through Trusted Publishing or repository secrets. Use when changing a workflow, when CI is slow or red, or before a release. Triggers: .github/workflows, .github/actions, actionlint, CI, workflow, matrix, shards, path filter, failed run, slow CI, Unity license, unity.yml, fuzz.yml, ci.yml, dependabot, 工作流, 持续集成, CI 红了, CI 失败, CI 慢, 并行."
 metadata:
   internal: true
 ---
