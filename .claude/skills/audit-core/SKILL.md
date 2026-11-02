@@ -1,6 +1,6 @@
 ---
 name: audit-core
-description: "Audit Nino's runtime libraries (src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes) for correctness and design - redundant mechanisms, duplicated logic, coupling, API shapes that differ for one act, lifecycle bugs (pooling, reuse, recycling, unloading), thread safety of registries and caches, unbounded memory, platform fallbacks - and fix what is proven. Use for a core review round, before a release, or when a bug shows up in serialization, deserialization into existing instances, pooling or registration. Triggers: src/Nino.Core, NinoSerializer, NinoDeserializer, Reader, Writer, NinoSettings, formatters, registries, pools, NinoPooled, reuse, thread safety, races, leaks, 核心, 运行时, 冗余, 线程安全, 正确性."
+description: "Audit Nino's runtime libraries (src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes) for correctness and design - redundant mechanisms, duplicated logic, coupling, API shapes that differ for one act, lifecycle bugs (pooling, reuse, recycling, unloading), thread safety of registries and caches, unbounded memory, platform fallbacks - and fix what is proven. Use for a core review round, before a release, or when a bug shows up in serialization, deserialization into existing instances, pooling or registration. Triggers: core, src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes, NinoSerializer, NinoDeserializer, NinoSettings, registry, NinoPool, NinoPooled, pooling, thread safety, race, leak, unload, 核心, 竞态, 线程安全, 正确性, 复用."
 metadata:
   internal: true
 ---
@@ -14,9 +14,10 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
 
 - **Redundancy**: two mechanisms for one job (two registries, two ways to resolve a formatter, two buffer
   abstractions); public overloads that duplicate each other; options nobody needs.
-- **The code standard** (`audit-code`: DRY, decoupled, clear), here in its Nino.Core forms: the same loop or
-  bookkeeping per collection kind, per TFM or per formatter family; a generic method with a body of its own per T
-  (one core with thin typed wrappers; families from `tools/CodeGen`).
+- **The code standard** (`audit-code`: DRY, decoupled, clear) applies to these files, here in its Nino.Core forms:
+  the same loop or bookkeeping per collection kind, per TFM or per formatter family; a generic method with a body of
+  its own per T (one core with thin typed wrappers; families from `tools/CodeGen`). Redundancy in them (duplicated
+  logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is `audit-redundancy`.
 - **Not uniform**: features whose APIs have different shapes for the same act (a `TryX` here, a nullable there; a
   span overload for one direction and not the other), or internals that solve one problem two ways.
 - **One contract per fact, kept apart where the JIT needs it** (round 101, owner-approved): "the size is known
@@ -45,10 +46,6 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
   constraints (`platforms`); trim and AOT annotations on every reflection path.
 - **Unbounded memory**: pools, caches and registries with a cap or a release.
 - **Dead code**: members, overloads and helpers nothing uses (`audit-code` owns the cross-project sweep).
-
-- The code standard (`audit-code`: DRY, decoupled, clear) applies to these files, and redundancy in them
-  (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is
-  `audit-redundancy`.
 
 ## Fixing
 

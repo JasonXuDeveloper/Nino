@@ -641,8 +641,9 @@ internal static class ModelBuilder
     /// <summary>
     /// A type argument Nino has no formatter for, of a closed generic <c>[NinoType]</c> anywhere in
     /// <paramref name="type"/> (<c>Box&lt;Action&gt;</c>, <c>List&lt;Box&lt;Action&gt;&gt;</c>, <c>Box&lt;Action&gt;[]</c>)
-    /// whose serialized members use that type parameter, with that generic; null when there is none. A type
-    /// parameter no member uses (<c>Tag&lt;T&gt;</c>) costs nothing: its formatter is never called.
+    /// whose formatter writes it (<see cref="WrittenParameters"/>), with that generic; null when there is none. An
+    /// argument the formatter never writes (<c>Tag&lt;Action&gt;</c> of <c>Tag&lt;T&gt; { int Id; }</c>, and whatever
+    /// is inside it: <c>Tag&lt;Box&lt;Action&gt;&gt;</c>) costs nothing: its formatter is never called.
     /// </summary>
     private static (ITypeSymbol Argument, INamedTypeSymbol Generic)? ArgumentWithoutFormatter(ITypeSymbol type,
         TypeFacts facts)
@@ -653,17 +654,18 @@ internal static class ModelBuilder
                 return ArgumentWithoutFormatter(array.ElementType, facts);
             case INamedTypeSymbol named:
                 var arguments = AllTypeArguments(named);
-                if (arguments.Count != 0 && named.OriginalDefinition.GetNinoTypeOptions() is { } options)
+                if (arguments.Count == 0)
+                    return null;
+                if (named.OriginalDefinition.GetNinoTypeOptions() != null)
                 {
-                    var definition = named.OriginalDefinition;
-                    var parameters = AllTypeParameters(definition);
-                    var members = facts.Members.Of(definition, options);
-                    for (int i = 0; i < arguments.Count; i++)
+                    var written = facts.WrittenParameters.ArgumentsOf(named).ToList();
+                    foreach (var argument in written)
                     {
-                        if (facts.Resolver.Resolve(arguments[i], false) == null &&
-                            members.Any(m => MemberCollector.MemberType(m) is { } t && Mentions(t, parameters[i])))
-                            return (arguments[i], named);
+                        if (facts.Resolver.Resolve(argument, false) == null)
+                            return (argument, named);
                     }
+
+                    arguments = written;
                 }
 
                 foreach (var argument in arguments)

@@ -1,6 +1,6 @@
 ---
 name: audit-runtimes
-description: "Audit Nino's runtimes outside .NET (runtimes/go, runtimes/rust, runtimes/typescript) and nino-gen (src/Nino.Codegen), which writes code for them - safety on hostile input, speed against each language's competitors, SIMD beyond strings, allocation, idiomatic API, parity with .NET's bytes and limits, and the templates against the hand-written samples. Use when changing a runtime or a template, when a runtime is slower than a competitor or than the previous main, or for a runtimes review. Triggers: runtimes/go, runtimes/rust, runtimes/typescript, nino.ts, src/Nino.Codegen, nino-gen, Templates/*.sbn, NINOGEN, cargo, go test, npm test, wasm, benchstat, criterion, Go 运行时, Rust 运行时, TS 运行时, 代码生成."
+description: "Audit Nino's runtimes outside .NET (runtimes/go, runtimes/rust, runtimes/typescript) and nino-gen (src/Nino.Codegen), which writes code for them - safety on hostile input, speed against each language's competitors, SIMD beyond strings, allocation, idiomatic API, parity with .NET's bytes and limits, and the templates against the hand-written samples. Use when changing a runtime or a template, when a runtime is slower than a competitor or than the previous main, or for a runtimes review. Triggers: Go runtime, Rust runtime, TypeScript runtime, TS runtime, runtimes/go, runtimes/rust, runtimes/typescript, nino.ts, src/Nino.Codegen, nino-gen, Templates/*.sbn, NINOGEN, cargo, go test, npm test, wasm, benchstat, criterion, Go 运行时, Rust 运行时, TS 运行时, 代码生成."
 metadata:
   internal: true
 ---
@@ -66,7 +66,7 @@ nothing.
 - SIMD beyond strings where it measures faster (primitive blocks, bool validation, fixed-size records, transcoding),
   with the portable path kept and tested (Go `purego`, Rust without the features, TypeScript without WebAssembly).
 - Hot paths: one bounds check per run of fixed-size members and per loop (the idioms per language are in
-  `optimize-runtimes`, "Bounds checks"), no reflection or boxing outside polymorphic slots, rare
+  `optimize-runtimes`, references/blocks.md), no reflection or boxing outside polymorphic slots, rare
   paths out of line (`//go:noinline`, `#[inline(never)]`), writing a value free of allocations.
 
 ## Templates (nino-gen)

@@ -1,6 +1,6 @@
 ---
 name: verify
-description: "The full Nino gate before anything reaches main or the test branch - build, the unit test matrix, runtime internals, AOT, fuzz, conformance, Go/Rust/TypeScript checks, codegen, actionlint, agent instructions, the docs site - then landing by fast-forward and how the owner cuts a release. Use before any push to main or the test branch, after landing other branches, and before a release. Triggers: push, land, merge to main, cherry-pick, release, rc, \"is it ready\", CI red, 合并, 合入, 推送, 发版, 发布, 能不能合."
+description: "The full Nino gate before anything reaches main or the test branch - build, the unit test matrix, runtime internals, AOT, fuzz, conformance, Go/Rust/TypeScript checks, codegen, actionlint, agent instructions, the docs site - then landing by fast-forward and how the owner cuts a release. Use before any push to main or the test branch, after landing other branches, and before a release. Triggers: push, landing, land on main, merge to main, fast-forward, cherry-pick, release, \"is it ready\", all checks, 合入, 合进, 合到 main, 分支能不能合, 推送, 推到, 发版, 发布, 全部检查."
 metadata:
   internal: true
 ---
@@ -45,10 +45,11 @@ with `NINO_UPDATE_GENERATED=1`).
 ```bash
 actionlint                                  # with .github/actionlint.yaml, after any workflow change
 tools/agents.sh --check                     # indexes, CLAUDE.md = @AGENTS.md, file maps, skill metadata
-npx -y skills add . --list                  # lists only `nino`: every development skill is internal
+npx -y skills add . --list                  # lists only `nino-serialization`: every development skill is internal
 ```
 
-Docs site change: in the nino.docs clone, `bun run check && bun run build`.
+Docs site change: in the nino.docs clone, `bun run check && bun run build`, and `bun run check:csharp` (with
+`NINO_DIR` at this checkout) when a page's C# changed or Nino's public API did: it compiles every v4 C# fence.
 
 ## Landing
 
@@ -58,7 +59,8 @@ Docs site change: in the nino.docs clone, `bun run check && bun run build`.
   passes locally with an untracked new file (push 3ec8ee8f went red).
 - Cherry-pick or merge workers' branches onto `origin/main`, drop session lines from their messages, add the trailers
   a user-facing change needs; then fast-forward `main` (AGENTS.md, Rules). The test branch takes merges only.
-- Watch the runs of the pushed commit to the end, and fix a red one at once.
+- Watch the runs of the pushed commit to the end, and fix a red one at once (`audit-ci` when the workflow itself is
+  at fault).
 - After landing a user-facing change, the nino.docs changelog gets its entry (`audit-docs`).
 
 ## Releases (the owner's)

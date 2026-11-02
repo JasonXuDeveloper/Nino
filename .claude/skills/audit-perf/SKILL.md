@@ -1,6 +1,6 @@
 ---
 name: audit-perf
-description: "Find the next performance win in Nino (.NET, Unity/Burst, Go, Rust, TypeScript) - where wins come from, gaps against MemoryPack, MessagePack, protobuf-net and each language's competitors, and the plan to prove each (measuring is the benchmark skill, techniques the optimize skill). Use for a performance round, when a case is slower than a competitor or than the previous main, or when asked to optimize further. Triggers: faster, slower, performance round, gap, MemoryPack, MessagePack, protobuf-net, competitor, regression, allocation, beat, lead every case, 性能, 更快, 反超, 领先, 差距, 还能优化吗."
+description: "Find the next performance win in Nino (.NET, Unity/Burst, Go, Rust, TypeScript) - gaps against MemoryPack, MessagePack, protobuf-net and each language's competitors per CPU, work that is not needed, SIMD beyond strings, and the plan to prove each; measuring is benchmark, the techniques and the diagnosis of a case that got slower than main are optimize and optimize-runtimes. Use for a performance round, when Nino trails a competitor in a case, or when asked to optimize further. Triggers: performance round, gap, MemoryPack, MessagePack, protobuf-net, rmp-serde, msgpackr, competitor, trails, beat, lead every case, 性能, 反超, 领先, 差距, 输给, 还能优化吗, 还能更快吗."
 metadata:
   internal: true
 ---
@@ -18,7 +18,9 @@ owns the search; measuring is `benchmark`, the code-level techniques are `optimi
    can express the case) on x64 and Arm64; for Go, Rust and TypeScript, the competitors in each `bench` module. List
    them per CPU from the latest Performance Report and the runtimes' reports.
 2. **Regressions against the previous main** (a release, or the commit before a wire-format change): nothing gets
-   slower than main beyond the floor, and a change that should help must beat it.
+   slower than main beyond the floor, and a change that should help must beat it. Diagnosing one case that got slower
+   is `optimize` (.NET, Unity: compare the listings first) or `optimize-runtimes`; this skill collects them for the
+   round's list.
 3. **Work that is not needed**: a length checked twice, a copy where a span would do, a per-element call where a block
    copy or a vector loop would do, a check that could be a `static readonly` field, a generic lookup on a hot path.
 4. **SIMD beyond strings**: blocks of primitives, bools (validation), fixed-size structs, transcoding, hash table

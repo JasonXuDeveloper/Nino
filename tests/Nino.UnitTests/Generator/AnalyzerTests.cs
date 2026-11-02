@@ -993,6 +993,79 @@ public class Holder
     }
 
     [TestMethod]
+    [Timeout(60000)]
+    public async Task NINO007_TypeArgumentsTheFormatterWrites()
+    {
+        // Only a type argument the closed type's formatter writes counts, decided by substitution through the
+        // serialized members: not one used only by a [NinoIgnore] member, a method or a nested generic that never
+        // writes it (Tag<T>), nor anything inside such an argument (Tag<Box<Action>>), nor one a type holding itself
+        // over a bigger argument never writes (Expanding<T>). One written through a nested generic, a dictionary, a
+        // base type, a subtype of a slot or a growing self-reference is reported.
+        var code = @"
+using System;
+using System.Collections.Generic;
+using Nino.Core;
+
+[NinoType]
+public class Box<T> { public T Value; }
+
+[NinoType]
+public class Tag<T> { public int Id; [NinoIgnore] public T Scratch; public T Make() => default; }
+
+[NinoType]
+public class Outer<T> { public Tag<T> Inner; }
+
+[NinoType]
+public class Expanding<T> { public int Id; public Expanding<List<T>> Next; }
+
+[NinoType]
+public class Growing<T> { public T Value; public Growing<List<T>> Next; }
+
+[NinoType]
+public class Nested<T> { public Box<T> Inner; }
+
+[NinoType]
+public class Mapped<T> { public Dictionary<string, Box<T>> Map; }
+
+[NinoType]
+public class TagBase<T> { public Tag<T> Inner; }
+
+[NinoType]
+public class FromTagBase<T> : TagBase<T> { public int Id; }
+
+[NinoType]
+public abstract class Shelf<T> { public int Id; }
+
+[NinoType]
+public class ListShelf<T> : Shelf<T> { public List<T> Items; }
+
+[NinoType]
+public class Holder
+{
+    public Outer<Action> NestedUnwritten;
+    public Tag<Box<Action>> InsideUnwritten;
+    public Expanding<Action> NeverWritten;
+    public FromTagBase<Action> BaseUnwritten;
+    public Nested<Action> {|#0:NestedWritten|};
+    public Mapped<Action> {|#1:InDictionary|};
+    public Growing<Action> {|#2:GrowingWritten|};
+    public Shelf<Action> {|#3:BySubtype|};
+}
+";
+
+        const string Throws = "writing a value of it throws";
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO007").WithLocation(0).WithArguments("NestedWritten", "System.Action", "Holder",
+                ", a type argument of 'Nested<System.Action>',", Throws),
+            Verify.Diagnostic("NINO007").WithLocation(1).WithArguments("InDictionary", "System.Action", "Holder",
+                ", a type argument of 'Mapped<System.Action>',", Throws),
+            Verify.Diagnostic("NINO007").WithLocation(2).WithArguments("GrowingWritten", "System.Action", "Holder",
+                ", a type argument of 'Growing<System.Action>',", Throws),
+            Verify.Diagnostic("NINO007").WithLocation(3).WithArguments("BySubtype", "System.Action", "Holder",
+                ", a type argument of 'Shelf<System.Action>',", Throws)).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO007_PropertiesAndInheritedMembers()
     {
         var code = @"
@@ -1858,6 +1931,137 @@ public class Custom
 ";
 
         await SetUpAnalyzerTest(code).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO029_NotForTypeArgumentsNeverWritten()
+    {
+        // A generic [NinoType] closed over Vector<T> where its formatter never writes the argument, decided by
+        // substitution through the serialized members: T only in a [NinoIgnore] member, a method, a constraint or a
+        // computed property; T only in a nested generic that does not write it (Outer<T> holding Tag<T>, also two
+        // levels down); T reaching a base type that does not write it; a type holding itself over a bigger argument
+        // that never writes it (Expanding<T>, whose closed member types grow without end).
+        var code = @"
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+[NinoType]
+public class IgnoredOnly<T> { public int Id; [NinoIgnore] public T Scratch; [NinoIgnore] public List<T> Cache; }
+
+[NinoType]
+public class MethodOnly<T> where T : struct
+{
+    public int Id;
+    public T Make() => default;
+    public T Computed => default;
+}
+
+[NinoType]
+public class Tag<T> { public int Id; }
+
+[NinoType]
+public class Outer<T> { public Tag<T> Inner; public List<Tag<T>> Many; }
+
+[NinoType]
+public class TwoLevels<T> { public Outer<List<T>> Inner; }
+
+[NinoType]
+public class TagBase<T> { public Tag<T> Inner; }
+
+[NinoType]
+public sealed class FromTagBase<T> : TagBase<T> { public int Id; }
+
+[NinoType]
+public class Expanding<T> { public int Id; public Expanding<List<T>> Next; }
+
+[NinoType]
+public class Holder
+{
+    public IgnoredOnly<Vector<int>> Ignored;
+    public MethodOnly<Vector<int>> Methods;
+    public Outer<Vector<int>> Nested;
+    public TwoLevels<Vector<int>> Deeper;
+    public FromTagBase<Vector<int>> ThroughBase;
+    public Expanding<Vector<int>> Expanding;
+}
+";
+
+        await SetUpAnalyzerTest(code).RunAsync();
+    }
+
+    [TestMethod]
+    [Timeout(60000)]
+    public async Task NINO029_TypeArgumentsWritten()
+    {
+        // The argument a generic [NinoType]'s formatter writes holds a Vector<T>: directly, through List<T>, a
+        // nested generic that writes it, a dictionary value, a base type, the elements of a collection class, a
+        // generic subtype of a slot, and a type holding itself over a bigger argument (Growing<T>: decided on the
+        // definitions, so it ends at once). A ring of 40 generic types over growing arguments ends fast too.
+        const int count = 40;
+        var ring = string.Join("\n", Enumerable.Range(0, count).Select(i => i == count - 1
+            ? $"[NinoType] public class G{i}<T> {{ public T Value; public G0<T[]> Next; }}"
+            : $"[NinoType] public class G{i}<T> {{ public int Id; public G{i + 1}<List<T>> Next; }}"));
+        var code = $@"
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+[NinoType]
+public class Box<T> {{ public T Value; }}
+
+[NinoType]
+public class Listed<T> {{ public List<T> Items; }}
+
+[NinoType]
+public class Nested<T> {{ public int Id; public Box<T[]> Inner; }}
+
+[NinoType]
+public class Mapped<T> {{ public Dictionary<string, T> Map; }}
+
+[NinoType]
+public sealed class FromBase<T> : Box<T> {{ }}
+
+[NinoType]
+public class Bag<T> : List<T> {{ }}
+
+[NinoType]
+public class Growing<T> {{ public T Value; public Growing<List<T>> Next; }}
+
+[NinoType]
+public abstract class Shelf<T> {{ public int Id; }}
+
+[NinoType]
+public class ListShelf<T> : Shelf<T> {{ public List<T> Items; }}
+
+{ring}
+
+[NinoType]
+public class Holder
+{{
+    public Box<Vector<int>> {{|#0:Direct|}};
+    public Listed<Vector<int>> {{|#1:InList|}};
+    public Nested<Vector<int>> {{|#2:InNested|}};
+    public Mapped<Vector<int>> {{|#3:InDictionary|}};
+    public FromBase<Vector<int>> {{|#4:InBase|}};
+    public Bag<Vector<int>> {{|#5:InElements|}};
+    public Growing<Vector<int>> {{|#6:InGrowing|}};
+    public Shelf<Vector<int>> {{|#7:InSubtype|}};
+    public G0<Vector<int>> {{|#8:InRing|}};
+}}
+";
+
+        const string Vector = "System.Numerics.Vector<int>";
+        await SetUpAnalyzerTest(code,
+            Nino029(0, "Direct", "Holder", "Box<System.Numerics.Vector<int>>", Vector),
+            Nino029(1, "InList", "Holder", "Listed<System.Numerics.Vector<int>>", Vector),
+            Nino029(2, "InNested", "Holder", "Nested<System.Numerics.Vector<int>>", Vector),
+            Nino029(3, "InDictionary", "Holder", "Mapped<System.Numerics.Vector<int>>", Vector),
+            Nino029(4, "InBase", "Holder", "FromBase<System.Numerics.Vector<int>>", Vector),
+            Nino029(5, "InElements", "Holder", "Bag<System.Numerics.Vector<int>>", Vector),
+            Nino029(6, "InGrowing", "Holder", "Growing<System.Numerics.Vector<int>>", Vector),
+            Nino029(7, "InSubtype", "Holder", "Shelf<System.Numerics.Vector<int>>", Vector),
+            Nino029(8, "InRing", "Holder", "G0<System.Numerics.Vector<int>>", Vector)).RunAsync();
     }
 
     /// <summary>A NINO029 on a formatter or a call used by hand: its value <paramref name="value"/>.</summary>

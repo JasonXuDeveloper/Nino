@@ -1,6 +1,6 @@
 ---
 name: audit-code
-description: "Audit Nino's code for cleanliness and maintainability and fix it - non-DRY code, coupling, dead code, god files and god methods, one problem solved two ways, comments that restate instead of explaining why, scripts that duplicate each other - across tools, tests, benchmarks and their Python scripts, .github scripts, the Unity project and the seams between projects (the specialist audits apply the same checklist to their own files). Use for a cleanup round, after large merges or a burst of optimization work, or when code was written in a hurry. Triggers: tools/, tests/, benchmarks/*.py, .github/scripts, src/Nino.Unity, dead code, duplicated code, refactor, clean up, DRY, coupling, god file, 整洁, 清理, 重构, 解耦, 重复代码, 可维护性."
+description: "Audit Nino's code for cleanliness and maintainability and fix it - the code standard every skill applies (DRY, decoupled, clear), coupling, god files and god methods, one problem solved two ways, comments that restate instead of explaining why - in the files no specialist owns: tools, the structure of tests, benchmarks and their Python scripts, .github scripts, the Unity project and the seams between projects. Use for a cleanup round, after large merges or a burst of optimization work, or when code was written in a hurry. Triggers: tools/, tools/CodeGen, tests/Shared, benchmarks/*.py, python, .github/scripts, src/Nino.Unity, refactor, clean up, cleanup, coupling, god file, god class, maintainability, 整洁, 清理, 重构, 解耦, 重复代码, 可维护性, 脚本, 太大了, 拆分."
 metadata:
   internal: true
 ---

@@ -1,6 +1,6 @@
 ---
 name: audit
-description: "Run an audit round of Nino with parallel agents in worktrees - layout, redundancy, code, core, security, performance, machine code, generator, generated code, analyzer, runtimes, CI, naming, docs - code first, docs last, then triage, land and verify. Use when asked to review the whole codebase, to clean up, to find what is left, or to \"do another round\". Triggers: \"another round\", \"review everything\", \"audit\", \"scan\", 再来一轮, 全面审查, 审一遍, 扫一遍, 检查整个项目, 代码质量扫描."
+description: "Run an audit round of Nino with parallel agents in worktrees - layout, redundancy, code, core, security, performance, machine code, generator, generated code, analyzer, runtimes, CI, naming, docs - code first, docs last, then triage, land and verify. Use when asked to review the whole codebase, to clean up everything, to find what is left, or to \"do another round\"; a review of one area is that area's audit skill. Triggers: \"another round\", \"review everything\", audit round, full audit, \"what is left\", 再来一轮, 全面审查, 扫一遍, 全部审一遍, 检查整个项目, 还剩什么, 代码质量扫描."
 metadata:
   internal: true
 ---

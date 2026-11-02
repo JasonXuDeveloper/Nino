@@ -16,14 +16,17 @@ internal sealed class RawRules
     private readonly Func<ISymbol, bool> _computeRawStruct;
     private readonly NinoSymbols _symbols;
     private readonly MemberCache _members;
+    private readonly WrittenParameters _written;
     private readonly IAssemblySymbol _assembly;
     private readonly bool _weakTolerance;
 
     /// <param name="weakTolerance">The assembly defines WEAK_VERSION_TOLERANCE (its own structs are never raw).</param>
-    public RawRules(NinoSymbols symbols, MemberCache members, IAssemblySymbol assembly, bool weakTolerance)
+    public RawRules(NinoSymbols symbols, MemberCache members, WrittenParameters written, IAssemblySymbol assembly,
+        bool weakTolerance)
     {
         _symbols = symbols;
         _members = members;
+        _written = written;
         _assembly = assembly;
         _weakTolerance = weakTolerance;
         _computeRawStruct = s => ComputeIsRawStruct((INamedTypeSymbol)s);
@@ -59,9 +62,10 @@ internal sealed class RawRules
     /// The <c>System.Numerics.Vector&lt;T&gt;</c> that <paramref name="type"/> is or holds, or null: as an array
     /// element, a type argument, in a base type or the element of an <c>IEnumerable&lt;T&gt;</c> it implements
     /// (<c>class Lanes : List&lt;Vector&lt;int&gt;&gt;</c>), a field at any depth of a struct that is not a
-    /// <c>[NinoType]</c>, or a type argument of a generic <c>[NinoType]</c> that one of its serialized members names
-    /// (<c>Box&lt;Vector&lt;int&gt;&gt;</c> of <c>Box&lt;T&gt; { T Value; }</c>, not <c>Tag&lt;Vector&lt;int&gt;&gt;</c>
-    /// of <c>Tag&lt;T&gt; { int Id; }</c>; its other members are checked on their own declaration).
+    /// <c>[NinoType]</c>, or a type argument a generic <c>[NinoType]</c>'s formatter writes
+    /// (<see cref="WrittenParameters"/>: <c>Box&lt;Vector&lt;int&gt;&gt;</c> of <c>Box&lt;T&gt; { T Value; }</c>, not
+    /// <c>Tag&lt;Vector&lt;int&gt;&gt;</c> of <c>Tag&lt;T&gt; { int Id; }</c> nor <c>Outer&lt;Vector&lt;int&gt;&gt;</c> of
+    /// <c>Outer&lt;T&gt; { Tag&lt;T&gt; Inner; }</c>; its other members are checked on their own declaration).
     /// <c>Vector&lt;T&gt;</c> is as wide as the CPU's vectors (16, 32 or 64 bytes), so no layout of it reads on every
     /// host: such a type has no formatter (<see cref="FormatterResolver"/>), is never raw, and a member or top-level
     /// call with one is NINO029 (not NINO007). Nino.Core refuses the same types at run time
@@ -173,22 +177,16 @@ internal sealed class RawRules
                     named.SpecialType is not (SpecialType.None or SpecialType.System_Nullable_T))
                     return null;
                 var arguments = TypeNames.AllTypeArguments(named);
-                if (definition.GetNinoTypeOptions() is { } options)
+                if (definition.GetNinoTypeOptions() != null)
                 {
-                    if (arguments.Count == 0)
-                        return null;
-                    // Its formatter writes the arguments its serialized members name. The arguments are searched,
-                    // never the closed member types, which grow without end for a type holding itself over a bigger
-                    // argument (Expanding<T> holding Expanding<List<T>>).
-                    var parameters = TypeNames.AllTypeParameters(definition);
-                    var members = _members.Of(definition, options);
-                    for (int i = 0; i < arguments.Count; i++)
+                    // Its formatter writes the arguments in the positions its serialized members write
+                    // (WrittenParameters), searched as closed types; the closed member types are never built, which
+                    // grow without end for a type holding itself over a bigger argument (Expanding<T> holding
+                    // Expanding<List<T>>). An argument it never writes (Tag<T> { int Id; }, Outer<T> { Tag<T> X; })
+                    // is never searched, so a vector found always reaches the query.
+                    foreach (var argument in _written.ArgumentsOf(named))
                     {
-                        var parameter = parameters[i];
-                        // Which arguments are written is asked first: an argument no member names is never searched,
-                        // so a vector found always reaches the query.
-                        if (members.Any(m => MemberCollector.MemberType(m) is { } t && TypeNames.Mentions(t, parameter)) &&
-                            HostSizedVectorIn(type, arguments[i], ref searched) is { } inArgument)
+                        if (HostSizedVectorIn(type, argument, ref searched) is { } inArgument)
                             return inArgument;
                     }
 

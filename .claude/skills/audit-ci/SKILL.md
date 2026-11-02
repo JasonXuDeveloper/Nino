@@ -1,6 +1,6 @@
 ---
 name: audit-ci
-description: "Audit and change Nino's GitHub Actions (ci.yml, runtimes.yml, unity.yml, fuzz.yml, codeql.yml, release.yml, report.yml, ab-bench.yml and the test branch's A/B workflows) - as fast and parallel as possible, green on main and the test branch, every action pinned to a SHA, path filters that run what a change touches, one Unity license seat, secrets only through Trusted Publishing or repository secrets. Use when changing a workflow, when CI is slow or red, or before a release. Triggers: .github/workflows, .github/actions, actionlint, CI, runner, matrix, shards, cache, path filter, failed run, slow CI, Unity license, dependabot, 工作流, 持续集成, CI 失败, CI 慢, 并行."
+description: "Audit and change Nino's GitHub Actions (ci.yml, runtimes.yml, unity.yml, fuzz.yml, codeql.yml, release.yml, report.yml, agents.yml, ab-bench.yml and the test branch's A/B workflows) - as fast and parallel as possible, green on main and the test branch, every action pinned to a SHA, path filters that run what a change touches, one Unity license seat, secrets only through Trusted Publishing or repository secrets. Use when changing a workflow, when CI is slow or red, or before a release. Triggers: .github/workflows, .github/actions, actionlint, CI, workflow, matrix, shards, path filter, failed run, slow CI, Unity license, unity.yml, fuzz.yml, ci.yml, dependabot, 工作流, 持续集成, CI 红了, CI 失败, CI 慢, 并行."
 metadata:
   internal: true
 ---
@@ -89,8 +89,9 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   should start well under the account's 40 concurrent jobs: short checks of one runner share a job, pushes fuzz with
   one libFuzzer runner (three at night), and a job runs only for the area that changed (Path filters).
   How workers share the budget: `benchmark`, "Spend CI as a budget".
-- **A/B workflows** (`runtime-ab.yml`, `dotnet-ab.yml`) live on the test branch and read `.github/ab-request.txt`
-  (`benchmark`); `ab-bench.yml` on main compares a ref with the previous release or its base.
+- **A/B workflows** live on the test branch: `runtime-ab.yml` reads `.github/ab-request.txt` (Go, Rust and
+  TypeScript lines), `dotnet-ab.yml` reads `.github/dotnet-ab-request.txt` (.NET lines); how to write a line is
+  `benchmark`. `ab-bench.yml` on main compares a ref with the previous release or its base.
 
 ## Look for
 
