@@ -1415,14 +1415,14 @@ new Strings { Def = "x", U8 = "é😀" }
 ```csharp
 [NinoType(trackReferences: true)] public sealed class Node { public int V; public Node Next; }
 [NinoType] public sealed class Holder { public object Any; public Node N; }
-var n = new Node { V = 5 }; new Holder { Any = n, N = n }
+var n = new Node { V = 5 }; n.Next = n; new Holder { Any = n, N = n }
 ```
 ```
 01                    Holder presence
 06 2E 6C 29           Any: type id of Spec.Node (slot "object" is untracked: id first)
 FF FF FF FF           reference header: new object #1
 05 00 00 00           V = 5
-00 00 00 00           Next: reference header 0 = null
+01 00 00 00           Next: reference header 1 = object #1 (the cycle)
 01 00 00 00           N: reference header 1 = object #1
 ```
 
