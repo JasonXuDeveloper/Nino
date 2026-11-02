@@ -1,0 +1,3 @@
+<Project>
+    <!-- Empty: lets a newer benchmarks/Nino.Benchmark (which imports the Directory.Build.props above it) build against this release for an A/B run. -->
+</Project>
