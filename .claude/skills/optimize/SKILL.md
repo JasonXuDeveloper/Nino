@@ -19,6 +19,13 @@ one, run `python3 benchmarks/asm.py compare origin/main` (about two minutes, see
 fix every method it lists. To prove the code unchanged, dump both sides with `DOTNET_TieredCompilation=0` (the
 variable around `asm.py dump [--ref REF] --runs 1 --asm FILE`) and compare the listings per method: FullOpts code
 has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in code a change did not reach.
+`--ref REF` builds REF's own benchmarks: when the two sides' cases differ (a new case), the interceptors' numbers
+shift and the diff lists unrelated `SerializeNNN`; dump the base from a worktree holding the head's
+`benchmarks/Nino.Benchmark`. A listing of several runs or threads can interleave two methods: compare the methods a
+case reaches, normalized (addresses, labels, `align [N bytes]` padding, Arm64 `movz`/`movk` address immediates).
+For the Arm64 side run `Nino.Benchmark.dll` directly with the cross JIT (benchmarks/README.md), `DOTNET_STARTUP_HOOKS`
+set to `jitwarm`'s build and `NINO_JIT_FILTER` to the case: `DOTNET_AltJit` around `asm.py` reaches its `dotnet
+build`, which fails (round 105).
 
 ## The techniques, by topic
 

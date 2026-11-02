@@ -1,6 +1,6 @@
 ---
 name: benchmark
-description: "How to measure Nino and what may be published - the .NET BenchmarkDotNet suite (quick mode, filters, v3 3.3.13 back to back, MemoryPack, MessagePack, protobuf-net), member-by-member and generator benchmarks, machine-code listings, the Go, Rust and TypeScript benches, A/B runs on GitHub runners (ab-request.txt, runtime-ab, dotnet-ab, ab-bench) judged per CPU against the noise floor, adding a benchmark case, and the release numbers report.yml writes and the docs site syncs. Use when running, adding or reading a benchmark, deciding whether a change is faster, or touching a number in README, docs or a release. Triggers: benchmark, bench, BenchmarkDotNet, run.sh, QUICK=1, FILTER, A/B, AB, ab-request.txt, runtime-ab, dotnet-ab, ab-bench.yml, report.yml, benchstat, criterion, tinybench, noise floor, Performance Report, shards.json, 基准, 跑分, 跑个AB, 测一下, 测速, 性能数据, 发布数据."
+description: "How to measure Nino and what may be published - the .NET BenchmarkDotNet suite (quick mode, filters, v3 3.3.13 back to back, MemoryPack, MessagePack, protobuf-net), member-by-member and generator benchmarks, the Go, Rust and TypeScript benches, A/B runs on GitHub runners (ab-request.txt, dotnet-ab-request.txt, runtime-ab, dotnet-ab, ab-bench) judged per CPU against the noise floor, adding a benchmark case, and the release numbers report.yml writes and the docs site syncs. Use when running, adding or reading a benchmark, deciding whether a change is faster, or touching a number in README, docs or a release. Triggers: benchmark, bench, BenchmarkDotNet, run.sh, QUICK=1, FILTER, A/B, AB, ab-request.txt, dotnet-ab-request.txt, runtime-ab, dotnet-ab, ab-bench.yml, report.yml, benchstat, criterion, tinybench, noise floor, floor, runner numbers, Performance trailer, Performance Report, shards.json, runner 的数字, 基准, 跑分, 跑个AB, 测一下, 测速, 性能数据, 发布数据."
 metadata:
   internal: true
 ---
@@ -40,47 +40,62 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 
 ## Deciding on runners (A/B)
 
-1. Make the commits reachable from the test branch `claude/zen-goldberg-5qqqcu` with `git merge -s ours --no-edit
-   <ref>` (history only: the test branch keeps main's code, so its CI runs main's code; merging an experiment's code
-   ran CI on it, and a Go test that overflowed `int` on 386 and a Windows stack test mailed the owner a failure per
-   push), and add a line to `.github/ab-request.txt` there:
-   `<go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter] [<base env> <head env>]` runs
-   `runtime-ab.yml`; .NET lines run `dotnet-ab.yml`. Keep other workers' lines, mark finished ones `# done:`, batch
-   requests into one push, merge only, never force-push. `ab-bench.yml` on `main` compares a ref with the previous
-   release or its base on one runner. Limits: at most 8 runtime lines per push, 10 jobs each (the workflow measures
-   the first 8 and warns; `[ab: new lines only]` in the commit message runs only the lines that push added); `.github/dotnet-ab-request.txt` takes at most 3 active lines across all workers, and Arm64 runs one job
-   per line, so more Neoverse-N2 samples need duplicate lines. To run a line again or twice, add or change a note after
-   ` #` (`rust <base> <head> records-1000 # copy 2`), since a push measures only the lines its parent did not have.
-   Never bend the filter to make lines differ: `r{4}ecords` demands the letter four times, every job of such a line
-   matches no bench and fails (the first three-way prefetch round, 400 failed jobs).
-   **Spend CI as a budget** (the owner: "跑太多 ci job 了，concurrency 预算都吃没了"): the account runs a limited
-   number of jobs at once, shared by main's CI and both A/B workflows, so one A/B run is in flight at a time across all
-   workers and both workflows. Before pushing the test branch, check the API for a queued or running A/B run; if one
-   is, add your lines to a shared queue file outside the repository (agents use `/workspace/agent-notes/ab-queue.txt`
-   under `flock`, not /tmp, which a container restart wipes) and wait; whoever pushes next takes every queued line in
-   one commit and tells their owners the run id. Request only lines that decide a question (narrow filters, one floor
-   per base shared by everyone, repeats only for a verdict), and skip an A/B whose code is unchanged (identical
-   generated files or machine code prove it). The workflows cap themselves (`max-parallel` 10 runtime, 8 .NET jobs);
-   cancelling and re-running from a session returns 403, so a run started is a run spent: 8 queued runtime runs of
-   25 lines (250 jobs each) once blocked every other workflow for hours.
-   Match x64 runners with `cpu='EPYC|Neoverse'`, not `'7763|Neoverse'`: runners are also EPYC 9V45 and 9V74, and a
-   line whose regex misses them ends its slots without measuring (the first land/cmod round got one EPYC job). The
-   pool decides which CPUs a run draws: run 41035440735 drew no Xeon and no 9V45 in 16 x64 slots, so a probe line
-   for `'Xeon|EPYC 9V'` measured nothing. List the CPUs of a run's jobs before reading a verdict (a job that missed
-   says `##[notice] ... does not match`), and queue the line again for a CPU it missed. The pool rarely draws a Xeon
-   8370C (Ice Lake): four runs in round 101 drew none, so an Ice Lake probe takes several runs; three lines with
-   `cpu='Xeon|Neoverse'` (24 x64 slots, a note per copy) drew one on the first run (41159851472), and an A/B whose third
-   line is `cpu='Xeon'` drew one on its first too (41164356389). A separate floor line for an 8370C usually misses: of 15
-   `cpu='8370C'` lines in rounds 103-104 only 3 drew one (runs 41181295487, 41188054612, 41203402942, 41205347153).
-   Take its floor from the A/B line itself instead: each base round against the next base round in the same jobs
-   (BenchmarkDotNet's REPORT tables in the job log; agents use `/workspace/agent-notes/r103-perf/rep.py RUN LINE`), with
-   a case both sides run with the same code (MemoryPack's) as a null control. Build `benchmarks/Nino.Benchmark` in Release before pushing a probe (warnings are errors): run 41179183815's probe failed CS8618 on every Xeon job it drew, two of them 8370C. Confirm a probe's verdict with the case itself before
-   landing: on the 8370C a kernel that won 0.77 in `TuplePackProbe` lost 4.5 % in `NinoSerializeTupleList` (`optimize`). Never put a space in
-   the `cpu=` filter (`'EPYC|Xeon 8370C'`): the workflow splits the line on whitespace, and run 41123157579's line
-   failed on all 8 slots with git exit 128; match on a word (`'8370C'`). Read the CPU flags in the job log too: the same model differs by VM (some EPYC 9V74
-   runners hide AVX-512, the Xeon Platinum 8573C ones AVX512-FP16), and a case on such a VM takes the other path. Use
-   `cpu='EPYC|Xeon|Neoverse'` for a change with an AVX-512 path: Xeon Platinum 8573C and 8370C (Ice Lake) runners
-   come too, and Ice Lake reversed the pair permutes that won everywhere else (`optimize`).
+1. Request lines on the test branch `claude/zen-goldberg-5qqqcu`:
+   - **Reach the commits** with `git merge -s ours --no-edit <ref>` (history only: the test branch keeps main's code,
+     so its CI runs main's code; merging an experiment's code ran CI on it, and a Go test that overflowed `int` on 386
+     and a Windows stack test mailed the owner a failure per push).
+   - **Runtime lines** go into `.github/ab-request.txt` and run `runtime-ab.yml`:
+     `<go|go:<dir>|go#<rounds>|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]`.
+     At most 8 lines per push, 10 jobs each (the workflow measures the first 8 and warns; `[ab: new lines only]` in the
+     commit message runs only the lines that push added). A push measures only the lines its parent did not have: to
+     run a line again or twice, add or change a note after ` #` (`rust <base> <head> records-1000 # copy 2`). Never
+     bend the filter to make lines differ: `r{4}ecords` demands the letter four times, every job of such a line matches
+     no bench and fails (the first three-way prefetch round, 400 failed jobs).
+   - **.NET lines** go into `.github/dotnet-ab-request.txt` and run `dotnet-ab.yml`:
+     `[cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...>`, each line a job of its own per runner
+     (with `cpu=`, up to 8 x64 slots, each measuring only on a matching CPU; the file's header). Both sides build the
+     head's `benchmarks/Nino.Benchmark`. At most 3 active lines across all workers, and Arm64 runs one job per line, so
+     more Neoverse-N2 samples need duplicate lines. The workflow measures every active line on every push to the file,
+     not only new ones: mark finished lines `# done (run N):` in the push that adds the next ones, or, with nothing to
+     add, in a commit whose message carries `[skip ci]` (round 105).
+   - Keep other workers' lines, mark finished ones `# done:`, batch requests into one push, merge only, never
+     force-push.
+   - **A release tag**: ask the owner to dispatch `ab-bench.yml` on `main` with `compare` (a session cannot: its token
+     lacks `actions: write`, `audit-ci`). It builds head's `benchmarks/Nino.Benchmark` on the tag with head's
+     `Directory.Packages.props` in `benchmarks/`, an empty root `Directory.Build.props` where the tag has none
+     (v4.0.0-rc.7 kept its props in `src/`, without central package versions) and `NinoBenchLegacy` when the full build
+     fails, and fails the run when even that does not build. From a session, compare a tag with dotnet-ab: base = the
+     tag plus the same two files committed (0af6bb5e), head = the commit plus `NinoBenchLegacy` set in
+     `benchmarks/Nino.Benchmark/Directory.Build.props` (dotnet-ab passes no property; 115 of 128 Nino cases against
+     rc.7, run 41413072278). A benchmark an older tag cannot compile goes inside `#if !NINO_BENCH_LEGACY` on main
+     (CpuProbe, UntrustedTest, GenericPolymorphicTest).
+   - **Spend CI as a budget** (the owner: "跑太多 ci job 了，concurrency 预算都吃没了"): the account runs a limited
+     number of jobs at once, shared by main's CI and both A/B workflows, so one A/B run is in flight at a time across
+     all workers and both workflows. Before pushing the test branch, check the API for a queued or running A/B run; if
+     one is, add your lines to a shared queue file outside the repository (agents use
+     `/workspace/agent-notes/ab-queue.txt` under `flock`, not /tmp, which a container restart wipes) and wait; whoever
+     pushes next takes every queued line in one commit and tells their owners the run id. Request only lines that
+     decide a question (narrow filters, one floor per base shared by everyone, repeats only for a verdict). The
+     workflows cap themselves (`max-parallel` 10 runtime, 8 .NET jobs); cancelling and re-running from a session
+     returns 403, so a run started is a run spent: 8 queued runtime runs of 25 lines (250 jobs each) once blocked every
+     other workflow for hours. The whole .NET suite in one line, `*Test.Nino*` (128 cases, quick), takes about 24
+     minutes a round on every runner: 5 rounds are 2 hours a job, and an A/B line, its floor and a second Neoverse line
+     took 6 h 17 min (run 41364890698); a filter of 13 cases at 12 rounds took 2 hours (41399172268).
+   - **Skip an A/B whose code is unchanged** (identical generated files or machine code prove it), and prove it per
+     runtime before requesting the line: Go, `go test -c` the bench at both commits and diff `go tool objdump` with
+     paths and addresses stripped; TypeScript, runtime-ab runs the head's `bench.ts` on both sides, so the sides differ
+     only in `src/nino.ts`, what nino-gen writes for `bench/Bench.dll` and the data `Bench.dll` writes (diff all
+     three); Rust, `objdump -d` the bench binary each side builds with the line's
+     `RUSTFLAGS=-Cllvm-args=-align-all-functions=6`, addresses stripped; .NET, the generated files
+     (`-p:EmitCompilerGeneratedFiles=true`) and the FullOpts listings (`optimize`). Round 105 needed 2 runtime lines of
+     8 (Go: only the codec builder differed; TypeScript: all three identical; Rust `compare` and `text`: identical
+     code, `blocks`: not).
+   - **Pick the CPUs** ([references/runners.md](references/runners.md), before writing a `cpu=` filter, requesting a
+     probe or reading a verdict for one CPU): `cpu='EPYC|Neoverse'`, or `'EPYC|Xeon|Neoverse'` for a change with an
+     AVX-512 path, never a model number alone and never a space; list the CPUs a run drew before reading a verdict and
+     queue the line again for one it missed; an Xeon 8370C takes several runs, so take its floor from the A/B line's
+     own base rounds; build a probe in Release before pushing it and confirm its verdict with the case; read the CPU
+     flags, which differ between VMs of one model.
 2. Always request the floor too: the base against itself, on the same runners, over several jobs. A floor from one
    job underestimates the noise: the TimeZoneInfo floor jobs' own medians spanned 0.982 to 1.023 on one EPYC CPU.
    Before blaming a 1–2 % move on a change that touches code the case does not run, also request a null change in
@@ -97,6 +112,11 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    one-job floor with IL identical to main). Pool rounds of the same code before judging; a single round is not n.
    Read the rounds of a surprising median: a case can take one of a few times per process on both sides (Xeon
    8370C, `NinoSerializeKeyValuePairs` 105, 151 or 212 ns on identical code), and its median then follows the draw.
+   Which time a side draws can follow the filter, so a confirmation line can turn a case it did not touch: with
+   identical Tier1 code (x64 apart from loop-alignment padding, Arm64 through the cross JIT) `NinoSerializeTupleList`
+   was 1.01 against round 105's base on EPYC 7763 in the full suite (n=20, both sides 209-216 ns) and 1.21 in a
+   13-case line (n=72: base 190, head 210 or 245 ns), 0.98 and 1.39 on Xeon 6975P (base 69 or 98, head 97), 1.035 and
+   1.065 on Neoverse-N2 (runs 41364890698, 41399172268).
    On the test branch, `runtime-ab.yml` builds both sides of a Rust line with
    `RUSTFLAGS=-Cllvm-args=-align-all-functions=6` (every function at a 64-byte boundary): on Zen 5 identical code
    moved by 16 bytes changed timings by 10–50%. A side's env `NINO_AB_RUSTFLAGS=` builds without it. A side's env
@@ -121,40 +141,10 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   timing makes what it read into the case's type (Rust `formats!`'s `$from_proto`, TypeScript's `Revive`), and where
   Nino's own form is a slice (Go's sets) the others read the same slices. A TypeScript scenario whose codec the
   generated code lacks is skipped, so runtime-ab can run the head's `bench.ts` on an older base.
-- Rotate the inputs of any microbenchmark that parses (deserialize, `JSON.parse`, decoders): prepare K variants of the
-  same shape and size with different content (K=64 in `runtimes/typescript/bench`), give every serializer all of them
-  before the timing, and let each iteration take the next one round robin, for serialize and deserialize alike;
-  allocate the variants outside the timed region. Why: V8 reuses work for a JSON text it just parsed (hidden-class
-  transitions, internalized keys), so one repeated input flatters JSON: a Lookup-like text took 0.21 ms a parse
-  repeated, 7.8 to 8.4 ms with 200 different texts in turn. On runners (19801e3, landed as 81d0700, against main, run 40792547994, medians
-  of 3 to 60 rounds a CPU, head-vs-head floors within 1-12 %) Lookup's JSON deserialize went from 0.72x Nino's time to
-  8.97x on EPYC 7763 in Node (0.58x to 6.85x in Chromium), and from 0.62-0.79x to 8.5-9.5x on every other CPU
-  (Neoverse-N2 0.76x to 8.48x); Strings ASCII barely moved (2.11x to 2.27x in Node on EPYC 7763). Rotation also takes
-  the inputs out of the cache, which every serializer pays, but less than it looked: reading Mesh's 40,000 `Vec3`s
-  without writing took 0.074 to 0.17 ms a pass on EPYC 7763 in Node (0.06 to 0.12 in Chromium; test branch run
-  40815167424). Most of what Nino's serialize lost came from the heap the rotation kept live (next bullet).
-- Keep only the running serializer's data live: make each serializer's variants just before its tasks and drop them
-  after (`runtimes/typescript/bench/bench.ts`, `make`), never every serializer's at once. Why: a full GC marks
-  everything live, and Node 24 (V8 13.6) starts one for every 64 MB of new `ArrayBuffer`s that no scavenge freed
-  in between (the external memory soft limit, `kExternalAllocationSoftLimit`; a scavenge without pointer compression
-  comes only after 128 MB of young backing stores, or when the heap's new space fills). A serializer that writes its
-  output into `ArrayBuffer`s and allocates little else on the heap, such as Nino, therefore paid for marking four
-  copies of 64 variants: Nino's Mesh serialize had four pauses of 175 to 195 ms in its 1.1 s task (`--trace-gc
-  --trace-incremental-marking`, "Start (external memory pressure)", 554 MB live), and with rotation it went from 0.19
-  to 1.15 ms on EPYC 7763 while JSON, whose output strings drive scavenges, did not move. Node 22 (V8 12.4) did not do
-  this. With each serializer's own data only (0c5ad99 against main's bench 78ceaa1, run 40816601617, both lines
-  same against same, floors 0.92-1.16): Node Mesh serialize 1.22 to 0.41 ms on EPYC 7763 (n=48), 0.57 to 0.31 on
-  9V45, 1.20 to 0.42 on Neoverse-N2 (n=90); Samples 0.60-0.65x, Player 0.75-0.90x, Lookup 0.80-0.90x on every CPU,
-  in Chromium too (Mesh 0.86-0.98x); the competitors gained too where they write `ArrayBuffer`s (Protobuf Mesh
-  serialize 0.64x on EPYC 7763 in Node, msgpackr Lookup and Strings 0.4-0.5x in Chromium); JSON within 0.85 to 1.08x.
-- Read a runtime API newer than the bench off the module namespace (`nino.serializeInto` from `import * as nino`),
-  and skip its task when it is undefined: runtime-ab runs the head's `bench.ts` against each side's own `nino.ts`, so
-  a named import of a new export fails esbuild on every line whose base predates it. The `serializeInto` task (fed673be)
-  does this; its own numbers come from a line with the same commit on both sides. Such a line also measures the other
-  tasks with and without the new one running between them: judge it against a null line (the head with the export
-  hidden, against the head), never against the base alone. With identical `serialize` code, running `serializeInto`
-  made the next `serialize` timings slower on every CPU (Zoo +5 to +15 %, Samples and Mesh up to +10 % in run
-  40864160156 against main, the same in the null line 0b46472 of run 40925188020).
+- In `runtimes/*/bench` ([references/cases.md](references/cases.md), before adding or changing such a case, or when
+  a TypeScript number moves without a code change): rotate the inputs of any microbenchmark that parses (K variants,
+  round robin, made outside the timed region); keep only the running serializer's data live; read a runtime API newer
+  than the bench off the module namespace and skip its task when undefined, judging such a line against a null line.
 - A new section or heading in the release body changes with its parser in Nino.Docs (`scripts/sync-benchmarks.ts`)
   and the components that show it (`audit-docs`).
 

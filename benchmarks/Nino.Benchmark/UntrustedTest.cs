@@ -1,3 +1,5 @@
+// NinoSettings.Untrusted is newer than v4.0.0-rc.7: left out of A/B runs against older releases.
+#if !NINO_BENCH_LEGACY
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -68,3 +70,4 @@ public class UntrustedTest
     public List<CheckedSample> MemoryPackDeserializeUntrustedList() =>
         MemoryPackSerializer.Deserialize<List<CheckedSample>>(MemoryPackSamplesBytes);
 }
+#endif
