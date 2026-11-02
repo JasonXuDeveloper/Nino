@@ -68,6 +68,8 @@ NinoSubtypeHandler.cs        NinoSubtypeHandler: writes and reads one registered
 NinoParameterMarks.cs        what a formatter's type parameters require ([NinoRaw], unmanaged, [NinoCreated]): their
                              attributes, or where the runtime drops them (IL2CPP) the marks Nino.Core registers for its
                              own formatters and generated registries for the formatters they register (Register)
+NinoFunctionPointerFields.cs the delegate* fields of structs, by assembly and runtime name, as generated registries
+                             register them (Register): the one source layouts take function pointers from
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
 NinoUnsafe.cs                unaligned little-endian memory access, block copies (vector loops, paired loads),
                              ReadBool, array allocation; used by Reader, Writer and generated code
@@ -163,7 +165,7 @@ NinoMask.cs                  NinoMask: padding cleared while copying values to t
 NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout): NinoLeaf, NinoLayoutModel
                              (one runtime's rules; Canonical), Measure, CoreCLR's auto layout (PlaceAuto)
 NinoReflection.cs            what Nino.Core reads by reflection with the generator's rules (NinoType, raw, tracking,
-                             a struct field's type as layouts see it: delegate* as UIntPtr)
+                             a struct field's type as layouts see it: a registered delegate* as UIntPtr)
 NinoFormatterBinding.cs      binding of [NinoFormatter] registrations, shared with the generator (INinoTypeSystem)
 NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed)
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,

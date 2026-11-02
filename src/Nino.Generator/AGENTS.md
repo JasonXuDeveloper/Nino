@@ -78,6 +78,7 @@ RawLayout.cs                 whether a struct's memory is the same on every runt
 PrefetchRules.cs             which classes' top-level arrays and lists prefetch their objects (INinoPrefetchFormatter):
                              the object's estimated bytes for the cache budget, and which members' objects it prefetches
 LayoutTypes.cs               unmanaged structs whose layout the runtime measures ([DynamicDependency] for NativeAOT)
+                             and their delegate* fields (FunctionPointerFields, registered by the registry)
 WireEncoding.cs              a member's encoding as the published layout shows it ([NinoTypeLayout])
 TypeNames.cs                 type names as generated code and the runtime spell them, and the ids hashed from them
 Visibility.cs                what generated code in one assembly can name, read and assign

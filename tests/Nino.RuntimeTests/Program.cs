@@ -530,10 +530,9 @@ public static class Program
         // Every BCL struct inside a plain struct, and tuples and pairs: CoreCLR x64's bytes, both ways.
         BclStructs.Run(args.Contains("--write-fixtures"));
         _failed += BclStructs.Failed;
-#if NET8_0_OR_GREATER
-        // Function pointers inside a raw struct: 8 bytes zero-extended (a comment line: the net472 build has none).
+        // Function pointers inside a raw struct: 8 bytes zero-extended, from the generated registry (comment lines; the
+        // net472 build has only the one reported as an IntPtr).
         _failed += FunctionPointers.Run();
-#endif
         Console.WriteLine(_failed == 0 ? "ALL OK" : _failed + " FAILED");
         return _failed;
     }

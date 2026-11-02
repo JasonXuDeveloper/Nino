@@ -17,8 +17,12 @@ internal static class RegistryEmitter
     /// <summary>Upper bound on bucket methods (a power of two, so a bucket is selected with a mask).</summary>
     private const int MaxBuckets = 256;
 
-    /// <summary>The registry of <paramref name="entries"/> (sorted by formatter name).</summary>
-    public static string EmitRegistry(GeneratorOptions options, IEnumerable<RegistryEntry> entries)
+    /// <summary>
+    /// The registry of <paramref name="entries"/> (sorted by formatter name), registering the function pointer fields
+    /// <paramref name="pointerFields"/> (arguments of <c>NinoFunctionPointerFields.Register</c>, sorted).
+    /// </summary>
+    public static string EmitRegistry(GeneratorOptions options, IEnumerable<RegistryEntry> entries,
+        IEnumerable<string> pointerFields)
     {
         string name = "NinoGenRegistry_" + new string(options.AssemblyName
             .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_').ToArray());
@@ -46,6 +50,10 @@ internal static class RegistryEmitter
             // them by these marks where the runtime drops attributes of generic parameters (IL2CPP).
             foreach (var marks in options.FormatterMarks)
                 w.Line($"{CoreCompilerServices}NinoParameterMarks.Register(typeof({marks.Formatter}), {marks.Raw}, {marks.Unmanaged}, {marks.Created});");
+            // Before Add too: the function pointer fields Nino.Core lays out as pointers, zero-extended, on every
+            // runtime (reflection reports them as IntPtr on Mono and IL2CPP).
+            foreach (var fields in pointerFields)
+                w.Line($"{CoreCompilerServices}NinoFunctionPointerFields.Register({fields});");
             w.Line($"{Core}NinoRegistry.Add(new {name}());");
             // Libraries declaring formatters this assembly may resolve at runtime (see FormatterRules.RegisteringReferences).
             foreach (var formatter in options.RegisteringReferences)

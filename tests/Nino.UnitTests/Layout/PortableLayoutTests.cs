@@ -301,9 +301,7 @@ namespace Nino.UnitTests
 
         /// <summary>
         /// A function pointer (<c>delegate*</c>) inside a raw struct is a pointer: 8 bytes zero-extended, like
-        /// <c>T*</c> (spec §5.2), as the generator publishes it. .NET 8 and later report it as a function pointer type,
-        /// which the layout did not know (copied as it lay in memory), and earlier runtimes as an <c>IntPtr</c>
-        /// (sign-extended).
+        /// <c>T*</c> (spec §5.2), as the generator publishes it and its registry registers it for Nino.Core's layout.
         /// </summary>
         [TestMethod]
         public unsafe void FunctionPointersAreZeroExtendedPointers()
@@ -328,31 +326,73 @@ namespace Nino.UnitTests
             Assert.AreEqual(typeof(System.UIntPtr), NinoReflection.LayoutFieldType(field));
         }
 
-        private unsafe struct SignatureProbe
+        private unsafe struct GenericFunctionPointer<T> where T : unmanaged
         {
 #pragma warning disable CS0649
-            public delegate*<int> F;
-            public volatile delegate*<int> VolatileF;
-            public volatile int* VolatileP;
-            public nint N;
+            public T V;
+            public volatile delegate*<T, void> F;
 #pragma warning restore CS0649
         }
 
+        private unsafe struct FunctionPointerProperty
+        {
+            public delegate*<void> P { get; set; }
+        }
+
+        /// <summary>A field as Mono and IL2CPP report a function pointer: an <c>IntPtr</c>, nothing else changed.</summary>
+        private sealed class ReportedAsIntPtr : System.Reflection.FieldInfo
+        {
+            private readonly System.Reflection.FieldInfo _field;
+            public ReportedAsIntPtr(System.Reflection.FieldInfo field) => _field = field;
+            public override System.Type FieldType => typeof(System.IntPtr);
+            public override System.Reflection.FieldAttributes Attributes => _field.Attributes;
+            public override System.RuntimeFieldHandle FieldHandle => _field.FieldHandle;
+            public override System.Type DeclaringType => _field.DeclaringType;
+            public override string Name => _field.Name;
+            public override System.Type ReflectedType => _field.ReflectedType;
+            public override object GetValue(object obj) => _field.GetValue(obj);
+
+            public override void SetValue(object obj, object value, System.Reflection.BindingFlags invokeAttr,
+                System.Reflection.Binder binder, System.Globalization.CultureInfo culture) =>
+                _field.SetValue(obj, value, invokeAttr, binder, culture);
+
+            public override object[] GetCustomAttributes(bool inherit) => _field.GetCustomAttributes(inherit);
+            public override object[] GetCustomAttributes(System.Type attributeType, bool inherit) =>
+                _field.GetCustomAttributes(attributeType, inherit);
+            public override bool IsDefined(System.Type attributeType, bool inherit) => _field.IsDefined(attributeType, inherit);
+        }
+
         /// <summary>
-        /// Where a runtime reports a function pointer as an <c>IntPtr</c> (.NET Framework, .NET 7 and earlier), the
-        /// netstandard builds read the field's signature: ELEMENT_TYPE_FNPTR after any custom modifier (volatile).
-        /// Checked here on the netstandard builds (-p:NinoCoreTfm), whose CoreCLR reads field signatures as .NET
-        /// Framework does; the net8.0 build has no such path.
+        /// Which fields are function pointers comes from the generated registry (NinoFunctionPointerFields), not from
+        /// reflection: a field reported as an <c>IntPtr</c>, as Mono and IL2CPP report one, or as a function pointer
+        /// type (.NET 8 and later) is a <c>UIntPtr</c> to the layout when the generator registered it (private,
+        /// generic, volatile, an auto-property's backing field), and an <c>nint</c> stays an <c>IntPtr</c>.
         /// </summary>
         [TestMethod]
-        public void FunctionPointerSignaturesAreReadWhereTheTypeIsAnIntPtr()
+        public void FunctionPointerFieldsComeFromTheGeneratedRegistry()
         {
-            var read = typeof(NinoReflection).GetMethod("HasFunctionPointerSignature",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-            if (read == null)
-                return;
-            foreach (var (name, expected) in new[] { ("F", true), ("VolatileF", true), ("VolatileP", false), ("N", false) })
-                Assert.AreEqual(expected, read.Invoke(null, new object[] { typeof(SignatureProbe).GetField(name) }), name);
+            const System.Reflection.BindingFlags all = System.Reflection.BindingFlags.Instance |
+                                                       System.Reflection.BindingFlags.Public |
+                                                       System.Reflection.BindingFlags.NonPublic;
+            var pointers = new[]
+            {
+                typeof(HoldsFunctionPointer).GetField(nameof(HoldsFunctionPointer.F)),
+                typeof(GenericFunctionPointer<long>).GetField(nameof(GenericFunctionPointer<long>.F)),
+                typeof(FunctionPointerProperty).GetFields(all).Single(),
+            };
+            foreach (var field in pointers)
+            {
+                Assert.AreEqual(typeof(System.UIntPtr), NinoReflection.LayoutFieldType(field), field.Name);
+                Assert.AreEqual(typeof(System.UIntPtr), NinoReflection.LayoutFieldType(new ReportedAsIntPtr(field)),
+                    field.Name);
+            }
+
+            var nint = typeof(HoldsFunctionPointer).GetField(nameof(HoldsFunctionPointer.N));
+            Assert.AreEqual(typeof(System.IntPtr), NinoReflection.LayoutFieldType(nint));
+            Assert.AreEqual(typeof(System.IntPtr), NinoReflection.LayoutFieldType(new ReportedAsIntPtr(nint)));
+            // A field of another struct with the same name, which nothing registered.
+            var other = typeof(HoldsFunctionPointer).GetField(nameof(HoldsFunctionPointer.A));
+            Assert.AreEqual(typeof(System.IntPtr), NinoReflection.LayoutFieldType(new ReportedAsIntPtr(other)));
         }
 
         /// <summary>

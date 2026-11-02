@@ -9,6 +9,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <InvariantGlobalization>true</InvariantGlobalization>
         <PublishTrimmed Condition="'$(NinoPublish)' == 'trim'">true</PublishTrimmed>
         <PublishAot Condition="'$(NinoPublish)' == 'aot'">true</PublishAot>

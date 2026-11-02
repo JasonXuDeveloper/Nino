@@ -187,6 +187,44 @@ public class IncrementalGeneratorTests
     }
 
     [TestMethod]
+    public void RegistryRegistersFunctionPointerFields()
+    {
+        // Mono and IL2CPP report a delegate* field as an IntPtr (sign-extended on 32-bit), .NET 8 and later as a
+        // function pointer type: the registry names the fields of every measured struct (by assembly and runtime
+        // name, loading no type) for Nino.Core to lay out as pointers, zero-extended. A struct of another assembly
+        // that a member or a call names, one declared here that only generic code reaches, generic and nested ones,
+        // auto-properties and positional record structs; an nint is no function pointer.
+        var library = CreateNamed("FnLib", ("Lib.cs", "namespace Lib { public unsafe struct Remote { public int A; public delegate*<int> Call; } }"));
+        var compilation = CreateNamed("FnApp",
+                ("Types.cs", Usings + "public unsafe struct Local { public byte A; public delegate*<int> F; public nint N; }\n" +
+                             "public unsafe struct Generic<T> where T : unmanaged { public T V; public delegate*<T, void> F; }\n" +
+                             "public unsafe class Outer { private struct Hidden { public delegate* unmanaged<void> G { get; set; } } }\n" +
+                             "public unsafe record struct Positional(delegate*<int> P, int Q);\n" +
+                             "public struct Plain { public nint N; }\n" +
+                             "[NinoType] public class Holder { public Lib.Remote R; }\n}"))
+            .AddReferences(library.ToMetadataReference());
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
+        string registry = driver.GetRunResult().Results[0].GeneratedSources
+            .Single(s => s.HintName == "NinoGen.Registry.g.cs").SourceText.ToString();
+        const string register = "NinoFunctionPointerFields.Register(";
+        foreach (var call in new[]
+                 {
+                     "\"FnLib\", \"Lib.Remote\", \"Call\");",
+                     "\"FnApp\", \"Inc.Local\", \"F\");",
+                     "\"FnApp\", \"Inc.Generic<T>\", \"F\");",
+                     "\"FnApp\", \"Inc.Outer+Hidden\", \"<G>k__BackingField\");",
+                     "\"FnApp\", \"Inc.Positional\", \"<P>k__BackingField\");",
+                 })
+            StringAssert.Contains(registry, register + call);
+        Assert.AreEqual(5, registry.Split(new[] { register }, StringSplitOptions.None).Length - 1, registry);
+        Assert.IsTrue(registry.IndexOf(register, StringComparison.Ordinal) <
+                      registry.IndexOf("NinoRegistry.Add", StringComparison.Ordinal), registry);
+    }
+
+    [TestMethod]
     public void CallsThroughAliasesAndUsingStaticAreRegistered()
     {
         // The receiver is matched by symbol: an alias (here or global, in another file) or using static names it too.
@@ -433,7 +471,7 @@ public class MadeList : System.Collections.Generic.List<Made> { }
                  {
                      "NinoType", "TopLevelCall", "ProjectFacts", "ClashingNames", "RegistryEntries",
                      "Usages", "FormatterRegistrations", "FactoryRegistrations", "GenericTypeRegistrations", "LayoutTypes",
-                     "Dispatch",
+                     "FunctionPointerFields", "Dispatch",
                  })
         {
             // Every step runs the first time; a step whose inputs are all cached is not run (nor listed) again.
