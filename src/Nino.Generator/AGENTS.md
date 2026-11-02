@@ -64,6 +64,8 @@ ModelBuilder.cs              turns a [NinoType] symbol into a TypeModel (reports
 ModelCache.cs                reuses TypeModels across compilations while nothing they depend on changed
 MemberCollector.cs           the serialized members in wire order, and the findings about their annotations
 MemberCache.cs               MemberCollector's results memoized per compilation
+WrittenParameters.cs         which type parameters of a generic [NinoType] its formatter writes (a fixpoint over the
+                             definitions, memoized per compilation): what NINO029 and NINO007 search of a closed one
 ConstructionPlanner.cs       how a type is instantiated when read: reused, a constructor, or a factory
 FormatterResolver.cs         the formatter (as C#) for a member type: built-ins, then [NinoFormatter] registrations;
                              the nesting formatters of types that hold themselves (class Tree : List<Tree>)

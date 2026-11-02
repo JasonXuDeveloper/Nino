@@ -73,7 +73,8 @@ internal sealed class TypeFacts
         Symbols = new NinoSymbols(compilation);
         Visibility = new Visibility(compilation.Assembly);
         Members = new MemberCache(Symbols);
-        Raw = new RawRules(Symbols, Members, compilation.Assembly, WeakTolerance);
+        WrittenParameters = new WrittenParameters(Members, Symbols, GenericDefinitionsFor);
+        Raw = new RawRules(Symbols, Members, WrittenParameters, compilation.Assembly, WeakTolerance);
         Resolver = new FormatterResolver(compilation, Symbols, Raw, Visibility);
     }
 
@@ -128,6 +129,9 @@ internal sealed class TypeFacts
 
     /// <summary>Serialized members of each type (memoized).</summary>
     public MemberCache Members { get; }
+
+    /// <summary>Which type parameters of each generic <c>[NinoType]</c> its formatter writes (memoized).</summary>
+    public WrittenParameters WrittenParameters { get; }
 
     /// <summary>Which values are written as raw bytes (memoized).</summary>
     public RawRules Raw { get; }
