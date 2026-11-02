@@ -1,3 +1,4 @@
+#if !NINO_BENCH_LEGACY
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -68,3 +69,4 @@ public class UntrustedTest
     public List<CheckedSample> MemoryPackDeserializeUntrustedList() =>
         MemoryPackSerializer.Deserialize<List<CheckedSample>>(MemoryPackSamplesBytes);
 }
+#endif

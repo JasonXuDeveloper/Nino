@@ -1,3 +1,4 @@
+#if !NINO_BENCH_LEGACY
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -482,3 +483,4 @@ public unsafe class RawCopyProbe
         return Bytes;
     }
 }
+#endif
