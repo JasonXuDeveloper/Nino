@@ -126,7 +126,10 @@ collection, a dictionary, a tuple or `Nullable`, or through another generic `[Ni
 of a collection class, or what a generic subtype writes of it. A slot (an interface, an abstract or unsealed class)
 holds the generic subtypes whose base matches its argument, at any depth of inheritance, and they write the part of
 the argument they match: with `class TagShelf<U> : Shelf<Tag<U>> { public U Value; }`, a `Shelf<Tag<Action>>` is
-reported though `Tag<T>` writes no `T`, and a `Shelf<Box<Action>>` is not when no subtype of that shape writes it. A
+reported though `Tag<T>` writes no `T`, and a `Shelf<Box<Action>>` is not when no subtype of that shape writes it.
+The argument must be one the subtype can give its base: with `class Fixed<U> : Shelf<KeyValuePair<int, U[]>>` a
+`Shelf<KeyValuePair<long, Action[]>>` is not reported, nor with `class Same<U> : Shelf<KeyValuePair<U, U>>` a
+`Shelf<KeyValuePair<int, Action>>`. These are the closed subtypes the generated registry maps from their type ids. A
 type parameter used only by `[NinoIgnore]` members, methods, constraints or a nested generic that never writes it is
 not (`Tag<Action>` of `class Tag<T> { int X; }`, nor `Outer<Action>` of `class Outer<T> { Tag<T> Inner; }`, nor
 anything inside it, `Tag<Box<Action>>`).
