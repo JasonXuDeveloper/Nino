@@ -438,10 +438,20 @@ namespace Nino.Core.CompilerServices
         /// More than 64 bytes, or any size in a 32-bit process (up to 64 as Copy does on x86 and where
         /// <see cref="UnalignedWide32"/>): 65 to 128 as
         /// four 32-byte vectors where they are accelerated, then <see cref="CopyVectors{TVector}"/> or
-        /// <see cref="CopyBlock"/>. Out of line (see <see cref="Copy"/>).
+        /// <see cref="CopyBlock"/>. Out of line (see <see cref="Copy"/>), with the vector loops inlined: as calls of
+        /// their own, a copy of 129 bytes to 32 KB made two calls (rc.7 made one, from the inlined Copy), and 100
+        /// 12-byte structs serialized in up to 1.27 times rc.7's time.
         /// </summary>
+        // Not AggressiveOptimization: fully optimized code does not fold the static readonly fields below (it tests
+        // NinoUnsafe's class init and loads AmdCopy and IceLakeMemmove) and saved four registers in the prolog of the
+        // 65 to 128 byte copies, the ones most callers make.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void CopyOver64(ref byte destination, ref byte source, uint size)
+        private static void CopyOver64(ref byte destination, ref byte source, uint size) =>
+            CopyOver64Inline(ref destination, ref source, size);
+
+        /// <summary><see cref="CopyOver64"/>'s body, inlined there and into <see cref="CopyToNew"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void CopyOver64Inline(ref byte destination, ref byte source, uint size)
         {
             // Up to 64 bytes in a 32-bit process that accesses 8 bytes at any address: the parts Copy inlines, here
             // so that Copy's IL, which callers' inlining budgets count, is the same in every process (written in Copy,
@@ -616,7 +626,12 @@ namespace Nino.Core.CompilerServices
                 return;
             }
 #endif
-            Copy(ref destination, ref source, size);
+            // CopyOver64 inline: a call of its own made two calls of a 65 to 128 byte read into a list (10 DateTimes)
+            // where rc.7 made one.
+            if (Is64Bit && size <= 64)
+                Copy(ref destination, ref source, size);
+            else
+                CopyOver64Inline(ref destination, ref source, size);
         }
 
 #if NET8_0_OR_GREATER
@@ -647,8 +662,8 @@ namespace Nino.Core.CompilerServices
         /// against Memmove (.NET 10), source and destination of different alignments, with 64-byte vectors: 256 bytes
         /// 5.9 ns instead of 7.9 ns, 1,200 bytes 11.9 ns instead of 18.6 ns, 4,000 bytes 34 ns instead of 48 ns.
         /// </summary>
-        // Fully optimized from the first call (see NinoMask.CopyVectors).
-        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        // Inlined into CopyOver64 and CopyToNew (Tier1, so their static readonly tests fold).
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void CopyVectors<TVector>(ref byte destination, ref byte source, uint size)
             where TVector : struct
         {
@@ -693,8 +708,8 @@ namespace Nino.Core.CompilerServices
         /// to 0.91, 8,000 in 0.76 to 1.00, 64,000 and more the same. Without aligning the loads the loop was faster
         /// than memcpy from an aligned source but up to 1.31 times slower from one 4 bytes past it.
         /// </summary>
-        // Fully optimized from the first call (see NinoMask.CopyVectors).
-        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        // Inlined into CopyOver64: one call per copy, as on x64.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void CopyPairs(ref byte destination, ref byte source, uint size)
         {
             if (size > MaxArm64VectorCopy || !Is64Bit)
