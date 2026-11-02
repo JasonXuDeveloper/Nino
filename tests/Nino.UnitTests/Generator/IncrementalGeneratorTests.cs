@@ -161,10 +161,13 @@ public class IncrementalGeneratorTests
     [TestMethod]
     public void RegistryRegistersTheMarksOfRegisteredFormatters()
     {
-        // IL2CPP keeps no attributes on generic parameters: the registry registers [NinoRaw], unmanaged and
-        // [NinoCreated] (a bit per parameter) before handing the assembly's registrations to the resolver.
+        // IL2CPP keeps no attributes on generic parameters: the registry registers [NinoRaw] (1), unmanaged (2) and
+        // [NinoCreated] (4) per parameter, up to the last marked one, before handing the assembly's registrations to
+        // the resolver. Any number of parameters: a bit per parameter in an int had wrapped at 32.
+        string wide = string.Join(", ", Enumerable.Range(0, 32).Select(i => $"T{i}"));
         var compilation = Create(
             ("Rules.cs", "using Nino.Core;\n[assembly: NinoFormatter(typeof(Inc.CellFormatter<>))]\n" +
+                         $"[assembly: NinoFormatter(typeof(Inc.WideFormatter<{new string(',', 32)}>))]\n" +
                          "[assembly: NinoFormatter(typeof(Inc.BagFormatter<,>))]\nnamespace Inc {\n" +
                          "public class Cell<T> { public T V; }\npublic class Bag<T> : System.Collections.Generic.List<T> { }\n" +
                          "public struct CellFormatter<[NinoRaw] T> : INinoFormatter<Cell<T>> where T : unmanaged {\n" +
@@ -172,16 +175,23 @@ public class IncrementalGeneratorTests
                          "public void Deserialize(ref Cell<T> value, ref Reader reader) { }\n}\n" +
                          "public struct BagFormatter<[NinoCreated] TBag, T> : INinoFormatter<TBag> where TBag : Bag<T>, new() {\n" +
                          "public void Serialize(TBag value, ref Writer writer) { }\n" +
-                         "public void Deserialize(ref TBag value, ref Reader reader) { }\n}\n}"),
+                         "public void Deserialize(ref TBag value, ref Reader reader) { }\n}\n" +
+                         $"public class Wide<{wide}, T32> : System.Collections.Generic.List<T32> {{ }}\n" +
+                         $"public struct WideFormatter<{wide}, [NinoCreated] T32> : INinoFormatter<Wide<{wide}, T32>>\n" +
+                         $"where T32 : Wide<{wide}, T32>, new() {{\n" +
+                         $"public void Serialize(Wide<{wide}, T32> value, ref Writer writer) {{ }}\n" +
+                         $"public void Deserialize(ref Wide<{wide}, T32> value, ref Reader reader) {{ }}\n}}\n}}"),
             ("Holder.cs", Usings + "[NinoType] public class Holder { public int X; }\n}"));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
         driver = driver.RunGenerators(compilation);
         string registry = driver.GetRunResult().Results[0].GeneratedSources
             .Single(s => s.HintName == "NinoGen.Registry.g.cs").SourceText.ToString();
         StringAssert.Contains(registry,
-            "NinoParameterMarks.Register(typeof(global::Inc.CellFormatter<>), 1, 1, 0);");
+            "NinoParameterMarks.Register(typeof(global::Inc.CellFormatter<>), 3);");
         StringAssert.Contains(registry,
-            "NinoParameterMarks.Register(typeof(global::Inc.BagFormatter<,>), 0, 0, 1);");
+            "NinoParameterMarks.Register(typeof(global::Inc.BagFormatter<,>), 4);");
+        StringAssert.Contains(registry, $"NinoParameterMarks.Register(typeof(global::Inc.WideFormatter<{new string(',', 32)}>), " +
+                                        $"{string.Concat(Enumerable.Repeat("0, ", 32))}4);");
         Assert.IsTrue(registry.IndexOf("NinoParameterMarks.Register", StringComparison.Ordinal) <
                       registry.IndexOf("NinoRegistry.Add", StringComparison.Ordinal), registry);
     }

@@ -501,5 +501,9 @@ internal sealed record GenericAncestor(string Type, string Definition);
 internal sealed record GeneratorOptions(string AssemblyName, bool HasModuleInitializer, bool HasUnityEngine,
     bool HasUnityEditor, EquatableArray<string> RegisteringReferences, EquatableArray<FormatterMarks> FormatterMarks);
 
-// A formatter definition (open name) and its type parameters' marks, one bit per position (NinoParameterMarks).
-internal sealed record FormatterMarks(string Formatter, int Raw, int Unmanaged, int Created);
+// A formatter definition (open name) and its type parameters' marks, one value per position up to the last marked one
+// (NinoParameterMarks.Register: 1 [NinoRaw], 2 unmanaged, 4 [NinoCreated]).
+internal sealed record FormatterMarks(string Formatter, EquatableArray<int> Marks)
+{
+    public const int Raw = 1, Unmanaged = 2, Created = 4;
+}

@@ -29,60 +29,67 @@ namespace Nino.Core.CompilerServices
         internal static readonly bool Visible =
             typeof(UnmanagedFormatter<>).GetGenericArguments()[0].IsDefined(typeof(NinoRawAttribute), false);
 
-        /// <summary>A mark a type parameter can carry.</summary>
+        /// <summary>A mark a type parameter can carry: its bit in the marks of that parameter.</summary>
         internal enum Mark
         {
             /// <summary><c>[NinoRaw]</c>.</summary>
-            Raw,
+            Raw = 1,
 
             /// <summary>The <c>unmanaged</c> constraint.</summary>
-            Unmanaged,
+            Unmanaged = 2,
 
             /// <summary><c>[NinoCreated]</c>.</summary>
-            Created,
+            Created = 4,
         }
 
-        /// <summary>
-        /// The marks of each registered formatter definition: bit <c>i</c> for its type parameter <c>i</c>. Entries of a
-        /// removed assembly's formatters are dropped (<see cref="NinoRegistry.Remove"/>), so a collectible assembly whose
-        /// generated registry registered marks can unload.
-        /// </summary>
-        private static readonly ConcurrentDictionary<Type, (int Raw, int Unmanaged, int Created)> Marks = BuiltIn();
+        /// <summary>A <c>[NinoRaw]</c> parameter, which is also <c>unmanaged</c>.</summary>
+        private const byte RawParameter = (byte)(Mark.Raw | Mark.Unmanaged);
+
+        /// <summary>A <c>[NinoCreated]</c> parameter.</summary>
+        private const byte CreatedParameter = (byte)Mark.Created;
 
         /// <summary>
-        /// Nino.Core's formatters whose parameters carry the marks (a <c>[NinoRaw]</c> parameter is also
-        /// <c>unmanaged</c>).
+        /// The marks of each registered formatter definition, by type parameter position (entry <c>i</c> for its type
+        /// parameter <c>i</c>, missing entries for parameters without marks), so any number of parameters is told apart.
+        /// Entries of a removed assembly's formatters are dropped (<see cref="NinoRegistry.Remove"/>), so a collectible
+        /// assembly whose generated registry registered marks can unload.
         /// </summary>
-        private static ConcurrentDictionary<Type, (int, int, int)> BuiltIn()
+        private static readonly ConcurrentDictionary<Type, byte[]> Marks = BuiltIn();
+
+        /// <summary>Nino.Core's formatters whose parameters carry the marks.</summary>
+        private static ConcurrentDictionary<Type, byte[]> BuiltIn()
         {
-            var marks = NinoUnload.Cache<(int, int, int)>();
-            marks[typeof(UnmanagedFormatter<>)] = (1, 1, 0);
-            marks[typeof(UnmanagedArrayFormatter<>)] = (1, 1, 0);
-            marks[typeof(NullableArrayFormatter<>)] = (1, 1, 0);
-            marks[typeof(UnmanagedListFormatter<,>)] = (2, 2, 1);
-            marks[typeof(NullableListFormatter<,>)] = (2, 2, 1);
-            marks[typeof(ListFormatter<,,>)] = (0, 0, 1);
-            marks[typeof(CollectionFormatter<,,>)] = (0, 0, 1);
-            marks[typeof(HashSetFormatter<,,>)] = (0, 0, 1);
-            marks[typeof(QueueFormatter<,,>)] = (0, 0, 1);
-            marks[typeof(StackFormatter<,,>)] = (0, 0, 1);
-            marks[typeof(ProducerConsumerFormatter<,,>)] = (0, 0, 1);
-            marks[typeof(DictionaryFormatter<,,,,>)] = (0, 0, 1);
-            marks[typeof(DictionaryLikeFormatter<,,,,>)] = (0, 0, 1);
+            var marks = NinoUnload.Cache<byte[]>();
+            marks[typeof(UnmanagedFormatter<>)] = new[] { RawParameter };
+            marks[typeof(UnmanagedArrayFormatter<>)] = new[] { RawParameter };
+            marks[typeof(NullableArrayFormatter<>)] = new[] { RawParameter };
+            marks[typeof(UnmanagedListFormatter<,>)] = new[] { CreatedParameter, RawParameter };
+            marks[typeof(NullableListFormatter<,>)] = new[] { CreatedParameter, RawParameter };
+            marks[typeof(ListFormatter<,,>)] = new[] { CreatedParameter };
+            marks[typeof(CollectionFormatter<,,>)] = new[] { CreatedParameter };
+            marks[typeof(HashSetFormatter<,,>)] = new[] { CreatedParameter };
+            marks[typeof(QueueFormatter<,,>)] = new[] { CreatedParameter };
+            marks[typeof(StackFormatter<,,>)] = new[] { CreatedParameter };
+            marks[typeof(ProducerConsumerFormatter<,,>)] = new[] { CreatedParameter };
+            marks[typeof(DictionaryFormatter<,,,,>)] = new[] { CreatedParameter };
+            marks[typeof(DictionaryLikeFormatter<,,,,>)] = new[] { CreatedParameter };
             return marks;
         }
 
         /// <summary>
-        /// Registers the marks of a formatter definition's type parameters, one bit per parameter position (bit 0 for
-        /// the first): <paramref name="raw"/> for <c>[NinoRaw]</c>, <paramref name="unmanaged"/> for the
-        /// <c>unmanaged</c> constraint, <paramref name="created"/> for <c>[NinoCreated]</c>. Called by generated code.
+        /// Registers the marks of a formatter definition's type parameters, one value per parameter position (the
+        /// first for the first parameter; trailing parameters without marks may be left out), each the sum of 1 for
+        /// <c>[NinoRaw]</c>, 2 for the <c>unmanaged</c> constraint and 4 for <c>[NinoCreated]</c>. Called by generated
+        /// code.
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public static void Register(Type formatter, int raw, int unmanaged, int created)
+        public static void Register(Type formatter, params byte[] marks)
         {
             if (formatter == null)
                 throw new ArgumentNullException(nameof(formatter));
-            Marks[formatter] = (raw, unmanaged, created);
+            if (marks == null)
+                throw new ArgumentNullException(nameof(marks));
+            Marks[formatter] = (byte[])marks.Clone();
         }
 
         /// <summary>Whether <paramref name="parameter"/> is <c>[NinoRaw]</c>.</summary>
@@ -105,8 +112,8 @@ namespace Nino.Core.CompilerServices
         {
             if (parameter.DeclaringType == null || !Marks.TryGetValue(parameter.DeclaringType, out var marks))
                 return false;
-            int bits = mark == Mark.Raw ? marks.Raw : mark == Mark.Unmanaged ? marks.Unmanaged : marks.Created;
-            return (bits >> parameter.GenericParameterPosition & 1) != 0;
+            int position = parameter.GenericParameterPosition;
+            return position < marks.Length && (marks[position] & (int)mark) != 0;
         }
     }
 }

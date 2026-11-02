@@ -49,7 +49,7 @@ internal static class RegistryEmitter
             // Before Add, which hands the assembly's [NinoFormatter] registrations to the runtime resolver: it binds
             // them by these marks where the runtime drops attributes of generic parameters (IL2CPP).
             foreach (var marks in options.FormatterMarks)
-                w.Line($"{CoreCompilerServices}NinoParameterMarks.Register(typeof({marks.Formatter}), {marks.Raw}, {marks.Unmanaged}, {marks.Created});");
+                w.Line($"{CoreCompilerServices}NinoParameterMarks.Register(typeof({marks.Formatter}), {string.Join(", ", marks.Marks)});");
             // Before Add too: the function pointer fields Nino.Core lays out as pointers, zero-extended, on every
             // runtime (reflection reports them as IntPtr on Mono and IL2CPP).
             foreach (var fields in pointerFields)

@@ -189,8 +189,8 @@ internal sealed class FormatterRules
     /// The marks (<c>[NinoRaw]</c>, <c>unmanaged</c>, <c>[NinoCreated]</c>) of the type parameters of each generic
     /// formatter the compilation's own <c>[assembly: NinoFormatter]</c> attributes register, for formatters with any.
     /// The generated registry registers them with the runtime (<c>NinoParameterMarks.Register</c>), which needs them
-    /// where the runtime keeps no attributes on generic parameters (IL2CPP). Bits count the parameters of containing
-    /// types first, as the runtime numbers them.
+    /// where the runtime keeps no attributes on generic parameters (IL2CPP). Positions count the parameters of
+    /// containing types first, as the runtime numbers them.
     /// </summary>
     public static IEnumerable<FormatterMarks> OwnMarks(Compilation compilation, INamedTypeSymbol? attributeType)
     {
@@ -212,21 +212,26 @@ internal sealed class FormatterRules
             int outer = 0;
             for (var containing = formatter.ContainingType; containing != null; containing = containing.ContainingType)
                 outer += containing.Arity;
-            int rawBits = 0, unmanaged = 0, createdBits = 0;
+            // One value per parameter position, never a bit per position in a word: a formatter may have any number.
+            var marks = new int[outer + formatter.Arity];
+            int last = -1;
             foreach (var parameter in formatter.TypeParameters)
             {
-                int bit = 1 << (outer + parameter.Ordinal);
+                int position = outer + parameter.Ordinal, mark = 0;
                 // The marks the generator binds by (FormatterResolver.Satisfies), read the same way.
-                if (parameter.HasUnmanagedTypeConstraint)
-                    unmanaged |= bit;
                 if (NinoSymbols.Has(parameter, raw))
-                    rawBits |= bit;
+                    mark |= FormatterMarks.Raw;
+                if (parameter.HasUnmanagedTypeConstraint)
+                    mark |= FormatterMarks.Unmanaged;
                 if (NinoSymbols.Has(parameter, created))
-                    createdBits |= bit;
+                    mark |= FormatterMarks.Created;
+                if ((marks[position] = mark) != 0)
+                    last = position;
             }
 
-            if ((rawBits | unmanaged | createdBits) != 0)
-                yield return new FormatterMarks(TypeNames.OpenName(formatter), rawBits, unmanaged, createdBits);
+            if (last >= 0)
+                yield return new FormatterMarks(TypeNames.OpenName(formatter),
+                    new EquatableArray<int>(marks.Take(last + 1)));
         }
     }
 
