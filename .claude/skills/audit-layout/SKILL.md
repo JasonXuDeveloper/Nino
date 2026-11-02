@@ -23,7 +23,8 @@ its own `AGENTS.md` maps every file in it.
 - **Instruction files**: each directory with its own rules or a non-obvious set of files has an `AGENTS.md` (with a
   `> Read when:` line and a file map) and a `CLAUDE.md` that is `@AGENTS.md`; the root AGENTS.md's layout block is
   true; `.agents/skills` links to `.claude/skills`; every development skill is `metadata.internal: true`, and only
-  `skills/` holds public ones.
+  `skills/` holds public ones. A skill's `references/*.md` files are listed by nothing but its SKILL.md: each is
+  linked from there with when to read it, and a file no SKILL.md links is dead.
 
 - The code standard (`audit-code`: DRY, decoupled, clear) applies to these files, and redundancy in them
   (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is

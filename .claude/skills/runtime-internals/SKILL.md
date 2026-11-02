@@ -7,13 +7,17 @@ metadata:
 
 # Runtime internals
 
+Reading a collection through its public API (an enumerator) and building one through it (a builder's `Add` per
+element, rehashing, rebalancing) cost a call or more per element, while its own fields can be read or filled in one
+pass; the price is that every runtime lays those fields out its own way and may change them. So every such path proves its layout at startup and keeps the public API as the fallback, and is
+tested on every runtime it can meet.
+
 ## Reading a runtime's collections through their fields
 
 A path through a runtime's internals (`CollectionViews`: the fields of `List<T>`, `HashSet<T>`,
 `Dictionary<TKey, TValue>`, ...) declares a layout for each implementation (.NET 64-bit and 32-bit, .NET Framework,
 Mono), checks it against an instance with known contents at startup and uses the public API when none matches. Keep
-the fallback (the enumerator) out of line. Run the tests on .NET, the `net472` build under Mono and the `linux-arm`
-and `linux-arm64` builds under qemu (`platforms`).
+the fallback (the enumerator) out of line.
 
 ## Building a runtime's objects without its public API
 
@@ -40,8 +44,9 @@ What works everywhere so far:
 
 ## Proof
 
-- Run it on .NET 8 and 10, the `net472` build under Mono (also `MONO_GC_DEBUG=verify-before-collections`), Arm32
-  under qemu, with a GC stress (forced compacting collections between builds, then every object checked).
+- Run it on .NET 8 and 10, the `net472` build under Mono (also `MONO_GC_DEBUG=verify-before-collections`), the
+  `linux-arm` and `linux-arm64` builds under qemu (`platforms`), with a GC stress (forced compacting collections
+  between builds, then every object checked).
 - CI's "Runtime internals" job runs `tests/Nino.RuntimeTests` on .NET (x64, Arm64, Arm32 under qemu, Windows x86),
   Mono (x64, Arm64) and .NET Framework 4.8 (64-bit and 32-bit): give a new path a case there with known contents, and
   its startup flag a row in its `FastPaths`, so a runtime that falls back to the public API fails. Each runtime must
