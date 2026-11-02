@@ -45,7 +45,7 @@ with `NINO_UPDATE_GENERATED=1`).
 ```bash
 actionlint                                  # with .github/actionlint.yaml, after any workflow change
 tools/agents.sh --check                     # indexes, CLAUDE.md = @AGENTS.md, file maps, skill metadata
-npx -y skills add . --list                  # lists only `nino`: every development skill is internal
+npx -y skills add . --list                  # lists only `nino-serialization`: every development skill is internal
 ```
 
 Docs site change: in the nino.docs clone, `bun run check && bun run build`.
@@ -58,7 +58,8 @@ Docs site change: in the nino.docs clone, `bun run check && bun run build`.
   passes locally with an untracked new file (push 3ec8ee8f went red).
 - Cherry-pick or merge workers' branches onto `origin/main`, drop session lines from their messages, add the trailers
   a user-facing change needs; then fast-forward `main` (AGENTS.md, Rules). The test branch takes merges only.
-- Watch the runs of the pushed commit to the end, and fix a red one at once.
+- Watch the runs of the pushed commit to the end, and fix a red one at once (`audit-ci` when the workflow itself is
+  at fault).
 - After landing a user-facing change, the nino.docs changelog gets its entry (`audit-docs`).
 
 ## Releases (the owner's)

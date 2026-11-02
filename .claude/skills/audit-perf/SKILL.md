@@ -18,7 +18,9 @@ owns the search; measuring is `benchmark`, the code-level techniques are `optimi
    can express the case) on x64 and Arm64; for Go, Rust and TypeScript, the competitors in each `bench` module. List
    them per CPU from the latest Performance Report and the runtimes' reports.
 2. **Regressions against the previous main** (a release, or the commit before a wire-format change): nothing gets
-   slower than main beyond the floor, and a change that should help must beat it.
+   slower than main beyond the floor, and a change that should help must beat it. Diagnosing one case that got slower
+   is `optimize` (.NET, Unity: compare the listings first) or `optimize-runtimes`; this skill collects them for the
+   round's list.
 3. **Work that is not needed**: a length checked twice, a copy where a span would do, a per-element call where a block
    copy or a vector loop would do, a check that could be a `static readonly` field, a generic lookup on a hot path.
 4. **SIMD beyond strings**: blocks of primitives, bools (validation), fixed-size structs, transcoding, hash table
