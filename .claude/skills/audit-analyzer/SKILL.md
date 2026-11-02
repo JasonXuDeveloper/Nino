@@ -101,4 +101,4 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
 ## Done means
 
 Rule and fix with tests, `AnalyzerReleases.Unshipped.md`, `docs/diagnostics.md` and the site's analyzers page in both
-languages (docs to-dos for the docs pass), the public skill's diagnostics section, a changelog entry.
+languages (a row of nino.docs' `src/data/analyzer-rules.json`, `audit-docs`; docs to-dos for the docs pass), the public skill's diagnostics section, a changelog entry.

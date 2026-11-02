@@ -1,6 +1,6 @@
 ---
 name: audit-docs
-description: "Audit and write all of Nino's docs - the nino.docs site (English and Chinese pages, changelog, benchmark data), README.md and README.zh.md, docs/ in this repository, CONTRIBUTING.md, the runtimes' READMEs and the public skill skills/nino-serialization - so that every feature is documented in order with its recommended form, its fast form, its costs and pitfalls, every statement matches the code, nothing is said twice, and English and Chinese agree. Use once the code is final (the docs pass), after a user-facing change lands, and before a release. Triggers: docs, README, *.mdx, nino.docs, changelog, page, example, en/zh, llms.txt, the public skill, \"docs out of date\", 文档, 网站, 中文文档, 更新日志, 例子, 文档同步, 写得不对."
+description: "Audit and write all of Nino's docs - the nino.docs site (English and Chinese pages, changelog, benchmark data), README.md and README.zh.md, docs/ in this repository, CONTRIBUTING.md, the runtimes' READMEs and the public skill skills/nino-serialization - so that a reader finds each answer fast and every feature is documented in order with its recommended form, its fast form, its costs and pitfalls, every statement matches the code, nothing is said twice, and English and Chinese agree. Use once the code is final (the docs pass), after a user-facing change lands, and before a release. Triggers: docs, README, *.mdx, nino.docs, changelog, page, example, en/zh, llms.txt, the public skill, sidebar, page order, overlap, reader experience, \"docs out of date\", 文档, 网站, 中文文档, 更新日志, 例子, 文档同步, 写得不对, 侧边栏, 页面顺序, 阅读体验, 重叠."
 metadata:
   internal: true
 ---
@@ -11,6 +11,21 @@ The site is the separate repository JasonXuDeveloper/Nino.Docs (local clone `/wo
 AGENTS.md and `WRITING.md` first: page anatomy, tone, numbers, components). This repository holds README.md and
 README.zh.md (the landing page on GitHub and NuGet), `docs/` (design, spec, codegen, diagnostics, pitfalls),
 CONTRIBUTING.md, `runtimes/*/README.md` and the public skill.
+
+## 0. The reader first
+
+- **Audit and optimize from the reader's experience; every other rule in this skill (inventory, anatomy, visual
+  forms, the IA checklist, components) serves this one.** Before and after a docs pass, walk the site as three readers
+  and count the friction: (1) a newcomer who wants a first type serialized in five minutes (home -> Quick Start ->
+  Serialize and Deserialize -> Defining Types); (2) a user hunting one fact ("how do I version a type", "is X
+  supported on IL2CPP", "what does NINO007 mean"); (3) an evaluator comparing Nino with MemoryPack (vs-memorypack ->
+  benchmarks -> limitations). Count clicks and scrolls to the answer, dead ends, a word used before it is explained,
+  walls of text, anything read twice; fix them, and put the before/after walk in the report. A change that makes a
+  page richer but not easier to read is not made. Why: the owner's rule (round 107: "the main goal is the reader's
+  reading experience"). Evidence: round 107's walk found Quick Start seventh in the sidebar behind six "Overview"
+  pages and the introduction's "Start Here" at its bottom, "Versioning" (Nino's format history) beside "Evolving
+  Your Data" (versioning your types), NINO007 one row of seven tables, and the evaluator's pages split between
+  "Overview" and "Reference"; nino.docs `WRITING.md`, "The reader first", has the three journeys.
 
 ## 1. Inventory: every feature, in order
 
@@ -24,9 +39,8 @@ Build the list from the source, not from the pages:
   `Nino.Immutable`, `Nino.UnityTypes`, Unity, `Nino.Codegen.Tool`) and each runtime's public API;
 - every nino-gen option (`src/Nino.Codegen/Options.cs`) and what each language supports.
 
-Then the reading order: the sidebar (`content/docs/v4/meta.json`) goes from what everyone needs (install, first
-type, serialize) to what some need (versioning, polymorphism, references, pooling, custom formatters, security) to
-integrations and reference. Every inventory item has one owning page and a place in that order; an item without one
+Then the reading order: the sidebar (`content/docs/v4/meta.json`) is the reader's path: Get Started, Define Types,
+Features, Guides (the collapsed `advanced/` folder), Compare, Reference, Project (nino.docs `WRITING.md`, Order). Every inventory item has one owning page and a place in that order; an item without one
 is a finding, and so is a page that teaches a feature before the one it builds on.
 
 ## 2. Per page (English and Chinese)
@@ -93,6 +107,34 @@ is a finding, and so is a page that teaches a feature before the one it builds o
 
 ## 3. Across pages and repositories
 
+- **Run the information-architecture checklist in every docs pass** (nino.docs `WRITING.md`, "Information
+  architecture": one home per fact, the sidebar as the reader's path with sections of about 3 to 7 and folders for
+  bigger clusters, short-noun titles that match their links, common before rare within a page, a lead and next steps
+  on every page, length limits, redirects for moved pages and anchors, no orphan pages or duplicate examples, the
+  newcomer path from the home page, titles and descriptions that read alone in search and llms.txt, 390px width).
+  Why: pages are added one feature at a time, and nobody sees the whole until the sidebar is too long to scan (the
+  owner, round 107: "the left sidebar has a lot in it; is its order right?"). Evidence: round 107 found an Overview
+  section of six pages before Quick Start and a Reference section of eleven mixing specs with benchmarks, and
+  rebuilt the sidebar into seven sections of 3 to 7 with Guides collapsed; it merged v3-vs-v4 into whats-new
+  (`#features`, redirects and an AnchorRedirect for `#runtime`), moved best practices' copy of the zero-allocation
+  recipes to `zero-allocation#message-loop`, cut format versions' and limitations' repeats of whats-new, moved the
+  glossary out of basic into its own page, and gave supported types and untrusted data next steps (both were dead
+  ends).
+- **Interactive components serve finding and comparing, from one data source, and read the same without
+  JavaScript** (nino.docs `WRITING.md`, Visual forms: `AnalyzerRules`, the benchmark tables' ratio bars, `Release`,
+  `Term`/`Glossary`, `BytePlayground`; when to use each). Each prerenders its full content and has a Markdown form
+  from the same JSON. A NINO rule added or changed in Nino is a row of nino.docs' `src/data/analyzer-rules.json`
+  (English and Chinese) in the same docs pass, as it is a section of `docs/diagnostics.md`; a new glossary term goes
+  into `src/data/glossary.json`. Why: the owner asked why a filterable rules table, ratio bars, a changelog
+  timeline, glossary hovers and a byte playground were left out (round 107); each answers a reader's question faster
+  (find NINO007, see a ratio, scan a release, decode a word, see the bytes) and none duplicates the text.
+- **Every byte the site shows is checked against what Nino writes**: nino.docs' `bun run check:bytes` finds each
+  `<Bytes>` row and each byte-playground row in a hex dump of `docs/spec/wire-format.md` or in
+  `conformance/corpus/valid/*.bin`; a figure derived from the rules carries `derived="..."` and is listed. Run it in
+  the docs pass of any wire-format change (`wire-format` lists the docs). Evidence: round 107's first run found four
+  figure rows, in each language, derived from the rules (an evolving-data v1/v2 body, a struct-layouts tuple,
+  polymorphism's sealed Circle); every byte-playground row is one of the spec's Appendix A dumps.
+
 - **One owner per explanation**: other pages say it in a sentence and link. README, the site, `docs/` and the public
   skill do not repeat each other's long sections; README summarizes and links the site. Within `docs/`, the page that
   explains a pitfall owns its example: the `Vector<T>` fixed-lane class was copied whole into diagnostics.md, layouts.md
@@ -149,7 +191,9 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   spacing it leaves (a space before the CJK word, none after inline code: `的 存在字节`, `` `bool`或 ``; round 103
   found four), and read each hit of a variant before replacing it: 原地反序列化 meant reuse deserialization in
   README.zh.md but "read from the segment without a copy" on the streams and ASP.NET Core pages.
-- **Renaming a site page's slug**: the old URL and its `.md` copy get a 301 in `public/_redirects` and an entry in
+- **Renaming, merging or removing a site page**: the old URL and its `.md` copy get a 301 in `public/_redirects` (no
+  `#fragment` in the target, so the browser keeps the reader's; renamed anchors get an `<AnchorRedirect>` on the
+  target page, as v3-vs-v4's `#runtime` did in round 107) and an entry in
   `public/_routes.json`'s `exclude` (paths a function handles never reach the redirects); `git mv` its
   `scripts/csharp-check/Context/<slug>.cs` and change its `namespace Docs.Page_<slug>` (the check reports the page's
   types as missing otherwise); update links in v2/v3 pages that point at v4 and in Nino's README.md/README.zh.md

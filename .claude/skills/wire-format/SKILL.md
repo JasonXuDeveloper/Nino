@@ -33,7 +33,7 @@ them is deliberate, complete in one landing, and called out.
 | `runtimes/go`, `runtimes/rust`, `runtimes/typescript` | reader, writer, fast paths, their tests and fuzzers; each reads the new corpus |
 | `src/Nino.Codegen/Templates` | the generated readers and writers; regenerate the committed output (`NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests`) |
 | golden-bytes tests | `tests/Nino.UnitTests/Serialization/GoldenBytesTests.cs`, `tests/Nino.Fuzz/Golden`, Unity's, any test with expected hex; for raw layouts `src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs`, which `tests/Nino.RuntimeTests` links and Unity's `BclLayoutTests` read (rewrite with `dotnet Nino.RuntimeTests.dll --write-fixtures 2> src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs` on .NET 10 x64) |
-| docs | byte examples in README, `docs/`, the runtimes' READMEs and the nino.docs pages (`audit-docs`) |
+| docs | byte examples in README, `docs/`, the runtimes' READMEs and the nino.docs pages, whose `<Bytes>` figures and byte playground nino.docs' `bun run check:bytes` checks against Appendix A and the corpus (`audit-docs`) |
 | benchmarks | sizes shown in reports; the old-main baseline for the A/B (`benchmark`) |
 
 Grep for the old bytes in every form (hex with and without spaces, C# byte arrays, Go and Rust literals) before
