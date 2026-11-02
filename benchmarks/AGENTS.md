@@ -21,7 +21,8 @@ Nino.GeneratorBenchmark/     the source generator on a synthetic workload: gener
                              analyzer, re-generation after edits; --generics adds generic slots and subtypes
 shards.json                  the classes and the filters of each CI shard: "report" (report.yml, x64 and Arm64) and
                              "ab" (ab-bench.yml)
-ab.py                        two github reports of the same benchmarks (base, head): head against base and MemoryPack
+ab.py                        two github reports of the same benchmarks (base, head): head against base and MemoryPack;
+                             head alone (one report): head against MemoryPack
 asm.py                       the Tier1 machine code of the cases: dump / diff / compare REF (`compare origin/main`
                              before committing a read or write path change)
 jitwarm/                     the startup hook asm.py runs Nino.Benchmark with: calls each case until Tier1, then exits

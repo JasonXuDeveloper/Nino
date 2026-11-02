@@ -4,8 +4,9 @@ name: A/B Benchmark
 # take, or x64, the runners (AMD EPYC, with or without AVX-512) the release reports run on. It measures
 # the ref chosen in "Use workflow from" (a branch or tag of this repository), and with "compare" also the release tag
 # before it (or, with "against" main, the commit where this ref left main), on the same runner, one after the other,
-# with this ref's benchmark code against each ref's library; the summary compares them. Numbers for development only: the published ones come from report.yml, which runs these
-# benchmarks on Arm64 for every release.
+# with this ref's benchmark code against each ref's library; the summary compares them. A compared ref that cannot build
+# this ref's benchmarks fails the run: the summary never shows a comparison it did not make. Numbers for development
+# only: the published ones come from report.yml, which runs these benchmarks on Arm64 for every release.
 #
 # No ref is taken from an input: an input ref would run code that is not the workflow's own in its cache scope (cache
 # poisoning). The compared tag is a release tag found in this ref's own history, and the compared main commit is in it too.
@@ -147,8 +148,6 @@ jobs:
             N=$((N + 1))
             D=$(printf 'bisect/%03d-%s' "$N" "$C")
             git -C head worktree add --detach "../$D" "$C"
-            rm -rf "$D/benchmarks/Nino.Benchmark"
-            cp -r head/benchmarks/Nino.Benchmark "$D/benchmarks/Nino.Benchmark"
           done
 
       - name: Setup .NET
@@ -159,32 +158,49 @@ jobs:
             10.0.x
             8.0.x
 
-      # The same benchmarks for both refs: head's benchmark project, built against base's library.
+      # The same benchmarks for every ref: head's benchmark project, built against that ref's library.
       - name: Build
         run: |
           set -euo pipefail
+          # Head's benchmark project in another ref's tree, with what it takes from above it: head's package versions
+          # (the closest Directory.Packages.props wins, so every side runs the same competitors, and a ref without
+          # central package versions, v4.0.0-rc.7 and older, restores at all) and a root Directory.Build.props for its
+          # own to import (an empty one where the ref has none: rc.7 kept its props in src/).
+          overlay() {
+            rm -rf "$1/benchmarks/Nino.Benchmark"
+            mkdir -p "$1/benchmarks"
+            cp -r head/benchmarks/Nino.Benchmark "$1/benchmarks/Nino.Benchmark"
+            cp head/Directory.Packages.props "$1/benchmarks/Directory.Packages.props"
+            [[ -f $1/Directory.Build.props ]] || echo '<Project/>' > "$1/Directory.Build.props"
+          }
+          # A ref older than a benchmark's types (its generator or library cannot compile them) is built without them
+          # (NinoBenchLegacy, #if !NINO_BENCH_LEGACY), so they are measured on head alone. The output goes to a log,
+          # printed indented when neither build works: compiler errors at the start of a line would show as the run's
+          # annotations, although a first build that fails is the expected outcome for an older release.
+          build() {
+            local log
+            log="build-$(basename "$1").log"
+            if dotnet build -c Release "$1/benchmarks/Nino.Benchmark" -v q -nologo > "$log" 2>&1; then
+              echo "$1 builds every benchmark of head"
+            elif dotnet build -c Release "$1/benchmarks/Nino.Benchmark" -v q -nologo -p:NinoBenchLegacy=true >> "$log" 2>&1; then
+              touch "$1/.bench-legacy"
+              echo "::notice::$1 does not build all of head's benchmarks; the ones marked NINO_BENCH_LEGACY are measured on head alone"
+            else
+              sed 's/^/  /' "$log"
+              return 1
+            fi
+          }
           if [[ -d bisect ]]; then
             for D in bisect/*/; do
-              dotnet build -c Release "$D/benchmarks/Nino.Benchmark" -v q -nologo || echo "::warning::$D did not build"
+              overlay "$D"
+              build "$D" || echo "::warning::$D does not build head's benchmarks: left out"
             done
           fi
           if [[ -d base ]]; then
-            rm -rf base/benchmarks/Nino.Benchmark
-            cp -r head/benchmarks/Nino.Benchmark base/benchmarks/Nino.Benchmark
-            # A release older than a benchmark's types (one whose generator could not compile them) cannot run them:
-            # base is built without them (NinoBenchLegacy, #if !NINO_BENCH_LEGACY), so they are measured on head alone;
-            # if it still does not build, head alone is measured, and against main compares the code this ref changes.
-            # The first build's output goes to a file: its compiler errors would otherwise show as the run's annotations,
-            # although the build without those benchmarks is the expected outcome for an older release.
-            if dotnet build -c Release base/benchmarks/Nino.Benchmark > base-build.log 2>&1; then
-              echo "base builds every benchmark of head"
-            elif dotnet build -c Release base/benchmarks/Nino.Benchmark -p:NinoBenchLegacy=true; then
-              touch base/.bench-legacy
-              echo "::notice::base does not build all of head's benchmarks (its generator predates them); the ones marked NINO_BENCH_LEGACY are measured on head alone"
-            else
-              sed 's/^/  /' base-build.log
-              echo "::warning::base does not build head's benchmarks; measuring head only (try against: main)"
-              rm -rf base
+            overlay base
+            if ! build base; then
+              echo "::error::$(git -C base describe --tags --exclude '*-preview.*' --always) does not build head's benchmarks, even with NinoBenchLegacy (log above): no comparison was made. Mark what it cannot compile with #if !NINO_BENCH_LEGACY, or compare with against: main"
+              exit 1
             fi
           fi
           dotnet build -c Release head/benchmarks/Nino.Benchmark
@@ -204,7 +220,7 @@ jobs:
           read -ra FILTERS <<< "$FILTER"
           for SIDE in $SIDES; do
             [[ -d $SIDE ]] || continue
-            [[ -f $SIDE/benchmarks/Nino.Benchmark/bin/Release/net10.0/Nino.Benchmark.dll ]] || continue
+            [[ -f $SIDE/benchmarks/Nino.Benchmark/bin/Release/net10.0/Nino.Benchmark.dll ]] || continue  # a bisect commit that did not build
             echo "== $SIDE $(git -C "$SIDE" rev-parse --short HEAD)"
             # BenchmarkDotNet builds the project again for its runs: a side built with NinoBenchLegacy (above) gets it
             # through the environment, which MSBuild reads as properties.
@@ -214,7 +230,8 @@ jobs:
               --filter "${FILTERS[@]}" --artifacts "$GITHUB_WORKSPACE/results/$SIDE")
           done
 
-      # What each side measured, for the summary job: the side's directory, then its description.
+      # What each side measured, for the summary job: the side's directory, its description, its commit and "legacy"
+      # when it was built without the NINO_BENCH_LEGACY benchmarks.
       - name: Record the sides
         if: always()
         run: |
@@ -222,7 +239,7 @@ jobs:
           mkdir -p results
           for SIDE in base head $(ls -d bisect/* 2>/dev/null); do
             [[ -d $SIDE ]] || continue
-            echo "$SIDE $(git -C "$SIDE" describe --tags --exclude '*-preview.*' --always) $(git -C "$SIDE" rev-parse --short HEAD)"
+            echo "$SIDE $(git -C "$SIDE" describe --tags --exclude '*-preview.*' --always) $(git -C "$SIDE" rev-parse --short HEAD)$([[ -f $SIDE/.bench-legacy ]] && echo ' legacy')"
           done > results/sides.txt
           lscpu | grep 'Model name' > results/cpu.txt || true
 
@@ -257,6 +274,7 @@ jobs:
       - name: Summary
         env:
           RUNNER: ${{ inputs.runner || 'ubuntu-26.04-arm' }}
+          COMPARE: ${{ inputs.compare && !inputs.bisect }}
         run: |
           set -euo pipefail
           # One report per side: its shards' reports merged, in shard order.
@@ -265,6 +283,10 @@ jobs:
             mapfile -t files < <(find shards/*/"$1"/results -name '*-report-github.md' 2>/dev/null | sort)
             ((${#files[@]})) || return 1
             if ((${#files[@]} == 1)); then cp "${files[0]}" "$2"; else python3 benchmarks/merge_reports.py "${files[@]}" > "$2"; fi
+          }
+          # How many shards have a report of a side.
+          measured() {
+            find shards/*/"$1"/results -name '*-report-github.md' 2>/dev/null | cut -d/ -f2 | sort -u | wc -l || true
           }
           # download-artifact puts a single artifact (a filter run's one shard) straight into shards/, not into a
           # directory of its own.
@@ -280,13 +302,22 @@ jobs:
             echo ""
             echo "Shards: $(find shards/ -mindepth 1 -maxdepth 1 | wc -l) runners ($(cat shards/*/cpu.txt | sed 's/Model name: *//' | sort | uniq -c | xargs))."
             echo ""
-            if report base base.md; then
+            if [[ $COMPARE == true ]]; then
+              # Every shard that measured head measured base too, or the table would compare less than it says.
+              HEADS=$(measured head) BASES=$(measured base)
+              if ! report base base.md || ((BASES < HEADS)); then
+                echo "**No comparison**: base was measured on $BASES of the $HEADS shards that measured head (see the failed jobs)."
+                exit 1
+              fi
               BASE_LINE=$(grep '^base ' <<< "$SIDES" | head -n1)
               echo "Against $(cut -d' ' -f2 <<< "$BASE_LINE") ($(cut -d' ' -f3 <<< "$BASE_LINE")), each shard on one runner."
+              if grep -q '^base .* legacy$' <<< "$SIDES"; then
+                echo "It was built with NinoBenchLegacy: the benchmarks marked NINO_BENCH_LEGACY ran on head alone (\`-\` in base)."
+              fi
               echo ""
               python3 benchmarks/ab.py base.md head.md
             else
-              python3 benchmarks/ab.py head.md head.md
+              python3 benchmarks/ab.py head.md
             fi
             if grep -q '^bisect/' <<< "$SIDES"; then
               FIRST=""

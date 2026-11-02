@@ -1,3 +1,5 @@
+// Nino.Core.CompilerServices is newer than v4.0.0-rc.7: left out of A/B runs against older releases.
+#if !NINO_BENCH_LEGACY
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -482,3 +484,4 @@ public unsafe class RawCopyProbe
         return Bytes;
     }
 }
+#endif
