@@ -18,9 +18,10 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   That includes what generated code writes but cannot: a generic `[NinoType]` closed over a type without a formatter
   (`Box<Action>`, anywhere in a member's type) is NINO007 with "writing a value of it throws", because its formatter
   takes `CachedFormatter<Action>`; the generator keeps the member, so the bytes stay (the owner's call, round 101).
-  Only type parameters a serialized member uses count (`Tag<Action>` writes fine).
+  Only type arguments the closed type's formatter writes count (`WrittenParameters`, below): `Tag<Action>` and
+  `Outer<Action>` of `Outer<T> { Tag<T> Inner; }` write fine.
 - A type whose bytes would differ by host is an Error wherever Nino would write it: NINO029 for `Vector<T>` on the
-  member (alone, element, type argument a `[NinoType]` member uses, base type or `IEnumerable<T>` of a collection,
+  member (alone, element, type argument a generic `[NinoType]`'s formatter writes, base type or `IEnumerable<T>` of a collection,
   field of a plain struct at any depth), on the
   `NinoSerializer`/`NinoDeserializer` call (an operation action, rejected by method name first) and on Nino.Core's
   formatters and `Writer`/`Reader`/`NinoDirect` generic methods used by hand (`new UnmanagedFormatter<Vector<int>>()`,
@@ -44,9 +45,18 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   every type met, kept to the end; a vector found returns through every step, so a type met again is null), never
   once per path: forgetting nulls found under a cut made a ring of collection classes (`C0 : List<C1>` ...
   `Cn : List<C0>`) exponential, 18 classes two minutes in the IDE
-  (`NINO029_TypesHoldingEachOtherAreSearchedOnce`, round 104). Never search closed member types of a generic
-  `[NinoType]` either: `Expanding<T>` holding `Expanding<List<T>>` grows them without end (a stack overflow);
-  search the type arguments its members name.
+  (`NINO029_TypesHoldingEachOtherAreSearchedOnce`, round 104).
+- Decide what a closed generic `[NinoType]` writes from its definition, by type parameter, never by building its
+  closed member types and never by "the parameter appears in a member type": `WrittenParameters` computes, per
+  definition, which parameters reach a written position (a serialized member from `MemberCache`, not one a
+  `[NinoMemberFormatter]` writes; a class's own `IEnumerable<T>` elements; a generic subtype of a slot) as a least
+  fixpoint over every definition reachable from it, and NINO029 and NINO007 search only the closed type's arguments
+  in those positions. Closed member types grow without end for a type holding itself over a bigger argument
+  (`Expanding<T>` holding `Expanding<List<T>>`: a stack overflow), and "T is mentioned" reported
+  `Outer<Vector<int>>` of `Outer<T> { Tag<T> Inner; }` and `Tag<Box<Action>>` though nothing writes them, and missed
+  `Bag<T> : List<T>` and `Shelf<T>` with a `ListShelf<T>` subtype (round 106,
+  `NINO029_NotForTypeArgumentsNeverWritten`, `NINO029_TypeArgumentsWritten`,
+  `NINO007_TypeArgumentsTheFormatterWrites`; a ring of 40 generics over growing arguments decides at once).
 - An attribute that cannot do what it says is reported, not left to a rule whose message would be wrong:
   `[NinoMember]` on a static, constant, indexer, get-only computed property or backing field was NINO010 ("collected
   already") with autoCollect and nothing without it, while nothing was written; NINO028 now reports it alone, with
