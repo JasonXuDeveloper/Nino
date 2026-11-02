@@ -1029,8 +1029,11 @@ namespace Nino.Core
                     matched++;
                 else if (walk)
                     Internal.HashTables.Walk(dictionary, key);
-                value = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, value, out int size);
+                string read = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, value, out int size);
                 pos += size;
+                // An unchanged value (the usual case) is not stored again: no write barrier.
+                if (!ReferenceEquals(read, value))
+                    value = read;
             }
 
             return ((ulong)(uint)pos << 32) | (uint)matched;
