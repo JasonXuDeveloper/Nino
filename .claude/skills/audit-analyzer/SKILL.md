@@ -32,7 +32,12 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   and default-value action a type outside Nino.Core's assembly first). A type parameter constrained to a formatter
   (`ArrayFormatter<T, TFormatter>`, `NinoDirect.Serialize<T, TFormatter>`) writes the others' values: only a Nino.Core
   formatter there is searched, so the user's own `Vector<T>` formatter, a collection formatter over it and unrelated
-  generics that take a `Vector<T>` fire nothing (`NINO029_FormattersMadeByHand`, `NINO029_NotForOtherFormattersByHand`).
+  generics that take a `Vector<T>` fire nothing (`NINO029_FormattersMadeByHand`, `NINO029_NotForOtherFormattersByHand`). Search
+  the declared type of every field, property and local too, not only `new` and `default`: a formatter struct is ready
+  without a constructor call, so `static UnmanagedFormatter<Vector<int>> F;` used as `F.Serialize(...)` threw with no
+  diagnostic (round 121). Report the storage once: a `new`/`default` stored straight into a variable of its own type
+  is left to the variable, and a serialized `[NinoType]` member to the member rule
+  (`NINO029_FormattersHeldInFieldsPropertiesAndLocals`, `NINO029_NotForFormattersHeldOverOtherTypes`).
 - **One predicate decides host-sized types everywhere**: the analyzer, the generator's resolver,
   `RawRules.IsRawUnmanaged`, the call transform (no registration, no interceptor) and, mirrored, Nino.Core
   (`RawRules.HostSizedVectorIn` / `NinoReflection.HostSizedVectorIn`).

@@ -30,7 +30,10 @@ write CoreCLR x64's bytes, `Vector<T>` widths, and reading field types by reflec
   the no-AVX2 unit tests (16), the default (32), and 64 in the net10.0 unit-test job (`VectorTTests`) and the Linux
   runtime-internals job (Nino.RuntimeTests, which must print Count 16). GitHub's x64 runners are Xeon 6973P-C
   (AVX-512) or EPYC 7763 (none): a check that needs AVX-512 asks `.github/scripts/has_avx512.sh` (F, BW, CD, DQ, VL,
-  as .NET needs) and posts a notice instead of failing without it.
+  as .NET needs) and posts a notice instead of failing without it. A job's runner is drawn at random (3 of 7 net10.0
+  jobs on main ran on an EPYC, round 121), so a path only one CPU kind takes is checked from several jobs: the
+  no-avx512, no-avx2 and no-simd jobs rerun the vector-path tests with every set on when their runner has AVX-512
+  ("Test the AVX-512 paths"), and a run misses the net10.0 AVX-512 paths only when all four x64 jobs drew EPYCs.
 - Never read a pointer field by reflection: `FieldInfo.GetValue` on `IntPtr`'s `void*` crashed Mono 6.8 with SIGSEGV.
 - Take a fact about a type that the generator sees from generated code, never from reflection at run time (the
   owner's rule): reflection differs per runtime, NativeAOT keeps only the metadata it is asked for, and every probe

@@ -24,7 +24,8 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   runtimes.yml per runtime (Miri only for the crate's library code), codeql.yml per language (every language
   weekly). A folder another workflow owns is excluded with `!`, and a file a job links from it is re-included on
   the line after (later patterns win): ci.yml leaves out `src/Nino.Unity/**` (unity.yml's; a Burst or Unity test
-  edit had started ci.yml's 16 jobs) but takes `Assets/Test/Runtime/BclFixture*.cs`, which Nino.RuntimeTests links.
+  edit had started ci.yml's 16 jobs) but takes `Assets/Test/Runtime/BclFixture*.cs`, which Nino.RuntimeTests links,
+  and the package's `Runtime/*.dll`, which `UnityPackageDllTests` reads.
 - **Green**: never push a change whose workflow was not run locally in its parts (`verify`); `actionlint` (1.7.12 or newer: 1.7.7 and 1.7.8
   reject the YAML anchors of the path filters with "must be sequence node but got alias node"; `go install
   github.com/rhysd/actionlint/cmd/actionlint@latest`) with `.github/actionlint.yaml` after any workflow edit; a step that pipes a command keeps its failure (`bash -eo

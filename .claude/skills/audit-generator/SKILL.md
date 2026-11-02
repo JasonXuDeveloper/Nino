@@ -28,6 +28,10 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   `SerializeBoxed(v, typeof(Pair<int, long>))` threw "no formatter" only after `PublishAot` until the filter matched
   more than `Serialize` and `Deserialize`. A generic `[NinoType]` is never of fixed size (`TypeFacts.IsFixedSize`):
   `GetFixedSize` of one is -1 on every runtime.
+- Never pack a fact per type parameter into a bit of an `int`: C# masks a shift count to five bits, so `1 << 32` is
+  bit 0 and a formatter's 33rd parameter took the first one's marks without a word (`[NinoRaw]` on `T33` of a
+  34-parameter formatter registered `T1` as raw). Keep one value per position (`NinoParameterMarks.Register(typeof(F<>),
+  marks...)`, `FormatterRules.OwnMarks`; `NinoParameterMarksTests.MarksOfParametersPastTheThirtySecondAreTheirOwn`).
 - Registration works without module initializers (HybridCLR, `platforms`); interceptors are always on with Roslyn
   4.8+ and the regular entry points must agree with them (the `-p:NinoRegularCalls=true` run of `verify`).
 - Partial, nested, generic, record, struct, abstract and interface types, types in other assemblies, and every
