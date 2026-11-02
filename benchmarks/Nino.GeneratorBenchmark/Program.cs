@@ -13,13 +13,17 @@ using Microsoft.CodeAnalysis.Text;
 // Measures the Nino source generator on a synthetic workload: generator time, size of the generated code,
 // time to compile (emit) it, analyzer time, and re-generation after edits.
 //
-// Usage: Nino.GeneratorBenchmark [roots=30] [depth=8] [--generator <Nino.Generator.dll>] [--core <Nino.Core.dll>]
-//                           [--dump <dir>]
+// Usage: Nino.GeneratorBenchmark [roots=30] [depth=8] [--generics] [--generator <Nino.Generator.dll>]
+//                           [--core <Nino.Core.dll>] [--dump <dir>]
+// --generics adds generic [NinoType]s per root: a polymorphic generic base with generic subtypes (one through a
+// constructed argument), a type holding itself over a bigger argument and members closing them, which make the
+// analyzer decide what each closed generic writes (WrittenParameters: the definitions and their subtypes).
 // Without --generator/--core it uses the generator and runtime of this repository. To measure another
 // version (e.g. v3), build its Nino.Generator and Nino.Core and pass their paths.
 
 int roots = 30, depth = 8;
 string generatorPath = null, corePath = null, dump = null;
+bool generics = false;
 var positional = new List<string>();
 for (int i = 0; i < args.Length; i++)
 {
@@ -28,6 +32,7 @@ for (int i = 0; i < args.Length; i++)
         case "--generator": generatorPath = args[++i]; break;
         case "--core": corePath = args[++i]; break;
         case "--dump": dump = args[++i]; break;
+        case "--generics": generics = true; break;
         default: positional.Add(args[i]); break;
     }
 }
@@ -50,6 +55,14 @@ for (int r = 0; r < roots; r++)
     }
 
     src.AppendLine($"[NinoType] public sealed partial class Leaf{r} : {parent} {{ public int[] Arr; public List<R{r}> Kids {{ get; set; }} }}");
+    if (!generics)
+        continue;
+    src.AppendLine($"[NinoType] public abstract partial class Shelf{r}<T> {{ public int Id; }}");
+    src.AppendLine($"[NinoType] public partial class ListShelf{r}<T> : Shelf{r}<T> {{ public List<T> Items; }}");
+    src.AppendLine($"[NinoType] public partial class Tag{r}<T> {{ public int Id; }}");
+    src.AppendLine($"[NinoType] public partial class TagShelf{r}<U> : Shelf{r}<Tag{r}<U>> {{ public U Value; }}");
+    src.AppendLine($"[NinoType] public partial class Box{r}<T> {{ public T Value; public Box{r}<List<T>> Next; }}");
+    src.AppendLine($"[NinoType] public partial class GHolder{r} {{ public Shelf{r}<int> A; public Shelf{r}<Tag{r}<string>> B; public Box{r}<S{r}> C; public List<Shelf{r}<R{r}>> D; }}");
 }
 
 src.AppendLine("}");
@@ -84,7 +97,8 @@ if (dump != null)
     File.WriteAllText(Path.Combine(dump, "User.cs"), src.ToString());
 }
 
-Console.WriteLine($"types: {roots * (depth + 3)} ({roots} roots x depth {depth})");
+Console.WriteLine($"types: {roots * (depth + 3 + (generics ? 6 : 0))} ({roots} roots x depth {depth}" +
+                  (generics ? ", generics)" : ")"));
 for (int iteration = 0; iteration < 5; iteration++)
 {
     GeneratorDriver driver = CSharpGeneratorDriver.Create(generators, parseOptions: parseOptions);
