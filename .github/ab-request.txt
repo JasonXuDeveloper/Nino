@@ -1184,5 +1184,5 @@ rust 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 85ba7e8f80a95e7b2af5346e5ad907a675
 rust:text 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 62e33f5402c57fa735db262b94a8ec34efc8dfcd write/(latin1|cyrillic|cjk|mixed)/(16|24|64) # rust-scalar text head
 rust:text 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 write/(latin1|cyrillic|cjk|mixed)/(16|24|64) # rust-scalar text floor
 # r105-bench: round 104/105 (890aa1a8..ca00c13f) in Rust; c37e3aa9 / 95274e6b = 890aa1a8 / ca00c13f + RawNullables cases in the blocks bench (compare and text benches: identical x64 machine code, not run; Go and TypeScript: identical code, not run)
-rust:blocks c37e3aa9 95274e6b # r105-bench blocks incl. raw-nullables, 890aa1a8 -> ca00c13f
-rust:blocks c37e3aa9 c37e3aa9 # r105-bench blocks floor
+# done (run 41363948363): rust:blocks c37e3aa9 95274e6b # r105-bench blocks incl. raw-nullables, 890aa1a8 -> ca00c13f
+# done (run 41363948363): rust:blocks c37e3aa9 c37e3aa9 # r105-bench blocks floor

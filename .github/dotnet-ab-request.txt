@@ -179,5 +179,9 @@
 # done (run 41216990263): cpu='EPYC' 39d97fa1 4a7fc8e0 12 *CollectionsTest.NinoDeserializeLinkedList* *CollectionsTest.NinoDeserializeSortedSet* *CollectionsTest.NinoDeserializeSortedDictionary* # aot-devirt again
 # done (run 41216990263): cpu='EPYC' 39d97fa1 39d97fa1 12 *CollectionsTest.NinoDeserializeLinkedList* *CollectionsTest.NinoDeserializeSortedSet* *CollectionsTest.NinoDeserializeSortedDictionary* # aot-devirt floor again
 # selftree: a generated nesting struct per level of a collection that holds itself (70fe1544) against its bench base d238080d (main + the SelfTree case); MemoryPack rows are the null control (owner: selftree worker)
-cpu='EPYC|Xeon|Neoverse' d238080d 70fe1544 12 *CollectionsTest.*SelfTree* # selftree
-cpu='EPYC|Xeon|Neoverse' d238080d d238080d 12 *CollectionsTest.*SelfTree* # selftree floor on d238080d
+# done (run 41253800850): cpu='EPYC|Xeon|Neoverse' d238080d 70fe1544 12 *CollectionsTest.*SelfTree* # selftree
+# done (run 41253800850): cpu='EPYC|Xeon|Neoverse' d238080d d238080d 12 *CollectionsTest.*SelfTree* # selftree floor on d238080d
+# r105-bench: every Nino case (128) of the round 104/105 series, new main ca00c13f against its base 890aa1a8 (1029ed34^), with a floor; line 3 is a second Neoverse sample of line 1 (Arm64 runs one job per line)
+cpu='EPYC|Xeon|Neoverse' 890aa1a8 ca00c13f 5 *Test.Nino* # r105-bench all Nino cases
+cpu='EPYC|Xeon|Neoverse' 890aa1a8 890aa1a8 5 *Test.Nino* # r105-bench floor on 890aa1a8
+cpu='Neoverse' 890aa1a8 ca00c13f 5 *Test.Nino* # r105-bench all Nino cases, Neoverse copy 2
