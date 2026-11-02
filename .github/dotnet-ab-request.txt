@@ -182,6 +182,9 @@
 # done (run 41253800850): cpu='EPYC|Xeon|Neoverse' d238080d 70fe1544 12 *CollectionsTest.*SelfTree* # selftree
 # done (run 41253800850): cpu='EPYC|Xeon|Neoverse' d238080d d238080d 12 *CollectionsTest.*SelfTree* # selftree floor on d238080d
 # r105-bench: every Nino case (128) of the round 104/105 series, new main ca00c13f against its base 890aa1a8 (1029ed34^), with a floor; line 3 is a second Neoverse sample of line 1 (Arm64 runs one job per line)
-cpu='EPYC|Xeon|Neoverse' 890aa1a8 ca00c13f 5 *Test.Nino* # r105-bench all Nino cases
-cpu='EPYC|Xeon|Neoverse' 890aa1a8 890aa1a8 5 *Test.Nino* # r105-bench floor on 890aa1a8
-cpu='Neoverse' 890aa1a8 ca00c13f 5 *Test.Nino* # r105-bench all Nino cases, Neoverse copy 2
+# done (run 41364890698): cpu='EPYC|Xeon|Neoverse' 890aa1a8 ca00c13f 5 *Test.Nino* # r105-bench all Nino cases
+# done (run 41364890698): cpu='EPYC|Xeon|Neoverse' 890aa1a8 890aa1a8 5 *Test.Nino* # r105-bench floor on 890aa1a8
+# done (run 41364890698): cpu='Neoverse' 890aa1a8 ca00c13f 5 *Test.Nino* # r105-bench all Nino cases, Neoverse copy 2
+# r105-bench confirm: the cases run 41364890698 put past their floor on two CPUs or on the 7763 (n=20), 12 rounds; MemoryPack TupleList is the null control
+cpu='EPYC|Xeon|Neoverse' 890aa1a8 ca00c13f 12 *BclTypesTest.NinoSerializeCultureInfo *CollectionsTest.NinoDeserializeLinkedList *CommonTypesTest.NinoDeserializeTree *CollectionsTest.NinoSerializeTupleList *CollectionsTest.NinoDeserializeKeyValuePairs *BclTypesTest.NinoDeserializeImmutableHashSet *CollectionsTest.NinoDeserializeSortedList *BclTypesTest.NinoSerializeBigInteger *BclTypesTest.NinoSerializeImmutableDictionary *SimpleTest.NinoSerializeSimpleStruct *SimpleTest.NinoDeserializeSimpleClass *FixedSizeTest.NinoSerializeFixedClass *CollectionsTest.MemoryPackSerializeTupleList # r105-bench confirm
+cpu='EPYC|Xeon|Neoverse' 890aa1a8 890aa1a8 12 *BclTypesTest.NinoSerializeCultureInfo *CollectionsTest.NinoDeserializeLinkedList *CommonTypesTest.NinoDeserializeTree *CollectionsTest.NinoSerializeTupleList *CollectionsTest.NinoDeserializeKeyValuePairs *BclTypesTest.NinoDeserializeImmutableHashSet *CollectionsTest.NinoDeserializeSortedList *BclTypesTest.NinoSerializeBigInteger *BclTypesTest.NinoSerializeImmutableDictionary *SimpleTest.NinoSerializeSimpleStruct *SimpleTest.NinoDeserializeSimpleClass *FixedSizeTest.NinoSerializeFixedClass *CollectionsTest.MemoryPackSerializeTupleList # r105-bench confirm floor
