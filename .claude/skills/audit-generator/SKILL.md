@@ -28,6 +28,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   `SerializeBoxed(v, typeof(Pair<int, long>))` threw "no formatter" only after `PublishAot` until the filter matched
   more than `Serialize` and `Deserialize`. A generic `[NinoType]` is never of fixed size (`TypeFacts.IsFixedSize`):
   `GetFixedSize` of one is -1 on every runtime.
+- Register by id exactly the closed subtypes the analyzer searches: `ClosedGenerics` takes a slot's generic subtypes
+  from `TypeFacts.GenericSubtypesOf` (this compilation and every referenced assembly that is the slot's or references
+  it, nested in generic types too, the containing types' parameters bound like the subtype's own). Its own pass saw
+  only this compilation and the slot's assembly and skipped nested types, so `XListShelf<int>` of a plugin, and
+  `SlotOuter<SlotArg>.Inner`, were checked by NINO029 but unreadable from their ids
+  (`ClosedSubtypesFromAnotherReferencedAssemblyAreRegistered`, `ClosedSubtypesOfAGenericSlotAreReadableFromTheirIdsAlone`,
+  round 121).
 - Never pack a fact per type parameter into a bit of an `int`: C# masks a shift count to five bits, so `1 << 32` is
   bit 0 and a formatter's 33rd parameter took the first one's marks without a word (`[NinoRaw]` on `T33` of a
   34-parameter formatter registered `T1` as raw). Keep one value per position (`NinoParameterMarks.Register(typeof(F<>),

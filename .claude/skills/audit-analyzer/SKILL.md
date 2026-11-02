@@ -68,7 +68,12 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   it (round 119). Its pattern is the base's argument with the subtype's pattern in place of `U` (`Tag<Whole>`), passed
   on through bases between them, interfaces, types nested in generics and generics that pass the argument to the slot
   (`NINO029_PartsOfArgumentsSubtypesWrite`, `NINO007_PartsOfArgumentsSubtypesWrite`); an argument of another shape, or
-  a part no subtype writes, is not searched (`NINO029_NotForPartsSubtypesNeverWrite`).
+  a part no subtype writes, is not searched (`NINO029_NotForPartsSubtypesNeverWrite`). Match a subtype's pattern only
+  where the argument can be what it gives its base, as registration unifies it (`ClosedGenerics`): its fixed types
+  equal and a parameter named twice one type, within an argument or across (`Pair<U, U>`, `Twin<U, U>`); without it
+  `Shelf<KeyValuePair<long, Vector<int>[]>>` was reported for `Fixed<U> : Shelf<KeyValuePair<int, U[]>>`
+  (`NINO029_OnlyArgumentsASubtypeCanBe`, round 121). Inside a definition a part naming a type parameter may be any
+  type: the check is left out there, which only widens.
 - **Bound the patterns and widen, never drop**: a subtype holding its base over its own parameter matches
   `Tag<Tag<...>>` at every depth, so a pattern deeper than `MaxDepth`, or more than `MaxPatterns` for one argument,
   becomes `Inside` (every type inside the argument counts). Widening may report what nothing writes; dropping would
