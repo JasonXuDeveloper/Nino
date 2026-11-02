@@ -715,6 +715,9 @@ namespace Nino.Core
             _insert = Internal.HashTables.CanInsert(_byKey, count);
         }
 
+        // Inline into the read's loop: one call per grouping (the dictionary's add) as in rc.7, not two; called out of
+        // line, 10 groupings of 100 ints read in 1.02-1.10 times rc.7's time.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(NinoGrouping<TKey, TElement> grouping)
         {
             bool added;
