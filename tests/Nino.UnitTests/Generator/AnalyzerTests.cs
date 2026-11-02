@@ -1066,6 +1066,43 @@ public class Holder
     }
 
     [TestMethod]
+    public async Task NINO007_PartsOfArgumentsSubtypesWrite()
+    {
+        // A part of a slot's argument a subtype writes (TagShelf<U> : Shelf<Tag<U>> in a Shelf<Tag<Action>>) needs a
+        // formatter; one no subtype writes (QuietShelf<U> : Shelf<Box<U>>) does not.
+        var code = @"
+using System;
+using Nino.Core;
+
+[NinoType]
+public abstract class Shelf<T> { public int Id; }
+
+[NinoType]
+public class Tag<T> { public int Id; }
+
+[NinoType]
+public class Box<T> { public int Id; }
+
+[NinoType]
+public class TagShelf<U> : Shelf<Tag<U>> { public U Value; }
+
+[NinoType]
+public class QuietShelf<U> : Shelf<Box<U>> { public int Count; }
+
+[NinoType]
+public class Holder
+{
+    public Shelf<Tag<Action>> {|#0:Written|};
+    public Shelf<Box<Action>> NeverWritten;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO007").WithLocation(0).WithArguments("Written", "System.Action", "Holder",
+                ", a type argument of 'Shelf<Tag<System.Action>>',", "writing a value of it throws")).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO007_PropertiesAndInheritedMembers()
     {
         var code = @"
@@ -2062,6 +2099,186 @@ public class Holder
             Nino029(6, "InGrowing", "Holder", "Growing<System.Numerics.Vector<int>>", Vector),
             Nino029(7, "InSubtype", "Holder", "Shelf<System.Numerics.Vector<int>>", Vector),
             Nino029(8, "InRing", "Holder", "G0<System.Numerics.Vector<int>>", Vector)).RunAsync();
+    }
+
+    [TestMethod]
+    [Timeout(60000)]
+    public async Task NINO029_PartsOfArgumentsSubtypesWrite()
+    {
+        // A slot holds the generic subtypes whose base matches its argument, and they write what they write of it,
+        // to any depth: TagShelf<U> : Shelf<Tag<U>> writes the X of a Shelf<Tag<X>> though Tag<T> writes nothing of
+        // its own; through a base between them (Deep<U> : Middle<U> : Shelf<Tag<U[]>>), an interface, a type nested
+        // in a generic one, a generic that passes its argument to the slot (Outer<T> { Shelf<T> S; }), and a subtype
+        // holding its base over its own parameter, which matches Tag<Tag<...>> at every depth (every type inside the
+        // argument then counts).
+        var code = @"
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+[NinoType]
+public abstract class Shelf<T> { public int Id; }
+
+[NinoType]
+public class Tag<T> { public int Id; }
+
+[NinoType]
+public class TagShelf<U> : Shelf<Tag<U>> { public U Value; }
+
+[NinoType]
+public abstract class Middle<V> : Shelf<Tag<V[]>> { }
+
+[NinoType]
+public class Deep<U> : Middle<U> { public List<U> Items; }
+
+[NinoType]
+public interface ICarrier<T> { }
+
+[NinoType]
+public class Carrier<U> : ICarrier<Dictionary<int, Tag<U>>> { public U Value; }
+
+public class Container<T>
+{
+    [NinoType]
+    public class Inner : Shelf<KeyValuePair<string, T>> { public T Value; }
+}
+
+[NinoType]
+public class Outer<T> { public Shelf<T> Inner; }
+
+[NinoType]
+public abstract class Rack<T> { public int Id; }
+
+[NinoType]
+public class SelfRack<U> : Rack<Tag<U>> { public U Value; public Rack<U> Next; }
+
+[NinoType]
+public class Holder
+{
+    public Shelf<Tag<Vector<int>>> {|#0:ThroughTag|};
+    public Shelf<Tag<Vector<int>[]>> {|#1:ThroughMiddle|};
+    public ICarrier<Dictionary<int, Tag<Vector<int>>>> {|#2:ThroughInterface|};
+    public Shelf<KeyValuePair<string, Vector<int>>> {|#3:ThroughNested|};
+    public Outer<Tag<Vector<int>>> {|#4:ThroughOuter|};
+    public Rack<Tag<Tag<Tag<Tag<Tag<Tag<Tag<Tag<Vector<int>>>>>>>>>> {|#5:AtAnyDepth|};
+}
+";
+
+        const string Vector = "System.Numerics.Vector<int>";
+        await SetUpAnalyzerTest(code,
+            Nino029(0, "ThroughTag", "Holder", "Shelf<Tag<System.Numerics.Vector<int>>>", Vector),
+            Nino029(1, "ThroughMiddle", "Holder", "Shelf<Tag<System.Numerics.Vector<int>[]>>", Vector),
+            Nino029(2, "ThroughInterface", "Holder",
+                "ICarrier<System.Collections.Generic.Dictionary<int, Tag<System.Numerics.Vector<int>>>>", Vector),
+            Nino029(3, "ThroughNested", "Holder",
+                "Shelf<System.Collections.Generic.KeyValuePair<string, System.Numerics.Vector<int>>>", Vector),
+            Nino029(4, "ThroughOuter", "Holder", "Outer<Tag<System.Numerics.Vector<int>>>", Vector),
+            Nino029(5, "AtAnyDepth", "Holder",
+                "Rack<Tag<Tag<Tag<Tag<Tag<Tag<Tag<Tag<System.Numerics.Vector<int>>>>>>>>>>", Vector)).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO029_NotForPartsSubtypesNeverWrite()
+    {
+        // The parts of a slot's argument no subtype writes: a subtype that writes nothing of its parameter, an
+        // argument of another shape than every subtype's base (no such subtype fits the slot), a subtype's
+        // parameter in a position of its base's argument that is matched but not written (Pair<U, int>'s int),
+        // and a sealed class, which has no subtypes.
+        var code = @"
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+[NinoType]
+public class Tag<T> { public int Id; }
+
+[NinoType]
+public class Box<T> { public T Value; }
+
+[NinoType]
+public abstract class Rack<T> { public int Id; }
+
+[NinoType]
+public class TagRack<U> : Rack<Tag<U>> { public U Value; }
+
+[NinoType]
+public class QuietRack<U> : Rack<Box<U>> { public int Count; }
+
+[NinoType]
+public abstract class Pairs<T> { public int Id; }
+
+[NinoType]
+public class FirstOnly<U, W> : Pairs<KeyValuePair<U, W>> { public U First; }
+
+[NinoType]
+public sealed class Sealed<T> { public int Id; }
+
+[NinoType]
+public class Holder
+{
+    public Rack<Box<Vector<int>>> Quiet;
+    public Rack<List<Vector<int>>> OtherShape;
+    public Rack<Tag<int>> NoVector;
+    public Pairs<KeyValuePair<int, Vector<int>>> SecondNeverWritten;
+    public Sealed<Tag<Vector<int>>> NoSubtypes;
+}
+";
+
+        await SetUpAnalyzerTest(code).RunAsync();
+    }
+
+    [TestMethod]
+    public void NINO029_AcrossAssemblies()
+    {
+        // A referenced class's private members are not in its symbols (a compilation imports only public and
+        // protected members of referenced classes): its published layout names them, so Hidden<Vector<int>> is
+        // reported and Quiet<Vector<int>>, whose private T is not serialized, is not. A subtype in another referenced
+        // assembly that references the base's writes the part of the argument it matches.
+        var contracts = CornerCompiler.Compile(@"
+using Nino.Core;
+
+namespace Contracts
+{
+    [NinoType] public abstract class Shelf<T> { public int Id; }
+    [NinoType] public class Tag<T> { public int Id; }
+    [NinoType(includeNonPublicMembers: true)] public partial class Hidden<T> { public int Id; private T _value; }
+    [NinoType] public class Quiet<T> { public int Id; [NinoIgnore] private T _scratch; }
+    [NinoType] public class Visible<T> { public T Value; }
+}
+", load: false);
+        Assert.AreEqual("", contracts.ErrorText);
+        var shelves = CornerCompiler.CompileAgainst(@"
+using Nino.Core;
+using Contracts;
+
+namespace Shelves
+{
+    [NinoType] public class TagShelf<U> : Shelf<Tag<U>> { public U Value; }
+}
+", contracts);
+        Assert.AreEqual("", shelves.ErrorText);
+        var app = CornerCompiler.CompileAgainst(@"
+using System.Numerics;
+using Nino.Core;
+using Contracts;
+
+namespace App
+{
+    [NinoType]
+    public class Holder
+    {
+        public Shelf<Tag<Vector<int>>> InSubtype;
+        public Hidden<Vector<int>> InPrivate;
+        public Visible<Vector<int>> InPublic;
+        public Quiet<Vector<int>> NotWritten;
+        public Tag<Vector<int>> NotWrittenEither;
+    }
+}
+", contracts, shelves);
+        var reported = app.AnalyzerDiagnostics.Where(d => d.Id == "NINO029")
+            .Select(d => d.GetMessage().Split(' ')[1]).OrderBy(m => m).ToArray();
+        CollectionAssert.AreEqual(new[] { "'InPrivate'", "'InPublic'", "'InSubtype'" }, reported,
+            string.Join("\n", app.AnalyzerDiagnostics));
     }
 
     /// <summary>A NINO029 on a formatter or a call used by hand: its value <paramref name="value"/>.</summary>

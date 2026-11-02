@@ -660,11 +660,17 @@ internal static class ModelBuilder
                     return null;
                 if (named.OriginalDefinition.GetNinoTypeOptions() != null)
                 {
-                    var written = facts.WrittenParameters.ArgumentsOf(named).ToList();
-                    foreach (var argument in written)
+                    var written = new List<ITypeSymbol>();
+                    foreach (var (value, inside) in facts.WrittenParameters.ValuesOf(named))
                     {
-                        if (facts.Resolver.Resolve(argument, false) == null)
-                            return (argument, named);
+                        // A value WrittenParameters could not follow: every type inside it may be written.
+                        foreach (var candidate in inside ? TypesInside(value) : new[] { value })
+                        {
+                            if (facts.Resolver.Resolve(candidate, false) == null)
+                                return (candidate, named);
+                        }
+
+                        written.Add(value);
                     }
 
                     arguments = written;
@@ -679,6 +685,23 @@ internal static class ModelBuilder
                 return null;
             default:
                 return null;
+        }
+    }
+
+    /// <summary><paramref name="type"/> and every type inside it: elements and type arguments, at any depth.</summary>
+    private static IEnumerable<ITypeSymbol> TypesInside(ITypeSymbol type)
+    {
+        yield return type;
+        var inner = type switch
+        {
+            IArrayTypeSymbol array => new[] { array.ElementType },
+            INamedTypeSymbol named => AllTypeArguments(named),
+            _ => (IReadOnlyList<ITypeSymbol>)System.Array.Empty<ITypeSymbol>(),
+        };
+        foreach (var part in inner)
+        {
+            foreach (var inside in TypesInside(part))
+                yield return inside;
         }
     }
 

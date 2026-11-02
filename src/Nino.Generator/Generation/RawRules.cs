@@ -179,15 +179,17 @@ internal sealed class RawRules
                 var arguments = TypeNames.AllTypeArguments(named);
                 if (definition.GetNinoTypeOptions() != null)
                 {
-                    // Its formatter writes the arguments in the positions its serialized members write
-                    // (WrittenParameters), searched as closed types; the closed member types are never built, which
-                    // grow without end for a type holding itself over a bigger argument (Expanding<T> holding
-                    // Expanding<List<T>>). An argument it never writes (Tag<T> { int Id; }, Outer<T> { Tag<T> X; })
-                    // is never searched, so a vector found always reaches the query.
-                    foreach (var argument in _written.ArgumentsOf(named))
+                    // Its formatter writes the values WrittenParameters finds in its arguments (an argument, or a
+                    // part of one a subtype writes: the X of Shelf<Tag<X>> with S<U> : Shelf<Tag<U>> { U V; }),
+                    // searched as closed types; the closed member types are never built, which grow without end for
+                    // a type holding itself over a bigger argument (Expanding<T> holding Expanding<List<T>>). An
+                    // argument it never writes (Tag<T> { int Id; }, Outer<T> { Tag<T> X; }) is never searched, so a
+                    // vector found always reaches the query.
+                    foreach (var (value, inside) in _written.ValuesOf(named))
                     {
-                        if (HostSizedVectorIn(type, argument, ref searched) is { } inArgument)
-                            return inArgument;
+                        if ((inside ? VectorInside(type, value, ref searched) : HostSizedVectorIn(type, value, ref searched))
+                            is { } inValue)
+                            return inValue;
                     }
 
                     return null;
@@ -218,6 +220,32 @@ internal sealed class RawRules
                     if (member is IFieldSymbol { IsStatic: false, IsConst: false } field &&
                         HostSizedVectorIn(type, field.Type, ref searched) is { } inField)
                         return inField;
+                }
+
+                return null;
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// The <c>Vector&lt;T&gt;</c> that <paramref name="value"/> or any type inside it (an element, a type argument, at
+    /// any depth) holds by <see cref="HostSizedVectorIn(ITypeSymbol)"/>'s rules: what a value
+    /// <see cref="WrittenParameters"/> could not follow (<see cref="PatternKind.Inside"/>) may write.
+    /// </summary>
+    private ITypeSymbol? VectorInside(ITypeSymbol parent, ITypeSymbol value, ref HashSet<ITypeSymbol>? searched)
+    {
+        if (HostSizedVectorIn(parent, value, ref searched) is { } found)
+            return found;
+        switch (value)
+        {
+            case IArrayTypeSymbol array:
+                return VectorInside(value, array.ElementType, ref searched);
+            case INamedTypeSymbol named:
+                foreach (var argument in TypeNames.AllTypeArguments(named))
+                {
+                    if (VectorInside(value, argument, ref searched) is { } inArgument)
+                        return inArgument;
                 }
 
                 return null;

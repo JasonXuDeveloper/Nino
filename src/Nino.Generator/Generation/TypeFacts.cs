@@ -35,8 +35,10 @@ internal sealed class TypeFacts
     private readonly Func<ISymbol, bool> _computeBlock;
     private readonly ParseOptions? _options;
     private readonly Compilation _compilation;
-    private readonly ConcurrentDictionary<IAssemblySymbol, INamedTypeSymbol[]> _genericDefinitions =
-        new(SymbolEqualityComparer.Default);
+    private static readonly ConditionalWeakTable<IAssemblySymbol, INamedTypeSymbol[]> ReferencedGenericDefinitions = new();
+    private INamedTypeSymbol[]? _ownGenericDefinitions;
+    private readonly ConcurrentDictionary<IAssemblySymbol, Dictionary<ISymbol, List<(INamedTypeSymbol, INamedTypeSymbol)>>>
+        _subtypes = new(SymbolEqualityComparer.Default);
     private readonly string[] _symbols;
 
     /// <summary>The facts of <paramref name="compilation"/> (whose files share <paramref name="options"/>).</summary>
@@ -73,53 +75,107 @@ internal sealed class TypeFacts
         Symbols = new NinoSymbols(compilation);
         Visibility = new Visibility(compilation.Assembly);
         Members = new MemberCache(Symbols);
-        WrittenParameters = new WrittenParameters(Members, Symbols, GenericDefinitionsFor);
+        WrittenParameters = new WrittenParameters(Members, Symbols, GenericSubtypesOf);
         Raw = new RawRules(Symbols, Members, WrittenParameters, compilation.Assembly, WeakTolerance);
         Resolver = new FormatterResolver(compilation, Symbols, Raw, Visibility);
     }
 
     /// <summary>
     /// The generic <c>[NinoType]</c> definitions that can be a subtype of a closed generic slot whose definition is in
-    /// <paramref name="assembly"/>: those of this compilation and of that assembly (not nested in a generic type).
+    /// <paramref name="assembly"/>, for registration: those of this compilation and of that assembly, not nested in a
+    /// generic type.
     /// </summary>
     public IEnumerable<INamedTypeSymbol> GenericDefinitionsFor(IAssemblySymbol assembly)
     {
         var own = GenericDefinitionsIn(_compilation.Assembly);
-        return SymbolEqualityComparer.Default.Equals(assembly, _compilation.Assembly)
+        var all = SymbolEqualityComparer.Default.Equals(assembly, _compilation.Assembly)
             ? own
             : own.Concat(GenericDefinitionsIn(assembly));
+        return all.Where(static d => d.ContainingType is not { IsGenericType: true });
     }
 
-    private INamedTypeSymbol[] GenericDefinitionsIn(IAssemblySymbol assembly) =>
-        _genericDefinitions.GetOrAdd(assembly, static a =>
+    /// <summary>
+    /// The generic <c>[NinoType]</c> definitions deriving from <paramref name="definition"/>, each with the ancestor
+    /// through which it does (its nearest base of that definition, else such an interface), for
+    /// <see cref="WrittenParameters"/>: those of this compilation and of every referenced assembly that is the
+    /// definition's or references it, nested in generic types too. Indexed by ancestor once per assembly asked, so
+    /// each slot costs a lookup, not a pass over every generic definition.
+    /// </summary>
+    public IReadOnlyList<(INamedTypeSymbol Subtype, INamedTypeSymbol Ancestor)> GenericSubtypesOf(
+        INamedTypeSymbol definition) =>
+        _subtypes.GetOrAdd(definition.ContainingAssembly, IndexSubtypes).TryGetValue(definition, out var found)
+            ? found
+            : Array.Empty<(INamedTypeSymbol, INamedTypeSymbol)>();
+
+    private Dictionary<ISymbol, List<(INamedTypeSymbol, INamedTypeSymbol)>> IndexSubtypes(IAssemblySymbol assembly)
+    {
+        var candidates = new List<INamedTypeSymbol>(GenericDefinitionsIn(_compilation.Assembly));
+        if (!SymbolEqualityComparer.Default.Equals(assembly, _compilation.Assembly))
         {
-            var found = new List<INamedTypeSymbol>();
-            var namespaces = new Stack<INamespaceSymbol>();
-            namespaces.Push(a.GlobalNamespace);
-            while (namespaces.Count != 0)
+            foreach (var reference in _compilation.SourceModule.ReferencedAssemblySymbols)
             {
-                var ns = namespaces.Pop();
-                foreach (var child in ns.GetNamespaceMembers())
-                    namespaces.Push(child);
-                var types = new Stack<INamedTypeSymbol>(ns.GetTypeMembers());
-                while (types.Count != 0)
-                {
-                    var type = types.Pop();
-                    if (type.IsGenericType)
-                    {
-                        // A type nested in a generic type is closed with its container: left out.
-                        if (type.IsNinoType())
-                            found.Add(type);
-                        continue;
-                    }
-
-                    foreach (var nested in type.GetTypeMembers())
-                        types.Push(nested);
-                }
+                if (SymbolEqualityComparer.Default.Equals(reference, assembly) ||
+                    AssemblyReferences.Of(reference).Contains(assembly.Name))
+                    candidates.AddRange(GenericDefinitionsIn(reference));
             }
+        }
 
-            return found.ToArray();
-        });
+        var index = new Dictionary<ISymbol, List<(INamedTypeSymbol, INamedTypeSymbol)>>(SymbolEqualityComparer.Default);
+        var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        foreach (var candidate in candidates)
+        {
+            seen.Clear();
+            var ancestors = new List<INamedTypeSymbol>();
+            for (var b = candidate.BaseType; b != null; b = b.BaseType)
+                ancestors.Add(b);
+            ancestors.AddRange(candidate.AllInterfaces);
+            foreach (var ancestor in ancestors)
+            {
+                var of = ancestor.OriginalDefinition;
+                if (!ancestor.IsGenericType || !seen.Add(of) || SymbolEqualityComparer.Default.Equals(of, candidate))
+                    continue;
+                if (!index.TryGetValue(of, out var list))
+                    index.Add(of, list = new List<(INamedTypeSymbol, INamedTypeSymbol)>());
+                list.Add((candidate, ancestor));
+            }
+        }
+
+        return index;
+    }
+
+    /// <summary>
+    /// The generic <c>[NinoType]</c> definitions declared in <paramref name="assembly"/>: memoized for this compilation
+    /// for its own assembly, and across compilations (edits) for a referenced one, whose symbol is reused while the
+    /// reference does not change (<see cref="AssemblyReferences"/>).
+    /// </summary>
+    private INamedTypeSymbol[] GenericDefinitionsIn(IAssemblySymbol assembly) =>
+        SymbolEqualityComparer.Default.Equals(assembly, _compilation.Assembly)
+            ? _ownGenericDefinitions ??= FindGenericDefinitions(assembly)
+            : ReferencedGenericDefinitions.GetValue(assembly, FindGenericDefinitions);
+
+    private static INamedTypeSymbol[] FindGenericDefinitions(IAssemblySymbol assembly)
+    {
+        var found = new List<INamedTypeSymbol>();
+        var namespaces = new Stack<INamespaceSymbol>();
+        namespaces.Push(assembly.GlobalNamespace);
+        while (namespaces.Count != 0)
+        {
+            var ns = namespaces.Pop();
+            foreach (var child in ns.GetNamespaceMembers())
+                namespaces.Push(child);
+            var types = new Stack<INamedTypeSymbol>(ns.GetTypeMembers());
+            while (types.Count != 0)
+            {
+                var type = types.Pop();
+                if (type.IsGenericType && type.IsNinoType())
+                    found.Add(type);
+                foreach (var nested in type.GetTypeMembers())
+                    types.Push(nested);
+            }
+        }
+
+        return found.ToArray();
+    }
 
     /// <summary>The Nino attribute types of this compilation.</summary>
     public NinoSymbols Symbols { get; }
