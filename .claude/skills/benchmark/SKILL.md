@@ -60,14 +60,15 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
      add, in a commit whose message carries `[skip ci]` (round 105).
    - Keep other workers' lines, mark finished ones `# done:`, batch requests into one push, merge only, never
      force-push.
-   - **A release tag**: `ab-bench.yml` on `main` compares a ref with the previous release or its base on one runner,
-     but a session's dispatch returns 403 (round 105), and a tag older than the `benchmarks/` layout does not build
-     head's benchmarks (v4.0.0-rc.7 kept them in `src/Nino.Benchmark`, without central package versions), so it
-     measures head alone. Compare such a tag with dotnet-ab instead: base = the tag plus an empty root
-     `Directory.Build.props` and `benchmarks/Directory.Packages.props` (0af6bb5e), head = the commit plus
-     `NinoBenchLegacy` set in `benchmarks/Nino.Benchmark/Directory.Build.props` (dotnet-ab passes no property) and
-     `#if !NINO_BENCH_LEGACY` around the classes the tag cannot compile (20054c4a: CpuProbe, UntrustedTest; 115 of 128
-     Nino cases; run 41413072278).
+   - **A release tag**: ask the owner to dispatch `ab-bench.yml` on `main` with `compare` (a session cannot: its token
+     lacks `actions: write`, `audit-ci`). It builds head's `benchmarks/Nino.Benchmark` on the tag with head's
+     `Directory.Packages.props` in `benchmarks/`, an empty root `Directory.Build.props` where the tag has none
+     (v4.0.0-rc.7 kept its props in `src/`, without central package versions) and `NinoBenchLegacy` when the full build
+     fails, and fails the run when even that does not build. From a session, compare a tag with dotnet-ab: base = the
+     tag plus the same two files committed (0af6bb5e), head = the commit plus `NinoBenchLegacy` set in
+     `benchmarks/Nino.Benchmark/Directory.Build.props` (dotnet-ab passes no property; 115 of 128 Nino cases against
+     rc.7, run 41413072278). A benchmark an older tag cannot compile goes inside `#if !NINO_BENCH_LEGACY` on main
+     (CpuProbe, UntrustedTest, GenericPolymorphicTest).
    - **Spend CI as a budget** (the owner: "跑太多 ci job 了，concurrency 预算都吃没了"): the account runs a limited
      number of jobs at once, shared by main's CI and both A/B workflows, so one A/B run is in flight at a time across
      all workers and both workflows. Before pushing the test branch, check the API for a queued or running A/B run; if

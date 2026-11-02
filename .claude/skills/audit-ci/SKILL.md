@@ -50,7 +50,8 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   runner's Chrome, `.github/scripts/webgl_run.mjs`, which must exit as soon as the player reports done: a pending
   `setTimeout` kept Node, and with it the run that holds the `unity-license` group, for 40 more minutes). An agent
   session's GitHub integration cannot `workflow_dispatch` (403 "Resource not accessible by integration", also after
-  `add_repo` with push access): to run unity.yml on an experiment, push a branch whose own unity.yml adds it to
+  `add_repo` with push access; the response's `X-Accepted-GitHub-Permissions: actions=write` names the token's missing
+  permission, not the workflow: ab-bench.yml is active with `workflow_dispatch` and no environment, round 124): to run unity.yml on an experiment, push a branch whose own unity.yml adds it to
   `on.push.branches`, check first that no Unity run is queued (a newer pending run in the `unity-license` group replaces
   an older pending one), and name the branch in the report: the session cannot delete it either (`git push --delete`
   returned 403). Pin `cliVersion` on every game-ci action that runs the game-ci CLI (unity-test-runner 4.4+,
@@ -92,7 +93,11 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   How workers share the budget: `benchmark`, "Spend CI as a budget".
 - **A/B workflows** live on the test branch: `runtime-ab.yml` reads `.github/ab-request.txt` (Go, Rust and
   TypeScript lines), `dotnet-ab.yml` reads `.github/dotnet-ab-request.txt` (.NET lines); how to write a line is
-  `benchmark`. `ab-bench.yml` on main compares a ref with the previous release or its base.
+  `benchmark`. `ab-bench.yml` on main compares a ref with the previous release or its base. An A/B workflow never
+  reports a comparison it did not make: a side that cannot be built or measured fails its job with an `::error::`,
+  and the summary shows head against base only when every shard that measured head measured base (`ab.py` with one
+  report prints head alone, never head against itself). Why: ab-bench fell back to head alone when v4.0.0-rc.7 did not
+  build head's benchmarks and printed `ab.py head.md head.md`, a table of 1.00x that read as a comparison (round 124).
 
 ## Look for
 
