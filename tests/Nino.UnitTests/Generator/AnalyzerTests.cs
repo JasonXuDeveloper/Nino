@@ -2312,15 +2312,17 @@ public static class ByHand
     public static void Run(ref Writer writer, ref Reader reader, Vector<int> v, Raw raw)
     {
         {|#1:new UnmanagedFormatter<Vector<int>>()|}.Serialize(v, ref writer);
-        UnmanagedFormatter<Raw> f = {|#2:default|};
+        Take({|#2:default(UnmanagedFormatter<Raw>)|});
         {|#3:default(ArrayFormatter<Vector<int>, UnmanagedFormatter<Vector<int>>>)|}.Serialize(null, ref writer);
-        var list = {|#4:new UnmanagedListFormatter<List<Raw>, Raw>()|};
+        Take({|#4:new UnmanagedListFormatter<List<Raw>, Raw>()|});
         {|#5:writer.Write(v)|};
         {|#6:writer.Write(new[] { raw })|};
         {|#7:reader.Read(out Vector<long> back)|};
         {|#8:reader.Read<Raw>()|};
         {|#9:NinoDirect.Serialize<Vector<int>, UnmanagedFormatter<Vector<int>>>(v)|};
     }
+
+    private static void Take<T>(T formatter) { }
 }
 ";
 
@@ -2336,6 +2338,96 @@ public static class ByHand
             Nino029ByHand(7, "The value of this Reader.Read call", "System.Numerics.Vector<long>"),
             Nino029ByHand(8, "The value of this Reader.Read call", "Raw", "System.Numerics.Vector<int>"),
             Nino029ByHand(9, "The value of this NinoDirect.Serialize call", "System.Numerics.Vector<int>")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO029_FormattersHeldInFieldsPropertiesAndLocals()
+    {
+        // A formatter struct is ready to use without a constructor call: a field, property or local of one is reported
+        // at its declaration, once, whether or not a new or default fills it (that value is not reported again).
+        var code = @"
+using System.Numerics;
+using Nino.Core;
+
+public struct Raw { public int A; public Vector<int> V; }
+
+[NinoType]
+public class Stored
+{
+    [NinoIgnore] public UnmanagedFormatter<Vector<int>> {|#7:Ignored|};
+    public UnmanagedFormatter<Vector<int>> {|#8:Written|};
+}
+
+public class Cache
+{
+    private static readonly UnmanagedFormatter<Vector<int>> {|#0:Lanes|};
+    private UnmanagedFormatter<Raw> {|#1:Raws|} = new UnmanagedFormatter<Raw>();
+    public static UnmanagedArrayFormatter<Vector<long>> {|#2:Arrays|} { get; } = default;
+    private ArrayFormatter<Vector<int>, UnmanagedFormatter<Vector<int>>> {|#3:Nested|};
+
+    public Cache() => Raws = default;
+
+    public void Run(ref Writer writer, Vector<int> v)
+    {
+        Lanes.Serialize(v, ref writer);
+        UnmanagedFormatter<Vector<short>> {|#4:local|};
+        local.Serialize(default, ref writer);
+        var {|#5:made|} = new UnmanagedFormatter<Vector<byte>>();
+        made = new UnmanagedFormatter<Vector<byte>>();
+        {|#6:new UnmanagedFormatter<Vector<byte>>()|}.Serialize(default, ref writer);
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Nino029ByHand(0, "The UnmanagedFormatter<T> in 'Cache.Lanes'", "System.Numerics.Vector<int>"),
+            Nino029ByHand(1, "The UnmanagedFormatter<T> in 'Cache.Raws'", "Raw", "System.Numerics.Vector<int>"),
+            Nino029ByHand(2, "The UnmanagedArrayFormatter<T> in 'Cache.Arrays'", "System.Numerics.Vector<long>"),
+            Nino029ByHand(3, "The ArrayFormatter<T, TFormatter> in 'Cache.Nested'", "System.Numerics.Vector<int>"),
+            Nino029ByHand(4, "The UnmanagedFormatter<T> in 'local'", "System.Numerics.Vector<short>"),
+            Nino029ByHand(5, "The UnmanagedFormatter<T> in 'made'", "System.Numerics.Vector<byte>"),
+            Nino029ByHand(6, "The value of this UnmanagedFormatter<T>", "System.Numerics.Vector<byte>"),
+            Nino029ByHand(7, "The UnmanagedFormatter<T> in 'Stored.Ignored'", "System.Numerics.Vector<int>"),
+            // A serialized member: the member rule's diagnostic alone.
+            Nino029(8, "Written", "Stored", "Nino.Core.UnmanagedFormatter<System.Numerics.Vector<int>>",
+                "System.Numerics.Vector<int>")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO029_NotForFormattersHeldOverOtherTypes()
+    {
+        // Fields, properties and locals of Nino.Core formatters over fixed-size vectors, of the user's own Vector<T>
+        // formatter and of a collection formatter over it, and of a generic formatter over a type parameter.
+        var code = @"
+using System.Numerics;
+using System.Runtime.Intrinsics;
+using Nino.Core;
+
+public struct VectorFormatter : INinoFormatter<Vector<int>>
+{
+    public void Serialize(Vector<int> value, ref Writer writer) { }
+    public void Deserialize(ref Vector<int> value, ref Reader reader) { }
+}
+
+public class Cache<T> where T : unmanaged
+{
+    private static readonly UnmanagedFormatter<Vector128<int>> Fixed;
+    private VectorFormatter Own;
+    public ArrayFormatter<Vector<int>, VectorFormatter> OverOwn { get; set; }
+    private UnmanagedFormatter<T> Open;
+    private UnmanagedFormatter<Vector4> Four = new UnmanagedFormatter<Vector4>();
+
+    public void Run(ref Writer writer)
+    {
+        UnmanagedFormatter<long> local;
+        local.Serialize(1, ref writer);
+        Vector<int> zero = default;
+        Own.Serialize(zero, ref writer);
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code).RunAsync();
     }
 
     [TestMethod]

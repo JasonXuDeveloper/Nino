@@ -200,8 +200,9 @@ auto-property, give a constructor a parameter of its name; otherwise 🔧 remove
 ### NINO029
 
 A member, a `NinoSerializer`/`NinoDeserializer` call, or Nino.Core's own formatters and `Writer`/`Reader` methods used
-by hand (`new UnmanagedFormatter<Vector<int>>()`, `default(...)`, `[NinoMemberFormatter(typeof(...))]`,
-`writer.Write(vector)`, `reader.Read(out Vector<int> v)`) need `System.Numerics.Vector<T>`: the type is one or holds
+by hand (`new UnmanagedFormatter<Vector<int>>()`, `default(...)`, a field, property or local of that type, which a
+formatter struct needs no constructor call to fill, `[NinoMemberFormatter(typeof(...))]`, `writer.Write(vector)`,
+`reader.Read(out Vector<int> v)`) need `System.Numerics.Vector<T>`: the type is one or holds
 one (as an element, a type argument, a base type or a field of a plain struct), and `Vector<T>` is 16, 32 or 64 bytes
 by the CPU, so Nino serializes no such type; the runtime throws `NotSupportedException` for it. A generic
 `[NinoType]` counts when its formatter writes the type argument, by the same rule as NINO007's type arguments:
