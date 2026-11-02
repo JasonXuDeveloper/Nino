@@ -120,8 +120,12 @@ constructor callable without arguments (and no public static `[NinoFactory]` fac
 It is also reported for a generic `[NinoType]` closed over a type Nino has no formatter for, where a member of the
 generic type uses that type parameter (`Box<Action>`, also inside `List<Box<Action>>`, `Box<Action>[]` or another
 generic). That member is not skipped: it is written, and null works, but writing any `Box<Action>` throws
-`InvalidOperationException` ("no formatter for System.Action"). A type parameter no serialized member uses
-(`Tag<Action>` of `class Tag<T> { int X; }`) is not reported.
+`InvalidOperationException` ("no formatter for System.Action"). Only a type argument the closed type's formatter
+writes is reported: one that a serialized member writes (its own or a `[NinoType]` base's, directly, in an array, a
+collection, a dictionary, a tuple or `Nullable`, or through another generic `[NinoType]` that writes it), the elements
+of a collection class, or one a generic subtype writes. A type parameter used only by `[NinoIgnore]` members, methods,
+constraints or a nested generic that never writes it is not (`Tag<Action>` of `class Tag<T> { int X; }`, nor
+`Outer<Action>` of `class Outer<T> { Tag<T> Inner; }`, nor anything inside it, `Tag<Box<Action>>`).
 
 ### NINO008
 
@@ -185,9 +189,10 @@ by hand (`new UnmanagedFormatter<Vector<int>>()`, `default(...)`, `[NinoMemberFo
 `writer.Write(vector)`, `reader.Read(out Vector<int> v)`) need `System.Numerics.Vector<T>`: the type is one or holds
 one (as an element, a type argument, a base type or a field of a plain struct), and `Vector<T>` is 16, 32 or 64 bytes
 by the CPU, so Nino serializes no such type; the runtime throws `NotSupportedException` for it. A generic
-`[NinoType]` counts when the members it serializes (its own or its base type's) name the type argument:
+`[NinoType]` counts when its formatter writes the type argument, by the same rule as NINO007's type arguments:
 `Box<Vector<int>>` of `class Box<T> { public T Value; }` is reported, and so is `ListBox<Vector<short>>` of
-`class ListBox<T> : Box<List<T>>`. The message reads: "... cannot be serialized: '{type}' is a Vector<T> (or holds
+`class ListBox<T> : Box<List<T>>`; `Outer<Vector<int>>` of `class Outer<T> { Tag<T> Inner; }` is not when `Tag<T>`
+writes no `T`. The message reads: "... cannot be serialized: '{type}' is a Vector<T> (or holds
 '...'), and Vector<T> is 16, 32 or 64 bytes by the CPU; store a fixed number of lanes (an array, a fixed buffer,
 Vector128<T> or Vector256<T>) and view them as Vector<T> in [NinoIgnore] members". A formatter of your
 own that writes the lanes its way is never reported, nor a Nino.Core collection formatter over it. Store a fixed
