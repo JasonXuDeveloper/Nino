@@ -220,6 +220,16 @@ namespace Nino.UnitTests
         public T Extra;
     }
 
+    // A subtype nested in a generic type: the slot binds the containing type's parameter (SlotOuter<SlotArg>.Inner).
+    public static class SlotOuter<TOuter>
+    {
+        [NinoType]
+        public sealed class Inner : SlotShelf<TOuter>
+        {
+            public int Count;
+        }
+    }
+
     [NinoType]
     public sealed class GenericSlotsHolder
     {
@@ -410,6 +420,8 @@ namespace Nino.UnitTests
                          (typeof(SlotShelf<string>), typeof(ListSlotShelf<string>)),
                          (typeof(SlotCrate<SlotArg>), typeof(LabeledSlotCrate<SlotArg>)),
                          (typeof(ISlotHolder<SlotArg>), typeof(SlotHolder<SlotArg>)),
+                         (typeof(SlotShelf<SlotArg>), typeof(SlotOuter<SlotArg>.Inner)),
+                         (typeof(SlotShelf<string>), typeof(SlotOuter<string>.Inner)),
                      })
             {
                 var find = typeof(NinoSubtypes<>).MakeGenericType(slot).GetMethod("Find", new[] { typeof(int) })!;
@@ -431,6 +443,10 @@ namespace Nino.UnitTests
             Assert.AreEqual("x", back.TextShelf.Item);
             Assert.AreEqual("l", ((LabeledSlotCrate<SlotArg>)back.Crate).Label);
             Assert.AreEqual(SlotArg.A, ((SlotHolder<SlotArg>)back.Holder).Held);
+
+            var nested = NinoDeserializer.Deserialize<SlotShelf<SlotArg>>(
+                NinoSerializer.Serialize<SlotShelf<SlotArg>>(new SlotOuter<SlotArg>.Inner { Item = SlotArg.B, Count = 3 }));
+            Assert.AreEqual(3, ((SlotOuter<SlotArg>.Inner)nested).Count);
         }
 
         [TestMethod]
@@ -513,6 +529,41 @@ namespace Nino.UnitTests
             BitConverter.GetBytes(NinoTypeId.Of(typeof(IEntity))).CopyTo(entity, 0);
             Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<IEntity>(entity));
         }
+
+#if NET
+        [TestMethod]
+        public void ClosedSubtypesFromAnotherReferencedAssemblyAreRegistered()
+        {
+            // The slot's definition in one library, a generic subtype in a plugin that references it, and the app
+            // that references both and names only XShelf<int>: its registry maps XListShelf<int>'s id, as the
+            // analyzer follows that subtype (TypeFacts.GenericSubtypesOf), though the app never names it.
+            var shelves = CornerCompiler.Compile(@"
+namespace XShelves { [Nino.Core.NinoType] public abstract class XShelf<T> { public T Item; } }", load: false);
+            Assert.AreEqual(0, shelves.Errors.Length, shelves.ErrorText);
+            var plugin = CornerCompiler.CompileAgainst(@"
+namespace XPlugin { [Nino.Core.NinoType] public sealed class XListShelf<T> : XShelves.XShelf<T> { public int Extra; } }",
+                shelves);
+            Assert.AreEqual(0, plugin.Errors.Length, plugin.ErrorText);
+            var app = CornerCompiler.CompileAgainst(@"
+namespace XApp { [Nino.Core.NinoType] public sealed class XHolder { public XShelves.XShelf<int> Shelf; } }",
+                shelves, plugin);
+            Assert.AreEqual(0, app.Errors.Length, app.ErrorText);
+            StringAssert.Contains(app.GeneratedCode, "NinoPolymorphic.Register(typeof(global::XPlugin.XListShelf<int>))");
+
+            // At run time, from the id alone.
+            var context = new System.Runtime.Loader.AssemblyLoadContext(nameof(ClosedSubtypesFromAnotherReferencedAssemblyAreRegistered));
+            var shelvesAssembly = context.LoadFromStream(new System.IO.MemoryStream(shelves.Image));
+            var pluginAssembly = context.LoadFromStream(new System.IO.MemoryStream(plugin.Image));
+            var appAssembly = context.LoadFromStream(new System.IO.MemoryStream(app.Image));
+            NinoRegistry.EnsureInitialized(appAssembly);
+            var slot = shelvesAssembly.GetType("XShelves.XShelf`1")!.MakeGenericType(typeof(int));
+            var subtype = pluginAssembly.GetType("XPlugin.XListShelf`1")!.MakeGenericType(typeof(int));
+            var find = typeof(NinoSubtypes<>).MakeGenericType(slot).GetMethod("Find", new[] { typeof(int) })!;
+            var found = find.Invoke(null, new object[] { NinoTypeId.Of(subtype) });
+            Assert.IsNotNull(found);
+            Assert.AreEqual(subtype, found.GetType().GetProperty("Type")!.GetValue(found));
+        }
+#endif
 
         [TestMethod]
         public void SubtypeOnlyInAHotUpdateAssembly()

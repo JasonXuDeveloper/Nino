@@ -81,24 +81,11 @@ internal sealed class TypeFacts
     }
 
     /// <summary>
-    /// The generic <c>[NinoType]</c> definitions that can be a subtype of a closed generic slot whose definition is in
-    /// <paramref name="assembly"/>, for registration: those of this compilation and of that assembly, not nested in a
-    /// generic type.
-    /// </summary>
-    public IEnumerable<INamedTypeSymbol> GenericDefinitionsFor(IAssemblySymbol assembly)
-    {
-        var own = GenericDefinitionsIn(_compilation.Assembly);
-        var all = SymbolEqualityComparer.Default.Equals(assembly, _compilation.Assembly)
-            ? own
-            : own.Concat(GenericDefinitionsIn(assembly));
-        return all.Where(static d => d.ContainingType is not { IsGenericType: true });
-    }
-
-    /// <summary>
     /// The generic <c>[NinoType]</c> definitions deriving from <paramref name="definition"/>, each with the ancestor
     /// through which it does (its nearest base of that definition, else such an interface), for
-    /// <see cref="WrittenParameters"/>: those of this compilation and of every referenced assembly that is the
-    /// definition's or references it, nested in generic types too. Indexed by ancestor once per assembly asked, so
+    /// <see cref="WrittenParameters"/> and for registration by id (<see cref="ClosedGenerics"/>), so the two agree:
+    /// those of this compilation and of every referenced assembly that is the definition's or references it, nested in
+    /// generic types too. Indexed by ancestor once per assembly asked, so
     /// each slot costs a lookup, not a pass over every generic definition.
     /// </summary>
     public IReadOnlyList<(INamedTypeSymbol Subtype, INamedTypeSymbol Ancestor)> GenericSubtypesOf(
