@@ -70,7 +70,8 @@ Corner/                      corner cases compiled in memory (CornerCompiler): S
                              type hierarchy, generated, compiled and round-tripped), construction, members, generics,
                              pooling, references, versioning, concurrency, unloading, layout metadata, raw-rule
                              agreement between generator and runtime, cross-assembly raw structs
-Platforms/                   Unity (UnityTypesTests against the UnityEngine stub, UnityMock/), HybridCLR hot-update
+Platforms/                   Unity (UnityTypesTests against the UnityEngine stub, UnityMock/; UnityPackageDllTests: the
+                             Unity package's committed DLLs have the public API of their sources), HybridCLR hot-update
                              assemblies, the NinoKernels hook, ET framework collection shapes
 Infrastructure/              shared helpers: Rt (round trips), SharedTypes, TestCompilation, TestReferences
 Nino.UnitTests.csproj        targets, WEAK_VERSION_TOLERANCE, references (Nino.Core, Immutable, UnityTypes, the

@@ -6,9 +6,11 @@ on:
     # Everything a job here builds or runs (the solution, the runtimes the integrations job tests, the scripts).
     paths: &paths
       - 'src/**'
-      # The Unity project is unity.yml's, but for the raw-layout fixtures Nino.RuntimeTests links from it.
+      # The Unity project is unity.yml's, but for the raw-layout fixtures Nino.RuntimeTests links from it and the
+      # package's DLLs, whose public API UnityPackageDllTests compares with their sources.
       - '!src/Nino.Unity/**'
       - 'src/Nino.Unity/Assets/Test/Runtime/BclFixture*.cs'
+      - 'src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/*.dll'
       - 'tests/**'
       - 'tools/**'
       - 'runtimes/**'
