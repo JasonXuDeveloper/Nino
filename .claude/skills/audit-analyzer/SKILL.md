@@ -1,6 +1,6 @@
 ---
 name: audit-analyzer
-description: "Audit Nino's diagnostics (NINO rules in src/Nino.Generator/Analysis), the suppressor and the code fixes - missing rules for declarations that cannot work or that cost, false positives, messages that name the member and the fix, one diagnostic per mistake, a code fix wherever the fix is mechanical, tests per rule, the analyzer's build cost, and the docs that list the rules. Use when adding or changing a rule or code fix, when users hit a runtime error a rule could have caught, or when a rule fires wrongly. Triggers: NinoAnalyzer, NinoDiagnostics, NinoSuppressor, NinoCodeFixProvider, NINO0xx, NINOGEN, AnalyzerReleases, AnalyzerTests, CodeFixTests, docs/diagnostics.md, false positive, warning, 分析器, 诊断, 误报, 代码修复."
+description: "Audit Nino's diagnostics (NINO rules in src/Nino.Generator/Analysis), the suppressor and the code fixes - missing rules for declarations that cannot work or that cost, false positives, messages that name the member and the fix, one diagnostic per mistake, a code fix wherever the fix is mechanical, tests per rule, the analyzer's build cost, and the docs that list the rules. Use when adding or changing a rule or code fix, when users hit a runtime error a rule could have caught, or when a rule fires wrongly. Triggers: NinoAnalyzer, NinoDiagnostics, NinoSuppressor, NinoCodeFixProvider, NINO0*, AnalyzerReleases, AnalyzerTests, CodeFixTests, docs/diagnostics.md, false positive, analyzer warning, 分析器, 诊断, 误报, 代码修复."
 metadata:
   internal: true
 ---
@@ -20,31 +20,34 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   takes `CachedFormatter<Action>`; the generator keeps the member, so the bytes stay (the owner's call, round 101).
   Only type arguments the closed type's formatter writes count (`WrittenParameters`, below): `Tag<Action>` and
   `Outer<Action>` of `Outer<T> { Tag<T> Inner; }` write fine.
-- A type whose bytes would differ by host is an Error wherever Nino would write it: NINO029 for `Vector<T>` on the
-  member (alone, element, type argument a generic `[NinoType]`'s formatter writes, base type or `IEnumerable<T>` of a collection,
-  field of a plain struct at any depth), on the
-  `NinoSerializer`/`NinoDeserializer` call (an operation action, rejected by method name first) and on Nino.Core's
-  formatters and `Writer`/`Reader`/`NinoDirect` generic methods used by hand (`new UnmanagedFormatter<Vector<int>>()`,
-  `default(...)`, `[NinoMemberFormatter(typeof(UnmanagedFormatter<Vector<int>>))]`, `writer.Write(v)`,
-  `reader.Read(out Vector<int> v)`, inferred type arguments included), which throw the same `NotSupportedException`
+- **A type whose bytes would differ by host is an Error wherever Nino would write it**: NINO029 for `Vector<T>` on the
+  member (alone, element, type argument a generic `[NinoType]`'s formatter writes, base type or `IEnumerable<T>` of a
+  collection, field of a plain struct at any depth) and on the `NinoSerializer`/`NinoDeserializer` call (an operation
+  action, rejected by method name first).
+- **Formatters and generic methods used by hand are searched like members**: Nino.Core's formatters and
+  `Writer`/`Reader`/`NinoDirect` generic methods (`new UnmanagedFormatter<Vector<int>>()`, `default(...)`,
+  `[NinoMemberFormatter(typeof(UnmanagedFormatter<Vector<int>>))]`, `writer.Write(v)`, `reader.Read(out Vector<int>
+  v)`, inferred type arguments included) throw the same `NotSupportedException`, so they get NINO029 too
   (`RawRules.HostSizedVectorWrittenBy`: the invocation action rejects a non-generic method by name first, the creation
   and default-value action a type outside Nino.Core's assembly first). A type parameter constrained to a formatter
   (`ArrayFormatter<T, TFormatter>`, `NinoDirect.Serialize<T, TFormatter>`) writes the others' values: only a Nino.Core
   formatter there is searched, so the user's own `Vector<T>` formatter, a collection formatter over it and unrelated
   generics that take a `Vector<T>` fire nothing (`NINO029_FormattersMadeByHand`, `NINO029_NotForOtherFormattersByHand`).
-  One predicate decides it for the analyzer, the generator's resolver, `RawRules.IsRawUnmanaged`, the call transform (no registration, no
-  interceptor) and, mirrored, Nino.Core (`RawRules.HostSizedVectorIn` / `NinoReflection.HostSizedVectorIn`). It never
-  fires where Nino writes nothing (`[NinoIgnore]`, get-only properties, ref structs, which stay NINO007) or the user
-  writes the bytes (`[NinoMemberFormatter]`), and a struct of such members gets NINO029 alone, not NINO023 too
-  (`AnalyzerTests.NINO029_*`). Walk everything a formatter would write, base types included: a type holding the
-  vector only through its base (`class Lanes : List<Vector<int>>`) got NINO007 (no formatter) instead of NINO029, the
-  same mistake under a rule that names neither cause nor fix; a base without a vector (`class Ints : List<int>`) fires
-  neither (`NINO029_InBaseTypesAndCollections`, `NINO029_NotForBaseTypesWithoutVectors`). Any such walk over symbols
-  guards types that hold themselves (`struct Node { List<Node> C; }`, `class Tree : List<Tree>`): without the guard
-  the first predicate overflowed the stack and took the compiler down. Search each type once per query (a set of
-  every type met, kept to the end; a vector found returns through every step, so a type met again is null), never
-  once per path: forgetting nulls found under a cut made a ring of collection classes (`C0 : List<C1>` ...
-  `Cn : List<C0>`) exponential, 18 classes two minutes in the IDE
+- **One predicate decides host-sized types everywhere**: the analyzer, the generator's resolver,
+  `RawRules.IsRawUnmanaged`, the call transform (no registration, no interceptor) and, mirrored, Nino.Core
+  (`RawRules.HostSizedVectorIn` / `NinoReflection.HostSizedVectorIn`).
+- **NINO029 fires only where Nino writes the bytes, and alone**: never where Nino writes nothing (`[NinoIgnore]`,
+  get-only properties, ref structs, which stay NINO007) or the user writes the bytes (`[NinoMemberFormatter]`), and a
+  struct of such members gets NINO029 alone, not NINO023 too (`AnalyzerTests.NINO029_*`).
+- **Walk everything a formatter would write, base types included**: a type holding the vector only through its base
+  (`class Lanes : List<Vector<int>>`) got NINO007 (no formatter) instead of NINO029, the same mistake under a rule
+  that names neither cause nor fix; a base without a vector (`class Ints : List<int>`) fires neither
+  (`NINO029_InBaseTypesAndCollections`, `NINO029_NotForBaseTypesWithoutVectors`).
+- **Any walk over symbols guards types that hold themselves** (`struct Node { List<Node> C; }`, `class Tree :
+  List<Tree>`): without the guard the first predicate overflowed the stack and took the compiler down.
+- **Search each type once per query, never once per path**: keep a set of every type met to the end; a vector found
+  returns through every step, so a type met again is null. Forgetting nulls found under a cut made a ring of
+  collection classes (`C0 : List<C1>` ... `Cn : List<C0>`) exponential, 18 classes two minutes in the IDE
   (`NINO029_TypesHoldingEachOtherAreSearchedOnce`, round 104).
 - Decide what a closed generic `[NinoType]` writes from its definition, by type parameter, never by building its
   closed member types and never by "the parameter appears in a member type": `WrittenParameters` computes, per
