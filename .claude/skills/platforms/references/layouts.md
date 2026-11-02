@@ -53,9 +53,9 @@ write CoreCLR x64's bytes, `Vector<T>` widths, and reading field types by reflec
   with a `delegate*` field, even `sizeof`: tests/Nino.RuntimeTests declares one in net10.0 only and tests Mono with a
   registered `IntPtr` field. Unity compiles C# 9: its Mono (play mode) and IL2CPP (the player) run declared
   `delegate*` fields in Unity's FunctionPointerTests (src/Nino.Unity), with a pointer taken with `&` called after the
-  round trip; only unity.yml on `main` runs them. Build pointer constants in tests from 64-bit literals
-  (`(nuint)0x87654321UL`): for `(nuint)0x87654321u` (ldc.i4, conv.u) IL2CPP's players sign-extend the value itself
-  (the field held 0xFFFFFFFF87654321 on 2022.3 and 6000.3 while Mono held 0x87654321; run 41494277688). 32-bit Mono 6.12 runs without installing it: `dpkg -x` the i386 debs of
+  round trip; only unity.yml on `main` runs them. Read pointer values in tests from a `static readonly ulong` at run time: Roslyn folds both `(nuint)0x87654321u`
+  and `(nuint)0x87654321UL` to `ldc.i4` and `conv.u`, which IL2CPP's players sign-extend (the field held
+  0xFFFFFFFF87654321 on 2022.3 and 6000.3 while Mono held 0x87654321; runs 41494277688 and 41501012528). 32-bit Mono 6.12 runs without installing it: `dpkg -x` the i386 debs of
   download.mono-project.com's stable-bionic (mono-runtime-sgen and its closure, the Facades from mono-devel) and
   bionic's libc6, libgcc1, libstdc++6, zlib1g, then run `root/lib/ld-linux.so.2 --library-path ... mono-sgen` with
   `MONO_PATH=root/usr/lib/mono/4.5:.../Facades` (else it loads /usr/lib/mono's corlib); there tests/Nino.RuntimeTests also

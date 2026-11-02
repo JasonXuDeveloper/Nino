@@ -34,19 +34,25 @@ namespace Test.Runtime
             return BitConverter.IsLittleEndian ? bytes : bytes.Reverse().ToArray();
         }
 
-        // Pointer constants are built from 64-bit literals: for (nuint)0x87654321u (ldc.i4, conv.u) IL2CPP's players
-        // sign-extend the value itself, so the field would hold 0xFFFFFFFF87654321 before Nino ever sees it.
+        // The pointer values are read from static fields at run time: Roslyn folds (nuint)FValue, like
+        // (nuint)0x87654321u, to ldc.i4 and conv.u, which IL2CPP's players sign-extend, so the field would hold
+        // 0xFFFFFFFF87654321 before Nino ever sees it.
+        private static readonly ulong FValue = 0x87654321, UValue = 0x80000008, PValue = 0x80000004;
+
         [Test]
         public void ConstantsZeroExtended()
         {
             var value = new HoldsFunctionPointers
             {
                 A = 1,
-                F = (delegate*<int, int, int>)(nuint)0x87654321UL,
-                U = (delegate* unmanaged[Cdecl]<int>)(nuint)0x80000008UL,
-                P = (int*)(nuint)0x80000004UL,
+                F = (delegate*<int, int, int>)(nuint)FValue,
+                U = (delegate* unmanaged[Cdecl]<int>)(nuint)UValue,
+                P = (int*)(nuint)PValue,
                 N = -2,
             };
+            Assert.AreEqual(FValue, (ulong)(nuint)value.F, "the runtime built another value");
+            Assert.AreEqual(UValue, (ulong)(nuint)value.U, "the runtime built another value");
+            Assert.AreEqual(PValue, (ulong)(nuint)value.P, "the runtime built another value");
             var expected = new byte[] { 1, 0, 0, 0, 0, 0, 0, 0 } // A, then the padding of the canonical layout
                 .Concat(new byte[] { 0x21, 0x43, 0x65, 0x87, 0, 0, 0, 0 })
                 .Concat(new byte[] { 8, 0, 0, 0x80, 0, 0, 0, 0 })
@@ -61,11 +67,11 @@ namespace Test.Runtime
 
             var back = NinoDeserializer.Deserialize<HoldsFunctionPointers>(expected);
             Assert.AreEqual(1, back.A);
-            Assert.AreEqual((nuint)0x87654321UL, (nuint)back.F);
-            Assert.AreEqual((nuint)0x80000008UL, (nuint)back.U);
-            Assert.AreEqual((nuint)0x80000004UL, (nuint)back.P);
+            Assert.AreEqual((nuint)FValue, (nuint)back.F);
+            Assert.AreEqual((nuint)UValue, (nuint)back.U);
+            Assert.AreEqual((nuint)PValue, (nuint)back.P);
             Assert.AreEqual((nint)(-2), back.N);
-            Assert.AreEqual((nuint)0x87654321UL, (nuint)NinoDeserializer.Deserialize<HoldsFunctionPointers[]>(array)[1].F);
+            Assert.AreEqual((nuint)FValue, (nuint)NinoDeserializer.Deserialize<HoldsFunctionPointers[]>(array)[1].F);
         }
 
         [Test]
