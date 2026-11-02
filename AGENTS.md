@@ -125,7 +125,8 @@ reusing is written down before the task ends, in the same series of commits as t
   holds what users' agents need. Search before adding a rule: extend the existing one.
 - **Descriptions decide when a skill runs**: what it does, `Use when ...`, and `Triggers:` with the paths it owns,
   the symptoms, and the owner's words in English and Chinese. A skill that did not run when it should have gets the
-  missing trigger.
+  missing trigger (the prompt hook `.claude/hooks/skill-hint.py` matches an English word or phrase as whole
+  words, so `NINO0xx` never matched `NINO029`: end a prefix with `*`, `NINO0*`).
 - **Split, never shrink.** A skill that has grown past one concern is split by concern (every line moves, the old
   skill keeps a pointer, `audit` gains the scope, `tools/agents.sh` the index).
 - **Decide, then say.** Do what clearly fits the project's rules without asking; ask only what is the owner's to
