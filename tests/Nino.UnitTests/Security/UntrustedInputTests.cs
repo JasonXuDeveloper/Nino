@@ -278,6 +278,9 @@ public class UntrustedInputTests
         // Custom cultures and names with an extension or private use subtag: the runtime would keep each.
         foreach (string name in new[] { "en-x0001", "en-US-u-ca-buddhist", "en-US-x-mine", "x-mine", "de-DE_phoneb" })
             Invalid<System.Globalization.CultureInfo>(NinoSerializer.Serialize(name));
+#if NET8_0_OR_GREATER
+        int accepted = CultureInfoFormatter.AcceptedCount;
+#endif
         long before = GC.GetTotalMemory(true);
         for (int i = 0; i < 50_000; i++)
             Assert.ThrowsExactly<NinoDataException>(() =>
@@ -286,6 +289,20 @@ public class UntrustedInputTests
         // Kept, these would hold about 40 MB.
         long grew = GC.GetTotalMemory(true) - before;
         Assert.IsTrue(grew < 8 << 20, $"{grew} bytes kept");
+#if NET8_0_OR_GREATER
+        // Rejected names are not cached; the accepted ones are, once per name whatever its case.
+        Assert.AreEqual(accepted, CultureInfoFormatter.AcceptedCount);
+        if (System.Globalization.CultureInfo.GetCultures(System.Globalization.CultureTypes.AllCultures).Length > 1)
+        {
+            var first = NinoDeserializer.Deserialize<System.Globalization.CultureInfo>(NinoSerializer.Serialize("fr-CA"));
+            int once = CultureInfoFormatter.AcceptedCount;
+            foreach (string variant in new[] { "FR-ca", "fr-ca", "Fr-Ca", "fr-CA" })
+                Assert.AreSame(first,
+                    NinoDeserializer.Deserialize<System.Globalization.CultureInfo>(NinoSerializer.Serialize(variant)));
+            Assert.AreEqual(once, CultureInfoFormatter.AcceptedCount);
+            Assert.IsTrue(once <= CultureInfoFormatter.MaxAccepted);
+        }
+#endif
 #endif
     }
 
