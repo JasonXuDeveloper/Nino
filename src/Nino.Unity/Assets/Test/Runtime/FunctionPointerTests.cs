@@ -34,15 +34,17 @@ namespace Test.Runtime
             return BitConverter.IsLittleEndian ? bytes : bytes.Reverse().ToArray();
         }
 
+        // Pointer constants are built from 64-bit literals: for (nuint)0x87654321u (ldc.i4, conv.u) IL2CPP's players
+        // sign-extend the value itself, so the field would hold 0xFFFFFFFF87654321 before Nino ever sees it.
         [Test]
         public void ConstantsZeroExtended()
         {
             var value = new HoldsFunctionPointers
             {
                 A = 1,
-                F = (delegate*<int, int, int>)(nuint)0x87654321u,
-                U = (delegate* unmanaged[Cdecl]<int>)(nuint)0x80000008u,
-                P = (int*)(nuint)0x80000004u,
+                F = (delegate*<int, int, int>)(nuint)0x87654321UL,
+                U = (delegate* unmanaged[Cdecl]<int>)(nuint)0x80000008UL,
+                P = (int*)(nuint)0x80000004UL,
                 N = -2,
             };
             var expected = new byte[] { 1, 0, 0, 0, 0, 0, 0, 0 } // A, then the padding of the canonical layout
@@ -59,11 +61,11 @@ namespace Test.Runtime
 
             var back = NinoDeserializer.Deserialize<HoldsFunctionPointers>(expected);
             Assert.AreEqual(1, back.A);
-            Assert.AreEqual((nuint)0x87654321u, (nuint)back.F);
-            Assert.AreEqual((nuint)0x80000008u, (nuint)back.U);
-            Assert.AreEqual((nuint)0x80000004u, (nuint)back.P);
+            Assert.AreEqual((nuint)0x87654321UL, (nuint)back.F);
+            Assert.AreEqual((nuint)0x80000008UL, (nuint)back.U);
+            Assert.AreEqual((nuint)0x80000004UL, (nuint)back.P);
             Assert.AreEqual((nint)(-2), back.N);
-            Assert.AreEqual((nuint)0x87654321u, (nuint)NinoDeserializer.Deserialize<HoldsFunctionPointers[]>(array)[1].F);
+            Assert.AreEqual((nuint)0x87654321UL, (nuint)NinoDeserializer.Deserialize<HoldsFunctionPointers[]>(array)[1].F);
         }
 
         [Test]
