@@ -1352,7 +1352,8 @@ AC 2B C0 ED                   type id of "Spec.Circle" (0xEDC02BAC)
 00 00 00 00                   null
 ```
 
-A non-sealed base held as itself also writes its id: `[NinoType] class Open { int A; }`, `new Open { A = 1 }` →
+The same `Circle` declared as itself (sealed) writes a presence byte and no id: `new Circle { Id = 1, R = 1f }` →
+`01 01 00 00 00 00 00 80 3F`; `null` → `00`. A non-sealed base held as itself also writes its id: `[NinoType] class Open { int A; }`, `new Open { A = 1 }` →
 `32 CC 13 82 01 00 00 00`. A generic type under `object`: `(object)new Box<int> { Value = 3 }` →
 `38 EE 81 67 03 00 00 00` (`Spec.Box<System.Int32>`).
 
@@ -1386,6 +1387,13 @@ as TolLeaf:   01 | 08 00 00 00 | 01 00 00 00 07 00 00 00
 as TolBase:   77 30 46 2B | 08 00 00 00 | 01 00 00 00 07 00 00 00     (type id of Spec.TolLeaf)
 ```
 A `TolBase`-only reader of the second payload reads `A = 1` and skips the 4 bytes of `B`.
+
+Appending a member to the base shifts the derived members (§7.5). Version 2 declares `TolBase { int A; int R; }`:
+```
+new TolLeaf { A = 1, R = 2, B = 7 }, as TolLeaf:   01 | 0C 00 00 00 | 01 00 00 00 02 00 00 00 07 00 00 00
+```
+A version-1 reader of it reads `B = 2` (the bytes of `R`) and skips the last 4 bytes; a version-2 reader of the
+version-1 payload above reads `R = 7` and leaves `B` at its default.
 
 ### A.4 Strings in each encoding
 

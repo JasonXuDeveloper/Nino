@@ -28,8 +28,8 @@ interactive component, or upgrading Fumadocs. How each form is written is nino.d
   than a screen), Chinese labels on Chinese pages, never hand-drawn SVG. The cache is what keeps local builds fast;
   Cloudflare Pages keeps no `node_modules/.cache` for a React Router site, so its builds draw every diagram (measured in
   round 105: nino.docs AGENTS.md, Build & Deploy).
-- **Byte figures come from the specification's worked examples** (Appendix A, dumps of a real run) or from its rules
-  checked against them, never from memory.
+- **Byte figures come from the specification's dumps** (Appendix A and the sections' examples, dumps of a real run),
+  never from memory or worked out from the rules: a figure the spec has no dump for gets one in the spec first.
 
 ## Interactive components and data
 
@@ -43,7 +43,8 @@ interactive component, or upgrading Fumadocs. How each form is written is nino.d
   NINO007, see a ratio, scan a release, decode a word, see the bytes) and none duplicates the text.
 - **Every byte the site shows is checked against what Nino writes**: nino.docs' `bun run check:bytes` finds each
   `<Bytes>` row and each byte-playground row in a hex dump of `docs/spec/wire-format.md` or in
-  `conformance/corpus/valid/*.bin`; a figure derived from the rules carries `derived="..."` and is listed. Run it in
-  the docs pass of any wire-format change (`wire-format` lists the docs). Evidence: round 107's first run found four
-  figure rows, in each language, derived from the rules (an evolving-data v1/v2 body, a struct-layouts tuple,
-  polymorphism's sealed Circle); every byte-playground row is one of the spec's Appendix A dumps.
+  `conformance/corpus/valid/*.bin` and fails on any other. Run it in the docs pass of any wire-format change
+  (`wire-format` lists the docs). Evidence: round 107's first run found four figure rows, in each language, worked
+  out from the rules (an evolving-data v1/v2 body, a struct-layouts tuple, polymorphism's sealed Circle) and let
+  through as `derived`; round 120 serialized each with Nino (all four were right), put the missing dumps into the
+  spec's A.2 and A.3, taught the check to read `\|` in the spec's tables, and removed the escape.
