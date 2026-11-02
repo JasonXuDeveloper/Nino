@@ -32,11 +32,24 @@ write CoreCLR x64's bytes, `Vector<T>` widths, and reading field types by reflec
   (AVX-512) or EPYC 7763 (none): a check that needs AVX-512 asks `.github/scripts/has_avx512.sh` (F, BW, CD, DQ, VL,
   as .NET needs) and posts a notice instead of failing without it.
 - Never read a pointer field by reflection: `FieldInfo.GetValue` on `IntPtr`'s `void*` crashed Mono 6.8 with SIGSEGV.
-- Read every field type a layout needs through `NinoReflection.LayoutFieldType`: a function pointer (`delegate*`) is a
-  pointer, 8 bytes zero-extended as the generator publishes it, but .NET 8 and later report the field as a function
-  pointer type (`IsFunctionPointer`; `IsClass` true, `IsValueType` false, no base type), which `NinoLayout` took for
-  unsupported and copied as it lay in memory (4 bytes on 32-bit), and .NET Framework and .NET 7 report `IntPtr`
-  (sign-extended), which only the field's signature tells apart (`Module.ResolveSignature` of its FieldDef token,
-  ELEMENT_TYPE_FNPTR 0x1B after any modifier; Mono resolves only StandAloneSig tokens, IL2CPP none, so there it stays
-  an `IntPtr`). Mono 6.8 overflows its stack loading any struct with a `delegate*` field, even one only a generated
-  registry names: tests/Nino.RuntimeTests declares its case in net10.0 only (r105: ok on x64 and on Arm32 under qemu).
+- Take a fact about a type that the generator sees from generated code, never from reflection at run time (the
+  owner's rule): reflection differs per runtime, NativeAOT keeps only the metadata it is asked for, and every probe
+  costs at startup. A function pointer (`delegate*`) is a pointer, 8 bytes zero-extended, but .NET 8 and later report
+  its field as a function pointer type (`IsClass` true, `IsValueType` false, no base type) and .NET Framework, .NET 7,
+  Mono and IL2CPP as an `IntPtr`, which a 32-bit host sign-extended (r105 told them apart by `IsFunctionPointer` and
+  `Module.ResolveSignature`'s ELEMENT_TYPE_FNPTR; Mono resolves no FieldDef signature, IL2CPP none, so a 32-bit Unity
+  player wrote FF FF FF FF over an address's high half). Now the generator lists the `delegate*` fields of every
+  struct it measures or that the project declares (`LayoutTypes.FunctionPointerFields`, by assembly and runtime name so
+  that registering loads no type) in the registry's static constructor, and `NinoReflection.LayoutFieldType`, which
+  every layout reads field types through, asks `NinoFunctionPointerFields` for a field reported as an `IntPtr` or a
+  base-less class. Evidence (r118): 32-bit Mono 6.12 on x86 read the canonical bytes of a field reported as an
+  `IntPtr` as "an integer too large" without the registration and wrote and read them with it; NativeAOT (with the
+  registry's `[DynamicDependency]`) and Arm32 .NET 10 under qemu wrote the same bytes as x64 (`Nino.AotTests`,
+  tests/Nino.RuntimeTests). Stock Mono (6.8 on x64, 6.12 on x64 and x86) overflows its stack on any use of a struct
+  with a `delegate*` field, even `sizeof`: tests/Nino.RuntimeTests declares one in net10.0 only and tests Mono with a
+  registered `IntPtr` field. 32-bit Mono 6.12 runs without installing it: `dpkg -x` the i386 debs of
+  download.mono-project.com's stable-bionic (mono-runtime-sgen and its closure, the Facades from mono-devel) and
+  bionic's libc6, libgcc1, libstdc++6, zlib1g, then run `root/lib/ld-linux.so.2 --library-path ... mono-sgen` with
+  `MONO_PATH=root/usr/lib/mono/4.5:.../Facades` (else it loads /usr/lib/mono's corlib); there tests/Nino.RuntimeTests also
+  failed its Waypoint cases (`Sys` type initializer: no libmono-native in that root) and found no Dictionary fast
+  paths (not examined).
