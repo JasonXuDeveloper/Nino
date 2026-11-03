@@ -635,7 +635,41 @@ internal static class ModelBuilder
             ShallowFormatter: shallowFormatter ?? formatter,
             Fresh: custom == null && memberType.IsReferenceType && (traits & FormatterTraits.Core) != 0 &&
                    (traits & replaces) == 0 && StartsDefault(symbol, ct),
-            ReadsLoop: raw == null && readsLoop);
+            ReadsLoop: raw == null && readsLoop,
+            PlainStore: symbol is IFieldSymbol || symbol is IPropertySymbol property && IsAutoProperty(property));
+    }
+
+    /// <summary>
+    /// Whether <paramref name="property"/>'s setter only stores the value: declared <c>set;</c> or <c>init;</c> in
+    /// source (an auto-property, also one whose getter uses <c>field</c>), or marked compiler-generated in a
+    /// referenced assembly. A setter with a body may do more (notify, validate) and is always called.
+    /// </summary>
+    private static bool IsAutoProperty(IPropertySymbol property)
+    {
+        var setter = property.SetMethod;
+        if (setter == null)
+            return false;
+        var references = setter.DeclaringSyntaxReferences;
+        if (references.Length == 0)
+        {
+            foreach (var attribute in setter.GetAttributes())
+            {
+                if (attribute.AttributeClass is { Name: "CompilerGeneratedAttribute" } attributeClass &&
+                    attributeClass.ContainingNamespace?.ToDisplayString() == "System.Runtime.CompilerServices")
+                    return true;
+            }
+
+            return false;
+        }
+
+        foreach (var reference in references)
+        {
+            if (reference.GetSyntax() is not Microsoft.CodeAnalysis.CSharp.Syntax.AccessorDeclarationSyntax
+                { Body: null, ExpressionBody: null })
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>

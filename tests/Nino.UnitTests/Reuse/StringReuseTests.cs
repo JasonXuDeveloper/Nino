@@ -22,6 +22,27 @@ namespace Nino.UnitTests
         [NinoUtf8] public string Code;
     }
 
+    [NinoType]
+    public class StringReuseSetters
+    {
+        private string _named;
+
+        public string Field;
+        public string Auto { get; set; }
+
+        public string Named
+        {
+            get => _named;
+            set
+            {
+                _named = value;
+                Sets++;
+            }
+        }
+
+        [NinoIgnore] public int Sets;
+    }
+
     [TestClass]
     public class StringReuseTests
     {
@@ -47,6 +68,30 @@ namespace Nino.UnitTests
             Assert.AreSame(tag0, target.Tags[0]);
             Assert.AreSame(ascii, target.Ascii);
             Assert.AreEqual("wide 中文1", target.Wide);
+        }
+
+        [TestMethod]
+        public void UnchangedStringsAreNotStoredAgainButSettersStillRun()
+        {
+            // A field and an auto-property keep the same string without a store; a setter with a body still runs,
+            // with the string it already held.
+            var bytes = NinoSerializer.Serialize(new StringReuseSetters { Field = "field", Auto = "auto", Named = "named" });
+            var target = new StringReuseSetters
+                { Field = new string('f', 1) + "ield", Auto = new string('a', 1) + "uto", Named = new string('n', 1) + "amed" };
+            var (field, auto, named) = (target.Field, target.Auto, target.Named);
+            target.Sets = 0;
+            NinoDeserializer.Deserialize(bytes, ref target);
+            Assert.AreSame(field, target.Field);
+            Assert.AreSame(auto, target.Auto);
+            Assert.AreSame(named, target.Named);
+            Assert.AreEqual(1, target.Sets);
+
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new StringReuseSetters { Field = "f2", Auto = "a2", Named = "n2" }),
+                ref target);
+            Assert.AreEqual("f2", target.Field);
+            Assert.AreEqual("a2", target.Auto);
+            Assert.AreEqual("n2", target.Named);
+            Assert.AreEqual(2, target.Sets);
         }
 
         [TestMethod]
