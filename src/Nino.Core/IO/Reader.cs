@@ -644,8 +644,6 @@ namespace Nino.Core
         public bool ReadBool()
         {
             byte value = UnsafeRead<byte>();
-            if (value > 1)
-                NinoThrow.InvalidBool(value);
             return value != 0;
         }
 
