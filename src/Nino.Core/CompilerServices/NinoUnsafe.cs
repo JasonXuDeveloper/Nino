@@ -537,6 +537,9 @@ namespace Nino.Core.CompilerServices
         /// </summary>
         private static readonly bool AmdCopy = X86Base.IsSupported && IsAmd();
 
+        // A/B only: a null change that moves the heap and the code the class initializer compiles.
+        internal static readonly byte[] NullPad = new byte[1000];
+
         private static bool IsAmd()
         {
             // "AuthenticAMD", in EBX, EDX and ECX.
