@@ -11,9 +11,10 @@ namespace Nino.Core.CompilerServices
     /// for <see cref="NinoLayout"/>: a function pointer is a pointer on the wire, 8 bytes zero-extended like <c>T*</c>
     /// (spec §5.2), while an <c>IntPtr</c> is sign-extended. Reflection cannot be relied on to tell them apart: Mono,
     /// IL2CPP and .NET Framework report the field as an <c>IntPtr</c>, .NET 8 and later as a function pointer type, and
-    /// NativeAOT keeps only the metadata it is asked for. So the generator, which sees <c>IFunctionPointerTypeSymbol</c>,
-    /// writes the fields into each assembly's registry, whose static constructor calls <see cref="Register"/>, and
-    /// every runtime lays them out from that one source. On a 32-bit host an <c>IntPtr</c>-typed field is converted
+    /// NativeAOT keeps only the metadata it is asked for. So the generator, which sees the field's type in source and in
+    /// the metadata of every reference, writes the fields of every struct the compilation can see into the assembly's
+    /// registry, whose static constructor calls <see cref="Register"/>, and every runtime lays them out from that one
+    /// source. On a 32-bit host an <c>IntPtr</c>-typed field is converted
     /// sign-extended, a registered one zero-extended; on 64-bit hosts both are copied as they are.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -30,7 +31,8 @@ namespace Nino.Core.CompilerServices
         /// <summary>
         /// Registers <paramref name="fields"/>, the function pointer fields of the struct whose definition is named
         /// <paramref name="type"/> (its runtime name: <c>Ns.Outer+S&lt;T&gt;</c>) in <paramref name="assembly"/> (its
-        /// simple name). Called by generated code.
+        /// simple name). Called by generated code: the registry of the assembly that declares the struct and of every
+        /// assembly that references it, so the fields registered for one struct are merged, never replaced.
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         public static void Register(string assembly, string type, params string[] fields)
@@ -39,7 +41,24 @@ namespace Nino.Core.CompilerServices
                 throw new ArgumentNullException(nameof(assembly));
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
-            Fields[Key(assembly, type)] = fields ?? throw new ArgumentNullException(nameof(fields));
+            if (fields == null)
+                throw new ArgumentNullException(nameof(fields));
+            Fields.AddOrUpdate(Key(assembly, type), fields, (_, known) => Merge(known, fields));
+        }
+
+        /// <summary><paramref name="known"/> and those of <paramref name="added"/> it does not hold.</summary>
+        private static string[] Merge(string[] known, string[] added)
+        {
+            var merged = known;
+            foreach (var field in added)
+            {
+                if (Array.IndexOf(merged, field) >= 0)
+                    continue;
+                Array.Resize(ref merged, merged.Length + 1);
+                merged[merged.Length - 1] = field;
+            }
+
+            return merged;
         }
 
         /// <summary>

@@ -395,6 +395,92 @@ namespace Nino.UnitTests
             Assert.AreEqual(typeof(System.IntPtr), NinoReflection.LayoutFieldType(new ReportedAsIntPtr(other)));
         }
 
+        private struct RegisteredTwice
+        {
+#pragma warning disable CS0649
+            public System.IntPtr First;
+            public System.IntPtr Second;
+#pragma warning restore CS0649
+        }
+
+        /// <summary>
+        /// The registries of the declaring assembly and of every one referencing a struct register its fields, each
+        /// from its own view of it: the fields are merged, so a later registration never drops an earlier one.
+        /// </summary>
+        [TestMethod]
+        public void FunctionPointerRegistrationsAreMerged()
+        {
+            string assembly = typeof(RegisteredTwice).Assembly.GetName().Name;
+            string type = NinoTypeId.GetRuntimeName(typeof(RegisteredTwice));
+            Nino.Core.CompilerServices.NinoFunctionPointerFields.Register(assembly, type, nameof(RegisteredTwice.Second));
+            Nino.Core.CompilerServices.NinoFunctionPointerFields.Register(assembly, type, nameof(RegisteredTwice.First));
+            Nino.Core.CompilerServices.NinoFunctionPointerFields.Register(assembly, type, nameof(RegisteredTwice.First));
+            foreach (var field in typeof(RegisteredTwice).GetFields())
+                Assert.AreEqual(typeof(System.UIntPtr), NinoReflection.LayoutFieldType(field), field.Name);
+        }
+
+        /// <summary>
+        /// A struct of an assembly built without Nino's generator, which only generic code reaches (<c>Save&lt;T&gt;</c>
+        /// calling <c>Serialize&lt;T&gt;</c>): the registry of an assembly that references it registers its private
+        /// function pointer field, read from the reference's metadata, so the field is a pointer to the layout (as
+        /// reported here and as Mono and IL2CPP report it) and is written zero-extended. Without the registration .NET 8
+        /// and later found no formatter for it, and the other runtimes sign-extended it.
+        /// </summary>
+        [TestMethod]
+        public void FunctionPointerFieldsOfReferencedStructsComeFromTheReferencingRegistry()
+        {
+            var library = TestCompilation.Create("FnPlain", new[]
+            {
+                @"namespace FnPlain
+{
+    public unsafe struct Remote
+    {
+        public byte A;
+        private delegate*<int> _call;
+        public nint N;
+        public static Remote Make(nuint call) { Remote r = default; r.A = 1; r._call = (delegate*<int>)call; r.N = -2; return r; }
+        public nuint Call => (nuint)_call;
+    }
+}",
+            });
+            using var image = new System.IO.MemoryStream();
+            var emitted = library.Emit(image);
+            Assert.IsTrue(emitted.Success, string.Join("\n", emitted.Diagnostics));
+            var remote = System.Reflection.Assembly.Load(image.ToArray()).GetType("FnPlain.Remote")!;
+
+            var app = TestCompilation.Create("FnSaver", new[]
+            {
+                @"public static class Saver
+{
+    public static byte[] Save<T>(T value) where T : unmanaged => Nino.Core.NinoSerializer.Serialize(value);
+    public static T Load<T>(byte[] data) where T : unmanaged => Nino.Core.NinoDeserializer.Deserialize<T>(data);
+}",
+            }, extraReferences: new[] { Microsoft.CodeAnalysis.MetadataReference.CreateFromImage(image.ToArray()) });
+            Microsoft.CodeAnalysis.GeneratorDriver driver =
+                Microsoft.CodeAnalysis.CSharp.CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+            driver.RunGeneratorsAndUpdateCompilation(app, out var generated, out _);
+            var saver = TestCompilation.EmitAndLoad(generated);
+            NinoRegistry.EnsureInitialized(saver);
+
+            var field = remote.GetField("_call", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            Assert.AreEqual(typeof(System.UIntPtr), NinoReflection.LayoutFieldType(field));
+            Assert.AreEqual(typeof(System.UIntPtr), NinoReflection.LayoutFieldType(new ReportedAsIntPtr(field)));
+            Assert.AreEqual(typeof(System.IntPtr), NinoReflection.LayoutFieldType(remote.GetField("N")!));
+
+            var value = remote.GetMethod("Make")!.Invoke(null, new object[] { (nuint)0x87654321u });
+            var calls = saver.GetType("Saver")!;
+            var save = calls.GetMethod("Save")!.MakeGenericMethod(remote);
+            var expected = new byte[]
+            {
+                1, 0, 0, 0, 0, 0, 0, 0,
+                0x21, 0x43, 0x65, 0x87, 0, 0, 0, 0,
+                0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            };
+            CollectionAssert.AreEqual(expected, (byte[])save.Invoke(null, new[] { value })!);
+            var read = calls.GetMethod("Load")!.MakeGenericMethod(remote);
+            Assert.AreEqual((nuint)0x87654321u, (nuint)remote.GetProperty("Call")!.GetValue(read.Invoke(null, new object[] { expected }))!);
+        }
+
         /// <summary>
         /// On a 32-bit host the function pointer is converted as the pointer is, zero-extended, and the nint
         /// sign-extended: a 4-byte pointer model over the same struct (16 bytes there) writes the canonical bytes.

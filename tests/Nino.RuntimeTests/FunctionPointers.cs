@@ -2,6 +2,9 @@ using System;
 using System.Linq;
 using Nino.Core;
 using Nino.Core.CompilerServices;
+#if NET8_0_OR_GREATER
+using unsafe PointerAlias = delegate*<int>;
+#endif
 
 #if NET8_0_OR_GREATER
 // .NET only (net10.0: x64, Arm64, and 32-bit Arm32 under qemu): Mono 6.8 and 6.12 (x64 and x86) overflow their stack
@@ -14,6 +17,24 @@ public unsafe struct HoldsFunctionPointer
     public delegate*<int> F;
     public int* P;
     public nint N;
+}
+
+/// <summary>
+/// A function pointer field declared through an alias (C# 12), which syntax cannot tell from any other type: only
+/// generic code reaches it (<see cref="FunctionPointers"/>' Save and Load), so the registry has it from the
+/// generator's walk of the structs declared here.
+/// </summary>
+public unsafe struct AliasedFunctionPointer
+{
+    public byte A;
+    public PointerAlias F;
+    public nint N;
+}
+
+/// <summary>The field a primary constructor captures (<c>&lt;call&gt;P</c>), reached only by generic code too.</summary>
+public unsafe struct CapturedFunctionPointer(delegate*<int> call)
+{
+    public nuint Call => (nuint)call;
 }
 #endif
 
@@ -47,6 +68,7 @@ public static unsafe class FunctionPointers
         int failed = Reported();
 #if NET8_0_OR_GREATER
         failed += Declared();
+        failed += ReachedByGenericCode();
 #endif
         return failed;
     }
@@ -91,6 +113,33 @@ public static unsafe class FunctionPointers
             return (writes, reads);
         });
     }
+#endif
+
+#if NET8_0_OR_GREATER
+    /// <summary>
+    /// Structs only generic code reaches (<c>Save&lt;T&gt;</c> calling <c>Serialize&lt;T&gt;</c>): no member or call
+    /// names them, yet the registry has their function pointer fields (without it, .NET 8 and later find no formatter
+    /// for them and the other runtimes would sign-extend the field).
+    /// </summary>
+    private static int ReachedByGenericCode()
+    {
+        var expected = One.Concat(Pointer).Concat(MinusTwo).ToArray();
+        int failed = Report("function pointers through an alias, reached by generic code", () =>
+        {
+            var value = new AliasedFunctionPointer { A = 1, F = (delegate*<int>)(nuint)0x87654321u, N = -2 };
+            var back = Load<AliasedFunctionPointer>(expected);
+            return (Save(value).SequenceEqual(expected), (nuint)back.F == 0x87654321u && back.N == -2);
+        });
+        return failed + Report("function pointers a primary constructor captures, reached by generic code", () =>
+        {
+            var value = new CapturedFunctionPointer((delegate*<int>)(nuint)0x87654321u);
+            return (Save(value).SequenceEqual(Pointer), Load<CapturedFunctionPointer>(Pointer).Call == 0x87654321u);
+        });
+    }
+
+    private static byte[] Save<T>(T value) where T : unmanaged => NinoSerializer.Serialize(value);
+
+    private static T Load<T>(byte[] data) where T : unmanaged => NinoDeserializer.Deserialize<T>(data);
 #endif
 
     private static int Report(string name, Func<(bool Writes, bool Reads)> run)

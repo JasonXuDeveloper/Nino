@@ -162,20 +162,47 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 : EquatableArray<string>.Empty)
             .WithTrackingName("LayoutTypes");
 
-        // The function pointer fields of measured structs, registered by the registry for Nino.Core's layouts
-        // (NinoFunctionPointerFields): those of the structs the members and top-level calls name, and of every struct
-        // declared here, found from syntax, so one only generic code reaches (Save<T> calling Serialize<T>) has them too.
+        // The function pointer fields of structs, registered by the registry for Nino.Core's layouts
+        // (NinoFunctionPointerFields): of every struct this compilation can see, named here or not, since generic code
+        // (Save<T> calling Serialize<T>) reaches structs no member or call names. Those declared here, found from
+        // syntax; with an alias of a function pointer type (C# 12), every struct declared here, from the compilation.
         var declaredPointers = context.SyntaxProvider.CreateSyntaxProvider(
-                static (node, _) => DeclaresFunctionPointer(node),
+                static (node, _) => FunctionPointerFields.IsDeclaredIn(node),
                 static (ctx, ct) => ctx.SemanticModel.GetDeclaredSymbol(ctx.Node, ct) is INamedTypeSymbol type
-                    ? LayoutTypes.FunctionPointerFields(type)
+                    ? FunctionPointerFields.Of(type)
                     : null)
             .Where(static p => p != null)
             .Collect();
-        var pointerFields = usages.Combine(CollectAll(models, static m => m.Registrations.FunctionPointerFields))
-            .Combine(declaredPointers)
-            .Select(static (x, _) => LayoutTypes.ToArray(x.Left.Left.SelectMany(static u => u.FunctionPointerFields)
-                .Concat(x.Left.Right.SelectMany(static a => a)).Concat(x.Right.Select(static p => p!))))
+#if ROSLYN4_8
+        var aliasedPointers = context.SyntaxProvider.CreateSyntaxProvider(
+                static (node, _) => FunctionPointerFields.IsAlias(node), static (_, _) => true)
+            .Collect()
+            .Select(static (aliases, _) => aliases.Length != 0)
+            .Combine(context.CompilationProvider)
+            .Select(static (x, ct) => x.Left
+                ? LayoutTypes.ToArray(FunctionPointerFields.In(x.Right.Assembly, ct))
+                : EquatableArray<string>.Empty)
+            .WithTrackingName("AliasedFunctionPointerFields");
+#endif
+        // And those of every reference, read once per reference (unchanged while typing), in a compilation that
+        // references Nino.Core: they are the structs generic code reaches from another assembly, and private fields
+        // are in their metadata only.
+        var referencedPointers = context.MetadataReferencesProvider
+            .Combine(project.Select(static (p, _) => p.Enabled ? p.Options.AssemblyName : null))
+            .Select(static (x, ct) => x.Right != null
+                ? FunctionPointerFields.In(x.Left, x.Right, ct)
+                : EquatableArray<string>.Empty)
+            .WithTrackingName("ReferencedFunctionPointerFields")
+            .Collect();
+        var pointerFields = declaredPointers.Combine(referencedPointers)
+#if ROSLYN4_8
+            .Combine(aliasedPointers)
+            .Select(static (x, _) => LayoutTypes.ToArray(x.Left.Left.Select(static p => p!)
+                .Concat(x.Left.Right.SelectMany(static r => r)).Concat(x.Right)))
+#else
+            .Select(static (x, _) => LayoutTypes.ToArray(x.Left.Select(static p => p!)
+                .Concat(x.Right.SelectMany(static r => r))))
+#endif
             .WithTrackingName("FunctionPointerFields");
 
         // The nesting formatters of the types that hold themselves (FormatterResolver.NestingFormattersNamedIn), declared once: one per
@@ -249,26 +276,6 @@ public sealed class NinoGenerator : IIncrementalGenerator
                     return;
                 spc.AddSource("NinoGen.Registry.g.cs", RegistryEmitter.EmitRegistry(opts, list, pointers));
             });
-    }
-
-    /// <summary>
-    /// Whether <paramref name="node"/> declares a struct (or record struct) with a function pointer field, property or
-    /// positional parameter, from syntax alone.
-    /// </summary>
-    private static bool DeclaresFunctionPointer(SyntaxNode node)
-    {
-        if (node is not (StructDeclarationSyntax or RecordDeclarationSyntax) || node.IsKind(SyntaxKind.RecordDeclaration))
-            return false;
-        var type = (TypeDeclarationSyntax)node;
-        foreach (var member in type.Members)
-        {
-            if (member is FieldDeclarationSyntax { Declaration.Type: FunctionPointerTypeSyntax } or
-                PropertyDeclarationSyntax { Type: FunctionPointerTypeSyntax })
-                return true;
-        }
-
-        return type is RecordDeclarationSyntax { ParameterList: { } parameters } &&
-               parameters.Parameters.Any(static p => p.Type is FunctionPointerTypeSyntax);
     }
 
     /// <summary>The models of a stream, in compilations that reference Nino.Core.</summary>
@@ -442,8 +449,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var generics = new List<TypeRegistration>();
         ClosedGenerics.Collect(type, facts, generics);
         var layouts = new List<string>();
-        var pointers = new List<string>();
-        LayoutTypes.Collect(type, facts, layouts, pointers);
+        LayoutTypes.Collect(type, facts, layouts);
         var formatter = facts.Resolver.Resolve(type, false);
         bool registered = formatter is { Registered: true } && !facts.Raw.IsRawUnmanaged(type) &&
                           facts.Visibility.CanName(type);
@@ -451,7 +457,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var nesting = formatter is { } named
             ? facts.Resolver.NestingFormattersNamedIn(generics.Select(static g => g.Formatter).Append(named.Code.ToString()))
             : EquatableArray<NestingModel>.Empty;
-        if (!registered && generics.Count == 0 && layouts.Count == 0 && pointers.Count == 0 && nesting.Length == 0)
+        if (!registered && generics.Count == 0 && layouts.Count == 0 && nesting.Length == 0)
             return null;
         return new UsageRegistration(
             registered
@@ -459,7 +465,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 : null,
             registered ? formatter!.Value.Factories : EquatableArray<FactoryRegistration>.Empty,
             new EquatableArray<TypeRegistration>(generics.Distinct()),
-            LayoutTypes.ToArray(layouts), LayoutTypes.ToArray(pointers), nesting);
+            LayoutTypes.ToArray(layouts), nesting);
     }
 
     private static RegistryEntry ToEntry(TypeModel model) =>

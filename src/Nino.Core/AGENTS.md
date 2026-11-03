@@ -69,7 +69,8 @@ NinoParameterMarks.cs        what a formatter's type parameters require ([NinoRa
                              attributes, or where the runtime drops them (IL2CPP) the marks Nino.Core registers for its
                              own formatters and generated registries for the formatters they register (Register)
 NinoFunctionPointerFields.cs the delegate* fields of structs, by assembly and runtime name, as generated registries
-                             register them (Register): the one source layouts take function pointers from
+                             register them (Register, merged across registries): the one source layouts take function
+                             pointers from
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
 NinoUnsafe.cs                unaligned little-endian memory access, block copies (vector loops, paired loads),
                              ReadBool, array allocation; used by Reader, Writer and generated code

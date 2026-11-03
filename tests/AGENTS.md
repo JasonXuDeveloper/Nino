@@ -23,8 +23,10 @@ Nino.RuntimeTests/           one program (net10.0; net472 with the netstandard2.
                              shares them; `--write-fixtures` rewrites BclFixtures.cs), and each runtime's layout of them
                              (`# layout` lines; layouts.py turns CI's into docs/layouts.md's tables); FunctionPointers.cs:
                              function pointers in raw structs, 8 bytes zero-extended from the generated registry: a
-                             field reported as an IntPtr (as Mono and IL2CPP report one; every build) and a declared
-                             delegate* (net10.0 only: stock Mono 6.8 and 6.12 cannot load such a struct)
+                             field reported as an IntPtr (as Mono and IL2CPP report one; every build) and declared
+                             delegate* fields, directly, through an alias and captured by a primary constructor, the
+                             last two reached only by generic code (net10.0 only: stock Mono 6.8 and 6.12 cannot load
+                             such a struct)
 Nino.AotTests/               a program over every kind of type, published trimmed and with NativeAOT (warnings are
                              errors); prints a hash of everything written to compare runs, and checks that the block
                              shuffle keeps its instruction (pshufb) under NativeAOT

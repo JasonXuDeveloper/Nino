@@ -287,7 +287,6 @@ internal static class ModelBuilder
         // measures (LayoutTypes).
         var genericTypes = new List<TypeRegistration>();
         var layoutTypes = new List<string>();
-        var pointerFields = new List<string>();
         if (namesTypes)
         {
             foreach (var symbol in members.Symbols)
@@ -295,14 +294,14 @@ internal static class ModelBuilder
                 if (MemberCollector.MemberType(symbol) is { } memberType)
                 {
                     ClosedGenerics.Collect(memberType, facts, genericTypes);
-                    LayoutTypes.Collect(memberType, facts, layoutTypes, pointerFields);
+                    LayoutTypes.Collect(memberType, facts, layoutTypes);
                 }
             }
 
             ClosedGenerics.CollectBases(type, facts, genericTypes);
             // The type itself (a raw struct has no member models) and what its base types name (List<Point>).
             for (ITypeSymbol? t = type; t != null; t = t.BaseType)
-                LayoutTypes.Collect(t, facts, layoutTypes, pointerFields);
+                LayoutTypes.Collect(t, facts, layoutTypes);
         }
 
         return new RegistrationModel(
@@ -315,7 +314,6 @@ internal static class ModelBuilder
             GenericTypes: new EquatableArray<TypeRegistration>(genericTypes.Distinct()
                 .OrderBy(g => g.TypeName, System.StringComparer.Ordinal)),
             LayoutTypes: LayoutTypes.ToArray(layoutTypes),
-            FunctionPointerFields: LayoutTypes.ToArray(pointerFields),
             Nesting: namesTypes
                 ? facts.Resolver.NestingFormattersNamedIn(members.Models.Select(static m => m.Formatter.ToString())
                     .Concat(genericTypes.Select(static g => g.Formatter))
