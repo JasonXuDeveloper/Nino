@@ -25,7 +25,8 @@ public class NinoJobAttribute() : JobConfigBaseAttribute(Create())
                 .WithWarmupCount(3)
                 .WithMinIterationCount(6)
                 .WithMaxIterationCount(10)
-                .WithMaxRelativeError(0.02);
+                .WithMaxRelativeError(0.02)
+                .WithEnvironmentVariables(new EnvironmentVariable("DOTNET_TieredPGO", "0"));
         // The id ShortRunJobAttribute gives it, so reports read as before. report.yml still passes these counts on
         // the command line for release tags whose benchmarks predate them here.
         return Job.ShortRun
