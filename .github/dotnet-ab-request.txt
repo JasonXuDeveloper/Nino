@@ -231,6 +231,10 @@
 # done (run 41679647486; line 3 drew no Xeon): cpu='Xeon' 88b217e6 d7332cc7 20 *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf FullOpts 64-byte loop
 # done (run 41679647486; line 3 drew no Xeon): cpu='Xeon' 0af6bb5e 8d3f2a4f 20 *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf rc.7 -> main
 # r127-perf round 2 (Xeon only): in run 41679647486 the null change measured 0.996 on Xeon 8573C (placement is not it).  = main + CopyShapeProbe: main's copy, rc.7's copy shape, a Tier1 loop, CopyOver64's dispatch fully optimized and at Tier1, Memmove and the case, all in one binary; base and head the same commit, so each job compares the shapes inside its own processes
-cpu='Xeon'   20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 1
-cpu='Xeon'   20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 2
-cpu='Xeon'   20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 3
+# failed (run 41686840794, the lines lacked their commits): cpu='Xeon'   20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 1
+# failed (run 41686840794, the lines lacked their commits): cpu='Xeon'   20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 2
+# failed (run 41686840794, the lines lacked their commits): cpu='Xeon'   20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 3
+# r127-perf round 2 again, with the commits: 20152df0 = main + CopyShapeProbe
+cpu='Xeon' 20152df0 20152df0 20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 1b
+cpu='Xeon' 20152df0 20152df0 20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 2b
+cpu='Xeon' 20152df0 20152df0 20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 3b
