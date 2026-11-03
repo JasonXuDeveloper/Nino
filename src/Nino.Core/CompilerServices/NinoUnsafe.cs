@@ -497,7 +497,7 @@ namespace Nino.Core.CompilerServices
                     // Zen 5 Memmove beats it into such an array (EPYC 9V45: 1.81 µs against 1.67). CopyToNew is the
                     // other way round.
                     if (Vector512.IsHardwareAccelerated && size <= MaxVectorCopy)
-                        CopyVectors<Vector512<byte>>(ref destination, ref source, size);
+                        CopyVectors512(ref destination, ref source, size);
                     else
                         CopyVectors<Vector256<byte>>(ref destination, ref source, size);
                     return;
@@ -662,6 +662,11 @@ namespace Nino.Core.CompilerServices
         /// against Memmove (.NET 10), source and destination of different alignments, with 64-byte vectors: 256 bytes
         /// 5.9 ns instead of 7.9 ns, 1,200 bytes 11.9 ns instead of 18.6 ns, 4,000 bytes 34 ns instead of 48 ns.
         /// </summary>
+        // A/B only: the 64-byte loop in a method of its own, fully optimized from its first call, as rc.7 had it.
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static void CopyVectors512(ref byte destination, ref byte source, uint size) =>
+            CopyVectors<Vector512<byte>>(ref destination, ref source, size);
+
         // Inlined into CopyOver64 and CopyToNew (Tier1, so their static readonly tests fold).
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void CopyVectors<TVector>(ref byte destination, ref byte source, uint size)
