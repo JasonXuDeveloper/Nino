@@ -51,8 +51,9 @@ field by field (measured once at startup). So raw data written on a .NET 10 serv
 "for portability".
 
 - A `delegate*` field in a plain unmanaged struct is 8 bytes like `T*`, zero-extended on every runtime (32-bit Unity
-  players included) when Nino's generator sees the struct (declared in a project that uses it, or named by a member
-  or a `NinoSerializer`/`NinoDeserializer` call). An address means nothing in another process anyway: keep pointers
+  players included) when Nino's generator sees the struct: declared in a project with the generator, or in an
+  assembly such a project references (named anywhere or not). A struct only an assembly loaded by name declares (a
+  plugin, a hot-update DLL) needs the generator in its own project. An address means nothing in another process anyway: keep pointers
   out of data you store or send.
 
 ### `bool` and `Nullable` flags inside raw structs are unchecked by default

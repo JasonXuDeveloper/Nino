@@ -48,12 +48,28 @@ host's memory:
   one holding a tuple, pair or nullable is written member by member.
 - A function pointer (`delegate*`) is a pointer: 8 bytes, zero-extended, on every runtime. Reflection reports its
   field differently (.NET 8+ a function pointer type; .NET Framework, Mono and IL2CPP an `IntPtr`, which would be
-  sign-extended), so the generator, which sees the field's type, lists the `delegate*` fields of every struct it
-  sees (declared in the project, or named by a member or a top-level call) in the assembly's registry
-  (`NinoFunctionPointerFields`), and layouts read field types through `NinoReflection.LayoutFieldType`, which asks
-  that list. A struct that only a project without Nino's generator declares, reached only through generic code
-  (`Save<T>` calling `Serialize<T>`), is not listed: .NET 8+ refuses it (no formatter), other runtimes sign-extend the
-  field, which differs from the canonical bytes on a 32-bit host only for an address with its top bit set.
+  sign-extended), so the generator, which sees the field's type, lists the `delegate*` fields of every struct the
+  compilation can see in the assembly's registry (`NinoFunctionPointerFields`), whether or not anything names it:
+  those declared in the project (also through a `using unsafe F = delegate*<...>;` alias, and the field a primary
+  constructor captures), and those of every assembly it references, read from their metadata (private and internal
+  structs and fields too). Layouts read field types through `NinoReflection.LayoutFieldType`, which asks that list.
+  So a struct reached only through generic code (`Save<T>` calling `Serialize<T>`) is covered when it is declared
+  in a project with Nino's generator or in an assembly such a project references. What stays out, because no
+  generator compiles against its declaration:
+  - a struct of an assembly that no assembly built with Nino's generator references at compile time, or whose
+    referencing assemblies are not loaded yet when the struct is first serialized (a plugin or HybridCLR hot-update
+    assembly loaded by name);
+  - a field the compile-time metadata hides: a reference assembly that replaces private fields with placeholders
+    (as .NET's own reference packs do; Roslyn's reference assemblies keep every struct field), or another version of
+    the assembly at run time;
+  - a struct another source generator adds to a project, reached only through generic code (Roslyn gives no
+    generator the others' output); a project that references this one covers it.
+
+  There .NET 8+ refuses the struct (no formatter), and the other runtimes sign-extend the field, which differs from
+  the canonical bytes on a 32-bit host only for an address with its top bit set (64-bit hosts copy both the same
+  way; a 32-bit host reading the canonical bytes of such an address rejects them as too large for the field). Add
+  Nino's generator to the project that declares the struct, or reference that project from one that has it and is
+  loaded by then (the entry assembly always is).
 - `Vector<T>` is not serializable (next section).
 
 ### `Vector<T>` is not serializable
