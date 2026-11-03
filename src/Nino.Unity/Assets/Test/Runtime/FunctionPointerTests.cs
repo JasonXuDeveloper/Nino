@@ -21,8 +21,9 @@ namespace Test.Runtime
 
     /// <summary>
     /// <c>delegate*</c> fields in Unity's Mono (play mode) and IL2CPP (the player): each written as 8 bytes,
-    /// zero-extended like <c>T*</c> (spec §5.2), in the canonical layout (CoreCLR x64's), the bytes CoreCLR writes (tests/Nino.RuntimeTests, FunctionPointers),
-    /// and a pointer taken with <c>&amp;</c> still callable after the round trip.
+    /// zero-extended like <c>T*</c> (spec §5.2), in the canonical layout (CoreCLR x64's): the bytes CoreCLR writes
+    /// (tests/Nino.RuntimeTests, FunctionPointers), and a pointer taken with <c>&amp;</c> still callable after the round
+    /// trip.
     /// </summary>
     public unsafe class FunctionPointerTests
     {
@@ -34,7 +35,7 @@ namespace Test.Runtime
             return BitConverter.IsLittleEndian ? bytes : bytes.Reverse().ToArray();
         }
 
-        // The pointer values are read from static fields at run time: Roslyn folds (nuint)FValue, like
+        // The pointer values are read from static fields at run time: Roslyn folds (nuint)0x87654321UL, like
         // (nuint)0x87654321u, to ldc.i4 and conv.u, which IL2CPP's players sign-extend, so the field would hold
         // 0xFFFFFFFF87654321 before Nino ever sees it.
         private static readonly ulong FValue = 0x87654321, UValue = 0x80000008, PValue = 0x80000004;
