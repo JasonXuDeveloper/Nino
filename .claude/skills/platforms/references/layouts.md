@@ -43,10 +43,19 @@ write CoreCLR x64's bytes, `Vector<T>` widths, and reading field types by reflec
   Mono and IL2CPP as an `IntPtr`, which a 32-bit host sign-extended (r105 told them apart by `IsFunctionPointer` and
   `Module.ResolveSignature`'s ELEMENT_TYPE_FNPTR; Mono resolves no FieldDef signature, IL2CPP none, so a 32-bit Unity
   player wrote FF FF FF FF over an address's high half). Now the generator lists the `delegate*` fields of every
-  struct it measures or that the project declares (`LayoutTypes.FunctionPointerFields`, by assembly and runtime name so
-  that registering loads no type) in the registry's static constructor, and `NinoReflection.LayoutFieldType`, which
-  every layout reads field types through, asks `NinoFunctionPointerFields` for a field reported as an `IntPtr` or a
-  base-less class. Evidence (r118): 32-bit Mono 6.12 on x86 read the canonical bytes of a field reported as an
+  struct the compilation can see, named or not (`FunctionPointerFields` in src/Nino.Generator, by assembly and runtime
+  name so that registering loads no type), in the registry's static constructor: the project's own from syntax (a
+  `using unsafe` alias of a `delegate*` makes it walk every struct the project declares; a primary constructor's
+  captured field is `<p>P`), and every reference's from its metadata (`MetadataReferencesProvider`, read once per
+  reference with System.Reflection.Metadata: Roslyn's symbols of a metadata reference omit private fields, so
+  `[NinoType] class H { Lib.S s; }` with a private `delegate*` in `Lib.S` went unregistered until r126).
+  `NinoFunctionPointerFields.Register` merges what several registries register for one struct.
+  `NinoReflection.LayoutFieldType`, which every layout reads field types through, asks `NinoFunctionPointerFields`
+  for a field reported as an `IntPtr` or a base-less class. Left out, as no generator compiles against them (stated
+  in docs/pitfalls.md with the workaround): a struct of an assembly no loaded generator-built assembly references, a
+  field the compile-time metadata hides (placeholder fields of a GenAPI-style reference assembly; Roslyn's refout
+  keeps every struct field, checked in r126) or a struct another source generator adds. Do not close them with
+  reflection (the rule above): Mono's `FieldType` is `IntPtr`, and neither Mono nor IL2CPP resolves the signature. Evidence (r118): 32-bit Mono 6.12 on x86 read the canonical bytes of a field reported as an
   `IntPtr` as "an integer too large" without the registration and wrote and read them with it; NativeAOT (with the
   registry's `[DynamicDependency]`) and Arm32 .NET 10 under qemu wrote the same bytes as x64 (`Nino.AotTests`,
   tests/Nino.RuntimeTests). Stock Mono (6.8 on x64, 6.12 on x64 and x86) overflows its stack on any use of a struct
