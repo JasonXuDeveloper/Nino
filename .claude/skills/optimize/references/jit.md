@@ -40,7 +40,9 @@ and when `asm.py compare` lists methods the change did not touch.
   to keep the loops' layout: fully optimized code folds no `static readonly` field (it tested `NinoUnsafe`'s class init
   and loaded `AmdCopy` and `IceLakeMemmove` per copy) and the class-init call made it save four registers in the prolog
   of every copy, the 65-128 byte ones included; that form measured Inventory serialize 1.114 times main on EPYC 7763
-  (run 41455371503). Check the Tier1 listing on x64 and with the Arm64 cross JIT (`benchmarks/cross-jit.sh`): one
+  (run 41455371503). With one call per copy at Tier1, 100 12-byte structs serialized in 0.85 of rc.7's time on EPYC
+  7763 and on par on Neoverse-N2, but still 1.07-1.09 on Xeon 6973P and 8573C (one job each, run 41534216283; the same
+  loop as rc.7, not reproduced on a local AVX-512 Xeon). Check the Tier1 listing on x64 and with the Arm64 cross JIT (`benchmarks/cross-jit.sh`): one
   method, a two-instruction prolog.
 - Inlining a small out-of-line method that the JIT left as a call can be a wash: `NinoLookup.Add` inlined into the
   `ILookup` read (one call per grouping instead of two) measured 1.002 and 1.003 times main on EPYC 7763 and
@@ -68,12 +70,18 @@ and when `asm.py compare` lists methods the change did not touch.
   registers, the value read over the current one with the compare its only call) instead of the general merge, whose
   value formatter read through the caller's reader copy in memory and called `ReadStringOver` and then `SameLatin1`
   per value. In-process timing loop (`benchmark`): a pooled class holding only a 10-entry `Dictionary<int, string>`
-  139-162 ns against main's 183-213 and rc.7's 178-198.
+  139-162 ns against main's 183-213 and rc.7's 178-198; and store a value read over the current one back only when it
+  differs (no write barrier per unchanged string): 123-156 ns. On runners `NinoDeserializePooled` took 0.83-0.92 of
+  main's time on every CPU (.NET A/B run 41576130603, 12 rounds a job) and 0.96-1.00 of rc.7's on x64, 1.04 on
+  Neoverse-N2, where neither the string compare below nor `CopyPairs` out of line moved it (1.005, 1.007 against a
+  1.000 floor, run 41593418245; `CopyPairs` out of line made `NinoNodePooled` 1.033).
 - Compare an unchanged short string read into an existing object inside the out-of-line `ReadStringOver`, never in
   the inlined `Reader.ReadString(current)` nor in a loop: `NinoStrings.Same` (one-byte Latin-1 header, length, the chars
   widened eight at a time and compared) before `NinoStrings.Read` saves `SameLatin1`'s call (`Ascii.Equals`); 1,000
   objects with a short name read into existing ones took 6.9-7.5 us against main's 11.1-11.5 and rc.7's 9.9-11.4,
-  `NinoDeserializePooled` 223-271 ns against main's 251-268 and rc.7's 224-273 (in-process timing, `benchmark`). The
+  `NinoDeserializePooled` 223-271 ns against main's 251-268 and rc.7's 224-273 (in-process timing, `benchmark`); on
+  runners 1,000,000 shuffled items read into existing objects in 0.53-0.86 of main's time and 0.56-0.95 of rc.7's on
+  every CPU (runs 41534216283, 41576130603). The
   same test inline in `ReadString(current)` pushed callers past the inlining budget (the `Lazy<string>` read left
   `Reader.Skip` a call, 7 stack accesses to 22) and read the pooled class in 277-295 ns; inlined into
   `RefillStringPairs`' loop it made that loop slower (a pooled class with only the dictionary 179-206 ns against
