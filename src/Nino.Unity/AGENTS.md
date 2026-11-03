@@ -42,7 +42,9 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
                              CoreCLR's bytes in BclFixtures.cs, of the types in BclFixtureTypes.cs (both shared with
                              tests/Nino.RuntimeTests, which links them and rewrites BclFixtures.cs: --write-fixtures);
                              a [NinoRaw] formatter of the user's bound at run time by the marks its registry
-                             registers; logs this runtime's layouts), run in play mode and in the IL2CPP player
+                             registers; logs this runtime's layouts), FunctionPointerTests (C# 9 delegate* fields in a
+                             raw struct: 8 bytes zero-extended from the registry's registration, a pointer taken with &
+                             still callable after the round trip), run in play mode and in the IL2CPP player
   Runtime/Burst/             BurstKernelTests (the kernels against the scalar paths, byte for byte; asserts the pointer
                              calls), BurstBenchmark (only in the release benchmark's player: NINO_UNITY_BENCH) and its
                              BenchClasses (SimpleClass, as in the .NET suite)
