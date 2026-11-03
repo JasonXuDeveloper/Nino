@@ -42,7 +42,13 @@ and when `asm.py compare` lists methods the change did not touch.
   of every copy, the 65-128 byte ones included; that form measured Inventory serialize 1.114 times main on EPYC 7763
   (run 41455371503). With one call per copy at Tier1, 100 12-byte structs serialized in 0.85 of rc.7's time on EPYC
   7763 and on par on Neoverse-N2, but still 1.07-1.09 on Xeon 6973P and 8573C (one job each, run 41534216283; the same
-  loop as rc.7, not reproduced on a local AVX-512 Xeon). Check the Tier1 listing on x64 and with the Arm64 cross JIT (`benchmarks/cross-jit.sh`): one
+  loop as rc.7, not reproduced on a local AVX-512 Xeon). Round 126 tested that gap and did not close it: 1.077-1.084 on
+  three Xeon 8573C jobs, 1.045-1.069 on 6975P, 1.03-1.06 on 6973P, 1.007-1.031 on 8370C, MemoryPack's identical copy
+  0.98-1.04 in the same jobs and the struct copy's addresses the same on both sides ('// ADDR' print); unchanged with
+  `DOTNET_JitAlignLoops=0` (1.084, 1.069) and `DOTNET_TieredPGO=0` (1.061) in the quick jobs, and checking the
+  64-byte path first in `CopyOver64Inline` was no faster locally on Emerald Rapids (.NET A/B runs 41621699299,
+  41659495441, 41665524359, 41671303527). The gap was in main before round 123's copy changes (main 1.118 on 8573C,
+  run 41413072278) and head against main is on par there. Check the Tier1 listing on x64 and with the Arm64 cross JIT (`benchmarks/cross-jit.sh`): one
   method, a two-instruction prolog.
 - Inlining a small out-of-line method that the JIT left as a call can be a wash: `NinoLookup.Add` inlined into the
   `ILookup` read (one call per grouping instead of two) measured 1.002 and 1.003 times main on EPYC 7763 and
@@ -88,6 +94,13 @@ and when `asm.py compare` lists methods the change did not touch.
   139-162, `NinoDeserializePooled` 275-307); added before `RefillStringPairs` existed, the dictionary merge's general
   loop, which reads each value through `ReadStringOver`, read the pooled class in 284-293 ns against 256-265 without it
   (round 123).
+
+- Store nothing a read into an existing object leaves unchanged: generated code stores a string member only when
+  `ReadString(current)` returned another string (fields and auto-properties, `MemberModel.PlainStore`; a setter with a
+  body is still called). Each store into an existing (often gen2) object is a write barrier call, and on Neoverse-N2 it
+  was the last part of `NinoDeserializePooled`'s gap: 1.04 times rc.7 before, 0.926 times the head without it on that
+  CPU (.NET A/B run 41616438646, 20 rounds, MemoryPack 1.000), 0.967 times rc.7 after (Xeon 8573C 0.871, 6975P 0.861;
+  run 41621699299). The same run priced `ReadBool`'s 0-or-1 check there: 1.001, nothing to win by weakening it.
 
 ## Tests that must fold
 
