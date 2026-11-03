@@ -708,8 +708,7 @@ namespace Nino.Core.CompilerServices
         /// to 0.91, 8,000 in 0.76 to 1.00, 64,000 and more the same. Without aligning the loads the loop was faster
         /// than memcpy from an aligned source but up to 1.31 times slower from one 4 bytes past it.
         /// </summary>
-        // Inlined into CopyOver64: one call per copy, as on x64.
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
         private static unsafe void CopyPairs(ref byte destination, ref byte source, uint size)
         {
             if (size > MaxArm64VectorCopy || !Is64Bit)
