@@ -1001,6 +1001,19 @@ internal sealed class BodyEmitter
 
         // An existing instance's string is passed in, and kept when unchanged; a new instance's is null.
         bool existing = inPlace && !(_mode.Fresh && member.Fresh);
+        if (existing && member.IsString && member.PlainStore)
+        {
+            // An unchanged string (kept by the read) is not stored again: a store into an existing object is a write
+            // barrier call. Only where the store does nothing else (a field, an auto-property's setter).
+            _w.Open();
+            _w.Line($"var __c = {Get(_m, member, _mode.Target)};");
+            _w.Line($"var __s = {DirectRead(member, r, "__c")};");
+            _w.Line("if (!object.ReferenceEquals(__s, __c))");
+            _w.Line("    " + Set(_m, member, _mode.Target, "__s"));
+            _w.Close();
+            return;
+        }
+
         var direct = DirectRead(member, r, existing ? Get(_m, member, _mode.Target) : null);
         if (direct != null)
         {

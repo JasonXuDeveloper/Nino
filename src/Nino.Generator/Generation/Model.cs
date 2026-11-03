@@ -119,7 +119,10 @@ internal sealed record MemberModel(
     // Whether the member's Nino.Core formatter reads its elements in a loop inlined into the body (any collection
     // but strings, raw arrays and lists, and dictionaries of raw keys and raw or string values; see
     // FormatterTraits.Flat).
-    bool ReadsLoop)
+    bool ReadsLoop,
+    // Whether storing a value in the member does nothing else: a field, or a property whose accessors the compiler
+    // wrote (an auto-property). Reads into an existing instance then store no string that is unchanged.
+    bool PlainStore)
 {
     /// <summary>Whether the member is a string, which generated code reads and writes through the reader and writer.</summary>
     public bool IsString => (Traits & (FormatterTraits.String | FormatterTraits.Utf8String)) != 0;
