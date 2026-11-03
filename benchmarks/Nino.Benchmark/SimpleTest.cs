@@ -112,6 +112,17 @@ public class SimpleTest
         _memoryPackBuffer = new ArrayBufferWriter<byte>(320 * 1024);
         _messagePackBuffer = new ArrayBufferWriter<byte>(320 * 1024);
         _protobufStream = new MemoryStream(320 * 1024);
+        // Where the struct copy reads and writes, for A/B runs that differ by CPU (the job log keeps '// ADDR' lines).
+        unsafe
+        {
+            long src = (long)System.Runtime.CompilerServices.Unsafe.AsPointer(
+                ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(SimpleStructs));
+            long dst = (long)System.Runtime.CompilerServices.Unsafe.AsPointer(
+                ref System.Runtime.InteropServices.MemoryMarshal.GetReference(_ninoBuffer.GetSpan(1))) + 4;
+            long mp = (long)System.Runtime.CompilerServices.Unsafe.AsPointer(
+                ref System.Runtime.InteropServices.MemoryMarshal.GetReference(_memoryPackBuffer.GetSpan(1)));
+            Console.WriteLine($"// ADDR SimpleStructs src%4096={src & 4095} dst%4096={dst & 4095} (dst-src)%4096={(dst - src) & 4095} mp%4096={mp & 4095}");
+        }
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleClassSerialize")]
