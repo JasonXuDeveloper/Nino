@@ -311,21 +311,8 @@ namespace Nino.Core.Internal
                 (runtimeSize >= 0 && memorySize != runtimeSize))
             {
                 // The model does not describe this runtime (or was not asked): the offsets this runtime gives.
-                memory.Clear();
                 memorySize = runtimeSize;
-                var values = runtimeSize > 0 ? MeasureMemory(type, runtimeSize) : null;
-                foreach (var value in values ?? new List<KeyValuePair<Type, int>>())
-                {
-                    int size = LeafSize(value.Key);
-                    if (size > 0)
-                        memory.Add(new NinoLayoutCore.Leaf
-                        {
-                            Offset = value.Value, Size = size,
-                            Signed = value.Key == typeof(IntPtr) || value.Key == typeof(short) || value.Key == typeof(int),
-                        });
-                }
-
-                if (values == null || memory.Count != wire.Count)
+                if (!MeasuredLeaves(type, runtimeSize, memory) || memory.Count != wire.Count)
                     // Neither: the value is copied as it lies in memory, which other runtimes may lay out
                     // differently. tests/Nino.RuntimeTests checks the canonical bytes on every runtime CI has.
                     return new Info { Size = runtimeSize };
@@ -338,53 +325,87 @@ namespace Nino.Core.Internal
                 if (wire[i].Size != memory[i].Size && !(Resizable(wire[i].Size) && Resizable(memory[i].Size)))
                     return new Info { Size = runtimeSize };
 
-            var info = new Info { Size = wireSize, Align = wireAlign, Canonical = wireSize == memorySize };
+            var info = new Info
+            {
+                Size = wireSize, Align = wireAlign, Canonical = wireSize == memorySize, Mask = PaddingMask(wire, wireSize),
+            };
             for (int i = 0; i < wire.Count && info.Canonical; i++)
                 info.Canonical = wire[i].Offset == memory[i].Offset && wire[i].Size == memory[i].Size;
+            if (!info.Canonical)
+                MapLeaves(wire, memory, info);
+            return info;
+        }
 
+        /// <summary>
+        /// Replaces <paramref name="memory"/> with the leaves this runtime gives a value of <paramref name="type"/>
+        /// (<see cref="MeasureMemory"/>); false when they cannot be measured.
+        /// </summary>
+        private static bool MeasuredLeaves(Type type, int runtimeSize, List<NinoLayoutCore.Leaf> memory)
+        {
+            memory.Clear();
+            var values = runtimeSize > 0 ? MeasureMemory(type, runtimeSize) : null;
+            if (values == null)
+                return false;
+            foreach (var value in values)
+            {
+                int size = LeafSize(value.Key);
+                if (size > 0)
+                    memory.Add(new NinoLayoutCore.Leaf
+                    {
+                        Offset = value.Value, Size = size,
+                        Signed = value.Key == typeof(IntPtr) || value.Key == typeof(short) || value.Key == typeof(int),
+                    });
+            }
+
+            return true;
+        }
+
+        /// <summary>0xFF for the bytes of <paramref name="wire"/>'s leaves, 0 for padding; null without padding.</summary>
+        private static byte[] PaddingMask(List<NinoLayoutCore.Leaf> wire, int wireSize)
+        {
             var mask = new byte[wireSize];
             foreach (var leaf in wire)
                 for (int i = 0; i < leaf.Size; i++)
                     mask[leaf.Offset + i] = 0xFF;
-            if (Array.IndexOf(mask, (byte)0) >= 0)
-                info.Mask = mask;
+            return Array.IndexOf(mask, (byte)0) >= 0 ? mask : null;
+        }
 
-            if (!info.Canonical)
+        /// <summary>
+        /// <see cref="Info.Map"/> and <see cref="Info.Resized"/> of a layout that is not canonical: leaves contiguous
+        /// in both layouts merged into runs, integers of another width apart.
+        /// </summary>
+        private static void MapLeaves(List<NinoLayoutCore.Leaf> wire, List<NinoLayoutCore.Leaf> memory, Info info)
+        {
+            var runs = new List<int>();
+            var resized = new List<int>();
+            for (int i = 0; i < wire.Count; i++)
             {
-                // Merge leaves that are contiguous in both layouts into runs.
-                var runs = new List<int>();
-                var resized = new List<int>();
-                for (int i = 0; i < wire.Count; i++)
+                if (wire[i].Size != memory[i].Size)
                 {
-                    if (wire[i].Size != memory[i].Size)
-                    {
-                        resized.Add(memory[i].Offset);
-                        resized.Add(memory[i].Size);
-                        resized.Add(wire[i].Offset);
-                        resized.Add(wire[i].Size);
-                        resized.Add(memory[i].Signed ? 1 : 0);
-                        continue;
-                    }
-
-                    int n = runs.Count;
-                    if (n != 0 && runs[n - 3] + runs[n - 1] == memory[i].Offset &&
-                        runs[n - 2] + runs[n - 1] == wire[i].Offset)
-                    {
-                        runs[n - 1] += wire[i].Size;
-                        continue;
-                    }
-
-                    runs.Add(memory[i].Offset);
-                    runs.Add(wire[i].Offset);
-                    runs.Add(wire[i].Size);
+                    resized.Add(memory[i].Offset);
+                    resized.Add(memory[i].Size);
+                    resized.Add(wire[i].Offset);
+                    resized.Add(wire[i].Size);
+                    resized.Add(memory[i].Signed ? 1 : 0);
+                    continue;
                 }
 
-                info.Map = runs.ToArray();
-                if (resized.Count != 0)
-                    info.Resized = resized.ToArray();
+                int n = runs.Count;
+                if (n != 0 && runs[n - 3] + runs[n - 1] == memory[i].Offset &&
+                    runs[n - 2] + runs[n - 1] == wire[i].Offset)
+                {
+                    runs[n - 1] += wire[i].Size;
+                    continue;
+                }
+
+                runs.Add(memory[i].Offset);
+                runs.Add(wire[i].Offset);
+                runs.Add(wire[i].Size);
             }
 
-            return info;
+            info.Map = runs.ToArray();
+            if (resized.Count != 0)
+                info.Resized = resized.ToArray();
         }
 
         private static bool Resizable(int size) => size == 2 || size == 4 || size == 8;
