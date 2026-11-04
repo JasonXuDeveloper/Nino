@@ -627,11 +627,16 @@ jobs:
           net8: true
 
       - name: Build benchmark project
+        env:
+          JOB_INDEX: ${{ strategy.job-index }}
         run: |
           cd benchmarks/Nino.Benchmark
           dotnet build -c Release
-          # Every case reads back what the others read and writes its payload's bytes (Verify.cs).
-          dotnet run -c Release --no-build -- --verify
+          # Every case reads back what the others read and writes its payload's bytes (Verify.cs). It checks every
+          # case whatever the shard's filters, so one shard runs it.
+          if [ "$JOB_INDEX" = 0 ]; then
+            dotnet run -c Release --no-build -- --verify
+          fi
 
       - name: Run benchmarks
         env:
