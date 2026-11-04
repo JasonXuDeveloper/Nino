@@ -21,10 +21,10 @@ namespace Nino.Codegen.Model
         None = TypeLayout.NoHeader,
 
         /// <summary>A presence byte: a sealed class.</summary>
-        NullFlag = TypeLayout.NullFlag,
+        Presence = TypeLayout.PresenceHeader,
 
         /// <summary>The type id: a class that is not sealed, an abstract class, an interface.</summary>
-        TypeId = TypeLayout.TypeId,
+        TypeId = TypeLayout.TypeIdHeader,
     }
 
     /// <summary>A <c>[NinoType]</c> as its published layout describes it.</summary>

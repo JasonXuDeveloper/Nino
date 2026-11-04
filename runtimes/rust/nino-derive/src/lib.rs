@@ -964,7 +964,7 @@ fn check_layout(
 ) -> syn::Result<Tokens> {
     let err = |m: String| Err(Error::new(span, format!("layout: {m}")));
     let header_ok = match kind {
-        Kind::Class => l.header == "NullFlag",
+        Kind::Class => l.header == "Presence",
         Kind::Open => l.header == "TypeId",
         Kind::Struct | Kind::Raw => l.header == "None",
     };

@@ -11,7 +11,7 @@ import (
 // Layout strings: what a type's NinoLayout method returns, in the grammar of the [NinoTypeLayout] metadata .NET
 // publishes for every [NinoType] (wire-format spec §8):
 //
-//	format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;...
+//	format=Keyed; header=Presence; trackReferences=false; raw=false; typeId=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;...
 //
 // The parser takes the parts in any order and any subset of them ("format=VersionTolerant" alone declares the
 // format and leaves the rest to the defaults). "deferrable=true|false" (spec §7.10.1, §8.1) says whether .NET
@@ -26,9 +26,9 @@ const (
 )
 
 const (
-	headerAuto = iota // not declared: NullFlag for a pointer, None for a value
+	headerAuto = iota // not declared: Presence for a pointer, None for a value
 	headerNone
-	headerNullFlag
+	headerPresence
 	headerTypeID
 )
 
@@ -119,8 +119,8 @@ func parseLayout(s string) (*layoutDecl, error) {
 			switch value {
 			case "None":
 				d.header = headerNone
-			case "NullFlag":
-				d.header = headerNullFlag
+			case "Presence":
+				d.header = headerPresence
 			case "TypeId":
 				d.header = headerTypeID
 			default:

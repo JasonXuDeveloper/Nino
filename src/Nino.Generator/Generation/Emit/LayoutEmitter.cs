@@ -20,7 +20,7 @@ internal static class LayoutEmitter
         string header = m.Kind switch
         {
             FormatterKind.Struct => "None",
-            FormatterKind.SealedClass => "NullFlag",
+            FormatterKind.SealedClass => "Presence",
             _ => "TypeId",
         };
         return $"[assembly: {Core}NinoTypeLayout(typeof({m.OpenTypeName}), {Core}NinoFormat.{format}, " +

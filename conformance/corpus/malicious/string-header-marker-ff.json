@@ -6,7 +6,7 @@
   "exercises": "A header whose first byte is 0xFF.",
   "size": 14,
   "layouts": {
-    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
+    "Conformance.Targets.TextValue": "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
   },
   "dotnet": {
     "outcome": "error",

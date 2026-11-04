@@ -63,7 +63,7 @@ namespace Layout
             Assert.AreEqual("raw(8){VelocityX:float@0:raw(4),VelocityY:float@4:raw(4)}", move.Members);
 
             var player = Layout(assembly, "Layout.Player");
-            Assert.AreEqual(NinoHeader.NullFlag, player.Header);
+            Assert.AreEqual(NinoHeader.Presence, player.Header);
             Assert.IsFalse(player.Raw);
             Assert.AreEqual("Id:Layout.PlayerId:raw(8){Value:long@0:raw(8)};Name:string:utf8;" +
                             "Path:System.Collections.Generic.List<Layout.Move>:" +
@@ -185,7 +185,8 @@ namespace Deferral
 }");
             var node = Layout(assembly, "Deferral.Node");
             Assert.IsTrue(node.Deferrable);
-            StringAssert.Contains(node.ToString(), "; typeId=0x" + node.Id.ToString("X8") + "; deferrable=true; members=");
+            StringAssert.Contains(node.ToString(), "header=Presence; trackReferences=false; raw=false; typeId=0x" +
+                                                   node.Id.ToString("X8") + "; deferrable=true; members=");
             // Re-created through its constructor, compared by value, never created, a struct: never deferred.
             foreach (string type in new[] { "Deferral.Point", "Deferral.Shape", "Deferral.Pair" })
             {
@@ -208,7 +209,7 @@ namespace Deferral
 namespace Nino.Core
 {
     public enum NinoFormat { Positional, VersionTolerant, Keyed }
-    public enum NinoHeader { None, NullFlag, TypeId }
+    public enum NinoHeader { None, Presence, TypeId }
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct | System.AttributeTargets.Interface)]
     public sealed class NinoTypeAttribute : System.Attribute
     {

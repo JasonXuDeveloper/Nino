@@ -24,7 +24,7 @@ namespace Nino.Codegen.Tests
             using var model = Load(GeneratedFilesTests.Conformance);
             var integers = Type(model, "Conformance.Integers");
             Assert.AreEqual(BodyFormat.Positional, integers.Format);
-            Assert.AreEqual(HeaderKind.NullFlag, integers.Header);
+            Assert.AreEqual(HeaderKind.Presence, integers.Header);
             Assert.AreEqual(NinoHash.Compute("Conformance.Integers"), integers.TypeId);
             Assert.AreEqual(BodyFormat.VersionTolerant, Type(model, "Conformance.TolerantV2").Format);
             Assert.AreEqual(BodyFormat.Keyed, Type(model, "Conformance.KeyedV2").Format);

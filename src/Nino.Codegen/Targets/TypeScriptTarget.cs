@@ -528,11 +528,11 @@ namespace Nino.Codegen.Targets
             {
                 HeaderKind.None => new TsShape("type") { Type = type, Header = "none", Opens = body, Reaches = reaches },
                 // A tracked sealed class: its reference header instead of the presence byte.
-                HeaderKind.NullFlag when type.TrackReferences => new TsShape("type")
+                HeaderKind.Presence when type.TrackReferences => new TsShape("type")
                 {
                     Type = type, Header = "ref", Opens = body, Reaches = reaches,
                 },
-                HeaderKind.NullFlag => Nullable(new TsShape("type")
+                HeaderKind.Presence => Nullable(new TsShape("type")
                 {
                     Type = type, Header = "null", Opens = body, Reaches = reaches,
                 }),
@@ -1347,7 +1347,7 @@ namespace Nino.Codegen.Targets
         /// <summary><c>none</c>, <c>null</c> (a presence byte) or <c>typeid</c>.</summary>
         public string Header => Model.Header switch
         {
-            HeaderKind.NullFlag => "null",
+            HeaderKind.Presence => "null",
             HeaderKind.TypeId => "typeid",
             _ => "none",
         };

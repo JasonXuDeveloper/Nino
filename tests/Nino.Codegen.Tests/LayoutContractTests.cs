@@ -61,7 +61,7 @@ namespace Nino.Codegen.Tests
             CollectionAssert.AreEquivalent(
                 new[]
                 {
-                    ("None", TypeLayout.NoHeader), ("NullFlag", TypeLayout.NullFlag), ("TypeId", TypeLayout.TypeId),
+                    ("None", TypeLayout.NoHeader), ("Presence", TypeLayout.PresenceHeader), ("TypeId", TypeLayout.TypeIdHeader),
                 },
                 Enum.GetValues<NinoHeader>().Select(v => (v.ToString(), (int)v)).ToArray());
     }

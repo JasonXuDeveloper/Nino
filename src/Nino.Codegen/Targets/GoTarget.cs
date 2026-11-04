@@ -582,7 +582,7 @@ namespace Nino.Codegen.Targets
             return type.Header switch
             {
                 HeaderKind.None => new GoShape("struct") { Type = type, MinSize = StructMinSize(type) },
-                HeaderKind.NullFlag => new GoShape("class") { Type = type, MinSize = type.TrackReferences ? 4 : 1 },
+                HeaderKind.Presence => new GoShape("class") { Type = type, MinSize = type.TrackReferences ? 4 : 1 },
                 _ => new GoShape("slot") { Type = type, MinSize = 4 },
             };
         }

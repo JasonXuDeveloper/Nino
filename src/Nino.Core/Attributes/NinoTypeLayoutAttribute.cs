@@ -8,8 +8,8 @@ namespace Nino.Core
         /// <summary>Nothing: a struct.</summary>
         None = 0,
 
-        /// <summary>One byte telling null from a value: a sealed class.</summary>
-        NullFlag = 1,
+        /// <summary>A presence byte telling null from a value: a sealed class.</summary>
+        Presence = 1,
 
         /// <summary>The 4-byte type id of the runtime type (0 for null): a class that is not sealed, an interface.</summary>
         TypeId = 2,

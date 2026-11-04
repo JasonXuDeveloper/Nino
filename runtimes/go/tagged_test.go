@@ -20,7 +20,7 @@ type tagSmall struct {
 }
 
 func (tagSmall) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF8B7D639; members=A:int:raw(4);B:string:string"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xF8B7D639; members=A:int:raw(4);B:string:string"
 }
 
 // Spec appendix A.3, keyed.
@@ -31,7 +31,7 @@ type tagKeyed struct {
 }
 
 func (tagKeyed) NinoLayout() string {
-	return "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0xA333A1B0; members=Id:int:raw(4):key=0x98C41948;Name:string:string:key=0x3085B3E2:former=0x93A29D95;Score:long:raw(8):key=0x044AB14D"
+	return "format=Keyed; header=Presence; trackReferences=false; raw=false; typeId=0xA333A1B0; members=Id:int:raw(4):key=0x98C41948;Name:string:string:key=0x3085B3E2:former=0x93A29D95;Score:long:raw(8):key=0x044AB14D"
 }
 
 // The same type with no layout: keys are the hashes of the names.

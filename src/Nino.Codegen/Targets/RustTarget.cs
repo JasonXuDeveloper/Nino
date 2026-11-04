@@ -445,8 +445,8 @@ namespace Nino.Codegen.Targets
             return type.Header switch
             {
                 HeaderKind.None => new RustShape("struct") { Type = type },
-                HeaderKind.NullFlag when type.TrackReferences => new RustShape("shared") { Type = type, MayDefer = true },
-                HeaderKind.NullFlag => new RustShape("class") { Type = type, MayDefer = true },
+                HeaderKind.Presence when type.TrackReferences => new RustShape("shared") { Type = type, MayDefer = true },
+                HeaderKind.Presence => new RustShape("class") { Type = type, MayDefer = true },
                 _ => new RustShape("slot") { Type = type, MayDefer = true },
             };
         }

@@ -1867,7 +1867,7 @@ impl Vec2 {
     pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x53124224; deferrable=false; members=raw(8){X:float@0:raw(4),Y:float@4:raw(4)}";
 }
 
-/// `Conformance.Targets.AnimalSlot`: Positional, header NullFlag.
+/// `Conformance.Targets.AnimalSlot`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct AnimalSlot {
@@ -1903,7 +1903,7 @@ impl AnimalSlot {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.AnimalSlot";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD4664648; deferrable=true; members=Value:Conformance.Animal:type(Conformance.Animal)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xD4664648; deferrable=true; members=Value:Conformance.Animal:type(Conformance.Animal)";
 }
 
 /// `Conformance.Bag`: Positional, header TypeId.
@@ -1940,7 +1940,7 @@ impl Bag {
     pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xCC960662; deferrable=true; members=[elements]::seq(raw(4));Tag:string:string";
 }
 
-/// `Conformance.BagHolder`: Positional, header NullFlag.
+/// `Conformance.BagHolder`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BagHolder {
@@ -2008,10 +2008,10 @@ impl BagHolder {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.BagHolder";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x79A1F522; deferrable=true; members=Bag:Conformance.Bag:type(Conformance.Bag);Tolerant:Conformance.TolerantBag:type(Conformance.TolerantBag);Keyed:Conformance.KeyedBag:type(Conformance.KeyedBag);Set:Conformance.PointSet:type(Conformance.PointSet);Bags:System.Collections.Generic.List<Conformance.Bag>:seq(type(Conformance.Bag))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x79A1F522; deferrable=true; members=Bag:Conformance.Bag:type(Conformance.Bag);Tolerant:Conformance.TolerantBag:type(Conformance.TolerantBag);Keyed:Conformance.KeyedBag:type(Conformance.KeyedBag);Set:Conformance.PointSet:type(Conformance.PointSet);Bags:System.Collections.Generic.List<Conformance.Bag>:seq(type(Conformance.Bag))";
 }
 
-/// `Conformance.BclRaw`: Positional, header NullFlag.
+/// `Conformance.BclRaw`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BclRaw {
@@ -2076,10 +2076,10 @@ impl BclRaw {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.BclRaw";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xE128DA27; deferrable=true; members=Tuples:Conformance.HoldsTuples:raw(48){A:int@0:raw(4),B:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)},C:System.ValueTuple<byte, short>@24:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},D:System.ValueTuple<byte, long, int>@32:raw(16){Item1:byte@12:raw(1),Item2:long@0:raw(8),Item3:int@8:raw(4)}};Pairs:Conformance.HoldsPairs:raw(40){A:byte@0:raw(1),P:System.Collections.Generic.KeyValuePair<int, long>@8:raw(16){key:int@0:raw(4),value:long@8:raw(8)},Q:System.Collections.Generic.KeyValuePair<long, byte>@24:raw(16){key:long@0:raw(8),value:byte@8:raw(1)}};Nested:Conformance.HoldsNestedTuples:raw(48){A:byte@0:raw(1),X:System.ValueTuple<int, System.ValueTuple<byte, long>>@8:raw(24){Item1:int@0:raw(4),Item2:System.ValueTuple<byte, long>@8:raw(16){Item1:byte@8:raw(1),Item2:long@0:raw(8)}},Y:System.ValueTuple<System.ValueTuple<byte, short>, long>@32:raw(16){Item1:System.ValueTuple<byte, short>@8:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},Item2:long@0:raw(8)}};Leaves:Conformance.HoldsBclLeaves:raw(112){A:byte@0:raw(1),G:System.Guid@4:raw(16),D:decimal@24:raw(16),S:System.TimeSpan@40:raw(8),T:System.ValueTuple<int, System.TimeSpan>@48:raw(16){Item1:int@0:raw(4),Item2:System.TimeSpan@8:raw(8)},M:System.ValueTuple<byte, decimal>@64:raw(24){Item1:byte@0:raw(1),Item2:decimal@8:raw(16)},U:System.ValueTuple<byte, System.Guid>@88:raw(24){Item1:byte@0:raw(1),Item2:System.Guid@4:raw(16)}};TupleArray:Conformance.HoldsTuples[]:seq(raw(48){A:int@0:raw(4),B:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)},C:System.ValueTuple<byte, short>@24:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},D:System.ValueTuple<byte, long, int>@32:raw(16){Item1:byte@12:raw(1),Item2:long@0:raw(8),Item3:int@8:raw(4)}});PairList:System.Collections.Generic.List<Conformance.HoldsPairs>:seq(raw(40){A:byte@0:raw(1),P:System.Collections.Generic.KeyValuePair<int, long>@8:raw(16){key:int@0:raw(4),value:long@8:raw(8)},Q:System.Collections.Generic.KeyValuePair<long, byte>@24:raw(16){key:long@0:raw(8),value:byte@8:raw(1)}})";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xE128DA27; deferrable=true; members=Tuples:Conformance.HoldsTuples:raw(48){A:int@0:raw(4),B:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)},C:System.ValueTuple<byte, short>@24:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},D:System.ValueTuple<byte, long, int>@32:raw(16){Item1:byte@12:raw(1),Item2:long@0:raw(8),Item3:int@8:raw(4)}};Pairs:Conformance.HoldsPairs:raw(40){A:byte@0:raw(1),P:System.Collections.Generic.KeyValuePair<int, long>@8:raw(16){key:int@0:raw(4),value:long@8:raw(8)},Q:System.Collections.Generic.KeyValuePair<long, byte>@24:raw(16){key:long@0:raw(8),value:byte@8:raw(1)}};Nested:Conformance.HoldsNestedTuples:raw(48){A:byte@0:raw(1),X:System.ValueTuple<int, System.ValueTuple<byte, long>>@8:raw(24){Item1:int@0:raw(4),Item2:System.ValueTuple<byte, long>@8:raw(16){Item1:byte@8:raw(1),Item2:long@0:raw(8)}},Y:System.ValueTuple<System.ValueTuple<byte, short>, long>@32:raw(16){Item1:System.ValueTuple<byte, short>@8:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},Item2:long@0:raw(8)}};Leaves:Conformance.HoldsBclLeaves:raw(112){A:byte@0:raw(1),G:System.Guid@4:raw(16),D:decimal@24:raw(16),S:System.TimeSpan@40:raw(8),T:System.ValueTuple<int, System.TimeSpan>@48:raw(16){Item1:int@0:raw(4),Item2:System.TimeSpan@8:raw(8)},M:System.ValueTuple<byte, decimal>@64:raw(24){Item1:byte@0:raw(1),Item2:decimal@8:raw(16)},U:System.ValueTuple<byte, System.Guid>@88:raw(24){Item1:byte@0:raw(1),Item2:System.Guid@4:raw(16)}};TupleArray:Conformance.HoldsTuples[]:seq(raw(48){A:int@0:raw(4),B:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)},C:System.ValueTuple<byte, short>@24:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},D:System.ValueTuple<byte, long, int>@32:raw(16){Item1:byte@12:raw(1),Item2:long@0:raw(8),Item3:int@8:raw(4)}});PairList:System.Collections.Generic.List<Conformance.HoldsPairs>:seq(raw(40){A:byte@0:raw(1),P:System.Collections.Generic.KeyValuePair<int, long>@8:raw(16){key:int@0:raw(4),value:long@8:raw(8)},Q:System.Collections.Generic.KeyValuePair<long, byte>@24:raw(16){key:long@0:raw(8),value:byte@8:raw(1)}})";
 }
 
-/// `Conformance.BclRawHost`: Positional, header NullFlag.
+/// `Conformance.BclRawHost`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BclRawHost {
@@ -2138,10 +2138,10 @@ impl BclRawHost {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.BclRawHost";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x5358D4FF; deferrable=true; members=Wide:Conformance.HoldsWide:raw(48){A:byte@0:raw(1),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},C:System.UInt128@32:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}};Pointers:Conformance.HoldsPointers:raw(24){A:int@0:raw(4),B:System.IntPtr@8:raw(8),C:System.UIntPtr@16:raw(8)};Wides:Conformance.HoldsWide[]:seq(raw(48){A:byte@0:raw(1),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},C:System.UInt128@32:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}});Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x5358D4FF; deferrable=true; members=Wide:Conformance.HoldsWide:raw(48){A:byte@0:raw(1),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},C:System.UInt128@32:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}};Pointers:Conformance.HoldsPointers:raw(24){A:int@0:raw(4),B:System.IntPtr@8:raw(8),C:System.UIntPtr@16:raw(8)};Wides:Conformance.HoldsWide[]:seq(raw(48){A:byte@0:raw(1),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},C:System.UInt128@32:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}});Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})";
 }
 
-/// `Conformance.BclRawNullables`: Positional, header NullFlag.
+/// `Conformance.BclRawNullables`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BclRawNullables {
@@ -2191,10 +2191,10 @@ impl BclRawNullables {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.BclRawNullables";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA24BE90D; deferrable=true; members=Nullables:Conformance.HoldsNullables:raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}};Array:Conformance.HoldsNullables[]:seq(raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}})";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xA24BE90D; deferrable=true; members=Nullables:Conformance.HoldsNullables:raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}};Array:Conformance.HoldsNullables[]:seq(raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}})";
 }
 
-/// `Conformance.BclRawOffset`: Positional, header NullFlag.
+/// `Conformance.BclRawOffset`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BclRawOffset {
@@ -2244,10 +2244,10 @@ impl BclRawOffset {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.BclRawOffset";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73A77492; deferrable=true; members=Offset:Conformance.HoldsOffset:raw(24){A:int@0:raw(4),B:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}};Offsets:System.Collections.Generic.List<Conformance.HoldsOffset>:seq(raw(24){A:int@0:raw(4),B:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}})";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x73A77492; deferrable=true; members=Offset:Conformance.HoldsOffset:raw(24){A:int@0:raw(4),B:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}};Offsets:System.Collections.Generic.List<Conformance.HoldsOffset>:seq(raw(24){A:int@0:raw(4),B:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}})";
 }
 
-/// `Conformance.Targets.BigSlot`: Positional, header NullFlag.
+/// `Conformance.Targets.BigSlot`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BigSlot {
@@ -2283,10 +2283,10 @@ impl BigSlot {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.BigSlot";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA6B6AFE2; deferrable=true; members=Value:System.Numerics.BigInteger:bigint";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xA6B6AFE2; deferrable=true; members=Value:System.Numerics.BigInteger:bigint";
 }
 
-/// `Conformance.BigValues`: Positional, header NullFlag.
+/// `Conformance.BigValues`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BigValues {
@@ -2325,10 +2325,10 @@ impl BigValues {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.BigValues";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD56E77DA; deferrable=true; members=Big:System.Numerics.BigInteger:bigint;Version:System.Version:version";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xD56E77DA; deferrable=true; members=Big:System.Numerics.BigInteger:bigint;Version:System.Version:version";
 }
 
-/// `Conformance.BlueLink`: Positional, header NullFlag.
+/// `Conformance.BlueLink`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BlueLink {
@@ -2370,10 +2370,10 @@ impl BlueLink {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.BlueLink";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA9C583C8; deferrable=true; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link);Note:string:string";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xA9C583C8; deferrable=true; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link);Note:string:string";
 }
 
-/// `Conformance.Targets.BoolArray`: Positional, header NullFlag.
+/// `Conformance.Targets.BoolArray`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BoolArray {
@@ -2420,10 +2420,10 @@ impl BoolArray {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.BoolArray";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2C38911D; deferrable=true; members=Values:bool[]:seq(raw(1))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x2C38911D; deferrable=true; members=Values:bool[]:seq(raw(1))";
 }
 
-/// `Conformance.Targets.BoolValue`: Positional, header NullFlag.
+/// `Conformance.Targets.BoolValue`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BoolValue {
@@ -2459,10 +2459,10 @@ impl BoolValue {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.BoolValue";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x65FCB927; deferrable=true; members=Value:bool:raw(1)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x65FCB927; deferrable=true; members=Value:bool:raw(1)";
 }
 
-/// `Conformance.Box<T>`: Positional, header NullFlag.
+/// `Conformance.Box<T>`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BoxType<T> {
@@ -2510,10 +2510,10 @@ impl<T> BoxType<T> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Box<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Name:string:string;Value:T:type(T)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Name:string:string;Value:T:type(T)";
 }
 
-/// `Conformance.Targets.ByteArray`: Positional, header NullFlag.
+/// `Conformance.Targets.ByteArray`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct ByteArray {
@@ -2560,10 +2560,10 @@ impl ByteArray {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.ByteArray";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xEE43CD01; deferrable=true; members=Values:byte[]:seq(raw(1))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xEE43CD01; deferrable=true; members=Values:byte[]:seq(raw(1))";
 }
 
-/// `Conformance.Bytes`: Positional, header NullFlag.
+/// `Conformance.Bytes`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Bytes {
@@ -2622,10 +2622,10 @@ impl Bytes {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Bytes";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x40CE351F; deferrable=true; members=Array:byte[]:seq(raw(1));List:System.Collections.Generic.List<byte>:seq(raw(1));Signed:sbyte[]:seq(raw(1))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x40CE351F; deferrable=true; members=Array:byte[]:seq(raw(1));List:System.Collections.Generic.List<byte>:seq(raw(1));Signed:sbyte[]:seq(raw(1))";
 }
 
-/// `Conformance.Cat`: Positional, header NullFlag.
+/// `Conformance.Cat`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Cat {
@@ -2664,10 +2664,10 @@ impl Cat {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Cat";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xAD792380; deferrable=true; members=Name:string:string;Lives:float:raw(4)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xAD792380; deferrable=true; members=Name:string:string;Lives:float:raw(4)";
 }
 
-/// `Conformance.Chain`: Positional, header NullFlag.
+/// `Conformance.Chain`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Chain {
@@ -2717,7 +2717,7 @@ impl Chain {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Chain";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8147BA33; deferrable=true; members=Value:int:raw(4);Next:Conformance.Chain:type(Conformance.Chain)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x8147BA33; deferrable=true; members=Value:int:raw(4);Next:Conformance.Chain:type(Conformance.Chain)";
 }
 
 /// `Conformance.Circle`: Positional, header TypeId.
@@ -2753,7 +2753,7 @@ impl Circle {
     pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xD0A6E3F4; deferrable=true; members=Area:double:raw(8);Radius:double:raw(8)";
 }
 
-/// `Conformance.Collections`: Positional, header NullFlag.
+/// `Conformance.Collections`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Collections {
@@ -2896,7 +2896,7 @@ impl Collections {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Collections";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFECE6DDB; deferrable=true; members=Ints:int[]:seq(raw(4));IntList:System.Collections.Generic.List<int>:seq(raw(4));IntSet:System.Collections.Generic.HashSet<int>:seq(raw(4));Longs:long[]:seq(raw(8));Doubles:double[]:seq(raw(8));Bools:bool[]:seq(raw(1));Chars:char[]:seq(raw(2));Strings:System.Collections.Generic.List<string>:seq(string);StringSet:System.Collections.Generic.HashSet<string>:seq(string);Points:Conformance.Point[]:seq(type(Conformance.Point));PointList:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point));IntMap:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4));StringMap:System.Collections.Generic.Dictionary<string, string>:map(string,string);PointMap:System.Collections.Generic.Dictionary<string, Conformance.Point>:map(string,type(Conformance.Point));ListMap:System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>>:map(raw(4),seq(string));SortedInts:System.Collections.Generic.SortedDictionary<int, string>:map(raw(4),string);SortedStrings:System.Collections.Generic.SortedDictionary<string, int>:map(string,raw(4));Nested:System.Collections.Generic.List<System.Collections.Generic.List<int>>:seq(seq(raw(4)));Jagged:int[][]:seq(seq(raw(4)));Grid:int[,]:grid(2,raw(4));StringGrid:string[,]:grid(2,string)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xFECE6DDB; deferrable=true; members=Ints:int[]:seq(raw(4));IntList:System.Collections.Generic.List<int>:seq(raw(4));IntSet:System.Collections.Generic.HashSet<int>:seq(raw(4));Longs:long[]:seq(raw(8));Doubles:double[]:seq(raw(8));Bools:bool[]:seq(raw(1));Chars:char[]:seq(raw(2));Strings:System.Collections.Generic.List<string>:seq(string);StringSet:System.Collections.Generic.HashSet<string>:seq(string);Points:Conformance.Point[]:seq(type(Conformance.Point));PointList:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point));IntMap:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4));StringMap:System.Collections.Generic.Dictionary<string, string>:map(string,string);PointMap:System.Collections.Generic.Dictionary<string, Conformance.Point>:map(string,type(Conformance.Point));ListMap:System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>>:map(raw(4),seq(string));SortedInts:System.Collections.Generic.SortedDictionary<int, string>:map(raw(4),string);SortedStrings:System.Collections.Generic.SortedDictionary<string, int>:map(string,raw(4));Nested:System.Collections.Generic.List<System.Collections.Generic.List<int>>:seq(seq(raw(4)));Jagged:int[][]:seq(seq(raw(4)));Grid:int[,]:grid(2,raw(4));StringGrid:string[,]:grid(2,string)";
 }
 
 /// `Conformance.Crate<T>`: Positional, header TypeId.
@@ -2927,7 +2927,7 @@ impl<T> Crate<T> {
     pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Content:T:type(T)";
 }
 
-/// `Conformance.Dates`: Positional, header NullFlag.
+/// `Conformance.Dates`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Dates {
@@ -2972,7 +2972,7 @@ impl Dates {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Dates";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x004F73C1; deferrable=true; members=Utc:System.DateTime:raw(8);Local:System.DateTime:raw(8);Unspecified:System.DateTime:raw(8);Offset:System.DateTimeOffset:datetimeoffset";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x004F73C1; deferrable=true; members=Utc:System.DateTime:raw(8);Local:System.DateTime:raw(8);Unspecified:System.DateTime:raw(8);Offset:System.DateTimeOffset:datetimeoffset";
 }
 
 /// `Conformance.Dog`: Positional, header TypeId.
@@ -3008,7 +3008,7 @@ impl Dog {
     pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x69ACA68A; deferrable=true; members=Name:string:string;Bones:int:raw(4)";
 }
 
-/// `Conformance.Targets.DogSlot`: Positional, header NullFlag.
+/// `Conformance.Targets.DogSlot`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct DogSlot {
@@ -3044,10 +3044,10 @@ impl DogSlot {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.DogSlot";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x47F317D2; deferrable=true; members=Value:Conformance.Dog:type(Conformance.Dog)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x47F317D2; deferrable=true; members=Value:Conformance.Dog:type(Conformance.Dog)";
 }
 
-/// `Conformance.Empties`: Positional, header NullFlag.
+/// `Conformance.Empties`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Empties {
@@ -3109,10 +3109,10 @@ impl Empties {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Empties";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF6777155; deferrable=true; members=Class:Conformance.Empty:type(Conformance.Empty);Struct:Conformance.EmptyStruct:raw;Structs:Conformance.EmptyStruct[]:seq(raw);Classes:System.Collections.Generic.List<Conformance.Empty>:seq(type(Conformance.Empty))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xF6777155; deferrable=true; members=Class:Conformance.Empty:type(Conformance.Empty);Struct:Conformance.EmptyStruct:raw;Structs:Conformance.EmptyStruct[]:seq(raw);Classes:System.Collections.Generic.List<Conformance.Empty>:seq(type(Conformance.Empty))";
 }
 
-/// `Conformance.Empty`: Positional, header NullFlag.
+/// `Conformance.Empty`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Empty {}
@@ -3146,10 +3146,10 @@ impl Empty {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Empty";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x0C95741B; deferrable=true; members=";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x0C95741B; deferrable=true; members=";
 }
 
-/// `Conformance.Enums`: Positional, header NullFlag.
+/// `Conformance.Enums`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Enums {
@@ -3226,10 +3226,10 @@ impl Enums {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Enums";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x47EFBBD6; deferrable=true; members=A:Conformance.E8:raw(1);B:Conformance.EU8:raw(1);C:Conformance.E16:raw(2);D:Conformance.EU16:raw(2);E:Conformance.E32:raw(4);F:Conformance.EU32:raw(4);G:Conformance.E64:raw(8);H:Conformance.EU64:raw(8);Flags:Conformance.Permissions:raw(1);Wide:Conformance.WideFlags:raw(8);Array:Conformance.E32[]:seq(raw(4))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x47EFBBD6; deferrable=true; members=A:Conformance.E8:raw(1);B:Conformance.EU8:raw(1);C:Conformance.E16:raw(2);D:Conformance.EU16:raw(2);E:Conformance.E32:raw(4);F:Conformance.EU32:raw(4);G:Conformance.E64:raw(8);H:Conformance.EU64:raw(8);Flags:Conformance.Permissions:raw(1);Wide:Conformance.WideFlags:raw(8);Array:Conformance.E32[]:seq(raw(4))";
 }
 
-/// `Conformance.Floats`: Positional, header NullFlag.
+/// `Conformance.Floats`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Floats {
@@ -3271,10 +3271,10 @@ impl Floats {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Floats";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3504C24D; deferrable=true; members=F16:System.Half:raw(2);F32:float:raw(4);F64:double:raw(8)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x3504C24D; deferrable=true; members=F16:System.Half:raw(2);F32:float:raw(4);F64:double:raw(8)";
 }
 
-/// `Conformance.GenericSlots`: Positional, header NullFlag.
+/// `Conformance.GenericSlots`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct GenericSlots {
@@ -3336,10 +3336,10 @@ impl GenericSlots {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.GenericSlots";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x81599708; deferrable=true; members=IntShelf:Conformance.Shelf<int>:type(Conformance.Shelf<int>);TextShelf:Conformance.Shelf<string>:type(Conformance.Shelf<string>);Crate:Conformance.Crate<int>:type(Conformance.Crate<int>);TextCrate:Conformance.Crate<string>:type(Conformance.Crate<string>);Holder:Conformance.IHolder<long>:type(Conformance.IHolder<long>);Shelves:System.Collections.Generic.List<Conformance.Shelf<int>>:seq(type(Conformance.Shelf<int>))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x81599708; deferrable=true; members=IntShelf:Conformance.Shelf<int>:type(Conformance.Shelf<int>);TextShelf:Conformance.Shelf<string>:type(Conformance.Shelf<string>);Crate:Conformance.Crate<int>:type(Conformance.Crate<int>);TextCrate:Conformance.Crate<string>:type(Conformance.Crate<string>);Holder:Conformance.IHolder<long>:type(Conformance.IHolder<long>);Shelves:System.Collections.Generic.List<Conformance.Shelf<int>>:seq(type(Conformance.Shelf<int>))";
 }
 
-/// `Conformance.Targets.Grid`: Positional, header NullFlag.
+/// `Conformance.Targets.Grid`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Grid {
@@ -3375,10 +3375,10 @@ impl Grid {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.Grid";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF8F3033A; deferrable=true; members=Values:int[,]:grid(2,raw(4))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xF8F3033A; deferrable=true; members=Values:int[,]:grid(2,raw(4))";
 }
 
-/// `Conformance.Holder<T>`: Positional, header NullFlag.
+/// `Conformance.Holder<T>`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Holder<T> {
@@ -3426,10 +3426,10 @@ impl<T> Holder<T> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Holder<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Held:T:type(T);Count:int:raw(4)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Held:T:type(T);Count:int:raw(4)";
 }
 
-/// `Conformance.Inner`: Positional, header NullFlag.
+/// `Conformance.Inner`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Inner {
@@ -3482,10 +3482,10 @@ impl Inner {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Inner";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8EDDB9E8; deferrable=true; members=Value:long:raw(8);Text:string:string;Point:Conformance.Point:type(Conformance.Point)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x8EDDB9E8; deferrable=true; members=Value:long:raw(8);Text:string:string;Point:Conformance.Point:type(Conformance.Point)";
 }
 
-/// `Conformance.Targets.IntArray`: Positional, header NullFlag.
+/// `Conformance.Targets.IntArray`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct IntArray {
@@ -3532,10 +3532,10 @@ impl IntArray {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.IntArray";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x694D6EF8; deferrable=true; members=Values:int[]:seq(raw(4))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x694D6EF8; deferrable=true; members=Values:int[]:seq(raw(4))";
 }
 
-/// `Conformance.Targets.IntMap`: Positional, header NullFlag.
+/// `Conformance.Targets.IntMap`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct IntMap {
@@ -3571,10 +3571,10 @@ impl IntMap {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.IntMap";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD32CFD85; deferrable=true; members=Values:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xD32CFD85; deferrable=true; members=Values:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4))";
 }
 
-/// `Conformance.Targets.IntSet`: Positional, header NullFlag.
+/// `Conformance.Targets.IntSet`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct IntSet {
@@ -3621,10 +3621,10 @@ impl IntSet {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.IntSet";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xAA98C54B; deferrable=true; members=Values:System.Collections.Generic.HashSet<int>:seq(raw(4))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xAA98C54B; deferrable=true; members=Values:System.Collections.Generic.HashSet<int>:seq(raw(4))";
 }
 
-/// `Conformance.IntShelf`: Positional, header NullFlag.
+/// `Conformance.IntShelf`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct IntShelf {
@@ -3663,10 +3663,10 @@ impl IntShelf {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.IntShelf";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x6370ECA9; deferrable=true; members=Item:int:raw(4);Extra:int:raw(4)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x6370ECA9; deferrable=true; members=Item:int:raw(4);Extra:int:raw(4)";
 }
 
-/// `Conformance.Integers`: Positional, header NullFlag.
+/// `Conformance.Integers`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Integers {
@@ -3729,10 +3729,10 @@ impl Integers {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Integers";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x14BD31D3; deferrable=true; members=I8:sbyte:raw(1);U8:byte:raw(1);I16:short:raw(2);U16:ushort:raw(2);I32:int:raw(4);U32:uint:raw(4);I64:long:raw(8);U64:ulong:raw(8);I128:System.Int128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)};U128:System.UInt128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x14BD31D3; deferrable=true; members=I8:sbyte:raw(1);U8:byte:raw(1);I16:short:raw(2);U16:ushort:raw(2);I32:int:raw(4);U32:uint:raw(4);I64:long:raw(8);U64:ulong:raw(8);I128:System.Int128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)};U128:System.UInt128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}";
 }
 
-/// `Conformance.KeyedBag`: Keyed, header NullFlag.
+/// `Conformance.KeyedBag`: Keyed, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct KeyedBag {
@@ -3801,10 +3801,10 @@ impl KeyedBag {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.KeyedBag";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x414A8EE4; deferrable=true; members=[elements]::map(string,raw(4));Version:int:raw(4):key=0x8E2BF89F";
+    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; typeId=0x414A8EE4; deferrable=true; members=[elements]::map(string,raw(4));Version:int:raw(4):key=0x8E2BF89F";
 }
 
-/// `Conformance.KeyedChain`: Keyed, header NullFlag.
+/// `Conformance.KeyedChain`: Keyed, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct KeyedChain {
@@ -3875,10 +3875,10 @@ impl KeyedChain {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.KeyedChain";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0xCBFD8A55; deferrable=true; members=Value:int:raw(4):key=0xC373233E;Next:Conformance.KeyedChain:type(Conformance.KeyedChain):key=0xC9A6113A";
+    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; typeId=0xCBFD8A55; deferrable=true; members=Value:int:raw(4):key=0xC373233E;Next:Conformance.KeyedChain:type(Conformance.KeyedChain):key=0xC9A6113A";
 }
 
-/// `Conformance.KeyedHolder`: Positional, header NullFlag.
+/// `Conformance.KeyedHolder`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct KeyedHolder {
@@ -3937,7 +3937,7 @@ impl KeyedHolder {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.KeyedHolder";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x7FBDA208; deferrable=true; members=Keyed:Conformance.KeyedV1:type(Conformance.KeyedV1);Struct:Conformance.KeyedStruct:type(Conformance.KeyedStruct);Array:Conformance.KeyedV1[]:seq(type(Conformance.KeyedV1))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x7FBDA208; deferrable=true; members=Keyed:Conformance.KeyedV1:type(Conformance.KeyedV1);Struct:Conformance.KeyedStruct:type(Conformance.KeyedStruct);Array:Conformance.KeyedV1[]:seq(type(Conformance.KeyedV1))";
 }
 
 /// `Conformance.KeyedStruct`: Keyed, header None.
@@ -4016,7 +4016,7 @@ impl KeyedStruct {
     pub const NINO_LAYOUT: &str = "format=Keyed; header=None; trackReferences=false; raw=false; typeId=0x64822AB7; deferrable=false; members=A:int:raw(4):key=0x6AD58324;B:double:raw(8):key=0xDCDCF25F";
 }
 
-/// `Conformance.KeyedV1`: Keyed, header NullFlag.
+/// `Conformance.KeyedV1`: Keyed, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct KeyedV1 {
@@ -4099,10 +4099,10 @@ impl KeyedV1 {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.KeyedV1";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;Name:string:string:key=0x3085B3E2;Items:System.Collections.Generic.List<int>:seq(raw(4)):key=0xDCA8A053;Score:long:raw(8):key=0x044AB14D";
+    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; typeId=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;Name:string:string:key=0x3085B3E2;Items:System.Collections.Generic.List<int>:seq(raw(4)):key=0xDCA8A053;Score:long:raw(8):key=0x044AB14D";
 }
 
-/// `Conformance.KeyedV2`: Keyed, header NullFlag.
+/// `Conformance.KeyedV2`: Keyed, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct KeyedV2 {
@@ -4174,7 +4174,7 @@ impl KeyedV2 {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.KeyedV2";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x1D7EE2CC; deferrable=true; members=Score:long:raw(8):key=0x044AB14D;Name:string:string:key=0x3085B3E2;Hp:int:raw(4):key=0xA17135AD:former=0x99A16761;Level:int:raw(4):key=0xEAA8149B";
+    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; typeId=0x1D7EE2CC; deferrable=true; members=Score:long:raw(8):key=0x044AB14D;Name:string:string:key=0x3085B3E2;Hp:int:raw(4):key=0xA17135AD:former=0x99A16761;Level:int:raw(4):key=0xEAA8149B";
 }
 
 /// `Conformance.Label`: Positional, header None.
@@ -4232,7 +4232,7 @@ impl Label {
     pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=false; typeId=0x344F08B8; deferrable=false; members=Name:string:string;Weight:int:raw(4)";
 }
 
-/// `Conformance.LabeledCrate<T>`: Positional, header NullFlag.
+/// `Conformance.LabeledCrate<T>`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct LabeledCrate<T> {
@@ -4280,10 +4280,10 @@ impl<T> LabeledCrate<T> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.LabeledCrate<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Content:T:type(T);Label:string:string";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Content:T:type(T);Label:string:string";
 }
 
-/// `Conformance.ListShelf<T>`: Positional, header NullFlag.
+/// `Conformance.ListShelf<T>`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct ListShelf<T> {
@@ -4334,10 +4334,10 @@ impl<T> ListShelf<T> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.ListShelf<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Item:T:type(T);More:System.Collections.Generic.List<T>:seq(type(T))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Item:T:type(T);More:System.Collections.Generic.List<T>:seq(type(T))";
 }
 
-/// `Conformance.Targets.LongList`: Positional, header NullFlag.
+/// `Conformance.Targets.LongList`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct LongList {
@@ -4384,10 +4384,10 @@ impl LongList {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.LongList";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCECF34D2; deferrable=true; members=Values:System.Collections.Generic.List<long>:seq(raw(8))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xCECF34D2; deferrable=true; members=Values:System.Collections.Generic.List<long>:seq(raw(8))";
 }
 
-/// `Conformance.Targets.MaybeInt`: Positional, header NullFlag.
+/// `Conformance.Targets.MaybeInt`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct MaybeInt {
@@ -4434,10 +4434,10 @@ impl MaybeInt {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.MaybeInt";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3E8CF8A3; deferrable=true; members=Value:System.Nullable<int>:nullable(raw(4))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x3E8CF8A3; deferrable=true; members=Value:System.Nullable<int>:nullable(raw(4))";
 }
 
-/// `Conformance.Targets.MaybeIntArray`: Positional, header NullFlag.
+/// `Conformance.Targets.MaybeIntArray`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct MaybeIntArray {
@@ -4484,10 +4484,10 @@ impl MaybeIntArray {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.MaybeIntArray";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x436A69B2; deferrable=true; members=Values:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x436A69B2; deferrable=true; members=Values:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})";
 }
 
-/// `Conformance.Middle`: Positional, header NullFlag.
+/// `Conformance.Middle`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Middle {
@@ -4546,10 +4546,10 @@ impl Middle {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Middle";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD25B7AB3; deferrable=true; members=First:Conformance.Point:type(Conformance.Point);Second:Conformance.Point:type(Conformance.Point);Inner:Conformance.Inner:type(Conformance.Inner)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xD25B7AB3; deferrable=true; members=First:Conformance.Point:type(Conformance.Point);Second:Conformance.Point:type(Conformance.Point);Inner:Conformance.Inner:type(Conformance.Inner)";
 }
 
-/// `Conformance.Nullables`: Positional, header NullFlag.
+/// `Conformance.Nullables`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Nullables {
@@ -4665,10 +4665,10 @@ impl Nullables {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Nullables";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3920173C; deferrable=true; members=Int:System.Nullable<int>:nullable(raw(4));Long:System.Nullable<long>:nullable(raw(8));Double:System.Nullable<double>:nullable(raw(8));Bool:System.Nullable<bool>:nullable(raw(1));Guid:System.Nullable<System.Guid>:nullable(raw(16));Enum:System.Nullable<Conformance.E16>:nullable(raw(2));Vec:System.Nullable<Conformance.Vec2>:nullable(raw(8){X:float@0:raw(4),Y:float@4:raw(4)});Padded:System.Nullable<Conformance.Padded>:nullable(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});Label:System.Nullable<Conformance.Label>:nullable(type(Conformance.Label));IntArray:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});LongList:System.Collections.Generic.List<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});PaddedArray:System.Nullable<Conformance.Padded>[]:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});Map:System.Collections.Generic.Dictionary<int, System.Nullable<int>>:map(raw(4),nullable(raw(4)))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x3920173C; deferrable=true; members=Int:System.Nullable<int>:nullable(raw(4));Long:System.Nullable<long>:nullable(raw(8));Double:System.Nullable<double>:nullable(raw(8));Bool:System.Nullable<bool>:nullable(raw(1));Guid:System.Nullable<System.Guid>:nullable(raw(16));Enum:System.Nullable<Conformance.E16>:nullable(raw(2));Vec:System.Nullable<Conformance.Vec2>:nullable(raw(8){X:float@0:raw(4),Y:float@4:raw(4)});Padded:System.Nullable<Conformance.Padded>:nullable(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});Label:System.Nullable<Conformance.Label>:nullable(type(Conformance.Label));IntArray:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});LongList:System.Collections.Generic.List<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});PaddedArray:System.Nullable<Conformance.Padded>[]:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});Map:System.Collections.Generic.Dictionary<int, System.Nullable<int>>:map(raw(4),nullable(raw(4)))";
 }
 
-/// `Conformance.Targets.ObjectSlot`: Positional, header NullFlag.
+/// `Conformance.Targets.ObjectSlot`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct ObjectSlot {
@@ -4704,10 +4704,10 @@ impl ObjectSlot {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.ObjectSlot";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x7A16C8DB; deferrable=true; members=Value:object:object";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x7A16C8DB; deferrable=true; members=Value:object:object";
 }
 
-/// `Conformance.Outer`: Positional, header NullFlag.
+/// `Conformance.Outer`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Outer {
@@ -4763,10 +4763,10 @@ impl Outer {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Outer";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3F58E13F; deferrable=true; members=Name:string:string;Point:Conformance.Point:type(Conformance.Point);Middle:Conformance.Middle:type(Conformance.Middle)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x3F58E13F; deferrable=true; members=Name:string:string;Point:Conformance.Point:type(Conformance.Point);Middle:Conformance.Middle:type(Conformance.Middle)";
 }
 
-/// `Conformance.Targets.PaddedArray`: Positional, header NullFlag.
+/// `Conformance.Targets.PaddedArray`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct PaddedArray {
@@ -4813,7 +4813,7 @@ impl PaddedArray {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.PaddedArray";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x1805EDC3; deferrable=true; members=Values:Conformance.Padded[]:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)})";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x1805EDC3; deferrable=true; members=Values:Conformance.Padded[]:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)})";
 }
 
 /// `Conformance.Plain`: Positional, header TypeId.
@@ -4846,7 +4846,7 @@ impl Plain {
     pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x3124185C; deferrable=true; members=Value:int:raw(4)";
 }
 
-/// `Conformance.Point`: Positional, header NullFlag.
+/// `Conformance.Point`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Point {
@@ -4885,10 +4885,10 @@ impl Point {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Point";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x964B64BA; deferrable=true; members=X:int:raw(4);Y:int:raw(4)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x964B64BA; deferrable=true; members=X:int:raw(4);Y:int:raw(4)";
 }
 
-/// `Conformance.Targets.PointList`: Positional, header NullFlag.
+/// `Conformance.Targets.PointList`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct PointList {
@@ -4935,10 +4935,10 @@ impl PointList {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.PointList";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2EA152CC; deferrable=true; members=Values:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x2EA152CC; deferrable=true; members=Values:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point))";
 }
 
-/// `Conformance.PointSet`: Positional, header NullFlag.
+/// `Conformance.PointSet`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct PointSet {
@@ -4992,10 +4992,10 @@ impl PointSet {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.PointSet";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x14E7B060; deferrable=true; members=[elements]::seq(raw(4));Origin:Conformance.Point:type(Conformance.Point)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x14E7B060; deferrable=true; members=[elements]::seq(raw(4));Origin:Conformance.Point:type(Conformance.Point)";
 }
 
-/// `Conformance.Puppy`: Positional, header NullFlag.
+/// `Conformance.Puppy`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Puppy {
@@ -5037,10 +5037,10 @@ impl Puppy {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Puppy";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x94310DEA; deferrable=true; members=Name:string:string;Bones:int:raw(4);Sleepy:bool:raw(1)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x94310DEA; deferrable=true; members=Name:string:string;Bones:int:raw(4);Sleepy:bool:raw(1)";
 }
 
-/// `Conformance.RecordChain`: Positional, header NullFlag.
+/// `Conformance.RecordChain`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct RecordChain {
@@ -5094,10 +5094,10 @@ impl RecordChain {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.RecordChain";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x20F10406; deferrable=false; members=Value:int:raw(4);Next:Conformance.RecordChain:type(Conformance.RecordChain)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x20F10406; deferrable=false; members=Value:int:raw(4);Next:Conformance.RecordChain:type(Conformance.RecordChain)";
 }
 
-/// `Conformance.RedLink`: Positional, header NullFlag.
+/// `Conformance.RedLink`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct RedLink {
@@ -5136,10 +5136,10 @@ impl RedLink {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.RedLink";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9F90173D; deferrable=true; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x9F90173D; deferrable=true; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link)";
 }
 
-/// `Conformance.Scalars`: Positional, header NullFlag.
+/// `Conformance.Scalars`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Scalars {
@@ -5193,10 +5193,10 @@ impl Scalars {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Scalars";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD2727283; deferrable=true; members=Flag:bool:raw(1);Char:char:raw(2);Decimal:decimal:raw(16);Guid:System.Guid:raw(16);Span:System.TimeSpan:raw(8);Date:System.DateOnly:raw(4);Time:System.TimeOnly:raw(8)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xD2727283; deferrable=true; members=Flag:bool:raw(1);Char:char:raw(2);Decimal:decimal:raw(16);Guid:System.Guid:raw(16);Span:System.TimeSpan:raw(8);Date:System.DateOnly:raw(4);Time:System.TimeOnly:raw(8)";
 }
 
-/// `Conformance.Targets.ShapeSlot`: Positional, header NullFlag.
+/// `Conformance.Targets.ShapeSlot`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct ShapeSlot {
@@ -5232,10 +5232,10 @@ impl ShapeSlot {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.ShapeSlot";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFDAADCC1; deferrable=true; members=Value:Conformance.IShape:type(Conformance.IShape)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xFDAADCC1; deferrable=true; members=Value:Conformance.IShape:type(Conformance.IShape)";
 }
 
-/// `Conformance.Targets.SortedMap`: Positional, header NullFlag.
+/// `Conformance.Targets.SortedMap`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct SortedMap {
@@ -5271,10 +5271,10 @@ impl SortedMap {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.SortedMap";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3F694A3D; deferrable=true; members=Values:System.Collections.Generic.SortedDictionary<int, int>:map(raw(4),raw(4))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x3F694A3D; deferrable=true; members=Values:System.Collections.Generic.SortedDictionary<int, int>:map(raw(4),raw(4))";
 }
 
-/// `Conformance.Square`: Positional, header NullFlag.
+/// `Conformance.Square`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Square {
@@ -5313,10 +5313,10 @@ impl Square {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Square";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x844A4BA7; deferrable=true; members=Area:double:raw(8);Side:double:raw(8)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x844A4BA7; deferrable=true; members=Area:double:raw(8);Side:double:raw(8)";
 }
 
-/// `Conformance.StringCollections`: Positional, header NullFlag.
+/// `Conformance.StringCollections`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct StringCollections {
@@ -5378,10 +5378,10 @@ impl StringCollections {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.StringCollections";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x744CD3F6; deferrable=true; members=Array:string[]:seq(string);List:System.Collections.Generic.List<string>:seq(string);Utf8A:string:utf8;Plain:string:string;Utf8B:string:utf8";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x744CD3F6; deferrable=true; members=Array:string[]:seq(string);List:System.Collections.Generic.List<string>:seq(string);Utf8A:string:utf8;Plain:string:string;Utf8B:string:utf8";
 }
 
-/// `Conformance.Targets.StringList`: Positional, header NullFlag.
+/// `Conformance.Targets.StringList`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct StringList {
@@ -5428,10 +5428,10 @@ impl StringList {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.StringList";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x30796D4D; deferrable=true; members=Values:System.Collections.Generic.List<string>:seq(string)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x30796D4D; deferrable=true; members=Values:System.Collections.Generic.List<string>:seq(string)";
 }
 
-/// `Conformance.Targets.StringMap`: Positional, header NullFlag.
+/// `Conformance.Targets.StringMap`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct StringMap {
@@ -5467,10 +5467,10 @@ impl StringMap {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.StringMap";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x4B1A1F3B; deferrable=true; members=Values:System.Collections.Generic.Dictionary<string, int>:map(string,raw(4))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x4B1A1F3B; deferrable=true; members=Values:System.Collections.Generic.Dictionary<string, int>:map(string,raw(4))";
 }
 
-/// `Conformance.Targets.StringSet`: Positional, header NullFlag.
+/// `Conformance.Targets.StringSet`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct StringSet {
@@ -5517,10 +5517,10 @@ impl StringSet {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.StringSet";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73FC2C95; deferrable=true; members=Values:System.Collections.Generic.HashSet<string>:seq(string)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x73FC2C95; deferrable=true; members=Values:System.Collections.Generic.HashSet<string>:seq(string)";
 }
 
-/// `Conformance.Strings`: Positional, header NullFlag.
+/// `Conformance.Strings`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Strings {
@@ -5559,10 +5559,10 @@ impl Strings {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Strings";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDBD0018; deferrable=true; members=Text:string:string;Utf8:string:utf8";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xCDBD0018; deferrable=true; members=Text:string:string;Utf8:string:utf8";
 }
 
-/// `Conformance.Structs`: Positional, header NullFlag.
+/// `Conformance.Structs`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Structs {
@@ -5660,10 +5660,10 @@ impl Structs {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Structs";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x24768402; deferrable=true; members=Vec:Conformance.Vec2:raw(8){X:float@0:raw(4),Y:float@4:raw(4)};Padded:Conformance.Padded:raw(16){A:byte@0:raw(1),B:long@8:raw(8)};Mixed:Conformance.Mixed:raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)};Packed:Conformance.Packed:raw(11){A:byte@0:raw(1),B:long@1:raw(8),C:short@9:raw(2)};Sized:Conformance.Sized:raw(16){A:int@0:raw(4)};Nested:Conformance.Nested:raw(32){Inner:Conformance.Padded@0:raw(16){A:byte@0:raw(1),B:long@8:raw(8)},Position:Conformance.Vec2@16:raw(8){X:float@0:raw(4),Y:float@4:raw(4)},Kind:Conformance.EU8@24:raw(1),Flag:bool@25:raw(1)};Label:Conformance.Label:type(Conformance.Label);VecArray:Conformance.Vec2[]:seq(raw(8){X:float@0:raw(4),Y:float@4:raw(4)});PaddedList:System.Collections.Generic.List<Conformance.Padded>:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});MixedArray:Conformance.Mixed[]:seq(raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)});Labels:Conformance.Label[]:seq(type(Conformance.Label));RawTuple:System.ValueTuple<byte, long>:tuple(raw(1),raw(8));Tuple:System.ValueTuple<int, string>:tuple(raw(4),string);Pair:System.Collections.Generic.KeyValuePair<string, Conformance.Vec2>:pair(string,raw(8){X:float@0:raw(4),Y:float@4:raw(4)})";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x24768402; deferrable=true; members=Vec:Conformance.Vec2:raw(8){X:float@0:raw(4),Y:float@4:raw(4)};Padded:Conformance.Padded:raw(16){A:byte@0:raw(1),B:long@8:raw(8)};Mixed:Conformance.Mixed:raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)};Packed:Conformance.Packed:raw(11){A:byte@0:raw(1),B:long@1:raw(8),C:short@9:raw(2)};Sized:Conformance.Sized:raw(16){A:int@0:raw(4)};Nested:Conformance.Nested:raw(32){Inner:Conformance.Padded@0:raw(16){A:byte@0:raw(1),B:long@8:raw(8)},Position:Conformance.Vec2@16:raw(8){X:float@0:raw(4),Y:float@4:raw(4)},Kind:Conformance.EU8@24:raw(1),Flag:bool@25:raw(1)};Label:Conformance.Label:type(Conformance.Label);VecArray:Conformance.Vec2[]:seq(raw(8){X:float@0:raw(4),Y:float@4:raw(4)});PaddedList:System.Collections.Generic.List<Conformance.Padded>:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});MixedArray:Conformance.Mixed[]:seq(raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)});Labels:Conformance.Label[]:seq(type(Conformance.Label));RawTuple:System.ValueTuple<byte, long>:tuple(raw(1),raw(8));Tuple:System.ValueTuple<int, string>:tuple(raw(4),string);Pair:System.Collections.Generic.KeyValuePair<string, Conformance.Vec2>:pair(string,raw(8){X:float@0:raw(4),Y:float@4:raw(4)})";
 }
 
-/// `Conformance.Targets.TextValue`: Positional, header NullFlag.
+/// `Conformance.Targets.TextValue`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TextValue {
@@ -5699,10 +5699,10 @@ impl TextValue {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.TextValue";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string";
 }
 
-/// `Conformance.TolerantBag`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantBag`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantBag {
@@ -5759,7 +5759,7 @@ impl TolerantBag {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TolerantBag";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x2101A619; deferrable=true; members=[elements]::seq(string);Tag:string:string";
+    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; typeId=0x2101A619; deferrable=true; members=[elements]::seq(string);Tag:string:string";
 }
 
 /// `Conformance.TolerantBase`: VersionTolerant, header TypeId.
@@ -5798,7 +5798,7 @@ impl TolerantBase {
     pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=TypeId; trackReferences=false; raw=false; typeId=0x9536FE88; deferrable=true; members=A:int:raw(4)";
 }
 
-/// `Conformance.TolerantChain`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantChain`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantChain {
@@ -5856,10 +5856,10 @@ impl TolerantChain {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TolerantChain";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x18DAD008; deferrable=true; members=Value:int:raw(4);Next:Conformance.TolerantChain:type(Conformance.TolerantChain)";
+    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; typeId=0x18DAD008; deferrable=true; members=Value:int:raw(4);Next:Conformance.TolerantChain:type(Conformance.TolerantChain)";
 }
 
-/// `Conformance.TolerantEmpty`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantEmpty`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantEmpty {}
@@ -5895,10 +5895,10 @@ impl TolerantEmpty {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TolerantEmpty";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x85A223A0; deferrable=true; members=";
+    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; typeId=0x85A223A0; deferrable=true; members=";
 }
 
-/// `Conformance.TolerantHolder`: Positional, header NullFlag.
+/// `Conformance.TolerantHolder`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantHolder {
@@ -5957,10 +5957,10 @@ impl TolerantHolder {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TolerantHolder";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2DA994ED; deferrable=true; members=First:Conformance.TolerantV1:type(Conformance.TolerantV1);Polymorphic:Conformance.TolerantBase:type(Conformance.TolerantBase);Empty:Conformance.TolerantEmpty:type(Conformance.TolerantEmpty);After:int:raw(4)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x2DA994ED; deferrable=true; members=First:Conformance.TolerantV1:type(Conformance.TolerantV1);Polymorphic:Conformance.TolerantBase:type(Conformance.TolerantBase);Empty:Conformance.TolerantEmpty:type(Conformance.TolerantEmpty);After:int:raw(4)";
 }
 
-/// `Conformance.TolerantLeaf`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantLeaf`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantLeaf {
@@ -6007,10 +6007,10 @@ impl TolerantLeaf {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TolerantLeaf";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x6B83150B; deferrable=true; members=A:int:raw(4);B:int:raw(4)";
+    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; typeId=0x6B83150B; deferrable=true; members=A:int:raw(4);B:int:raw(4)";
 }
 
-/// `Conformance.TolerantRoot`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantRoot`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantRoot {
@@ -6073,10 +6073,10 @@ impl TolerantRoot {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TolerantRoot";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0xF7F6B6D3; deferrable=true; members=Name:string:string;Chain:Conformance.Chain:type(Conformance.Chain);After:int:raw(4)";
+    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; typeId=0xF7F6B6D3; deferrable=true; members=Name:string:string;Chain:Conformance.Chain:type(Conformance.Chain);After:int:raw(4)";
 }
 
-/// `Conformance.TolerantV1`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantV1`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantV1 {
@@ -6123,10 +6123,10 @@ impl TolerantV1 {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TolerantV1";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x1DBD9212; deferrable=true; members=A:int:raw(4);B:string:string";
+    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; typeId=0x1DBD9212; deferrable=true; members=A:int:raw(4);B:string:string";
 }
 
-/// `Conformance.TolerantV2`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantV2`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantV2 {
@@ -6194,7 +6194,7 @@ impl TolerantV2 {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TolerantV2";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0xF7BB17A9; deferrable=true; members=A:int:raw(4);B:string:string;C:long:raw(8);D:System.Collections.Generic.List<int>:seq(raw(4))";
+    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; typeId=0xF7BB17A9; deferrable=true; members=A:int:raw(4);B:string:string;C:long:raw(8);D:System.Collections.Generic.List<int>:seq(raw(4))";
 }
 
 /// `Conformance.Tracked`: Positional, header TypeId.
@@ -6233,7 +6233,7 @@ impl Tracked {
     pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=true; raw=false; typeId=0x8E7C9360; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked)";
 }
 
-/// `Conformance.TrackedHolder`: Positional, header NullFlag.
+/// `Conformance.TrackedHolder`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TrackedHolder {
@@ -6289,10 +6289,10 @@ impl TrackedHolder {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TrackedHolder";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFA74F460; deferrable=true; members=A:Conformance.Tracked:type(Conformance.Tracked);B:Conformance.Tracked:type(Conformance.Tracked);All:System.Collections.Generic.List<Conformance.Tracked>:seq(type(Conformance.Tracked));Any:object:object";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xFA74F460; deferrable=true; members=A:Conformance.Tracked:type(Conformance.Tracked);B:Conformance.Tracked:type(Conformance.Tracked);All:System.Collections.Generic.List<Conformance.Tracked>:seq(type(Conformance.Tracked));Any:object:object";
 }
 
-/// `Conformance.TrackedLeaf`: Positional, header NullFlag.
+/// `Conformance.TrackedLeaf`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TrackedLeaf {
@@ -6328,10 +6328,10 @@ impl TrackedLeaf {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TrackedLeaf";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=true; raw=false; typeId=0x671FC086; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked);Name:string:string";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=true; raw=false; typeId=0x671FC086; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked);Name:string:string";
 }
 
-/// `Conformance.TrackedMix`: Positional, header NullFlag.
+/// `Conformance.TrackedMix`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TrackedMix {
@@ -6393,10 +6393,10 @@ impl TrackedMix {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TrackedMix";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x429143A4; deferrable=true; members=Any:object:object;Node:Conformance.TrackedNode:type(Conformance.TrackedNode);Base:Conformance.Tracked:type(Conformance.Tracked);Nodes:System.Collections.Generic.List<Conformance.TrackedNode>:seq(type(Conformance.TrackedNode));ById:System.Collections.Generic.Dictionary<int, Conformance.TrackedNode>:map(raw(4),type(Conformance.TrackedNode));Tolerant:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x429143A4; deferrable=true; members=Any:object:object;Node:Conformance.TrackedNode:type(Conformance.TrackedNode);Base:Conformance.Tracked:type(Conformance.Tracked);Nodes:System.Collections.Generic.List<Conformance.TrackedNode>:seq(type(Conformance.TrackedNode));ById:System.Collections.Generic.Dictionary<int, Conformance.TrackedNode>:map(raw(4),type(Conformance.TrackedNode));Tolerant:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)";
 }
 
-/// `Conformance.TrackedNode`: Positional, header NullFlag.
+/// `Conformance.TrackedNode`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TrackedNode {
@@ -6426,10 +6426,10 @@ impl TrackedNode {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TrackedNode";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=true; raw=false; typeId=0x8AEB65A0; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedNode:type(Conformance.TrackedNode)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=true; raw=false; typeId=0x8AEB65A0; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedNode:type(Conformance.TrackedNode)";
 }
 
-/// `Conformance.TrackedTolerant`: VersionTolerant, header NullFlag.
+/// `Conformance.TrackedTolerant`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TrackedTolerant {
@@ -6467,10 +6467,10 @@ impl TrackedTolerant {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TrackedTolerant";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=NullFlag; trackReferences=true; raw=false; typeId=0xB5BC74F3; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)";
+    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=true; raw=false; typeId=0xB5BC74F3; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)";
 }
 
-/// `Conformance.TreeHolder`: Positional, header NullFlag.
+/// `Conformance.TreeHolder`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TreeHolder {
@@ -6520,10 +6520,10 @@ impl TreeHolder {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TreeHolder";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA20A5480; deferrable=true; members=Tree:Conformance.Tree:seq(type(Conformance.Tree));DictTree:Conformance.DictTree:map(string,type(Conformance.DictTree))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xA20A5480; deferrable=true; members=Tree:Conformance.Tree:seq(type(Conformance.Tree));DictTree:Conformance.DictTree:map(string,type(Conformance.DictTree))";
 }
 
-/// `Conformance.TreeNode`: Positional, header NullFlag.
+/// `Conformance.TreeNode`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TreeNode {
@@ -6573,10 +6573,10 @@ impl TreeNode {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.TreeNode";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x760566C0; deferrable=true; members=Value:int:raw(4);Children:System.Collections.Generic.List<Conformance.TreeNode>:seq(type(Conformance.TreeNode))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x760566C0; deferrable=true; members=Value:int:raw(4);Children:System.Collections.Generic.List<Conformance.TreeNode>:seq(type(Conformance.TreeNode))";
 }
 
-/// `Conformance.Targets.Utf8Value`: Positional, header NullFlag.
+/// `Conformance.Targets.Utf8Value`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Utf8Value {
@@ -6612,10 +6612,10 @@ impl Utf8Value {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.Utf8Value";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; deferrable=true; members=Value:string:utf8";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x49EFED16; deferrable=true; members=Value:string:utf8";
 }
 
-/// `Conformance.Targets.VersionSlot`: Positional, header NullFlag.
+/// `Conformance.Targets.VersionSlot`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct VersionSlot {
@@ -6651,10 +6651,10 @@ impl VersionSlot {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Targets.VersionSlot";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9D692494; deferrable=true; members=Value:System.Version:version";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x9D692494; deferrable=true; members=Value:System.Version:version";
 }
 
-/// `Conformance.Wrap<T>`: Positional, header NullFlag.
+/// `Conformance.Wrap<T>`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Wrap<T> {
@@ -6699,10 +6699,10 @@ impl<T> Wrap<T> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Wrap<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T)";
 }
 
-/// `Conformance.WrappedArgs`: Positional, header NullFlag.
+/// `Conformance.WrappedArgs`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct WrappedArgs {
@@ -6785,10 +6785,10 @@ impl WrappedArgs {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.WrappedArgs";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xE29BBB74; deferrable=true; members=NullableArray:Conformance.Wrap<System.Nullable<int>[]>:type(Conformance.Wrap<System.Nullable<int>[]>);NullableList:Conformance.Wrap<System.Collections.Generic.List<System.Nullable<int>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Nullable<int>>>);NullableSet:Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<int>>>:type(Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<int>>>);NullableStructs:Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>);NullableValues:Conformance.Wrap<System.Collections.Generic.Dictionary<int, System.Nullable<double>>>:type(Conformance.Wrap<System.Collections.Generic.Dictionary<int, System.Nullable<double>>>);Pairs:Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, string>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, string>>>);PairArray:Conformance.Wrap<System.Collections.Generic.KeyValuePair<string, System.Nullable<int>>[]>:type(Conformance.Wrap<System.Collections.Generic.KeyValuePair<string, System.Nullable<int>>[]>)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xE29BBB74; deferrable=true; members=NullableArray:Conformance.Wrap<System.Nullable<int>[]>:type(Conformance.Wrap<System.Nullable<int>[]>);NullableList:Conformance.Wrap<System.Collections.Generic.List<System.Nullable<int>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Nullable<int>>>);NullableSet:Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<int>>>:type(Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<int>>>);NullableStructs:Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>);NullableValues:Conformance.Wrap<System.Collections.Generic.Dictionary<int, System.Nullable<double>>>:type(Conformance.Wrap<System.Collections.Generic.Dictionary<int, System.Nullable<double>>>);Pairs:Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, string>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, string>>>);PairArray:Conformance.Wrap<System.Collections.Generic.KeyValuePair<string, System.Nullable<int>>[]>:type(Conformance.Wrap<System.Collections.Generic.KeyValuePair<string, System.Nullable<int>>[]>)";
 }
 
-/// `Conformance.Zoo`: Positional, header NullFlag.
+/// `Conformance.Zoo`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Zoo {
@@ -6865,7 +6865,7 @@ impl Zoo {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Conformance.Zoo";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x6E8C85FC; deferrable=true; members=Star:Conformance.Animal:type(Conformance.Animal);Dog:Conformance.Dog:type(Conformance.Dog);Animals:System.Collections.Generic.List<Conformance.Animal>:seq(type(Conformance.Animal));Cages:Conformance.Animal[]:seq(type(Conformance.Animal));Shape:Conformance.IShape:type(Conformance.IShape);Shapes:System.Collections.Generic.List<Conformance.IShape>:seq(type(Conformance.IShape));Plain:Conformance.Plain:type(Conformance.Plain);Anything:object:object;ByName:System.Collections.Generic.Dictionary<string, Conformance.Animal>:map(string,type(Conformance.Animal))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x6E8C85FC; deferrable=true; members=Star:Conformance.Animal:type(Conformance.Animal);Dog:Conformance.Dog:type(Conformance.Dog);Animals:System.Collections.Generic.List<Conformance.Animal>:seq(type(Conformance.Animal));Cages:Conformance.Animal[]:seq(type(Conformance.Animal));Shape:Conformance.IShape:type(Conformance.IShape);Shapes:System.Collections.Generic.List<Conformance.IShape>:seq(type(Conformance.IShape));Plain:Conformance.Plain:type(Conformance.Plain);Anything:object:object;ByName:System.Collections.Generic.Dictionary<string, Conformance.Animal>:map(string,type(Conformance.Animal))";
 }
 
 /// A `Conformance.Animal` slot: a type id, then the body of one of these types.

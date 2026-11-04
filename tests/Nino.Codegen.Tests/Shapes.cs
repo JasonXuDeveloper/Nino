@@ -3,7 +3,7 @@ using Nino.Core;
 
 // A layout as a Nino generator before spec 4.4 could publish it for a member of Vector<T>, which no runtime reads
 // since (Vector<T> is not serializable: spec 3): nino-gen leaves the type out (Shapes.OldVector).
-[assembly: NinoTypeLayout(typeof(Shapes.OldVector), NinoFormat.Positional, NinoHeader.NullFlag, false, false, 0x0BADF00D,
+[assembly: NinoTypeLayout(typeof(Shapes.OldVector), NinoFormat.Positional, NinoHeader.Presence, false, false, 0x0BADF00D,
     "Lanes:System.Numerics.Vector<int>:raw(16){_00:ulong@0:raw(8),_01:ulong@8:raw(8)}")]
 
 // Shapes of types the conformance corpus does not declare, generated into every language (runtimes/go/internal/

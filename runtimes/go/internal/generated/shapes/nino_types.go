@@ -478,7 +478,7 @@ type Bag[T any] struct {
 }
 
 func (Bag[T]) NinoLayout() string {
-	return "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Items:System.Collections.Generic.List<T>:seq(type(T));ByName:System.Collections.Generic.Dictionary<string, T>:map(string,type(T));Array:T[]:seq(type(T));Inner:Shapes.Generic.Box<T>:type(Shapes.Generic.Box<T>);Pair:Shapes.Generic.Pair<int, T>:type(Shapes.Generic.Pair<int, T>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<T>>:seq(type(Shapes.Generic.Box<T>));Tuple:System.ValueTuple<int, T>:tuple(raw(4),type(T))"
+	return "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Items:System.Collections.Generic.List<T>:seq(type(T));ByName:System.Collections.Generic.Dictionary<string, T>:map(string,type(T));Array:T[]:seq(type(T));Inner:Shapes.Generic.Box<T>:type(Shapes.Generic.Box<T>);Pair:Shapes.Generic.Pair<int, T>:type(Shapes.Generic.Pair<int, T>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<T>>:seq(type(Shapes.Generic.Box<T>));Tuple:System.ValueTuple<int, T>:tuple(raw(4),type(T))"
 }
 
 func (Bag[T]) NinoTypeName() string {
@@ -663,7 +663,7 @@ type Box[T any] struct {
 }
 
 func (Box[T]) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T)"
 }
 
 func (Box[T]) NinoTypeName() string {
@@ -708,7 +708,7 @@ type FloatKeys struct {
 }
 
 func (FloatKeys) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xECAE2E83; deferrable=true; members=Map:System.Collections.Generic.Dictionary<float, int>:map(raw(4),raw(4))"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xECAE2E83; deferrable=true; members=Map:System.Collections.Generic.Dictionary<float, int>:map(raw(4),raw(4))"
 }
 
 func (FloatKeys) NinoTypeName() string {
@@ -800,7 +800,7 @@ type ForestHolder struct {
 }
 
 func (ForestHolder) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA67B9EFE; deferrable=true; members=Forest:Shapes.Forest:seq(type(Shapes.Forest))"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xA67B9EFE; deferrable=true; members=Forest:Shapes.Forest:seq(type(Shapes.Forest))"
 }
 
 func (ForestHolder) NinoTypeName() string {
@@ -930,7 +930,7 @@ type Holder struct {
 }
 
 func (Holder) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x839907D7; deferrable=true; members=Thing:Shapes.IThing:type(Shapes.IThing);Things:System.Collections.Generic.List<Shapes.IThing>:seq(type(Shapes.IThing));Tree:Shapes.Recursive:type(Shapes.Recursive);Inner:Shapes.Outer.Inner:type(Shapes.Outer.Inner);LeftItem:Shapes.Left.Item:type(Shapes.Left.Item);RightItem:Shapes.Right.Item:type(Shapes.Right.Item);Flags:Shapes.Flags:raw(8);Gaps:Shapes.Gappy[]:seq(raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)});Names:System.Collections.Generic.Dictionary<int, string>:map(raw(4),string);Tags:System.Collections.Generic.HashSet<string>:seq(string);Pair:System.ValueTuple<int, string>:tuple(raw(4),string);Entry:System.Collections.Generic.KeyValuePair<string, int>:pair(string,raw(4));Maybe:System.Nullable<int>:nullable(raw(4));Keywords:Shapes.Keywords:type(Shapes.Keywords)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x839907D7; deferrable=true; members=Thing:Shapes.IThing:type(Shapes.IThing);Things:System.Collections.Generic.List<Shapes.IThing>:seq(type(Shapes.IThing));Tree:Shapes.Recursive:type(Shapes.Recursive);Inner:Shapes.Outer.Inner:type(Shapes.Outer.Inner);LeftItem:Shapes.Left.Item:type(Shapes.Left.Item);RightItem:Shapes.Right.Item:type(Shapes.Right.Item);Flags:Shapes.Flags:raw(8);Gaps:Shapes.Gappy[]:seq(raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)});Names:System.Collections.Generic.Dictionary<int, string>:map(raw(4),string);Tags:System.Collections.Generic.HashSet<string>:seq(string);Pair:System.ValueTuple<int, string>:tuple(raw(4),string);Entry:System.Collections.Generic.KeyValuePair<string, int>:pair(string,raw(4));Maybe:System.Nullable<int>:nullable(raw(4));Keywords:Shapes.Keywords:type(Shapes.Keywords)"
 }
 
 func (Holder) NinoTypeName() string {
@@ -1049,7 +1049,7 @@ type HostHolder struct {
 }
 
 func (HostHolder) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73E57D3F; deferrable=true; members=Leaves:Shapes.HostLeaves:raw(64){A:byte@0:raw(1),Wide:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},Signed:System.IntPtr@32:raw(8),Unsigned:System.UIntPtr@40:raw(8),Pointer:int*@48:raw(8),Callback:delegate*<int>@56:raw(8)};Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x73E57D3F; deferrable=true; members=Leaves:Shapes.HostLeaves:raw(64){A:byte@0:raw(1),Wide:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},Signed:System.IntPtr@32:raw(8),Unsigned:System.UIntPtr@40:raw(8),Pointer:int*@48:raw(8),Callback:delegate*<int>@56:raw(8)};Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})"
 }
 
 func (HostHolder) NinoTypeName() string {
@@ -1208,7 +1208,7 @@ type Keys[T any] struct {
 }
 
 func (Keys[T]) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Set:System.Collections.Generic.HashSet<T>:seq(type(T));ByKey:System.Collections.Generic.Dictionary<T, int>:map(type(T),raw(4))"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Set:System.Collections.Generic.HashSet<T>:seq(type(T));ByKey:System.Collections.Generic.Dictionary<T, int>:map(type(T),raw(4))"
 }
 
 func (Keys[T]) NinoTypeName() string {
@@ -1326,7 +1326,7 @@ type Keywords struct {
 }
 
 func (Keywords) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x58F430A5; deferrable=true; members=Type:int:raw(4);Self:int:raw(4);Match:int:raw(4);Default:string:string;Body:int:raw(4);Key:int:raw(4);Value:int:raw(4);R:int:raw(4);W:int:raw(4);V:int:raw(4)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x58F430A5; deferrable=true; members=Type:int:raw(4);Self:int:raw(4);Match:int:raw(4);Default:string:string;Body:int:raw(4);Key:int:raw(4);Value:int:raw(4);R:int:raw(4);W:int:raw(4);V:int:raw(4)"
 }
 
 func (Keywords) NinoTypeName() string {
@@ -1536,7 +1536,7 @@ type NinoGridType struct {
 }
 
 func (NinoGridType) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x03FA7FE9; deferrable=true; members=Value:int:raw(4)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x03FA7FE9; deferrable=true; members=Value:int:raw(4)"
 }
 
 func (NinoGridType) NinoTypeName() string {
@@ -1629,7 +1629,7 @@ type Node[T any] struct {
 }
 
 func (Node[T]) NinoLayout() string {
-	return "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T):key=0xC373233E;Next:Shapes.Generic.Node<T>:type(Shapes.Generic.Node<T>):key=0xC9A6113A"
+	return "format=Keyed; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T):key=0xC373233E;Next:Shapes.Generic.Node<T>:type(Shapes.Generic.Node<T>):key=0xC9A6113A"
 }
 
 func (Node[T]) NinoTypeName() string {
@@ -1701,7 +1701,7 @@ type OffsetHolder struct {
 }
 
 func (OffsetHolder) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x36E5D592; deferrable=true; members=Leaf:Shapes.OffsetLeaf:raw(24){A:short@0:raw(2),At:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}}"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x36E5D592; deferrable=true; members=Leaf:Shapes.OffsetLeaf:raw(24){A:short@0:raw(2),At:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}}"
 }
 
 func (OffsetHolder) NinoTypeName() string {
@@ -1855,7 +1855,7 @@ type OpenHolder[T any] struct {
 }
 
 func (OpenHolder[T]) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Inner:Shapes.Generic.Open<T>:type(Shapes.Generic.Open<T>);All:System.Collections.Generic.List<Shapes.Generic.Open<T>>:seq(type(Shapes.Generic.Open<T>))"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Inner:Shapes.Generic.Open<T>:type(Shapes.Generic.Open<T>);All:System.Collections.Generic.List<Shapes.Generic.Open<T>>:seq(type(Shapes.Generic.Open<T>))"
 }
 
 func (OpenHolder[T]) NinoTypeName() string {
@@ -1933,7 +1933,7 @@ type OpenHolderUse struct {
 }
 
 func (OpenHolderUse) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9E569D67; deferrable=true; members=Holder:Shapes.Generic.OpenHolder<long>:type(Shapes.Generic.OpenHolder<long>)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x9E569D67; deferrable=true; members=Holder:Shapes.Generic.OpenHolder<long>:type(Shapes.Generic.OpenHolder<long>)"
 }
 
 func (OpenHolderUse) NinoTypeName() string {
@@ -2025,7 +2025,7 @@ type OpenUse struct {
 }
 
 func (OpenUse) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFA892147; deferrable=true; members=Open:Shapes.Generic.Open<int>:type(Shapes.Generic.Open<int>)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xFA892147; deferrable=true; members=Open:Shapes.Generic.Open<int>:type(Shapes.Generic.Open<int>)"
 }
 
 func (OpenUse) NinoTypeName() string {
@@ -2117,7 +2117,7 @@ type OuterInner struct {
 }
 
 func (OuterInner) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x583BB773; deferrable=true; members=Value:int:raw(4)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x583BB773; deferrable=true; members=Value:int:raw(4)"
 }
 
 func (OuterInner) NinoTypeName() string {
@@ -2347,7 +2347,7 @@ type Renamed struct {
 }
 
 func (Renamed) NinoLayout() string {
-	return "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0xD813B273; deferrable=true; members=NewName:int:raw(4):key=0xAC8120CE:former=0x4B4D09F5;Other:string:string:key=0x4D897D71"
+	return "format=Keyed; header=Presence; trackReferences=false; raw=false; typeId=0xD813B273; deferrable=true; members=NewName:int:raw(4):key=0xAC8120CE:former=0x4B4D09F5;Other:string:string:key=0x4D897D71"
 }
 
 func (Renamed) NinoTypeName() string {
@@ -2466,7 +2466,7 @@ type ShapesLeftItem struct {
 }
 
 func (ShapesLeftItem) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8E4FFE47; deferrable=true; members=Left:int:raw(4)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x8E4FFE47; deferrable=true; members=Left:int:raw(4)"
 }
 
 func (ShapesLeftItem) NinoTypeName() string {
@@ -2558,7 +2558,7 @@ type ShapesRightItem struct {
 }
 
 func (ShapesRightItem) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3418E03C; deferrable=true; members=Right:int:raw(4)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x3418E03C; deferrable=true; members=Right:int:raw(4)"
 }
 
 func (ShapesRightItem) NinoTypeName() string {
@@ -2657,7 +2657,7 @@ type Stamps struct {
 }
 
 func (Stamps) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xB5FF2A7F; deferrable=true; members=Times:System.DateTime[]:seq(raw(8));Days:System.Collections.Generic.List<System.DateOnly>:seq(raw(4));Clocks:System.TimeOnly[]:seq(raw(8));Prices:decimal[]:seq(raw(16));Ids:System.Collections.Generic.List<System.Guid>:seq(raw(16));Signed:System.Int128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Unsigned:System.UInt128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Marks:Shapes.Marked[]:seq(raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)})"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xB5FF2A7F; deferrable=true; members=Times:System.DateTime[]:seq(raw(8));Days:System.Collections.Generic.List<System.DateOnly>:seq(raw(4));Clocks:System.TimeOnly[]:seq(raw(8));Prices:decimal[]:seq(raw(16));Ids:System.Collections.Generic.List<System.Guid>:seq(raw(16));Signed:System.Int128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Unsigned:System.UInt128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Marks:Shapes.Marked[]:seq(raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)})"
 }
 
 func (Stamps) NinoTypeName() string {
@@ -2764,7 +2764,7 @@ type Strides struct {
 }
 
 func (Strides) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xBF48C221; deferrable=true; members=Cells:System.Nullable<Shapes.TupleCell>[]:seq(raw(16){hasValue:bool@0:raw(1),value:Shapes.TupleCell@4:raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}});Boxed:Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>:type(Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xBF48C221; deferrable=true; members=Cells:System.Nullable<Shapes.TupleCell>[]:seq(raw(16){hasValue:bool@0:raw(1),value:Shapes.TupleCell@4:raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}});Boxed:Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>:type(Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>)"
 }
 
 func (Strides) NinoTypeName() string {
@@ -2859,7 +2859,7 @@ type ThingClass struct {
 }
 
 func (ThingClass) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x35AA4E2D; deferrable=true; members=Id:int:raw(4);Label:string:string"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x35AA4E2D; deferrable=true; members=Id:int:raw(4);Label:string:string"
 }
 
 func (ThingClass) NinoTypeName() string {
@@ -3009,7 +3009,7 @@ type UnhashedKeys struct {
 }
 
 func (UnhashedKeys) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDC62564; deferrable=true; members=Keys:Shapes.Generic.Keys<Shapes.Generic.Box<long>>:type(Shapes.Generic.Keys<Shapes.Generic.Box<long>>)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xCDC62564; deferrable=true; members=Keys:Shapes.Generic.Keys<Shapes.Generic.Box<long>>:type(Shapes.Generic.Keys<Shapes.Generic.Box<long>>)"
 }
 
 func (UnhashedKeys) NinoTypeName() string {
@@ -3119,7 +3119,7 @@ type Uses struct {
 }
 
 func (Uses) NinoLayout() string {
-	return "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCF00B9E0; deferrable=true; members=Number:Shapes.Generic.Box<int>:type(Shapes.Generic.Box<int>);Text:Shapes.Generic.Box<string>:type(Shapes.Generic.Box<string>);Pair:Shapes.Generic.Pair<int, string>:type(Shapes.Generic.Pair<int, string>);Nested:Shapes.Generic.Box<Shapes.Generic.Box<int>>:type(Shapes.Generic.Box<Shapes.Generic.Box<int>>);Mixed:Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>:type(Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<int>>:seq(type(Shapes.Generic.Box<int>));Bag:Shapes.Generic.Bag<Shapes.Generic.Box<long>>:type(Shapes.Generic.Bag<Shapes.Generic.Box<long>>);Chain:Shapes.Generic.Node<string>:type(Shapes.Generic.Node<string>);Thing:Shapes.Generic.Box<Shapes.IThing>:type(Shapes.Generic.Box<Shapes.IThing>);Array:Shapes.Generic.Box<int[]>:type(Shapes.Generic.Box<int[]>);Complex:Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>:type(Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>);Pairs:System.Collections.Generic.Dictionary<string, Shapes.Generic.Pair<int, int>>:map(string,type(Shapes.Generic.Pair<int, int>));Raw:Shapes.Generic.RawPair<int>:type(Shapes.Generic.RawPair<int>);Tuple:Shapes.Generic.Box<System.ValueTuple<int, string>>:type(Shapes.Generic.Box<System.ValueTuple<int, string>>);Maybe:Shapes.Generic.Box<System.Nullable<int>>:type(Shapes.Generic.Box<System.Nullable<int>>);Entry:Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>:type(Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>);Set:Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>:type(Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>);IntKeys:Shapes.Generic.Keys<int>:type(Shapes.Generic.Keys<int>);StringKeys:Shapes.Generic.Keys<string>:type(Shapes.Generic.Keys<string>)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xCF00B9E0; deferrable=true; members=Number:Shapes.Generic.Box<int>:type(Shapes.Generic.Box<int>);Text:Shapes.Generic.Box<string>:type(Shapes.Generic.Box<string>);Pair:Shapes.Generic.Pair<int, string>:type(Shapes.Generic.Pair<int, string>);Nested:Shapes.Generic.Box<Shapes.Generic.Box<int>>:type(Shapes.Generic.Box<Shapes.Generic.Box<int>>);Mixed:Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>:type(Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<int>>:seq(type(Shapes.Generic.Box<int>));Bag:Shapes.Generic.Bag<Shapes.Generic.Box<long>>:type(Shapes.Generic.Bag<Shapes.Generic.Box<long>>);Chain:Shapes.Generic.Node<string>:type(Shapes.Generic.Node<string>);Thing:Shapes.Generic.Box<Shapes.IThing>:type(Shapes.Generic.Box<Shapes.IThing>);Array:Shapes.Generic.Box<int[]>:type(Shapes.Generic.Box<int[]>);Complex:Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>:type(Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>);Pairs:System.Collections.Generic.Dictionary<string, Shapes.Generic.Pair<int, int>>:map(string,type(Shapes.Generic.Pair<int, int>));Raw:Shapes.Generic.RawPair<int>:type(Shapes.Generic.RawPair<int>);Tuple:Shapes.Generic.Box<System.ValueTuple<int, string>>:type(Shapes.Generic.Box<System.ValueTuple<int, string>>);Maybe:Shapes.Generic.Box<System.Nullable<int>>:type(Shapes.Generic.Box<System.Nullable<int>>);Entry:Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>:type(Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>);Set:Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>:type(Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>);IntKeys:Shapes.Generic.Keys<int>:type(Shapes.Generic.Keys<int>);StringKeys:Shapes.Generic.Keys<string>:type(Shapes.Generic.Keys<string>)"
 }
 
 func (Uses) NinoTypeName() string {

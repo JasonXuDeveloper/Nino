@@ -6,7 +6,7 @@
   "exercises": "A three-byte header cut by the end of the input (80 81).",
   "size": 3,
   "layouts": {
-    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
+    "Conformance.Targets.TextValue": "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
   },
   "dotnet": {
     "outcome": "error",

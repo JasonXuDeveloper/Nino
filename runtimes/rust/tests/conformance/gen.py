@@ -209,7 +209,7 @@ class Gen:
         return self.layouts[name]
 
     def is_class(self, name):
-        return self.layout(name)["header"] in ("NullFlag", "TypeId")
+        return self.layout(name)["header"] in ("Presence", "TypeId")
 
     # ------------------------------------------------------------------ Rust types
 
@@ -530,7 +530,7 @@ class Gen:
         o.append("")
 
     def emit_class(self, name, closed=None):
-        """A concrete class (NullFlag or TypeId header), or a struct with header None."""
+        """A concrete class (Presence or TypeId header), or a struct with header None."""
         lay = self.layout(name if closed is None else closed[0])
         type_name = name
         rust = ident(name)
@@ -567,7 +567,7 @@ class Gen:
             return
         self.emit_body(name, rust, members, fmt, name not in NOT_DEFERRABLE)
         o = self.out
-        if header == "NullFlag":
+        if header == "Presence":
             o.append(f"impl NinoRead for {rust} {{")
             o.append("    const MAY_DEFER: bool = true;")
             o.append("    nino::sealed_read!();")

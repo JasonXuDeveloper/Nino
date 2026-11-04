@@ -6,7 +6,7 @@
   "exercises": "A header of 2^31: 0x40000000 UTF-16 code units, 2^31 bytes, negative in 32-bit arithmetic.",
   "size": 10,
   "layouts": {
-    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
+    "Conformance.Targets.TextValue": "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
   },
   "dotnet": {
     "outcome": "error",
