@@ -52,6 +52,7 @@ internal static class GeneratedCode
         (TypeNames.Core + "Reader", "__NinoReader"),
         (TypeNames.CoreCompilerServices + "NinoObject.", "__NinoObject."),
         (TypeNames.CoreCompilerServices + "NinoUnsafe.", "__NinoUnsafe."),
+        (TypeNames.CoreCompilerServices + "NinoBlocks.", "__NinoBlocks."),
         (TypeNames.Core + "NinoPolymorphic.", "__NinoPolymorphic."),
         ("global::System.ReadOnlySpan<byte>", "__NinoBytes"),
     };
