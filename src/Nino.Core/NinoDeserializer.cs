@@ -38,7 +38,7 @@ namespace Nino.Core
         // Inlined into the caller, where T is usually exact: the formatter cache is then a static field load rather
         // than a generic dictionary lookup (T a reference type makes this method shared code).
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        // The formatter creates the reader (NinoFormatter.Read): a reader created here would reach its call by address.
+        // The formatter creates the reader (NinoFormatterBase.Read): a reader created here would reach its call by address.
         private static T DeserializeFormatted<T>(ReadOnlySpan<byte> data) => NinoTopFormatter<T>.Formatter.Read(data);
 
         /// <summary>

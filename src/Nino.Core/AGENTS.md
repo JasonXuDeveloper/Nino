@@ -79,7 +79,7 @@ NinoUnsafe.cs                unaligned little-endian memory access, block copies
 ## Formatters/
 
 ```
-NinoFormatter.cs             INinoFormatter<T>; NinoFormatter<T> and its struct wrappers (StructFormatter,
+NinoFormatter.cs             INinoFormatter<T>; NinoFormatterBase<T> and its struct wrappers (StructFormatter,
                              FixedStructFormatter, TopStructFormatter, NestingFormatter), RawFormatter,
                              INinoSizedFormatter / NinoSized, CachedFormatter<T>
 NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (registered by generated code, else resolved);

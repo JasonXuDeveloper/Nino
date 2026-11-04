@@ -67,17 +67,17 @@ namespace Nino.Core
         }
 
         /// <summary>Writes <paramref name="value"/> with its formatter, then ends the call's reference tracking.</summary>
-        // The formatter creates the writer (NinoFormatter.Write): a writer created here would reach its call by address.
+        // The formatter creates the writer (NinoFormatterBase.Write): a writer created here would reach its call by address.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteFormatted<T>(T value, NinoArrayBufferWriter buffer, NinoFormatter<T> formatter) =>
+        private static void WriteFormatted<T>(T value, NinoArrayBufferWriter buffer, NinoFormatterBase<T> formatter) =>
             formatter.Write(value, buffer);
 
-        /// <summary>Writes with a formatter known only as <see cref="NinoFormatter{T}"/> (<see cref="NinoScratch"/>).</summary>
+        /// <summary>Writes with a formatter known only as <see cref="NinoFormatterBase{T}"/> (<see cref="NinoScratch"/>).</summary>
         private readonly struct FormatterWriter<T> : INinoScratchWriter<T>
         {
-            private readonly NinoFormatter<T> _formatter;
+            private readonly NinoFormatterBase<T> _formatter;
 
-            public FormatterWriter(NinoFormatter<T> formatter) => _formatter = formatter;
+            public FormatterWriter(NinoFormatterBase<T> formatter) => _formatter = formatter;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void Write(T value, NinoArrayBufferWriter buffer) => WriteFormatted(value, buffer, _formatter);
@@ -117,7 +117,7 @@ namespace Nino.Core
 
         // Out of line: inlined, it would take the caller's inlining budget for paths the calls above do not take.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void SerializeOther<T>(T value, IBufferWriter<byte> bufferWriter, NinoFormatter<T> formatter)
+        private static void SerializeOther<T>(T value, IBufferWriter<byte> bufferWriter, NinoFormatterBase<T> formatter)
         {
             if (bufferWriter is NinoArrayBufferWriter nino)
             {
