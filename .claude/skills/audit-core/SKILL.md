@@ -18,6 +18,12 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
   the same loop or bookkeeping per collection kind, per TFM or per formatter family; a generic method with a body of
   its own per T (one core with thin typed wrappers; families from `tools/CodeGen`). Redundancy in them (duplicated
   logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is `audit-redundancy`.
+- **A class does what its name says**: a helper named for one direction or job that the other direction or another
+  job calls is two concerns in one file; split it by job. `NinoBodyReader` (Nino.AspNetCore) also held MVC's
+  supported-type cache, which the output formatter asked, and the response flush: now `NinoSupportedTypes` and
+  `NinoBodyWriter` (r128). A loop that differs from another only by a check a `static readonly` flag already folds
+  is the same loop: `BclDictionaries.CreateConcurrentWalked` repeated `ReadConcurrent`, whose
+  `ConcurrentTables.Added` walks the bucket exactly when `Plan.Walks` is set (r128).
 - **Not uniform**: features whose APIs have different shapes for the same act (a `TryX` here, a nullable there; a
   span overload for one direction and not the other), or internals that solve one problem two ways.
 - **One contract per fact, kept apart where the JIT needs it** (round 101, owner-approved): "the size is known
