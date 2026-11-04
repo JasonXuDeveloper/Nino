@@ -511,7 +511,7 @@ internal static class ModelBuilder
         bool registered = false;
         bool readsLoop = false;
         FormatterTraits traits;
-        var custom = NinoSymbols.Get(symbol, known.CustomFormatter);
+        var custom = known.CustomFormatterOf(symbol);
         var customType = custom is { ConstructorArguments: { Length: > 0 } args } ? args[0].Value as INamedTypeSymbol : null;
         if (customType != null && !known.IsCustomFormatterOf(customType, memberType))
             return null; // NINO008, reported by the analyzer
@@ -537,7 +537,7 @@ internal static class ModelBuilder
         }
         else
         {
-            bool utf8 = NinoSymbols.Has(symbol, known.Utf8);
+            bool utf8 = known.WritesUtf8(symbol);
             var resolved = facts.Resolver.Resolve(memberType, utf8);
             formatter = resolved?.Code;
             registered = resolved?.Registered == true;
@@ -557,6 +557,9 @@ internal static class ModelBuilder
                 type.ToDisplayString(), "", "the member is skipped");
             return null;
         }
+
+        if (diagnostics != null)
+            ReportUtf8(symbol, type, memberType, custom, encoding, facts, diagnostics);
 
         // The member is written, but a generic [NinoType] in its type cannot write what it holds (Box<Action>): its
         // formatter takes CachedFormatter<Action>, which throws for every value. Only the analyzer asks.
@@ -882,5 +885,33 @@ internal static class ModelBuilder
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// NINO031 for a <c>[NinoMemberFormatter(typeof(Utf8StringFormatter))]</c> (written as <c>[NinoUtf8]</c>, which it
+    /// is read as), else NINO030 for a <c>[NinoUtf8]</c> that changes nothing: a <c>[NinoMemberFormatter]</c> writes the
+    /// member, or its <paramref name="encoding"/> is what it would be without the attribute (no string the resolver
+    /// writes is in the member's type, as in a <c>[NinoType]</c> or an <c>int</c>).
+    /// </summary>
+    private static void ReportUtf8(ISymbol symbol, INamedTypeSymbol type, ITypeSymbol memberType, AttributeData? custom,
+        string encoding, TypeFacts facts, DiagnosticSink diagnostics)
+    {
+        var known = facts.Symbols;
+        if (NinoSymbols.Get(symbol, known.CustomFormatter) is { } formatter && known.IsUtf8Formatter(symbol, formatter))
+        {
+            diagnostics.Report(NinoDiagnostics.Utf8FormatterByHand, formatter, symbol, symbol.Name,
+                type.ToDisplayString());
+            return;
+        }
+
+        if (NinoSymbols.Get(symbol, known.Utf8) is not { } utf8)
+            return;
+        string? reason = custom != null ? "its [NinoMemberFormatter] writes it"
+            : facts.Resolver.Resolve(memberType, false)?.Encoding == encoding
+                ? $"its type '{memberType.ToDisplayString()}' holds no string Nino writes"
+                : null;
+        if (reason != null)
+            diagnostics.Report(NinoDiagnostics.Utf8WithoutEffect, utf8, symbol, symbol.Name, type.ToDisplayString(),
+                reason);
     }
 }

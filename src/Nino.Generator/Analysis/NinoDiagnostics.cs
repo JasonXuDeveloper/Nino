@@ -7,7 +7,7 @@ namespace Nino.Generator.Analysis;
 
 /// <summary>
 /// Every diagnostic Nino reports, shared by the analyzer, the model builder and the code fixes. Ids are grouped:
-/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023, 028-029), features (014-017, 024, 026-027), pooling
+/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023, 028-031), features (014-017, 024, 026-027), pooling
 /// (018-019), formatter registrations (020).
 /// </summary>
 internal static class NinoDiagnostics
@@ -21,6 +21,9 @@ internal static class NinoDiagnostics
 
     private static DiagnosticDescriptor Warning(string id, string title, string format) =>
         new(id, title, format, Category, DiagnosticSeverity.Warning, true, helpLinkUri: HelpLink + id.ToLowerInvariant());
+
+    private static DiagnosticDescriptor Info(string id, string title, string format) =>
+        new(id, title, format, Category, DiagnosticSeverity.Info, true, helpLinkUri: HelpLink + id.ToLowerInvariant());
 
     // The type
 
@@ -81,6 +84,12 @@ internal static class NinoDiagnostics
     public static readonly DiagnosticDescriptor HostSizedVector = Error("NINO029",
         "Vector<T> cannot be serialized",
         "{0} cannot be serialized: '{1}' {2}, and Vector<T> is 16, 32 or 64 bytes by the CPU; store a fixed number of lanes (an array, a fixed buffer, Vector128<T> or Vector256<T>) and view them as Vector<T> in [NinoIgnore] members");
+
+    public static readonly DiagnosticDescriptor Utf8WithoutEffect = Warning("NINO030", "[NinoUtf8] has no effect",
+        "[NinoUtf8] on member '{0}' of NinoType '{1}' has no effect: {2}; remove it");
+
+    public static readonly DiagnosticDescriptor Utf8FormatterByHand = Info("NINO031", "Use [NinoUtf8]",
+        "Member '{0}' of NinoType '{1}' names Utf8StringFormatter, which is for generated code; mark it [NinoUtf8] instead (the same bytes)");
 
     /// <summary>The <c>{2}</c> of <see cref="HostSizedVector"/>: what <paramref name="type"/> is or holds.</summary>
     public static string HoldsVector(ITypeSymbol type, ITypeSymbol vector) =>

@@ -249,6 +249,32 @@ namespace Deferral
             Assert.IsFalse(layout.Contains("Deferrable"));
         }
 
+        /// <summary>
+        /// <c>[NinoMemberFormatter(typeof(Utf8StringFormatter))]</c> on a string member is read as <c>[NinoUtf8]</c>:
+        /// the generator writes the same code, not a call to the formatter (NINO031 suggests the attribute).
+        /// </summary>
+        [TestMethod]
+        public void Utf8FormatterGeneratesWhatNinoUtf8Does()
+        {
+            static string Generated(string source)
+            {
+                var compilation = TestCompilation.Create("Utf8Spellings",
+                    new[] { CSharpSyntaxTree.ParseText(source, TestCompilation.Parse, "Types.cs") });
+                return string.Join("\n", TestCompilation.Generate(compilation).GeneratedTrees
+                    .Select(t => t.ToString()));
+            }
+
+            const string attribute = "[NinoUtf8]";
+            string types = Types.Replace(attribute + " public string Name",
+                attribute + " public string Name; " + attribute + " public System.Collections.Generic.List<string> Tags");
+            string generated = Generated(types);
+            StringAssert.Contains(generated, "WriteUtf8(");
+            Assert.AreEqual(generated, Generated(types.Replace(attribute,
+                "[NinoMemberFormatter(typeof(Utf8StringFormatter))]")
+                .Replace("[NinoMemberFormatter(typeof(Utf8StringFormatter))] public System.Collections.Generic.List<string> Tags",
+                    "[NinoUtf8] public System.Collections.Generic.List<string> Tags")));
+        }
+
         [TestMethod]
         public void ChangesExactlyWhenTheBytesDo()
         {
@@ -258,6 +284,9 @@ namespace Deferral
             // Renaming the namespace of an unrelated type, or reformatting the source, changes nothing.
             Assert.AreEqual(baseline, Of(Types.Replace("public float VelocityY; }", "public float VelocityY;\n}"),
                 "Layout.Player"));
+            // A member formatter of Utf8StringFormatter is [NinoUtf8] (NINO031): the same bytes, so the same layout.
+            Assert.AreEqual(baseline, Of(Types.Replace("[NinoUtf8] public string Name",
+                "[NinoMemberFormatter(typeof(Utf8StringFormatter))] public string Name"), "Layout.Player"));
             // Each of these changes the bytes, and the layout.
             Assert.AreNotEqual(baseline, Of(Types.Replace("[NinoUtf8] public string Name", "public string Name"),
                 "Layout.Player"));

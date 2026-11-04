@@ -293,7 +293,7 @@ internal sealed class RawRules
             var member = field.AssociatedMember() ?? field;
             if (!members.Contains(member.OriginalDefinition))
                 return false;
-            if (NinoSymbols.Has(member, _symbols.CustomFormatter))
+            if (_symbols.HasCustomFormatter(member))
                 return false;
             // Every field must itself be raw: Nullable, tuples, nint or DateTimeOffset have their own formats.
             if (!IsRawUnmanaged(field.Type))

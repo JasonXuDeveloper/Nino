@@ -38,6 +38,8 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO027](#nino027) | Warning | `[NinoFormerName]` on a generic type written with its type id |
 | [NINO028](#nino028) | Warning | `[NinoMember]` on a member that is never serialized 🔧 |
 | [NINO029](#nino029) | Error | `Vector<T>` cannot be serialized |
+| [NINO030](#nino030) | Warning | `[NinoUtf8]` has no effect 🔧 |
+| [NINO031](#nino031) | Info | `[NinoMemberFormatter(typeof(Utf8StringFormatter))]`: use `[NinoUtf8]` 🔧 |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -218,6 +220,22 @@ own that writes the lanes its way is never reported, nor a Nino.Core collection 
 number of lanes and expose the vectors through `[NinoIgnore]` members: [pitfalls.md, "`Vector<T>` is not
 serializable"](pitfalls.md#vectort-is-not-serializable) has why and the example.
 There is no code fix: the stored form is yours to choose.
+
+### NINO030
+
+`[NinoUtf8]` changes nothing on this member: its type holds no string Nino writes (an `int`, a `[NinoType]`, which
+writes its own strings by its own members' attributes, or a collection of neither), or a `[NinoMemberFormatter]`
+writes the member, which decides the encoding itself. `[NinoUtf8]` reaches every string the built-in formatters write
+in the member's type: the member itself, the elements of arrays and collections, dictionary keys and values, tuple
+items. The bytes are the same without it. 🔧 Remove it.
+
+### NINO031
+
+`[NinoMemberFormatter(typeof(Utf8StringFormatter))]` on a string member: `Utf8StringFormatter` is what generated code
+uses for `[NinoUtf8]`, and the generator reads this attribute as `[NinoUtf8]` (the same bytes, the same layout,
+`utf8`, and the same code). `[NinoUtf8]` says it directly and also reaches the strings inside collections.
+🔧 Use `[NinoUtf8]` (with `[NinoUtf8]` already on the member, the formatter attribute is removed). On a member that is
+not a string, the formatter cannot write it: NINO008.
 
 ## Features
 

@@ -35,6 +35,8 @@ warning here usually means data is dropped. Full text: https://nino.xgamedev.net
 | NINO027 | Warning | `[NinoFormerName]` on a generic type written with its type id: all instantiations share one id | Remove it, or use it on non-generic types only |
 | NINO028 | Warning | `[NinoMember]` on a member never serialized (static, constant, indexer, a property without a setter no constructor takes, a backing field) | Remove it 🔧, or give a constructor a parameter for a get-only auto-property |
 | NINO029 | Error | A member, a `NinoSerializer`/`NinoDeserializer` call, or a Nino.Core formatter (made, or held in a field, property or local) or `Writer`/`Reader` method used by hand needs `System.Numerics.Vector<T>` (alone, as an element, type argument or base type, in a plain struct, or as a type argument a generic `[NinoType]` or one of its generic subtypes writes): 16, 32 or 64 bytes, chosen by the CPU; never serializable | Store a fixed number of lanes and expose the vectors through `[NinoIgnore]` members |
+| NINO030 | Warning | `[NinoUtf8]` has no effect: the member's type holds no string the built-in formatters write (an `int`, a `[NinoType]`), or a `[NinoMemberFormatter]` writes it | Remove it 🔧 |
+| NINO031 | Info | `[NinoMemberFormatter(typeof(Utf8StringFormatter))]` on a string member (read as `[NinoUtf8]`, same bytes) | Use `[NinoUtf8]` 🔧 |
 
 `NinoSuppressor` also hides CS0169/CS0414/CS0649 and IDE0051/IDE0052/IDE0044 for private members Nino serializes.
 

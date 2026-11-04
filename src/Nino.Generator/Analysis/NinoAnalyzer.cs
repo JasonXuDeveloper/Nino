@@ -146,7 +146,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         // A serialized member of a [NinoType] whose type holds the vector is reported by the member rule, once.
         var facts = TypeFacts.For(context.Compilation, syntax.SyntaxTree.Options);
         if (symbol.ContainingType.GetNinoTypeOptions() is { } attr &&
-            !NinoSymbols.Has(symbol, facts.Symbols.CustomFormatter) && facts.Raw.HostSizedVectorIn(formatter) != null &&
+            !facts.Symbols.HasCustomFormatter(symbol) && facts.Raw.HostSizedVectorIn(formatter) != null &&
             facts.Members.Of(symbol.ContainingType, attr).Contains(symbol, SymbolEqualityComparer.Default))
             return;
         ReportFormatter(context.ReportDiagnostic, context.Compilation, syntax, formatter,

@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
@@ -161,7 +162,11 @@ namespace Nino.Core
         public void Deserialize(ref string value, ref Reader reader) => value = reader.ReadString(value);
     }
 
-    /// <summary>Writes a string as UTF-8 (<c>[NinoUtf8]</c>).</summary>
+    /// <summary>
+    /// For generated code: writes a string as UTF-8. Mark a member <c>[NinoUtf8]</c> instead; a
+    /// <c>[NinoMemberFormatter]</c> of this formatter is read as <c>[NinoUtf8]</c> (NINO030 suggests the attribute).
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public struct Utf8StringFormatter : INinoFormatter<string>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

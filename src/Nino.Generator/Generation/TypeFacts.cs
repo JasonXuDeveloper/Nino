@@ -284,7 +284,7 @@ internal sealed class TypeFacts
             return false;
         foreach (var member in members)
         {
-            if (NinoSymbols.Has(member, Symbols.CustomFormatter) || MemberCollector.MemberType(member) is not { } memberType)
+            if (Symbols.HasCustomFormatter(member) || MemberCollector.MemberType(member) is not { } memberType)
                 return false;
             if (Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType) || IsBlockItem(memberType))
                 continue;
@@ -474,12 +474,12 @@ internal sealed class TypeFacts
 
         foreach (var member in Members.Of(type, shape.Options))
         {
-            if (NinoSymbols.Has(member, Symbols.CustomFormatter))
+            if (Symbols.HasCustomFormatter(member))
                 return Unbounded;
             if (MemberCollector.MemberType(member) is not { } memberType)
                 continue;
             inner = Math.Max(inner, DepthBound(memberType.WithNullableAnnotation(NullableAnnotation.NotAnnotated),
-                NinoSymbols.Has(member, Symbols.Utf8)));
+                Symbols.WritesUtf8(member)));
             if (inner == Unbounded)
                 return Unbounded;
         }

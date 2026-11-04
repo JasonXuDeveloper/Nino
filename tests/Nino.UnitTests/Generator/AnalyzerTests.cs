@@ -902,7 +902,7 @@ public class TestClass
 
     #endregion
 
-    #region Members (NINO007-NINO013, NINO022-NINO023, NINO029)
+    #region Members (NINO007-NINO013, NINO022-NINO023, NINO029-NINO031)
 
     [TestMethod]
     public async Task NINO007_UnserializableMember()
@@ -1507,6 +1507,108 @@ public class TestClass
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO011").WithLocation(0).WithArguments("A", "TestClass"),
             Verify.Diagnostic("NINO011").WithLocation(1).WithArguments("B", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO030_Utf8WithoutEffect()
+    {
+        var code = @"
+using System.Collections.Generic;
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [{|#0:NinoUtf8|}] public int A;
+    // A [NinoType] writes its own strings: the attribute does not reach them.
+    [{|#1:NinoUtf8|}] public Inner B;
+    [{|#2:NinoUtf8|}] [NinoMemberFormatter(typeof(Latin))] public string C;
+    [{|#3:Nino.Core.NinoUtf8Attribute|}] public Dictionary<int, long> D;
+}
+
+[NinoType]
+public class Inner
+{
+    public string S;
+}
+
+public struct Latin : INinoFormatter<string>
+{
+    public void Serialize(string value, ref Writer writer) { }
+    public void Deserialize(ref string value, ref Reader reader) { }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO030").WithLocation(0).WithArguments("A", "TestClass",
+                "its type 'int' holds no string Nino writes"),
+            Verify.Diagnostic("NINO030").WithLocation(1).WithArguments("B", "TestClass",
+                "its type 'Inner' holds no string Nino writes"),
+            Verify.Diagnostic("NINO030").WithLocation(2).WithArguments("C", "TestClass",
+                "its [NinoMemberFormatter] writes it"),
+            Verify.Diagnostic("NINO030").WithLocation(3).WithArguments("D", "TestClass",
+                "its type 'System.Collections.Generic.Dictionary<int, long>' holds no string Nino writes")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO030_NotWhereTheStringsAreWritten()
+    {
+        // Strings anywhere the built-in formatters write them: alone, in collections, dictionaries, tuples, arrays.
+        var code = @"
+using System.Collections.Generic;
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoUtf8] public string A;
+    [NinoUtf8] public List<string> B;
+    [NinoUtf8] public Dictionary<int, string[]> C;
+    [NinoUtf8] public (int, string) D;
+    [NinoUtf8] public string[][] E;
+}
+";
+
+        await SetUpAnalyzerTest(code).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO031_Utf8FormatterByHand()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [{|#0:NinoMemberFormatter(typeof(Utf8StringFormatter))|}] public string A;
+    // With [NinoUtf8] already there, only the formatter is reported (removing it is the fix).
+    [NinoUtf8] [{|#1:Nino.Core.NinoMemberFormatter(typeof(Nino.Core.Utf8StringFormatter))|}] public string B { get; set; }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO031").WithLocation(0).WithArguments("A", "TestClass"),
+            Verify.Diagnostic("NINO031").WithLocation(1).WithArguments("B", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO031_NotOnOtherMembers()
+    {
+        // Not a string member: Utf8StringFormatter cannot write it (NINO008), so it is not read as [NinoUtf8].
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoMemberFormatter(typeof(Utf8StringFormatter))] public int {|#0:A|};
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("Nino.Core.Utf8StringFormatter", "int", "A", "TestClass"))
+            .RunAsync();
     }
 
     [TestMethod]

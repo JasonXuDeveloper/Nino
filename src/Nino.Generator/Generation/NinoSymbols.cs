@@ -15,7 +15,7 @@ internal sealed class NinoSymbols
 {
     public readonly INamedTypeSymbol? Member, Ignore, CustomFormatter, Utf8, FormerName,
         Constructor, Factory, Created, Raw, Pooled, IFormatter, FormatterAttribute,
-        Serializer, Deserializer, Writer, Reader, Direct;
+        Serializer, Deserializer, Writer, Reader, Direct, Utf8Formatter;
 
     /// <summary>
     /// Whether the referenced Nino.Core's <c>NinoTypeLayoutAttribute</c> has a settable <c>bool Deferrable</c>, which
@@ -32,6 +32,7 @@ internal sealed class NinoSymbols
         IFormatter = Core("INinoFormatter`1");
         FormatterAttribute = Core("NinoFormatterAttribute");
         Utf8 = Core("NinoUtf8Attribute");
+        Utf8Formatter = Core("Utf8StringFormatter");
         FormerName = Core("NinoFormerNameAttribute");
         Constructor = Core("NinoConstructorAttribute");
         Factory = Core("NinoFactoryAttribute");
@@ -100,6 +101,30 @@ internal sealed class NinoSymbols
     }
 
     public static bool Has(ISymbol symbol, INamedTypeSymbol? attribute) => Get(symbol, attribute) != null;
+
+    /// <summary>
+    /// The <c>[NinoMemberFormatter]</c> of <paramref name="member"/>, or null. One of <c>Utf8StringFormatter</c> on a
+    /// string member is <c>[NinoUtf8]</c> (<see cref="WritesUtf8"/>), not a formatter of the user's: the same bytes,
+    /// the same layout (<c>utf8</c>) and the same code.
+    /// </summary>
+    public AttributeData? CustomFormatterOf(ISymbol member) =>
+        Get(member, CustomFormatter) is { } attribute && !IsUtf8Formatter(member, attribute) ? attribute : null;
+
+    /// <summary>Whether <paramref name="member"/> has a <c>[NinoMemberFormatter]</c> (<see cref="CustomFormatterOf"/>).</summary>
+    public bool HasCustomFormatter(ISymbol member) => CustomFormatterOf(member) != null;
+
+    /// <summary>
+    /// Whether the strings of <paramref name="member"/> are written as UTF-8: <c>[NinoUtf8]</c>, or a
+    /// <c>[NinoMemberFormatter(typeof(Utf8StringFormatter))]</c> on a string member.
+    /// </summary>
+    public bool WritesUtf8(ISymbol member) =>
+        Has(member, Utf8) || Get(member, CustomFormatter) is { } attribute && IsUtf8Formatter(member, attribute);
+
+    /// <summary>A <c>[NinoMemberFormatter]</c> of exactly <c>Utf8StringFormatter</c> on a string member.</summary>
+    public bool IsUtf8Formatter(ISymbol member, AttributeData attribute) =>
+        Utf8Formatter != null && attribute.ConstructorArguments is { Length: > 0 } args &&
+        SymbolEqualityComparer.Default.Equals(args[0].Value as INamedTypeSymbol, Utf8Formatter) &&
+        MemberCollector.MemberType(member) is { SpecialType: SpecialType.System_String };
 
     /// <summary>The string arguments of every <paramref name="attribute"/> applied to <paramref name="symbol"/>.</summary>
     public static List<string> StringArguments(ISymbol symbol, INamedTypeSymbol? attribute)

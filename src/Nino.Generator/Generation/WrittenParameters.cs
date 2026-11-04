@@ -213,7 +213,7 @@ internal sealed class WrittenParameters
             {
                 // A [NinoMemberFormatter] writes the member its own way (its type cannot name T: attributes take
                 // closed types only).
-                if (MemberCollector.MemberType(member) is { } type && !NinoSymbols.Has(member, _symbols.CustomFormatter))
+                if (MemberCollector.MemberType(member) is { } type && !_symbols.HasCustomFormatter(member))
                     writes.Add(type);
             }
 

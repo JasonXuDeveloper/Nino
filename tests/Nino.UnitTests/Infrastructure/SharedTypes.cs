@@ -338,6 +338,8 @@ partial class ClassWithPrivateMember<T>
         public Class1 D;
     }
 
+    // [NinoUtf8] on a bool changes nothing (NINO030): kept to show the bytes are the same.
+#pragma warning disable NINO030
     [NinoType]
     public sealed class StringData
     {
@@ -351,6 +353,7 @@ partial class ClassWithPrivateMember<T>
         public string Str;
         [NinoUtf8] public bool ShouldHaveNoEffect;
     }
+#pragma warning restore NINO030
 
     [NinoType(false)]
     public sealed class SaveData

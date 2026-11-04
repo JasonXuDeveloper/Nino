@@ -27,9 +27,9 @@ internal sealed class TypeShape
             return;
         Collection = facts.Resolver.ResolveCollection(type);
         MembersOpenBodies = facts.Members.Of(type, attr).Any(member =>
-            NinoSymbols.Has(member, facts.Symbols.CustomFormatter) ||
+            facts.Symbols.HasCustomFormatter(member) ||
             MemberCollector.MemberType(member) is { } memberType &&
-            facts.Resolver.Resolve(memberType, NinoSymbols.Has(member, facts.Symbols.Utf8)) is { OpensBodies: true });
+            facts.Resolver.Resolve(memberType, facts.Symbols.WritesUtf8(member)) is { OpensBodies: true });
     }
 
     public FormatterKind Kind { get; }

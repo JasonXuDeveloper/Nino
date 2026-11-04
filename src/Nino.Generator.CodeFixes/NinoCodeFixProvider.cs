@@ -47,7 +47,8 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     }
 
     private const string NinoMember = NinoNames.NinoMember, NinoIgnore = NinoNames.NinoIgnore,
-        NinoType = NinoNames.NinoType, NinoFormerName = "NinoFormerName", NinoFactory = "NinoFactory";
+        NinoType = NinoNames.NinoType, NinoFormerName = "NinoFormerName", NinoFactory = "NinoFactory",
+        NinoUtf8 = "NinoUtf8", NinoMemberFormatter = "NinoMemberFormatter";
 
     private static readonly Dictionary<string, Fix[]> Fixes = new()
     {
@@ -97,6 +98,9 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                                                  m.IsKind(SyntaxKind.SealedKeyword))),
         },
         [NinoDiagnostics.PoolHooksNotImplemented.Id] = new[] { new Fix("Implement pool hooks", "ImplementPoolHooks", ImplementPoolHooks) },
+        // No effect either way: nothing changes when it goes.
+        [NinoDiagnostics.Utf8WithoutEffect.Id] = new[] { RemoveAttributeFix(NinoUtf8) },
+        [NinoDiagnostics.Utf8FormatterByHand.Id] = new[] { new Fix("Use [NinoUtf8]", "UseNinoUtf8", UseNinoUtf8) },
         // The compiler's "no parameter named ..." on [NinoType(allowInheritance: ...)], the name before 4.0.
         [NoParameterNamed] = new[]
         {
@@ -181,6 +185,27 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     private static string? NewLine(SourceText text) => text.Lines.Count < 2
         ? null
         : text.ToString(TextSpan.FromBounds(text.Lines[0].End, text.Lines[0].EndIncludingLineBreak));
+
+    /// <summary>
+    /// <c>[NinoMemberFormatter(typeof(Utf8StringFormatter))]</c> becomes <c>[NinoUtf8]</c> in its place, named as it
+    /// was (qualified or not); with a <c>[NinoUtf8]</c> there already, it goes.
+    /// </summary>
+    private static void UseNinoUtf8(DocumentEditor editor, SyntaxNode node)
+    {
+        var member = Member(node);
+        if (FindAttribute(editor, member, NinoMemberFormatter) is not { } formatter)
+            return;
+        if (FindAttribute(editor, member, NinoUtf8) != null)
+        {
+            RemoveAttribute(editor, node, NinoMemberFormatter);
+            return;
+        }
+
+        NameSyntax name = SyntaxFactory.IdentifierName(NinoUtf8);
+        if (formatter.Name is QualifiedNameSyntax { Left: var left })
+            name = SyntaxFactory.QualifiedName(left, (SimpleNameSyntax)name);
+        editor.ReplaceNode(formatter, SyntaxFactory.Attribute(name).WithTriviaFrom(formatter));
+    }
 
     private static Fix RemoveAttributeFix(string name) =>
         new($"Remove [{name}]", "Remove" + name, (e, n) => RemoveAttribute(e, n, name));
