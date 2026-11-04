@@ -249,7 +249,8 @@ public class IncrementalGeneratorTests
         // Serialize<T>): nothing here names it, yet the registry of every assembly referencing it registers its
         // fields, from the reference's metadata. Private fields (Roslyn's symbols of a metadata reference omit them),
         // internal and private nested structs, a volatile field (a custom modifier), a nested generic, an
-        // auto-property and a struct outside any namespace; no class, no static field. (The field a primary
+        // auto-property and a struct outside any namespace; no class, no static field; each named as the runtime
+        // names its type. (The field a primary
         // constructor captures, C# 12, is a field like these; Nino.RuntimeTests declares one.)
         const string source = @"
 namespace Lib
@@ -274,6 +275,12 @@ public unsafe struct Global { public delegate*<void> G; }";
         using var image = new System.IO.MemoryStream();
         var emitted = library.Emit(image);
         Assert.IsTrue(emitted.Success, string.Join("\n", emitted.Diagnostics));
+        // The names are the runtime's: Nino.Core matches them against NinoTypeId.GetRuntimeName of the loaded type,
+        // so the two views below (metadata and symbols) and the runtime must spell every struct alike.
+        var runtimeNames = System.Reflection.Assembly.Load(image.ToArray()).GetTypes()
+            .Select(NinoTypeId.GetRuntimeName).ToArray();
+        foreach (var registration in expected)
+            CollectionAssert.Contains(runtimeNames, registration.Split(new[] { ", " }, StringSplitOptions.None)[1].Trim('"'), registration);
         // The built library (a file reference) and the library's compilation (a project reference in the IDE).
         foreach (var reference in new MetadataReference[] { MetadataReference.CreateFromImage(image.ToArray()), library.ToMetadataReference() })
         {
@@ -291,16 +298,19 @@ public unsafe struct Global { public delegate*<void> G; }";
     [TestMethod]
     public void CallsThroughAliasesAndUsingStaticAreRegistered()
     {
-        // The receiver is matched by symbol: an alias (here or global, in another file) or using static names it too.
+        // The receiver is matched by symbol: an alias (here or global, in another file, or in a namespace naming the
+        // file's alias) or using static names it too.
         var compilation = Create(
             ("Global.cs", "global using G = Nino.Core.NinoDeserializer;"),
             ("Calls.cs", @"using S = Nino.Core.NinoSerializer;
 using static Nino.Core.NinoDeserializer;
 using System.Collections.Generic;
 namespace Inc {
+using N = S;
 public static class Calls
 {
     public static byte[] Write(List<int> x) => S.Serialize(x);
+    public static byte[] WriteNested(List<uint> x) => N.Serialize(x);
     public static List<long> Read(byte[] b) => Deserialize<List<long>>(b);
     public static List<short> ReadGlobal(byte[] b) => G.Deserialize<List<short>>(b);
     public static List<byte> NotNino(byte[] b) => Other.Deserialize<List<byte>>(b);
@@ -316,6 +326,7 @@ public static class Other { public static T Deserialize<T>(byte[] b) => default;
         StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<int>>");
         StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<long>>");
         StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<short>>");
+        StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<uint>>");
         Assert.IsFalse(usages.Contains("List<byte>"), usages);
     }
 
