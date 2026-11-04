@@ -44,11 +44,25 @@ and when `asm.py compare` lists methods the change did not touch.
   7763 and on par on Neoverse-N2, but still 1.07-1.09 on Xeon 6973P and 8573C (one job each, run 41534216283; the same
   loop as rc.7, not reproduced on a local AVX-512 Xeon). Round 126 tested that gap and did not close it: 1.077-1.084 on
   three Xeon 8573C jobs, 1.045-1.069 on 6975P, 1.03-1.06 on 6973P, 1.007-1.031 on 8370C, MemoryPack's identical copy
-  0.98-1.04 in the same jobs and the struct copy's addresses the same on both sides ('// ADDR' print); unchanged with
+  0.98-1.04 in the same jobs; unchanged with
   `DOTNET_JitAlignLoops=0` (1.084, 1.069) and `DOTNET_TieredPGO=0` (1.061) in the quick jobs, and checking the
   64-byte path first in `CopyOver64Inline` was no faster locally on Emerald Rapids (.NET A/B runs 41621699299,
   41659495441, 41665524359, 41671303527). The gap was in main before round 123's copy changes (main 1.118 on 8573C,
-  run 41413072278) and head against main is on par there. Check the Tier1 listing on x64 and with the Arm64 cross JIT (`benchmarks/cross-jit.sh`): one
+  run 41413072278) and head against main is on par there. Round 127 found the source: where the writer's buffer lands
+  in the page, not Nino's code. Judge such a gap by the destination's page offset before touching the path: print it
+  per process (`(addr) & 4095` in the benchmark's Setup, A/B only) and run the same probe code in both builds. The
+  pooled 320 KB buffer (ArrayPool, LOH) starts at page offset 1352 in every rc.7 process and 1944 in every main
+  process, fixed per build by what `SimpleTest`'s static constructor rents first; on Xeon 8573C the case took 11.95-12.12
+  ns at destination offset 1356 for every source offset seen and 12.84-13.15 ns at 1948 (20 ABAB rounds a job, run
+  41806557589; 6975P 9.45-10.01 against 10.05-10.54). The machine code of the case is the same in both builds but the
+  copy target; main's and rc.7's copy shapes measured on par inside one binary (8573C 12.03 against 12.05, run
+  41687210928), and one probe calling `NinoSerializer.Serialize` into its own buffer measured 1.004 (8573C) and 1.008
+  (6975P) of rc.7 across the two builds' processes, where `NinoSerializeSimpleStructs` measured 1.083 and 1.044 in the
+  same jobs (run 41794983604); a null change measured 0.996 (run 41679647486). Within rc.7 alone the writer object's
+  placement moved the case from 9.2-9.6 to 10.7-12.0 ns on 6973P (run 41802774827), more than the gap. A local copy
+  table on Emerald Rapids took 14.6 to 41.8 ns for 1,200 bytes by (dst - src) mod 4096. A 200-byte or an 85 KB array
+  allocated before the writer did not move the buffer. Nino cannot choose where a caller's pooled array lands, so this
+  gap is not closable in Nino's code. Check the Tier1 listing on x64 and with the Arm64 cross JIT (`benchmarks/cross-jit.sh`): one
   method, a two-instruction prolog.
 - Inlining a small out-of-line method that the JIT left as a call can be a wash: `NinoLookup.Add` inlined into the
   `ILookup` read (one call per grouping instead of two) measured 1.002 and 1.003 times main on EPYC 7763 and
