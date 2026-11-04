@@ -213,9 +213,9 @@ Nino creates a collection only when the slot is `null`, through `NinoActivator<T
 
 ### Version tolerance
 
-A type marked `[NinoType(format: NinoFormat.VersionTolerant)]` (or every positional type when the project defines
-`WEAK_VERSION_TOLERANCE`) writes its body as one region: one `int32` byte length, then the members of its whole
-hierarchy (each `[NinoType]` class from the root down to the type itself), root first:
+A type marked `[NinoType(format: NinoFormat.VersionTolerant)]` writes its body as one region: one `int32` byte
+length, then the members of its whole hierarchy (each `[NinoType]` class from the root down to the type itself), root
+first:
 
 ```
 header | int32 length | members of every level..., root first
@@ -1114,7 +1114,7 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   another one that references it as metadata) with every kind of subtype, compiles it with the generator and
   round-trips each subtype through each type above it, `object` and the boxed API. A feature that adds a way to declare
   a type adds a dimension there.
-* Preprocessor-dependent choices (`WEAK_VERSION_TOLERANCE`, `NET8_0_OR_GREATER`) are resolved at
+* Preprocessor-dependent choices (`NET8_0_OR_GREATER`, `NET9_0_OR_GREATER`) are resolved at
   generation time from the compilation's parse options, so generated code contains no `#if` branches.
 
 For a hierarchy of 220 types (20 roots × depth 8), v3 generated about 911,000 lines (47 MB) because every

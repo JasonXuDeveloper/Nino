@@ -713,9 +713,9 @@ header | i32 L | members of the whole hierarchy, root first (L bytes)
 - Only members appended to the most derived type are tolerated. An appended base member shifts every derived
   member that follows it.
 - A version-tolerant struct has no header: `TolStruct { int X = 1 }` → `04 00 00 00 01 00 00 00`.
-- **`WEAK_VERSION_TOLERANCE`.** When the project that defines the types sets this compile-time symbol, every
-  positional type of that assembly becomes version tolerant. Its structs are then never raw. The layout metadata
-  shows the result (`format=VersionTolerant`).
+- A version-tolerant struct is never raw. Only the type's own `format` makes it version tolerant (before 4.0 the
+  compile-time symbol `WEAK_VERSION_TOLERANCE` did so for a whole assembly; it was removed). The layout metadata shows
+  the format (`format=VersionTolerant`).
 
 ### 7.6 Keyed format (`format=Keyed`)
 
@@ -1293,8 +1293,9 @@ readers of layouts or data from earlier builds.
     0 or 1 read in the default mode is JIT undefined behavior: the value can be unequal to itself, for example lost in
     a `Dictionary`. Untrusted data must use `NinoSettings.Untrusted`.
 13. **`object` resolves any loaded type** (§9.6).
-14. **`WEAK_VERSION_TOLERANCE` changes the format per assembly** (§7.5). The same source compiled in two projects can
-    produce two formats. The layout shows the effective format.
+14. **`WEAK_VERSION_TOLERANCE` was removed** (§7.5). Before 4.0 it made an assembly's positional types version
+    tolerant; data written so reads only with `format: NinoFormat.VersionTolerant` on each type (.NET reports NINO032
+    where the symbol is still defined). The layout shows the format.
 15. **`[NinoFormerName]` on a generic type** replaces the whole id name, arguments included, so every closed type of
     that definition gets the same id. **(unverified: not run.)**
 16. **Hash collisions between type ids** of different types are not detected across assemblies. Within one

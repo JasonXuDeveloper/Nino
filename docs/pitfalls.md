@@ -224,10 +224,13 @@ Generated code is compiled with the user's warning settings, which may include w
 emit labels such as `__end` and `__keyed` when they are jumped to, and avoid any construct that warns in
 some configurations.
 
-### `WEAK_VERSION_TOLERANCE` is per assembly
+### `WEAK_VERSION_TOLERANCE` was removed
 
-The symbol only applies to types in the assembly that defines it. Types from referenced assemblies keep
-their own format, including raw copying.
+Before 4.0 the symbol made every positional type of the assembly that defined it version tolerant. It does nothing
+now, so a project that still defines it would write those types positionally and stop reading its stored data:
+NINO032 is an error on each such type, and its code fix adds `format: NinoFormat.VersionTolerant`, which generates
+the same code and the same bytes. A type that takes its `[NinoType]` from another assembly gets one of its own, with
+the options it took.
 
 ### Base-class members break raw blocks
 

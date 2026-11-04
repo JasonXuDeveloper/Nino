@@ -121,7 +121,8 @@ record's primary constructor); structs fall back to `new T()`; otherwise NINO004
 - Renaming or moving a *type* changes its type id (written whenever the slot is not sealed): keep it with
   `[NinoFormerName("Old.Namespace.Type")]` on the type, runtime form (`+` for nested, no `global::`), one per type
   (NINO026), not on generic types written by type id (NINO027). `NinoTypeId.Of(typeof(T))` returns the id.
-- `WEAK_VERSION_TOLERANCE` makes a project's positional types version-tolerant; prefer the per-type option.
+- `WEAK_VERSION_TOLERANCE` was removed in 4.0: where it is still defined, error NINO032's code fix marks each type
+  `format: NinoFormat.VersionTolerant`, which keeps its bytes.
 - Every build records each type's layout as `[assembly: NinoTypeLayout]`; compare `layout.ToString()` between releases
   in CI to catch byte changes.
 
