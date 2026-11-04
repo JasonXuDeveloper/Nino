@@ -456,14 +456,14 @@ namespace Nino.UnitTests
             var type = typeof(GenericSub<>).MakeGenericType(typeof(ConsoleColor));
             int id = NinoTypeId.Of(type);
             Assert.IsNull(NinoSubtypes<NonGenericBase>.Find(id));
-            Assert.IsTrue(NinoPolymorphic.Register(type));
+            Assert.IsTrue(NinoPolymorphic.TryRegister(type));
             Assert.AreEqual(type, NinoSubtypes<NonGenericBase>.Find(id)?.Type);
-            Assert.IsTrue(NinoPolymorphic.Register<GenericSub<ConsoleColor>>(), "idempotent");
+            Assert.IsTrue(NinoPolymorphic.TryRegister<GenericSub<ConsoleColor>>(), "idempotent");
 
             // Not polymorphic: abstract, open, or not a [NinoType].
-            Assert.IsFalse(NinoPolymorphic.Register(typeof(AbstractShape)));
-            Assert.IsFalse(NinoPolymorphic.Register(typeof(GenericSub<>)));
-            Assert.IsFalse(NinoPolymorphic.Register(typeof(List<int>)));
+            Assert.IsFalse(NinoPolymorphic.TryRegister(typeof(AbstractShape)));
+            Assert.IsFalse(NinoPolymorphic.TryRegister(typeof(GenericSub<>)));
+            Assert.IsFalse(NinoPolymorphic.TryRegister(typeof(List<int>)));
         }
 
         [TestMethod]
@@ -548,7 +548,7 @@ namespace XPlugin { [Nino.Core.NinoType] public sealed class XListShelf<T> : XSh
 namespace XApp { [Nino.Core.NinoType] public sealed class XHolder { public XShelves.XShelf<int> Shelf; } }",
                 shelves, plugin);
             Assert.AreEqual(0, app.Errors.Length, app.ErrorText);
-            StringAssert.Contains(app.GeneratedCode, "NinoPolymorphic.Register(typeof(global::XPlugin.XListShelf<int>))");
+            StringAssert.Contains(app.GeneratedCode, "NinoPolymorphic.TryRegister(typeof(global::XPlugin.XListShelf<int>))");
 
             // At run time, from the id alone.
             var context = new System.Runtime.Loader.AssemblyLoadContext(nameof(ClosedSubtypesFromAnotherReferencedAssemblyAreRegistered));

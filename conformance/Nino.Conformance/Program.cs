@@ -31,10 +31,10 @@ namespace Conformance
                 NinoSettings.Untrusted = true;
             // Closed generic subtypes the code only creates (new Box<int>), never names as a member or call type: a
             // process that reads them without writing them first registers them (docs/v4-design.md, Polymorphism).
-            NinoPolymorphic.Register<Box<int>>();
-            NinoPolymorphic.Register<Box<string>>();
-            NinoPolymorphic.Register<Box<List<Point>>>();
-            NinoPolymorphic.Register<Box<Vec2>>();
+            NinoPolymorphic.TryRegister<Box<int>>();
+            NinoPolymorphic.TryRegister<Box<string>>();
+            NinoPolymorphic.TryRegister<Box<List<Point>>>();
+            NinoPolymorphic.TryRegister<Box<Vec2>>();
             try
             {
                 return args switch

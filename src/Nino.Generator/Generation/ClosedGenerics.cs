@@ -12,7 +12,7 @@ namespace Nino.Generator.Generation;
 /// polymorphic read would have no way to map the id of <c>Box&lt;int&gt;</c> back to the type, and AOT runtimes would
 /// have to close the formatter with <c>MakeGenericType</c>. Instantiations created only at run time (from type
 /// parameters, or by reflection) are still found by the runtime when they are written, or through
-/// <c>NinoPolymorphic.Register(Type)</c>.
+/// <c>NinoPolymorphic.TryRegister(Type)</c>.
 /// </summary>
 internal static class ClosedGenerics
 {

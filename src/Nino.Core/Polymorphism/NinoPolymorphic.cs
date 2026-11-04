@@ -191,8 +191,8 @@ namespace Nino.Core
             NinoSubtypes<object>.Register(new TrackedSubtypeHandler<TSub, TFormatter>(id));
         }
 
-        /// <summary>Registers <typeparamref name="T"/> for polymorphic use; see <see cref="Register(Type)"/>.</summary>
-        public static bool Register<T>() => Register(typeof(T));
+        /// <summary>Registers <typeparamref name="T"/> for polymorphic use; see <see cref="TryRegister(Type)"/>.</summary>
+        public static bool TryRegister<T>() => TryRegister(typeof(T));
 
         /// <summary>
         /// Registers a <c>[NinoType]</c>, typically a closed generic such as <c>Box&lt;int&gt;</c>, so that it can be
@@ -205,9 +205,10 @@ namespace Nino.Core
         /// assembly or through reflection). Generic types are closed with <c>MakeGenericType</c>, which needs dynamic
         /// code: without it (NativeAOT), only the generated registrations are found.
         /// </para>
-        /// Returns false when the type cannot be written polymorphically (abstract, open, or not a <c>[NinoType]</c>).
+        /// Returns true when the type is registered (now or before), false when it cannot be written polymorphically
+        /// (abstract, open, or not a <c>[NinoType]</c>), or, without dynamic code, when no generated code registers it.
         /// </summary>
-        public static bool Register(Type type)
+        public static bool TryRegister(Type type)
         {
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
@@ -263,7 +264,7 @@ namespace Nino.Core
             {
                 if (type.IsGenericType && !type.IsAbstract && !type.IsInterface &&
                     NinoTypeId.Of(type) == id && NinoReflection.IsNinoType(type))
-                    return Register(type);
+                    return TryRegister(type);
             }
 
             return false;

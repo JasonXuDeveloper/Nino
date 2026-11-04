@@ -220,7 +220,7 @@ namespace Nino.Core.CompilerServices
             // Registration is lazy (and the subtype's assembly may not have run its registry's static constructor
             // yet where there is no module initializer support). A closed generic [NinoType] the generator did not
             // see is registered from its formatter definition.
-            NinoPolymorphic.Register(type);
+            NinoPolymorphic.TryRegister(type);
             return FindByType(Volatile.Read(ref _byType), type);
         }
 

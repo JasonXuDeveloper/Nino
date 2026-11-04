@@ -124,7 +124,7 @@ NinoCallContext.cs           NinoReadContext / NinoWriteContext: back references
 ## Polymorphism/
 
 ```
-NinoPolymorphic.cs           NinoPolymorphic.Register; SubtypeHandler / TrackedSubtypeHandler
+NinoPolymorphic.cs           NinoPolymorphic.TryRegister; SubtypeHandler / TrackedSubtypeHandler
 NinoRegistry.cs              NinoRegistry: runs the generated registries (module initializers, Unity hooks, lazy
                              lookups; re-entrant), Remove for unloaded assemblies
 NinoTypeId.cs                NinoTypeId: FNV-1a type ids of runtime-form type names ([NinoFormerName] replaces it)

@@ -52,7 +52,7 @@ warning here usually means data is dropped. Full text: https://nino.xgamedev.net
 - `Nino: no formatter for T`: mark `T` `[NinoType]`, declare a formatter, and install `Nino` in the project declaring
   it (in Unity, reference `Nino.Core`). Under Native AOT, name the exact closed type in code the generator sees.
 - A type id that is not a registered subtype: load the assembly first, rename with `[NinoFormerName]`, or
-  `NinoPolymorphic.Register<Closed<T>>()` for a closed generic only read. On write: the runtime type is not a
+  `NinoPolymorphic.TryRegister<Closed<T>>()` for a closed generic only read. On write: the runtime type is not a
   `[NinoType]` (base with `allowInheritance: false`, or no generator in its assembly).
 - A cycle while serializing: `trackReferences: true` on the types of the cycle. Nested deeper than `MaxDepth`: give
   the recursive type a parameterless constructor and settable members so it can be deferred.

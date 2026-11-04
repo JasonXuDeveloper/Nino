@@ -223,7 +223,7 @@ namespace Nino.Codegen.Model
 
     /// <summary>
     /// A closed generic <c>[NinoType]</c> the assembly names (<c>Box&lt;int&gt;</c>, from <c>new Box&lt;int&gt;()</c>
-    /// or <c>NinoPolymorphic.Register&lt;Box&lt;int&gt;&gt;()</c>): written behind its own type id, the hash of its
+    /// or <c>NinoPolymorphic.TryRegister&lt;Box&lt;int&gt;&gt;()</c>): written behind its own type id, the hash of its
     /// closed .NET name, where a polymorphic slot holds it. Its body is its definition's with these arguments.
     /// </summary>
     public sealed class ClosedTypeModel

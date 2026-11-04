@@ -243,7 +243,7 @@ namespace Nino.Codegen.Tests
         {
             using var model = Load(GeneratedFilesTests.Conformance);
             var names = model.ClosedTypes.Select(c => c.RuntimeName).ToList();
-            // Registered (NinoPolymorphic.Register<Box<int>>()) and created (new Box<int>) by the corpus's code.
+            // Registered (NinoPolymorphic.TryRegister<Box<int>>()) and created (new Box<int>) by the corpus's code.
             CollectionAssert.IsSubsetOf(new[]
             {
                 "Conformance.Box<System.Int32>", "Conformance.Box<System.String>", "Conformance.Box<Conformance.Vec2>",
