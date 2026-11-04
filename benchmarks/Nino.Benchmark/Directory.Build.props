@@ -10,4 +10,7 @@
         <BaseIntermediateOutputPath>obj/v3/</BaseIntermediateOutputPath>
         <BaseOutputPath>bin/v3/</BaseOutputPath>
     </PropertyGroup>
+    <PropertyGroup>
+        <NinoBenchLegacy>true</NinoBenchLegacy>
+    </PropertyGroup>
 </Project>
