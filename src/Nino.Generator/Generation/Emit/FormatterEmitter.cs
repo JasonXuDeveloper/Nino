@@ -18,7 +18,8 @@ internal static class FormatterEmitter
         // The type's own name, which most lines of a formatter repeat, through an alias: not a generic type's, whose
         // name has the formatter's type parameters.
         var aliases = new List<string>();
-        string body = GeneratedCode.WithAliases(w.ToString(), m.IsGeneric ? null : m.TypeName, aliases);
+        string body = GeneratedCode.WithAliases(w.ToString(), m.IsGeneric ? null : m.TypeName, aliases,
+            names.Formatters);
 
         string file = GeneratedCode.File(LayoutEmitter.Emit(m) + "\n", names.Declarations(aliases), body);
         return m.Partial.Declarations.Length > 0 ? file + AccessorEmitter.EmitPartial(m) : file;
@@ -90,8 +91,8 @@ internal static class FormatterEmitter
             case FormatterKind.SealedClass when m.BoundedEntry:
                 // The twin's bodies when the depth leaves room for the whole nesting bound (see TypeFacts.DepthBound).
                 EmitEntryPoints(w, m, names,
-                    $"{CoreCompilerServices}NinoObject.SerializeSealed<{t}, {self}, {self}{Shallow}>(value, ref writer, {m.Depth.Bound})",
-                    $"{CoreCompilerServices}NinoObject.DeserializeSealed<{t}, {self}, {self}{Shallow}>(ref value, ref reader, {m.Depth.Bound})");
+                    $"{CoreCompilerServices}NinoObject.SerializeSealed<{t}, {self}, {ShallowTwinName}>(value, ref writer, {m.Depth.Bound})",
+                    $"{CoreCompilerServices}NinoObject.DeserializeSealed<{t}, {self}, {ShallowTwinName}>(ref value, ref reader, {m.Depth.Bound})");
                 break;
             case FormatterKind.SealedClass:
                 EmitEntryPoints(w, m, names,
@@ -207,7 +208,7 @@ internal static class FormatterEmitter
     private static void EmitTop(CodeWriter w, TypeModel m, FormatterNames names, BodyEmitter body)
     {
         string t = m.TypeName;
-        string top = m.Self + Top;
+        string top = TopTwinName;
         // An out-of-line body on a local writer (TypeModel.LocalWriter, not inlined at the top): the presence
         // byte is written there too, on the local, rather than by the caller on a writer whose address the call
         // takes (each write a load and store of its cursor in memory). The top-level calls that create their writer
@@ -247,7 +248,7 @@ internal static class FormatterEmitter
             w.Line();
         }
 
-        OpenTwin(w, m, TopTwinName, $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>{Prefetch(m)}");
+        OpenTwin(w, m, top, $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>{Prefetch(m)}");
         w.Line(names.Inline);
         w.Line(serializeTop
             ? $"{Signature.Serialize(t)} => __SerializeTop(value, ref writer);"
@@ -324,9 +325,9 @@ internal static class FormatterEmitter
     private static void EmitShallow(CodeWriter w, TypeModel m, FormatterNames names, BodyEmitter body)
     {
         string t = m.TypeName;
-        string self = m.Self;
-        string twin = self + Shallow;
-        OpenTwin(w, m, ShallowTwinName, $"{CoreCompilerServices}INinoBodyFormatter<{t}>{Prefetch(m)}");
+        // The twin by its own name: the code naming it is in the formatter, where its nested types are in scope.
+        string twin = ShallowTwinName;
+        OpenTwin(w, m, twin, $"{CoreCompilerServices}INinoBodyFormatter<{t}>{Prefetch(m)}");
         w.Line(names.Inline);
         w.Line(m.Kind == FormatterKind.Struct
             ? $"{Signature.Serialize(t)} => WriteBody(value, ref writer);"

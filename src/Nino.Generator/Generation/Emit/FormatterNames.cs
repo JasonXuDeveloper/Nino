@@ -4,33 +4,27 @@ using System.Linq;
 namespace Nino.Generator.Generation.Emit;
 
 /// <summary>
-/// File-local <c>using</c> aliases for long member formatter names. They are repeated (serialize, deserialize)
-/// and long, so aliases keep generated files small and fast to parse. Only names actually used get an alias.
+/// The names a formatter file declares aliases for: the inlining attributes once used, and the member formatters,
+/// which <see cref="GeneratedCode.WithAliases"/> aliases where that makes the file shorter.
 /// </summary>
 internal sealed class FormatterNames
 {
-    /// <summary>
-    /// Formatter names longer than this get an alias; shorter ones cost little more than the alias declaration.
-    /// </summary>
-    private const int MinAliasedLength = 48;
-
-    private readonly Dictionary<FormatterRef, string> _aliases = new();
-    private readonly HashSet<FormatterRef> _used = new();
     private bool _inline;
 
     public FormatterNames(TypeModel m)
     {
-        int index = 0;
-        // Formatters naming the type's own type parameters (FormatterRef.Open) cannot be aliased outside the type.
-        foreach (var (formatter, _) in m.Members.Select(x => x.Formatter)
-                     .Concat(m.ShallowBodies ? m.Members.Select(x => x.ShallowFormatter) : Enumerable.Empty<FormatterRef>())
-                     .Where(f => !f.Open)
-                     .Distinct()
-                     .Select(f => (f, Text: f.ToString()))
-                     .Where(f => f.Text.Length > MinAliasedLength)
-                     .OrderByDescending(f => f.Text.Length))
-            _aliases[formatter] = "__NinoF" + index++;
+        // Generic ones only: a formatter without type arguments is one type's name, short once its namespace is (the
+        // generated ones in NinoGen), and the name to read; and one naming the type's own type parameters
+        // (FormatterRef.Open) cannot be aliased outside the type.
+        Formatters = m.Members.Select(x => x.Formatter)
+            .Concat(m.ShallowBodies ? m.Members.Select(x => x.ShallowFormatter) : Enumerable.Empty<FormatterRef>())
+            .Where(f => f.Args.Length != 0 && !f.Open)
+            .Select(f => f.ToString())
+            .ToList();
     }
+
+    /// <summary>The generic member formatters, as the body writes them.</summary>
+    public IReadOnlyList<string> Formatters { get; }
 
     /// <summary>The aggressive inlining attribute, through its aliases (declared once used).</summary>
     public string Inline
@@ -52,31 +46,10 @@ internal sealed class FormatterNames
         }
     }
 
-    /// <summary>The name to write for <paramref name="formatter"/>: its alias when it has one.</summary>
-    public string Use(FormatterRef formatter)
-    {
-        if (!_aliases.TryGetValue(formatter, out var alias))
-            return formatter.ToString();
-        _used.Add(formatter);
-        return alias;
-    }
-
     /// <summary>
-    /// The alias declarations: the inlining attribute aliases when used, <paramref name="others"/> (those
-    /// <see cref="GeneratedCode.WithAliases"/> declared), and those of the formatter names used.
+    /// The alias declarations: the inlining attribute aliases when used, then <paramref name="others"/> (those
+    /// <see cref="GeneratedCode.WithAliases"/> declared).
     /// </summary>
-    public IEnumerable<string> Declarations(IEnumerable<string> others)
-    {
-        if (_inline)
-        {
-            foreach (var alias in GeneratedCode.InlineAliases)
-                yield return alias;
-        }
-
-        foreach (var alias in others)
-            yield return alias;
-
-        foreach (var pair in _aliases.Where(p => _used.Contains(p.Key)).OrderBy(p => p.Value.Length).ThenBy(p => p.Value))
-            yield return $"using {pair.Value} = {pair.Key};";
-    }
+    public IEnumerable<string> Declarations(IEnumerable<string> others) =>
+        _inline ? GeneratedCode.InlineAliases.Concat(others) : others;
 }

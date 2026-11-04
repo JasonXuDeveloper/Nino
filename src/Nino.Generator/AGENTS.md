@@ -104,8 +104,8 @@ DispatchEmitter.cs           per-assembly subtype dispatch of base formatters (t
 RegistryEmitter.cs           the assembly registry and the registrations of built-in formatters it uses
 LayoutEmitter.cs             the [assembly: NinoTypeLayout] of a type
 NestingEmitter.cs            the nesting formatters: a struct per type that holds itself, counting each level
-FormatterNames.cs            file-local using aliases for long formatter names
-GeneratedCode.cs             the header and aliases every generated file shares
+FormatterNames.cs            what a formatter file aliases: the inlining attributes, its generic member formatters
+GeneratedCode.cs             the header every generated file shares, and the short names of its body (aliases)
 Signature.cs                 the signatures of the formatter methods generated code implements
 CodeWriter.cs                C# source line by line with indentation
 ```

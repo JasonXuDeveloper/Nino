@@ -79,7 +79,7 @@ internal sealed class BodyEmitter
     private IEnumerable<MemberModel> OwnMembers => Delegates ? _m.Members.Skip(_m.Inheritance.BaseMemberCount) : _m.Members;
 
     private string Formatter(MemberModel member) =>
-        _names.Use(_mode.Shallow ? member.ShallowFormatter : member.Formatter);
+        (_mode.Shallow ? member.ShallowFormatter : member.Formatter).ToString();
 
     private string CollectionFormatter
     {

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Nino.Generator.Generation.Emit;
@@ -56,34 +58,57 @@ internal static class GeneratedCode
 
     /// <summary>
     /// <paramref name="body"/> (the part of a file inside the <c>NinoGen</c> namespace) with the names it repeats
-    /// written as aliases: <paramref name="self"/> (a type the file is about, when given) as <c>__NinoT</c>, then the
-    /// <see cref="CoreAliases"/>. A name is replaced only where the alias makes the file shorter, counting its
-    /// declaration, which is added to <paramref name="declarations"/>; and only as a whole name: not where it goes on
-    /// with an identifier character or (a type) a dot (a longer name, a nested type, a namespace).
+    /// written shorter. The generated types lose <c>global::NinoGen.</c>: the body is inside that namespace, whose own
+    /// types a simple name finds before any other (only a type parameter of a generic formatter, which takes the names
+    /// of its type's, or a nested type could hide one, and none is named like a generated type). Then the names
+    /// become aliases: <paramref name="formatters"/> (generic formatters a type's members are read and written with,
+    /// none naming a type parameter; longest first) as <c>__NinoF0</c>, <c>__NinoF1</c>..., <paramref name="self"/> (a type the file is about, when
+    /// given) as <c>__NinoT</c>, and the <see cref="CoreAliases"/>. A name is replaced only where the alias makes the
+    /// file shorter, counting its declaration, which is added to <paramref name="declarations"/>; and only as a whole
+    /// name: not next to an identifier character, a dot or a colon (a longer name, a qualified or nested one), but for
+    /// the member that follows a static class's name.
     /// </summary>
-    public static string WithAliases(string body, string? self, List<string> declarations)
+    public static string WithAliases(string body, string? self, List<string> declarations,
+        IEnumerable<string>? formatters = null)
     {
+        body = body.Replace(TypeNames.Gen, "");
+        var formatterAliases = new List<string>();
+        if (formatters != null)
+        {
+            foreach (var name in formatters.Distinct().OrderByDescending(n => n.Length))
+            {
+                string alias = "__NinoF" + formatterAliases.Count;
+                body = WithAlias(body, name.Replace(TypeNames.Gen, ""), alias, $"using {alias} = {name};",
+                    formatterAliases);
+            }
+        }
+
         if (self != null)
-            body = WithAlias(body, self, "__NinoT", declarations);
+            body = WithAlias(body, self, "__NinoT", $"using __NinoT = {self};", declarations);
         foreach (var (name, alias) in CoreAliases)
-            body = WithAlias(body, name, alias, declarations);
+        {
+            // A static class's alias is declared without the dot both names end with.
+            string declaration = name[name.Length - 1] == '.'
+                ? $"using {alias.Substring(0, alias.Length - 1)} = {name.Substring(0, name.Length - 1)};"
+                : $"using {alias} = {name};";
+            body = WithAlias(body, name, alias, declaration, declarations);
+        }
+
+        declarations.AddRange(formatterAliases);
         return body;
     }
 
-    private static string WithAlias(string body, string name, string alias, List<string> declarations)
+    private static string WithAlias(string body, string name, string alias, string declaration,
+        List<string> declarations)
     {
-        // A static class's alias is declared without the dot both names end with.
         bool member = name[name.Length - 1] == '.';
-        string declaration = member
-            ? $"using {alias.Substring(0, alias.Length - 1)} = {name.Substring(0, name.Length - 1)};"
-            : $"using {alias} = {name};";
         var sb = new StringBuilder(body.Length);
         int start = 0, at, count = 0;
-        while ((at = body.IndexOf(name, start, System.StringComparison.Ordinal)) >= 0)
+        while ((at = body.IndexOf(name, start, StringComparison.Ordinal)) >= 0)
         {
             int end = at + name.Length;
             sb.Append(body, start, at - start);
-            if (!member && end < body.Length && (char.IsLetterOrDigit(body[end]) || body[end] is '_' or '.'))
+            if (at > 0 && IsNamePart(body[at - 1]) || !member && end < body.Length && IsNamePart(body[end]))
             {
                 sb.Append(name);
             }
@@ -103,6 +128,9 @@ internal static class GeneratedCode
         declarations.Add(declaration);
         return sb.ToString();
     }
+
+    /// <summary>Whether <paramref name="c"/> next to a name makes it part of a longer one (qualified, nested).</summary>
+    private static bool IsNamePart(char c) => char.IsLetterOrDigit(c) || c is '_' or '.' or ':';
 
     /// <summary>
     /// The aliases of <c>MethodImplAttribute</c> and <c>MethodImplOptions</c>, one line each (without indent or line
