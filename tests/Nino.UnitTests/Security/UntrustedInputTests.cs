@@ -263,6 +263,7 @@ public class UntrustedInputTests
     /// the runtime ships, by names without extensions. Every one of those still reads back, aliases (zh-CN) included.
     /// </summary>
     [TestMethod]
+    [DoNotParallelize] // It weighs the whole heap: tests running beside it would add theirs.
     public void CultureNamesFromTheDataCannotGrowTheProcess()
     {
         foreach (var culture in System.Globalization.CultureInfo.GetCultures(System.Globalization.CultureTypes.AllCultures)

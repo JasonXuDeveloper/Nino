@@ -75,7 +75,8 @@ Corner/                      corner cases compiled in memory (CornerCompiler): S
 Platforms/                   Unity (UnityTypesTests against the UnityEngine stub, UnityMock/; UnityPackageDllTests: the
                              Unity package's committed DLLs have the public API of their sources), HybridCLR hot-update
                              assemblies, the NinoKernels hook, ET framework collection shapes
-Infrastructure/              shared helpers: Rt (round trips), SharedTypes, TestCompilation, TestReferences
+Infrastructure/              shared helpers: Rt (round trips), SharedTypes, TestCompilation, TestReferences (the
+                             analyzer tests' references, created once), MSTestSettings (classes run in parallel)
 Nino.UnitTests.csproj        targets, WEAK_VERSION_TOLERANCE, references (Nino.Core, Immutable, UnityTypes, the
                              generator's Roslyn 4.3 build, tools/CodeGen templates)
 ```
@@ -86,6 +87,11 @@ Nino.UnitTests.csproj        targets, WEAK_VERSION_TOLERANCE, references (Nino.C
   mistakes and the write side throw `InvalidOperationException`.
 - A new way to declare a type adds a dimension to `Corner/ShapeMatrixTests.cs`; a new path through a runtime's
   internals adds a case with known contents and a `FastPaths` row to `Nino.RuntimeTests`.
+- Test classes run side by side, the methods of one class in sequence (`Infrastructure/MSTestSettings.cs`). A test
+  that changes or measures process-wide state (`NinoKernels`, the shared pools, the whole heap, unloading) is
+  `[DoNotParallelize]` (it then runs alone, after the others); counters shared by the methods of one class need
+  nothing. Split a slow data-driven test over classes, as `ShapeMatrixTests` puts two rows in each, so its rows
+  share out over the cores.
 - A test that needs a type outside `WEAK_VERSION_TOLERANCE` (raw, fixed size, block) puts it in
   `Nino.UnitTests.Subset`.
 - Committed generated files are checked, never edited by hand: `GeneratedFilesTests` (runtimes/), the
