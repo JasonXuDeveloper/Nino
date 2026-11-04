@@ -7,7 +7,7 @@ using Nino.UnitTests.Subset.Corner;
 #nullable disable
 namespace Nino.UnitTests
 {
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public partial class CtorRenamedParams
     {
         public readonly int Id;
@@ -23,7 +23,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class CtorReorderedParams
     {
         public readonly int Id;
@@ -39,7 +39,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class CtorPlusSettable
     {
         public readonly int Id;
@@ -53,16 +53,16 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public record PositionalRecord(int Id, string Name, List<int> Items);
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public record struct PositionalRecordStruct(int Id, string Name);
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public readonly record struct ReadonlyRecordStruct(int Id, long Value);
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public record RecordWithBody(int Id)
     {
         public string Note { get; set; }
@@ -70,11 +70,11 @@ namespace Nino.UnitTests
         public string Tag { get; init; }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public record DerivedRecord(int Id, string More) : RecordWithBody(Id);
 
     // ET-style pooled factory: an optional argument, and an instance that may carry stale state.
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class EtStyle
     {
         public static readonly Stack<EtStyle> Pool = new Stack<EtStyle>();
@@ -97,7 +97,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class EtStyleChild
     {
         public static int Created;
@@ -111,7 +111,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class FactoryBase
     {
         public static int BaseCreated;
@@ -121,7 +121,7 @@ namespace Nino.UnitTests
         public static FactoryBase Create() => new FactoryBase { A = -1 };
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class FactorySubA : FactoryBase
     {
         public static int Created;
@@ -135,7 +135,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class FactorySubB : FactoryBase
     {
         public static int Created;
@@ -150,7 +150,7 @@ namespace Nino.UnitTests
     }
 
     // Only a private constructor: instances come from the factory alone.
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class FactoryOnly
     {
         public static int Created;
@@ -171,7 +171,7 @@ namespace Nino.UnitTests
         public static FactoryOnly Of(int x, params int[] items) => new FactoryOnly { X = x, Items = new List<int>(items) };
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class FactoryOwner
     {
         public FactoryBase Slot;

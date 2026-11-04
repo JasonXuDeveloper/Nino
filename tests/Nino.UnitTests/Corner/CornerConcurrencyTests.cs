@@ -11,54 +11,54 @@ using Nino.Core;
 namespace Nino.UnitTests
 {
     // Only used by the cold start test, so their first use (registration, lazy formatters, pools) happens there.
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public abstract class ColdBase
     {
         public int Id;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ColdA : ColdBase
     {
         public string Name;
         public List<int> Values;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class ColdB : ColdBase
     {
         public double D;
         public ColdBase Child;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public interface IColdThing
     {
         int Key { get; set; }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ColdThing : IColdThing
     {
         public int Key { get; set; }
         public ColdGeneric<string> Gen;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ColdGeneric<T>
     {
         public T Value;
         public T[] Values;
     }
 
-    [NinoType(trackReferences: true)]
+    [NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)]
     public class ColdTracked
     {
         public int Id;
         public ColdTracked Next;
     }
 
-    [NinoType, NinoPooled]
+    [NinoType(format: NinoFormat.VersionTolerant), NinoPooled]
     public sealed partial class ColdPooled
     {
         public static int Returns;
@@ -70,7 +70,7 @@ namespace Nino.UnitTests
         private partial void OnNinoPoolReturn() => Interlocked.Increment(ref Returns);
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ColdPooledOwner
     {
         public List<ColdPooled> Items;

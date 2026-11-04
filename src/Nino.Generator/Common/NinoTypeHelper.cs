@@ -47,36 +47,37 @@ internal static class NinoTypeHelper
         }
     }
 
-    private static NinoTypeOptions? ComputeOptions(ITypeSymbol typeSymbol)
+    private static NinoTypeOptions? ComputeOptions(ITypeSymbol typeSymbol) =>
+        NinoTypeSource(typeSymbol) is { } source ? NinoTypeOptions.From(GetDirectNinoTypeAttribute(source)!) : null;
+
+    /// <summary>
+    /// The type whose own <c>[NinoType]</c> applies to <paramref name="typeSymbol"/> (see
+    /// <see cref="GetNinoTypeOptions"/>): itself, the nearest base class that has one (if it is inherited by
+    /// subtypes), then an interface (likewise); null for a type that is not a NinoType.
+    /// </summary>
+    public static ITypeSymbol? NinoTypeSource(this ITypeSymbol typeSymbol)
     {
         // BCL types are never NinoTypes; skip walking their (substituted) interfaces.
         if (IsSystemNamespace(typeSymbol.ContainingNamespace) || typeSymbol.TypeKind is TypeKind.Array or
                 TypeKind.Pointer or TypeKind.TypeParameter or TypeKind.Enum or TypeKind.Delegate or TypeKind.Error)
             return null;
 
-        var attr = GetDirectNinoTypeAttribute(typeSymbol);
-        if (attr != null)
-            return NinoTypeOptions.From(attr);
+        if (GetDirectNinoTypeAttribute(typeSymbol) != null)
+            return typeSymbol;
 
         for (var baseType = typeSymbol.BaseType; baseType != null; baseType = baseType.BaseType)
         {
-            attr = GetDirectNinoTypeAttribute(baseType);
-            if (attr == null)
+            if (GetDirectNinoTypeAttribute(baseType) is not { } attr)
                 continue;
-            var ninoTypeAttr = NinoTypeOptions.From(attr);
-            if (ninoTypeAttr.InheritedBySubtypes)
-                return ninoTypeAttr;
+            if (NinoTypeOptions.From(attr).InheritedBySubtypes)
+                return baseType;
             break;
         }
 
         foreach (var interfaceType in typeSymbol.AllInterfaces)
         {
-            attr = GetDirectNinoTypeAttribute(interfaceType);
-            if (attr == null)
-                continue;
-            var ninoTypeAttr = NinoTypeOptions.From(attr);
-            if (ninoTypeAttr.InheritedBySubtypes)
-                return ninoTypeAttr;
+            if (GetDirectNinoTypeAttribute(interfaceType) is { } attr && NinoTypeOptions.From(attr).InheritedBySubtypes)
+                return interfaceType;
         }
 
         return null;

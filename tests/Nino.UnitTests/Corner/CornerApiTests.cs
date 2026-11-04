@@ -31,7 +31,7 @@ namespace Nino.UnitTests
         public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ApiPayload
     {
         public int Id;

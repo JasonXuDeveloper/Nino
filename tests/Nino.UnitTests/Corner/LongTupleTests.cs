@@ -7,7 +7,7 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests
 {
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class LongTuples
     {
         public (int, int, int, int, int, int, int, int, int) Nine;
@@ -15,7 +15,7 @@ namespace Nino.UnitTests
         public List<(int, int, int, int, int, int, int, string)> Eights;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class LongTupleItem
     {
         public string Name;

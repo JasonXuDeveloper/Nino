@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using Nino.Core;
 
 // Types for the corner-case tests that need a newer C# version than the test project (C# 11 `required`,
-// C# 12 primary constructors) or an assembly without WEAK_VERSION_TOLERANCE (raw structs, per-assembly checks).
+// C# 12 primary constructors) or positional types (raw structs, per-type format checks).
 // Instances are built by the factories below, so the test project never names a required member itself.
 namespace Nino.UnitTests.Subset.Corner
 {
@@ -78,7 +78,7 @@ namespace Nino.UnitTests.Subset.Corner
         }
     }
 
-    // Plain sealed class: in this assembly (no WEAK_VERSION_TOLERANCE) it has no length prefix.
+    // Plain sealed class: positional, so no length prefix.
     [NinoType]
     public sealed class PlainSealed
     {

@@ -6,7 +6,7 @@ using static Nino.UnitTests.Rt;
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType(trackReferences: true)]
+[NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)]
 public class TrackedNode
 {
     public int Value;
@@ -14,25 +14,25 @@ public class TrackedNode
     public List<TrackedNode> Children;
 }
 
-[NinoType(trackReferences: true)]
+[NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)]
 public sealed class TrackedLeaf
 {
     public string Name;
 }
 
-[NinoType(trackReferences: true)]
+[NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)]
 public abstract class TrackedShape
 {
     public TrackedShape Parent;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class TrackedCircle : TrackedShape
 {
     public float Radius;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class TrackedSquare : TrackedShape
 {
     public float Side;
@@ -55,7 +55,7 @@ public class KeyedHolder
     public TrackedLeaf B;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class PlainHolder
 {
     public TolerantHolder First;

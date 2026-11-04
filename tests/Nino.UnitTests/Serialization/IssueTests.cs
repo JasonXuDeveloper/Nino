@@ -31,7 +31,7 @@ namespace Nino.UnitTests
         [TestClass]
         public class Issue157 : IssueTestTemplate
         {
-            [NinoType]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public abstract class ITable
             {
                 public TableType Type;
@@ -40,7 +40,7 @@ namespace Nino.UnitTests
             /// <summary>
             /// 特效表
             /// </summary>
-            [NinoType]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public class EffectTable : ITable
             {
                 public EffectTable()
@@ -126,7 +126,7 @@ namespace Nino.UnitTests
             }
 
 
-            [NinoType(false)]
+            [NinoType(false, format: NinoFormat.VersionTolerant)]
 #if !UNITY && !Client
 #endif
             public class CommEntity : Entity
@@ -151,7 +151,7 @@ namespace Nino.UnitTests
             /// </summary>
 #if !UNITY && !Client
 #endif
-            [NinoType(false)]
+            [NinoType(false, format: NinoFormat.VersionTolerant)]
             public class EffectInfo : CommEntity
             {
                 /// <summary>
@@ -282,7 +282,7 @@ namespace Nino.UnitTests
             /// <summary>
             /// 不需要制成表格
             /// </summary>
-            [NinoType]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public struct Point
             {
                 public Int16 X { get; set; }
@@ -496,7 +496,7 @@ namespace Nino.UnitTests
         [TestClass]
         public class ListTest : IssueTestTemplate
         {
-            [NinoType]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public class MyTest
             {
                 public List<int> List = new List<int>();
@@ -701,7 +701,7 @@ namespace Nino.UnitTests
         [TestClass]
         public class Issue141 : IssueTestTemplate
         {
-            [NinoType]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public class TestClass<T>
             {
                 public Dictionary<TestEnum, T> Dict = new Dictionary<TestEnum, T>();
@@ -816,12 +816,12 @@ namespace Nino.UnitTests
         [TestClass]
         public class IssueV3_0 : IssueTestTemplate
         {
-            [NinoType]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public class DiceData
             {
             }
 
-            [NinoType(false)]
+            [NinoType(false, format: NinoFormat.VersionTolerant)]
             public class DicePool : IEnumerable<DiceData>
             {
                 [NinoMember(1)] public DicePoolType Type { get; set; }
@@ -888,13 +888,13 @@ namespace Nino.UnitTests
         [TestClass]
         public class Issue134 : IssueTestTemplate
         {
-            [NinoType]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public interface IBase
             {
                 int A { get; set; }
             }
 
-            [NinoType]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public class Impl : IBase
             {
                 public int A { get; set; }
@@ -924,7 +924,7 @@ namespace Nino.UnitTests
             {
             }
 
-            [Nino.Core.NinoType]
+            [Nino.Core.NinoType(format: Nino.Core.NinoFormat.VersionTolerant)]
             [Serializable]
             public sealed partial class MyPackPerson : PackageBase
             {
@@ -941,7 +941,7 @@ namespace Nino.UnitTests
                 public Dictionary<int, MyClassModel> P6 { get; set; }
             }
 
-            [Nino.Core.NinoType]
+            [Nino.Core.NinoType(format: Nino.Core.NinoFormat.VersionTolerant)]
             [Serializable]
             public sealed partial class MyClassModel : PackageBase
             {
@@ -978,7 +978,7 @@ namespace Nino.UnitTests
         [TestClass]
         public class IssueIgnore : IssueTestTemplate
         {
-            [NinoType]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public class Data
             {
                 public int A;
@@ -986,7 +986,7 @@ namespace Nino.UnitTests
                 public CompA CompA;
             }
 
-            [NinoType(false)]
+            [NinoType(false, format: NinoFormat.VersionTolerant)]
             public class CompA
             {
                 [NinoMember(0)] public int Aa;
@@ -1015,7 +1015,7 @@ namespace Nino.UnitTests
         [TestClass]
         public class Issue52 : IssueTestTemplate
         {
-            [NinoType]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public class NinoTestData
             {
                 public int X;
@@ -1064,7 +1064,7 @@ namespace Nino.UnitTests
         [TestClass]
         public class Issue41 : IssueTestTemplate
         {
-            [NinoType]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public class NinoTestData
             {
                 public enum Sex
@@ -1179,14 +1179,14 @@ namespace Nino.UnitTests
                 GetID = 12,
             }
 
-            [NinoType()]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public class MessagePackage
             {
                 public AgreementType agreement;
                 public Move move;
             }
 
-            [NinoType]
+            [NinoType(format: NinoFormat.VersionTolerant)]
             public class Move
             {
                 public int id;

@@ -9,19 +9,19 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class RcItem
 {
     public int Id;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class RcItemB : RcItem
 {
     public int Extra;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class RcHolder
 {
     public IList<RcItem> List;

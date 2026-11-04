@@ -31,14 +31,14 @@ public sealed class SelfArrays : List<SelfArrays[]> { }
 // Only ever read through its Type: the formatter the resolver builds at run time, which no generated code names.
 public sealed class SelfRuntimeOnly : List<SelfRuntimeOnly> { }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class SelfNestingHolder
 {
     public SelfTree T;
     public SelfMap D;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class SelfNestingKinds
 {
     public SelfSet Set;

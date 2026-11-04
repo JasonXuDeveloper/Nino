@@ -110,7 +110,7 @@ public struct ZigZagLongFormatter : INinoFormatter<long>
 }
 
 /// <summary>Example type using custom formatters.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class ExampleWithCustomFormatters
 {
     public int NormalField;
@@ -124,7 +124,7 @@ public class ExampleWithCustomFormatters
     public int CompactInt;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class ExampleWithStructFormatter
 {
     [NinoMemberFormatter(typeof(ZigZagLongFormatter))]

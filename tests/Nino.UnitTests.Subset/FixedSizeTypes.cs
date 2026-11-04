@@ -2,8 +2,8 @@ using System;
 using Nino.Core;
 using Nino.Core.CompilerServices;
 
-// Fixed-size types (NinoSerializer.GetFixedSize, NinoDirect.SerializeFixed): they need an assembly without
-// WEAK_VERSION_TOLERANCE, since a version-tolerant type is never fixed size.
+// Fixed-size types (NinoSerializer.GetFixedSize, NinoDirect.SerializeFixed): positional, since a version-tolerant
+// type is never fixed size.
 namespace Nino.UnitTests.Subset.Fixed
 {
     // Not raw (an ignored field), so it gets a generated formatter; written as A, B, C: 13 bytes.

@@ -73,7 +73,7 @@ public struct RingFormatter<T, TFormatter> : INinoFormatter<Ring<T>> where TForm
     }
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class RingHolder
 {
     public Ring<int> Ints;
@@ -85,30 +85,30 @@ public sealed class RingHolder
 /// A generic holder: its member is formatted by the formatter its closed type names, which the runtime resolver
 /// chooses for instances the generator did not see.
 /// </summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class RuntimeBox<T>
 {
     public T Value;
 }
 
-[NinoType] public sealed class RingBox { public Ring<int> Value; }
-[NinoType] public sealed class NullableListBox { public List<int?> Value; }
-[NinoType] public sealed class NestedDictionaryBox { public Dictionary<string, List<int>> Value; }
-[NinoType] public sealed class ListInterfaceBox { public IList<string> Value; }
-[NinoType] public sealed class SetInterfaceBox { public ISet<int> Value; }
-[NinoType] public sealed class SortedSetBox { public SortedSet<int> Value; }
-[NinoType] public sealed class LinkedListBox { public LinkedList<string> Value; }
-[NinoType] public sealed class ConcurrentQueueBox { public ConcurrentQueue<int> Value; }
-[NinoType] public sealed class SortedDictionaryBox { public SortedDictionary<int, string> Value; }
-[NinoType] public sealed class TupleBox { public (int, string) Value; }
-[NinoType] public sealed class MatrixBox { public int[,] Value; }
-[NinoType] public sealed class PairBox { public KeyValuePair<int, string> Value; }
-[NinoType] public sealed class DerivedListBox { public DerivedIntList Value; }
-[NinoType] public sealed class OffsetBox { public DateTimeOffset Value; }
-[NinoType] public sealed class ImmutableArrayBox { public ImmutableArray<string> Value; }
-[NinoType] public sealed class ImmutableListBox { public ImmutableList<int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class RingBox { public Ring<int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class NullableListBox { public List<int?> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class NestedDictionaryBox { public Dictionary<string, List<int>> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ListInterfaceBox { public IList<string> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class SetInterfaceBox { public ISet<int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class SortedSetBox { public SortedSet<int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class LinkedListBox { public LinkedList<string> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ConcurrentQueueBox { public ConcurrentQueue<int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class SortedDictionaryBox { public SortedDictionary<int, string> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class TupleBox { public (int, string) Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class MatrixBox { public int[,] Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class PairBox { public KeyValuePair<int, string> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class DerivedListBox { public DerivedIntList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class OffsetBox { public DateTimeOffset Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ImmutableArrayBox { public ImmutableArray<string> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ImmutableListBox { public ImmutableList<int> Value; }
 #if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueue: .NET 6+ builds of Nino.Core only
-[NinoType] public sealed class PriorityQueueBox { public PriorityQueue<string, int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class PriorityQueueBox { public PriorityQueue<string, int> Value; }
 #endif
 
 public sealed class DerivedIntList : List<int>

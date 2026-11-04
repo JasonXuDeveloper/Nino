@@ -12,7 +12,7 @@ using static Nino.UnitTests.Rt;
 namespace Nino.UnitTests;
 
 /// <summary>A key whose hash code is one of 7: many keys share one, as keys built to collide do.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class FloodKey : IEquatable<FloodKey>
 {
     public int Id;
@@ -24,7 +24,7 @@ public sealed class FloodKey : IEquatable<FloodKey>
     public override int GetHashCode() => Id % 7;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class FloodHolder
 {
     public Dictionary<long, int> Map;

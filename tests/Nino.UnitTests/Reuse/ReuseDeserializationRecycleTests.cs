@@ -5,7 +5,7 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class PooledHolder
 {
     public static readonly Stack<List<int>> ListPool = new Stack<List<int>>();
@@ -27,14 +27,14 @@ public class PooledHolder
     }
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class InitOnlyHolder
 {
     public int Id { get; init; }
     public string Name { get; init; }
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class Owner
 {
     public InitOnlyHolder Child;

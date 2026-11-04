@@ -8,7 +8,7 @@ using Nino.Core;
 namespace Nino.UnitTests;
 
 /// <summary>A struct that can hold itself, holding a record (built by its constructor, never deferred).</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct WriteDepthMixedNode
 {
     public int V;
@@ -16,7 +16,7 @@ public struct WriteDepthMixedNode
     public WriteDepthRecord Record;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed record WriteDepthRecord(int Value, WriteDepthRecord Next);
 
 /// <summary>

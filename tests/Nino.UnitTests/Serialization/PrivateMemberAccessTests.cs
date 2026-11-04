@@ -10,7 +10,7 @@ public partial class NestedPrivateOuter
 {
     internal partial class Middle
     {
-        [NinoType(includeNonPublicMembers: true)]
+        [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
         public partial class Inner
         {
             private int _secret;

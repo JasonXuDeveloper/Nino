@@ -5,14 +5,14 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class ReuseHolder
 {
     public Dictionary<int, string> Names;
     public Dictionary<string, ReuseItem> Items;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class ReuseItem
 {
     public int Value;

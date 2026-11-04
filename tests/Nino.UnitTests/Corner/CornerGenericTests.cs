@@ -7,21 +7,21 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests
 {
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class Box<T>
     {
         public T Item;
         public List<T> Items;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct ValueBox<T>
     {
         public T Item;
         public int Count;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class Pair<TKey, TValue>
     {
         public TKey Key;
@@ -29,7 +29,7 @@ namespace Nino.UnitTests
         public Dictionary<TKey, TValue> Map;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class StructConstrained<T> where T : struct, IComparable<T>
     {
         public T Value;
@@ -37,14 +37,14 @@ namespace Nino.UnitTests
         public T[] Values;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ClassConstrained<T> where T : class, new()
     {
         public T Value;
         public List<T> Values;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class BaseConstrained<T> where T : SimpleNode
     {
         public T Node;
@@ -52,31 +52,31 @@ namespace Nino.UnitTests
 
     // A base closed over another parameter of the subtype, over a collection of it, over a tuple, and two levels deep:
     // each base formatter is named with the subtype's formatter parameters (__F_U, ListFormatter<..., __F_T>).
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public abstract class ArgBase<T>
     {
         public T A;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class OtherArg<T, U> : ArgBase<U>
     {
         public T B;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ListArg<T> : ArgBase<List<T>>
     {
         public T C;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ListArgChild<T> : ListArg<T>
     {
         public T E;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class TupleArg : ArgBase<(string, int)>
     {
         public int D;
@@ -84,7 +84,7 @@ namespace Nino.UnitTests
 
     // Holds itself over a bigger type argument: its formatter names its own over List<T> (an expanding cycle the
     // runtime instantiates only as deep as the data goes).
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class Expanding<T>
     {
         public T Value;
@@ -93,14 +93,14 @@ namespace Nino.UnitTests
 
     public class GenericOuter<T>
     {
-        [NinoType]
+        [NinoType(format: NinoFormat.VersionTolerant)]
         public class Inner<U>
         {
             public T First;
             public U Second;
         }
 
-        [NinoType]
+        [NinoType(format: NinoFormat.VersionTolerant)]
         public class Plain
         {
             public T Only;

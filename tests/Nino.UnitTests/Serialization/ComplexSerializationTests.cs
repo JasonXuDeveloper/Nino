@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Nino.UnitTests
 {
-    [NinoType(false)]
+    [NinoType(false, format: NinoFormat.VersionTolerant)]
     public class ComplexData
     {
         [NinoMember(0)] public int[][]? A;
@@ -45,7 +45,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType(false)]
+    [NinoType(false, format: NinoFormat.VersionTolerant)]
     public class Data
     {
         [NinoMember(1)] public int X;
@@ -72,7 +72,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class NestedData
     {
         [System.Runtime.Serialization.DataMember]
@@ -92,19 +92,19 @@ namespace Nino.UnitTests
         B = 2
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class A
     {
         public int Val { get; set; }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct B
     {
         public int Val { get; set; }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class C
     {
         public string Name { get; set; }
@@ -117,7 +117,7 @@ namespace Nino.UnitTests
         }
     }
         
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class D
     {
         public string Name { get; set; }

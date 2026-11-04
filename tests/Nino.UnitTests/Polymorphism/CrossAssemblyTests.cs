@@ -6,13 +6,13 @@ using Nino.UnitTests.Subset;
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class SimpleCrossRefTest
 {
     public SubsetClassWithPrivateField A;
 }
 
-[NinoType(true, true)]
+[NinoType(true, true, format: NinoFormat.VersionTolerant)]
 public partial class NotSoSimpleCrossRefTest : SubsetClassWithPrivateField
 {
     public bool NewField;

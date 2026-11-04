@@ -39,7 +39,7 @@ public sealed class StrictKeyed
 }
 
 /// <summary>Not raw (it holds a string): its bool is read as a single value.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct StrictFlags
 {
     public bool On;

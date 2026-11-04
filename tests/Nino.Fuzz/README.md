@@ -142,8 +142,8 @@ A problem that needs a precise input instead of mutations (thousands of nesting 
 add it to `Probes.All` in `Probes.cs`.
 
 The golden-bytes target reads the pinned bytes of `tests/Nino.UnitTests/Serialization/GoldenBytesTests.cs`,
-compiled into `Golden/Nino.Fuzz.Golden.csproj` with `WEAK_VERSION_TOLERANCE` as in the unit tests (an assembly of its
-own, since that symbol makes every type of an assembly version tolerant).
+compiled into `Golden/Nino.Fuzz.Golden.csproj`, an assembly of its own (the fuzzer links nothing else of the unit
+tests).
 
 ## libFuzzer
 

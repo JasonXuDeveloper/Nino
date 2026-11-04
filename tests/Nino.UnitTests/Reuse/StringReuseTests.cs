@@ -5,7 +5,7 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests
 {
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class StringReuseHolder
     {
         public string Field;
@@ -22,7 +22,7 @@ namespace Nino.UnitTests
         [NinoUtf8] public string Code;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class StringReuseSetters
     {
         private string _named;

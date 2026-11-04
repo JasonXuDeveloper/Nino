@@ -69,14 +69,13 @@ internal sealed class TypeFacts
             ? new TypeShape((INamedTypeSymbol)s, attr, this)
             : null;
         _symbols = SymbolsOf(options).ToArray();
-        WeakTolerance = _symbols.Contains("WEAK_VERSION_TOLERANCE");
         Net8 = _symbols.Contains("NET8_0_OR_GREATER");
         Net9 = Net8 && _symbols.Contains("NET9_0_OR_GREATER");
         Symbols = new NinoSymbols(compilation);
         Visibility = new Visibility(compilation.Assembly);
         Members = new MemberCache(Symbols);
         WrittenParameters = new WrittenParameters(Members, Symbols, GenericSubtypesOf);
-        Raw = new RawRules(Symbols, Members, WrittenParameters, compilation.Assembly, WeakTolerance);
+        Raw = new RawRules(Symbols, Members, WrittenParameters);
         Resolver = new FormatterResolver(compilation, Symbols, Raw, Visibility);
     }
 
@@ -181,19 +180,6 @@ internal sealed class TypeFacts
 
     /// <summary>Formatter resolution for this compilation (memoized).</summary>
     public FormatterResolver Resolver { get; }
-
-    /// <summary>The assembly defines WEAK_VERSION_TOLERANCE: all of its own types are version tolerant.</summary>
-    public bool WeakTolerance { get; }
-
-    /// <summary>
-    /// The format a type with <paramref name="attr"/> is written in: <see cref="NinoFormat.Keyed"/> if so marked,
-    /// otherwise <see cref="NinoFormat.VersionTolerant"/> if so marked or <see cref="WeakTolerance"/>, otherwise
-    /// <see cref="NinoFormat.Positional"/>.
-    /// </summary>
-    public NinoFormat FormatOf(NinoTypeOptions attr) =>
-        attr.Keyed ? NinoFormat.Keyed
-        : attr.Format == NinoFormat.VersionTolerant || WeakTolerance ? NinoFormat.VersionTolerant
-        : NinoFormat.Positional;
 
     /// <summary>
     /// What the <c>[NinoType]</c> <paramref name="type"/> is, as the rules read it (memoized); null for a type that is

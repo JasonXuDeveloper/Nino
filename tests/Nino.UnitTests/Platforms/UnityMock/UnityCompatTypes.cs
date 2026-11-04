@@ -7,7 +7,7 @@ using Nino.Core;
 namespace Nino.UnitTests.UnityMock
 {
     // Simple Vector3 replacement for Unity Vector3
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct Vector3
     {
         public float x;
@@ -27,7 +27,7 @@ namespace Nino.UnitTests.UnityMock
     }
     
     // Simple Quaternion replacement for Unity Quaternion
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct Quaternion
     {
         public float x;
@@ -47,7 +47,7 @@ namespace Nino.UnitTests.UnityMock
     }
     
     // Simple Matrix4x4 replacement for Unity Matrix4x4
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct Matrix4x4
     {
         public float m00, m01, m02, m03;
@@ -76,7 +76,7 @@ namespace Nino.UnitTests.UnityMock
         B = 2
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct Data
     {
         public int x;
@@ -94,7 +94,7 @@ namespace Nino.UnitTests.UnityMock
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ComplexData
     {
         public int[][] a;
@@ -134,7 +134,7 @@ namespace Nino.UnitTests.UnityMock
         }
     }
 
-    [NinoType(false, true)]
+    [NinoType(false, true, format: NinoFormat.VersionTolerant)]
     public partial class PrimitiveTypeTest
     {
         [NinoMember(1)] public Vector3 v3;
@@ -174,7 +174,7 @@ namespace Nino.UnitTests.UnityMock
         }
     }
 
-    [NinoType] // Automatically includes all fields - no explicit NinoMember attributes
+    [NinoType(format: NinoFormat.VersionTolerant)] // Automatically includes all fields - no explicit NinoMember attributes
     public class IncludeAllClassCodeGen
     {
         public int a;
@@ -188,7 +188,7 @@ namespace Nino.UnitTests.UnityMock
         }
     }
 
-    [NinoType(false)] // Does NOT automatically include - requires explicit NinoMember attributes
+    [NinoType(false, format: NinoFormat.VersionTolerant)] // Does NOT automatically include - requires explicit NinoMember attributes
     public class NotIncludeAllClass
     {
         [NinoMember(0)]

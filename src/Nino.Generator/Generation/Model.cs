@@ -220,7 +220,7 @@ internal sealed record TypeModel(
     int TypeId,
     // Hash of the runtime name ignoring [NinoFormerName]: the key a by-type lookup computes without reflection.
     int NameId,
-    // The format of its body, WEAK_VERSION_TOLERANCE applied (TypeFacts.FormatOf): Positional, VersionTolerant or Keyed.
+    // The format of its body (its [NinoType]'s): Positional, VersionTolerant or Keyed.
     NinoFormat Format,
     // Objects written with a reference header (null, back reference or new): see trackReferences.
     bool TrackReferences,

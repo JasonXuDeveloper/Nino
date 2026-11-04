@@ -98,6 +98,13 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                                                  m.IsKind(SyntaxKind.SealedKeyword))),
         },
         [NinoDiagnostics.PoolHooksNotImplemented.Id] = new[] { new Fix("Implement pool hooks", "ImplementPoolHooks", ImplementPoolHooks) },
+        [NinoDiagnostics.WeakToleranceRemoved.Id] = new[]
+        {
+            new Fix("Make it version tolerant", "VersionTolerant", d => d.Properties.TryGetValue(
+                NinoDiagnostics.NinoTypeToAdd, out var ninoType) && ninoType != null
+                ? (e, n) => AddAttribute(e, Type(n), ninoType)
+                : MakeVersionTolerant),
+        },
         // No effect either way: nothing changes when it goes.
         [NinoDiagnostics.Utf8WithoutEffect.Id] = new[] { RemoveAttributeFix(NinoUtf8) },
         [NinoDiagnostics.Utf8FormatterByHand.Id] = new[] { new Fix("Use [NinoUtf8]", "UseNinoUtf8", UseNinoUtf8) },
@@ -207,6 +214,19 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         editor.ReplaceNode(formatter, SyntaxFactory.Attribute(name).WithTriviaFrom(formatter));
     }
 
+    /// <summary>
+    /// <c>format: NinoFormat.VersionTolerant</c> on the type's <c>[NinoType]</c> (NINO032), qualified as the attribute
+    /// is (<c>Nino.Core.NinoType</c>: <c>Nino.Core.NinoFormat</c>).
+    /// </summary>
+    private static void MakeVersionTolerant(DocumentEditor editor, SyntaxNode node)
+    {
+        if (FindAttribute(editor, Type(node), NinoType) is not { } attribute)
+            return;
+        string qualifier = attribute.Name is QualifiedNameSyntax { Left: var left } ? left + "." : "";
+        SetTypeArgument(editor, node, "format",
+            SyntaxFactory.ParseExpression(qualifier + "NinoFormat.VersionTolerant"), removable: false);
+    }
+
     private static Fix RemoveAttributeFix(string name) =>
         new($"Remove [{name}]", "Remove" + name, (e, n) => RemoveAttribute(e, n, name));
 
@@ -268,10 +288,18 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         });
     }
 
-    private static void AddAttribute(DocumentEditor editor, MemberDeclarationSyntax member, string name)
+    /// <summary>
+    /// Adds <c>[<paramref name="attribute"/>]</c> (a name, or a name and its arguments) to the member, and
+    /// <c>using Nino.Core;</c> where it is missing.
+    /// </summary>
+    private static void AddAttribute(DocumentEditor editor, MemberDeclarationSyntax member, string attribute)
     {
         editor.ReplaceNode(member, (current, generator) =>
-            generator.AddAttributes(current, generator.Attribute(name)).WithAdditionalAnnotations(Formatter.Annotation));
+            generator.AddAttributes(current, attribute.IndexOf('(') < 0
+                    ? generator.Attribute(attribute)
+                    : SyntaxFactory.ParseCompilationUnit("[" + attribute + "] class C { }")
+                        .DescendantNodes().OfType<AttributeSyntax>().First())
+                .WithAdditionalAnnotations(Formatter.Annotation));
         bool imported = member.Ancestors().OfType<BaseNamespaceDeclarationSyntax>()
             .SelectMany(ns => ns.Usings)
             .Concat((editor.OriginalRoot as CompilationUnitSyntax)?.Usings ?? default)
@@ -331,7 +359,17 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     /// Sets a <c>[NinoType]</c> argument to true, or removes it (false is its default). A positional argument is
     /// matched by the position of the constructor parameter of that name.
     /// </summary>
-    private static void SetTypeArgument(DocumentEditor editor, SyntaxNode node, string name, bool value)
+    private static void SetTypeArgument(DocumentEditor editor, SyntaxNode node, string name, bool value) =>
+        SetTypeArgument(editor, node, name,
+            SyntaxFactory.LiteralExpression(value ? SyntaxKind.TrueLiteralExpression : SyntaxKind.FalseLiteralExpression),
+            removable: !value);
+
+    /// <summary>
+    /// Sets a <c>[NinoType]</c> argument to <paramref name="value"/>, or removes it when <paramref name="removable"/>
+    /// (its value is the default).
+    /// </summary>
+    private static void SetTypeArgument(DocumentEditor editor, SyntaxNode node, string name, ExpressionSyntax value,
+        bool removable)
     {
         if (FindAttribute(editor, Type(node), NinoType) is not { } attribute ||
             editor.SemanticModel.GetSymbolInfo(attribute).Symbol is not IMethodSymbol constructor)
@@ -353,18 +391,17 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                 index = i;
         }
 
-        var literal = SyntaxFactory.LiteralExpression(value ? SyntaxKind.TrueLiteralExpression : SyntaxKind.FalseLiteralExpression);
         SeparatedSyntaxList<AttributeArgumentSyntax> updated;
         if (index >= 0)
         {
             // A positional argument can only be dropped when it is the last one.
-            updated = !value && (arguments[index].NameColon != null || index == arguments.Count - 1)
+            updated = removable && (arguments[index].NameColon != null || index == arguments.Count - 1)
                 ? arguments.RemoveAt(index)
-                : arguments.Replace(arguments[index], arguments[index].WithExpression(literal));
+                : arguments.Replace(arguments[index], arguments[index].WithExpression(value));
         }
-        else if (value)
+        else if (!removable)
         {
-            updated = arguments.Add(SyntaxFactory.AttributeArgument(literal).WithNameColon(SyntaxFactory.NameColon(name)));
+            updated = arguments.Add(SyntaxFactory.AttributeArgument(value).WithNameColon(SyntaxFactory.NameColon(name)));
         }
         else
         {

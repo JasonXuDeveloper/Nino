@@ -9,41 +9,41 @@ using Nino.UnitTests.Elsewhere;
 #nullable disable
 namespace Nino.UnitTests
 {
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public abstract class AbstractShape
     {
         public string Name;
         public abstract double Area { get; }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class SquareShape : AbstractShape
     {
         public double Side;
         public override double Area => Side * Side;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class SealedCircle : AbstractShape
     {
         public double Radius;
         public override double Area => Math.PI * Radius * Radius;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public interface IEntity
     {
         long Uid { get; set; }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class PlayerEntity : IEntity
     {
         public long Uid { get; set; }
         public string Nick;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct StructEntity : IEntity
     {
         public long Uid { get; set; }
@@ -51,85 +51,85 @@ namespace Nino.UnitTests
     }
 
     // 6 levels, each adds a member.
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class Deep1
     {
         public int L1;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class Deep2 : Deep1
     {
         public string L2;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public abstract class Deep3 : Deep2
     {
         public List<int> L3;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class Deep4 : Deep3
     {
         public double L4;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class Deep5 : Deep4
     {
         public Deep1 L5;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class Deep6 : Deep5
     {
         public long L6;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class GenericBase<T>
     {
         public T BaseValue;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class IntSub : GenericBase<int>
     {
         public string Extra;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class GenericSubOfGeneric<T> : GenericBase<T>
     {
         public T Second;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class NonGenericBase
     {
         public int Id;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class GenericSub<T> : NonGenericBase
     {
         public T Payload;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class NonGenericSubOfGenericSub : GenericSub<string>
     {
         public int More;
     }
 
-    [NinoType(inheritedBySubtypes: false)]
+    [NinoType(inheritedBySubtypes: false, format: NinoFormat.VersionTolerant)]
     public class NoInheritance
     {
         public int A;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class MarkedSubOfNoInheritance : NoInheritance
     {
         public int B;
@@ -142,21 +142,21 @@ namespace Nino.UnitTests
     }
 #pragma warning restore NINO003
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     [NinoFormerName("Old.Namespace.LegacyItem")]
     public class RenamedItem
     {
         public int Value;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     [NinoFormerName("Old.Namespace.LegacySub")]
     public class RenamedSub : RenamedItem
     {
         public string Text;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class PolyContainer
     {
         public AbstractShape Shape;
@@ -169,7 +169,7 @@ namespace Nino.UnitTests
     }
 
     // Names GenericSub<DateTimeKind> as a member type and nowhere else: the generated registry maps its id.
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ClosedGenericHolder
     {
         public List<GenericSub<DateTimeKind>> Held;
@@ -178,43 +178,43 @@ namespace Nino.UnitTests
     // which the generated registry maps from the generic subtypes of the slot's definition.
     public enum SlotArg : byte { A, B }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public abstract class SlotShelf<T>
     {
         public T Item;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class ListSlotShelf<T> : SlotShelf<T>
     {
         public List<T> More;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class SlotCrate<T>
     {
         public T Content;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class LabeledSlotCrate<T> : SlotCrate<T>
     {
         public string Label;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public interface ISlotHolder<T>
     {
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class SlotHolder<T> : ISlotHolder<T>
     {
         public T Held;
     }
 
     // Its argument is a struct: the slot of SlotShelf<string> has no such subtype.
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class StructSlotShelf<T> : SlotShelf<T> where T : struct
     {
         public T Extra;
@@ -223,14 +223,14 @@ namespace Nino.UnitTests
     // A subtype nested in a generic type: the slot binds the containing type's parameter (SlotOuter<SlotArg>.Inner).
     public static class SlotOuter<TOuter>
     {
-        [NinoType]
+        [NinoType(format: NinoFormat.VersionTolerant)]
         public sealed class Inner : SlotShelf<TOuter>
         {
             public int Count;
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class GenericSlotsHolder
     {
         public SlotShelf<SlotArg> Shelf;
@@ -242,7 +242,7 @@ namespace Nino.UnitTests
 
 namespace Nino.UnitTests.Elsewhere
 {
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class TriangleShape : AbstractShape
     {
         public double Base, Height;
@@ -251,7 +251,7 @@ namespace Nino.UnitTests.Elsewhere
 
     public class Outer
     {
-        [NinoType]
+        [NinoType(format: NinoFormat.VersionTolerant)]
         public class NestedShape : AbstractShape
         {
             public int Sides;

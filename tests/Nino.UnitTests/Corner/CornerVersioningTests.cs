@@ -8,9 +8,9 @@ using Nino.UnitTests.Subset.Corner;
 #nullable disable
 namespace Nino.UnitTests
 {
-    // Two versions of a nested schema (this assembly defines WEAK_VERSION_TOLERANCE, so every type is tolerant).
+    // Two versions of a nested schema, every type version tolerant.
     // Sealed classes carry no type id, so V1 data can be read as V2 and back.
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class VerOuterV1
     {
         public int A;
@@ -19,7 +19,7 @@ namespace Nino.UnitTests
         public string Tail;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class VerOuterV2
     {
         public int A;
@@ -30,14 +30,14 @@ namespace Nino.UnitTests
         public List<int> AddedOuterList;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class VerMidV1
     {
         public int M;
         public VerLeafV1 Leaf;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class VerMidV2
     {
         public int M;
@@ -45,13 +45,13 @@ namespace Nino.UnitTests
         public long AddedMid;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct VerLeafV1
     {
         public string L;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct VerLeafV2
     {
         public string L;
@@ -62,45 +62,45 @@ namespace Nino.UnitTests
     // Appending to a base class. A tolerant object is one region with every level's members root first, so a member
     // appended to a base lands before the derived members and shifts them: that is not a compatible change.
     // Same-typed members keep the outcome deterministic.
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class VerBaseV1
     {
         public int A;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class VerSealedLeafV1 : VerBaseV1
     {
         public int B;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class VerBaseV2
     {
         public int A;
         public int AddedInBase;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class VerSealedLeafV2 : VerBaseV2
     {
         public int B;
     }
 
     // Polymorphic leaf that gains members (read with the type id rewritten, as a renamed build would see it).
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public abstract class VerPolyBase
     {
         public int Id;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class VerPolyLeafV1 : VerPolyBase
     {
         public string Name;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class VerPolyLeafV2 : VerPolyBase
     {
         public string Name;
@@ -151,7 +151,7 @@ namespace Nino.UnitTests
         public KeyedVerLeafV2 Inner;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class WeakTwinOfPlainSealed
     {
         public int A;
@@ -264,7 +264,6 @@ namespace Nino.UnitTests
             var v1 = NinoDeserializer.Deserialize<VerSealedLeafV1>(v2Bytes);
             Assert.AreEqual(1, v1.A);
             Assert.AreEqual(2, v1.B); // AddedInBase's bytes; the trailing B is skipped
-#if WEAK_VERSION_TOLERANCE
             // A sealed class: the not-null flag, then one length for the whole body, then the members root first.
             // (Before: 01 | 08000000 A AddedInBase | 04000000 B, one length per level.)
             var expected = new List<byte> { 1 };
@@ -273,7 +272,6 @@ namespace Nino.UnitTests
             expected.AddRange(BitConverter.GetBytes(2));
             expected.AddRange(BitConverter.GetBytes(7));
             CollectionAssert.AreEqual(expected.ToArray(), v2Bytes);
-#endif
         }
 
         [TestMethod]
@@ -308,9 +306,9 @@ namespace Nino.UnitTests
         }
 
         [TestMethod]
-        public void WeakVersionToleranceIsPerAssembly()
+        public void VersionToleranceIsPerType()
         {
-            // Subset does not define WEAK_VERSION_TOLERANCE: no body length. This assembly does: 4 more bytes.
+            // The Subset type is positional: no body length. Its tolerant twin here: 4 more bytes.
             var subset = NinoSerializer.Serialize(new PlainSealed { A = 1, B = "b" });
             var weak = NinoSerializer.Serialize(new WeakTwinOfPlainSealed { A = 1, B = "b" });
             Assert.AreEqual(subset.Length + 4, weak.Length);

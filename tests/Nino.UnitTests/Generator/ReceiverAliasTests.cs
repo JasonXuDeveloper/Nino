@@ -14,7 +14,7 @@ namespace Nino.UnitTests;
 [TestClass]
 public class ReceiverAliasTests
 {
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class Aliased
     {
         public int Id;

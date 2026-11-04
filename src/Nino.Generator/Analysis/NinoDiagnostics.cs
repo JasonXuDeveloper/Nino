@@ -7,7 +7,7 @@ namespace Nino.Generator.Analysis;
 
 /// <summary>
 /// Every diagnostic Nino reports, shared by the analyzer, the model builder and the code fixes. Ids are grouped:
-/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023, 028-031), features (014-017, 024, 026-027), pooling
+/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023, 028-031), features (014-017, 024, 026-027, 032), pooling
 /// (018-019), formatter registrations (020).
 /// </summary>
 internal static class NinoDiagnostics
@@ -140,6 +140,19 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor InvalidFactory = Error("NINO017",
         "Invalid [NinoFactory]", "[NinoFactory] '{0}' cannot create instances: it {1}");
+
+    /// <summary>The compile-time symbol that made an assembly's positional types version tolerant until 4.0.</summary>
+    public const string RemovedWeakTolerance = "WEAK_VERSION_TOLERANCE";
+
+    /// <summary>
+    /// The property of a <see cref="WeakToleranceRemoved"/> diagnostic on a type without a <c>[NinoType]</c> of its
+    /// own: the attribute to declare on it (<c>NinoType(..., format: NinoFormat.VersionTolerant)</c>).
+    /// </summary>
+    public const string NinoTypeToAdd = "NinoType";
+
+    public static readonly DiagnosticDescriptor WeakToleranceRemoved = Error("NINO032",
+        "WEAK_VERSION_TOLERANCE was removed",
+        "WEAK_VERSION_TOLERANCE was removed in 4.0, so NinoType '{0}' is now written positionally and cannot read the data it wrote as version tolerant; to keep its bytes, {1}");
 
     // Pooling
 

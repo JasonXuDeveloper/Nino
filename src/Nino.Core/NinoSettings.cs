@@ -18,8 +18,7 @@ namespace Nino.Core
     /// </para>
     /// <para>
     /// Not settings: formatter, type and polymorphic registrations (made by generated code, see
-    /// <see cref="NinoFormatterAttribute"/>), and <c>WEAK_VERSION_TOLERANCE</c>, a compile-time symbol of the
-    /// project that defines the types.
+    /// <see cref="NinoFormatterAttribute"/>).
     /// </para>
     /// </summary>
     public static class NinoSettings

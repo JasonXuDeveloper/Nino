@@ -14,37 +14,37 @@ namespace Nino.UnitTests.GenericPolymorphism
     // compile. The types below compile with the generated code, so a regression in any of them fails the build of this
     // project.
 
-    [NinoType(false)]
+    [NinoType(false, format: NinoFormat.VersionTolerant)]
     public abstract class GenericPolyBase
     {
         [NinoMember(1)] public int Id;
     }
 
-    [NinoType(false)]
+    [NinoType(false, format: NinoFormat.VersionTolerant)]
     public abstract class GenericPolyBox<T> : GenericPolyBase
     {
         [NinoMember(2)] public T Value;
     }
 
-    [NinoType(false)]
+    [NinoType(false, format: NinoFormat.VersionTolerant)]
     public sealed class GenericPolyIntBox : GenericPolyBox<int>
     {
     }
 
-    [NinoType(false)]
+    [NinoType(false, format: NinoFormat.VersionTolerant)]
     public abstract class NonGenericPolyBase
     {
         [NinoMember(1)] public int Id;
     }
 
-    [NinoType(false)]
+    [NinoType(false, format: NinoFormat.VersionTolerant)]
     public sealed class NonGenericPolyLeaf : NonGenericPolyBase
     {
         [NinoMember(2)] public int Value;
     }
 
-    [NinoType] public abstract class PureBox<T> { public T Value; }
-    [NinoType] public sealed class PureIntBox : PureBox<int> { public int X; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract class PureBox<T> { public T Value; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class PureIntBox : PureBox<int> { public int X; }
 
     [NinoType(format: NinoFormat.VersionTolerant)] public abstract class VtBox<T> { public T Value; }
     [NinoType(format: NinoFormat.VersionTolerant)] public sealed class VtIntBox : VtBox<int> { public int X; }
@@ -52,119 +52,119 @@ namespace Nino.UnitTests.GenericPolymorphism
     [NinoType(format: NinoFormat.Keyed)] public abstract class KeyedBox<T> { public T Value; }
     [NinoType(format: NinoFormat.Keyed)] public sealed class KeyedIntBox : KeyedBox<int> { public int X; }
 
-    [NinoType(trackReferences: true)] public abstract class TrackedBox<T> { public T Value; }
-    [NinoType(trackReferences: true)] public sealed class TrackedIntBox : TrackedBox<int> { public TrackedBox<int> Next; }
+    [NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)] public abstract class TrackedBox<T> { public T Value; }
+    [NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)] public sealed class TrackedIntBox : TrackedBox<int> { public TrackedBox<int> Next; }
 
-    [NinoType(trackReferences: true)] public abstract class TrackedBase { public int A; }
-    [NinoType(trackReferences: true)] public sealed class TrackedGenericLeaf<T> : TrackedBase { public T Value; }
+    [NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)] public abstract class TrackedBase { public int A; }
+    [NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)] public sealed class TrackedGenericLeaf<T> : TrackedBase { public T Value; }
 
     // One generic base, three closed instances with subtypes here (one dispatch each): a value type, a sealed class and
     // a class with subtypes as the type argument.
-    [NinoType] public sealed class SealedArg { public int S; }
-    [NinoType] public class OpenArg { public int O; }
-    [NinoType] public sealed class OpenArgChild : OpenArg { public int C; }
-    [NinoType] public abstract class ArgBox<T> { public T Value; }
-    [NinoType] public sealed class IntArgA : ArgBox<int> { public int A; }
-    [NinoType] public sealed class IntArgB : ArgBox<int> { public int B; }
-    [NinoType] public sealed class SealedArgA : ArgBox<SealedArg> { public int A; }
-    [NinoType] public sealed class SealedArgB : ArgBox<SealedArg> { public int B; }
-    [NinoType] public sealed class OpenArgA : ArgBox<OpenArg> { public int A; }
-    [NinoType] public class OpenArgB : ArgBox<OpenArg> { public int B; }
-    [NinoType] public sealed class OpenArgBChild : OpenArgB { public int C; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class SealedArg { public int S; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public class OpenArg { public int O; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class OpenArgChild : OpenArg { public int C; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract class ArgBox<T> { public T Value; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class IntArgA : ArgBox<int> { public int A; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class IntArgB : ArgBox<int> { public int B; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class SealedArgA : ArgBox<SealedArg> { public int A; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class SealedArgB : ArgBox<SealedArg> { public int B; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class OpenArgA : ArgBox<OpenArg> { public int A; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public class OpenArgB : ArgBox<OpenArg> { public int B; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class OpenArgBChild : OpenArgB { public int C; }
 
     // Tuples as the type argument: unmanaged, managed, and holding a sealed class and a class with subtypes.
-    [NinoType] public sealed class UnmanagedTupleArg : ArgBox<(int, long)> { public int A; }
-    [NinoType] public sealed class ManagedTupleArg : ArgBox<(int, string)> { public int A; }
-    [NinoType] public sealed class SealedTupleArg : ArgBox<(SealedArg, int)> { public int A; }
-    [NinoType] public class OpenTupleArg : ArgBox<(OpenArg, int)> { public int A; }
-    [NinoType] public sealed class OpenTupleArgChild : OpenTupleArg { public int C; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class UnmanagedTupleArg : ArgBox<(int, long)> { public int A; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class ManagedTupleArg : ArgBox<(int, string)> { public int A; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class SealedTupleArg : ArgBox<(SealedArg, int)> { public int A; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public class OpenTupleArg : ArgBox<(OpenArg, int)> { public int A; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class OpenTupleArgChild : OpenTupleArg { public int C; }
 
     // A generic class with instances of its own and subtypes.
-    [NinoType] public class Node<T> { public T Value; }
-    [NinoType] public sealed class IntNode : Node<int> { public int N; }
-    [NinoType] public sealed class OpenArgNode : Node<OpenArg> { public int N; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public class Node<T> { public T Value; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class IntNode : Node<int> { public int N; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class OpenArgNode : Node<OpenArg> { public int N; }
 
-    [NinoType] public class ClassBase { public int A; }
-    [NinoType] public class ClassBox<T> : ClassBase { public T Value; }
-    [NinoType] public sealed class ClassIntBox : ClassBox<int> { public int B; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public class ClassBase { public int A; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public class ClassBox<T> : ClassBase { public T Value; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class ClassIntBox : ClassBox<int> { public int B; }
 
-    [NinoType] public abstract class Chain1<T> { public T A; }
-    [NinoType] public abstract class Chain2<T, U> : Chain1<T> { public U B; }
-    [NinoType] public sealed class ChainLeaf : Chain2<int, string> { public int C; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract class Chain1<T> { public T A; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract class Chain2<T, U> : Chain1<T> { public U B; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class ChainLeaf : Chain2<int, string> { public int C; }
 
-    [NinoType] public abstract class SealedGenericBase { public int A; }
-    [NinoType] public sealed class SealedGenericLeaf<T> : SealedGenericBase { public T Value; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract class SealedGenericBase { public int A; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class SealedGenericLeaf<T> : SealedGenericBase { public T Value; }
 
-    [NinoType] public interface IGenericA<T> { }
-    [NinoType] public interface IGenericB<T> : IGenericA<T> { }
-    [NinoType] public sealed class GenericInterfaceLeaf : IGenericB<int> { public int V; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public interface IGenericA<T> { }
+    [NinoType(format: NinoFormat.VersionTolerant)] public interface IGenericB<T> : IGenericA<T> { }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class GenericInterfaceLeaf : IGenericB<int> { public int V; }
 
-    [NinoType] public interface IGenericValue<T> { }
-    [NinoType] public struct GenericValueStruct<T> : IGenericValue<T> { public T V; }
-    [NinoType] public struct IntValueStruct : IGenericValue<int> { public int V; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public interface IGenericValue<T> { }
+    [NinoType(format: NinoFormat.VersionTolerant)] public struct GenericValueStruct<T> : IGenericValue<T> { public T V; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public struct IntValueStruct : IGenericValue<int> { public int V; }
 
-    [NinoType] public interface IVariant<out T> { }
-    [NinoType] public sealed class VariantLeaf : IVariant<string> { public string S; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public interface IVariant<out T> { }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class VariantLeaf : IVariant<string> { public string S; }
 
-    [NinoType] public interface IStructConstrained<T> where T : struct { }
-    [NinoType] public sealed class StructConstrainedLeaf : IStructConstrained<DateTime> { public DateTime D; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public interface IStructConstrained<T> where T : struct { }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class StructConstrainedLeaf : IStructConstrained<DateTime> { public DateTime D; }
 
-    [NinoType] public interface IShape { }
-    [NinoType] public sealed class GenericShape<T> : IShape { public T V; }
-    [NinoType] public sealed class Square : IShape { public int S; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public interface IShape { }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class GenericShape<T> : IShape { public T V; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class Square : IShape { public int S; }
 
     public partial class Container<T>
     {
-        [NinoType] public abstract partial class Inner { public int A; }
-        [NinoType] public sealed partial class InnerLeaf : Inner { public int B; }
+        [NinoType(format: NinoFormat.VersionTolerant)] public abstract partial class Inner { public int A; }
+        [NinoType(format: NinoFormat.VersionTolerant)] public sealed partial class InnerLeaf : Inner { public int B; }
     }
 
     public partial class GenericNodeHolder<T>
     {
-        [NinoType] public abstract partial class Node { public T V; }
-        [NinoType] public sealed partial class Leaf : Node { public int W; }
+        [NinoType(format: NinoFormat.VersionTolerant)] public abstract partial class Node { public T V; }
+        [NinoType(format: NinoFormat.VersionTolerant)] public sealed partial class Leaf : Node { public int W; }
     }
 
     public partial class Outer<T>
     {
         public partial class Middle<U>
         {
-            [NinoType] public abstract partial class Deep { public T A; public U B; }
-            [NinoType] public sealed partial class DeepLeaf : Deep { public int C; }
+            [NinoType(format: NinoFormat.VersionTolerant)] public abstract partial class Deep { public T A; public U B; }
+            [NinoType(format: NinoFormat.VersionTolerant)] public sealed partial class DeepLeaf : Deep { public int C; }
         }
     }
 
-    [NinoType] public sealed class Payload { public int P; }
-    [NinoType] public abstract class Constrained<T> where T : class, new() { public T Value; }
-    [NinoType] public sealed class ConstrainedLeaf : Constrained<Payload> { }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class Payload { public int P; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract class Constrained<T> where T : class, new() { public T Value; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class ConstrainedLeaf : Constrained<Payload> { }
 
-    [NinoType(inheritedBySubtypes: false)] public abstract class NoInheritance<T> { public T V; }
+    [NinoType(inheritedBySubtypes: false, format: NinoFormat.VersionTolerant)] public abstract class NoInheritance<T> { public T V; }
 
-    [NinoType] public abstract record RecordBase<T>(T V);
-    [NinoType] public sealed record IntRecord(int V, int W) : RecordBase<int>(V);
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract record RecordBase<T>(T V);
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed record IntRecord(int V, int W) : RecordBase<int>(V);
 
-    [NinoType] public abstract class Wrap<T> { public T V; }
-    [NinoType] public sealed class WrapList<T> : Wrap<List<T>> { }
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract class Wrap<T> { public T V; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class WrapList<T> : Wrap<List<T>> { }
 
-    [NinoType] public abstract class WithConstructor<T> { public T V; }
-    [NinoType] public sealed class ConstructorLeaf : WithConstructor<int>
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract class WithConstructor<T> { public T V; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class ConstructorLeaf : WithConstructor<int>
     {
         public readonly int W;
         [NinoConstructor(nameof(V), nameof(W))] public ConstructorLeaf(int v, int w) { V = v; W = w; }
     }
-    [NinoType] public abstract class NonGenericMiddle : WithConstructor<string> { public int M; }
-    [NinoType] public sealed class NonGenericMiddleLeaf : NonGenericMiddle { public int L; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract class NonGenericMiddle : WithConstructor<string> { public int M; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class NonGenericMiddleLeaf : NonGenericMiddle { public int L; }
 
-    [NinoType] public abstract class ThreeParameters<T1, T2, T3> { public T1 A; public T2 B; public T3 C; }
-    [NinoType] public sealed class ThreeParametersLeaf : ThreeParameters<int, string, List<int>> { }
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract class ThreeParameters<T1, T2, T3> { public T1 A; public T2 B; public T3 C; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class ThreeParametersLeaf : ThreeParameters<int, string, List<int>> { }
 
-    [NinoType] public abstract class SelfReferencing<T> where T : SelfReferencing<T> { public T Next; }
-    [NinoType] public sealed class SelfReferencingLeaf : SelfReferencing<SelfReferencingLeaf> { public int V; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract class SelfReferencing<T> where T : SelfReferencing<T> { public T Next; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class SelfReferencingLeaf : SelfReferencing<SelfReferencingLeaf> { public int V; }
 
-    [NinoType] public abstract class CollectionsOfT<T> { public T[] Items; public Dictionary<string, T> Map; }
-    [NinoType] public sealed class CollectionsOfNullableInt : CollectionsOfT<int?> { }
+    [NinoType(format: NinoFormat.VersionTolerant)] public abstract class CollectionsOfT<T> { public T[] Items; public Dictionary<string, T> Map; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class CollectionsOfNullableInt : CollectionsOfT<int?> { }
 
-    [NinoType] public sealed class Holder
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class Holder
     {
         public PureBox<int> Single;
         public List<PureBox<int>> Many;

@@ -8,11 +8,11 @@ audits the structure, `audit-security` the fuzzer and the hostile-input tests; t
 
 ```
 Nino.UnitTests/              the main suite (net8.0, net10.0; netstandard2.1 compile-only, as Unity builds it);
-                             WEAK_VERSION_TOLERANCE makes its types version tolerant; -p:NinoCoreTfm picks a Nino.Core
+                             its types are marked version tolerant; -p:NinoCoreTfm picks a Nino.Core
                              build; folders below
-Nino.UnitTests.Subset/       netstandard2.1 library of types the main suite needs in an assembly without
-                             WEAK_VERSION_TOLERANCE or with a newer C# (raw, fixed-size, block and deep types,
-                             required members, primary constructors), compiled with the Roslyn 4.3 generator
+Nino.UnitTests.Subset/       netstandard2.1 library of types the main suite needs positional (raw, fixed-size, block
+                             and deep types) or compiled with a newer C# (required members, primary constructors),
+                             compiled with the Roslyn 4.3 generator
 Nino.RuntimeTests/           one program (net10.0; net472 with the netstandard2.0 builds) that CI's "Runtime internals"
                              job runs on .NET (x64, Arm64, Arm32 under qemu, Windows x86), Mono and .NET Framework 4.8:
                              the same bytes everywhere, and every fast path through a runtime's internals taken
@@ -77,7 +77,7 @@ Platforms/                   Unity (UnityTypesTests against the UnityEngine stub
                              assemblies, the NinoKernels hook, ET framework collection shapes
 Infrastructure/              shared helpers: Rt (round trips), SharedTypes, TestCompilation, TestReferences (the
                              analyzer tests' references, created once), MSTestSettings (classes run in parallel)
-Nino.UnitTests.csproj        targets, WEAK_VERSION_TOLERANCE, references (Nino.Core, Immutable, UnityTypes, the
+Nino.UnitTests.csproj        targets, references (Nino.Core, Immutable, UnityTypes, the
                              generator's Roslyn 4.3 build, tools/CodeGen templates)
 ```
 
@@ -92,7 +92,7 @@ Nino.UnitTests.csproj        targets, WEAK_VERSION_TOLERANCE, references (Nino.C
   `[DoNotParallelize]` (it then runs alone, after the others); counters shared by the methods of one class need
   nothing. Split a slow data-driven test over classes, as `ShapeMatrixTests` puts two rows in each, so its rows
   share out over the cores.
-- A test that needs a type outside `WEAK_VERSION_TOLERANCE` (raw, fixed size, block) puts it in
-  `Nino.UnitTests.Subset`.
+- A type of the main suite is `[NinoType(format: NinoFormat.VersionTolerant)]` (keyed where a test needs it); a test
+  that needs a positional type (raw, fixed size, block) puts it in `Nino.UnitTests.Subset`.
 - Committed generated files are checked, never edited by hand: `GeneratedFilesTests` (runtimes/), the
   `*FormattersGenerationTests` (Nino.Core's `.g.cs`).

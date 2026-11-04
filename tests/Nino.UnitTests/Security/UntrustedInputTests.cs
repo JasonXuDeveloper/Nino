@@ -12,7 +12,7 @@ using Nino.Core;
 namespace Nino.UnitTests;
 
 /// <summary>A struct that holds itself through a list: nested data cannot be deferred (a struct has no slot).</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct UntrustedStructNode
 {
     public int V;
@@ -23,7 +23,7 @@ public struct UntrustedStructNode
 /// 520 bytes in memory, 516 on the wire (the string takes its 4-byte header), not raw: a count of them is checked
 /// against the bytes left with 1 byte each.
 /// </summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct UntrustedBigStruct
 {
     public long A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15;
@@ -34,10 +34,10 @@ public struct UntrustedBigStruct
 }
 
 /// <summary>
-/// 512 bytes, unmanaged; not raw in this project (WEAK_VERSION_TOLERANCE gives it a length-prefixed body): a count
+/// 512 bytes, unmanaged; not raw (version tolerant: a length-prefixed body): a count
 /// of them is checked with 1 byte each.
 /// </summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct UntrustedBigValue : IComparable<UntrustedBigValue>
 {
     public long A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15;
@@ -60,7 +60,7 @@ public struct UntrustedRawBlock : IComparable<UntrustedRawBlock>
 }
 
 /// <summary>Over 500 bytes in memory, 5 on the wire when <see cref="Extra"/> is null.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct UntrustedSparse : IEquatable<UntrustedSparse>
 {
     public int Id;
@@ -76,7 +76,7 @@ public struct UntrustedSparse : IEquatable<UntrustedSparse>
 }
 
 /// <summary>A sealed class of 512 bytes: a presence byte on the wire, null when 0.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class UntrustedBigClass
 {
     public UntrustedBigValue Value;

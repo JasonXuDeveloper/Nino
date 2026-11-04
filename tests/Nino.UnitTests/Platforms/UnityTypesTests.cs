@@ -7,7 +7,7 @@ using static Nino.UnitTests.Rt;
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class UnityClassHolder
 {
     public AnimationCurve Curve;

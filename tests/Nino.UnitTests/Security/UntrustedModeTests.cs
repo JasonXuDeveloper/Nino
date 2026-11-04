@@ -8,7 +8,7 @@ using Nino.Core;
 namespace Nino.UnitTests;
 
 /// <summary>Unmanaged, every field serialized: written as its memory. A and the time mark where its fields are.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct UntrustedRaw
 {
     public int A;
@@ -41,7 +41,7 @@ public struct UntrustedDense
 }
 
 /// <summary>Not version tolerant: past the inline depth its bodies are deferred outside any region.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class UntrustedChain
 {
     public int V;
@@ -57,7 +57,7 @@ public sealed class UntrustedChain
 }
 
 /// <summary>Raw members of types with values to check, each found in the data by its value.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class UntrustedHolder
 {
     public int Id;

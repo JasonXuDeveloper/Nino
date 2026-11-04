@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using Nino.Core;
 
 // Structs of fixed size that are not raw, whose generated formatters write collections of them as blocks
-// (INinoBlockFormatter): in an assembly without WEAK_VERSION_TOLERANCE, as fixed-size types need.
+// (INinoBlockFormatter): positional, as fixed-size types need.
 namespace Nino.UnitTests.Subset.Blocks
 {
     // A value tuple member (not raw): 4 + 12 + 1 = 17 bytes, 32 in memory.

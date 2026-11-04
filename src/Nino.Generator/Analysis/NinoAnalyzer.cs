@@ -218,6 +218,47 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     private static RawRules Raw(OperationAnalysisContext context, IOperation operation) =>
         TypeFacts.For(context.Compilation, operation.Syntax.SyntaxTree.Options).Raw;
 
+    /// <summary>
+    /// NINO032: a positional NinoType of a compilation that defines <c>WEAK_VERSION_TOLERANCE</c>, which made it
+    /// version tolerant until 4.0. Reported where the fix goes: on the type's own <c>[NinoType]</c>; for a type
+    /// that takes its <c>[NinoType]</c> from another of this compilation's types, nowhere (that type's fix covers
+    /// it); for one that takes it from another assembly, on the type, with the <c>[NinoType]</c> to declare (the
+    /// options it takes, and the format) in <see cref="NinoDiagnostics.NinoTypeToAdd"/>: the generated code is the
+    /// same as with the symbol.
+    /// </summary>
+    private static void ReportRemovedWeakTolerance(SymbolAnalysisContext context, INamedTypeSymbol type,
+        NinoTypeOptions attr, TypeFacts facts)
+    {
+        var source = type.NinoTypeSource();
+        if (SymbolEqualityComparer.Default.Equals(source, type) &&
+            type.GetDirectNinoTypeAttribute()?.ApplicationSyntaxReference is { } syntax)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.WeakToleranceRemoved,
+                Location.Create(syntax.SyntaxTree, syntax.Span), type.ToDisplayString(),
+                "add format: NinoFormat.VersionTolerant to its [NinoType]"));
+            return;
+        }
+
+        if (source == null || SymbolEqualityComparer.Default.Equals(source.ContainingAssembly, context.Compilation.Assembly) ||
+            !facts.Visibility.IsGeneratedHere(type))
+            return;
+        var arguments = new List<string>();
+        if (!attr.AutoCollect)
+            arguments.Add("autoCollect: false");
+        if (attr.IncludeNonPublicMembers)
+            arguments.Add("includeNonPublicMembers: true");
+        if (!attr.InheritedBySubtypes)
+            arguments.Add("inheritedBySubtypes: false");
+        arguments.Add("format: NinoFormat.VersionTolerant");
+        if (attr.TrackReferences)
+            arguments.Add("trackReferences: true");
+        string ninoType = $"NinoType({string.Join(", ", arguments)})";
+        context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.WeakToleranceRemoved, type.Locations.FirstOrDefault(),
+            ImmutableDictionary<string, string?>.Empty.Add(NinoDiagnostics.NinoTypeToAdd, ninoType),
+            type.ToDisplayString(),
+            $"declare [{ninoType}] on it (the options it takes from '{source.ToDisplayString()}' in another assembly)"));
+    }
+
     private static void AnalyzeType(SymbolAnalysisContext context)
     {
         var type = (INamedTypeSymbol)context.Symbol;
@@ -230,7 +271,11 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         }
 
         // The Nino attribute types and the members collected are shared with the generator's model builds.
-        var facts = TypeFacts.For(context.Compilation, type.DeclaringSyntaxReferences.FirstOrDefault()?.SyntaxTree.Options);
+        var options = type.DeclaringSyntaxReferences.FirstOrDefault()?.SyntaxTree.Options;
+        var facts = TypeFacts.For(context.Compilation, options);
+        if (attr.Format == NinoFormat.Positional &&
+            options?.PreprocessorSymbolNames.Contains(NinoDiagnostics.RemovedWeakTolerance) == true)
+            ReportRemovedWeakTolerance(context, type, attr, facts);
         // Collecting the findings also caches the members, so the model build below reuses them.
         var findings = facts.Members.FindingsOf(type, attr);
 

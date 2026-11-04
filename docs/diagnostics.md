@@ -40,6 +40,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO029](#nino029) | Error | `Vector<T>` cannot be serialized |
 | [NINO030](#nino030) | Warning | `[NinoUtf8]` has no effect 🔧 |
 | [NINO031](#nino031) | Info | `[NinoMemberFormatter(typeof(Utf8StringFormatter))]`: use `[NinoUtf8]` 🔧 |
+| [NINO032](#nino032) | Error | `WEAK_VERSION_TOLERANCE` was removed: a positional type would stop reading its data 🔧 |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -282,6 +283,17 @@ this also applies to subtypes of a tracked type. Make the members assignable.
 
 A `[NinoFactory]` factory must be `public static`, non-generic, callable without arguments (parameterless, or every
 parameter optional, like ET's `static T Create(bool isFromPool = false)`) and return the containing type.
+
+### NINO032
+
+The project defines `WEAK_VERSION_TOLERANCE`, which until 4.0 made every positional `[NinoType]` of its assembly
+version tolerant. 4.0 removed it: the type is now written positionally, without the body length, so it can no longer
+read the data it wrote. Reported on each positional type's own `[NinoType]`; a type that takes its `[NinoType]` from
+another type of the project is covered by that type's fix. 🔧 Add `format: NinoFormat.VersionTolerant` (fix all:
+every type of the document, project or solution), which generates exactly the code the symbol did, so the bytes stay.
+A type that takes its `[NinoType]` from a type in another assembly is reported on the type: 🔧 declare
+`[NinoType(..., format: NinoFormat.VersionTolerant)]` on it with the options it took (the message spells them out).
+Then remove the symbol from the project. Keyed and version-tolerant types are not affected.
 
 ## Pooling
 

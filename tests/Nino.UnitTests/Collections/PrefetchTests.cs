@@ -11,7 +11,7 @@ using Nino.Core.Internal;
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class PrefetchItem
 {
     public int Id;
@@ -20,26 +20,26 @@ public class PrefetchItem
     public long Value;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class PrefetchHolder
 {
     public PrefetchItem[] Items;
     public List<PrefetchItem> List;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public abstract class PrefetchShape
 {
     public string Tag;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class PrefetchCircle : PrefetchShape
 {
     public float Radius;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class PrefetchSquare : PrefetchShape
 {
     public int Side;

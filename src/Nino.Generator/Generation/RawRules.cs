@@ -17,18 +17,12 @@ internal sealed class RawRules
     private readonly NinoSymbols _symbols;
     private readonly MemberCache _members;
     private readonly WrittenParameters _written;
-    private readonly IAssemblySymbol _assembly;
-    private readonly bool _weakTolerance;
 
-    /// <param name="weakTolerance">The assembly defines WEAK_VERSION_TOLERANCE (its own structs are never raw).</param>
-    public RawRules(NinoSymbols symbols, MemberCache members, WrittenParameters written, IAssemblySymbol assembly,
-        bool weakTolerance)
+    public RawRules(NinoSymbols symbols, MemberCache members, WrittenParameters written)
     {
         _symbols = symbols;
         _members = members;
         _written = written;
-        _assembly = assembly;
-        _weakTolerance = weakTolerance;
         _computeRawStruct = s => ComputeIsRawStruct((INamedTypeSymbol)s);
     }
 
@@ -274,9 +268,6 @@ internal sealed class RawRules
         if (!SymbolEqualityComparer.Default.Equals(type, type.OriginalDefinition))
             return IsRawStruct(type.OriginalDefinition);
         if (!type.IsUnmanagedType)
-            return false;
-        // WEAK_VERSION_TOLERANCE only applies to the types of the assembly that defines it.
-        if (_weakTolerance && SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, _assembly))
             return false;
         var attr = type.GetNinoTypeOptions();
         if (attr == null || attr.Format is NinoFormat.VersionTolerant or NinoFormat.Keyed)

@@ -14,7 +14,7 @@ namespace Nino.UnitTests
         public long B;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class PaddedHolder
     {
         public SubsetPadded Nino;

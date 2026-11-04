@@ -13,33 +13,33 @@ public enum GoldenKind : byte
     Second
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct GoldenPoint
 {
     public int X;
     public int Y;
 }
 
-[NinoType(format: NinoFormat.Positional)]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public abstract class GoldenShape
 {
     public string Name;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class GoldenCircle : GoldenShape
 {
     public float Radius;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class GoldenRect : GoldenShape
 {
     public GoldenPoint Min;
     public GoldenPoint Max;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class GoldenData
 {
     public bool Flag;
@@ -115,8 +115,8 @@ public class GoldenBytesTests
     // UTF-16, and a [NinoUtf8] string's counts too; before
     // that, a string of Latin-1 chars is written one byte per char, under the header ~length; before that, a [NinoUtf8] string carries its
     // byte count after its char count; before that, a version-tolerant object carries one length for its
-    // whole body instead of one per inheritance level; this suite builds with WEAK_VERSION_TOLERANCE, so GoldenCircle
-    // and GoldenRect are tolerant).
+    // whole body instead of one per inheritance level; GoldenCircle and GoldenRect are
+    // tolerant).
     private const string Expected =
         "01ED00000001ABFEFF785634120000000000000080000000000000F83F0000020000000000D2040000000000002D4E02010700000000094E696E6F09436166E9042D4E8765050AE3838BE3838EF09F988000030000000100000002000000030000000300000003610001020000000100000003780200000003790200000003000000010000000200000003000000040000000500000006000000090000000374036B050000000300000099034A68060000000363000000409B0A31BF1A000000037208000000010000000200000008000000030000000400000000000000000000001F0A15F5080000000500000006000000";
 

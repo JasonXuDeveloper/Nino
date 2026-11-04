@@ -331,7 +331,7 @@ internal static class ModelBuilder
     {
         if (type.TypeKind != TypeKind.Class || attr.Keyed || type.BaseType is not { } baseType ||
             !facts.IsDelegatable(baseType) || baseType.GetNinoTypeOptions() is not { } baseAttr ||
-            facts.FormatOf(baseAttr) != facts.FormatOf(attr) || SharedInstance(baseType))
+            baseAttr.Format != attr.Format || SharedInstance(baseType))
             return 0;
         var baseSymbols = facts.Members.Of(baseType, baseAttr);
         if (baseSymbols.Count > symbols.Count ||

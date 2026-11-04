@@ -14,7 +14,7 @@ namespace Nino.UnitTests
         public T B;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct PredicateNinoStruct
     {
         public int X;

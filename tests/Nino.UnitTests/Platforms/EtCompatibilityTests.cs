@@ -141,7 +141,7 @@ public class MultiDictionary<T, M, N> : Dictionary<T, Dictionary<M, N>>
 }
 
 /// <summary>Issue #166: a [NinoType] list whose hidden members publish changes.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public partial class SyncList<T> : List<T>
 {
     [NinoIgnore] public int Published;
@@ -159,7 +159,7 @@ public partial class SyncList<T> : List<T>
     }
 }
 
-[NinoType(false, true)]
+[NinoType(false, true, format: NinoFormat.VersionTolerant)]
 public abstract partial class Entity
 {
     [NinoMember(0)] public long Id;
@@ -174,20 +174,20 @@ public class ChildrenCollection : SortedMap<long, Entity>
 {
 }
 
-[NinoType(false, true)]
+[NinoType(false, true, format: NinoFormat.VersionTolerant)]
 public partial class Unit : Entity
 {
     [NinoMember(1)] public int ConfigId;
 }
 
-[NinoType(false, true)]
+[NinoType(false, true, format: NinoFormat.VersionTolerant)]
 public partial class Bag : Entity
 {
     [NinoMember(1)] public ListComponent<long> Items = new();
 }
 
 /// <summary>An ET message: created from the pool by a factory whose parameter is optional.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public partial class UnitInfo
 {
     public static int Created;
@@ -203,7 +203,7 @@ public partial class UnitInfo
     public Dictionary<int, long> KV = new();
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public partial class EtMessage
 {
     public ListComponent<long> Ids;
@@ -220,7 +220,7 @@ public partial class EtMessage
 }
 
 /// <summary>Slots in which reuse deserialization drops pooled ET collections.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public partial class EtPooledSlots
 {
     public ListComponent<int> Single;

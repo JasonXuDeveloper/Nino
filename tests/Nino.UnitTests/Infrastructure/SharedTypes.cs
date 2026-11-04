@@ -7,28 +7,28 @@ using Nino.Core;
 
 #nullable disable
 
-[NinoType(false, true)]
+[NinoType(false, true, format: NinoFormat.VersionTolerant)]
 public partial class HierarchicalBase
 {
     [NinoMember(0)] protected int A;
     [NinoMember(1)] public string B;
 }
 
-[NinoType(false, true)]
+[NinoType(false, true, format: NinoFormat.VersionTolerant)]
 public partial class HierarchicalSub1 : HierarchicalBase
 {
     [NinoMember(0)] protected bool C;
     [NinoMember(1)] public float D;
 }
 
-[NinoType(false, true)]
+[NinoType(false, true, format: NinoFormat.VersionTolerant)]
 public sealed partial class HierarchicalSub2 : HierarchicalSub1
 {
     [NinoMember(0)] private bool E;
     [NinoMember(1)] public List<int> F;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class SomeNestedPrivateEnum
 {
     public int Id;
@@ -50,7 +50,7 @@ public sealed class SomeNestedPrivateEnum
     }
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class Move
 {
     public ushort ClientX;
@@ -72,7 +72,7 @@ public sealed class Move
     }
 }
 
-[NinoType(false, true)]
+[NinoType(false, true, format: NinoFormat.VersionTolerant)]
 public sealed partial class TestMethodCtor
 {
     [NinoMember(0)] public int A;
@@ -96,7 +96,7 @@ public sealed partial class TestMethodCtor
     }
 }
 
-[NinoType(false, true)]
+[NinoType(false, true, format: NinoFormat.VersionTolerant)]
 public partial class TestA<T>
 {
     [NinoMember(0)] protected T Value;
@@ -107,7 +107,7 @@ public partial class TestA<T>
     public static implicit operator T(TestA<T> val) => val.Value;
 }
 
-[NinoType(false, true)]
+[NinoType(false, true, format: NinoFormat.VersionTolerant)]
 public sealed partial class TestB<T> : TestA<T>
 {
     [NinoConstructor(nameof(Value))]
@@ -116,13 +116,13 @@ public sealed partial class TestB<T> : TestA<T>
     }
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class CursedGeneric<T>
 {
     public ConcurrentDictionary<string, T[]> field;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class PrivateNestedCollection
 {
 #pragma warning disable CS0649 // never assigned: only the types are used
@@ -150,12 +150,12 @@ public sealed class PrivateNestedCollection
     }
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public interface IListElementClass
 {
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class ListElementClass : IListElementClass
 {
     public int Id;
@@ -164,7 +164,7 @@ public sealed class ListElementClass : IListElementClass
     public bool Extra;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 [NinoFormerName("ListElementClass2")]
 public sealed class ListElementClass2Renamed : IListElementClass
 {
@@ -175,7 +175,7 @@ public sealed class ListElementClass2Renamed : IListElementClass
 }
 
 
-[NinoType(includeNonPublicMembers: true)]
+[NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
 public
 partial class ProtectedShouldInclude
 {
@@ -189,7 +189,7 @@ partial class ProtectedShouldInclude
     }
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public
 partial class ShouldIgnorePrivate
 {
@@ -207,7 +207,7 @@ partial class ShouldIgnorePrivate
 }
 
 //We make it no namespace on purpose to see if it still works
-[NinoType(false, true)]
+[NinoType(false, true, format: NinoFormat.VersionTolerant)]
 public
 partial class Bindable<T>
 {
@@ -227,7 +227,7 @@ partial class Bindable<T>
 
 namespace Nino.UnitTests
 {
-    [NinoType(includeNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
     public
 partial class
         TestPrivateMemberClass : Base
@@ -246,7 +246,7 @@ partial class
         }
     }
 
-    [NinoType(includeNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
     public
 partial record RecordWithPrivateMember(string Name)
     {
@@ -255,7 +255,7 @@ partial record RecordWithPrivateMember(string Name)
         public int ReadonlyId => Id;
     }
 
-    [NinoType(includeNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
     public
 partial record struct RecordWithPrivateMember2(string Name)
     {
@@ -264,7 +264,7 @@ partial record struct RecordWithPrivateMember2(string Name)
         public int ReadonlyId => Id;
     }
 
-    [NinoType(includeNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
     public
 partial struct StructWithPrivateMember
     {
@@ -275,7 +275,7 @@ partial struct StructWithPrivateMember
         public void SetName(string name) => Name = name;
     }
 
-    [NinoType(includeNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
     public
 partial class ClassWithPrivateMember<T>
     {
@@ -307,12 +307,12 @@ partial class ClassWithPrivateMember<T>
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public interface ISerializable
     {
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct Struct1 : ISerializable
     {
         public int A;
@@ -320,7 +320,7 @@ partial class ClassWithPrivateMember<T>
         public Guid C;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class Class1 : ISerializable
     {
         public int A;
@@ -329,7 +329,7 @@ partial class ClassWithPrivateMember<T>
         public ISerializable D;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct Struct2 : ISerializable
     {
         public int A;
@@ -340,14 +340,14 @@ partial class ClassWithPrivateMember<T>
 
     // [NinoUtf8] on a bool changes nothing (NINO030): kept to show the bytes are the same.
 #pragma warning disable NINO030
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class StringData
     {
         [NinoUtf8] public string Str;
         [NinoUtf8] public bool ShouldHaveNoEffect;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class StringData2
     {
         public string Str;
@@ -355,7 +355,7 @@ partial class ClassWithPrivateMember<T>
     }
 #pragma warning restore NINO030
 
-    [NinoType(false)]
+    [NinoType(false, format: NinoFormat.VersionTolerant)]
     public sealed class SaveData
     {
         [NinoMember(1)] public int Id;
@@ -364,37 +364,37 @@ partial class ClassWithPrivateMember<T>
         [NinoMember(4)] public Generic<int> NewField2;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct GenericStruct<T>
     {
         public T Val;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class Generic<T>
     {
         public T Val;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class ComplexGeneric<T> where T : IList
     {
         public T Val;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class ComplexGeneric2<T>
     {
         public Generic<T> Val;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public abstract class Base
     {
         public int A;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class Sub1 : Base
     {
         public int B;
@@ -402,26 +402,26 @@ partial class ClassWithPrivateMember<T>
 
     public sealed class Nested
     {
-        [NinoType]
+        [NinoType(format: NinoFormat.VersionTolerant)]
         public abstract class Sub2 : Base
         {
             public int C;
         }
 
-        [NinoType]
+        [NinoType(format: NinoFormat.VersionTolerant)]
         public class Sub2Impl : Sub2
         {
             public int D;
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class Sub3 : Nested.Sub2Impl
     {
         public int E;
     }
 
-    [NinoType(false)]
+    [NinoType(false, format: NinoFormat.VersionTolerant)]
     public class TestClass
     {
         [NinoMember(1)] public int A;
@@ -429,13 +429,13 @@ partial class ClassWithPrivateMember<T>
         [NinoMember(2)] public string B;
     }
 
-    [NinoType(false)]
+    [NinoType(false, format: NinoFormat.VersionTolerant)]
     public class TestClass2 : TestClass
     {
         [NinoMember(3)] public int C;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class TestClass3 : TestClass2
     {
         public bool D;
@@ -450,7 +450,7 @@ partial class ClassWithPrivateMember<T>
         public TestClass3 M;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct TestStruct : IEquatable<TestStruct>
     {
         public int A;
@@ -472,7 +472,7 @@ partial class ClassWithPrivateMember<T>
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct TestStruct2
     {
         public int A;
@@ -508,7 +508,7 @@ partial class ClassWithPrivateMember<T>
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class SimpleClass
     {
         public int Id;
@@ -516,16 +516,16 @@ partial class ClassWithPrivateMember<T>
         public DateTime CreateTime;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public record struct SimpleRecordStruct(int Id, string Name, DateTime CreateTime);
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public record struct SimpleRecordStruct2(int Id, DateTime CreateTime);
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public record struct SimpleRecordStruct2<T>(int Id, T Data);
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public record SimpleRecord
     {
         public int Id;
@@ -548,10 +548,10 @@ partial class ClassWithPrivateMember<T>
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public record SimpleRecord2(int Id, string Name, DateTime CreateTime);
 
-    [NinoType(false)]
+    [NinoType(false, format: NinoFormat.VersionTolerant)]
     public record SimpleRecord3(
         [property: NinoMember(3)] int Id,
         [property: NinoMember(2)] string Name,
@@ -563,7 +563,7 @@ partial class ClassWithPrivateMember<T>
     }
 
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public record SimpleRecord4(int Id, string Name, DateTime CreateTime)
     {
         [NinoIgnore] public bool Flag;
@@ -577,7 +577,7 @@ partial class ClassWithPrivateMember<T>
     }
 
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public record SimpleRecord5(int Id, string Name, DateTime CreateTime)
     {
         [NinoIgnore] public bool Flag;
@@ -591,11 +591,11 @@ partial class ClassWithPrivateMember<T>
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public record SimpleRecord6<T>(int Id, T Data);
 
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct SimpleStruct
     {
         public int Id;
@@ -611,7 +611,7 @@ partial class ClassWithPrivateMember<T>
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class SimpleClassWithConstructor
     {
         public int Id;
@@ -629,13 +629,13 @@ partial class ClassWithPrivateMember<T>
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class UnboundGenericTest<T>
     {
         public T Data;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ClassWithUnboundGenericType
     {
         [NinoIgnore]
@@ -650,7 +650,7 @@ namespace Nino.UnitTests
     /// <summary>
     /// Test class with nullable collection types to verify CS8628 fix
     /// </summary>
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class NullableCollectionTestClass
     {
         public Dictionary<string, byte[]?>? NullableDict;

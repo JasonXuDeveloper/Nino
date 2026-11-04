@@ -10,7 +10,7 @@ namespace Nino.UnitTests;
 /// An existing instance whose members are null: the reuse read of the outer instance reads each member into a null
 /// slot, through its formatter (the <c>__Shallow</c> twin where the member has one).
 /// </summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class NullTargetOuter
 {
     public int Id;
