@@ -63,9 +63,9 @@ says which CPUs and cases moved.
 
 ## Recording a technique
 
-A technique found and measured, faster or slower, goes into the reference file of its topic as one bullet: the rule in
-the imperative, why, then the evidence (case, CPUs, runner numbers, commit or run), extending the bullet that already
-covers it. A new topic gets a file and a line above. Go, Rust and TypeScript techniques go to `optimize-runtimes`.
+A technique found and measured, faster or slower, goes into the reference file of its topic as one bullet, written as
+AGENTS.md "Keep what you learn" says (rule, why, evidence: case, CPUs, runner numbers, commit or run). A new topic gets
+a file and a line above. Go, Rust and TypeScript techniques go to `optimize-runtimes`.
 
 ## Reading the listings
 

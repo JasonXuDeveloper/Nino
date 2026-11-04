@@ -43,6 +43,6 @@ topic you touch before changing code there: several of these looked like wins lo
 
 ## Recording a technique
 
-A technique found and measured, faster or slower, goes into the reference file of its topic as one bullet: the rule in
-the imperative, why, then the evidence (case, CPUs, runner numbers, commit or run), extending the bullet that already
-covers it. A new topic gets a file and a line above. A technique for .NET or Unity goes to `optimize`.
+A technique found and measured, faster or slower, goes into the reference file of its topic as one bullet, written as
+AGENTS.md "Keep what you learn" says (rule, why, evidence: case, CPUs, runner numbers, commit or run). A new topic gets
+a file and a line above. A technique for .NET or Unity goes to `optimize`.
