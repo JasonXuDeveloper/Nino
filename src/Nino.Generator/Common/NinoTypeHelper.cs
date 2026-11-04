@@ -64,7 +64,7 @@ internal static class NinoTypeHelper
             if (attr == null)
                 continue;
             var ninoTypeAttr = NinoTypeOptions.From(attr);
-            if (ninoTypeAttr.AllowInheritance)
+            if (ninoTypeAttr.InheritedBySubtypes)
                 return ninoTypeAttr;
             break;
         }
@@ -75,7 +75,7 @@ internal static class NinoTypeHelper
             if (attr == null)
                 continue;
             var ninoTypeAttr = NinoTypeOptions.From(attr);
-            if (ninoTypeAttr.AllowInheritance)
+            if (ninoTypeAttr.InheritedBySubtypes)
                 return ninoTypeAttr;
         }
 
@@ -135,7 +135,7 @@ internal sealed class NinoTypeOptions
 {
     public bool AutoCollect { get; private set; } = true;
     public bool IncludeNonPublicMembers { get; private set; }
-    public bool AllowInheritance { get; private set; } = true;
+    public bool InheritedBySubtypes { get; private set; } = true;
     public NinoFormat Format { get; private set; }
     public bool TrackReferences { get; private set; }
 
@@ -165,7 +165,7 @@ internal sealed class NinoTypeOptions
             {
                 case "autoCollect": options.AutoCollect = value; break;
                 case "includeNonPublicMembers": options.IncludeNonPublicMembers = value; break;
-                case "allowInheritance": options.AllowInheritance = value; break;
+                case "inheritedBySubtypes": options.InheritedBySubtypes = value; break;
                 case "trackReferences": options.TrackReferences = value; break;
             }
         }

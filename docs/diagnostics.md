@@ -64,7 +64,7 @@ containing it must be `partial`. 🔧 Make them partial.
 
 ### NINO003
 
-The base type or interface is a NinoType with `allowInheritance: false`, so this subtype gets no formatter of its
+The base type or interface is a NinoType with `inheritedBySubtypes: false`, so this subtype gets no formatter of its
 own: writing one (through the base, an interface or `object`) throws `InvalidOperationException`. 🔧 Add `[NinoType]`.
 
 ## Construction

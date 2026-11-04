@@ -215,7 +215,7 @@ namespace Nino.UnitTests
             public override string ToString() => $"{Val}";
         }
         
-        [NinoType(allowInheritance: false)]
+        [NinoType(inheritedBySubtypes: false)]
         public abstract class ABase2
         {
             public abstract int Val { get; set; }
@@ -246,7 +246,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(iBaseIns.ToString(), NinoDeserializer.Deserialize<IBaseIns>(NinoSerializer.Serialize(iBaseIns)).ToString());
             Assert.AreEqual(aBaseIns.ToString(), NinoDeserializer.Deserialize<ABaseIns>(NinoSerializer.Serialize(aBaseIns)).ToString());
             Assert.AreEqual(aBase2Ins.ToString(), NinoDeserializer.Deserialize<ABase2Ins>(NinoSerializer.Serialize(aBase2Ins)).ToString());
-            // ABase2Ins2 has no CachedSerializer because ABase2 has allowInheritance=false, so it throws Exception
+            // ABase2Ins2 has no CachedSerializer because ABase2 has inheritedBySubtypes: false, so it throws Exception
             Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(aBase2Ins2));
         }
     }

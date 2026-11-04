@@ -123,7 +123,7 @@ namespace Nino.UnitTests
         public int More;
     }
 
-    [NinoType(allowInheritance: false)]
+    [NinoType(inheritedBySubtypes: false)]
     public class NoInheritance
     {
         public int A;
@@ -467,7 +467,7 @@ namespace Nino.UnitTests
         }
 
         [TestMethod]
-        public void AllowInheritanceFalseOnlyAcceptsExplicitlyMarkedSubtypes()
+        public void InheritedBySubtypesFalseOnlyAcceptsExplicitlyMarkedSubtypes()
         {
             // A subtype marked [NinoType] itself is serializable, also through the base (NINO003 says so).
             var sub = new MarkedSubOfNoInheritance { A = 1, B = 2 };

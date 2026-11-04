@@ -14,7 +14,10 @@ namespace Nino.Core
         /// Non-public members can be serialized too: every one with <paramref name="autoCollect"/>, the
         /// <c>[NinoMember]</c>s without it. Otherwise a non-public <c>[NinoMember]</c> is an error (NINO009).
         /// </param>
-        /// <param name="allowInheritance">Whether subtypes are serializable through this type.</param>
+        /// <param name="inheritedBySubtypes">
+        /// Whether this <c>[NinoType]</c> applies to subtypes that declare none, so they are serialized as themselves
+        /// (and through this type). Otherwise a subtype without its own <c>[NinoType]</c> cannot be written (NINO003).
+        /// </param>
         /// <param name="format">
         /// How the members are written: <see cref="NinoFormat.Positional"/> (the default),
         /// <see cref="NinoFormat.VersionTolerant"/> (members can be appended) or <see cref="NinoFormat.Keyed"/>
@@ -26,11 +29,11 @@ namespace Nino.Core
         /// Types that must be re-created from constructor arguments cannot be tracked.
         /// </param>
         public NinoTypeAttribute(bool autoCollect = true, bool includeNonPublicMembers = false,
-            bool allowInheritance = true, NinoFormat format = NinoFormat.Positional, bool trackReferences = false)
+            bool inheritedBySubtypes = true, NinoFormat format = NinoFormat.Positional, bool trackReferences = false)
         {
             AutoCollect = autoCollect;
             IncludeNonPublicMembers = includeNonPublicMembers;
-            AllowInheritance = allowInheritance;
+            InheritedBySubtypes = inheritedBySubtypes;
             Format = format;
             TrackReferences = trackReferences;
         }
@@ -41,8 +44,8 @@ namespace Nino.Core
         /// <summary>Non-public members are serialized too (all of them with <see cref="AutoCollect"/>, the <c>[NinoMember]</c>s otherwise).</summary>
         public bool IncludeNonPublicMembers { get; }
 
-        /// <summary>Subtypes are serializable through this type.</summary>
-        public bool AllowInheritance { get; }
+        /// <summary>This <c>[NinoType]</c> applies to subtypes that declare none.</summary>
+        public bool InheritedBySubtypes { get; }
 
         /// <summary>How the members are written.</summary>
         public NinoFormat Format { get; }

@@ -65,7 +65,7 @@ namespace RawRules
     [NinoType] public interface IShape { }
     public struct Inherited : IShape { public int A; }
     public struct InheritedWithTuple : IShape { public (int, int) T; }
-    [NinoType(allowInheritance: false)] public interface INotInherited { }
+    [NinoType(inheritedBySubtypes: false)] public interface INotInherited { }
     public struct NotInherited : INotInherited { public int A; }
 
     public unsafe class Probe

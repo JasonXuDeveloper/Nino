@@ -97,7 +97,23 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                                                  m.IsKind(SyntaxKind.SealedKeyword))),
         },
         [NinoDiagnostics.PoolHooksNotImplemented.Id] = new[] { new Fix("Implement pool hooks", "ImplementPoolHooks", ImplementPoolHooks) },
+        // The compiler's "no parameter named ..." on [NinoType(allowInheritance: ...)], the name before 4.0.
+        [NoParameterNamed] = new[]
+        {
+            new Fix("Rename to inheritedBySubtypes", "RenameAllowInheritance", (e, n) => e.ReplaceNode(n,
+                SyntaxFactory.IdentifierName(InheritedBySubtypes).WithTriviaFrom(n)), IsAllowInheritance),
+        },
     };
+
+    private const string NoParameterNamed = "CS1739", InheritedBySubtypes = "inheritedBySubtypes";
+
+    /// <summary>The name of an <c>allowInheritance:</c> argument of a <c>[NinoType]</c>.</summary>
+    private static bool IsAllowInheritance(SyntaxNode node) =>
+        node is IdentifierNameSyntax { Identifier.ValueText: "allowInheritance", Parent: NameColonSyntax
+        {
+            Parent: AttributeArgumentSyntax { Parent: AttributeArgumentListSyntax { Parent: AttributeSyntax attribute } },
+        } } && attribute.Name.ToString() is var name &&
+        (name.EndsWith(NinoType, StringComparison.Ordinal) || name.EndsWith(NinoType + "Attribute", StringComparison.Ordinal));
 
     public override ImmutableArray<string> FixableDiagnosticIds { get; } = Fixes.Keys.ToImmutableArray();
 

@@ -33,7 +33,7 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor SubtypeWithoutNinoType = Warning("NINO003",
         "Subtype of a NinoType without [NinoType]",
-        "'{0}' derives from NinoType '{1}', whose [NinoType] does not apply to subtypes (allowInheritance: false), so writing a '{0}' throws; mark it [NinoType]");
+        "'{0}' derives from NinoType '{1}', whose [NinoType] does not apply to subtypes (inheritedBySubtypes: false), so writing a '{0}' throws; mark it [NinoType]");
 
     // Construction
 

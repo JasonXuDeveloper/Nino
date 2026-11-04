@@ -29,7 +29,7 @@ Properties.cs                [module: SkipLocalsInit]
 
 ```
 NinoTypeAttribute.cs         [NinoType]: marks a type for the generator (autoCollect, includeNonPublicMembers,
-                             allowInheritance, format, trackReferences)
+                             inheritedBySubtypes, format, trackReferences)
 NinoFormat.cs                NinoFormat: Positional, VersionTolerant, Keyed (also compiled into the generator)
 NinoMemberAttribute.cs       [NinoMember(index)]: selects and orders members under [NinoType(false)]
 NinoIgnoreAttribute.cs       [NinoIgnore]: skips a member a [NinoType] collects

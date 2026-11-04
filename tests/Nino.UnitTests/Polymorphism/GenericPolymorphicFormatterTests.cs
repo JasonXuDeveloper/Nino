@@ -138,7 +138,7 @@ namespace Nino.UnitTests.GenericPolymorphism
     [NinoType] public abstract class Constrained<T> where T : class, new() { public T Value; }
     [NinoType] public sealed class ConstrainedLeaf : Constrained<Payload> { }
 
-    [NinoType(allowInheritance: false)] public abstract class NoInheritance<T> { public T V; }
+    [NinoType(inheritedBySubtypes: false)] public abstract class NoInheritance<T> { public T V; }
 
     [NinoType] public abstract record RecordBase<T>(T V);
     [NinoType] public sealed record IntRecord(int V, int W) : RecordBase<int>(V);
@@ -270,7 +270,7 @@ namespace Nino.UnitTests.GenericPolymorphism
                     Map = new Dictionary<string, int?> { ["a"] = 2, ["b"] = null }
                 },
                 r => r.Items[0] == 1 && r.Items[1] == null && r.Map["a"] == 2 && r.Map["b"] == null);
-            // allowInheritance: false has no subtypes to write; its formatter still compiles and writes null.
+            // inheritedBySubtypes: false has no subtypes to write; its formatter still compiles and writes null.
             Assert.IsNull(NinoDeserializer.Deserialize<NoInheritance<int>>(NinoSerializer.Serialize<NoInheritance<int>>(null)));
         }
 

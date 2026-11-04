@@ -8,7 +8,7 @@ warning here usually means data is dropped. Full text: https://nino.xgamedev.net
 | --- | --- | --- | --- |
 | NINO001 | Error | The type (or a containing type) is not `public`/`internal`, or is a `static` class or `ref struct` | Make it public or internal 🔧 |
 | NINO002 | Error | Non-public members (or `[NinoPooled]`) where generated code cannot use `[UnsafeAccessor]` (before .NET 8, generic types before .NET 9, Unity) | Make the type and every containing type `partial` 🔧 |
-| NINO003 | Warning | A subtype of a `[NinoType(allowInheritance: false)]` base is not serialized as itself | Add `[NinoType]` to the subtype 🔧 |
+| NINO003 | Warning | A subtype of a `[NinoType(inheritedBySubtypes: false)]` base is not serialized as itself | Add `[NinoType]` to the subtype 🔧 |
 | NINO004 | Error | No usable constructor | Add a parameterless one, one whose parameters match members by name, or `[NinoConstructor]` |
 | NINO005 | Error | A `[NinoConstructor]` parameter or name matches no serialized member | Fix the names |
 | NINO006 | Warning | A read-only member of a re-created type is not a constructor parameter: read and dropped | Add it to the constructor, make it settable, or `[NinoIgnore]` 🔧 |
@@ -53,7 +53,7 @@ warning here usually means data is dropped. Full text: https://nino.xgamedev.net
   it (in Unity, reference `Nino.Core`). Under Native AOT, name the exact closed type in code the generator sees.
 - A type id that is not a registered subtype: load the assembly first, rename with `[NinoFormerName]`, or
   `NinoPolymorphic.TryRegister<Closed<T>>()` for a closed generic only read. On write: the runtime type is not a
-  `[NinoType]` (base with `allowInheritance: false`, or no generator in its assembly).
+  `[NinoType]` (base with `inheritedBySubtypes: false`, or no generator in its assembly).
 - A cycle while serializing: `trackReferences: true` on the types of the cycle. Nested deeper than `MaxDepth`: give
   the recursive type a parameterless constructor and settable members so it can be deferred.
 - Old data unreadable or wrong values: the type is positional and its members changed; see the formats table.

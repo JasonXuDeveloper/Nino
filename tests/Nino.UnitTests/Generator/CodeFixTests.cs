@@ -425,7 +425,7 @@ public partial class Outer
         var code = @"
 using Nino.Core;
 
-[NinoType(allowInheritance: false)]
+[NinoType(inheritedBySubtypes: false)]
 public class Base
 {
     public int A;
@@ -439,7 +439,7 @@ public class {|#0:Derived|} : Base
         var fixedCode = @"
 using Nino.Core;
 
-[NinoType(allowInheritance: false)]
+[NinoType(inheritedBySubtypes: false)]
 public class Base
 {
     public int A;
@@ -462,7 +462,7 @@ public class Derived : Base
     {
         // The using directive and the attribute take the file's line breaks, on any machine.
         var code = @"
-[Nino.Core.NinoType(allowInheritance: false)]
+[Nino.Core.NinoType(inheritedBySubtypes: false)]
 public interface IBase
 {
 }
@@ -475,7 +475,7 @@ public class {|#0:Implementation|} : IBase
         var fixedCode = @"
 using Nino.Core;
 
-[Nino.Core.NinoType(allowInheritance: false)]
+[Nino.Core.NinoType(inheritedBySubtypes: false)]
 public interface IBase
 {
 }
@@ -488,6 +488,46 @@ public class Implementation : IBase
 
         await SetUpCodeFixTest(code, fixedCode,
             VerifyCF.Diagnostic("NINO003").WithLocation(0).WithArguments("Implementation", "IBase")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task AllowInheritance_RenamedToInheritedBySubtypes()
+    {
+        // The name before 4.0 is a compiler error (CS1739); the fix renames it, the value stays.
+        var code = @"
+using Nino.Core;
+
+[NinoType({|#0:allowInheritance|}: false, format: NinoFormat.Keyed)]
+public class Base
+{
+    public int A;
+}
+
+[Nino.Core.NinoTypeAttribute({|#1:allowInheritance|}: true)]
+public class Other
+{
+    public int B;
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType(inheritedBySubtypes: false, format: NinoFormat.Keyed)]
+public class Base
+{
+    public int A;
+}
+
+[Nino.Core.NinoTypeAttribute(inheritedBySubtypes: true)]
+public class Other
+{
+    public int B;
+}";
+
+        await SetUpCodeFixTest(code, fixedCode,
+            DiagnosticResult.CompilerError("CS1739").WithLocation(0).WithArguments("NinoTypeAttribute", "allowInheritance"),
+            DiagnosticResult.CompilerError("CS1739").WithLocation(1).WithArguments("NinoTypeAttribute", "allowInheritance"))
+            .RunAsync();
     }
 
     #endregion

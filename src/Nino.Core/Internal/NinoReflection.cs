@@ -63,7 +63,7 @@ namespace Nino.Core.Internal
             {
                 if (Declared(t) is { } attribute)
                 {
-                    if (attribute.AllowInheritance)
+                    if (attribute.InheritedBySubtypes)
                         return true;
                     break;
                 }
@@ -71,7 +71,7 @@ namespace Nino.Core.Internal
 
             foreach (var i in type.GetInterfaces())
             {
-                if (Declared(i) is { AllowInheritance: true })
+                if (Declared(i) is { InheritedBySubtypes: true })
                     return true;
             }
 

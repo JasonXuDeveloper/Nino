@@ -214,7 +214,7 @@ namespace Nino.Core
     public sealed class NinoTypeAttribute : System.Attribute
     {
         public NinoTypeAttribute(bool autoCollect = true, bool includeNonPublicMembers = false,
-            bool allowInheritance = true, NinoFormat format = NinoFormat.Positional, bool trackReferences = false) { }
+            bool inheritedBySubtypes = true, NinoFormat format = NinoFormat.Positional, bool trackReferences = false) { }
     }
     [System.AttributeUsage(System.AttributeTargets.Assembly, AllowMultiple = true)]
     public sealed class NinoTypeLayoutAttribute : System.Attribute

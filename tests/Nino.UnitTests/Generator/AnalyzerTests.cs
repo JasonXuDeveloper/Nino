@@ -290,7 +290,7 @@ public partial class TestClass
         var code = @"
 using Nino.Core;
 
-[NinoType(allowInheritance: true)]
+[NinoType(inheritedBySubtypes: true)]
 public interface IBase
 {
 }
@@ -307,7 +307,7 @@ public abstract class AbstractClass : IBase
     public string B;
 }
 
-[NinoType(allowInheritance: false)]
+[NinoType(inheritedBySubtypes: false)]
 public abstract class AbstractClass2
 {
     public int A;
@@ -342,7 +342,7 @@ public class Something
         var code = @"
 using Nino.Core;
 
-[NinoType(allowInheritance: false)]
+[NinoType(inheritedBySubtypes: false)]
 public interface IBase
 {
     int A { get; set; }
@@ -386,12 +386,12 @@ public enum NotAType
         var code = @"
 using Nino.Core;
 
-[NinoType(allowInheritance: false)]
+[NinoType(inheritedBySubtypes: false)]
 public interface IBase
 {
 }
 
-[NinoType(allowInheritance: false)]
+[NinoType(inheritedBySubtypes: false)]
 public class Base : IBase
 {
     public int A;
