@@ -59,8 +59,8 @@ NinoObject.cs                header handling of generated class formatters: pres
                              then the body; the ...Raw forms write header and raw body into one reservation
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;
                              ...Prefetched for arrays and lists of INinoPrefetchFormatter classes)
-NinoBlockMap.cs              NinoBlockMap (where a block's bytes lie in a value's memory) and NinoBlocks (constrained
-                             calls on block formatters)
+NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value's memory
+NinoBlocks.cs                NinoBlocks: constrained calls on block formatters, and the offsets NinoBlockMap is built from
 NinoSubtypes.cs              NinoSubtypes<TBase>: the registry of a base type's subtypes by type id
 NinoGeneratedAttribute.cs    [NinoGenerated]: marks an assembly with generated code, names its registry
 INinoRegistry.cs             INinoRegistry: an assembly's generated registry (lazy registration by type id)
