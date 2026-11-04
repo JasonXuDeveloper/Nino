@@ -599,28 +599,26 @@ namespace Nino.Core.Internal
             return keys;
         }
 
-        private static bool CheckMapReferences()
+        private static bool CheckMapReferences() => CheckMapOf(ReferenceKeys(), "x", "y");
+
+        private static bool CheckMapStrings() => CheckMapOf(StringKeys(), "x", "y");
+
+        private static bool CheckMapOf<TKey>(TKey[] keys, TKey absent, TKey added)
         {
-            var keys = ReferenceKeys();
-            var dictionary = new Dictionary<object, string>(keys.Length);
+            var dictionary = new Dictionary<TKey, string>(keys.Length);
             if (!Empty(dictionary, keys.Length))
                 return false;
             for (int i = 0; i < keys.Length; i++)
                 Insert(dictionary, keys[i], "v" + i);
-            return CheckMapFilled(dictionary, keys, i => "v" + i, "x", "y");
+            return CheckMapFilled(dictionary, keys, i => "v" + i, absent, added);
         }
 
-        private static bool CheckMapStrings()
+        private static string[] StringKeys()
         {
             var keys = new string[40];
             for (int i = 0; i < keys.Length; i++)
                 keys[i] = "s" + i;
-            var dictionary = new Dictionary<string, string>(keys.Length);
-            if (!Empty(dictionary, keys.Length))
-                return false;
-            for (int i = 0; i < keys.Length; i++)
-                Insert(dictionary, keys[i], "v" + i);
-            return CheckMapFilled(dictionary, keys, i => "v" + i, "x", "y");
+            return keys;
         }
 
         // Every key found with its value, in order, through the public API, which then removes and adds as usual.
@@ -647,28 +645,15 @@ namespace Nino.Core.Internal
             return dictionary.Count == keys.Length && dictionary[added] == "a" && dictionary[keys[3]] == "b";
         }
 
-        private static bool CheckSetReferences()
-        {
-            var items = ReferenceKeys();
-            items[5] = null;
-            var set = new HashSet<object>();
-#if NETSTANDARD2_1 || NET8_0_OR_GREATER
-            set.EnsureCapacity(items.Length);
-#endif
-            if (!Empty(set, items.Length))
-                return false;
-            foreach (var item in items)
-                Insert(set, item);
-            return CheckSetFilled(set, items, "x", "y");
-        }
+        private static bool CheckSetReferences() => CheckSetOf(ReferenceKeys(), "x", "y");
 
-        private static bool CheckSetStrings()
+        private static bool CheckSetStrings() => CheckSetOf(StringKeys(), "x", "y");
+
+        private static bool CheckSetOf<T>(T[] items, T absent, T added)
         {
-            var items = new string[40];
-            for (int i = 0; i < items.Length; i++)
-                items[i] = "s" + i;
-            items[5] = null;
-            var set = new HashSet<string>();
+            // A null item too: a set holds one (a dictionary holds no null key).
+            items[5] = default;
+            var set = new HashSet<T>();
 #if NETSTANDARD2_1 || NET8_0_OR_GREATER
             set.EnsureCapacity(items.Length);
 #endif
@@ -676,7 +661,7 @@ namespace Nino.Core.Internal
                 return false;
             foreach (var item in items)
                 Insert(set, item);
-            return CheckSetFilled(set, items, "x", "y");
+            return CheckSetFilled(set, items, absent, added);
         }
 
         private static bool CheckSetFilled<T>(HashSet<T> set, T[] items, T absent, T added)
