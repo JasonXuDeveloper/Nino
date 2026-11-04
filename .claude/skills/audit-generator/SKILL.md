@@ -63,6 +63,12 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 - No display strings for comparisons (`SymbolEqualityComparer`, metadata names), no `ToFullString()` /
   `NormalizeWhitespace()` in transforms; one `StringBuilder` per output, one file per model, deterministic and
   culture-invariant output, unique hint names.
+- Bind as few nodes as syntax allows. A syntax provider's semantic transform reruns for every match on every
+  compilation change, and `GetSymbolInfo` of a call binds its statement: binding the top-level calls was most of the
+  generator's time on tests/Nino.UnitTests (about 2,400 calls; local trace, round 128), more than building the models.
+  Skipping identifier receivers that are neither `NinoSerializer`/`NinoDeserializer` nor a `using` alias of one
+  (alias names from syntax, per compilation) measured within the noise on `GeneratorBenchmark --calls` (a call in a
+  one-statement method binds in microseconds) and was not kept (round 128).
 - `cancellationToken.ThrowIfCancellationRequested()` in loops over members and types.
 - `WithTrackingName` on every stage; `tests/Nino.UnitTests/Generator/IncrementalGeneratorTests.cs` asserts that
   edits elsewhere and in method bodies hit the cache for every tracked stage (a rerun that returns an equal model is
@@ -76,7 +82,15 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 `benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
 the analyzer); compare base and head back to back, keep a change only if time and allocations both improve beyond
 the error. `--generics` adds generic slots, subtypes and closed members, which make the analyzer run
-`WrittenParameters` and its subtype scan; pass `--generator <base Nino.Generator.dll>` for the base side. A new stage gets input in the incremental tests, or its caching assertion checks nothing.
+`WrittenParameters` and its subtype scan; pass `--generator <base Nino.Generator.dll>` for the base side.
+On a real project: `ReportAnalyzer` (set in tests/Nino.UnitTests) prints the generator's and the analyzer's time per
+compilation in a `dotnet build -v:d` log; to see the stages, rebuild the compilation from that log's `csc` line
+(`CSharpCommandLineParser`, with its analyzer config files as an `AnalyzerConfigOptionsProvider`), run the driver with
+`trackIncrementalGeneratorSteps: true` and sum each `TrackedSteps` entry's `ElapsedTime`, parsing the files again for
+every run (`ModelCache` reuses models by tree instance), and hash the generated sources to prove base and head write the
+same text. Untracked time there is Roslyn's own (declaring the compilation's symbols, binding), which the first stage
+to ask pays. The Debug and Release builds of the generator take the same time on that compilation (binding
+dominates; round 128). A new stage gets input in the incremental tests, or its caching assertion checks nothing.
 
 ## Look for
 
