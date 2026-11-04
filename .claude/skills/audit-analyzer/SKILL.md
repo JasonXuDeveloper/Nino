@@ -124,6 +124,12 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is
   `audit-redundancy`.
 
+- **A rule that replaces a removed option keeps the bytes, proven on the generated code**: build the unit tests
+  with `-p:EmitCompilerGeneratedFiles=true -p:CompilerGeneratedFilesOutputPath=<dir>` before and after applying the fix
+  to every type and `diff -r` the trees (only interceptor locations may differ, as sources move). For
+  `WEAK_VERSION_TOLERANCE` → NINO032 (r128) the diff found the case per-type marks missed, a type taking its
+  `[NinoType]` from another assembly, which the fix now covers by declaring the options it took.
+
 ## Tests: every rule, every edge
 
 `tests/Nino.UnitTests/Generator/AnalyzerTests.cs` and `CodeFixTests.cs` (locations as markup, `{|#0:Name|}` and
@@ -132,7 +138,10 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   form it rewrites, its output compiles and reports nothing, and applying it twice changes nothing;
 - edge cases where they apply: generic, nested and partial types, records and structs, inheritance across
   assemblies, properties with and without setters, `init`, constructors and factories, conditional compilation;
-- exemplary code (samples in tests, docs fences) reports nothing.
+- exemplary code (samples in tests, docs fences) reports nothing;
+- a rule that depends on a preprocessor symbol sets it with a solution transform
+  (`WithProjectParseOptions(...WithPreprocessorSymbols(...))`, `CodeFixTests.WeakToleranceTest`); one about a type
+  from another assembly references a built one (`Nino.UnitTests.Subset`) through `AdditionalReferences`.
 
 ## Done means
 
