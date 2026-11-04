@@ -1,6 +1,6 @@
 ---
 name: audit-code
-description: "Audit Nino's code for cleanliness and maintainability and fix it - the code standard every skill applies (DRY, decoupled, clear), coupling, god files and god methods, one problem solved two ways, comments that restate instead of explaining why - in the files no specialist owns: tools, the structure of tests, benchmarks and their Python scripts, .github scripts, the Unity project and the seams between projects. Use for a cleanup round, after large merges or a burst of optimization work, or when code was written in a hurry. Triggers: tools/, tools/CodeGen, tests/Shared, benchmarks/*.py, python, .github/scripts, src/Nino.Unity, refactor, clean up, cleanup, coupling, god file, god class, maintainability, 整洁, 清理, 重构, 解耦, 重复代码, 可维护性, 脚本, 太大了, 拆分."
+description: "Audit Nino's code for cleanliness and maintainability and fix it - the code standard every skill applies (DRY, decoupled, clear), coupling, god files and god methods, one problem solved two ways, comments that restate instead of explaining why - in the files no specialist owns: tools, the structure of tests, benchmarks and their Python scripts, .github scripts, the Unity project and the seams between projects. Use for a cleanup round, after large merges or a burst of optimization work, or when code was written in a hurry, or when the test suite is slow. Triggers: tools/, tools/CodeGen, tests/Shared, slow tests, test suite too slow, MSTestSettings, DoNotParallelize, benchmarks/*.py, python, .github/scripts, src/Nino.Unity, refactor, clean up, cleanup, coupling, god file, god class, maintainability, 整洁, 清理, 重构, 解耦, 重复代码, 可维护性, 脚本, 太大了, 拆分, 测试太慢."
 metadata:
   internal: true
 ---
@@ -74,6 +74,30 @@ Dependencies point one way, and each piece reaches the others through a public s
 
 - Redundancy in these files (duplicated logic, dead code, two ways to do one job) is part of this audit; the
   checklist across layers is `audit-redundancy`.
+
+## The test suite's time
+
+- **Measure a slow suite by phase before changing it**: restore, build (`-bl` and `ReportAnalyzer`, replayed with
+  `dotnet msbuild x.binlog -noconlog "-flp:v=diag;performancesummary;logfile=x.log"`: the analyzer and generator
+  tables per compilation), `--list-tests`, then a run with `--logger trx` summed per class and per test (a trx whose
+  durations add up to the wall time ran in sequence) and `time` for the CPU it used. Round 128 (local, 4 cores): the
+  build took 27 s cold for three TFMs (the generator about 2 s of each of the test project's compilations), the
+  run 5 min 10 s per TFM, 66 % of it `ShapeMatrixTests` (16 rows of about 12 s: Roslyn generates, binds and emits
+  some 1 MB of source, then the probes run), all in sequence because nothing turned MSTest's parallelism on.
+- **Keep the unit suite parallel by class** (`tests/Nino.UnitTests/Infrastructure/MSTestSettings.cs`), with the
+  rules in `tests/AGENTS.md`: classes keep their methods in sequence because many reset static counters in
+  `[TestInitialize]`; a test that measures process-wide state (`GC.GetTotalMemory`, the shared pools, `NinoKernels`)
+  is `[DoNotParallelize]`, which a parallel run proves by failing (`CultureNamesFromTheDataCannotGrowTheProcess`
+  saw 14 to 250 MB of the other tests' heap). The suite is then CPU-bound: about 400 s of CPU on net10.0, most of it
+  the ShapeMatrix compilations, so the wall time is the CPU over the cores; cut CPU next, not waits.
+- **Share Roslyn inputs between test compilations**: one `MetadataReference` object per file for the whole run
+  (`TestCompilation`, `TestReferences`), since Roslyn reuses what it read per reference object and reads a new one
+  again (net10.0's analyzer and code-fix tests: 30 s to 17 s in sequence, local); compute what most callers do not
+  read on first use (`CornerCompiler.Result.AnalyzerDiagnostics`: an analyzer pass of about 1 s a ShapeMatrix row).
+- Measured and left: Release instead of Debug changed nothing (Roslyn comes optimized from NuGet; the time is
+  Roslyn's), and `DOTNET_TieredCompilation=0` cut CPU by about a quarter but runs Nino's code at full opts only,
+  not as users' processes run it. `PrefetchTests` scale with the machine's last-level cache (the threshold is a
+  quarter of it over an element's bytes): 20 s on a 260 MB L3, an eighth of that on a runner's 32 MB.
 
 ## Fixing
 
