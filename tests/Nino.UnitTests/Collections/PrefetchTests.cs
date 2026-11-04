@@ -387,7 +387,7 @@ public class PrefetchTests
         // Two reference members at most, fields and auto-properties only, read directly.
         string item = Output("Item");
         // 16 (header) + 4 + 8 + two references of 8 + 64: 172 bytes.
-        StringAssert.Contains(item, "INinoPrefetchFormatter.PrefetchBytes => 172;");
+        StringAssert.Contains(item, "public int PrefetchBytes => 172;");
         StringAssert.Contains(item,
             "sum += global::Nino.Core.CompilerServices.NinoPrefetched.At(v.Name) + global::Nino.Core.CompilerServices.NinoPrefetched.At(v.Values);");
         string computed = Output("Computed");

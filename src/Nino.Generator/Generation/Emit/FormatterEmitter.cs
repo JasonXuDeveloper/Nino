@@ -167,29 +167,33 @@ internal static class FormatterEmitter
         m.PrefetchBytes > 0 ? $", {CoreCompilerServices}INinoPrefetchFormatter" : "";
 
     /// <summary>
-    /// INinoPrefetchFormatter of a formatter or twin: the bytes an element brings into the
-    /// cache, and the prefetch of the objects its members point to, which Nino.Core's helper for long collections
-    /// calls once per run of elements (inlined there).
+    /// INinoPrefetchFormatter of a formatter: the bytes an element brings into the cache, and the prefetch of the
+    /// objects its members point to, which Nino.Core's helper for long collections calls once per run of elements
+    /// (inlined there). A twin (<paramref name="twin"/>) calls its formatter's.
     /// </summary>
-    private static void EmitPrefetch(CodeWriter w, TypeModel m, FormatterNames names)
+    private static void EmitPrefetch(CodeWriter w, TypeModel m, FormatterNames names, bool twin = false)
     {
         if (m.PrefetchBytes == 0)
             return;
-        string t = m.TypeName;
-        string prefetch = $"{CoreCompilerServices}INinoPrefetchFormatter";
+        const string signature = "public int PrefetchMembers(ref object first, int count)";
         w.Line();
-        w.Line($"int {prefetch}.PrefetchBytes => {m.PrefetchBytes};");
+        w.Line($"public int PrefetchBytes => {m.PrefetchBytes};");
         w.Line(names.Inline);
         if (m.PrefetchMembers.Length == 0)
         {
-            w.Line($"int {prefetch}.PrefetchMembers(ref object first, int count) => 0;");
+            w.Line($"{signature} => 0;");
             return;
         }
 
-        w.Line($"int {prefetch}.PrefetchMembers(ref object first, int count)");
-        w.Open();
+        if (twin)
+        {
+            w.Line($"{signature} => default({m.Self}).PrefetchMembers(ref first, count);");
+            return;
+        }
+
+        w.Open(signature);
         w.Line("int sum = 0;");
-        w.Line($"ref var item = ref global::System.Runtime.CompilerServices.Unsafe.As<object, {t}>(ref first);");
+        w.Line($"ref var item = ref global::System.Runtime.CompilerServices.Unsafe.As<object, {m.TypeName}>(ref first);");
         w.Line("for (; count > 0; count--, item = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref item, 1))");
         w.Open();
         w.Line("var v = item;");
@@ -265,7 +269,7 @@ internal static class FormatterEmitter
             : $"public {t} Read(global::System.ReadOnlySpan<byte> data) => {CoreCompilerServices}NinoDirect.Deserialize<{t}, {top}>(data);");
         ForwardWriteBody(w, m, names, m.TopInline ? "__WriteBodyInline" : null);
         ForwardReadBody(w, m, names, m.TopInline ? "__ReadBodyInline" : null);
-        EmitPrefetch(w, m, names);
+        EmitPrefetch(w, m, names, twin: true);
         w.Close();
     }
 
@@ -350,7 +354,7 @@ internal static class FormatterEmitter
             ForwardReadBody(w, m, names, m.ShallowBodies ? "__ReadBodyShallow" : null);
         }
 
-        EmitPrefetch(w, m, names);
+        EmitPrefetch(w, m, names, twin: true);
         w.Close();
     }
 
