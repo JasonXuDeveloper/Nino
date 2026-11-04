@@ -876,20 +876,10 @@ internal static class ModelBuilder
         {
             foreach (var other in t.GetMembers(member.Name))
             {
-                if (visible(other) && !Overrides(other, member))
+                if (visible(other) &&
+                    !NinoSymbols.OverriddenProperties(other).Any(p => SymbolEqualityComparer.Default.Equals(p, member)))
                     return true;
             }
-        }
-
-        return false;
-    }
-
-    private static bool Overrides(ISymbol other, ISymbol member)
-    {
-        for (var p = (other as IPropertySymbol)?.OverriddenProperty; p != null; p = p.OverriddenProperty)
-        {
-            if (SymbolEqualityComparer.Default.Equals(p, member))
-                return true;
         }
 
         return false;

@@ -127,6 +127,34 @@ internal sealed class NinoSymbols
             ? a[0].Values.Select(v => v.Value as string ?? "").ToList()
             : null;
 
+    /// <summary>The properties <paramref name="member"/> overrides, nearest first; none for any other member.</summary>
+    public static IEnumerable<IPropertySymbol> OverriddenProperties(ISymbol member)
+    {
+        for (var p = (member as IPropertySymbol)?.OverriddenProperty; p != null; p = p.OverriddenProperty)
+            yield return p;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="argument"/> meets the constraints C# itself checks on <paramref name="parameter"/>:
+    /// <c>class</c>, <c>struct</c> (not <c>Nullable&lt;T&gt;</c>), <c>unmanaged</c> and <c>new()</c> (a struct, or a
+    /// concrete class with a public parameterless constructor). Constraint types are the caller's: how they are
+    /// matched differs (a closed argument, or one unified with a formatter's parameters).
+    /// </summary>
+    public static bool MeetsCSharpConstraints(ITypeParameterSymbol parameter, ITypeSymbol argument) =>
+        !(parameter.HasReferenceTypeConstraint && !argument.IsReferenceType ||
+          parameter.HasValueTypeConstraint &&
+          (!argument.IsValueType || argument.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T) ||
+          parameter.HasUnmanagedTypeConstraint && !argument.IsUnmanagedType ||
+          parameter.HasConstructorConstraint && !HasPublicDefaultConstructor(argument));
+
+    private static bool HasPublicDefaultConstructor(ITypeSymbol type) => type switch
+    {
+        { IsValueType: true } => true,
+        INamedTypeSymbol { TypeKind: TypeKind.Class, IsAbstract: false } named => named.InstanceConstructors.Any(c =>
+            c.Parameters.Length == 0 && c.DeclaredAccessibility == Accessibility.Public),
+        _ => false,
+    };
+
     /// <summary>
     /// Whether generated code can call <paramref name="method"/> as <c>M()</c>: every parameter is optional (or
     /// <c>params</c>), as in ET's <c>static T Create(bool isFromPool = false)</c> or <c>MultiMap(int maxPoolCount = 0)</c>.

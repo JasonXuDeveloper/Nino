@@ -176,16 +176,8 @@ internal static class ClosedGenerics
         for (int i = 0; i < parameters.Count; i++)
         {
             var (p, a) = (parameters[i], arguments[i]);
-            if (a is ITypeParameterSymbol || a.IsRefLikeType || a.SpecialType == SpecialType.System_Void)
-                return false;
-            if (p.HasReferenceTypeConstraint && !a.IsReferenceType ||
-                p.HasValueTypeConstraint && (!a.IsValueType ||
-                    a.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T) ||
-                p.HasUnmanagedTypeConstraint && !a.IsUnmanagedType)
-                return false;
-            if (p.HasConstructorConstraint && !a.IsValueType &&
-                (a.IsAbstract || a is not INamedTypeSymbol named ||
-                 !named.InstanceConstructors.Any(c => c.Parameters.Length == 0 && c.DeclaredAccessibility == Accessibility.Public)))
+            if (a is ITypeParameterSymbol || a.IsRefLikeType || a.SpecialType == SpecialType.System_Void ||
+                !NinoSymbols.MeetsCSharpConstraints(p, a))
                 return false;
             foreach (var constraint in p.ConstraintTypes)
             {
