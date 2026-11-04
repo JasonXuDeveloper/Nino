@@ -13,17 +13,20 @@ using Microsoft.CodeAnalysis.Text;
 // Measures the Nino source generator on a synthetic workload: generator time, size of the generated code,
 // time to compile (emit) it, analyzer time, and re-generation after edits.
 //
-// Usage: Nino.GeneratorBenchmark [roots=30] [depth=8] [--generics] [--generator <Nino.Generator.dll>]
+// Usage: Nino.GeneratorBenchmark [roots=30] [depth=8] [--generics] [--calls] [--generator <Nino.Generator.dll>]
 //                           [--core <Nino.Core.dll>] [--dump <dir>]
 // --generics adds generic [NinoType]s per root: a polymorphic generic base with generic subtypes (one through a
 // constructed argument), a type holding itself over a bigger argument and members closing them, which make the
 // analyzer decide what each closed generic writes (WrittenParameters: the definitions and their subtypes).
+// --calls adds, per root, top-level NinoSerializer/NinoDeserializer calls (bound, registered and intercepted) and as
+// many calls of another serializer's static Serialize/Deserialize, as a project using both has: binding calls is
+// what an edit costs the generator in such projects.
 // Without --generator/--core it uses the generator and runtime of this repository. To measure another
 // version (e.g. v3), build its Nino.Generator and Nino.Core and pass their paths.
 
 int roots = 30, depth = 8;
 string generatorPath = null, corePath = null, dump = null;
-bool generics = false;
+bool generics = false, calls = false;
 var positional = new List<string>();
 for (int i = 0; i < args.Length; i++)
 {
@@ -33,6 +36,7 @@ for (int i = 0; i < args.Length; i++)
         case "--core": corePath = args[++i]; break;
         case "--dump": dump = args[++i]; break;
         case "--generics": generics = true; break;
+        case "--calls": calls = true; break;
         default: positional.Add(args[i]); break;
     }
 }
@@ -55,6 +59,10 @@ for (int r = 0; r < roots; r++)
     }
 
     src.AppendLine($"[NinoType] public sealed partial class Leaf{r} : {parent} {{ public int[] Arr; public List<R{r}> Kids {{ get; set; }} }}");
+    if (calls)
+        src.AppendLine($"public static class Use{r} {{ public static byte[] W(Leaf{r} v) => NinoSerializer.Serialize(v); " +
+                       $"public static Leaf{r} R(byte[] b) => NinoDeserializer.Deserialize<Leaf{r}>(b); " +
+                       $"public static string T(Leaf{r} v) => Json.Serialize(v); public static Leaf{r} U(string s) => Json.Deserialize<Leaf{r}>(s); }}");
     if (!generics)
         continue;
     src.AppendLine($"[NinoType] public abstract partial class Shelf{r}<T> {{ public int Id; }}");
@@ -65,6 +73,8 @@ for (int r = 0; r < roots; r++)
     src.AppendLine($"[NinoType] public partial class GHolder{r} {{ public Shelf{r}<int> A; public Shelf{r}<Tag{r}<string>> B; public Box{r}<S{r}> C; public List<Shelf{r}<R{r}>> D; }}");
 }
 
+if (calls)
+    src.AppendLine("public static class Json { public static string Serialize<T>(T value) => null; public static T Deserialize<T>(string text) => default; }");
 src.AppendLine("}");
 
 var types = generatorPath == null ? typeof(Nino.Generator.Analysis.NinoAnalyzer).Assembly.GetTypes() : LoadTypes(generatorPath);

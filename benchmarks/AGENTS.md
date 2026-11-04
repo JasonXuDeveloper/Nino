@@ -18,7 +18,8 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Nino against MemoryPack,
                              Verify.cs (--verify: every case reads back right), NinoJobAttribute (the job, quick mode), PayloadColumn; V3/ +
                              NINO_BENCH_V3=true: the v3 3.3.13 build of SimpleTest; -p:NinoBenchLegacy for older refs
 Nino.GeneratorBenchmark/     the source generator on a synthetic workload: generator time, generated size, emit,
-                             analyzer, re-generation after edits; --generics adds generic slots and subtypes
+                             analyzer, re-generation after edits; --generics adds generic slots and subtypes,
+                             --calls top-level calls of Nino and of another serializer
 shards.json                  the classes and the filters of each CI shard: "report" (report.yml, x64 and Arm64) and
                              "ab" (ab-bench.yml)
 ab.py                        two github reports of the same benchmarks (base, head): head against base and MemoryPack;
