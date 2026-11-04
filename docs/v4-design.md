@@ -424,12 +424,12 @@ deserialization.
 * **Generated formatters** are structs in `<Assembly>.NinoGen`, one per `[NinoType]`. Members call
   their formatter as `default(TFormatter).Serialize(...)`, which is a direct, inlinable call.
 * **`CachedFormatter<T>`** is a struct that forwards to the formatter `NinoFormatterCache<T>` holds (an internal
-  `NinoFormatter<T>` class wrapping the struct formatter). It is used for type parameters of generic methods, for
+  `NinoFormatterBase<T>` class wrapping the struct formatter). It is used for type parameters of generic methods, for
   `[NinoType]`s from other assemblies, for types that hold themselves, and for types resolved at runtime. It costs
   one virtual call.
 * **Custom formatters**: `[NinoMemberFormatter(typeof(F))]`, where `F` is a struct implementing `INinoFormatter<T>`
   for exactly the member type (NINO008 otherwise), called as `default(F)` and inlined. Every formatter a user
-  writes is a struct: `NinoFormatter<T>` is only the runtime dispatch carrier and is internal. There is no
+  writes is a struct: `NinoFormatterBase<T>` is only the runtime dispatch carrier and is internal. There is no
   run-time registration API: formatters are declared with `[assembly: NinoFormatter]` or `[NinoMemberFormatter]`.
 
 ### Formatter registrations
@@ -903,7 +903,7 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   `NinoSerializer.Serialize(T)` returning `byte[]` is intercepted to `NinoDirect.SerializeFixed<T, TFormatter>`:
   it allocates the array at its final size and writes into it, with no writer, scratch buffer, growth checks or
   final copy. A null sealed class is its presence byte, `new byte[1]`. The regular call does the same through the
-  cached formatter (`NinoFormatter<T>.FixedSize`, a constant check in Tier1 code), and
+  cached formatter (`NinoFormatterBase<T>.FixedSize`, a constant check in Tier1 code), and
   `NinoSerializer.GetFixedSize<T>()` returns the size (raw values: their size; -1 when not fixed). The bytes are the
   regular writer's. Measured (x64, a 10-member struct of 30 bytes, `Serialize(T)` to `byte[]`): 216 → 108
   instructions per call. The general path still clears its writer twice (the prolog zeroes the address-exposed
@@ -985,12 +985,12 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   (`__WriteTop`, a `NoInlining` method of the formatter) the writer then stays in registers through the whole body,
   and the JIT knows it starts empty (no region open, no reference context), so closing regions and releasing
   references fold away; a writer whose address is passed to a body is zeroed, stored and loaded back from memory
-  around every call. The regular calls do the same through `NinoFormatter<T>.Write` (the cached formatter of a type
+  around every call. The regular calls do the same through `NinoFormatterBase<T>.Write` (the cached formatter of a type
   with a twin is a `TopStructFormatter` registered by `NinoFormatterCache<T>.TryRegisterTop`). Measured (x64, a
   version-tolerant class of five members, two of them inherited, `Serialize(T)` to `byte[]`): 183 → 121
   instructions per call (with the merged region below). netstandard2.0 (span and position) takes the same route.
   The top-level reads of a new value (`Deserialize<T>(data)`) do the same through `INinoTopFormatter<T>.Read(data)`
-  (`NinoDirect.DeserializeTop`, `NinoFormatter<T>.Read`): a twin whose body is not inlined reads in `__ReadTop`,
+  (`NinoDirect.DeserializeTop`, `NinoFormatterBase<T>.Read`): a twin whose body is not inlined reads in `__ReadTop`,
   which creates the reader and calls the body that reads a new instance, an inlinable method (`__ReadBodyInline`, or
   `__ReadBodyFreshInline`) that the out-of-line body also calls on its local copy of the reader. Measured (x64, the
   same class, `Deserialize<T>(byte[])`): 220 → 139 instructions per call. Pooled types keep the regular route
