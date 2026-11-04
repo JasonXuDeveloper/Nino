@@ -20,7 +20,20 @@ namespace Nino.Codegen.Targets
 
         private readonly Dictionary<Type, string> _names = new();
 
+        private readonly Dictionary<string, int> _shapeNumbers = new(StringComparer.Ordinal);
+
         protected CodegenTarget(CodegenModel model) => _model = model;
+
+        /// <summary>
+        /// The number in the names of the functions shared by every value of one shape (by its identity), the same for
+        /// all of them (reading, writing...): the next one when the shape has none yet.
+        /// </summary>
+        private protected string ShapeNumber(string identity)
+        {
+            if (!_shapeNumbers.TryGetValue(identity, out int number))
+                _shapeNumbers[identity] = number = _shapeNumbers.Count;
+            return number.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
 
         public List<string> Warnings { get; } = new();
 

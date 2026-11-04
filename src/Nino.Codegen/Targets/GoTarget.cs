@@ -833,14 +833,15 @@ namespace Nino.Codegen.Targets
         /// <summary>
         /// The name of the function reading (<c>read</c>), writing (<c>write</c>), decoding (<c>decode</c>, from its
         /// bytes) or encoding (<c>encode</c>) values of <paramref name="shape"/>, shared by every value of the same
-        /// shape; the template writes them all after the types.
+        /// shape and numbered by the shape (<c>readV3</c> and <c>writeV3</c> are one shape's); the template writes
+        /// them all after the types.
         /// </summary>
         private string Helper(GoShape shape, string mode)
         {
             string key = mode + ":" + shape.Identity;
             if (_helperByKey.TryGetValue(key, out var helper))
                 return helper.Name;
-            helper = new GoHelper(mode + "V" + _helpers.Count.ToString(CultureInfo.InvariantCulture), mode, shape);
+            helper = new GoHelper(mode + "V" + ShapeNumber(shape.Identity), mode, shape);
             _helperByKey[key] = helper;
             _helpers.Add(helper);
             return helper.Name;

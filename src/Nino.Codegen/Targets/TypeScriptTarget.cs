@@ -785,9 +785,11 @@ namespace Nino.Codegen.Targets
         // ---------------------------------------------------------------- helpers
 
         /// <summary>
-        /// The name of the function that reads (<paramref name="mode"/> <c>read</c>) or writes a value of
-        /// <paramref name="shape"/>, shared by every value of the same shape. A new one is numbered after the
-        /// functions its own code calls, and the template writes them all in that order after the types.
+        /// The name of the function that reads (<paramref name="mode"/> <c>read</c>), reads into an existing value
+        /// (<c>readinto</c>) or writes a value of <paramref name="shape"/>, shared by every value of the same shape and
+        /// numbered by the shape (<c>read$3</c>, <c>readInto$3</c> and <c>write$3</c> are one shape's). A new one is
+        /// listed after the functions its own code calls, and the template writes them all in that order after the
+        /// types.
         /// </summary>
         private string Helper(TsShape shape, string mode)
         {
@@ -806,8 +808,8 @@ namespace Nino.Codegen.Targets
                     break;
             }
 
-            helper = new TsHelper((mode == "read" ? "read$" : mode == "readinto" ? "readInto$" : "write$") + _helpers.Count, mode,
-                shape);
+            helper = new TsHelper((mode == "read" ? "read$" : mode == "readinto" ? "readInto$" : "write$") +
+                ShapeNumber(shape.Identity), mode, shape);
             if (shape.Context is { } context)
             {
                 // The code of a value holding a type parameter takes the codecs of the type's arguments.
