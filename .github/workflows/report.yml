@@ -669,7 +669,7 @@ jobs:
     uses: ./.github/workflows/unity.yml
     with:
       benchmark: true
-      ref: ${{ needs.target.outputs.tag }}
+      tag: ${{ needs.target.outputs.tag }}
     secrets: inherit
 
   # After the other sections (publish, publish-runtimes), so no two jobs edit the release body at once; also when they

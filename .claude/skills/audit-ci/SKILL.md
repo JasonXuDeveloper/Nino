@@ -42,7 +42,11 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
 - **Pinned**: every action by commit SHA with its version in a comment (`uses: actions/checkout@<sha> # v7.0.1`);
   Dependabot updates both, grouped.
 - **Least privilege**: `permissions: contents: read` unless a job writes; no ref taken from an input runs code in
-  a cache scope that is not its own (cache poisoning); publishing goes through Trusted Publishing (NuGet, crates.io,
+  a cache scope that is not its own (cache poisoning): a job that checks out an input's ref restores caches with
+  `actions/cache/restore` and saves them with `actions/cache/save` only when it runs its own commit, validates the
+  ref's form first, and names the input for what it holds (`tag`, not `ref`: CodeQL's
+  actions/cache-poisoning/direct-cache counts a checkout `ref` from an input named like `*ref*`, `*head*` or
+  `*branch*` as untrusted; unity.yml's `ref` input raised code scanning alert #7); publishing goes through Trusted Publishing (NuGet, crates.io,
   npm), never a stored key in a file.
 - **Unity**: `unity.yml` runs one Unity version at a time (`max-parallel: 1`) and is never cancelled while running, so
   CI holds at most one license seat; `report.yml`'s Unity section the same. `unity.yml` also builds a WebGL player per
@@ -81,7 +85,7 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   job's own log prints the editor's log only after the editor exits.
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
   runs only the sections the release's tree has. A job that checks out the release's tag (report.yml's bench jobs,
-  `unity.yml` called with `ref`, ab-bench.yml's `head/`) runs this commit's workflow on that tag's files: it uses
+  `unity.yml` called with `tag`, ab-bench.yml's `head/`) runs this commit's workflow on that tag's files: it uses
   actions and scripts by their pinned SHA, never `./.github/actions/...` or a script the tag may lack (tags up to
   v4.0.0-rc.7 have no `.github/actions/setup-dotnet`); steps such a workflow repeats across its jobs share one YAML
   anchor instead (`unity.yml`'s `&setup-dotnet` and `&build-dlls`, with the job's `NINO_CONFIG`).
