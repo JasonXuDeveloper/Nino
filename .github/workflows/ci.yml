@@ -190,8 +190,10 @@ jobs:
             local dir="$RESULTS/test-results-unit-$CONFIG-$id"
             # OutDir is relative to the project: the shard's copy of the build output.
             local run=(dotnet test "$PROJECT" --no-build -c Debug -f "$FRAMEWORK" "${props[@]}" -p:OutDir="bin/Debug/shard-$id/")
+            # One test class at a time per shard: the three shards already share the runner's four vCPUs, and the
+            # suite's class-level parallelism (MSTestSettings.cs) would put three ~3.5 GB processes on 16 GB.
             "${run[@]}" --filter "$filter" --logger "trx;LogFileName=unit.trx" --results-directory "$dir" \
-              ${COVERAGE:+"$COVERAGE"} || return 1
+              ${COVERAGE:+"$COVERAGE"} -- MSTest.Parallelize.Workers=1 || return 1
             local listed ran
             listed=$("${run[@]}" --list-tests --filter "$filter" | grep -c '^    ' || true)
             ran=$(grep -o '<UnitTestResult ' "$dir/unit.trx" | wc -l)
