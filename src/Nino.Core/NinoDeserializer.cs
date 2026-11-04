@@ -82,7 +82,7 @@ namespace Nino.Core
 
         /// <summary>Deserializes into <paramref name="value"/> with an existing reader.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Deserialize<T>(ref T value, ref Reader reader)
+        public static void Deserialize<T>(ref Reader reader, ref T value)
         {
             if (NinoRaw.IsRead<T>())
             {
@@ -158,7 +158,7 @@ namespace Nino.Core
         /// For types known only at runtime that share no <c>[NinoType]</c> base; otherwise prefer
         /// <c>Deserialize&lt;TBase&gt;</c> (see <see cref="DeserializeBoxed(ReadOnlySpan{byte}, Type)"/>).
         /// </remarks>
-        public static void DeserializeBoxed(ref object value, ref Reader reader, Type type)
+        public static void DeserializeBoxed(ref Reader reader, ref object value, Type type)
         {
             if (type == null)
                 throw new ArgumentNullException(nameof(type));

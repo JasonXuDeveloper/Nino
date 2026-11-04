@@ -408,7 +408,7 @@ public class RefOverloadTests
 
         // Use ref overload to deserialize into existing list
         var reader = new Reader(bytes);
-        NinoDeserializer.Deserialize(ref originalList, ref reader);
+        NinoDeserializer.Deserialize(ref reader, ref originalList);
 
         var finalCapacity = originalList.Capacity;
         Console.WriteLine($"Final capacity: {finalCapacity}, Count: {originalList.Count}");
@@ -459,7 +459,7 @@ public class RefOverloadTests
 
         var bytes = NinoSerializer.Serialize(smallerList);
         var reader = new Reader(bytes);
-        NinoDeserializer.Deserialize(ref originalList, ref reader);
+        NinoDeserializer.Deserialize(ref reader, ref originalList);
 
         // Verify shrink worked correctly
         Assert.AreEqual(3, originalList.Count, "List should shrink from 5 to 3 elements");
@@ -482,7 +482,7 @@ public class RefOverloadTests
 
         bytes = NinoSerializer.Serialize(largerList);
         reader = new Reader(bytes);
-        NinoDeserializer.Deserialize(ref originalList, ref reader);
+        NinoDeserializer.Deserialize(ref reader, ref originalList);
 
         // Verify grow worked correctly
         Assert.AreEqual(6, originalList.Count, "List should grow from 3 to 6 elements");
@@ -505,7 +505,7 @@ public class RefOverloadTests
         
         var refSet = new HashSet<int> { 10, 20 };
         var reader = new Reader(bytes);
-        NinoDeserializer.Deserialize(ref refSet, ref reader);
+        NinoDeserializer.Deserialize(ref reader, ref refSet);
         
         // Verify the HashSet was updated correctly using fallback approach
         Assert.AreEqual(5, refSet.Count);

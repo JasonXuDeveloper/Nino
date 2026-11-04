@@ -283,7 +283,7 @@ namespace Nino.Core.CompilerServices
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Deserialize<T, TFormatter>(ref T value, ref Reader reader)
+        public static void Deserialize<T, TFormatter>(ref Reader reader, ref T value)
             where TFormatter : struct, INinoFormatter<T> =>
             default(TFormatter).Deserialize(ref value, ref reader);
 
@@ -291,7 +291,7 @@ namespace Nino.Core.CompilerServices
         public static T Deserialize<T, TFormatter>(ref Reader reader) where TFormatter : struct, INinoFormatter<T>
         {
             T value = default;
-            Deserialize<T, TFormatter>(ref value, ref reader);
+            Deserialize<T, TFormatter>(ref reader, ref value);
             return value;
         }
     }
