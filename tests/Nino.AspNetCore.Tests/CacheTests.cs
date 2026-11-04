@@ -22,13 +22,13 @@ namespace Nino.AspNetCore.Tests
 
             foreach (var t in new[] { type, type.MakeArrayType(), typeof(List<>).MakeGenericType(type) })
             {
-                Assert.IsTrue(NinoBodyReader.MentionsCollectible(t), t.ToString());
-                NinoBodyReader.IsSupported(t);
-                Assert.IsFalse(NinoBodyReader.IsCached(t), t.ToString());
+                Assert.IsTrue(NinoSupportedTypes.MentionsCollectible(t), t.ToString());
+                NinoSupportedTypes.IsSupported(t);
+                Assert.IsFalse(NinoSupportedTypes.IsCached(t), t.ToString());
             }
 
-            Assert.IsTrue(NinoBodyReader.IsSupported(typeof(int[])));
-            Assert.IsTrue(NinoBodyReader.IsCached(typeof(int[])));
+            Assert.IsTrue(NinoSupportedTypes.IsSupported(typeof(int[])));
+            Assert.IsTrue(NinoSupportedTypes.IsCached(typeof(int[])));
         }
     }
 }

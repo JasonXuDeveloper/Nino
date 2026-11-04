@@ -16,6 +16,8 @@ NinoBody.cs                  NinoBody<T>: a Minimal API parameter bound from a N
 NinoResults.cs               NinoResults.Ok / Status and NinoResult<T>: Minimal API results with a Nino body
 NinoHttpExtensions.cs        ReadFromNinoAsync<T> on HttpRequest, WriteAsNinoAsync<T> on HttpResponse
 NinoBodyReader.cs            reads a whole body from its PipeReader and deserializes it without copying a contiguous body
+NinoBodyWriter.cs            serializes a response body into its PipeWriter and flushes it
+NinoSupportedTypes.cs        NinoSerializer.IsSupported cached for MVC (types of collectible assemblies left out)
 ```
 
 ## Rules for these files

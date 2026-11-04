@@ -1,6 +1,5 @@
 using System;
 using System.Buffers;
-using System.Collections.Concurrent;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -12,45 +11,7 @@ namespace Nino.AspNetCore
     /// <summary>Reads a whole request body from its pipe and deserializes it without copying a contiguous body.</summary>
     internal static class NinoBodyReader
     {
-        private static readonly ConcurrentDictionary<Type, bool> Supported = new ConcurrentDictionary<Type, bool>();
-
         private delegate TResult SpanReader<TResult>(ReadOnlySpan<byte> data, Type type);
-
-        /// <summary>
-        /// <see cref="NinoSerializer.IsSupported"/>, cached: MVC asks for every request. A type from a collectible
-        /// assembly is not cached, so the cache never keeps its <c>AssemblyLoadContext</c> from unloading.
-        /// </summary>
-        public static bool IsSupported(Type type) =>
-            Supported.TryGetValue(type, out bool supported) ? supported : CheckSupported(type);
-
-        private static bool CheckSupported(Type type)
-        {
-            bool supported = NinoSerializer.IsSupported(type);
-            if (!MentionsCollectible(type))
-                Supported.TryAdd(type, supported);
-            return supported;
-        }
-
-        /// <summary>Whether <paramref name="type"/>, its element type or a type argument is in a collectible assembly.</summary>
-        internal static bool MentionsCollectible(Type type)
-        {
-            if (type.Assembly.IsCollectible)
-                return true;
-            if (type.HasElementType)
-                return MentionsCollectible(type.GetElementType()!);
-            if (type.IsGenericType)
-            {
-                foreach (var argument in type.GetGenericArguments())
-                {
-                    if (MentionsCollectible(argument))
-                        return true;
-                }
-            }
-
-            return false;
-        }
-
-        internal static bool IsCached(Type type) => Supported.ContainsKey(type);
 
         /// <summary>
         /// Whether <paramref name="exception"/> is what Nino throws for data it cannot read (truncated, corrupt or
@@ -123,16 +84,6 @@ namespace Nino.AspNetCore
             {
                 reader.AdvanceTo(body.End);
             }
-        }
-
-        /// <summary>Flushes a response pipe, allocating a task only when the flush does not finish at once.</summary>
-        public static Task FlushAsync(PipeWriter writer, CancellationToken cancellationToken)
-        {
-            var flush = writer.FlushAsync(cancellationToken);
-            if (!flush.IsCompletedSuccessfully)
-                return flush.AsTask();
-            flush.GetAwaiter().GetResult();
-            return Task.CompletedTask;
         }
 
         // A body that arrived in one segment is read where it is; only a body split across segments is copied, into
