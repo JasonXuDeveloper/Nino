@@ -1104,6 +1104,7 @@ internal sealed class BodyEmitter
         _w.Line($"var __m = {r}.ReadRegion();");
         if (members.Count != 0)
         {
+            // A member's value fills its entry exactly; an unknown member is skipped with its entry.
             _w.Open("switch (__key)");
             foreach (var member in members)
             {
@@ -1111,14 +1112,17 @@ internal sealed class BodyEmitter
                 // Data written before a [NinoFormerName] rename; writes always use the current name.
                 foreach (int formerKey in member.FormerKeys)
                     _w.Line($"case {formerKey}:");
-                _w.Open();
-                EmitMemberRead(member, "__m", inPlace);
-                _w.Line($"{r}.EndMember(in __m);");
-                _w.Line("break;");
-                _w.Close();
+                _w.Indented(() =>
+                {
+                    EmitMemberRead(member, "__m", inPlace);
+                    _w.Line("break;");
+                });
             }
 
+            _w.Line("default:");
+            _w.Indented(() => _w.Line("continue;"));
             _w.Close();
+            _w.Line($"{r}.EndMember(in __m);");
         }
 
         _w.Close();
