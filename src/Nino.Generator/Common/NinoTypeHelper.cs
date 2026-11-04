@@ -139,9 +139,6 @@ internal sealed class NinoTypeOptions
     public NinoFormat Format { get; private set; }
     public bool TrackReferences { get; private set; }
 
-    /// <summary><see cref="NinoFormat.VersionTolerant"/> (not counting <c>WEAK_VERSION_TOLERANCE</c>).</summary>
-    public bool VersionTolerant => Format == NinoFormat.VersionTolerant;
-
     /// <summary><see cref="NinoFormat.Keyed"/>.</summary>
     public bool Keyed => Format == NinoFormat.Keyed;
 

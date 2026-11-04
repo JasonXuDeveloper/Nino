@@ -20,7 +20,7 @@ internal sealed class TypeShape
         Options = attr;
         Generic = TypeNames.AllTypeArguments(type).Count != 0;
         Tracked = TypeRules.IsTracked(type);
-        Tolerant = facts.IsTolerant(attr);
+        Format = facts.FormatOf(attr);
         GeneratedHere = facts.Visibility.IsGeneratedHere(type);
         RawStruct = facts.Raw.IsRawStruct(type);
         if (Kind is not (FormatterKind.Class or FormatterKind.SealedClass))
@@ -46,10 +46,13 @@ internal sealed class TypeShape
     /// <summary>Whether objects of it are written with a reference header: tracked, and not a struct.</summary>
     public bool TrackReferences => Tracked && Kind != FormatterKind.Struct;
 
-    /// <summary>Version tolerant: so marked, or WEAK_VERSION_TOLERANCE (<see cref="TypeFacts.IsTolerant"/>).</summary>
-    public bool Tolerant { get; }
+    /// <summary>The format it is written in, WEAK_VERSION_TOLERANCE applied (<see cref="TypeFacts.FormatOf"/>).</summary>
+    public NinoFormat Format { get; }
 
-    public bool Keyed => Options.Keyed;
+    /// <summary>Version tolerant: so marked, or WEAK_VERSION_TOLERANCE on a type that is not keyed.</summary>
+    public bool Tolerant => Format == NinoFormat.VersionTolerant;
+
+    public bool Keyed => Format == NinoFormat.Keyed;
 
     /// <summary>Whether its formatter is generated in this compilation.</summary>
     public bool GeneratedHere { get; }

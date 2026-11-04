@@ -185,8 +185,15 @@ internal sealed class TypeFacts
     /// <summary>The assembly defines WEAK_VERSION_TOLERANCE: all of its own types are version tolerant.</summary>
     public bool WeakTolerance { get; }
 
-    /// <summary>Whether a type with <paramref name="attr"/> is version tolerant: so marked, or <see cref="WeakTolerance"/>.</summary>
-    public bool IsTolerant(NinoTypeOptions attr) => attr.VersionTolerant || WeakTolerance;
+    /// <summary>
+    /// The format a type with <paramref name="attr"/> is written in: <see cref="NinoFormat.Keyed"/> if so marked,
+    /// otherwise <see cref="NinoFormat.VersionTolerant"/> if so marked or <see cref="WeakTolerance"/>, otherwise
+    /// <see cref="NinoFormat.Positional"/>.
+    /// </summary>
+    public NinoFormat FormatOf(NinoTypeOptions attr) =>
+        attr.Keyed ? NinoFormat.Keyed
+        : attr.Format == NinoFormat.VersionTolerant || WeakTolerance ? NinoFormat.VersionTolerant
+        : NinoFormat.Positional;
 
     /// <summary>
     /// What the <c>[NinoType]</c> <paramref name="type"/> is, as the rules read it (memoized); null for a type that is

@@ -279,7 +279,7 @@ internal sealed class RawRules
         if (_weakTolerance && SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, _assembly))
             return false;
         var attr = type.GetNinoTypeOptions();
-        if (attr == null || attr.VersionTolerant || attr.Keyed)
+        if (attr == null || attr.Format is NinoFormat.VersionTolerant or NinoFormat.Keyed)
             return false;
         if (RawLayout.KindOf(type) != System.Runtime.InteropServices.LayoutKind.Sequential)
             return false;
