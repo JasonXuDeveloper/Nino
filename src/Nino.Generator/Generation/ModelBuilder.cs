@@ -73,8 +73,7 @@ internal static class ModelBuilder
             Kind: kind,
             TypeId: typeId,
             NameId: nameId,
-            VersionTolerant: shape.Tolerant,
-            Keyed: attr.Keyed,
+            Format: shape.Format,
             TrackReferences: trackReferences,
             RawStruct: rawStruct,
             Collection: collection is { } sc

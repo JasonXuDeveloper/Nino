@@ -220,10 +220,8 @@ internal sealed record TypeModel(
     int TypeId,
     // Hash of the runtime name ignoring [NinoFormerName]: the key a by-type lookup computes without reflection.
     int NameId,
-    // NinoFormat.VersionTolerant, or WEAK_VERSION_TOLERANCE (which also sets it on keyed types: see Tolerant).
-    bool VersionTolerant,
-    // Members written as (key, length, value): see NinoFormat.Keyed.
-    bool Keyed,
+    // The format of its body, WEAK_VERSION_TOLERANCE applied (TypeFacts.FormatOf): Positional, VersionTolerant or Keyed.
+    NinoFormat Format,
     // Objects written with a reference header (null, back reference or new): see trackReferences.
     bool TrackReferences,
     // Unmanaged struct written as its raw memory.
@@ -268,7 +266,10 @@ internal sealed record TypeModel(
     /// Version-tolerant positional body: the members of the whole hierarchy in one length-prefixed region, so members
     /// appended to the most derived class are skipped by older readers and missing ones are left to newer readers.
     /// </summary>
-    public bool Tolerant => VersionTolerant && !Keyed;
+    public bool Tolerant => Format == NinoFormat.VersionTolerant;
+
+    /// <summary>Members written as (key, length, value): see <see cref="NinoFormat.Keyed"/>.</summary>
+    public bool Keyed => Format == NinoFormat.Keyed;
 
     /// <summary>
     /// Whether the formatter dispatches its subtypes through generated code (<c>__WriteSubtype</c> and
@@ -320,7 +321,7 @@ internal sealed record TypeModel(
     /// dispatch of many subtypes, the bodies would use up its inlining budget.
     /// </summary>
     public bool InlineBody => !IsGeneric && !TrackReferences && !RawStruct && !Depth.Nests &&
-                              Kind is FormatterKind.Class or FormatterKind.SealedClass && !Keyed && !Tolerant &&
+                              Kind is FormatterKind.Class or FormatterKind.SealedClass && Format == NinoFormat.Positional &&
                               Inheritance.BaseFormatter.Length == 0 && !Inheritance.SharedBase && !IsCollection &&
                               Members.Length <= 8 && Members.Count(static x => x.Raw == null) is 1 or 2;
 
@@ -360,8 +361,8 @@ internal sealed record TypeModel(
     /// formatter implements <c>INinoRawBodyFormatter</c>, so the type id or presence byte in front of the body is
     /// written into the same reservation (one capacity check instead of two).
     /// </summary>
-    public bool RawBody => Kind is FormatterKind.Class or FormatterKind.SealedClass && !RawStruct && !VersionTolerant &&
-                           !Keyed && !TrackReferences && !IsCollection && Members.Length != 0 &&
+    public bool RawBody => Kind is FormatterKind.Class or FormatterKind.SealedClass && !RawStruct &&
+                           Format == NinoFormat.Positional && !TrackReferences && !IsCollection && Members.Length != 0 &&
                            Members.All(static x => x.Raw != null);
 
     /// <summary>
