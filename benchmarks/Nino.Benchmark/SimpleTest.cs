@@ -112,7 +112,20 @@ public class SimpleTest
         _memoryPackBuffer = new ArrayBufferWriter<byte>(320 * 1024);
         _messagePackBuffer = new ArrayBufferWriter<byte>(320 * 1024);
         _protobufStream = new MemoryStream(320 * 1024);
+        // A/B only: where the copy reads and writes, and where the writer's fields are (stored before the copy).
+        unsafe
+        {
+            long src = (long)System.Runtime.CompilerServices.Unsafe.AsPointer(
+                ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(SimpleStructs));
+            long dst = (long)System.Runtime.CompilerServices.Unsafe.AsPointer(
+                ref System.Runtime.InteropServices.MemoryMarshal.GetReference(_ninoBuffer.GetSpan(1))) + 4;
+            object o = _ninoBuffer;
+            long obj = *(long*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref o);
+            Console.WriteLine($"// ADDR src%4096={src & 4095} dst%4096={dst & 4095} writer%4096={obj & 4095} (writer-src)%4096={(obj - src) & 4095}");
+        }
     }
+
+    private byte[] _pad;
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleClassSerialize")]
     public int NinoSerializeSimpleClass()
