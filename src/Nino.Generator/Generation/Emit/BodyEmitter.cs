@@ -335,7 +335,7 @@ internal sealed class BodyEmitter
             else if (member.Raw != null)
                 symbolic.Add(member.Raw.Expression);
             else if (IsBlockItem(member))
-                symbolic.Add($"{CoreCompilerServices}NinoBlocks.Size<{member.TypeName}, {Formatter(member)}>()");
+                symbolic.Add($"{CoreCompilerServices}NinoBlocks.FixedSize<{member.TypeName}, {Formatter(member)}>()");
             else
                 symbolic.Add($"default({Formatter(member)}).FixedSize");
         }
@@ -368,7 +368,7 @@ internal sealed class BodyEmitter
             string formatter = Formatter(member);
             string at = $"ref {CoreCompilerServices}NinoUnsafe.Add(ref destination, {offset})";
             lines.Add(IsBlockItem(member)
-                ? $"{CoreCompilerServices}NinoBlocks.Write<{member.TypeName}, {formatter}>({Get(_m, member, "value")}, {at});"
+                ? $"{CoreCompilerServices}NinoBlocks.WriteFixed<{member.TypeName}, {formatter}>({Get(_m, member, "value")}, {at});"
                 : $"default({formatter}).WriteFixed({Get(_m, member, "value")}, {at});");
         }
 
@@ -448,7 +448,7 @@ internal sealed class BodyEmitter
                     continue;
                 }
 
-                string read = $"{CoreCompilerServices}NinoBlocks.Read<{member.TypeName}, {Formatter(member)}>(ref ";
+                string read = $"{CoreCompilerServices}NinoBlocks.ReadBlock<{member.TypeName}, {Formatter(member)}>(ref ";
                 string at = $", ref {CoreCompilerServices}NinoUnsafe.Add(ref source, {offset}));";
                 if (Ref(_m, member, "value") is { } field)
                 {

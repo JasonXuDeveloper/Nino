@@ -14,18 +14,18 @@ namespace Nino.Core.CompilerServices
     {
         /// <summary><see cref="INinoFixedSizeFormatter{T}.FixedSize"/> of <typeparamref name="TFormatter"/>: a JIT-time constant.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int Size<T, TFormatter>() where TFormatter : struct, INinoBlockFormatter<T> =>
+        public static int FixedSize<T, TFormatter>() where TFormatter : struct, INinoBlockFormatter<T> =>
             default(TFormatter).FixedSize;
 
         /// <summary><see cref="INinoFixedSizeFormatter{T}.WriteFixed"/> of <typeparamref name="TFormatter"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Write<T, TFormatter>(in T value, ref byte destination)
+        public static void WriteFixed<T, TFormatter>(in T value, ref byte destination)
             where TFormatter : struct, INinoBlockFormatter<T> =>
             default(TFormatter).WriteFixed(in value, ref destination);
 
         /// <summary><see cref="INinoBlockFormatter{T}.ReadBlock"/> of <typeparamref name="TFormatter"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Read<T, TFormatter>(ref T value, ref byte source)
+        public static void ReadBlock<T, TFormatter>(ref T value, ref byte source)
             where TFormatter : struct, INinoBlockFormatter<T> =>
             default(TFormatter).ReadBlock(ref value, ref source);
 
