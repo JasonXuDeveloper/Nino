@@ -235,6 +235,10 @@
 # failed (run 41686840794, the lines lacked their commits): cpu='Xeon'   20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 2
 # failed (run 41686840794, the lines lacked their commits): cpu='Xeon'   20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 3
 # r127-perf round 2 again, with the commits: 20152df0 = main + CopyShapeProbe
-cpu='Xeon' 20152df0 20152df0 20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 1b
-cpu='Xeon' 20152df0 20152df0 20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 2b
-cpu='Xeon' 20152df0 20152df0 20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 3b
+# done (run 41687210928): cpu='Xeon' 20152df0 20152df0 20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 1b
+# done (run 41687210928): cpu='Xeon' 20152df0 20152df0 20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 2b
+# done (run 41687210928): cpu='Xeon' 20152df0 20152df0 20 *CopyShapeProbe* *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes copy 3b
+# r127-perf round 3 (Xeon only): in run 41687210928 main's copy, rc.7's copy shape and the other shapes took the same time inside one binary on Xeon 8573C (12.0 ns each) and 8370C. Now the same probe code compiled into rc.7's process (0af6bb5e) and main's (2bb5d34e = main + the probe + NinoBenchLegacy): does identical code run slower in main's process?
+cpu='Xeon' 0af6bb5e 2bb5d34e 20 *CopyShapeProbe* *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes rc.7 vs main copy 1
+cpu='Xeon' 0af6bb5e 2bb5d34e 20 *CopyShapeProbe* *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes rc.7 vs main copy 2
+cpu='Xeon' 0af6bb5e 2bb5d34e 20 *CopyShapeProbe* *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf shapes rc.7 vs main copy 3
