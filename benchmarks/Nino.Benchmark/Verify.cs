@@ -27,6 +27,9 @@ public static class Verify
     {
         var classes = typeof(Verify).Assembly.GetTypes()
             .Where(t => t.GetMethods().Any(m => m.IsDefined(typeof(BenchmarkAttribute))))
+            // The probes (CpuProbe.cs) time kernels, not cases, and never run in the suite (Program.cs): no payload or
+            // value to check, and x86-only setup that fails on Arm64 runners.
+            .Where(t => !t.Name.EndsWith("Probe"))
             .OrderBy(t => t.Name);
         foreach (var type in classes)
         {

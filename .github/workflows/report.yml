@@ -212,6 +212,9 @@ jobs:
       - name: Build benchmark project
         working-directory: ${{ env.BENCH }}
         run: |
+          # The probes (classes named *Probe) are experiments that never run in this report; v4.0.0-rc.8's --verify
+          # still set them up, and one called x86's CpuId, which failed every Arm64 shard. Left out of the build.
+          rm -f CpuProbe.cs
           dotnet build -c Release
           # Every case reads back what the others read and writes its payload's bytes (Verify.cs).
           dotnet bin/Release/net10.0/Nino.Benchmark.dll --verify
