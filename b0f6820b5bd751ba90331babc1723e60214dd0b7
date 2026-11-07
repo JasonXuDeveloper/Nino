@@ -1,0 +1,1 @@
+Performance: In the IDE, an edit that changes no declaration no longer makes the source generator bind every top-level Serialize/Deserialize call again: about 3.5x less generator time per keystroke in a project with 2,400 such calls (local measurement).
