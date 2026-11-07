@@ -5542,20 +5542,11 @@ impl nino::Raw for EmptyStruct {
 }
 
 impl NinoRead for EmptyStruct {
-    const MIN_SIZE: usize = 1;
-
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<1>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for EmptyStruct {
-    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        let mut b = [0u8; 1];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl J for EmptyStruct {
@@ -5597,20 +5588,11 @@ impl nino::Raw for Vec2 {
 }
 
 impl NinoRead for Vec2 {
-    const MIN_SIZE: usize = 8;
-
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Vec2 {
-    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        let mut b = [0u8; 8];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl J for Vec2 {
@@ -5657,20 +5639,11 @@ impl nino::Raw for Padded {
 }
 
 impl NinoRead for Padded {
-    const MIN_SIZE: usize = 16;
-
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Padded {
-    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl J for Padded {
@@ -5727,20 +5700,11 @@ impl nino::Raw for Mixed {
 }
 
 impl NinoRead for Mixed {
-    const MIN_SIZE: usize = 12;
-
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<12>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Mixed {
-    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        let mut b = [0u8; 12];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl J for Mixed {
@@ -5791,20 +5755,11 @@ impl nino::Raw for Packed {
 }
 
 impl NinoRead for Packed {
-    const MIN_SIZE: usize = 11;
-
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<11>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Packed {
-    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        let mut b = [0u8; 11];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl J for Packed {
@@ -5845,20 +5800,11 @@ impl nino::Raw for Sized {
 }
 
 impl NinoRead for Sized {
-    const MIN_SIZE: usize = 16;
-
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Sized {
-    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl J for Sized {
@@ -5914,20 +5860,11 @@ impl nino::Raw for Nested {
 }
 
 impl NinoRead for Nested {
-    const MIN_SIZE: usize = 32;
-
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<32>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Nested {
-    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        let mut b = [0u8; 32];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl J for Nested {

@@ -227,3 +227,86 @@ macro_rules! sealed_write {
         }
     };
 }
+
+/// The [`NinoRead`] items of a raw struct (an unmanaged .NET struct written as its memory: a [`Raw`] type): its
+/// [`Raw::SIZE`] as `MIN_SIZE` and `FIXED_SIZE`, and reads that decode it from one bounds-checked block. Generated code
+/// and the derive write it as the whole impl, after the type's [`Raw`] impl; [`raw_write!`] is its counterpart:
+///
+/// ```
+/// use nino::{NinoRead, NinoWrite, Raw};
+///
+/// /// `struct Cell { int Row; int Column; }`: 8 bytes.
+/// #[derive(Debug, Default, Clone, Copy, PartialEq)]
+/// struct Cell {
+///     row: i32,
+///     column: i32,
+/// }
+///
+/// impl Raw for Cell {
+///     const SIZE: usize = 8;
+///     const ALIGN: usize = 4;
+///
+///     fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+///         Ok(Self { row: i32::decode_raw(b)?, column: i32::decode_raw(b.get(4..).unwrap_or_default())? })
+///     }
+///
+///     fn encode_raw(&self, out: &mut [u8]) {
+///         self.row.encode_raw(out);
+///         if let Some(o) = out.get_mut(4..) {
+///             self.column.encode_raw(o);
+///         }
+///     }
+/// }
+///
+/// impl NinoRead for Cell {
+///     nino::raw_read!();
+/// }
+///
+/// impl NinoWrite for Cell {
+///     nino::raw_write!();
+/// }
+///
+/// let bytes = nino::serialize(&Cell { row: 1, column: 2 }).unwrap();
+/// assert_eq!(bytes, [1, 0, 0, 0, 2, 0, 0, 0]);
+/// assert_eq!(nino::deserialize::<Cell>(&bytes).unwrap(), Cell { row: 1, column: 2 });
+/// ```
+#[macro_export]
+macro_rules! raw_read {
+    () => {
+        const MIN_SIZE: usize = <Self as $crate::Raw>::SIZE;
+        const FIXED_SIZE: usize = <Self as $crate::Raw>::SIZE;
+
+        #[inline]
+        fn decode_fixed(b: &[u8]) -> $crate::Result<Self> {
+            <Self as $crate::Raw>::decode_raw(b)
+        }
+
+        #[inline]
+        fn read(r: &mut $crate::Reader<'_>) -> $crate::Result<Self> {
+            <Self as $crate::Raw>::decode_raw(&r.array::<{ <Self as $crate::Raw>::SIZE }>()?)
+        }
+    };
+}
+
+/// The [`NinoWrite`] items of a raw struct ([`raw_read!`]'s counterpart, with its example): its [`Raw::SIZE`] as
+/// `FIXED_SIZE`, and writes that encode it into a zeroed block (padding stays 0) appended at once:
+/// `impl NinoWrite for Cell { nino::raw_write!(); }`.
+#[macro_export]
+macro_rules! raw_write {
+    () => {
+        const FIXED_SIZE: usize = <Self as $crate::Raw>::SIZE;
+
+        #[inline]
+        fn encode_fixed(&self, out: &mut [u8]) {
+            $crate::Raw::encode_raw(self, out);
+        }
+
+        #[inline]
+        fn write<'a>(&'a self, w: &mut $crate::Writer<'a>) -> $crate::Result<()> {
+            let mut out = [0u8; <Self as $crate::Raw>::SIZE];
+            $crate::Raw::encode_raw(self, &mut out);
+            w.array(out);
+            ::core::result::Result::Ok(())
+        }
+    };
+}

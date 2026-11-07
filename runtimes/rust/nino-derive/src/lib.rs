@@ -1138,16 +1138,7 @@ fn raw_struct(
                 }
             }
             impl #krate::NinoRead for #name {
-                const MIN_SIZE: usize = <Self as #krate::Raw>::SIZE;
-                const FIXED_SIZE: usize = <Self as #krate::Raw>::SIZE;
-                #[inline]
-                fn decode_fixed(b: &[u8]) -> #krate::Result<Self> {
-                    <Self as #krate::Raw>::decode_raw(b)
-                }
-                #[inline]
-                fn read(r: &mut #krate::Reader<'_>) -> #krate::Result<Self> {
-                    <Self as #krate::Raw>::decode_raw(&r.array::<{ <Self as #krate::Raw>::SIZE }>()?)
-                }
+                #krate::raw_read!();
             }
             const _: () = {
                 const OFFSETS: [usize; #n] = #layout_fn().0;
@@ -1157,18 +1148,7 @@ fn raw_struct(
         },
         Side::Write => quote! {
             impl #krate::NinoWrite for #name {
-                const FIXED_SIZE: usize = <Self as #krate::Raw>::SIZE;
-                #[inline]
-                fn encode_fixed(&self, out: &mut [u8]) {
-                    #krate::Raw::encode_raw(self, out);
-                }
-                #[inline]
-                fn write<'a>(&'a self, w: &mut #krate::Writer<'a>) -> #krate::Result<()> {
-                    let mut out = [0u8; <Self as #krate::Raw>::SIZE];
-                    #krate::Raw::encode_raw(self, &mut out);
-                    w.array(out);
-                    ::core::result::Result::Ok(())
-                }
+                #krate::raw_write!();
             }
         },
     }
