@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -169,28 +168,6 @@ namespace Nino.Core
     /// <summary>Registration of the types that can be written polymorphically.</summary>
     public static class NinoPolymorphic
     {
-        /// <summary>
-        /// Registers <typeparamref name="TSub"/> with its generated formatter, once. Every base type finds it
-        /// on first use, so a type is not registered once per base type.
-        /// </summary>
-        [EditorBrowsable(EditorBrowsableState.Never)]
-        public static void Register<TSub, TFormatter>(int id) where TFormatter : struct, INinoBodyFormatter<TSub>
-        {
-            NinoSubtypes<object>.Register(new SubtypeHandler<TSub, TFormatter>(id));
-        }
-
-        /// <summary>
-        /// Registers a class marked <c>trackReferences</c> (or deriving from one): written through a declared type
-        /// that is not tracked, its reference header follows the type id.
-        /// </summary>
-        [EditorBrowsable(EditorBrowsableState.Never)]
-        public static void RegisterTracked<TSub, TFormatter>(int id)
-            where TSub : class
-            where TFormatter : struct, INinoBodyFormatter<TSub>
-        {
-            NinoSubtypes<object>.Register(new TrackedSubtypeHandler<TSub, TFormatter>(id));
-        }
-
         /// <summary>Registers <typeparamref name="T"/> for polymorphic use; see <see cref="TryRegister(Type)"/>.</summary>
         public static bool TryRegister<T>() => TryRegister(typeof(T));
 

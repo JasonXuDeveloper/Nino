@@ -297,7 +297,7 @@ namespace Nino.Core
 
     /// <summary>
     /// <see cref="StructFormatter{T,TFormatter}"/> of a formatter of fixed size, registered by generated code
-    /// (<see cref="NinoFormatterCache{T}.TryRegisterFixed{TFormatter}"/>): the regular byte array call writes into an
+    /// (<see cref="NinoTypes.RegisterFixed{T,TFormatter}"/>): the regular byte array call writes into an
     /// array of exactly that size too.
     /// </summary>
     internal sealed class FixedStructFormatter<T, TFormatter> : StructFormatterBase<T, TFormatter>
@@ -311,7 +311,7 @@ namespace Nino.Core
     /// <summary>
     /// <see cref="StructFormatter{T,TFormatter}"/> of a generated formatter with a <c>__Top</c> twin
     /// (<typeparamref name="TTop"/>), registered by generated code
-    /// (<see cref="NinoFormatterCache{T}.TryRegisterTop{TFormatter,TTop}"/>): the regular top-level calls write through
+    /// (<see cref="NinoTypes.RegisterTop{T,TFormatter,TTop}"/>): the regular top-level calls write through
     /// the twin, with the writer it creates (see <see cref="INinoTopFormatter{T}"/>); everything else through
     /// <typeparamref name="TFormatter"/>.
     /// </summary>

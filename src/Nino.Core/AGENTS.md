@@ -65,6 +65,8 @@ NinoSubtypes.cs              NinoSubtypes<TBase>: the registry of a base type's 
 NinoGeneratedAttribute.cs    [NinoGenerated]: marks an assembly with generated code, names its registry
 INinoRegistry.cs             INinoRegistry: an assembly's generated registry (lazy registration by type id)
 NinoSubtypeHandler.cs        NinoSubtypeHandler: writes and reads one registered type; the registry's entry
+NinoTypes.cs                 NinoTypes: how a generated registry registers a concrete [NinoType], its formatter and its
+                             handler in one call (Register, RegisterFixed, RegisterTop, RegisterTracked)
 NinoParameterMarks.cs        what a formatter's type parameters require ([NinoRaw], unmanaged, [NinoCreated]): their
                              attributes, or where the runtime drops them (IL2CPP) the marks Nino.Core registers for its
                              own formatters and generated registries for the formatters they register (Register)
@@ -124,7 +126,7 @@ NinoCallContext.cs           NinoReadContext / NinoWriteContext: back references
 ## Polymorphism/
 
 ```
-NinoPolymorphic.cs           NinoPolymorphic.TryRegister; SubtypeHandler / TrackedSubtypeHandler
+NinoPolymorphic.cs           NinoPolymorphic.TryRegister; SubtypeHandler / TrackedSubtypeHandler (created by NinoTypes)
 NinoRegistry.cs              NinoRegistry: runs the generated registries (module initializers, Unity hooks, lazy
                              lookups; re-entrant), Remove for unloaded assemblies
 NinoTypeId.cs                NinoTypeId: FNV-1a type ids of runtime-form type names ([NinoFormerName] replaces it)

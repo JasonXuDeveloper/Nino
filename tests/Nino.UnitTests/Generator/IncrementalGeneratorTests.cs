@@ -617,7 +617,7 @@ public class MadeList : System.Collections.Generic.List<Made> { }
         driver = driver.RunGenerators(compilation);
         string Usages() => driver.GetRunResult().Results[0].GeneratedSources
             .Single(s => s.HintName == "NinoGen.Usages.g.cs").SourceText.ToString();
-        const string registered = "NinoPolymorphic.Register<global::Inc.Box<int>";
+        const string registered = "NinoTypes.Register<global::Inc.Box<int>";
         StringAssert.Contains(Usages(), registered);
 
         // An unrelated edit: the call is reused, with the same result.
@@ -650,7 +650,7 @@ public class MadeList : System.Collections.Generic.List<Made> { }
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
         string Usages() => driver.GetRunResult().Results[0].GeneratedSources
             .Single(s => s.HintName == "NinoGen.Usages.g.cs").SourceText.ToString();
-        const string registered = "NinoPolymorphic.Register<global::Inc.Box<int>";
+        const string registered = "NinoTypes.Register<global::Inc.Box<int>";
         driver = driver.RunGenerators(compilation);
         Assert.IsFalse(Usages().Contains(registered), Usages());
 
@@ -701,14 +701,14 @@ public static class Other { public static int GetFixedSize<T>() => 0; }
         string Usages() => driver.GetRunResult().Results[0].GeneratedSources
             .Single(s => s.HintName == "NinoGen.Usages.g.cs").SourceText.ToString();
         foreach (var registered in new[] { "Pair<int, short>", "Pair<int, long>", "Pair<byte, int>", "Pair<int, int>", "Pair<short, short>" })
-            StringAssert.Contains(Usages(), "NinoPolymorphic.Register<global::Inc." + registered);
+            StringAssert.Contains(Usages(), "NinoTypes.Register<global::Inc." + registered);
         StringAssert.Contains(Usages(), "NinoFormatterCache<global::System.Collections.Generic.List<global::Inc.Pair<int, int>>>");
         Assert.IsFalse(Usages().Contains("Pair<long, long>"), Usages());
 
         // The call is cached by position, method and the type it names: an edit of the typeof argument is seen.
         compilation = Edit(compilation, "Calls.cs", "typeof(Pair<int, long>)", "typeof(Pair<long, int>)");
         driver = driver.RunGenerators(compilation);
-        StringAssert.Contains(Usages(), "NinoPolymorphic.Register<global::Inc.Pair<long, int>");
+        StringAssert.Contains(Usages(), "NinoTypes.Register<global::Inc.Pair<long, int>");
         Assert.IsFalse(Usages().Contains("Pair<int, long>"), Usages());
     }
 
