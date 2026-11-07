@@ -40,6 +40,21 @@ public struct UntrustedDense
     public DateOnly Day;
 }
 
+/// <summary>
+/// Bools inside 8-byte lanes next to unchecked fields (Valid joins the DateTime's pass) and on a lane's top byte (Last
+/// keeps a pass of bytes): 24 bytes, as the Untrusted benchmark's struct.
+/// </summary>
+public struct UntrustedLaned
+{
+    public DateTime When;
+    public double Value;
+    public int Id;
+    public bool Valid;
+    public byte Level;
+    public byte Pad;
+    public bool Last;
+}
+
 /// <summary>Not version tolerant: past the inline depth its bodies are deferred outside any region.</summary>
 [NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class UntrustedChain
@@ -254,6 +269,7 @@ public static partial class SettingsProbes
             A = true, Day = DateOnly.MaxValue, Price = price, Time = TimeOnly.MaxValue, B = true, When = when,
         };
         var dense = new UntrustedDense { A = true, B = false, C = -1, Day = DateOnly.MaxValue };
+        var laned = new UntrustedLaned { When = when, Value = -1, Id = -1, Valid = true, Level = 0xFF, Pad = 0xFF, Last = true };
         var badTicks = BitConverter.GetBytes(BadTicks);
         var scale29 = BitConverter.GetBytes(29 << 16);
         var flagged = BitConverter.GetBytes(3 << 16 | 1);
@@ -278,7 +294,11 @@ public static partial class SettingsProbes
                 Run(n, dense, Offset(ref dense, ref dense.A), new byte[] { 2 }, "dense A") ??
                 Run(n, dense, Offset(ref dense, ref dense.B), new byte[] { 0xFF }, "dense B") ??
                 Run(n, dense, Offset(ref dense, ref dense.Day), badDay, "dense Day") ??
-                Run(n, dense, Offset(ref dense, ref dense.Day), BitConverter.GetBytes(-1), "dense Day (negative)");
+                Run(n, dense, Offset(ref dense, ref dense.Day), BitConverter.GetBytes(-1), "dense Day (negative)") ??
+                Run(n, laned, Offset(ref laned, ref laned.When), badTicks, "laned When") ??
+                Run(n, laned, Offset(ref laned, ref laned.Valid), new byte[] { 2 }, "laned Valid") ??
+                Run(n, laned, Offset(ref laned, ref laned.Valid), new byte[] { 0x80 }, "laned Valid (high bit)") ??
+                Run(n, laned, Offset(ref laned, ref laned.Last), new byte[] { 0xFE }, "laned Last");
             if (failed != null)
                 return n + ": " + failed;
         }
