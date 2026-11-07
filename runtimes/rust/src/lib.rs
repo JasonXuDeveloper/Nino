@@ -310,3 +310,21 @@ macro_rules! raw_write {
         }
     };
 }
+
+/// The constants nino-gen writes on each type it generates, in the type's own impl, so that they are documented once
+/// here: `impl Point { nino::type_consts!(0x1A2B3C4Du32 as i32, "Demo.Point", "format=Positional; ..."); }`. A
+/// generic type has no id of its own (each closed type has one) and leaves it out: `nino::type_consts!(name, layout)`.
+#[macro_export]
+macro_rules! type_consts {
+    ($id:expr, $name:expr, $layout:expr $(,)?) => {
+        /// The .NET type's id, written in front of its body in a polymorphic slot.
+        pub const TYPE_ID: i32 = $id;
+        $crate::type_consts!($name, $layout);
+    };
+    ($name:expr, $layout:expr $(,)?) => {
+        /// The .NET type's name (`Namespace.Outer+Inner`).
+        pub const NINO_TYPE_NAME: &str = $name;
+        /// The layout this code was generated from (`NinoTypeLayout`).
+        pub const NINO_LAYOUT: &str = $layout;
+    };
+}
