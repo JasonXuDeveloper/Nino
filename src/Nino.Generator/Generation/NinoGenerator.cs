@@ -410,21 +410,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
     {
         "Serialize" or "Deserialize" => true,
         "GetFixedSize" => name is GenericNameSyntax,
-        "SerializeBoxed" or "DeserializeBoxed" or "IsSupported" => TypeOfArgument(arguments) != null,
+        "SerializeBoxed" or "DeserializeBoxed" or "IsSupported" => NinoSymbols.TypeOfArgument(arguments) != null,
         _ => false,
     };
-
-    /// <summary>The first <c>typeof</c> argument of a call, or null.</summary>
-    private static TypeOfExpressionSyntax? TypeOfArgument(ArgumentListSyntax arguments)
-    {
-        foreach (var argument in arguments.Arguments)
-        {
-            if (argument.Expression is TypeOfExpressionSyntax typeOf)
-                return typeOf;
-        }
-
-        return null;
-    }
 
     private static bool IsNinoReceiver(ExpressionSyntax receiver)
     {
@@ -500,15 +488,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
         if (ctx.SemanticModel.GetSymbolInfo(ctx.Node, ct).Symbol is not IMethodSymbol method)
             return null;
         var facts = TypeFacts.For(ctx.SemanticModel.Compilation, ctx.SemanticModel.SyntaxTree.Options);
-        var owner = method.ContainingType;
-        if (!SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Serializer) &&
-            !SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer))
-            return null;
-        ITypeSymbol? type = method.IsGenericMethod
-            ? method.TypeArguments[0]
-            : TypeOfArgument(((InvocationExpressionSyntax)ctx.Node).ArgumentList) is { } typeOf
-                ? ctx.SemanticModel.GetTypeInfo(typeOf.Type, ct).Type
-                : null;
+        var type = facts.Symbols.CallType(method, (InvocationExpressionSyntax)ctx.Node, ctx.SemanticModel, ct);
         if (type is null or { TypeKind: TypeKind.Error or TypeKind.Pointer or TypeKind.FunctionPointer } or
             { SpecialType: SpecialType.System_Void } or INamedTypeSymbol { IsUnboundGenericType: true })
             return null;

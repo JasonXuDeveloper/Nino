@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation;
@@ -95,6 +97,37 @@ internal sealed class NinoSymbols
         {
             if (SymbolEqualityComparer.Default.Equals(data.AttributeClass, attribute))
                 return data;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The type a top-level <c>NinoSerializer</c> / <c>NinoDeserializer</c> <paramref name="call"/> to
+    /// <paramref name="method"/> needs a formatter for: its type argument, or the type of its <c>typeof</c> argument;
+    /// null when it is not such a call or names neither. The generator registers and intercepts it, the analyzer
+    /// checks it (NINO029).
+    /// </summary>
+    public ITypeSymbol? CallType(IMethodSymbol method, InvocationExpressionSyntax call, SemanticModel model,
+        CancellationToken ct)
+    {
+        if (!SymbolEqualityComparer.Default.Equals(method.ContainingType, Serializer) &&
+            !SymbolEqualityComparer.Default.Equals(method.ContainingType, Deserializer))
+            return null;
+        return method.IsGenericMethod
+            ? method.TypeArguments[0]
+            : TypeOfArgument(call.ArgumentList) is { } typeOf
+                ? model.GetTypeInfo(typeOf.Type, ct).Type
+                : null;
+    }
+
+    /// <summary>The first <c>typeof</c> argument of a call, or null.</summary>
+    public static TypeOfExpressionSyntax? TypeOfArgument(ArgumentListSyntax arguments)
+    {
+        foreach (var argument in arguments.Arguments)
+        {
+            if (argument.Expression is TypeOfExpressionSyntax typeOf)
+                return typeOf;
         }
 
         return null;

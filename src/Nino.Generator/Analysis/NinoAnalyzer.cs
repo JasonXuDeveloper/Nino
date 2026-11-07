@@ -89,12 +89,10 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         if (serializes && (SymbolEqualityComparer.Default.Equals(owner, symbols.Serializer) ||
                            SymbolEqualityComparer.Default.Equals(owner, symbols.Deserializer)))
         {
-            // The type the call needs a formatter for, as the generator finds it: its type argument, or a typeof
-            // argument.
-            type = method.IsGenericMethod
-                ? method.TypeArguments[0]
-                : invocation.Arguments.Select(static a => a.Value).OfType<ITypeOfOperation>().FirstOrDefault()
-                    ?.TypeOperand;
+            // The type the call needs a formatter for, as the generator finds it.
+            type = invocation.Syntax is InvocationExpressionSyntax call && invocation.SemanticModel is { } model
+                ? symbols.CallType(method, call, model, context.CancellationToken)
+                : null;
             vector = type == null ? null : Raw(context, invocation).HostSizedVectorIn(type);
         }
         else if (method.IsGenericMethod && (SymbolEqualityComparer.Default.Equals(owner, symbols.Writer) ||
