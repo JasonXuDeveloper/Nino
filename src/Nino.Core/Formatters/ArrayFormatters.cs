@@ -26,7 +26,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref T[] value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref T[] value)
         {
             if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
                 return;
@@ -102,7 +102,7 @@ namespace Nino.Core
                 return ReadNew(data);
             var reader = new Reader(data);
             var value = Unsafe.As<T[]>(existing);
-            Deserialize(ref value, ref reader);
+            Deserialize(ref reader, ref value);
             return value;
         }
 
@@ -132,12 +132,12 @@ namespace Nino.Core
         public void Serialize(T[] value, ref Writer writer) => writer.Write(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref T[] value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref T[] value)
         {
             // Also bools, checked there (NinoLayout<T>.CopiesAsIs).
             if (!NinoLayout<T>.CopiesAsIs)
             {
-                DeserializeConverted(ref value, ref reader);
+                DeserializeConverted(ref reader, ref value);
                 return;
             }
 
@@ -159,7 +159,7 @@ namespace Nino.Core
                 ref reader.UnsafeAdvance((int)bytes), bytes);
         }
 
-        private static void DeserializeConverted(ref T[] value, ref Reader reader)
+        private static void DeserializeConverted(ref Reader reader, ref T[] value)
         {
             if (!reader.TryReadLengthOrDiscard(ref value, NinoLayout<T>.Size, out int length))
                 return;
@@ -189,7 +189,7 @@ namespace Nino.Core
             NinoNullables<T>.Write(value, ref writer);
         }
 
-        public void Deserialize(ref T?[] value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref T?[] value)
         {
             if (!reader.TryReadLengthOrDiscard(ref value, NinoNullables<T>.Stride, out int length))
                 return;
@@ -328,7 +328,7 @@ namespace Nino.Core
                 NinoCollections.WriteSpan<T, TFormatter>(value.AsSpan(), ref writer);
         }
 
-        public void Deserialize(ref ArraySegment<T> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ArraySegment<T> value)
         {
             var array = NinoCollections.ReadArray<T, TFormatter>(ref reader);
             value = array == null ? default : new ArraySegment<T>(array);

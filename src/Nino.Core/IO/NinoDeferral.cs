@@ -25,7 +25,7 @@ namespace Nino.Core
         {
             // The instance exists: the body fills it in place.
             var v = (T)value;
-            default(TFormatter).ReadBody(ref v, ref reader);
+            default(TFormatter).ReadBody(ref reader, ref v);
         }
     }
 

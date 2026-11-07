@@ -131,8 +131,8 @@ namespace Nino.Core
             {
                 TKey key = default;
                 TValue item = default;
-                default(TKeyFormatter).Deserialize(ref key, ref local);
-                default(TValueFormatter).Deserialize(ref item, ref local);
+                default(TKeyFormatter).Deserialize(ref local, ref key);
+                default(TValueFormatter).Deserialize(ref local, ref item);
                 if (key == null)
                     NinoThrow.NullKey(concurrent);
                 if (nodes == IntPtr.Zero)
@@ -205,8 +205,8 @@ namespace Nino.Core
             {
                 TKey key = default;
                 TValue item = default;
-                default(TKeyFormatter).Deserialize(ref key, ref local);
-                default(TValueFormatter).Deserialize(ref item, ref local);
+                default(TKeyFormatter).Deserialize(ref local, ref key);
+                default(TValueFormatter).Deserialize(ref local, ref item);
                 if (key == null)
                     NinoThrow.NullKey(concurrent);
                 if (!concurrent.TryAdd(key, item))

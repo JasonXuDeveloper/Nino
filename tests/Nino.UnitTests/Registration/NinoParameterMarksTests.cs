@@ -26,7 +26,7 @@ namespace Nino.UnitTests
                 writer.WriteValue(value.Value);
         }
 
-        public void Deserialize(ref Cell<T> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref Cell<T> value)
         {
             reader.Read(out bool present);
             value = present ? new Cell<T> { Value = reader.ReadValue<T>() } : null;
@@ -50,8 +50,8 @@ namespace Nino.UnitTests
         public void Serialize(Wide<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
             T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33> value, ref Writer writer) => writer.WriteValue(value.Last);
 
-        public void Deserialize(ref Wide<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
-            T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33> value, ref Reader reader) =>
+        public void Deserialize(ref Reader reader, ref Wide<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+            T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33> value) =>
             value = new Wide<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
                 T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33> { Last = reader.ReadValue<T33>() };
     }

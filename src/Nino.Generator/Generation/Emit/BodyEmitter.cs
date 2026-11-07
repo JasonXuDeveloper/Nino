@@ -158,7 +158,8 @@ internal sealed class BodyEmitter
             return $"public void {name}({forwarded})";
         string body = "__" + name;
         string target = _m.InlineBody ? body + "Inline" : body;
-        _w.Line($"public void {name}({forwarded}) => {target}({value}, ref {(write ? "writer" : "reader")});");
+        // Reads take the reader first, writes the value first, as the formatter interfaces do.
+        _w.Line($"public void {name}({forwarded}) => {target}({(write ? $"{value}, ref writer" : "ref reader, ref value")});");
         _w.Line();
         if (_m.InlineBody)
         {
@@ -171,7 +172,7 @@ internal sealed class BodyEmitter
             return $"private static void {body}({parameters})";
         // The members are written or read by the inlinable twin (__Top's, or one made for this), through the local.
         _w.Block($"private static void {body}({parameters})", () => OnLocalCopy(_w, reader: !write,
-            () => _w.Line($"{body}Inline({value}, ref {(write ? "__w" : "__r")});")));
+            () => _w.Line($"{body}Inline({(write ? $"{value}, ref __w" : "ref __r, ref value")});")));
         _w.Line();
         _w.Line(_names.Inline);
         return $"private static void {body}Inline({parameters})";
@@ -733,19 +734,19 @@ internal sealed class BodyEmitter
         {
             _w.Line($"var __p = {T}.RentFromNinoPool();");
             _w.Open("if (__p == null)");
-            _w.Line($"{body}Fresh(ref value, ref reader);");
+            _w.Line($"{body}Fresh(ref reader, ref value);");
             _w.Line("return;");
             _w.Close();
             _w.Line("value = __p;");
         }
         else
         {
-            _w.Line($"{body}Fresh(ref value, ref reader);");
+            _w.Line($"{body}Fresh(ref reader, ref value);");
             _w.Line("return;");
         }
 
         _w.Close();
-        _w.Line($"{body}(ref value, ref reader);");
+        _w.Line($"{body}(ref reader, ref value);");
     }
 
     private void EmitSplitReadBody()
@@ -774,7 +775,7 @@ internal sealed class BodyEmitter
         {
             // The new-instance read is also __ReadTop's: inlinable, called here on a local copy of the reader.
             _w.Block($"private static void {body}Fresh({parameters})",
-                () => OnLocalCopy(_w, reader: true, () => _w.Line($"{body}FreshInline(ref value, ref __r);")));
+                () => OnLocalCopy(_w, reader: true, () => _w.Line($"{body}FreshInline(ref __r, ref value);")));
             _w.Line();
             _w.Line(_names.Inline);
             _w.Open($"private static void {body}FreshInline({parameters})");
@@ -823,7 +824,7 @@ internal sealed class BodyEmitter
             r = BeginRegionRead(r);
         if (_m.IsCollection)
         {
-            _w.Line($"default({CollectionFormatter}).Deserialize(ref value, ref {r});");
+            _w.Line($"default({CollectionFormatter}).Deserialize(ref {r}, ref value);");
             // The elements are the object: a count of -1 (null) would leave nothing to read the members into.
             _w.Line($"{CoreCompilerServices}NinoObject.EnsureElements(value);");
         }
@@ -1024,7 +1025,7 @@ internal sealed class BodyEmitter
         string formatter = Formatter(member);
         if (!inPlace)
         {
-            _w.Line($"default({formatter}).Deserialize(ref {Local(member)}, ref {r});");
+            _w.Line($"default({formatter}).Deserialize(ref {r}, ref {Local(member)});");
             return;
         }
 
@@ -1034,7 +1035,7 @@ internal sealed class BodyEmitter
             // so its reuse path folds away; then stored.
             _w.Open();
             _w.Line($"{member.TypeName} __t = null;");
-            _w.Line($"default({formatter}).Deserialize(ref __t, ref {r});");
+            _w.Line($"default({formatter}).Deserialize(ref {r}, ref __t);");
             _w.Line(Set(_m, member, _mode.Target, "__t"));
             _w.Close();
             return;
@@ -1043,14 +1044,14 @@ internal sealed class BodyEmitter
         var reference = Ref(_m, member, _mode.Target);
         if (reference != null)
         {
-            _w.Line($"default({formatter}).Deserialize(ref {reference}, ref {r});");
+            _w.Line($"default({formatter}).Deserialize(ref {r}, ref {reference});");
             return;
         }
 
         // Properties: read through a local so the existing instance is reused, then assign it back.
         _w.Open();
         _w.Line($"var __t = {Get(_m, member, _mode.Target)};");
-        _w.Line($"default({formatter}).Deserialize(ref __t, ref {r});");
+        _w.Line($"default({formatter}).Deserialize(ref {r}, ref __t);");
         _w.Line(Set(_m, member, _mode.Target, "__t"));
         _w.Close();
     }

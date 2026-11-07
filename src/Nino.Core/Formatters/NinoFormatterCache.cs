@@ -257,8 +257,8 @@ namespace Nino.Core
         public override void Serialize(T value, ref Writer writer) =>
             NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
 
-        public override void Deserialize(ref T value, ref Reader reader) =>
-            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+        public override void Deserialize(ref Reader reader, ref T value) =>
+            NinoFormatterCache<T>.Instance.Deserialize(ref reader, ref value);
 
         internal override void Write(T value, NinoArrayBufferWriter buffer) =>
             NinoFormatterCache<T>.Instance.Write(value, buffer);

@@ -68,7 +68,7 @@ namespace Nino.Core
             }
 
             var reader = new Reader(data);
-            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref value);
             reader.ReleaseReferences();
         }
 
@@ -90,7 +90,7 @@ namespace Nino.Core
                 return;
             }
 
-            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref value);
         }
 
         /// <summary>Deserializes a new value with an existing reader.</summary>
@@ -101,7 +101,7 @@ namespace Nino.Core
                 return reader.UnsafeRead<T>();
 
             T value = default;
-            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref value);
             return value;
         }
 
@@ -149,7 +149,7 @@ namespace Nino.Core
             }
 
             var reader = new Reader(data);
-            BoxedFormatter.Get(type).Deserialize(ref value, ref reader);
+            BoxedFormatter.Get(type).Deserialize(ref reader, ref value);
             reader.ReleaseReferences();
         }
 
@@ -162,7 +162,7 @@ namespace Nino.Core
         {
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
-            BoxedFormatter.Get(type).Deserialize(ref value, ref reader);
+            BoxedFormatter.Get(type).Deserialize(ref reader, ref value);
         }
     }
 }

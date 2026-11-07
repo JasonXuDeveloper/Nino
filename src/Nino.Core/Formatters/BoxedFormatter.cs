@@ -49,7 +49,7 @@ namespace Nino.Core
         public abstract byte[] Serialize(object value);
         public abstract void Serialize(object value, IBufferWriter<byte> bufferWriter);
         public abstract void Serialize(object value, ref Writer writer);
-        public abstract void Deserialize(ref object value, ref Reader reader);
+        public abstract void Deserialize(ref Reader reader, ref object value);
     }
 
     internal sealed class BoxedFormatter<T> : BoxedFormatter
@@ -75,10 +75,10 @@ namespace Nino.Core
             return (T)value;
         }
 
-        public override void Deserialize(ref object value, ref Reader reader)
+        public override void Deserialize(ref Reader reader, ref object value)
         {
             T typed = value is T existing ? existing : default;
-            NinoTopFormatter<T>.Formatter.Deserialize(ref typed, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref typed);
             value = typed;
         }
     }

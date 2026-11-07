@@ -7,7 +7,7 @@ internal static class Signature
 {
     public static string WriteParameters(string t) => $"{t} value, ref {Core}Writer writer";
 
-    public static string ReadParameters(string t) => $"ref {t} value, ref {Core}Reader reader";
+    public static string ReadParameters(string t) => $"ref {Core}Reader reader, ref {t} value";
 
     public static string Serialize(string t) => $"public void Serialize({WriteParameters(t)})";
 

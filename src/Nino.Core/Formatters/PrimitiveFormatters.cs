@@ -13,7 +13,7 @@ namespace Nino.Core
         public void Serialize(T value, ref Writer writer) => writer.WriteValue(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref T value, ref Reader reader) => value = reader.ReadValue<T>();
+        public void Deserialize(ref Reader reader, ref T value) => value = reader.ReadValue<T>();
     }
 
     /// <summary>
@@ -26,7 +26,7 @@ namespace Nino.Core
         public void Serialize(T value, ref Writer writer) => writer.WriteValue(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref T value, ref Reader reader) => value = reader.ReadValue<T>();
+        public void Deserialize(ref Reader reader, ref T value) => value = reader.ReadValue<T>();
     }
 
     /// <summary><c>IntPtr</c>/<c>nint</c>: always 8 bytes, so 32-bit and 64-bit processes share data.</summary>
@@ -36,7 +36,7 @@ namespace Nino.Core
         public void Serialize(IntPtr value, ref Writer writer) => writer.UnsafeWrite(value.ToInt64());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref IntPtr value, ref Reader reader) => value = new IntPtr(reader.UnsafeRead<long>());
+        public void Deserialize(ref Reader reader, ref IntPtr value) => value = new IntPtr(reader.UnsafeRead<long>());
     }
 
     /// <summary><c>UIntPtr</c>/<c>nuint</c>: always 8 bytes, so 32-bit and 64-bit processes share data.</summary>
@@ -46,7 +46,7 @@ namespace Nino.Core
         public void Serialize(UIntPtr value, ref Writer writer) => writer.UnsafeWrite(value.ToUInt64());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref UIntPtr value, ref Reader reader) => value = new UIntPtr(reader.UnsafeRead<ulong>());
+        public void Deserialize(ref Reader reader, ref UIntPtr value) => value = new UIntPtr(reader.UnsafeRead<ulong>());
     }
 
     /// <summary>
@@ -62,7 +62,7 @@ namespace Nino.Core
             Write(ref writer.Reserve(NinoWire.DateTimeOffsetSize), ref value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref DateTimeOffset value, ref Reader reader) =>
+        public void Deserialize(ref Reader reader, ref DateTimeOffset value) =>
             Read(ref reader.ReadBlock(NinoWire.DateTimeOffsetSize), ref value);
 
         /// <summary>Writes <paramref name="count"/> values into one reserved block.</summary>
@@ -159,7 +159,7 @@ namespace Nino.Core
         public void Serialize(string value, ref Writer writer) => writer.Write(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref string value, ref Reader reader) => value = reader.ReadString(value);
+        public void Deserialize(ref Reader reader, ref string value) => value = reader.ReadString(value);
     }
 
     /// <summary>
@@ -173,7 +173,7 @@ namespace Nino.Core
         public void Serialize(string value, ref Writer writer) => writer.WriteUtf8(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref string value, ref Reader reader) => value = reader.ReadUtf8(value);
+        public void Deserialize(ref Reader reader, ref string value) => value = reader.ReadUtf8(value);
     }
 
     /// <summary>Writes a nullable value: a presence byte, then the value.</summary>
@@ -202,7 +202,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref T? value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref T? value)
         {
             if (RawFormatter.Is<T, TFormatter>())
             {
@@ -218,7 +218,7 @@ namespace Nino.Core
                 return;
 
             T item = value.GetValueOrDefault();
-            default(TFormatter).Deserialize(ref item, ref reader);
+            default(TFormatter).Deserialize(ref reader, ref item);
             value = item;
         }
     }
@@ -248,9 +248,9 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref object value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref object value)
         {
-            NinoSubtypes<object>.Deserialize(reader.UnsafeRead<int>(), ref value, ref reader);
+            NinoSubtypes<object>.Deserialize(reader.UnsafeRead<int>(), ref reader, ref value);
         }
     }
 }

@@ -32,7 +32,7 @@ internal static class NestingEmitter
             w.Block(Signature.Deserialize(f.TypeName), () =>
             {
                 w.Line($"reader.EnterStruct(typeof({f.TypeName}));");
-                w.Line($"default({f.Body}).Deserialize(ref value, ref reader);");
+                w.Line($"default({f.Body}).Deserialize(ref reader, ref value);");
                 w.Line("reader.ExitStruct();");
             });
             w.Close();

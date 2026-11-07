@@ -237,7 +237,7 @@ public static class BclStructs
             {
                 var reader = new Reader(new byte[64]);
                 T read = default;
-                new UnmanagedFormatter<T>().Deserialize(ref read, ref reader);
+                new UnmanagedFormatter<T>().Deserialize(ref reader, ref read);
                 outcome = "READ";
             }
             catch (NotSupportedException)

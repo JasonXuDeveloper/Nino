@@ -1142,13 +1142,13 @@ using Nino.Core;
 public struct StringFormatter : INinoFormatter<string>
 {
     public void Serialize(string value, ref Writer writer) { }
-    public void Deserialize(ref string value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref string value) { }
 }
 
 public struct IntFormatter : INinoFormatter<int>
 {
     public void Serialize(int value, ref Writer writer) { }
-    public void Deserialize(ref int value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref int value) { }
 }
 
 public class NotAFormatter
@@ -1183,26 +1183,26 @@ using Nino.Core;
 public struct IntFormatter : INinoFormatter<int>
 {
     public void Serialize(int value, ref Writer writer) { }
-    public void Deserialize(ref int value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref int value) { }
 }
 
 public struct NullableIntFormatter : INinoFormatter<int?>
 {
     public void Serialize(int? value, ref Writer writer) { }
-    public void Deserialize(ref int? value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref int? value) { }
 }
 
 // A class implementing the interface is not accepted: custom formatters are inlined structs.
 public sealed class ClassIntFormatter : INinoFormatter<int>
 {
     public void Serialize(int value, ref Writer writer) { }
-    public void Deserialize(ref int value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref int value) { }
 }
 
 public struct GenericFormatter<T> : INinoFormatter<T>
 {
     public void Serialize(T value, ref Writer writer) { }
-    public void Deserialize(ref T value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref T value) { }
 }
 
 [NinoType]
@@ -1535,7 +1535,7 @@ public class Inner
 public struct Latin : INinoFormatter<string>
 {
     public void Serialize(string value, ref Writer writer) { }
-    public void Deserialize(ref string value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref string value) { }
 }
 ";
 
@@ -2058,7 +2058,7 @@ public class UsesTag { public Tag<Vector<int>> Tagged; }
 public struct VectorFormatter : INinoFormatter<Vector<int>>
 {
     public void Serialize(Vector<int> value, ref Writer writer) { }
-    public void Deserialize(ref Vector<int> value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref Vector<int> value) { }
 }
 
 [NinoType]
@@ -2557,7 +2557,7 @@ using Nino.Core;
 public struct VectorFormatter : INinoFormatter<Vector<int>>
 {
     public void Serialize(Vector<int> value, ref Writer writer) { }
-    public void Deserialize(ref Vector<int> value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref Vector<int> value) { }
 }
 
 public class Cache<T> where T : unmanaged
@@ -2597,7 +2597,7 @@ using Nino.Core.CompilerServices;
 public struct VectorFormatter : INinoFormatter<Vector<int>>
 {
     public void Serialize(Vector<int> value, ref Writer writer) { }
-    public void Deserialize(ref Vector<int> value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref Vector<int> value) { }
 }
 
 public struct Box<T> { public T Value; }
@@ -3438,7 +3438,7 @@ public sealed class Box<T> { public T Value; }
 public class ClassFormatter : INinoFormatter<int>
 {
     public void Serialize(int value, ref Writer writer) { }
-    public void Deserialize(ref int value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref int value) { }
 }
 
 public struct NotAFormatter { }
@@ -3446,20 +3446,20 @@ public struct NotAFormatter { }
 public struct BoxFormatter<T, TF> : INinoFormatter<Box<T>> where TF : struct, INinoFormatter<T>
 {
     public void Serialize(Box<T> value, ref Writer writer) { }
-    public void Deserialize(ref Box<T> value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref Box<T> value) { }
 }
 
 public struct Uninferable<T, TExtra> : INinoFormatter<Box<T>>
 {
     public void Serialize(Box<T> value, ref Writer writer) { }
-    public void Deserialize(ref Box<T> value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref Box<T> value) { }
 }
 
 public struct AnyListFormatter<TList, T, TF> : INinoFormatter<TList>
     where TList : class, IEnumerable<T> where TF : struct, INinoFormatter<T>
 {
     public void Serialize(TList value, ref Writer writer) { }
-    public void Deserialize(ref TList value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref TList value) { }
 }
 ";
 

@@ -93,7 +93,7 @@ namespace Nino.UnitTests
             {
                 var reader = new Reader(new byte[64]);
                 T into = default;
-                new UnmanagedFormatter<T>().Deserialize(ref into, ref reader);
+                new UnmanagedFormatter<T>().Deserialize(ref reader, ref into);
             });
             Assert.ThrowsExactly<NotSupportedException>(() =>
             {
@@ -116,7 +116,7 @@ namespace Nino.UnitTests
             writer.Flush();
             var reader = new Reader(buffer.WrittenSpan);
             Around<Vector4> back = default;
-            new UnmanagedFormatter<Around<Vector4>>().Deserialize(ref back, ref reader);
+            new UnmanagedFormatter<Around<Vector4>>().Deserialize(ref reader, ref back);
             Assert.AreEqual(Vector4.One, back.B);
         }
 

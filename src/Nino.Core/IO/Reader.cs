@@ -850,7 +850,7 @@ namespace Nino.Core
         public void Read<T>(out T[] value) where T : unmanaged
         {
             value = null;
-            default(UnmanagedArrayFormatter<T>).Deserialize(ref value, ref this);
+            default(UnmanagedArrayFormatter<T>).Deserialize(ref this, ref value);
         }
 
         /// <summary>Reads a string written by <see cref="Writer.Write(string)"/>.</summary>

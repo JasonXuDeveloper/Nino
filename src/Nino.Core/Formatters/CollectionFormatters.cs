@@ -29,7 +29,7 @@ namespace Nino.Core
             NinoCollections.WriteEnumerable<T, TFormatter>(value, ref writer);
         }
 
-        public void Deserialize(ref TCollection value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TCollection value)
         {
             // Each element takes at least its fewest bytes (NinoElements.MinWireSize), which bounds what the
             // collection allocates ahead of them (NinoElements.Heavy).
@@ -49,7 +49,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref item, ref reader);
+                default(TFormatter).Deserialize(ref reader, ref item);
                 collection.Add(item);
             }
         }
@@ -139,7 +139,7 @@ namespace Nino.Core
                 default(TFormatter).Serialize(item, ref writer);
         }
 
-        public void Deserialize(ref TSet value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TSet value)
         {
             bool raw = RawFormatter.Is<T, TFormatter>();
             if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinHashedSize<T, TFormatter>(), out int length))
@@ -187,7 +187,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref item, ref reader);
+                default(TFormatter).Deserialize(ref reader, ref item);
                 if (!set.Add(item))
                     NinoThrow.DuplicateKey(set.GetType());
             }
@@ -209,7 +209,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref item, ref reader);
+                default(TFormatter).Deserialize(ref reader, ref item);
                 if (insert)
                 {
                     HashTables.Insert(set, item);
@@ -257,8 +257,8 @@ namespace Nino.Core
             default(QueueFormatter<Queue<T>, T, TFormatter>).Serialize(value, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref Queue<T> value, ref Reader reader) =>
-            default(QueueFormatter<Queue<T>, T, TFormatter>).Deserialize(ref value, ref reader);
+        public void Deserialize(ref Reader reader, ref Queue<T> value) =>
+            default(QueueFormatter<Queue<T>, T, TFormatter>).Deserialize(ref reader, ref value);
     }
 
     /// <summary>
@@ -304,7 +304,7 @@ namespace Nino.Core
             return writer;
         }
 
-        public void Deserialize(ref TQueue value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TQueue value)
         {
             // Each element takes at least its fewest bytes (NinoElements.MinWireSize), which bounds what the
             // collection allocates ahead of them (NinoElements.Heavy).
@@ -336,7 +336,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref item, ref reader);
+                default(TFormatter).Deserialize(ref reader, ref item);
                 queue.Enqueue(item);
             }
         }
@@ -351,8 +351,8 @@ namespace Nino.Core
             default(StackFormatter<Stack<T>, T, TFormatter>).Serialize(value, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref Stack<T> value, ref Reader reader) =>
-            default(StackFormatter<Stack<T>, T, TFormatter>).Deserialize(ref value, ref reader);
+        public void Deserialize(ref Reader reader, ref Stack<T> value) =>
+            default(StackFormatter<Stack<T>, T, TFormatter>).Deserialize(ref reader, ref value);
     }
 
     /// <summary>
@@ -409,7 +409,7 @@ namespace Nino.Core
             return writer;
         }
 
-        public void Deserialize(ref TStack value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TStack value)
         {
             // Each element takes at least its fewest bytes (NinoElements.MinWireSize), which bounds what the
             // collection allocates ahead of them (NinoElements.Heavy).
@@ -437,7 +437,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref item, ref reader);
+                default(TFormatter).Deserialize(ref reader, ref item);
                 stack.Push(item);
             }
         }
@@ -503,7 +503,7 @@ namespace Nino.Core
             NinoCollections.WriteSpan<T, TFormatter>(items, ref writer);
         }
 
-        public void Deserialize(ref TCollection value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TCollection value)
         {
             // Each element takes at least its fewest bytes (NinoElements.MinWireSize), which bounds what the
             // collection allocates ahead of them (NinoElements.Heavy).
@@ -524,7 +524,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref item, ref reader);
+                default(TFormatter).Deserialize(ref reader, ref item);
                 collection.TryAdd(item);
             }
         }

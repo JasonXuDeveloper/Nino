@@ -141,7 +141,7 @@ public class IncrementalGeneratorTests
             ("Rules.cs", "using Nino.Core;\n[assembly: NinoFormatter(typeof(Inc.MoneyFormatter))]\nnamespace Inc {\n" +
                          "public struct MoneyFormatter : INinoFormatter<Money> {\n" +
                          "public void Serialize(Money value, ref Writer writer) => writer.Write(value.Cents);\n" +
-                         "public void Deserialize(ref Money value, ref Reader reader) { value ??= new Money(); reader.Read(out value.Cents); }\n}\n}"),
+                         "public void Deserialize(ref Reader reader, ref Money value) { value ??= new Money(); reader.Read(out value.Cents); }\n}\n}"),
             ("Money.cs", "namespace Inc { public class Money { public long Cents; } }"),
             ("Holder.cs", Usings + "[NinoType] public class Holder { public Money M; public int X; }\n}"));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
@@ -172,15 +172,15 @@ public class IncrementalGeneratorTests
                          "public class Cell<T> { public T V; }\npublic class Bag<T> : System.Collections.Generic.List<T> { }\n" +
                          "public struct CellFormatter<[NinoRaw] T> : INinoFormatter<Cell<T>> where T : unmanaged {\n" +
                          "public void Serialize(Cell<T> value, ref Writer writer) { }\n" +
-                         "public void Deserialize(ref Cell<T> value, ref Reader reader) { }\n}\n" +
+                         "public void Deserialize(ref Reader reader, ref Cell<T> value) { }\n}\n" +
                          "public struct BagFormatter<[NinoCreated] TBag, T> : INinoFormatter<TBag> where TBag : Bag<T>, new() {\n" +
                          "public void Serialize(TBag value, ref Writer writer) { }\n" +
-                         "public void Deserialize(ref TBag value, ref Reader reader) { }\n}\n" +
+                         "public void Deserialize(ref Reader reader, ref TBag value) { }\n}\n" +
                          $"public class Wide<{wide}, T32> : System.Collections.Generic.List<T32> {{ }}\n" +
                          $"public struct WideFormatter<{wide}, [NinoCreated] T32> : INinoFormatter<Wide<{wide}, T32>>\n" +
                          $"where T32 : Wide<{wide}, T32>, new() {{\n" +
                          $"public void Serialize(Wide<{wide}, T32> value, ref Writer writer) {{ }}\n" +
-                         $"public void Deserialize(ref Wide<{wide}, T32> value, ref Reader reader) {{ }}\n}}\n}}"),
+                         $"public void Deserialize(ref Reader reader, ref Wide<{wide}, T32> value) {{ }}\n}}\n}}"),
             ("Holder.cs", Usings + "[NinoType] public class Holder { public int X; }\n}"));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
         driver = driver.RunGenerators(compilation);

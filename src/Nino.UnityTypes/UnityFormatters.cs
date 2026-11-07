@@ -51,7 +51,7 @@ namespace Nino.UnityTypes
 
         private const int KeySize = 7 * sizeof(float);
 
-        public void Deserialize(ref AnimationCurve value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref AnimationCurve value)
         {
             int count = reader.ReadLength(KeySize);
             if (count < 0)
@@ -135,7 +135,7 @@ namespace Nino.UnityTypes
         private static void TooManyKeys(string kind, int count) =>
             NinoThrow.InvalidData($"a Gradient holds at most {MaxKeys} {kind} keys, the data holds {count}.");
 
-        public void Deserialize(ref Gradient value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref Gradient value)
         {
             int colorCount = reader.ReadLength(ColorKeySize);
             if (colorCount < 0)
@@ -202,7 +202,7 @@ namespace Nino.UnityTypes
             NinoUnsafe.Write(ref next, 13, value.bottom);
         }
 
-        public void Deserialize(ref RectOffset value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref RectOffset value)
         {
             if (!reader.ReadPresent())
             {

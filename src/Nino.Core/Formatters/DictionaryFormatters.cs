@@ -229,7 +229,7 @@ namespace Nino.Core
                 for (int i = 0; i < length; i++)
                 {
                     TKey key = default;
-                    default(TKeyFormatter).Deserialize(ref key, ref reader);
+                    default(TKeyFormatter).Deserialize(ref reader, ref key);
                     if (key == null)
                         NinoThrow.NullKey(dictionary);
                     seen[i] = key;
@@ -241,12 +241,12 @@ namespace Nino.Core
                         matched++;
                     else
                         Walked(dictionary, key);
-                    default(TValueFormatter).Deserialize(ref slot, ref reader);
+                    default(TValueFormatter).Deserialize(ref reader, ref slot);
 #else
                     bool exists = dictionary.TryGetValue(key, out TValue item);
                     if (exists)
                         matched++;
-                    default(TValueFormatter).Deserialize(ref item, ref reader);
+                    default(TValueFormatter).Deserialize(ref reader, ref item);
                     dictionary[key] = item;
                     if (!exists)
                         Walked(dictionary, key);
@@ -416,8 +416,8 @@ namespace Nino.Core
             {
                 TKey key = default;
                 TValue item = default;
-                default(TKeyFormatter).Deserialize(ref key, ref reader);
-                default(TValueFormatter).Deserialize(ref item, ref reader);
+                default(TKeyFormatter).Deserialize(ref reader, ref key);
+                default(TValueFormatter).Deserialize(ref reader, ref item);
                 NinoCollections.AddUnique(dictionary, key, item);
             }
 
@@ -442,8 +442,8 @@ namespace Nino.Core
             {
                 TKey key = default;
                 TValue item = default;
-                default(TKeyFormatter).Deserialize(ref key, ref reader);
-                default(TValueFormatter).Deserialize(ref item, ref reader);
+                default(TKeyFormatter).Deserialize(ref reader, ref key);
+                default(TValueFormatter).Deserialize(ref reader, ref item);
                 if (insert)
                 {
                     HashTables.Insert(dictionary, key, item);
@@ -475,9 +475,9 @@ namespace Nino.Core
                 .Serialize(value, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref Dictionary<TKey, TValue> value, ref Reader reader) =>
+        public void Deserialize(ref Reader reader, ref Dictionary<TKey, TValue> value) =>
             default(DictionaryFormatter<Dictionary<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter>)
-                .Deserialize(ref value, ref reader);
+                .Deserialize(ref reader, ref value);
     }
 
     /// <summary>
@@ -499,7 +499,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref TDictionary value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TDictionary value)
         {
             if (!reader.TryReadLengthOrDiscard(ref value,
                     NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.MinPairSize, out int length))
@@ -551,7 +551,7 @@ namespace Nino.Core
                 KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(value, ref writer);
         }
 
-        public void Deserialize(ref TDictionary value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TDictionary value)
         {
             // 1 byte a pair: what reads them into an array first (sorted and concurrent dictionaries,
             // NinoCollections.ReadRented) bounds it by the pairs' own fewest bytes (KeyValuePairFormatter's), which
@@ -584,8 +584,8 @@ namespace Nino.Core
             {
                 TKey key = default;
                 TValue item = default;
-                default(TKeyFormatter).Deserialize(ref key, ref reader);
-                default(TValueFormatter).Deserialize(ref item, ref reader);
+                default(TKeyFormatter).Deserialize(ref reader, ref key);
+                default(TValueFormatter).Deserialize(ref reader, ref item);
                 NinoCollections.AddUnique(dictionary, key, item, i);
             }
         }
@@ -623,12 +623,12 @@ namespace Nino.Core
                 KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(value, ref writer);
         }
 
-        public void Deserialize(ref TInterface value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TInterface value)
         {
             // A Dictionary is handed to its formatter (which reuses or drops it); anything else is recycled here. A
             // ReadOnlyDictionary is never a Dictionary, so it is always recycled and re-created around a new one.
             var dictionary = NinoRecycler.Reuse<TInterface, Dictionary<TKey, TValue>>(ref value);
-            default(DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>).Deserialize(ref dictionary, ref reader);
+            default(DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>).Deserialize(ref reader, ref dictionary);
             if (dictionary == null)
                 value = null;
             else if (typeof(TInterface) == typeof(ReadOnlyDictionary<TKey, TValue>))
@@ -704,7 +704,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref KeyValuePair<TKey, TValue> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref KeyValuePair<TKey, TValue> value)
         {
             if (Raw)
             {
@@ -714,8 +714,8 @@ namespace Nino.Core
 
             TKey key = value.Key;
             TValue item = value.Value;
-            default(TKeyFormatter).Deserialize(ref key, ref reader);
-            default(TValueFormatter).Deserialize(ref item, ref reader);
+            default(TKeyFormatter).Deserialize(ref reader, ref key);
+            default(TValueFormatter).Deserialize(ref reader, ref item);
             value = new KeyValuePair<TKey, TValue>(key, item);
         }
     }

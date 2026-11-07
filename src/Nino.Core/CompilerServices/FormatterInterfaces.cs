@@ -20,7 +20,7 @@ namespace Nino.Core.CompilerServices
         /// Reads the members into <paramref name="value"/>, which is either <c>null</c> or an instance of exactly
         /// <typeparamref name="T"/>. Creates the instance when needed.
         /// </summary>
-        void ReadBody(ref T value, ref Reader reader);
+        void ReadBody(ref Reader reader, ref T value);
 
         /// <summary>
         /// What the body does, as <see cref="NinoBodyTraits"/> flags (a constant):

@@ -673,12 +673,12 @@ namespace Nino.UnitTests
                         default(TFormatter).Serialize(item, ref writer);
                 }
 
-                public void Deserialize(ref ReadOnlyArray<TValue> value, ref Reader reader)
+                public void Deserialize(ref Reader reader, ref ReadOnlyArray<TValue> value)
                 {
                     reader.Read(out int count);
                     var items = new TValue[count];
                     for (var i = 0; i < count; i++)
-                        default(TFormatter).Deserialize(ref items[i], ref reader);
+                        default(TFormatter).Deserialize(ref reader, ref items[i]);
                     value = new ReadOnlyArray<TValue>(items);
                 }
             }

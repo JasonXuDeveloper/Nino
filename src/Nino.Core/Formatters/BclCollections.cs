@@ -132,7 +132,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref item, ref local);
+                default(TFormatter).Deserialize(ref local, ref item);
                 var node = new LinkedListNode<T>(item);
                 CollectionFields.Append(linked, node, last);
                 if (last == null)
@@ -154,7 +154,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref item, ref reader);
+                default(TFormatter).Deserialize(ref reader, ref item);
                 linked.AddLast(item);
             }
 

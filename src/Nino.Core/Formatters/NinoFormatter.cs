@@ -24,7 +24,7 @@ namespace Nino.Core
         /// formatters reuse it where possible; what they drop follows the ownership rules of <see cref="NinoRecycler"/>
         /// (each dropped instance is recycled exactly once).
         /// </summary>
-        void Deserialize(ref T value, ref Reader reader);
+        void Deserialize(ref Reader reader, ref T value);
     }
 
     /// <summary>
@@ -123,7 +123,7 @@ namespace Nino.Core
 
         public abstract void Serialize(T value, ref Writer writer);
 
-        public abstract void Deserialize(ref T value, ref Reader reader);
+        public abstract void Deserialize(ref Reader reader, ref T value);
 
         /// <summary>
         /// Writes <paramref name="value"/> as a whole payload into <paramref name="buffer"/> (the top-level calls): the
@@ -236,8 +236,8 @@ namespace Nino.Core
             default(TFormatter).Serialize(value, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public sealed override void Deserialize(ref T value, ref Reader reader) =>
-            default(TFormatter).Deserialize(ref value, ref reader);
+        public sealed override void Deserialize(ref Reader reader, ref T value) =>
+            default(TFormatter).Deserialize(ref reader, ref value);
 
         internal override void Write(T value, NinoArrayBufferWriter buffer) =>
             NinoDirect.Write<T, TFormatter>(value, buffer);
@@ -282,10 +282,10 @@ namespace Nino.Core
             writer.ExitStruct();
         }
 
-        public override void Deserialize(ref T value, ref Reader reader)
+        public override void Deserialize(ref Reader reader, ref T value)
         {
             reader.EnterStruct(typeof(T));
-            default(TFormatter).Deserialize(ref value, ref reader);
+            default(TFormatter).Deserialize(ref reader, ref value);
             reader.ExitStruct();
         }
 
@@ -336,7 +336,7 @@ namespace Nino.Core
         public void Serialize(T value, ref Writer writer) => NinoTopFormatter<T>.Formatter.Serialize(value, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref T value, ref Reader reader) =>
-            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
+        public void Deserialize(ref Reader reader, ref T value) =>
+            NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref value);
     }
 }

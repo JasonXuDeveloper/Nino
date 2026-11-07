@@ -51,7 +51,7 @@ namespace Nino.Immutable
             default(ArrayFormatter<T, TFormatter>).Serialize(ImmutableCollectionsMarshal.AsArray(value), ref writer);
         }
 
-        public void Deserialize(ref ImmutableArray<T> value, ref Reader reader) =>
+        public void Deserialize(ref Reader reader, ref ImmutableArray<T> value) =>
             value = ImmutableCollectionsMarshal.AsImmutableArray(ImmutableCollections.Read<T, TFormatter>(ref reader));
     }
 
@@ -74,7 +74,7 @@ namespace Nino.Immutable
             ImmutableCollections.WriteRented<T, TFormatter>(array, value.Count, ref writer);
         }
 
-        public void Deserialize(ref ImmutableList<T> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ImmutableList<T> value)
         {
             // Read as a T[] (raw elements as one block) and built from it in one pass: a builder would insert and
             // rebalance its tree for every element.
@@ -125,7 +125,7 @@ namespace Nino.Immutable
             return writer;
         }
 
-        public void Deserialize(ref ImmutableHashSet<T> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ImmutableHashSet<T> value)
         {
             var array = ImmutableCollections.Read<T, TFormatter>(ref reader);
             if (array == null)
@@ -203,7 +203,7 @@ namespace Nino.Immutable
             return array;
         }
 
-        public void Deserialize(ref ImmutableSortedSet<T> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ImmutableSortedSet<T> value)
         {
             var array = ImmutableCollections.Read<T, TFormatter>(ref reader);
             value = array == null ? null : Build(array);
@@ -242,7 +242,7 @@ namespace Nino.Immutable
             writer.PatchInt32(countPos, count);
         }
 
-        public void Deserialize(ref ImmutableQueue<T> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ImmutableQueue<T> value)
         {
             var array = ImmutableCollections.Read<T, TFormatter>(ref reader);
             value = array == null ? null : ImmutableQueue.CreateRange(array);
@@ -279,7 +279,7 @@ namespace Nino.Immutable
             ImmutableCollections.WriteRented<T, TFormatter>(array, count, ref writer);
         }
 
-        public void Deserialize(ref ImmutableStack<T> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ImmutableStack<T> value)
         {
             var array = ImmutableCollections.Read<T, TFormatter>(ref reader);
             value = array == null ? null : ImmutableStack.CreateRange(array);
@@ -329,7 +329,7 @@ namespace Nino.Immutable
             return writer;
         }
 
-        public void Deserialize(ref ImmutableDictionary<TKey, TValue> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ImmutableDictionary<TKey, TValue> value)
         {
             var pairs = ImmutableCollections.Read<KeyValuePair<TKey, TValue>,
                 KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(ref reader);
@@ -401,7 +401,7 @@ namespace Nino.Immutable
             return pairs;
         }
 
-        public void Deserialize(ref ImmutableSortedDictionary<TKey, TValue> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ImmutableSortedDictionary<TKey, TValue> value)
         {
             var pairs = ImmutableCollections.Read<KeyValuePair<TKey, TValue>,
                 KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(ref reader);
@@ -444,7 +444,7 @@ namespace Nino.Immutable
         public static T[] Read<T, TFormatter>(ref Reader reader) where TFormatter : struct, INinoFormatter<T>
         {
             T[] array = null;
-            default(ArrayFormatter<T, TFormatter>).Deserialize(ref array, ref reader);
+            default(ArrayFormatter<T, TFormatter>).Deserialize(ref reader, ref array);
             return array;
         }
 

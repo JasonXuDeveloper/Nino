@@ -77,11 +77,11 @@ internal static class DispatchEmitter
                 w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer);");
             });
             w.Line();
-            w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref {Core}Reader reader)", () =>
+            w.Block($"internal static void __ReadSubtype(int id, ref {Core}Reader reader, ref {t} value)", () =>
             {
                 for (int i = 0; i < closed.Count; i++)
-                    w.Line($$"""if (typeof({{t}}) == typeof({{closed[i]}})) { {{classes[i]}}.__ReadSubtype(id, ref {{CoreCompilerServices}}NinoObject.SameTypeSlot<{{t}}, {{closed[i]}}>(ref value), ref reader); return; }""");
-                w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref value, ref reader);");
+                    w.Line($$"""if (typeof({{t}}) == typeof({{closed[i]}})) { {{classes[i]}}.__ReadSubtype(id, ref reader, ref {{CoreCompilerServices}}NinoObject.SameTypeSlot<{{t}}, {{closed[i]}}>(ref value)); return; }""");
+                w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value);");
             });
             w.Close();
             w.Line();
@@ -105,7 +105,7 @@ internal static class DispatchEmitter
     {
         w.Open("switch (id)");
         for (int i = 0; i < subtypes.Count; i++)
-            w.Line($"case {subtypes[i].FormatterName}.Id: __ReadExact{i}(ref value, ref reader); return;");
+            w.Line($"case {subtypes[i].FormatterName}.Id: __ReadExact{i}(ref reader, ref value); return;");
         w.Close();
     }
 
@@ -140,11 +140,11 @@ internal static class DispatchEmitter
             w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer);");
         });
         w.Line();
-        w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref {Core}Reader reader)", () =>
+        w.Block($"internal static void __ReadSubtype(int id, ref {Core}Reader reader, ref {t} value)", () =>
         {
             if (subtypes.Count != 0)
                 EmitReadSwitch(w, subtypes);
-            w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref value, ref reader);");
+            w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value);");
         });
 
         // Each subtype's instance check and body, out of line in a method of this non-generic struct, where
@@ -155,7 +155,7 @@ internal static class DispatchEmitter
         for (int i = 0; i < subtypes.Count; i++)
         {
             var s = subtypes[i];
-            w.Line($"{GeneratedCode.NoInline} static void __ReadExact{i}(ref {t} value, ref {Core}Reader reader) => {CoreCompilerServices}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref value, ref reader);");
+            w.Line($"{GeneratedCode.NoInline} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {CoreCompilerServices}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
         }
     }
 }

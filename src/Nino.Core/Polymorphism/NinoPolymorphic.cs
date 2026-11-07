@@ -48,32 +48,32 @@ namespace Nino.Core
             writer.ExitBody(depth);
         }
 
-        public override void Deserialize(ref object value, ref Reader reader)
+        public override void Deserialize(ref Reader reader, ref object value)
         {
             if (!typeof(TSub).IsValueType)
             {
                 int depth = reader.Depth;
                 if (depth >= NinoDepth.Inline)
                 {
-                    ReadDeep(ref value, ref reader);
+                    ReadDeep(ref reader, ref value);
                     return;
                 }
 
                 // value is null or exactly a TSub, and the body stores a TSub: the slot is read as a TSub slot.
                 if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
                 {
-                    default(TFormatter).ReadBody(ref Unsafe.As<object, TSub>(ref value), ref reader);
+                    default(TFormatter).ReadBody(ref reader, ref Unsafe.As<object, TSub>(ref value));
                     return;
                 }
 
                 reader.Depth = depth + 1;
-                default(TFormatter).ReadBody(ref Unsafe.As<object, TSub>(ref value), ref reader);
+                default(TFormatter).ReadBody(ref reader, ref Unsafe.As<object, TSub>(ref value));
                 reader.ExitBody(depth);
                 return;
             }
 
             TSub sub = value == null ? default : As(ref value);
-            default(TFormatter).ReadBody(ref sub, ref reader);
+            default(TFormatter).ReadBody(ref reader, ref sub);
             value = sub;
         }
 
@@ -82,8 +82,8 @@ namespace Nino.Core
             NinoObject.WriteBody<object, ClassBody>(value, ref writer);
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadDeep(ref object value, ref Reader reader) =>
-            NinoObject.ReadBody<object, ClassBody>(ref value, ref reader);
+        private static void ReadDeep(ref Reader reader, ref object value) =>
+            NinoObject.ReadBody<object, ClassBody>(ref reader, ref value);
 
         /// <summary><typeparamref name="TFormatter"/> over <c>object</c>, for a class <typeparamref name="TSub"/>.</summary>
         private struct ClassBody : INinoBodyFormatter<object>
@@ -97,16 +97,16 @@ namespace Nino.Core
             public void WriteBody(object value, ref Writer writer) =>
                 default(TFormatter).WriteBody(Unsafe.As<object, TSub>(ref value), ref writer);
 
-            public void ReadBody(ref object value, ref Reader reader)
+            public void ReadBody(ref Reader reader, ref object value)
             {
                 TSub sub = value == null ? default : Unsafe.As<object, TSub>(ref value);
-                default(TFormatter).ReadBody(ref sub, ref reader);
+                default(TFormatter).ReadBody(ref reader, ref sub);
                 value = sub;
             }
 
             public void Serialize(object value, ref Writer writer) => WriteBody(value, ref writer);
 
-            public void Deserialize(ref object value, ref Reader reader) => ReadBody(ref value, ref reader);
+            public void Deserialize(ref Reader reader, ref object value) => ReadBody(ref reader, ref value);
         }
 
         // The caller guarantees the exact runtime type, so reference types skip the cast check.
@@ -138,14 +138,14 @@ namespace Nino.Core
                 NinoObject.WriteBody<TSub, TFormatter>(Unsafe.As<TSub>(value), ref writer);
         }
 
-        public override void Deserialize(ref object value, ref Reader reader)
+        public override void Deserialize(ref Reader reader, ref object value)
         {
             var sub = Unsafe.As<TSub>(value);
             // A back reference must be a TSub (ReadReference checks it); the old instance is not recycled, since
             // it may be referenced elsewhere in the graph.
             if (reader.ReadReference(ref sub, out int index))
             {
-                NinoObject.ReadBody<TSub, TFormatter>(ref sub, ref reader);
+                NinoObject.ReadBody<TSub, TFormatter>(ref reader, ref sub);
                 reader.EndReference(index, sub);
             }
 
@@ -158,10 +158,10 @@ namespace Nino.Core
             NinoObject.WriteBody<TSub, TFormatter>(Unsafe.As<TSub>(value), ref writer);
         }
 
-        internal override void DeserializeReferenced(ref object value, ref Reader reader)
+        internal override void DeserializeReferenced(ref Reader reader, ref object value)
         {
             var sub = Unsafe.As<TSub>(value);
-            NinoObject.ReadBody<TSub, TFormatter>(ref sub, ref reader);
+            NinoObject.ReadBody<TSub, TFormatter>(ref reader, ref sub);
             value = sub;
         }
     }

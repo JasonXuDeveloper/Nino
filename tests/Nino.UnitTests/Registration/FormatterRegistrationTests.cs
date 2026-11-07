@@ -53,7 +53,7 @@ public struct RingFormatter<T, TFormatter> : INinoFormatter<Ring<T>> where TForm
             default(TFormatter).Serialize(item, ref writer);
     }
 
-    public void Deserialize(ref Ring<T> value, ref Reader reader)
+    public void Deserialize(ref Reader reader, ref Ring<T> value)
     {
         reader.Read(out int capacity);
         if (capacity < 0)
@@ -67,7 +67,7 @@ public struct RingFormatter<T, TFormatter> : INinoFormatter<Ring<T>> where TForm
         for (int i = 0; i < count; i++)
         {
             T item = default;
-            default(TFormatter).Deserialize(ref item, ref reader);
+            default(TFormatter).Deserialize(ref reader, ref item);
             value.Push(item);
         }
     }
@@ -241,7 +241,7 @@ public class FormatterRegistrationTests
     {
         public void Serialize(TryRegisterTarget value, ref Writer writer) => writer.Write(0);
 
-        public void Deserialize(ref TryRegisterTarget value, ref Reader reader) => reader.Read(out int _);
+        public void Deserialize(ref Reader reader, ref TryRegisterTarget value) => reader.Read(out int _);
     }
 
     [TestMethod]

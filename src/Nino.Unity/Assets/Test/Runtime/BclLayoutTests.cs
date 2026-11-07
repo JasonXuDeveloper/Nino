@@ -29,7 +29,7 @@ namespace Test.Runtime
                 writer.WriteValue(value.Value);
         }
 
-        public void Deserialize(ref Cell<T> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref Cell<T> value)
         {
             reader.Read(out bool present);
             value = present ? new Cell<T> { Value = reader.ReadValue<T>() } : null;
