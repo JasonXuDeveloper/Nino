@@ -207,8 +207,8 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Before the run of <see cref="Run"/> elements at <paramref name="at"/>, <paramref name="left"/> elements
-        /// left: prefetches the objects of the run after the next one and, through the formatter, the objects the
-        /// members of the next run point to (those objects were prefetched a run earlier). Out of line: the loop
+        /// left: prefetches the objects of the run after the next one and the objects the members of the next run point
+        /// to (<see cref="Members{TFormatter}"/>; those elements were prefetched a run earlier). Out of line: the loop
         /// calls it once per run, with nothing of its own in memory.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -221,12 +221,30 @@ namespace Nino.Core.Internal
                 sum += At(Unsafe.Add(ref item, i));
             int near = Math.Min(left - Run, Run);
             if (near > 0)
-                sum += ((INinoPrefetchFormatter)default(TFormatter)).PrefetchMembers(ref Unsafe.Add(ref at, Run),
-                    near);
+                sum += Members<TFormatter>(ref Unsafe.Add(ref at, Run), near);
 #if NET8_0_OR_GREATER
             if (!Sse.IsSupported)
                 Sink = sum;
 #endif
+        }
+
+        /// <summary>
+        /// Prefetches, through the formatter's <see cref="INinoPrefetchFormatter.PrefetchMembers"/> (inlined here), the
+        /// objects the members of the <paramref name="count"/> elements at <paramref name="first"/> (null ones skipped)
+        /// point to; the sum of what it returned.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Members<TFormatter>(ref object first, int count) where TFormatter : struct
+        {
+            int sum = 0;
+            for (; count > 0; count--, first = ref Unsafe.Add(ref first, 1))
+            {
+                object value = first;
+                if (value != null)
+                    sum += ((INinoPrefetchFormatter)default(TFormatter)).PrefetchMembers(value);
+            }
+
+            return sum;
         }
 
         /// <summary>
