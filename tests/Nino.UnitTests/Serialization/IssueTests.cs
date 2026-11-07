@@ -10,28 +10,17 @@ using Nino.UnitTests;
 
 namespace Nino.UnitTests
 {
+    // Regressions of reported issues, a class per issue holding its types, a method named after the issue and what it
+    // checks. Each has [Timeout(10000)]: a bound that catches a hang (several of these issues looped), not a speed
+    // check: 1 s failed on a machine shared by parallel builds, where the first call of a type's generated code is
+    // compiled.
     [TestClass]
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [SuppressMessage("ReSharper", "SpecifyACultureInStringConversionExplicitly")]
     public class IssueTests
     {
         [TestClass]
-        public abstract class IssueTestTemplate
-        {
-            // A bound that catches a hang (several of these issues looped), not a speed check: 1 s failed on a
-            // machine shared by parallel builds, where the first call of a type's generated code is compiled.
-            [TestMethod(DisplayName = nameof(Test))]
-            [Timeout(10000)]
-            public void Test()
-            {
-                RunTest();
-            }
-
-            protected abstract void RunTest();
-        }
-
-        [TestClass]
-        public class Issue157 : IssueTestTemplate
+        public class Issue157
         {
             [NinoType(format: NinoFormat.VersionTolerant)]
             public abstract class ITable
@@ -383,7 +372,9 @@ namespace Nino.UnitTests
             }
 
 
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void Issue157_InheritedClassesWithStructMembers()
             {
                 var test = new EffectTable()
                 {
@@ -440,7 +431,7 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class Issue153 : IssueTestTemplate
+        public class Issue153
         {
             public class ListComponent<T> : List<T>, IDisposable
             {
@@ -464,7 +455,9 @@ namespace Nino.UnitTests
                 }
             }
 
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void Issue153_DisposableListSubclass()
             {
                 var list = ListComponent<int>.Create();
                 list.Add(1);
@@ -481,9 +474,11 @@ namespace Nino.UnitTests
 
         [TestClass]
 #nullable disable
-        public class Issue145 : IssueTestTemplate
+        public class Issue145
         {
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void Issue145_GenericSubtypeBuiltByConstructor()
             {
                 TestB<float> testB = new TestB<float>(123.4f);
                 var bytes = NinoSerializer.Serialize(testB);
@@ -496,7 +491,7 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class ListTest : IssueTestTemplate
+        public class ListTest
         {
             [NinoType(format: NinoFormat.VersionTolerant)]
             public class MyTest
@@ -504,7 +499,9 @@ namespace Nino.UnitTests
                 public List<int> List = new List<int>();
             }
 
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void EmptyListMember()
             {
                 var t = new MyTest();
                 var bytes = NinoSerializer.Serialize(t);
@@ -514,9 +511,11 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class IssueValueTupleLayout : IssueTestTemplate
+        public class IssueValueTupleLayout
         {
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void ValueTuplesWriteTheirFieldsInOrder()
             {
                 var data = ((byte)4, 1920);
                 var bytes = NinoSerializer.Serialize(data);
@@ -532,7 +531,7 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class Issue144 : IssueTestTemplate
+        public class Issue144
         {
             /// <summary>
             /// Source https://github.com/Unity-Technologies/InputSystem/blob/develop/Packages/com.unity.inputsystem/InputSystem/Utilities/ReadOnlyArray.cs
@@ -685,7 +684,9 @@ namespace Nino.UnitTests
                 }
             }
 
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void Issue144_GenericStructWithRegisteredFormatter()
             {
                 var array = new int[] { 1, 2, 3, 4, 5 };
                 var readOnlyArray = new ReadOnlyArray<int>(array);
@@ -701,7 +702,7 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class Issue141 : IssueTestTemplate
+        public class Issue141
         {
             [NinoType(format: NinoFormat.VersionTolerant)]
             public class TestClass<T>
@@ -717,7 +718,9 @@ namespace Nino.UnitTests
             }
 
 
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void Issue141_DictionaryWithEnumKeysInGenericType()
             {
                 var t = new TestClass<int>();
                 t.Dict.Add(TestEnum.A, 1);
@@ -748,7 +751,7 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class Issue137 : IssueTestTemplate
+        public class Issue137
         {
             public class MultiMap<T, K> : SortedDictionary<T, List<K>>
             {
@@ -779,7 +782,9 @@ namespace Nino.UnitTests
                 }
             }
 
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void Issue137_SortedDictionarySubclassOfLists()
             {
                 MultiMap<long, long> TimeId = new MultiMap<long, long>();
                 TimeId[1].Add(1);
@@ -816,7 +821,7 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class IssueV3_0 : IssueTestTemplate
+        public class IssueV3_0
         {
             [NinoType(format: NinoFormat.VersionTolerant)]
             public class DiceData
@@ -876,7 +881,9 @@ namespace Nino.UnitTests
                 CONS = 2,
             }
 
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void IssueV3_0_DictionaryOfEnumerableNinoTypes()
             {
                 var pools = new Dictionary<DicePoolType, DicePool>();
                 pools.Add(DicePoolType.STR, new DicePool());
@@ -888,7 +895,7 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class Issue134 : IssueTestTemplate
+        public class Issue134
         {
             [NinoType(format: NinoFormat.VersionTolerant)]
             public interface IBase
@@ -902,7 +909,9 @@ namespace Nino.UnitTests
                 public int A { get; set; }
             }
 
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void Issue134_InterfaceNinoTypeAsDictionaryValue()
             {
                 var impl = new Impl { A = 10 };
                 var bytes = NinoSerializer.Serialize(impl);
@@ -920,7 +929,7 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class InheritanceTest : IssueTestTemplate
+        public class InheritanceTest
         {
             public class PackageBase
             {
@@ -950,7 +959,9 @@ namespace Nino.UnitTests
                 public DateTime P1 { get; set; }
             }
 
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void NinoTypesDerivedFromAPlainClass()
             {
                 MyPackPerson person = new MyPackPerson
                 {
@@ -978,7 +989,7 @@ namespace Nino.UnitTests
 
 
         [TestClass]
-        public class IssueIgnore : IssueTestTemplate
+        public class IssueIgnore
         {
             [NinoType(format: NinoFormat.VersionTolerant)]
             public class Data
@@ -995,7 +1006,9 @@ namespace Nino.UnitTests
                 public int Ba;
             }
 
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void UnmarkedMemberSkippedWithoutAutoCollect()
             {
                 Data data = new Data();
                 data.A = 10;
@@ -1015,7 +1028,7 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class Issue52 : IssueTestTemplate
+        public class Issue52
         {
             [NinoType(format: NinoFormat.VersionTolerant)]
             public class NinoTestData
@@ -1024,7 +1037,9 @@ namespace Nino.UnitTests
                 public long Y;
             }
 
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void Issue52_NegativeAndMinimumIntegers()
             {
                 var dt = new NinoTestData()
                 {
@@ -1064,7 +1079,7 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class Issue41 : IssueTestTemplate
+        public class Issue41
         {
             [NinoType(format: NinoFormat.VersionTolerant)]
             public class NinoTestData
@@ -1081,7 +1096,9 @@ namespace Nino.UnitTests
                 public Sex sex;
             }
 
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void Issue41_ListsAndArraysOfClassesWithEnums()
             {
                 var list = new List<NinoTestData>();
                 list.Add(new NinoTestData
@@ -1140,9 +1157,11 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class Issue32 : IssueTestTemplate
+        public class Issue32
         {
-            protected override void RunTest()
+            [TestMethod]
+            [Timeout(10000)]
+            public void Issue32_ByteEnumAndFloatMembers()
             {
                 MessagePackage package = new MessagePackage
                 {
