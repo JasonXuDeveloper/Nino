@@ -59,7 +59,8 @@ Collections/                 arrays, BCL and user collections, empty ones, Stack
 Layout/                      raw structs, padding, the portable (canonical) layout, BCL structs inside raw structs
                              (BclStructLayoutTests: CoreCLR's auto layout of tuples, DateTimeOffset), block structs,
                              fixed-size types, the unmanaged constraint, top-level fast paths
-Polymorphism/                inheritance, dispatch, the registry, generic polymorphic bases, cross-assembly subtypes
+Polymorphism/                inheritance, dispatch, the registry, generic polymorphic bases, cross-assembly subtypes,
+                             what attributes on interface members do (InterfaceMemberAttributeTests)
 Versioning/                  version-tolerant and keyed types read across versions
 Reuse/                       reuse deserialization (ref overloads), [NinoFactory], pools, recycling ownership, null targets
 Registration/                [NinoFormatter] registrations and lazy registration by type id
