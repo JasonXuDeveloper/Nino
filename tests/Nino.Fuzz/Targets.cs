@@ -56,7 +56,7 @@ namespace Nino.Fuzz
                 Samples.Colls, Samples.CollsLarge),
             Make("Imm", "Nino.Immutable: ImmutableArray, List, HashSet, Dictionary, SortedSet, SortedDictionary, Queue, Stack",
                 Samples.Imm, Samples.ImmLarge),
-            Make("Holder", "polymorphism (abstract class, interface, object) mixed with reference tracking", Samples.Holder),
+            Make("Holder", "polymorphism (abstract class, interface, object) mixed with reference tracking; explicit implementations of interface members (a class, a raw struct)", Samples.Holder),
             Make("Keyed", "NinoFormat.Keyed classes and structs", Samples.Keyed),
             Make("Node", "deep nesting: a positional chain 300 deep", () => Samples.Chain(300)),
             Make("VNode", "deep nesting: a version-tolerant chain", () => Samples.VChain(300)),

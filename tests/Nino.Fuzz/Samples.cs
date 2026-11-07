@@ -78,6 +78,7 @@ namespace Nino.Fuzz
             ById = Enumerable.Range(0, 4).ToDictionary(i => i, Flags),
             Bcl = Bcl(9), Bcls = Enumerable.Range(0, 3).Select(Bcl).ToArray(),
             ByTuple = Enumerable.Range(0, 3).ToDictionary(i => (i, -(long)i), Bcl),
+            Dates = Enumerable.Range(0, 9).ToDictionary(i => (long)i, i => new DateTime(2026, 11, 7).AddDays(i)),
         };
 
         public static Keyed Keyed() => new Keyed
@@ -147,7 +148,31 @@ namespace Nino.Fuzz
                 O = new Dog { Name = "rex", Friend = new Cat { Lives = 9 } }, T = t, TO = o,
                 S = new Square { Id = 3, S = 2f, Inner = new Circle { Id = 4, R = 1 }, More = new() { new Circle() } },
                 A = new Cat { Lives = 3 }, Objs = new() { leaf, o, new Circle { Id = 9 }, null, t, new RawS { A = 1 }, new Pair2 { B = 2 } },
+                Tagged = Bird(7), F = Flag(1), Flags = new[] { Flag(2), Flag(3), default },
+                Birds = new() { Bird(8), Bird(9), null },
             };
+        }
+
+        private static Bird Bird(int tag)
+        {
+            var bird = new Bird { Flag = Flag(tag) };
+            ITagged tagged = bird;
+            tagged.Tag = tag; tagged.Label = "b" + tag; tagged.Items = new() { tag, -tag };
+            return bird;
+        }
+
+        private static Flag Flag(int id)
+        {
+            var flag = new Flag { Id = (byte)id };
+            ref Flag at = ref flag;
+            Set(ref at, id % 2 == 1, new DateTime(2026, 11, 7).AddDays(id));
+            return flag;
+
+            static void Set<T>(ref T value, bool on, DateTime when) where T : IFlag
+            {
+                value.On = on;
+                value.At = when;
+            }
         }
 
         public static Node Chain(int n) { Node h = null; for (int i = 0; i < n; i++) h = new Node { V = i, Next = h }; return h; }

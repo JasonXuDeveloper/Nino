@@ -42,6 +42,9 @@ namespace Nino.Fuzz
     {
         public RawFlags One; public RawFlags[] Many; public List<RawFlags> List; public Dictionary<int, RawFlags> ById;
         public RawBcl Bcl; public RawBcl[] Bcls; public Dictionary<(int, long), RawBcl> ByTuple;
+        // Last, so that the input ends with it: raw pairs whose values the vector checks read (a run that ends a key
+        // short of a whole pair).
+        public Dictionary<long, DateTime> Dates;
     }
 
     [NinoType]
@@ -89,10 +92,34 @@ namespace Nino.Fuzz
     [NinoType(trackReferences: true)] public class TLeaf : TNode { public string S; }
     [NinoType(trackReferences: true)] public sealed class TOther { public string S; public TNode Back; }
 
+    // Explicit implementations of a [NinoType] interface's members, read and written through the interface: a class
+    // (a cast) and a raw struct (constrained accessors) whose bool and DateTime are explicit, so its runs take the
+    // raw paths and their checks.
+    [NinoType] public interface ITagged { int Tag { get; set; } string Label { get; set; } List<int> Items { get; set; } }
+    [NinoType] public interface IFlag { bool On { get; set; } DateTime At { get; set; } }
+
+    [NinoType]
+    public class Bird : IAnimal, ITagged
+    {
+        int ITagged.Tag { get; set; }
+        string ITagged.Label { get; set; }
+        List<int> ITagged.Items { get; set; }
+        public IFlag Flag;
+    }
+
+    [NinoType]
+    public struct Flag : IFlag
+    {
+        public byte Id;
+        bool IFlag.On { get; set; }
+        DateTime IFlag.At { get; set; }
+    }
+
     [NinoType]
     public class Holder
     {
         public object O; public TNode T; public TOther TO; public Shape S; public IAnimal A; public List<object> Objs;
+        public ITagged Tagged; public Flag F; public Flag[] Flags; public List<Bird> Birds;
     }
 
     [NinoType]
