@@ -66,8 +66,10 @@ Versioning/                  version-tolerant and keyed types read across versio
 Reuse/                       reuse deserialization (ref overloads), [NinoFactory], pools, recycling ownership, null targets
 Registration/                [NinoFormatter] registrations and lazy registration by type id
 Security/                    hostile input: StrictReadTests, HashFloodingTests, UntrustedModeTests, UntrustedInputTests,
-                             SettingsTests (limits frozen on first use, each case in its own load context), the nesting
-                             tests (DeepNesting, BoundedNesting, SelfNestingCollection, WriteDepth)
+                             ValueCheckLayoutTests (Untrusted mode's value checks over random struct layouts, scalar and
+                             vector, against the types' own constructors), SettingsTests (limits frozen on first use,
+                             each case in its own load context), the nesting tests (DeepNesting, BoundedNesting,
+                             SelfNestingCollection, WriteDepth)
 Generator/                   AnalyzerTests (every rule; the AnalyzerReleases files), CodeFixTests, incremental caching,
                              __Top twins, receiver aliases, the tools/CodeGen output checks (*FormattersGenerationTests)
 Corner/                      corner cases compiled in memory (CornerCompiler): ShapeMatrixTests (every way to declare a
@@ -77,7 +79,8 @@ Corner/                      corner cases compiled in memory (CornerCompiler): S
 Platforms/                   Unity (UnityTypesTests against the UnityEngine stub, UnityMock/; UnityPackageDllTests: the
                              Unity package's committed DLLs have the public API of their sources), HybridCLR hot-update
                              assemblies, the NinoKernels hook, ET framework collection shapes
-Infrastructure/              shared helpers: Rt (round trips, FromHex/ToHex, OnSmallStack), SharedTypes,
+Infrastructure/              shared helpers: Rt (round trips, FromHex/ToHex, OnSmallStack), GuardedMemory (bytes placed
+                             against an inaccessible page, so a read past them crashes), SharedTypes,
                              TestCompilation, TestReferences (the analyzer tests' references, created once),
                              MSTestSettings (classes run in parallel)
 Nino.UnitTests.csproj        targets, references (Nino.Core, Immutable, UnityTypes, the
