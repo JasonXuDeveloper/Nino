@@ -50,6 +50,19 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         NinoType = NinoNames.NinoType, NinoFormerName = "NinoFormerName", NinoFactory = "NinoFactory",
         NinoUtf8 = "NinoUtf8", NinoMemberFormatter = "NinoMemberFormatter";
 
+    private const string NoParameterNamed = "CS1739";
+
+    /// <summary>
+    /// The <c>[NinoType]</c> parameters renamed before 4.0, by their former name: <c>containNonPublicMembers</c> (v3)
+    /// and <c>allowInheritance</c> (the 4.0 release candidates); the values mean the same. Declared before
+    /// <see cref="Fixes"/>, which reads them: static fields initialize in order.
+    /// </summary>
+    private static readonly Dictionary<string, string> RenamedTypeArguments = new()
+    {
+        ["containNonPublicMembers"] = "includeNonPublicMembers",
+        ["allowInheritance"] = "inheritedBySubtypes",
+    };
+
     private static readonly Dictionary<string, Fix[]> Fixes = new()
     {
         [NinoDiagnostics.InaccessibleType.Id] = new[]
@@ -108,23 +121,29 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         // No effect either way: nothing changes when it goes.
         [NinoDiagnostics.Utf8WithoutEffect.Id] = new[] { RemoveAttributeFix(NinoUtf8) },
         [NinoDiagnostics.Utf8FormatterByHand.Id] = new[] { new Fix("Use [NinoUtf8]", "UseNinoUtf8", UseNinoUtf8) },
-        // The compiler's "no parameter named ..." on [NinoType(allowInheritance: ...)], the name before 4.0.
+        // The compiler's "no parameter named ..." on a [NinoType] argument under its name before 4.0.
+        // One fix for every former name, so fixing all renames them all at once.
         [NoParameterNamed] = new[]
         {
-            new Fix("Rename to inheritedBySubtypes", "RenameAllowInheritance", (e, n) => e.ReplaceNode(n,
-                SyntaxFactory.IdentifierName(InheritedBySubtypes).WithTriviaFrom(n)), IsAllowInheritance),
+            new Fix("Use the 4.0 parameter name", "RenameFormerArgument", (e, n) => e.ReplaceNode(n,
+                SyntaxFactory.IdentifierName(RenamedTypeArguments[FormerArgumentName(n)!]).WithTriviaFrom(n)),
+                n => FormerArgumentName(n) != null),
         },
     };
 
-    private const string NoParameterNamed = "CS1739", InheritedBySubtypes = "inheritedBySubtypes";
-
-    /// <summary>The name of an <c>allowInheritance:</c> argument of a <c>[NinoType]</c>.</summary>
-    private static bool IsAllowInheritance(SyntaxNode node) =>
-        node is IdentifierNameSyntax { Identifier.ValueText: "allowInheritance", Parent: NameColonSyntax
+    /// <summary>
+    /// The name of <paramref name="node"/> when it is a <c>[NinoType]</c> argument named by a former name
+    /// (<see cref="RenamedTypeArguments"/>), else null.
+    /// </summary>
+    private static string? FormerArgumentName(SyntaxNode node) =>
+        node is IdentifierNameSyntax { Parent: NameColonSyntax
         {
             Parent: AttributeArgumentSyntax { Parent: AttributeArgumentListSyntax { Parent: AttributeSyntax attribute } },
-        } } && attribute.Name.ToString() is var name &&
-        (name.EndsWith(NinoType, StringComparison.Ordinal) || name.EndsWith(NinoType + "Attribute", StringComparison.Ordinal));
+        } } identifier && RenamedTypeArguments.ContainsKey(identifier.Identifier.ValueText) &&
+        attribute.Name.ToString() is var type &&
+        (type.EndsWith(NinoType, StringComparison.Ordinal) || type.EndsWith(NinoType + "Attribute", StringComparison.Ordinal))
+            ? identifier.Identifier.ValueText
+            : null;
 
     public override ImmutableArray<string> FixableDiagnosticIds { get; } = Fixes.Keys.ToImmutableArray();
 
@@ -215,17 +234,14 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     }
 
     /// <summary>
-    /// <c>format: NinoFormat.VersionTolerant</c> on the type's <c>[NinoType]</c> (NINO032), qualified as the attribute
-    /// is (<c>Nino.Core.NinoType</c>: <c>Nino.Core.NinoFormat</c>).
+    /// <c>format: NinoFormat.VersionTolerant</c> on the type's <c>[NinoType]</c> (NINO032), named as briefly as the
+    /// file allows (the simplifier reduces the full name: <c>NinoFormat</c> under <c>using Nino.Core;</c>, else
+    /// qualified, as for a <c>[NinoType]</c> named through an alias).
     /// </summary>
-    private static void MakeVersionTolerant(DocumentEditor editor, SyntaxNode node)
-    {
-        if (FindAttribute(editor, Type(node), NinoType) is not { } attribute)
-            return;
-        string qualifier = attribute.Name is QualifiedNameSyntax { Left: var left } ? left + "." : "";
+    private static void MakeVersionTolerant(DocumentEditor editor, SyntaxNode node) =>
         SetTypeArgument(editor, node, "format",
-            SyntaxFactory.ParseExpression(qualifier + "NinoFormat.VersionTolerant"), removable: false);
-    }
+            SyntaxFactory.ParseExpression("global::" + NinoNames.CoreNamespace + ".NinoFormat.VersionTolerant")
+                .WithAdditionalAnnotations(Simplifier.Annotation), removable: false);
 
     private static Fix RemoveAttributeFix(string name) =>
         new($"Remove [{name}]", "Remove" + name, (e, n) => RemoveAttribute(e, n, name));

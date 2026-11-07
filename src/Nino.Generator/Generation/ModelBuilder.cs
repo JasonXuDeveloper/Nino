@@ -143,16 +143,21 @@ internal static class ModelBuilder
         };
         var members = set.Models;
 
-        if ((kind != FormatterKind.Polymorphic || set.EmitMembers) && !shape.RawStruct)
+        if (BuildsMembers(type, shape, facts))
         {
             var symbols = facts.Members.Of(type, attr);
             int basePrefix = BasePrefix(type, attr, symbols, facts, ref set.BaseFormatter);
 
-            // Abstract types do not report member diagnostics: their subtypes do.
+            // What depends on the type writing the member (NINO022) is reported by each concrete type; abstract
+            // types leave it to their subtypes.
             var memberDiagnostics = kind == FormatterKind.Polymorphic ? null : diagnostics;
             for (int i = 0; i < symbols.Count; i++)
             {
-                var member = BuildMember(type, attr.Keyed, symbols, i, facts, memberDiagnostics,
+                // A member's own problems (its type: NINO007, NINO029) are reported once, by the type declaring it.
+                var own = diagnostics != null && ReportsOwnProblems(type, symbols[i].ContainingType, facts)
+                    ? diagnostics
+                    : null;
+                var member = BuildMember(type, attr.Keyed, symbols, i, facts, memberDiagnostics, own,
                     ref set.NeedsPartialAccessor, factories, ct);
                 if (member == null)
                     continue;
@@ -184,6 +189,25 @@ internal static class ModelBuilder
             ReportNames(type, attr.Keyed, members, set.Symbols, facts.Symbols, diagnostics);
         return set;
     }
+
+    /// <summary>
+    /// Whether the model of <paramref name="type"/> builds its members: abstract classes only for their subtypes to
+    /// delegate to (<see cref="TypeFacts.IsDelegatable"/>), and raw structs never (they are copied whole).
+    /// </summary>
+    private static bool BuildsMembers(INamedTypeSymbol type, TypeShape shape, TypeFacts facts) =>
+        (shape.Kind != FormatterKind.Polymorphic || facts.IsDelegatable(type)) && !shape.RawStruct;
+
+    /// <summary>
+    /// Whether building <paramref name="type"/> reports the own problems of a member <paramref name="declaring"/>
+    /// declares: when it declares it, or when the declaring type is not built here (a base from another assembly, a
+    /// closed generic base such as <c>Base&lt;Action&gt;</c>, an abstract base its subtypes do not delegate to), so
+    /// each type writing the member reports it. Otherwise the declaring type's build reports it, once.
+    /// </summary>
+    private static bool ReportsOwnProblems(INamedTypeSymbol type, INamedTypeSymbol declaring, TypeFacts facts) =>
+        SymbolEqualityComparer.Default.Equals(declaring, type) ||
+        !(SymbolEqualityComparer.Default.Equals(declaring, declaring.OriginalDefinition) &&
+          facts.Visibility.IsGeneratedHere(declaring) && facts.Shape(declaring) is { } shape &&
+          BuildsMembers(declaring, shape, facts));
 
     /// <summary>
     /// Read-only members that are not constructor arguments of a recreated type cannot be assigned (init-only
@@ -496,7 +520,7 @@ internal static class ModelBuilder
     }
 
     private static MemberModel? BuildMember(INamedTypeSymbol type, bool keyed, MemberList symbols, int index,
-        TypeFacts facts, DiagnosticSink? diagnostics, ref bool needsPartialAccessor,
+        TypeFacts facts, DiagnosticSink? diagnostics, DiagnosticSink? own, ref bool needsPartialAccessor,
         List<FactoryRegistration> factories, CancellationToken ct)
     {
         var symbol = symbols[index];
@@ -523,7 +547,7 @@ internal static class ModelBuilder
             : customType == null ? null : facts.Raw.HostSizedVectorWrittenBy(customType, out holder);
         if (vector != null && holder != null)
         {
-            diagnostics?.Report(NinoDiagnostics.HostSizedVector, symbol,
+            own?.Report(NinoDiagnostics.HostSizedVector, symbol,
                 $"Member '{symbol.Name}' of NinoType '{type.ToDisplayString()}'", holder.ToDisplayString(),
                 NinoDiagnostics.HoldsVector(holder, vector));
             return null;
@@ -553,18 +577,15 @@ internal static class ModelBuilder
 
         if (formatter == null)
         {
-            diagnostics?.Report(NinoDiagnostics.UnserializableMember, symbol, symbol.Name, memberType.ToDisplayString(),
+            own?.Report(NinoDiagnostics.UnserializableMember, symbol, symbol.Name, memberType.ToDisplayString(),
                 type.ToDisplayString(), "", "the member is skipped");
             return null;
         }
 
-        if (diagnostics != null)
-            ReportUtf8(symbol, type, memberType, custom, encoding, facts, diagnostics);
-
         // The member is written, but a generic [NinoType] in its type cannot write what it holds (Box<Action>): its
         // formatter takes CachedFormatter<Action>, which throws for every value. Only the analyzer asks.
-        if (diagnostics != null && custom == null && ArgumentWithoutFormatter(memberType, facts) is var (argument, generic))
-            diagnostics.Report(NinoDiagnostics.UnserializableMember, symbol, symbol.Name, argument.ToDisplayString(),
+        if (own != null && custom == null && ArgumentWithoutFormatter(memberType, facts) is var (argument, generic))
+            own.Report(NinoDiagnostics.UnserializableMember, symbol, symbol.Name, argument.ToDisplayString(),
                 type.ToDisplayString(), $", a type argument of '{generic.ToDisplayString()}',",
                 "writing a value of it throws");
 
@@ -885,33 +906,5 @@ internal static class ModelBuilder
         }
 
         return false;
-    }
-
-    /// <summary>
-    /// NINO031 for a <c>[NinoMemberFormatter(typeof(Utf8StringFormatter))]</c> (written as <c>[NinoUtf8]</c>, which it
-    /// is read as), else NINO030 for a <c>[NinoUtf8]</c> that changes nothing: a <c>[NinoMemberFormatter]</c> writes the
-    /// member, or its <paramref name="encoding"/> is what it would be without the attribute (no string the resolver
-    /// writes is in the member's type, as in a <c>[NinoType]</c> or an <c>int</c>).
-    /// </summary>
-    private static void ReportUtf8(ISymbol symbol, INamedTypeSymbol type, ITypeSymbol memberType, AttributeData? custom,
-        string encoding, TypeFacts facts, DiagnosticSink diagnostics)
-    {
-        var known = facts.Symbols;
-        if (NinoSymbols.Get(symbol, known.CustomFormatter) is { } formatter && known.IsUtf8Formatter(symbol, formatter))
-        {
-            diagnostics.Report(NinoDiagnostics.Utf8FormatterByHand, formatter, symbol, symbol.Name,
-                type.ToDisplayString());
-            return;
-        }
-
-        if (NinoSymbols.Get(symbol, known.Utf8) is not { } utf8)
-            return;
-        string? reason = custom != null ? "its [NinoMemberFormatter] writes it"
-            : facts.Resolver.Resolve(memberType, false)?.Encoding == encoding
-                ? $"its type '{memberType.ToDisplayString()}' holds no string Nino writes"
-                : null;
-        if (reason != null)
-            diagnostics.Report(NinoDiagnostics.Utf8WithoutEffect, utf8, symbol, symbol.Name, type.ToDisplayString(),
-                reason);
     }
 }

@@ -294,11 +294,79 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         }
 
         ReportFormerNames(sink, type, facts.Symbols);
+        ReportUtf8(sink, type, attr, facts, findings);
 
         int duplicates = 0;
         foreach (var finding in findings)
-            Report(sink, type, finding, ref duplicates);
+            Report(sink, type, finding, facts.Symbols, ref duplicates);
     }
+
+    /// <summary>
+    /// The UTF-8 attributes of the members <paramref name="type"/> declares: NINO031 for a
+    /// <c>[NinoMemberFormatter(typeof(Utf8StringFormatter))]</c> (read as <c>[NinoUtf8]</c>), NINO030 for a
+    /// <c>[NinoUtf8]</c> on a serialized member that changes nothing (one on a member never serialized is a
+    /// <see cref="MemberFindingKind.Utf8NotSerialized"/> finding). Reported once, by the declaring type, abstract or not.
+    /// </summary>
+    private static void ReportUtf8(DiagnosticSink sink, INamedTypeSymbol type, NinoTypeOptions attr, TypeFacts facts,
+        IReadOnlyList<MemberFinding> findings)
+    {
+        var known = facts.Symbols;
+        HashSet<ISymbol>? serialized = null;
+        foreach (var member in type.GetMembers())
+        {
+            if (member is not (IFieldSymbol or IPropertySymbol) || member.IsImplicitlyDeclared)
+                continue;
+            if (NinoSymbols.Get(member, known.CustomFormatter) is { } formatter && known.IsUtf8Formatter(member, formatter))
+            {
+                sink.Report(NinoDiagnostics.Utf8FormatterByHand, formatter, member, member.Name, type.ToDisplayString());
+                continue;
+            }
+
+            // A member with a finding of its own is left to it: fixing it may change what the attribute does.
+            if (NinoSymbols.Get(member, known.Utf8) is not { } utf8 ||
+                findings.Any(f => SymbolEqualityComparer.Default.Equals(f.Member, member)))
+                continue;
+            serialized ??= new HashSet<ISymbol>(facts.Members.Of(type, attr), SymbolEqualityComparer.Default);
+            if (serialized.Contains(member) && Utf8WithoutEffect(member, facts) is { } reason)
+                sink.Report(NinoDiagnostics.Utf8WithoutEffect, utf8, member, member.Name, type.ToDisplayString(),
+                    reason);
+        }
+    }
+
+    /// <summary>
+    /// Why <c>[NinoUtf8]</c> changes nothing on a serialized <paramref name="member"/>: it is an interface's, a
+    /// <c>[NinoMemberFormatter]</c> writes it, or the formatter Nino resolves for its type is the same with and without it (the generator's
+    /// <see cref="FormatterResolver"/> decides). Null when it takes effect, or when the type has no formatter (NINO007,
+    /// NINO029).
+    /// </summary>
+    private static string? Utf8WithoutEffect(ISymbol member, TypeFacts facts)
+    {
+        // An interface's members are written as the implementing type's members, with their own attributes.
+        if (member.ContainingType.TypeKind == TypeKind.Interface)
+            return "implementing types write their own member, with its own attributes; mark that member instead";
+        if (facts.Symbols.HasCustomFormatter(member))
+            return "its [NinoMemberFormatter] writes it";
+        var type = MemberCollector.MemberType(member)!;
+        if (facts.Resolver.Resolve(type, true) is not { } utf8 || facts.Resolver.Resolve(type, false) is not { } plain ||
+            utf8.Encoding != plain.Encoding)
+            return null;
+        return WritesItsOwnStrings(type)
+            ? $"it does not reach the strings a [NinoType], object or type parameter in its type '{type.ToDisplayString()}' writes"
+            : $"its type '{type.ToDisplayString()}' holds no string";
+    }
+
+    /// <summary>
+    /// Whether <paramref name="type"/> is or holds a value whose own formatter writes its strings: a
+    /// <c>[NinoType]</c>, <c>object</c> or a type parameter.
+    /// </summary>
+    private static bool WritesItsOwnStrings(ITypeSymbol type) => type switch
+    {
+        ITypeParameterSymbol or { SpecialType: SpecialType.System_Object } => true,
+        _ when type.IsNinoType() => true,
+        IArrayTypeSymbol array => WritesItsOwnStrings(array.ElementType),
+        INamedTypeSymbol named => named.TypeArguments.Any(WritesItsOwnStrings),
+        _ => false,
+    };
 
     /// <summary>
     /// The type's <c>[NinoFormerName]</c>s. Its type id comes from one: the generator would take the first,
@@ -319,7 +387,8 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>Reports what <see cref="MemberCollector"/> found about a member <paramref name="type"/> declares.</summary>
-    private static void Report(DiagnosticSink sink, INamedTypeSymbol type, MemberFinding finding, ref int duplicates)
+    private static void Report(DiagnosticSink sink, INamedTypeSymbol type, MemberFinding finding, NinoSymbols known,
+        ref int duplicates)
     {
         var member = finding.Member;
         switch (finding.Kind)
@@ -341,6 +410,10 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
                 // [field: NinoMember] on an auto-property or event: reported on what the user declared.
                 var declared = (member as IFieldSymbol)?.AssociatedMember() ?? member;
                 sink.Report(NinoDiagnostics.NotSerializableMember, declared, declared.Name, type.Name, finding.Reason!);
+                break;
+            case MemberFindingKind.Utf8NotSerialized:
+                sink.Report(NinoDiagnostics.Utf8WithoutEffect, NinoSymbols.Get(member, known.Utf8)!, member, member.Name,
+                    type.ToDisplayString(), finding.Reason!);
                 break;
             case MemberFindingKind.AmbiguousMember:
                 sink.Report(NinoDiagnostics.AmbiguousMember, member, member.Name, type.Name);

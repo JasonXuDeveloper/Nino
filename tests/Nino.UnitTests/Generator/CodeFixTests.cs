@@ -491,9 +491,10 @@ public class Implementation : IBase
     }
 
     [TestMethod]
-    public async Task AllowInheritance_RenamedToInheritedBySubtypes()
+    public async Task FormerTypeArguments_Renamed()
     {
-        // The name before 4.0 is a compiler error (CS1739); the fix renames it, the value stays.
+        // The names before 4.0 (containNonPublicMembers in v3, allowInheritance in the release candidates) are a
+        // compiler error (CS1739); the fix renames each, the value stays. Other arguments and attributes stay.
         var code = @"
 using Nino.Core;
 
@@ -507,6 +508,12 @@ public class Base
 public class Other
 {
     public int B;
+}
+
+[NinoType(false, {|#2:containNonPublicMembers|}: true)]
+public partial class Private
+{
+    [NinoMember(0)] private int {|#3:_c|};
 }";
 
         var fixedCode = @"
@@ -522,11 +529,21 @@ public class Base
 public class Other
 {
     public int B;
+}
+
+[NinoType(false, includeNonPublicMembers: true)]
+public partial class Private
+{
+    [NinoMember(0)] private int _c;
 }";
 
         await SetUpCodeFixTest(code, fixedCode,
             DiagnosticResult.CompilerError("CS1739").WithLocation(0).WithArguments("NinoTypeAttribute", "allowInheritance"),
-            DiagnosticResult.CompilerError("CS1739").WithLocation(1).WithArguments("NinoTypeAttribute", "allowInheritance"))
+            DiagnosticResult.CompilerError("CS1739").WithLocation(1).WithArguments("NinoTypeAttribute", "allowInheritance"),
+            DiagnosticResult.CompilerError("CS1739").WithLocation(2)
+                .WithArguments("NinoTypeAttribute", "containNonPublicMembers"),
+            // Until the rename, the option is not set.
+            VerifyCF.Diagnostic("NINO009").WithLocation(3).WithArguments("_c", "Private"))
             .RunAsync();
     }
 
@@ -562,7 +579,7 @@ public class TestClass
 
         await SetUpCodeFixTest(code, fixedCode,
             VerifyCF.Diagnostic("NINO030").WithLocation(0)
-                .WithArguments("A", "TestClass", "its type 'int' holds no string Nino writes")).RunAsync();
+                .WithArguments("A", "TestClass", "its type 'int' holds no string")).RunAsync();
     }
 
     [TestMethod]
@@ -686,7 +703,7 @@ public struct Point
     [NinoMember(1)] public int Y;
 }
 
-[Nino.Core.NinoType(true, false, true, Nino.Core.NinoFormat.VersionTolerant)]
+[Nino.Core.NinoType(true, false, true, NinoFormat.VersionTolerant)]
 public interface IShape
 {
 }
@@ -741,6 +758,32 @@ public partial class Derived : Nino.UnitTests.Subset.SubsetClassWithPrivateField
         test.TestState.AdditionalReferences.Add(subset);
         test.FixedState.AdditionalReferences.Add(subset);
         await test.RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO032_NamesTheFormatAsTheFileCan()
+    {
+        // Without using Nino.Core (the attribute through an alias), the format is written qualified.
+        var code = @"
+using Tolerant = Nino.Core.NinoTypeAttribute;
+
+[{|#0:Tolerant|}]
+public class Plain
+{
+    public int A;
+}";
+
+        var fixedCode = @"
+using Tolerant = Nino.Core.NinoTypeAttribute;
+
+[Tolerant(format: Nino.Core.NinoFormat.VersionTolerant)]
+public class Plain
+{
+    public int A;
+}";
+
+        await WeakToleranceTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO032").WithLocation(0).WithArguments("Plain", KeepBytes)).RunAsync();
     }
 
     [TestMethod]
@@ -1084,13 +1127,19 @@ public class TestClass
 {
     [NinoMember(0)] public int A;
     public static int Shared;
-    [NinoUtf8] public string Name => ""n"";
+    public string Name => ""n"";
 }";
 
-        await SetUpCodeFixTest(code, fixedCode,
+        // Without [NinoMember], the [NinoUtf8] of the member never serialized is NINO030's, whose fix removes it next.
+        var test = SetUpCodeFixTest(code, fixedCode,
             VerifyCF.Diagnostic("NINO028").WithLocation(0).WithArguments("Shared", "TestClass", "it is static"),
             VerifyCF.Diagnostic("NINO028").WithLocation(1)
-                .WithArguments("Name", "TestClass", "it has no setter, and no constructor takes it")).RunAsync();
+                .WithArguments("Name", "TestClass", "it has no setter, and no constructor takes it"));
+        test.NumberOfIncrementalIterations = 3;
+        test.NumberOfFixAllIterations = 2;
+        test.NumberOfFixAllInDocumentIterations = 2;
+        test.NumberOfFixAllInProjectIterations = 2;
+        await test.RunAsync();
     }
 
     #endregion

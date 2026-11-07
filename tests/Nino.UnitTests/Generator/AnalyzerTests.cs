@@ -1124,12 +1124,32 @@ public class Derived : AbstractBase
     [NinoIgnore]
     public Action Ignored;
 }
+
+public class Other : AbstractBase
+{
+}
+
+public sealed class OtherDerived : Derived
+{
+}
+
+[NinoType]
+public class Box<T>
+{
+    public T {|#2:Value|};
+}
+
+public class ActionBox : Box<Action>
+{
+}
 ";
 
-        // Abstract types report nothing themselves; the subtype reports the inherited member where it is declared.
+        // One diagnostic per member, by the type declaring it (abstract or not), however many subtypes write it; a
+        // closed generic base writes what its definition does not, so each subtype closing it reports.
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO007").WithLocation(0).WithArguments("Callback", "System.Action", "Derived", "", "the member is skipped"),
-            Verify.Diagnostic("NINO007").WithLocation(1).WithArguments("Factory", "System.Func<int>", "Derived", "", "the member is skipped"))
+            Verify.Diagnostic("NINO007").WithLocation(0).WithArguments("Callback", "System.Action", "AbstractBase", "", "the member is skipped"),
+            Verify.Diagnostic("NINO007").WithLocation(1).WithArguments("Factory", "System.Func<int>", "Derived", "", "the member is skipped"),
+            Verify.Diagnostic("NINO007").WithLocation(2).WithArguments("Value", "System.Action", "ActionBox", "", "the member is skipped"))
             .RunAsync();
     }
 
@@ -1541,13 +1561,13 @@ public struct Latin : INinoFormatter<string>
 
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO030").WithLocation(0).WithArguments("A", "TestClass",
-                "its type 'int' holds no string Nino writes"),
+                "its type 'int' holds no string"),
             Verify.Diagnostic("NINO030").WithLocation(1).WithArguments("B", "TestClass",
-                "its type 'Inner' holds no string Nino writes"),
+                "it does not reach the strings a [NinoType], object or type parameter in its type 'Inner' writes"),
             Verify.Diagnostic("NINO030").WithLocation(2).WithArguments("C", "TestClass",
                 "its [NinoMemberFormatter] writes it"),
             Verify.Diagnostic("NINO030").WithLocation(3).WithArguments("D", "TestClass",
-                "its type 'System.Collections.Generic.Dictionary<int, long>' holds no string Nino writes")).RunAsync();
+                "its type 'System.Collections.Generic.Dictionary<int, long>' holds no string")).RunAsync();
     }
 
     [TestMethod]
@@ -1570,6 +1590,135 @@ public class TestClass
 ";
 
         await SetUpAnalyzerTest(code).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO030_NotReachingInside()
+    {
+        // A [NinoType], object or type parameter writes its strings with its own formatter, whatever the member says.
+        var code = @"
+using System.Collections.Generic;
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [{|#0:NinoUtf8|}] public Box<string> A;
+    [{|#1:NinoUtf8|}] public object B;
+    [{|#2:NinoUtf8|}] public List<Inner> C;
+    [{|#3:NinoUtf8|}] public char[] D;
+}
+
+[NinoType]
+public class Box<T>
+{
+    [{|#4:NinoUtf8|}] public T Value;
+}
+
+[NinoType]
+public class Inner
+{
+    [NinoUtf8] public string S;
+}
+";
+
+        static string Inside(string type) =>
+            $"it does not reach the strings a [NinoType], object or type parameter in its type '{type}' writes";
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO030").WithLocation(0).WithArguments("A", "TestClass", Inside("Box<string>")),
+            Verify.Diagnostic("NINO030").WithLocation(1).WithArguments("B", "TestClass", Inside("object")),
+            Verify.Diagnostic("NINO030").WithLocation(2).WithArguments("C", "TestClass",
+                Inside("System.Collections.Generic.List<Inner>")),
+            Verify.Diagnostic("NINO030").WithLocation(3).WithArguments("D", "TestClass", "its type 'char[]' holds no string"),
+            Verify.Diagnostic("NINO030").WithLocation(4).WithArguments("Value", "Box<T>", Inside("T"))).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO030_MembersNeverSerialized()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [{|#0:NinoUtf8|}, NinoIgnore] public string A;
+    [{|#1:NinoUtf8|}] private string B;
+    [{|#2:NinoUtf8|}] public string C => ""c"";
+    [{|#3:NinoUtf8|}] public static string D;
+    [NinoUtf8] public string Written;
+}
+
+[NinoType(false)]
+public class OptIn
+{
+    [{|#4:NinoUtf8|}] public string A;
+    [NinoMember(0), NinoUtf8] public string Written;
+    // Another finding about the member comes first: fixing it may make the member serialized (NINO009).
+    [NinoMember(1), NinoUtf8] private string {|#5:_hidden|};
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO030").WithLocation(0).WithArguments("A", "TestClass", "it is [NinoIgnore]"),
+            Verify.Diagnostic("NINO030").WithLocation(1).WithArguments("B", "TestClass",
+                "it is not public, and the type does not set includeNonPublicMembers"),
+            Verify.Diagnostic("NINO030").WithLocation(2).WithArguments("C", "TestClass",
+                "it has no setter, and no constructor takes it"),
+            Verify.Diagnostic("NINO030").WithLocation(3).WithArguments("D", "TestClass", "it is static"),
+            Verify.Diagnostic("NINO030").WithLocation(4).WithArguments("A", "OptIn",
+                "it has no [NinoMember], and the type collects only those (autoCollect: false)"),
+            Verify.Diagnostic("NINO009").WithLocation(5).WithArguments("_hidden", "OptIn")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO030_NINO031_OncePerMember()
+    {
+        // Reported by the type declaring the member (an interface or abstract class too), however many types write it.
+        const string Interface =
+            "implementing types write their own member, with its own attributes; mark that member instead";
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public interface IShape
+{
+    [{|#0:NinoUtf8|}] int Sides { get; set; }
+    // The implementing type's Name is written, with its attributes: one here changes nothing.
+    [{|#4:NinoUtf8|}] string Name { get; set; }
+}
+
+[NinoType]
+public abstract class Base
+{
+    [{|#1:NinoUtf8|}] public int A;
+    [{|#2:NinoMemberFormatter(typeof(Utf8StringFormatter))|}] public string S;
+}
+
+public class Derived : Base
+{
+}
+
+public sealed class MoreDerived : Derived, IShape
+{
+    public int Sides { get; set; }
+    public string Name { get; set; }
+}
+
+[NinoType]
+public struct Point
+{
+    [{|#3:NinoUtf8|}] public int X;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO030").WithLocation(0).WithArguments("Sides", "IShape", Interface),
+            Verify.Diagnostic("NINO030").WithLocation(4).WithArguments("Name", "IShape", Interface),
+            Verify.Diagnostic("NINO030").WithLocation(1).WithArguments("A", "Base", "its type 'int' holds no string"),
+            Verify.Diagnostic("NINO031").WithLocation(2).WithArguments("S", "Base"),
+            Verify.Diagnostic("NINO030").WithLocation(3).WithArguments("X", "Point", "its type 'int' holds no string"))
+            .RunAsync();
     }
 
     [TestMethod]

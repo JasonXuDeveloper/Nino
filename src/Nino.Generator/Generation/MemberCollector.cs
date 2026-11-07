@@ -33,12 +33,19 @@ internal enum MemberFindingKind
     /// <see cref="MemberFinding.Reason"/>.
     /// </summary>
     NotSerializable,
+
+    /// <summary>
+    /// NINO030: <c>[NinoUtf8]</c> on a member the type never serializes, for <see cref="MemberFinding.Reason"/>; only
+    /// when no other finding is about the member (fixing that one may make it serialized).
+    /// </summary>
+    Utf8NotSerialized,
 }
 
 /// <summary>
 /// A finding about a member declared by the collected type. <see cref="Formatter"/> is set for
 /// <see cref="MemberFindingKind.InvalidCustomFormatter"/>, <see cref="Other"/> for
-/// <see cref="MemberFindingKind.DuplicateIndex"/>, <see cref="Reason"/> for <see cref="MemberFindingKind.NotSerializable"/>.
+/// <see cref="MemberFindingKind.DuplicateIndex"/>, <see cref="Reason"/> for <see cref="MemberFindingKind.NotSerializable"/>
+/// and <see cref="MemberFindingKind.Utf8NotSerialized"/>.
 /// </summary>
 internal readonly record struct MemberFinding(
     MemberFindingKind Kind,
@@ -116,7 +123,7 @@ internal static class MemberCollector
                     continue;
 
                 AttributeData? ninoMember = null, customFormatter = null;
-                bool ignored = false;
+                bool ignored = false, utf8 = false;
                 foreach (var a in member.GetAttributes())
                 {
                     var attributeClass = a.AttributeClass;
@@ -128,6 +135,8 @@ internal static class MemberCollector
                         ignored = true;
                     else if (inspect && SymbolEqualityComparer.Default.Equals(attributeClass, known.CustomFormatter))
                         customFormatter = a;
+                    else if (inspect && SymbolEqualityComparer.Default.Equals(attributeClass, known.Utf8))
+                        utf8 = true;
                 }
 
                 // The [NinoMember] index; null without one.
@@ -137,8 +146,14 @@ internal static class MemberCollector
                     : null;
 
                 if (inspect)
+                {
+                    int found = findings!.Count;
                     Inspect(member, attr, known, ninoMember != null, ignored, memberIndex, customFormatter,
-                        constructorNames, findings!, indices, ref duplicated);
+                        constructorNames, findings, indices, ref duplicated);
+                    if (utf8 && findings.Count == found && member is IFieldSymbol or IPropertySymbol &&
+                        NotCollected(member, attr, candidate, ignored, memberIndex, constructorNames) is { } why)
+                        findings.Add(new MemberFinding(MemberFindingKind.Utf8NotSerialized, member, Reason: why));
+                }
 
                 if (!candidate || (autoCollect && ignored))
                     continue;
@@ -233,6 +248,20 @@ internal static class MemberCollector
             else if ((duplicated ??= new HashSet<int>()).Add(i))
                 findings.Add(new MemberFinding(MemberFindingKind.DuplicateIndex, member, Other: existing));
         }
+    }
+
+    /// <summary>
+    /// Why a member the type declares is not collected, by the same tests as <see cref="Collect"/>; null when it is.
+    /// </summary>
+    private static string? NotCollected(ISymbol member, NinoTypeOptions attr, bool candidate, bool ignored, int? index,
+        HashSet<string> constructorNames)
+    {
+        if (!candidate)
+            return NotSerializable(member, constructorNames) ??
+                   "it is not public, and the type does not set includeNonPublicMembers";
+        if (attr.AutoCollect)
+            return ignored ? "it is [NinoIgnore]" : null;
+        return index == null ? "it has no [NinoMember], and the type collects only those (autoCollect: false)" : null;
     }
 
     private static ISymbol FindImplementation(INamedTypeSymbol type, ISymbol member)
