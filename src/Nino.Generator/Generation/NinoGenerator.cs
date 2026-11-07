@@ -472,29 +472,11 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
     private static TopLevelCall? TransformCall(GeneratorSyntaxContext ctx, CancellationToken ct)
     {
-        if (ctx.SemanticModel.GetSymbolInfo(ctx.Node, ct).Symbol is not IMethodSymbol method)
-            return null;
+        var compilation = ctx.SemanticModel.Compilation;
         var options = ctx.SemanticModel.SyntaxTree.Options;
-        var facts = TypeFacts.For(ctx.SemanticModel.Compilation, options);
-        var owner = method.ContainingType;
-        if (!SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Serializer) &&
-            !SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer))
-            return null;
-        // The type the call needs a formatter for: its type argument, or the type of its typeof argument (the boxed
-        // methods and IsSupported).
-        ITypeSymbol? type = method.IsGenericMethod
-            ? method.TypeArguments[0]
-            : TypeOfArgument(((InvocationExpressionSyntax)ctx.Node).ArgumentList) is { } typeOf
-                ? ctx.SemanticModel.GetTypeInfo(typeOf.Type, ct).Type
-                : null;
-        if (type is null or { TypeKind: TypeKind.Error or TypeKind.Pointer or TypeKind.FunctionPointer } or
-            { SpecialType: SpecialType.System_Void } or INamedTypeSymbol { IsUnboundGenericType: true })
-            return null;
-        // Vector<T>, alone or inside (NINO029): nothing to register or intercept, the regular call refuses it.
-        if (facts.Raw.HostSizedVectorIn(type) != null)
-            return null;
-        return ModelCache.GetOrBuildCall(ctx.Node, method, type, ctx.SemanticModel.Compilation, () =>
+        return ModelCache.GetOrBuildCall(ctx.Node, compilation, () => BindCall(ctx, ct), (method, type) =>
         {
+            var facts = TypeFacts.For(compilation, options);
             var usage = TransformUsage(type, facts);
 #if ROSLYN4_8
             // Only Serialize and Deserialize have NinoDirect counterparts to intercept with.
@@ -506,6 +488,34 @@ public sealed class NinoGenerator : IIncrementalGenerator
 #endif
             return usage == null && intercepted == null ? null : new TopLevelCall(usage, intercepted);
         });
+    }
+
+    /// <summary>
+    /// The <c>NinoSerializer</c> / <c>NinoDeserializer</c> method a call binds to and the type it needs a formatter
+    /// for (its type argument, or the type of its <c>typeof</c> argument), or null when it is not such a call or names
+    /// no type Nino can register.
+    /// </summary>
+    private static (IMethodSymbol Method, ITypeSymbol Type)? BindCall(GeneratorSyntaxContext ctx, CancellationToken ct)
+    {
+        if (ctx.SemanticModel.GetSymbolInfo(ctx.Node, ct).Symbol is not IMethodSymbol method)
+            return null;
+        var facts = TypeFacts.For(ctx.SemanticModel.Compilation, ctx.SemanticModel.SyntaxTree.Options);
+        var owner = method.ContainingType;
+        if (!SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Serializer) &&
+            !SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer))
+            return null;
+        ITypeSymbol? type = method.IsGenericMethod
+            ? method.TypeArguments[0]
+            : TypeOfArgument(((InvocationExpressionSyntax)ctx.Node).ArgumentList) is { } typeOf
+                ? ctx.SemanticModel.GetTypeInfo(typeOf.Type, ct).Type
+                : null;
+        if (type is null or { TypeKind: TypeKind.Error or TypeKind.Pointer or TypeKind.FunctionPointer } or
+            { SpecialType: SpecialType.System_Void } or INamedTypeSymbol { IsUnboundGenericType: true })
+            return null;
+        // Vector<T>, alone or inside (NINO029): nothing to register or intercept, the regular call refuses it.
+        if (facts.Raw.HostSizedVectorIn(type) != null)
+            return null;
+        return (method, type);
     }
 
     private static UsageRegistration? TransformUsage(ITypeSymbol type, TypeFacts facts)

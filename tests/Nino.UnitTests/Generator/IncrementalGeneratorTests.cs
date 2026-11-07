@@ -592,6 +592,40 @@ public class MadeList : System.Collections.Generic.List<Made> { }
     }
 
     [TestMethod]
+    public void CallsFollowDeclarationsInOtherFiles()
+    {
+        // A call is not bound again while its file is the same and no other file's declarations changed
+        // (ModelCache.GetOrBuildCall): an edit in a method body elsewhere keeps it, a declaration elsewhere that changes
+        // what it binds to (a global using alias) is seen.
+        var compilation = Create(
+            ("Box.cs", Usings + "[NinoType] public class Box<T> { public T V; }\n}"),
+            ("Alias.cs", "global using Saver = Inc.Other;\n"),
+            ("Calls.cs", Usings + "public static class Calls { public static byte[] W() => Saver.Serialize<Box<int>>(null); }\n}"),
+            ("Other.cs", Usings + "public static class Other { public static byte[] Serialize<T>(T v) { return null; } }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        string Usages() => driver.GetRunResult().Results[0].GeneratedSources
+            .Single(s => s.HintName == "NinoGen.Usages.g.cs").SourceText.ToString();
+        const string registered = "NinoPolymorphic.Register<global::Inc.Box<int>";
+        driver = driver.RunGenerators(compilation);
+        Assert.IsFalse(Usages().Contains(registered), Usages());
+
+        // Only a method body changes: the call still binds to Other.Serialize.
+        compilation = Edit(compilation, "Other.cs", "{ return null; }", "{ return new byte[0]; }");
+        driver = driver.RunGenerators(compilation);
+        Assert.IsFalse(Usages().Contains(registered), Usages());
+
+        // The alias in another file now names NinoSerializer: the call is bound again and registers its type.
+        compilation = Edit(compilation, "Alias.cs", "Inc.Other", "Nino.Core.NinoSerializer");
+        driver = driver.RunGenerators(compilation);
+        StringAssert.Contains(Usages(), registered);
+
+        // And back.
+        compilation = Edit(compilation, "Alias.cs", "Nino.Core.NinoSerializer", "Inc.Other");
+        driver = driver.RunGenerators(compilation);
+        Assert.IsFalse(Usages().Contains(registered), Usages());
+    }
+
+    [TestMethod]
     public void EveryCallThatNamesATypeRegistersIt()
     {
         // Native AOT cannot close a generic formatter at run time: every call that names a closed type, by type
