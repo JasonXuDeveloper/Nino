@@ -291,10 +291,10 @@ internal sealed class BodyEmitter
             return;
         _w.Line();
         _w.Line(_names.Inline);
-        _w.Line($"internal static void WriteMembers({Signature.WriteParameters(T)}) => default({self}).WriteBody(value, ref writer);");
+        _w.Line($"{Signature.WriteMembers(T)} => default({self}).WriteBody(value, ref writer);");
         _w.Line();
         _w.Line(_names.Inline);
-        _w.Block($"internal static void ReadMembers({T} value, ref {Core}Reader reader)",
+        _w.Block(Signature.ReadMembers(T),
             () => EmitMemberReads("reader", inPlace: true, eof: "return;"));
     }
 
@@ -303,11 +303,11 @@ internal sealed class BodyEmitter
     {
         // Inlined so the writer/reader state stays in registers across levels, as if the members were written inline.
         _w.Line(_names.Inline);
-        _w.Block($"internal static void WriteMembers({Signature.WriteParameters(T)})", EmitMemberWrites);
+        _w.Block(Signature.WriteMembers(T), EmitMemberWrites);
         _w.Line();
         _w.Line(_names.Inline);
         // Version tolerant: reading the region of the type that called it, which may end before any member.
-        _w.Block($"internal static void ReadMembers({T} value, ref {Core}Reader reader)",
+        _w.Block(Signature.ReadMembers(T),
             () => EmitMemberReads("reader", inPlace: true, eof: "return;"));
     }
 
@@ -833,7 +833,7 @@ internal sealed class BodyEmitter
             r = BeginRegionRead(r);
 
         if (_m.Inheritance.EmitMembers && !_mode.Shallow && !_mode.Fresh)
-            _w.Line($"ReadMembers({_mode.Target}, ref {r});");
+            _w.Line($"ReadMembers(ref {r}, {_mode.Target});");
         else
             EmitMemberReads(r, inPlace: true, eof: $"goto {EndLabel};");
 
@@ -923,7 +923,7 @@ internal sealed class BodyEmitter
         bool delegates = inPlace && Delegates;
         var members = inPlace ? OwnMembers : _m.Members;
         if (delegates)
-            _w.Line($"{BaseFormatter}.ReadMembers({_mode.Target}, ref {r});");
+            _w.Line($"{BaseFormatter}.ReadMembers(ref {r}, {_mode.Target});");
 
         if (_m.Keyed)
         {

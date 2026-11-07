@@ -16,4 +16,13 @@ internal static class Signature
     public static string WriteBody(string t) => $"public void WriteBody({WriteParameters(t)})";
 
     public static string ReadBody(string t) => $"public void ReadBody({ReadParameters(t)})";
+
+    /// <summary>The members a derived type's formatter writes through its base's (see <c>InheritanceModel</c>).</summary>
+    public static string WriteMembers(string t) => $"internal static void WriteMembers({WriteParameters(t)})";
+
+    /// <summary>
+    /// The members a derived type's formatter reads through its base's, into the instance (a class, never replaced),
+    /// reader first as every read.
+    /// </summary>
+    public static string ReadMembers(string t) => $"internal static void ReadMembers(ref {Core}Reader reader, {t} value)";
 }
