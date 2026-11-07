@@ -37,6 +37,22 @@ A name is the first doc a reader sees.
   `TypeId`, `Match`, `IsDefaultAttribute`) before proposing. An enum alias (two names, one value) makes
   `Enum.ToString` name either: text written from the enum spells its names out.
 
+- **A diagnostic's title names the mistake in the user's code, in the present tense, not the project's history**: the
+  history goes in the message. NINO032 was "WEAK_VERSION_TOLERANCE was removed", which says what Nino did, not what
+  is wrong; it is now "WEAK_VERSION_TOLERANCE does not make types version tolerant" (the message keeps "it did before
+  4.0"), in the form of "[NinoUtf8] has no effect" (r129). Its internal names followed (`WeakToleranceWithoutEffect`,
+  `WeakToleranceSymbol`).
+- **Names generated code adds to a user-visible type's own namespace carry the Nino prefix; names inside Nino's
+  traits or interfaces do not**: Rust's inherent consts nino-gen writes (`type_consts!`) are `NINO_TYPE_ID`,
+  `NINO_TYPE_NAME`, `NINO_LAYOUT`, as Go's methods are `NinoTypeID`, `NinoTypeName`, `NinoLayout`, so a user's own
+  `impl` cannot collide with them; the body traits keep `TYPE_ID` beside `DEFERRABLE`, `MIN_SIZE` and `FIXED_SIZE`,
+  namespaced by the trait (the derive writes only those). Until r129 the inherent id was a bare `TYPE_ID` next to
+  `NINO_TYPE_NAME` (shipped in rc.8, renamed without an alias on the owner's word: "反正rc"; regenerated code compiles,
+  user code naming `Cat::TYPE_ID` moves to `Cat::NINO_TYPE_ID`). TypeScript generates no such constants.
+- **A test's name is what a console failure prints**: never a shared `DisplayName` or a base class's one `Test`
+  method; `IssueTests` had every issue report as `Test` until r129, now a method per issue named
+  `Issue<n>_<what it checks>` (`Issue157_InheritedClassesWithStructMembers`), each with its own `[Timeout(10000)]`.
+
 ## Output and applying
 
 - A table per layer: current | problem | proposed | breaking | confidence | call site before → after, ranked by

@@ -30,8 +30,7 @@ crashing. Read it before running anything under qemu or taking a listing for Arm
   Arm32 `dotnet` (`dotnet test` starts its host with the machine's own runtime); leave out the Roslyn compilations,
   too slow emulated: `Generator` and `ShapeMatrixTests` (in `Corner/` but namespace `Nino.UnitTests`, so a filter on
   `Corner` misses it: it ran over 50 minutes and looked like a hang; analyzer and code fix tests take 9 minutes).
-  Under `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` only the two `BclTypeTests` culture tests fail (and
-  `IssueTestTemplate`, an abstract class the runner cannot create). Print each class as it starts, so a slow one
+  Under `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` only the two `BclTypeTests` culture tests fail. Print each class as it starts, so a slow one
   shows by name.
 
 ## Why the qemu flags

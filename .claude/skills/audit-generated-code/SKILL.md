@@ -75,7 +75,7 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - **nino-gen's Rust: per-type boilerplate is a crate macro**: what the template, the derive, `gen.py` and the benches'
   `Point` write the same for every type of a kind is a `macro_rules!` in `runtimes/rust/src/lib.rs` they all call
   (`sealed_read!`/`sealed_write!`, `raw_read!`/`raw_write!`), and doc comments on per-type items live in the macro
-  that emits them (`type_consts!`: TYPE_ID, NINO_TYPE_NAME, NINO_LAYOUT). Round 129 took `tests/generated` from
+  that emits them (`type_consts!`: NINO_TYPE_ID, NINO_TYPE_NAME, NINO_LAYOUT). Round 129 took `tests/generated` from
   436 KB to 381 KB. A macro call's layout is rustfmt's: one line when it fits 120 columns, else an argument per line
   when each fits, else left on one line (rustfmt gives up on an overlong string), or `cargo fmt --check` fails.
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
