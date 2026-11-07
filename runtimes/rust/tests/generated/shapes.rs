@@ -140,7 +140,7 @@ impl Gappy {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Gappy";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x82B9FBC0; deferrable=false; members=raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)}";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0x82B9FBC0; deferrable=false; members=raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)}";
 }
 
 /// `Shapes.HostLeaves`: raw, 64 bytes.
@@ -298,7 +298,7 @@ impl Marked {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Marked";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0xA8246323; deferrable=false; members=raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)}";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0xA8246323; deferrable=false; members=raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)}";
 }
 
 /// `Shapes.OffsetLeaf`: raw, 24 bytes.
@@ -429,7 +429,7 @@ impl ThingStruct {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.ThingStruct";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x254C375C; deferrable=false; members=raw(16){Id:int@0:raw(4),Extra:long@8:raw(8)}";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0x254C375C; deferrable=false; members=raw(16){Id:int@0:raw(4),Extra:long@8:raw(8)}";
 }
 
 /// `Shapes.TupleCell`: raw, 12 bytes.
@@ -499,7 +499,7 @@ impl TupleCell {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.TupleCell";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x794AD791; deferrable=false; members=raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0x794AD791; deferrable=false; members=raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}";
 }
 
 /// `Shapes.TupleInside`: raw, 8 bytes.
@@ -717,7 +717,7 @@ impl<T> Bag<T> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Bag<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Items:System.Collections.Generic.List<T>:seq(type(T));ByName:System.Collections.Generic.Dictionary<string, T>:map(string,type(T));Array:T[]:seq(type(T));Inner:Shapes.Generic.Box<T>:type(Shapes.Generic.Box<T>);Pair:Shapes.Generic.Pair<int, T>:type(Shapes.Generic.Pair<int, T>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<T>>:seq(type(Shapes.Generic.Box<T>));Tuple:System.ValueTuple<int, T>:tuple(raw(4),type(T))";
+    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Items:System.Collections.Generic.List<T>:seq(type(T));ByName:System.Collections.Generic.Dictionary<string, T>:map(string,type(T));Array:T[]:seq(type(T));Inner:Shapes.Generic.Box<T>:type(Shapes.Generic.Box<T>);Pair:Shapes.Generic.Pair<int, T>:type(Shapes.Generic.Pair<int, T>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<T>>:seq(type(Shapes.Generic.Box<T>));Tuple:System.ValueTuple<int, T>:tuple(raw(4),type(T))";
 }
 
 /// `Shapes.Generic.Box<T>`: Positional, header Presence.
@@ -765,7 +765,7 @@ impl<T> BoxType<T> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Box<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T)";
 }
 
 /// `Shapes.ForestHolder`: Positional, header Presence.
@@ -815,7 +815,7 @@ impl ForestHolder {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.ForestHolder";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xA67B9EFE; deferrable=true; members=Forest:Shapes.Forest:seq(type(Shapes.Forest))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xA67B9EFE; deferrable=true; members=Forest:Shapes.Forest:seq(type(Shapes.Forest))";
 }
 
 /// `Shapes.Holder`: Positional, header Presence.
@@ -928,7 +928,7 @@ impl Holder {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Holder";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x839907D7; deferrable=true; members=Thing:Shapes.IThing:type(Shapes.IThing);Things:System.Collections.Generic.List<Shapes.IThing>:seq(type(Shapes.IThing));Tree:Shapes.Recursive:type(Shapes.Recursive);Inner:Shapes.Outer.Inner:type(Shapes.Outer.Inner);LeftItem:Shapes.Left.Item:type(Shapes.Left.Item);RightItem:Shapes.Right.Item:type(Shapes.Right.Item);Flags:Shapes.Flags:raw(8);Gaps:Shapes.Gappy[]:seq(raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)});Names:System.Collections.Generic.Dictionary<int, string>:map(raw(4),string);Tags:System.Collections.Generic.HashSet<string>:seq(string);Pair:System.ValueTuple<int, string>:tuple(raw(4),string);Entry:System.Collections.Generic.KeyValuePair<string, int>:pair(string,raw(4));Maybe:System.Nullable<int>:nullable(raw(4));Keywords:Shapes.Keywords:type(Shapes.Keywords)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x839907D7; deferrable=true; members=Thing:Shapes.IThing:type(Shapes.IThing);Things:System.Collections.Generic.List<Shapes.IThing>:seq(type(Shapes.IThing));Tree:Shapes.Recursive:type(Shapes.Recursive);Inner:Shapes.Outer.Inner:type(Shapes.Outer.Inner);LeftItem:Shapes.Left.Item:type(Shapes.Left.Item);RightItem:Shapes.Right.Item:type(Shapes.Right.Item);Flags:Shapes.Flags:raw(8);Gaps:Shapes.Gappy[]:seq(raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)});Names:System.Collections.Generic.Dictionary<int, string>:map(raw(4),string);Tags:System.Collections.Generic.HashSet<string>:seq(string);Pair:System.ValueTuple<int, string>:tuple(raw(4),string);Entry:System.Collections.Generic.KeyValuePair<string, int>:pair(string,raw(4));Maybe:System.Nullable<int>:nullable(raw(4));Keywords:Shapes.Keywords:type(Shapes.Keywords)";
 }
 
 /// `Shapes.HostHolder`: Positional, header Presence.
@@ -981,7 +981,7 @@ impl HostHolder {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.HostHolder";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x73E57D3F; deferrable=true; members=Leaves:Shapes.HostLeaves:raw(64){A:byte@0:raw(1),Wide:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},Signed:System.IntPtr@32:raw(8),Unsigned:System.UIntPtr@40:raw(8),Pointer:int*@48:raw(8),Callback:delegate*<int>@56:raw(8)};Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x73E57D3F; deferrable=true; members=Leaves:Shapes.HostLeaves:raw(64){A:byte@0:raw(1),Wide:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},Signed:System.IntPtr@32:raw(8),Unsigned:System.UIntPtr@40:raw(8),Pointer:int*@48:raw(8),Callback:delegate*<int>@56:raw(8)};Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})";
 }
 
 /// `Shapes.Generic.Keys<T>`: Positional, header Presence.
@@ -1032,7 +1032,7 @@ impl<T: Eq + core::hash::Hash> Keys<T> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Keys<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Set:System.Collections.Generic.HashSet<T>:seq(type(T));ByKey:System.Collections.Generic.Dictionary<T, int>:map(type(T),raw(4))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Set:System.Collections.Generic.HashSet<T>:seq(type(T));ByKey:System.Collections.Generic.Dictionary<T, int>:map(type(T),raw(4))";
 }
 
 /// `Shapes.Keywords`: Positional, header Presence.
@@ -1110,7 +1110,7 @@ impl Keywords {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Keywords";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x58F430A5; deferrable=true; members=Type:int:raw(4);Self:int:raw(4);Match:int:raw(4);Default:string:string;Body:int:raw(4);Key:int:raw(4);Value:int:raw(4);R:int:raw(4);W:int:raw(4);V:int:raw(4)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x58F430A5; deferrable=true; members=Type:int:raw(4);Self:int:raw(4);Match:int:raw(4);Default:string:string;Body:int:raw(4);Key:int:raw(4);Value:int:raw(4);R:int:raw(4);W:int:raw(4);V:int:raw(4)";
 }
 
 /// `Shapes.Generic.MoreOpen<T>`: Positional, header TypeId.
@@ -1141,7 +1141,7 @@ impl<T> MoreOpen<T> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.MoreOpen<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T);Extra:T:type(T)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T);Extra:T:type(T)";
 }
 
 /// `Shapes.NinoGrid`: Positional, header Presence.
@@ -1180,7 +1180,7 @@ impl NinoGrid {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.NinoGrid";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x03FA7FE9; deferrable=true; members=Value:int:raw(4)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x03FA7FE9; deferrable=true; members=Value:int:raw(4)";
 }
 
 /// `Shapes.Generic.Node<T>`: Keyed, header Presence.
@@ -1255,7 +1255,7 @@ impl<T> Node<T> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Node<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T):key=0xC373233E;Next:Shapes.Generic.Node<T>:type(Shapes.Generic.Node<T>):key=0xC9A6113A";
+    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T):key=0xC373233E;Next:Shapes.Generic.Node<T>:type(Shapes.Generic.Node<T>):key=0xC9A6113A";
 }
 
 /// `Shapes.OffsetHolder`: Positional, header Presence.
@@ -1294,7 +1294,7 @@ impl OffsetHolder {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.OffsetHolder";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x36E5D592; deferrable=true; members=Leaf:Shapes.OffsetLeaf:raw(24){A:short@0:raw(2),At:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}}";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x36E5D592; deferrable=true; members=Leaf:Shapes.OffsetLeaf:raw(24){A:short@0:raw(2),At:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}}";
 }
 
 /// `Shapes.Generic.Open<T>`: Positional, header TypeId.
@@ -1322,7 +1322,7 @@ impl<T> Open<T> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Open<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T)";
 }
 
 /// `Shapes.Generic.OpenHolder<T>`: Positional, header Presence.
@@ -1386,7 +1386,7 @@ impl<T, S0> OpenHolder<T, S0> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.OpenHolder<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Inner:Shapes.Generic.Open<T>:type(Shapes.Generic.Open<T>);All:System.Collections.Generic.List<Shapes.Generic.Open<T>>:seq(type(Shapes.Generic.Open<T>))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Inner:Shapes.Generic.Open<T>:type(Shapes.Generic.Open<T>);All:System.Collections.Generic.List<Shapes.Generic.Open<T>>:seq(type(Shapes.Generic.Open<T>))";
 }
 
 /// `Shapes.Generic.OpenHolderUse`: Positional, header Presence.
@@ -1436,7 +1436,7 @@ impl OpenHolderUse {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.OpenHolderUse";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x9E569D67; deferrable=true; members=Holder:Shapes.Generic.OpenHolder<long>:type(Shapes.Generic.OpenHolder<long>)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x9E569D67; deferrable=true; members=Holder:Shapes.Generic.OpenHolder<long>:type(Shapes.Generic.OpenHolder<long>)";
 }
 
 /// `Shapes.Generic.OpenUse`: Positional, header Presence.
@@ -1475,7 +1475,7 @@ impl OpenUse {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.OpenUse";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xFA892147; deferrable=true; members=Open:Shapes.Generic.Open<int>:type(Shapes.Generic.Open<int>)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xFA892147; deferrable=true; members=Open:Shapes.Generic.Open<int>:type(Shapes.Generic.Open<int>)";
 }
 
 /// `Shapes.Outer+Inner`: Positional, header Presence.
@@ -1514,7 +1514,7 @@ impl OuterInner {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Outer+Inner";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x583BB773; deferrable=true; members=Value:int:raw(4)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x583BB773; deferrable=true; members=Value:int:raw(4)";
 }
 
 /// `Shapes.Generic.Pair<TKey,TValue>`: Positional, header None.
@@ -1604,7 +1604,7 @@ impl<TKey, TValue> Pair<TKey, TValue> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Pair<TKey,TValue>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=false; typeId=0x00000000; deferrable=false; members=Key:TKey:type(TKey);Value:TValue:type(TValue)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=false; id=0x00000000; deferrable=false; members=Key:TKey:type(TKey);Value:TValue:type(TValue)";
 }
 
 /// `Shapes.Generic.RawPair<T>`: Positional, header None.
@@ -1694,7 +1694,7 @@ impl<T> RawPair<T> {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.RawPair<T>";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=false; typeId=0x00000000; deferrable=false; members=A:T:type(T);B:T:type(T)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=false; id=0x00000000; deferrable=false; members=A:T:type(T);B:T:type(T)";
 }
 
 /// `Shapes.Recursive`: Positional, header None.
@@ -1764,7 +1764,7 @@ impl Recursive {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Recursive";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=false; typeId=0x044D76CD; deferrable=false; members=Value:int:raw(4);Children:System.Collections.Generic.List<Shapes.Recursive>:seq(type(Shapes.Recursive))";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=false; id=0x044D76CD; deferrable=false; members=Value:int:raw(4);Children:System.Collections.Generic.List<Shapes.Recursive>:seq(type(Shapes.Recursive))";
 }
 
 /// `Shapes.Renamed`: Keyed, header Presence.
@@ -1838,7 +1838,7 @@ impl Renamed {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Renamed";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; typeId=0xD813B273; deferrable=true; members=NewName:int:raw(4):key=0xAC8120CE:former=0x4B4D09F5;Other:string:string:key=0x4D897D71";
+    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0xD813B273; deferrable=true; members=NewName:int:raw(4):key=0xAC8120CE:former=0x4B4D09F5;Other:string:string:key=0x4D897D71";
 }
 
 /// `Shapes.Left.Item`: Positional, header Presence.
@@ -1877,7 +1877,7 @@ impl ShapesLeftItem {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Left.Item";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x8E4FFE47; deferrable=true; members=Left:int:raw(4)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8E4FFE47; deferrable=true; members=Left:int:raw(4)";
 }
 
 /// `Shapes.Right.Item`: Positional, header Presence.
@@ -1916,7 +1916,7 @@ impl ShapesRightItem {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Right.Item";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x3418E03C; deferrable=true; members=Right:int:raw(4)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3418E03C; deferrable=true; members=Right:int:raw(4)";
 }
 
 /// `Shapes.Stamps`: Positional, header Presence.
@@ -2008,7 +2008,7 @@ impl Stamps {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Stamps";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xB5FF2A7F; deferrable=true; members=Times:System.DateTime[]:seq(raw(8));Days:System.Collections.Generic.List<System.DateOnly>:seq(raw(4));Clocks:System.TimeOnly[]:seq(raw(8));Prices:decimal[]:seq(raw(16));Ids:System.Collections.Generic.List<System.Guid>:seq(raw(16));Signed:System.Int128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Unsigned:System.UInt128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Marks:Shapes.Marked[]:seq(raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)})";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xB5FF2A7F; deferrable=true; members=Times:System.DateTime[]:seq(raw(8));Days:System.Collections.Generic.List<System.DateOnly>:seq(raw(4));Clocks:System.TimeOnly[]:seq(raw(8));Prices:decimal[]:seq(raw(16));Ids:System.Collections.Generic.List<System.Guid>:seq(raw(16));Signed:System.Int128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Unsigned:System.UInt128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Marks:Shapes.Marked[]:seq(raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)})";
 }
 
 /// `Shapes.Strides`: Positional, header Presence.
@@ -2064,7 +2064,7 @@ impl Strides {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Strides";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xBF48C221; deferrable=true; members=Cells:System.Nullable<Shapes.TupleCell>[]:seq(raw(16){hasValue:bool@0:raw(1),value:Shapes.TupleCell@4:raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}});Boxed:Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>:type(Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xBF48C221; deferrable=true; members=Cells:System.Nullable<Shapes.TupleCell>[]:seq(raw(16){hasValue:bool@0:raw(1),value:Shapes.TupleCell@4:raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}});Boxed:Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>:type(Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>)";
 }
 
 /// `Shapes.ThingClass`: Positional, header Presence.
@@ -2117,7 +2117,7 @@ impl ThingClass {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.ThingClass";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x35AA4E2D; deferrable=true; members=Id:int:raw(4);Label:string:string";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x35AA4E2D; deferrable=true; members=Id:int:raw(4);Label:string:string";
 }
 
 /// `Shapes.Generic.Uses`: Positional, header Presence.
@@ -2272,7 +2272,7 @@ impl Uses {
     /// The .NET type's name (`Namespace.Outer+Inner`).
     pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Uses";
     /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xCF00B9E0; deferrable=true; members=Number:Shapes.Generic.Box<int>:type(Shapes.Generic.Box<int>);Text:Shapes.Generic.Box<string>:type(Shapes.Generic.Box<string>);Pair:Shapes.Generic.Pair<int, string>:type(Shapes.Generic.Pair<int, string>);Nested:Shapes.Generic.Box<Shapes.Generic.Box<int>>:type(Shapes.Generic.Box<Shapes.Generic.Box<int>>);Mixed:Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>:type(Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<int>>:seq(type(Shapes.Generic.Box<int>));Bag:Shapes.Generic.Bag<Shapes.Generic.Box<long>>:type(Shapes.Generic.Bag<Shapes.Generic.Box<long>>);Chain:Shapes.Generic.Node<string>:type(Shapes.Generic.Node<string>);Thing:Shapes.Generic.Box<Shapes.IThing>:type(Shapes.Generic.Box<Shapes.IThing>);Array:Shapes.Generic.Box<int[]>:type(Shapes.Generic.Box<int[]>);Complex:Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>:type(Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>);Pairs:System.Collections.Generic.Dictionary<string, Shapes.Generic.Pair<int, int>>:map(string,type(Shapes.Generic.Pair<int, int>));Raw:Shapes.Generic.RawPair<int>:type(Shapes.Generic.RawPair<int>);Tuple:Shapes.Generic.Box<System.ValueTuple<int, string>>:type(Shapes.Generic.Box<System.ValueTuple<int, string>>);Maybe:Shapes.Generic.Box<System.Nullable<int>>:type(Shapes.Generic.Box<System.Nullable<int>>);Entry:Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>:type(Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>);Set:Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>:type(Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>);IntKeys:Shapes.Generic.Keys<int>:type(Shapes.Generic.Keys<int>);StringKeys:Shapes.Generic.Keys<string>:type(Shapes.Generic.Keys<string>)";
+    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xCF00B9E0; deferrable=true; members=Number:Shapes.Generic.Box<int>:type(Shapes.Generic.Box<int>);Text:Shapes.Generic.Box<string>:type(Shapes.Generic.Box<string>);Pair:Shapes.Generic.Pair<int, string>:type(Shapes.Generic.Pair<int, string>);Nested:Shapes.Generic.Box<Shapes.Generic.Box<int>>:type(Shapes.Generic.Box<Shapes.Generic.Box<int>>);Mixed:Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>:type(Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<int>>:seq(type(Shapes.Generic.Box<int>));Bag:Shapes.Generic.Bag<Shapes.Generic.Box<long>>:type(Shapes.Generic.Bag<Shapes.Generic.Box<long>>);Chain:Shapes.Generic.Node<string>:type(Shapes.Generic.Node<string>);Thing:Shapes.Generic.Box<Shapes.IThing>:type(Shapes.Generic.Box<Shapes.IThing>);Array:Shapes.Generic.Box<int[]>:type(Shapes.Generic.Box<int[]>);Complex:Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>:type(Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>);Pairs:System.Collections.Generic.Dictionary<string, Shapes.Generic.Pair<int, int>>:map(string,type(Shapes.Generic.Pair<int, int>));Raw:Shapes.Generic.RawPair<int>:type(Shapes.Generic.RawPair<int>);Tuple:Shapes.Generic.Box<System.ValueTuple<int, string>>:type(Shapes.Generic.Box<System.ValueTuple<int, string>>);Maybe:Shapes.Generic.Box<System.Nullable<int>>:type(Shapes.Generic.Box<System.Nullable<int>>);Entry:Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>:type(Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>);Set:Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>:type(Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>);IntKeys:Shapes.Generic.Keys<int>:type(Shapes.Generic.Keys<int>);StringKeys:Shapes.Generic.Keys<string>:type(Shapes.Generic.Keys<string>)";
 }
 
 /// A `Shapes.IThing` slot: a type id, then the body of one of these types.

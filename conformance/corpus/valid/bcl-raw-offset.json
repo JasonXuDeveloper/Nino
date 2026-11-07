@@ -10,7 +10,7 @@
   "size": 77,
   "roundTrip": true,
   "layouts": {
-    "Conformance.BclRawOffset": "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x73A77492; deferrable=true; members=Offset:Conformance.HoldsOffset:raw(24){A:int@0:raw(4),B:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}};Offsets:System.Collections.Generic.List<Conformance.HoldsOffset>:seq(raw(24){A:int@0:raw(4),B:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}})"
+    "Conformance.BclRawOffset": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x73A77492; deferrable=true; members=Offset:Conformance.HoldsOffset:raw(24){A:int@0:raw(4),B:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}};Offsets:System.Collections.Generic.List<Conformance.HoldsOffset>:seq(raw(24){A:int@0:raw(4),B:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}})"
   },
   "value": {
     "$type": "Conformance.BclRawOffset",

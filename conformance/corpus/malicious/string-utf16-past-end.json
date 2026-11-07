@@ -6,7 +6,7 @@
   "exercises": "A header of 10 (5 UTF-16 code units) with 2 present.",
   "size": 6,
   "layouts": {
-    "Conformance.Targets.TextValue": "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
+    "Conformance.Targets.TextValue": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x825A7C6C; deferrable=true; members=Value:string:string"
   },
   "dotnet": {
     "outcome": "error",

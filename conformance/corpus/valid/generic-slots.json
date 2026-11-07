@@ -9,14 +9,14 @@
   "size": 93,
   "roundTrip": true,
   "layouts": {
-    "Conformance.Crate<T>": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Content:T:type(T)",
-    "Conformance.GenericSlots": "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x81599708; deferrable=true; members=IntShelf:Conformance.Shelf<int>:type(Conformance.Shelf<int>);TextShelf:Conformance.Shelf<string>:type(Conformance.Shelf<string>);Crate:Conformance.Crate<int>:type(Conformance.Crate<int>);TextCrate:Conformance.Crate<string>:type(Conformance.Crate<string>);Holder:Conformance.IHolder<long>:type(Conformance.IHolder<long>);Shelves:System.Collections.Generic.List<Conformance.Shelf<int>>:seq(type(Conformance.Shelf<int>))",
-    "Conformance.Holder<T>": "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Held:T:type(T);Count:int:raw(4)",
-    "Conformance.IHolder<T>": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=false; members=",
-    "Conformance.IntShelf": "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x6370ECA9; deferrable=true; members=Item:int:raw(4);Extra:int:raw(4)",
-    "Conformance.LabeledCrate<T>": "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Content:T:type(T);Label:string:string",
-    "Conformance.ListShelf<T>": "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Item:T:type(T);More:System.Collections.Generic.List<T>:seq(type(T))",
-    "Conformance.Shelf<T>": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x00000000; deferrable=false; members=Item:T:type(T)"
+    "Conformance.Crate<T>": "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Content:T:type(T)",
+    "Conformance.GenericSlots": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x81599708; deferrable=true; members=IntShelf:Conformance.Shelf<int>:type(Conformance.Shelf<int>);TextShelf:Conformance.Shelf<string>:type(Conformance.Shelf<string>);Crate:Conformance.Crate<int>:type(Conformance.Crate<int>);TextCrate:Conformance.Crate<string>:type(Conformance.Crate<string>);Holder:Conformance.IHolder<long>:type(Conformance.IHolder<long>);Shelves:System.Collections.Generic.List<Conformance.Shelf<int>>:seq(type(Conformance.Shelf<int>))",
+    "Conformance.Holder<T>": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Held:T:type(T);Count:int:raw(4)",
+    "Conformance.IHolder<T>": "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x00000000; deferrable=false; members=",
+    "Conformance.IntShelf": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x6370ECA9; deferrable=true; members=Item:int:raw(4);Extra:int:raw(4)",
+    "Conformance.LabeledCrate<T>": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Content:T:type(T);Label:string:string",
+    "Conformance.ListShelf<T>": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Item:T:type(T);More:System.Collections.Generic.List<T>:seq(type(T))",
+    "Conformance.Shelf<T>": "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x00000000; deferrable=false; members=Item:T:type(T)"
   },
   "typeIds": {
     "Conformance.Crate<System.String>": "0x3AFC7DCB",

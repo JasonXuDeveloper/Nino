@@ -9,11 +9,11 @@
   "size": 37,
   "roundTrip": true,
   "layouts": {
-    "Conformance.TolerantBase": "format=VersionTolerant; header=TypeId; trackReferences=false; raw=false; typeId=0x9536FE88; deferrable=true; members=A:int:raw(4)",
-    "Conformance.TolerantEmpty": "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; typeId=0x85A223A0; deferrable=true; members=",
-    "Conformance.TolerantHolder": "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0x2DA994ED; deferrable=true; members=First:Conformance.TolerantV1:type(Conformance.TolerantV1);Polymorphic:Conformance.TolerantBase:type(Conformance.TolerantBase);Empty:Conformance.TolerantEmpty:type(Conformance.TolerantEmpty);After:int:raw(4)",
-    "Conformance.TolerantLeaf": "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; typeId=0x6B83150B; deferrable=true; members=A:int:raw(4);B:int:raw(4)",
-    "Conformance.TolerantV1": "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; typeId=0x1DBD9212; deferrable=true; members=A:int:raw(4);B:string:string"
+    "Conformance.TolerantBase": "format=VersionTolerant; header=TypeId; trackReferences=false; raw=false; id=0x9536FE88; deferrable=true; members=A:int:raw(4)",
+    "Conformance.TolerantEmpty": "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x85A223A0; deferrable=true; members=",
+    "Conformance.TolerantHolder": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x2DA994ED; deferrable=true; members=First:Conformance.TolerantV1:type(Conformance.TolerantV1);Polymorphic:Conformance.TolerantBase:type(Conformance.TolerantBase);Empty:Conformance.TolerantEmpty:type(Conformance.TolerantEmpty);After:int:raw(4)",
+    "Conformance.TolerantLeaf": "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x6B83150B; deferrable=true; members=A:int:raw(4);B:int:raw(4)",
+    "Conformance.TolerantV1": "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x1DBD9212; deferrable=true; members=A:int:raw(4);B:string:string"
   },
   "value": {
     "$type": "Conformance.TolerantHolder",

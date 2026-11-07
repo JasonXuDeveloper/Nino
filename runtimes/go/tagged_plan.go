@@ -231,7 +231,7 @@ func declare(p *plan) (*layoutDecl, error) {
 	}
 	if id, ok := typedID(t); ok {
 		if p.hasID && id != p.id {
-			return nil, typeErr(t, "NinoTypeID returns 0x%08X but the layout's typeId is 0x%08X", uint32(id), uint32(p.id))
+			return nil, typeErr(t, "NinoTypeID returns 0x%08X but the layout's id is 0x%08X", uint32(id), uint32(p.id))
 		}
 		p.id, p.hasID = id, true
 	}

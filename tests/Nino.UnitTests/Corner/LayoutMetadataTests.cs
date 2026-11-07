@@ -185,7 +185,7 @@ namespace Deferral
 }");
             var node = Layout(assembly, "Deferral.Node");
             Assert.IsTrue(node.Deferrable);
-            StringAssert.Contains(node.ToString(), "header=Presence; trackReferences=false; raw=false; typeId=0x" +
+            StringAssert.Contains(node.ToString(), "header=Presence; trackReferences=false; raw=false; id=0x" +
                                                    node.Id.ToString("X8") + "; deferrable=true; members=");
             // Re-created through its constructor, compared by value, never created, a struct: never deferred.
             foreach (string type in new[] { "Deferral.Point", "Deferral.Shape", "Deferral.Pair" })
@@ -220,7 +220,7 @@ namespace Nino.Core
     public sealed class NinoTypeLayoutAttribute : System.Attribute
     {
         public NinoTypeLayoutAttribute(System.Type type, NinoFormat format, NinoHeader header, bool trackReferences,
-            bool raw, int typeId, string members) { }
+            bool raw, int id, string members) { }
     }
 }";
             var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)

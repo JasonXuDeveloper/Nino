@@ -26,7 +26,7 @@ namespace Nino.Codegen.Tests
             var expected = new[]
             {
                 (typeof(Type), "type"), (typeof(NinoFormat), "format"), (typeof(NinoHeader), "header"),
-                (typeof(bool), "trackReferences"), (typeof(bool), "raw"), (typeof(int), "typeId"),
+                (typeof(bool), "trackReferences"), (typeof(bool), "raw"), (typeof(int), "id"),
                 (typeof(string), "members"),
             };
             var constructors = typeof(NinoTypeLayoutAttribute).GetConstructors();

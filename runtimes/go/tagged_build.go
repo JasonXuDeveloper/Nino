@@ -397,7 +397,7 @@ func (b *builder) class(c *codec, p *plan) error {
 	t := p.typ
 	if p.header == headerTypeID {
 		if !p.hasID {
-			return typeErr(t, "header=TypeId but no type id: give the layout a typeId or implement NinoTypeID")
+			return typeErr(t, "header=TypeId but no type id: give the layout an id or implement NinoTypeID")
 		}
 		c.min = 4
 		id := p.id

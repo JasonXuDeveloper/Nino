@@ -11,7 +11,7 @@ import (
 // Layout strings: what a type's NinoLayout method returns, in the grammar of the [NinoTypeLayout] metadata .NET
 // publishes for every [NinoType] (wire-format spec §8):
 //
-//	format=Keyed; header=Presence; trackReferences=false; raw=false; typeId=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;...
+//	format=Keyed; header=Presence; trackReferences=false; raw=false; id=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;...
 //
 // The parser takes the parts in any order and any subset of them ("format=VersionTolerant" alone declares the
 // format and leaves the rest to the defaults). "deferrable=true|false" (spec §7.10.1, §8.1) says whether .NET
@@ -49,7 +49,7 @@ type layoutDecl struct {
 	raw        tristate
 	deferrable tristate
 	typeID     int32
-	hasTypeID  bool // typeId given and not 0 (0 is published for generic type definitions)
+	hasTypeID  bool // id given and not 0 (0 is published for generic type definitions)
 	hasMembers bool
 	members    []layoutMember
 	rawEnc     *encoding // members of a raw type: one raw encoding
@@ -144,7 +144,7 @@ func parseLayout(s string) (*layoutDecl, error) {
 			default:
 				d.deferrable = t
 			}
-		case "typeId":
+		case "id":
 			id, err := parseHex32(value)
 			if err != nil {
 				return nil, err

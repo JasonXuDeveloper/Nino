@@ -20,7 +20,7 @@ type tagSmall struct {
 }
 
 func (tagSmall) NinoLayout() string {
-	return "format=Positional; header=Presence; trackReferences=false; raw=false; typeId=0xF8B7D639; members=A:int:raw(4);B:string:string"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xF8B7D639; members=A:int:raw(4);B:string:string"
 }
 
 // Spec appendix A.3, keyed.
@@ -31,7 +31,7 @@ type tagKeyed struct {
 }
 
 func (tagKeyed) NinoLayout() string {
-	return "format=Keyed; header=Presence; trackReferences=false; raw=false; typeId=0xA333A1B0; members=Id:int:raw(4):key=0x98C41948;Name:string:string:key=0x3085B3E2:former=0x93A29D95;Score:long:raw(8):key=0x044AB14D"
+	return "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0xA333A1B0; members=Id:int:raw(4):key=0x98C41948;Name:string:string:key=0x3085B3E2:former=0x93A29D95;Score:long:raw(8):key=0x044AB14D"
 }
 
 // The same type with no layout: keys are the hashes of the names.
@@ -47,7 +47,7 @@ type tagTolLeaf struct {
 	B int32 `nino:"1"`
 }
 
-func (tagTolLeaf) NinoLayout() string { return "format=VersionTolerant; typeId=0x2B463077" }
+func (tagTolLeaf) NinoLayout() string { return "format=VersionTolerant; id=0x2B463077" }
 
 type tagTolOnlyA struct {
 	A int32 `nino:"0"`
@@ -60,7 +60,7 @@ type tagTolBase struct {
 }
 
 func (tagTolBase) NinoLayout() string {
-	return "format=VersionTolerant; header=TypeId; typeId=0x9A63F3D2"
+	return "format=VersionTolerant; header=TypeId; id=0x9A63F3D2"
 }
 
 func str(s string) *string { return &s }
@@ -392,7 +392,7 @@ type tagDog struct {
 	Bones int32  `nino:"1"`
 }
 
-func (tagDog) NinoLayout() string { return "header=TypeId; typeId=0x11111111" }
+func (tagDog) NinoLayout() string { return "header=TypeId; id=0x11111111" }
 func (*tagDog) isAnimal()         {}
 
 type tagCat struct {
@@ -470,7 +470,7 @@ type tagPacked struct {
 }
 
 func (tagPacked) NinoLayout() string {
-	return "format=Positional; header=None; trackReferences=false; raw=true; typeId=0xEF24AAA6; members=raw(11){A:byte@0:raw(1),B:long@1:raw(8),C:short@9:raw(2)}"
+	return "format=Positional; header=None; trackReferences=false; raw=true; id=0xEF24AAA6; members=raw(11){A:byte@0:raw(1),B:long@1:raw(8),C:short@9:raw(2)}"
 }
 
 type tagSized struct {

@@ -588,7 +588,7 @@ class Gen:
         if name in self.type_ids:
             return self.type_ids[name]
         if name in self.layouts:
-            return int(self.layouts[name]["typeId"], 16)
+            return int(self.layouts[name]["id"], 16)
         raise KeyError(name)
 
     def emit_ref(self, base, subtypes, rust):

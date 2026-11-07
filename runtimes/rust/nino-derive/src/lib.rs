@@ -380,7 +380,7 @@ fn parse_layout(lit: &LitStr) -> syn::Result<Layout> {
             Some("false") => Some(false),
             Some(d) => return Err(err(&format!("deferrable={d} is not true or false"))),
         },
-        type_id: parse_hex(&field("typeId")?).ok_or_else(|| err("bad typeId"))?,
+        type_id: parse_hex(&field("id")?).ok_or_else(|| err("bad id"))?,
         members,
         raw_body: body,
     })

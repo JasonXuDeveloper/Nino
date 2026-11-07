@@ -38,7 +38,7 @@ namespace Nino.Codegen.Layouts
         public string Text =>
             $"format={FormatName(Format)}; header={HeaderName(Header)}; " +
             $"trackReferences={(TrackReferences ? "true" : "false")}; raw={(Raw ? "true" : "false")}; " +
-            $"typeId=0x{Id:X8}; " + (Deferrable is { } d ? d ? "deferrable=true; " : "deferrable=false; " : "") +
+            $"id=0x{Id:X8}; " + (Deferrable is { } d ? d ? "deferrable=true; " : "deferrable=false; " : "") +
             $"members={MembersText}";
 
         public static string FormatName(int format) => format switch
