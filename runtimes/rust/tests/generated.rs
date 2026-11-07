@@ -336,6 +336,20 @@ fn generated_fuzz() {
     on_large_stack(fuzz);
 }
 
+/// The body traits carry each type's id, as the derive's do: a sealed class, a subtype behind a type id and a struct.
+#[test]
+fn body_traits_carry_type_ids() {
+    use nino::{NinoReadBody, NinoWriteBody};
+    use nino_types::{AnimalSlot, BclRawHost, Cat};
+    fn ids<T: NinoReadBody + NinoWriteBody>() -> (i32, i32) {
+        (<T as NinoReadBody>::TYPE_ID, <T as NinoWriteBody>::TYPE_ID)
+    }
+    assert_eq!(ids::<AnimalSlot>(), (AnimalSlot::TYPE_ID, AnimalSlot::TYPE_ID));
+    assert_eq!(ids::<Cat>(), (Cat::TYPE_ID, Cat::TYPE_ID));
+    assert_eq!(ids::<BclRawHost>(), (BclRawHost::TYPE_ID, BclRawHost::TYPE_ID));
+    assert_ne!(Cat::TYPE_ID, 0);
+}
+
 /// A closed type of a generic class behind a type id: its slot takes the closed types assignable to it, by the ids of
 /// their closed .NET names, and no other.
 #[test]
