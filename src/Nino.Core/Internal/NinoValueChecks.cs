@@ -44,10 +44,22 @@ namespace Nino.Core.Internal
         public void Check(ref byte first, int count, int stride, Type type)
         {
 #if NET8_0_OR_GREATER
-            if (Vector.IsHardwareAccelerated && (long)count * stride >= Vector<byte>.Count &&
-                PlanFor(stride) is { } plan && plan.Valid(ref first, count * stride))
+            // Whole strides as vectors, but not the last value's: the run need not hold a stride past it (the values
+            // of raw pairs end a key before the next pair, maybe the data's last byte). It takes the scalar loops.
+            int whole = count - 1;
+            if (Vector.IsHardwareAccelerated && (long)whole * stride >= Vector<byte>.Count &&
+                PlanFor(stride) is { } plan && plan.Valid(ref first, whole * stride))
+            {
+                CheckFields(ref Unsafe.Add(ref first, whole * stride), 1, stride, type);
                 return;
+            }
 #endif
+            CheckFields(ref first, count, stride, type);
+        }
+
+        /// <summary><see cref="Check"/> a field at a time (where an invalid one is found and named).</summary>
+        private void CheckFields(ref byte first, int count, int stride, Type type)
+        {
             for (int i = 0; i < _pairs.Length; i += 2)
             {
                 ref byte field = ref Unsafe.Add(ref first, _pairs[i]);
