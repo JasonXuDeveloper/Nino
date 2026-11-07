@@ -12,3 +12,4 @@ NINO029 | Nino | Error | Vector<T> cannot be serialized
 NINO030 | Nino | Warning | [NinoUtf8] has no effect
 NINO031 | Nino | Info | Use [NinoUtf8]
 NINO032 | Nino | Error | WEAK_VERSION_TOLERANCE was removed
+NINO033 | Nino | Warning | Attribute on an interface member has no effect

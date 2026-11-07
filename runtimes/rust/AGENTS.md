@@ -19,7 +19,8 @@ fuzz/                        cargo-fuzz targets (own workspace, nightly): confor
                              input as the corpus types (fuzz_targets/check.rs); seeds.py writes the corpus as seeds
 README.md                    the API, derive attributes, guarantees, "Stricter than .NET", tests, benchmarks
 src/
-  lib.rs                     crate root: modules, re-exports, the deny lints
+  lib.rs                     crate root: modules, re-exports, the deny lints, and the macros generated code and the
+                             derive expand (field!, sealed_read!/sealed_write!, raw_read!/raw_write!, type_consts!)
   reader.rs                  Reader: bounds-checked little-endian reads, lengths checked against the bytes left
   writer.rs                  Writer: appends to a Vec<u8>
   error.rs                   the one error type (Error, ErrorKind)
@@ -92,7 +93,10 @@ Generated files: `tests/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 do
   bounds check (`r.array::<N>()`, `w.reserve(n)`), `#[inline]` on every small codec, and rare or large paths
   (`latin1_wide`, UTF-16 decoding, building an `Error`) `#[inline(never)]`. Compare with `cargo bench -p nino-bench`
   back to back on one machine; never publish the numbers.
-- The derive (`nino-serialization-derive`, in `nino-derive/`) generates the same code as the templates; anything the
+- The derive (`nino-serialization-derive`, in `nino-derive/`) generates the same code as the templates; code both
+  write the same for every type of a kind (a sealed class's forwarders, a raw struct's impls) is a `macro_rules!` in
+  `lib.rs` that both call, and a doc comment generated code would repeat on every type is written once in such a macro
+  (`type_consts!`); anything the
   wire format cannot express is a compile error naming the field, with a case in `tests/compile_fail/`. Give a new
   attribute a corpus or derive test.
 - Before committing: `cargo fmt --all --check`, `cargo clippy --workspace --all-features --all-targets -- -D warnings`

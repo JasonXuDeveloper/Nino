@@ -123,31 +123,11 @@ impl nino::Raw for DateTimeOffset {
 }
 
 impl NinoRead for DateTimeOffset {
-    const MIN_SIZE: usize = 16;
-    const FIXED_SIZE: usize = 16;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for DateTimeOffset {
-    const FIXED_SIZE: usize = 16;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Conformance.EmptyStruct`: raw, 1 bytes.
@@ -173,40 +153,19 @@ impl nino::Raw for EmptyStruct {
 }
 
 impl NinoRead for EmptyStruct {
-    const MIN_SIZE: usize = 1;
-    const FIXED_SIZE: usize = 1;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<1>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for EmptyStruct {
-    const FIXED_SIZE: usize = 1;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 1];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl EmptyStruct {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x18A30154u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.EmptyStruct";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0x18A30154; deferrable=false; members=raw";
+    nino::type_consts!(
+        0x18A30154u32 as i32,
+        "Conformance.EmptyStruct",
+        "format=Positional; header=None; trackReferences=false; raw=true; id=0x18A30154; deferrable=false; members=raw"
+    );
 }
 
 /// `Conformance.HoldsBclLeaves`: raw, 112 bytes.
@@ -268,31 +227,11 @@ impl nino::Raw for HoldsBclLeaves {
 }
 
 impl NinoRead for HoldsBclLeaves {
-    const MIN_SIZE: usize = 112;
-    const FIXED_SIZE: usize = 112;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<112>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for HoldsBclLeaves {
-    const FIXED_SIZE: usize = 112;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 112];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Conformance.HoldsNestedTuples`: raw, 48 bytes.
@@ -334,31 +273,11 @@ impl nino::Raw for HoldsNestedTuples {
 }
 
 impl NinoRead for HoldsNestedTuples {
-    const MIN_SIZE: usize = 48;
-    const FIXED_SIZE: usize = 48;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<48>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for HoldsNestedTuples {
-    const FIXED_SIZE: usize = 48;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 48];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Conformance.HoldsNullables`: raw, 40 bytes.
@@ -400,31 +319,11 @@ impl nino::Raw for HoldsNullables {
 }
 
 impl NinoRead for HoldsNullables {
-    const MIN_SIZE: usize = 40;
-    const FIXED_SIZE: usize = 40;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<40>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for HoldsNullables {
-    const FIXED_SIZE: usize = 40;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 40];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Conformance.HoldsOffset`: raw, 24 bytes.
@@ -461,31 +360,11 @@ impl nino::Raw for HoldsOffset {
 }
 
 impl NinoRead for HoldsOffset {
-    const MIN_SIZE: usize = 24;
-    const FIXED_SIZE: usize = 24;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<24>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for HoldsOffset {
-    const FIXED_SIZE: usize = 24;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 24];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Conformance.HoldsPairs`: raw, 40 bytes.
@@ -527,31 +406,11 @@ impl nino::Raw for HoldsPairs {
 }
 
 impl NinoRead for HoldsPairs {
-    const MIN_SIZE: usize = 40;
-    const FIXED_SIZE: usize = 40;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<40>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for HoldsPairs {
-    const FIXED_SIZE: usize = 40;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 40];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Conformance.HoldsPointers`: raw, 24 bytes.
@@ -593,31 +452,11 @@ impl nino::Raw for HoldsPointers {
 }
 
 impl NinoRead for HoldsPointers {
-    const MIN_SIZE: usize = 24;
-    const FIXED_SIZE: usize = 24;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<24>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for HoldsPointers {
-    const FIXED_SIZE: usize = 24;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 24];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Conformance.HoldsTuples`: raw, 48 bytes.
@@ -664,31 +503,11 @@ impl nino::Raw for HoldsTuples {
 }
 
 impl NinoRead for HoldsTuples {
-    const MIN_SIZE: usize = 48;
-    const FIXED_SIZE: usize = 48;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<48>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for HoldsTuples {
-    const FIXED_SIZE: usize = 48;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 48];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Conformance.HoldsWide`: raw, 48 bytes.
@@ -730,31 +549,11 @@ impl nino::Raw for HoldsWide {
 }
 
 impl NinoRead for HoldsWide {
-    const MIN_SIZE: usize = 48;
-    const FIXED_SIZE: usize = 48;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<48>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for HoldsWide {
-    const FIXED_SIZE: usize = 48;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 48];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `System.Collections.Generic.KeyValuePair<System.Int32,System.Int64>`: raw, 16 bytes.
@@ -791,31 +590,11 @@ impl nino::Raw for KeyValuePairInt32Int64 {
 }
 
 impl NinoRead for KeyValuePairInt32Int64 {
-    const MIN_SIZE: usize = 16;
-    const FIXED_SIZE: usize = 16;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for KeyValuePairInt32Int64 {
-    const FIXED_SIZE: usize = 16;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `System.Collections.Generic.KeyValuePair<System.Int64,System.Byte>`: raw, 16 bytes.
@@ -852,31 +631,11 @@ impl nino::Raw for KeyValuePairInt64Byte {
 }
 
 impl NinoRead for KeyValuePairInt64Byte {
-    const MIN_SIZE: usize = 16;
-    const FIXED_SIZE: usize = 16;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for KeyValuePairInt64Byte {
-    const FIXED_SIZE: usize = 16;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Conformance.Mixed`: raw, 12 bytes.
@@ -923,40 +682,15 @@ impl nino::Raw for Mixed {
 }
 
 impl NinoRead for Mixed {
-    const MIN_SIZE: usize = 12;
-    const FIXED_SIZE: usize = 12;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<12>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Mixed {
-    const FIXED_SIZE: usize = 12;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 12];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl Mixed {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x0E07F8DBu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Mixed";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0x0E07F8DB; deferrable=false; members=raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)}";
+    nino::type_consts!(0x0E07F8DBu32 as i32, "Conformance.Mixed", "format=Positional; header=None; trackReferences=false; raw=true; id=0x0E07F8DB; deferrable=false; members=raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)}");
 }
 
 /// `Conformance.Nested`: raw, 32 bytes.
@@ -1003,40 +737,15 @@ impl nino::Raw for Nested {
 }
 
 impl NinoRead for Nested {
-    const MIN_SIZE: usize = 32;
-    const FIXED_SIZE: usize = 32;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<32>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Nested {
-    const FIXED_SIZE: usize = 32;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 32];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl Nested {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x062D377Bu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Nested";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0x062D377B; deferrable=false; members=raw(32){Inner:Conformance.Padded@0:raw(16){A:byte@0:raw(1),B:long@8:raw(8)},Position:Conformance.Vec2@16:raw(8){X:float@0:raw(4),Y:float@4:raw(4)},Kind:Conformance.EU8@24:raw(1),Flag:bool@25:raw(1)}";
+    nino::type_consts!(0x062D377Bu32 as i32, "Conformance.Nested", "format=Positional; header=None; trackReferences=false; raw=true; id=0x062D377B; deferrable=false; members=raw(32){Inner:Conformance.Padded@0:raw(16){A:byte@0:raw(1),B:long@8:raw(8)},Position:Conformance.Vec2@16:raw(8){X:float@0:raw(4),Y:float@4:raw(4)},Kind:Conformance.EU8@24:raw(1),Flag:bool@25:raw(1)}");
 }
 
 /// `Conformance.Packed`: raw, 11 bytes.
@@ -1075,40 +784,15 @@ impl nino::Raw for Packed {
 }
 
 impl NinoRead for Packed {
-    const MIN_SIZE: usize = 11;
-    const FIXED_SIZE: usize = 11;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<11>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Packed {
-    const FIXED_SIZE: usize = 11;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 11];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl Packed {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xEF24AAA6u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Packed";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0xEF24AAA6; deferrable=false; members=raw(11){A:byte@0:raw(1),B:long@1:raw(8),C:short@9:raw(2)}";
+    nino::type_consts!(0xEF24AAA6u32 as i32, "Conformance.Packed", "format=Positional; header=None; trackReferences=false; raw=true; id=0xEF24AAA6; deferrable=false; members=raw(11){A:byte@0:raw(1),B:long@1:raw(8),C:short@9:raw(2)}");
 }
 
 /// `Conformance.Padded`: raw, 16 bytes.
@@ -1145,40 +829,15 @@ impl nino::Raw for Padded {
 }
 
 impl NinoRead for Padded {
-    const MIN_SIZE: usize = 16;
-    const FIXED_SIZE: usize = 16;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Padded {
-    const FIXED_SIZE: usize = 16;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl Padded {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x2ACAE976u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Padded";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0x2ACAE976; deferrable=false; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}";
+    nino::type_consts!(0x2ACAE976u32 as i32, "Conformance.Padded", "format=Positional; header=None; trackReferences=false; raw=true; id=0x2ACAE976; deferrable=false; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}");
 }
 
 /// `Conformance.Sized`: raw, 16 bytes.
@@ -1210,40 +869,15 @@ impl nino::Raw for Sized {
 }
 
 impl NinoRead for Sized {
-    const MIN_SIZE: usize = 16;
-    const FIXED_SIZE: usize = 16;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Sized {
-    const FIXED_SIZE: usize = 16;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl Sized {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xB3C0D1F7u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Sized";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0xB3C0D1F7; deferrable=false; members=raw(16){A:int@0:raw(4)}";
+    nino::type_consts!(0xB3C0D1F7u32 as i32, "Conformance.Sized", "format=Positional; header=None; trackReferences=false; raw=true; id=0xB3C0D1F7; deferrable=false; members=raw(16){A:int@0:raw(4)}");
 }
 
 /// `System.ValueTuple<System.Byte,System.Decimal>`: raw, 24 bytes.
@@ -1280,31 +914,11 @@ impl nino::Raw for ValueTupleByteDecimal {
 }
 
 impl NinoRead for ValueTupleByteDecimal {
-    const MIN_SIZE: usize = 24;
-    const FIXED_SIZE: usize = 24;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<24>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for ValueTupleByteDecimal {
-    const FIXED_SIZE: usize = 24;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 24];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `System.ValueTuple<System.Byte,System.Guid>`: raw, 24 bytes.
@@ -1341,31 +955,11 @@ impl nino::Raw for ValueTupleByteGuid {
 }
 
 impl NinoRead for ValueTupleByteGuid {
-    const MIN_SIZE: usize = 24;
-    const FIXED_SIZE: usize = 24;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<24>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for ValueTupleByteGuid {
-    const FIXED_SIZE: usize = 24;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 24];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `System.ValueTuple<System.Byte,System.Int16>`: raw, 4 bytes.
@@ -1402,31 +996,11 @@ impl nino::Raw for ValueTupleByteInt16 {
 }
 
 impl NinoRead for ValueTupleByteInt16 {
-    const MIN_SIZE: usize = 4;
-    const FIXED_SIZE: usize = 4;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<4>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for ValueTupleByteInt16 {
-    const FIXED_SIZE: usize = 4;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 4];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `System.ValueTuple<System.Byte,System.Int64>`: raw, 16 bytes.
@@ -1463,31 +1037,11 @@ impl nino::Raw for ValueTupleByteInt64 {
 }
 
 impl NinoRead for ValueTupleByteInt64 {
-    const MIN_SIZE: usize = 16;
-    const FIXED_SIZE: usize = 16;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for ValueTupleByteInt64 {
-    const FIXED_SIZE: usize = 16;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `System.ValueTuple<System.Byte,System.Int64,System.Int32>`: raw, 16 bytes.
@@ -1529,31 +1083,11 @@ impl nino::Raw for ValueTupleByteInt64Int32 {
 }
 
 impl NinoRead for ValueTupleByteInt64Int32 {
-    const MIN_SIZE: usize = 16;
-    const FIXED_SIZE: usize = 16;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for ValueTupleByteInt64Int32 {
-    const FIXED_SIZE: usize = 16;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `System.ValueTuple<System.Int32,System.Int64>`: raw, 16 bytes.
@@ -1590,31 +1124,11 @@ impl nino::Raw for ValueTupleInt32Int64 {
 }
 
 impl NinoRead for ValueTupleInt32Int64 {
-    const MIN_SIZE: usize = 16;
-    const FIXED_SIZE: usize = 16;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for ValueTupleInt32Int64 {
-    const FIXED_SIZE: usize = 16;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `System.ValueTuple<System.Int32,System.TimeSpan>`: raw, 16 bytes.
@@ -1651,31 +1165,11 @@ impl nino::Raw for ValueTupleInt32TimeSpan {
 }
 
 impl NinoRead for ValueTupleInt32TimeSpan {
-    const MIN_SIZE: usize = 16;
-    const FIXED_SIZE: usize = 16;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for ValueTupleInt32TimeSpan {
-    const FIXED_SIZE: usize = 16;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `System.ValueTuple<System.Int32,System.ValueTuple<System.Byte,System.Int64>>`: raw, 24 bytes.
@@ -1712,31 +1206,11 @@ impl nino::Raw for ValueTupleInt32ValueTupleByteInt64 {
 }
 
 impl NinoRead for ValueTupleInt32ValueTupleByteInt64 {
-    const MIN_SIZE: usize = 24;
-    const FIXED_SIZE: usize = 24;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<24>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for ValueTupleInt32ValueTupleByteInt64 {
-    const FIXED_SIZE: usize = 24;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 24];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `System.ValueTuple<System.ValueTuple<System.Byte,System.Int16>,System.Int64>`: raw, 16 bytes.
@@ -1773,31 +1247,11 @@ impl nino::Raw for ValueTupleValueTupleByteInt16Int64 {
 }
 
 impl NinoRead for ValueTupleValueTupleByteInt16Int64 {
-    const MIN_SIZE: usize = 16;
-    const FIXED_SIZE: usize = 16;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for ValueTupleValueTupleByteInt16Int64 {
-    const FIXED_SIZE: usize = 16;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Conformance.Vec2`: raw, 8 bytes.
@@ -1831,40 +1285,15 @@ impl nino::Raw for Vec2 {
 }
 
 impl NinoRead for Vec2 {
-    const MIN_SIZE: usize = 8;
-    const FIXED_SIZE: usize = 8;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Vec2 {
-    const FIXED_SIZE: usize = 8;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 8];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl Vec2 {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x53124224u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Vec2";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0x53124224; deferrable=false; members=raw(8){X:float@0:raw(4),Y:float@4:raw(4)}";
+    nino::type_consts!(0x53124224u32 as i32, "Conformance.Vec2", "format=Positional; header=None; trackReferences=false; raw=true; id=0x53124224; deferrable=false; members=raw(8){X:float@0:raw(4),Y:float@4:raw(4)}");
 }
 
 /// `Conformance.Targets.AnimalSlot`: Positional, header Presence.
@@ -1875,6 +1304,8 @@ pub struct AnimalSlot {
 }
 
 impl NinoReadBody for AnimalSlot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.value, nino::field!(Self, value))?;
         Ok(())
@@ -1882,6 +1313,8 @@ impl NinoReadBody for AnimalSlot {
 }
 
 impl NinoWriteBody for AnimalSlot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -1898,12 +1331,7 @@ impl NinoWrite for AnimalSlot {
 }
 
 impl AnimalSlot {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xD4664648u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.AnimalSlot";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xD4664648; deferrable=true; members=Value:Conformance.Animal:type(Conformance.Animal)";
+    nino::type_consts!(0xD4664648u32 as i32, "Conformance.Targets.AnimalSlot", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xD4664648; deferrable=true; members=Value:Conformance.Animal:type(Conformance.Animal)");
 }
 
 /// `Conformance.Bag`: Positional, header TypeId.
@@ -1916,6 +1344,8 @@ pub struct Bag {
 }
 
 impl NinoReadBody for Bag {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.elements)?;
         r.read_into(&mut self.tag)?;
@@ -1924,6 +1354,8 @@ impl NinoReadBody for Bag {
 }
 
 impl NinoWriteBody for Bag {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.elements)?;
         w.write(&self.tag)?;
@@ -1932,12 +1364,7 @@ impl NinoWriteBody for Bag {
 }
 
 impl Bag {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xCC960662u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Bag";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0xCC960662; deferrable=true; members=[elements]::seq(raw(4));Tag:string:string";
+    nino::type_consts!(0xCC960662u32 as i32, "Conformance.Bag", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0xCC960662; deferrable=true; members=[elements]::seq(raw(4));Tag:string:string");
 }
 
 /// `Conformance.BagHolder`: Positional, header Presence.
@@ -1952,6 +1379,8 @@ pub struct BagHolder {
 }
 
 impl NinoReadBody for BagHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.bag, nino::field!(Self, bag))?;
         r.read_member_into(&mut self.tolerant, nino::field!(Self, tolerant))?;
@@ -1963,6 +1392,8 @@ impl NinoReadBody for BagHolder {
 }
 
 impl NinoWriteBody for BagHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.bag)?;
         w.write(&self.tolerant)?;
@@ -2003,12 +1434,7 @@ impl NinoWrite for BagHolder {
 }
 
 impl BagHolder {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x79A1F522u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.BagHolder";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x79A1F522; deferrable=true; members=Bag:Conformance.Bag:type(Conformance.Bag);Tolerant:Conformance.TolerantBag:type(Conformance.TolerantBag);Keyed:Conformance.KeyedBag:type(Conformance.KeyedBag);Set:Conformance.PointSet:type(Conformance.PointSet);Bags:System.Collections.Generic.List<Conformance.Bag>:seq(type(Conformance.Bag))";
+    nino::type_consts!(0x79A1F522u32 as i32, "Conformance.BagHolder", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x79A1F522; deferrable=true; members=Bag:Conformance.Bag:type(Conformance.Bag);Tolerant:Conformance.TolerantBag:type(Conformance.TolerantBag);Keyed:Conformance.KeyedBag:type(Conformance.KeyedBag);Set:Conformance.PointSet:type(Conformance.PointSet);Bags:System.Collections.Generic.List<Conformance.Bag>:seq(type(Conformance.Bag))");
 }
 
 /// `Conformance.BclRaw`: Positional, header Presence.
@@ -2024,6 +1450,8 @@ pub struct BclRaw {
 }
 
 impl NinoReadBody for BclRaw {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.tuples)?;
         r.read_into(&mut self.pairs)?;
@@ -2036,6 +1464,8 @@ impl NinoReadBody for BclRaw {
 }
 
 impl NinoWriteBody for BclRaw {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.tuples)?;
         w.write(&self.pairs)?;
@@ -2071,12 +1501,7 @@ impl NinoWrite for BclRaw {
 }
 
 impl BclRaw {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xE128DA27u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.BclRaw";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xE128DA27; deferrable=true; members=Tuples:Conformance.HoldsTuples:raw(48){A:int@0:raw(4),B:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)},C:System.ValueTuple<byte, short>@24:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},D:System.ValueTuple<byte, long, int>@32:raw(16){Item1:byte@12:raw(1),Item2:long@0:raw(8),Item3:int@8:raw(4)}};Pairs:Conformance.HoldsPairs:raw(40){A:byte@0:raw(1),P:System.Collections.Generic.KeyValuePair<int, long>@8:raw(16){key:int@0:raw(4),value:long@8:raw(8)},Q:System.Collections.Generic.KeyValuePair<long, byte>@24:raw(16){key:long@0:raw(8),value:byte@8:raw(1)}};Nested:Conformance.HoldsNestedTuples:raw(48){A:byte@0:raw(1),X:System.ValueTuple<int, System.ValueTuple<byte, long>>@8:raw(24){Item1:int@0:raw(4),Item2:System.ValueTuple<byte, long>@8:raw(16){Item1:byte@8:raw(1),Item2:long@0:raw(8)}},Y:System.ValueTuple<System.ValueTuple<byte, short>, long>@32:raw(16){Item1:System.ValueTuple<byte, short>@8:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},Item2:long@0:raw(8)}};Leaves:Conformance.HoldsBclLeaves:raw(112){A:byte@0:raw(1),G:System.Guid@4:raw(16),D:decimal@24:raw(16),S:System.TimeSpan@40:raw(8),T:System.ValueTuple<int, System.TimeSpan>@48:raw(16){Item1:int@0:raw(4),Item2:System.TimeSpan@8:raw(8)},M:System.ValueTuple<byte, decimal>@64:raw(24){Item1:byte@0:raw(1),Item2:decimal@8:raw(16)},U:System.ValueTuple<byte, System.Guid>@88:raw(24){Item1:byte@0:raw(1),Item2:System.Guid@4:raw(16)}};TupleArray:Conformance.HoldsTuples[]:seq(raw(48){A:int@0:raw(4),B:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)},C:System.ValueTuple<byte, short>@24:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},D:System.ValueTuple<byte, long, int>@32:raw(16){Item1:byte@12:raw(1),Item2:long@0:raw(8),Item3:int@8:raw(4)}});PairList:System.Collections.Generic.List<Conformance.HoldsPairs>:seq(raw(40){A:byte@0:raw(1),P:System.Collections.Generic.KeyValuePair<int, long>@8:raw(16){key:int@0:raw(4),value:long@8:raw(8)},Q:System.Collections.Generic.KeyValuePair<long, byte>@24:raw(16){key:long@0:raw(8),value:byte@8:raw(1)}})";
+    nino::type_consts!(0xE128DA27u32 as i32, "Conformance.BclRaw", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xE128DA27; deferrable=true; members=Tuples:Conformance.HoldsTuples:raw(48){A:int@0:raw(4),B:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)},C:System.ValueTuple<byte, short>@24:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},D:System.ValueTuple<byte, long, int>@32:raw(16){Item1:byte@12:raw(1),Item2:long@0:raw(8),Item3:int@8:raw(4)}};Pairs:Conformance.HoldsPairs:raw(40){A:byte@0:raw(1),P:System.Collections.Generic.KeyValuePair<int, long>@8:raw(16){key:int@0:raw(4),value:long@8:raw(8)},Q:System.Collections.Generic.KeyValuePair<long, byte>@24:raw(16){key:long@0:raw(8),value:byte@8:raw(1)}};Nested:Conformance.HoldsNestedTuples:raw(48){A:byte@0:raw(1),X:System.ValueTuple<int, System.ValueTuple<byte, long>>@8:raw(24){Item1:int@0:raw(4),Item2:System.ValueTuple<byte, long>@8:raw(16){Item1:byte@8:raw(1),Item2:long@0:raw(8)}},Y:System.ValueTuple<System.ValueTuple<byte, short>, long>@32:raw(16){Item1:System.ValueTuple<byte, short>@8:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},Item2:long@0:raw(8)}};Leaves:Conformance.HoldsBclLeaves:raw(112){A:byte@0:raw(1),G:System.Guid@4:raw(16),D:decimal@24:raw(16),S:System.TimeSpan@40:raw(8),T:System.ValueTuple<int, System.TimeSpan>@48:raw(16){Item1:int@0:raw(4),Item2:System.TimeSpan@8:raw(8)},M:System.ValueTuple<byte, decimal>@64:raw(24){Item1:byte@0:raw(1),Item2:decimal@8:raw(16)},U:System.ValueTuple<byte, System.Guid>@88:raw(24){Item1:byte@0:raw(1),Item2:System.Guid@4:raw(16)}};TupleArray:Conformance.HoldsTuples[]:seq(raw(48){A:int@0:raw(4),B:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)},C:System.ValueTuple<byte, short>@24:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)},D:System.ValueTuple<byte, long, int>@32:raw(16){Item1:byte@12:raw(1),Item2:long@0:raw(8),Item3:int@8:raw(4)}});PairList:System.Collections.Generic.List<Conformance.HoldsPairs>:seq(raw(40){A:byte@0:raw(1),P:System.Collections.Generic.KeyValuePair<int, long>@8:raw(16){key:int@0:raw(4),value:long@8:raw(8)},Q:System.Collections.Generic.KeyValuePair<long, byte>@24:raw(16){key:long@0:raw(8),value:byte@8:raw(1)}})");
 }
 
 /// `Conformance.BclRawHost`: Positional, header Presence.
@@ -2090,6 +1515,8 @@ pub struct BclRawHost {
 }
 
 impl NinoReadBody for BclRawHost {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.wide)?;
         r.read_into(&mut self.pointers)?;
@@ -2100,6 +1527,8 @@ impl NinoReadBody for BclRawHost {
 }
 
 impl NinoWriteBody for BclRawHost {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.wide)?;
         w.write(&self.pointers)?;
@@ -2133,12 +1562,7 @@ impl NinoWrite for BclRawHost {
 }
 
 impl BclRawHost {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x5358D4FFu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.BclRawHost";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x5358D4FF; deferrable=true; members=Wide:Conformance.HoldsWide:raw(48){A:byte@0:raw(1),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},C:System.UInt128@32:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}};Pointers:Conformance.HoldsPointers:raw(24){A:int@0:raw(4),B:System.IntPtr@8:raw(8),C:System.UIntPtr@16:raw(8)};Wides:Conformance.HoldsWide[]:seq(raw(48){A:byte@0:raw(1),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},C:System.UInt128@32:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}});Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})";
+    nino::type_consts!(0x5358D4FFu32 as i32, "Conformance.BclRawHost", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x5358D4FF; deferrable=true; members=Wide:Conformance.HoldsWide:raw(48){A:byte@0:raw(1),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},C:System.UInt128@32:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}};Pointers:Conformance.HoldsPointers:raw(24){A:int@0:raw(4),B:System.IntPtr@8:raw(8),C:System.UIntPtr@16:raw(8)};Wides:Conformance.HoldsWide[]:seq(raw(48){A:byte@0:raw(1),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},C:System.UInt128@32:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}});Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})");
 }
 
 /// `Conformance.BclRawNullables`: Positional, header Presence.
@@ -2150,6 +1574,8 @@ pub struct BclRawNullables {
 }
 
 impl NinoReadBody for BclRawNullables {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.nullables)?;
         r.read_into(&mut self.array)?;
@@ -2158,6 +1584,8 @@ impl NinoReadBody for BclRawNullables {
 }
 
 impl NinoWriteBody for BclRawNullables {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.nullables)?;
         w.write(&self.array)?;
@@ -2186,12 +1614,7 @@ impl NinoWrite for BclRawNullables {
 }
 
 impl BclRawNullables {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xA24BE90Du32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.BclRawNullables";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xA24BE90D; deferrable=true; members=Nullables:Conformance.HoldsNullables:raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}};Array:Conformance.HoldsNullables[]:seq(raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}})";
+    nino::type_consts!(0xA24BE90Du32 as i32, "Conformance.BclRawNullables", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xA24BE90D; deferrable=true; members=Nullables:Conformance.HoldsNullables:raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}};Array:Conformance.HoldsNullables[]:seq(raw(40){A:byte@0:raw(1),B:System.Nullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},C:System.Nullable<System.ValueTuple<int, long>>@16:raw(24){hasValue:bool@0:raw(1),value:System.ValueTuple<int, long>@8:raw(16){Item1:int@8:raw(4),Item2:long@0:raw(8)}}})");
 }
 
 /// `Conformance.BclRawOffset`: Positional, header Presence.
@@ -2203,6 +1626,8 @@ pub struct BclRawOffset {
 }
 
 impl NinoReadBody for BclRawOffset {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.offset)?;
         r.read_into(&mut self.offsets)?;
@@ -2211,6 +1636,8 @@ impl NinoReadBody for BclRawOffset {
 }
 
 impl NinoWriteBody for BclRawOffset {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.offset)?;
         w.write(&self.offsets)?;
@@ -2239,12 +1666,7 @@ impl NinoWrite for BclRawOffset {
 }
 
 impl BclRawOffset {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x73A77492u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.BclRawOffset";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x73A77492; deferrable=true; members=Offset:Conformance.HoldsOffset:raw(24){A:int@0:raw(4),B:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}};Offsets:System.Collections.Generic.List<Conformance.HoldsOffset>:seq(raw(24){A:int@0:raw(4),B:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}})";
+    nino::type_consts!(0x73A77492u32 as i32, "Conformance.BclRawOffset", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x73A77492; deferrable=true; members=Offset:Conformance.HoldsOffset:raw(24){A:int@0:raw(4),B:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}};Offsets:System.Collections.Generic.List<Conformance.HoldsOffset>:seq(raw(24){A:int@0:raw(4),B:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}})");
 }
 
 /// `Conformance.Targets.BigSlot`: Positional, header Presence.
@@ -2255,6 +1677,8 @@ pub struct BigSlot {
 }
 
 impl NinoReadBody for BigSlot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         Ok(())
@@ -2262,6 +1686,8 @@ impl NinoReadBody for BigSlot {
 }
 
 impl NinoWriteBody for BigSlot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -2278,12 +1704,7 @@ impl NinoWrite for BigSlot {
 }
 
 impl BigSlot {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xA6B6AFE2u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.BigSlot";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xA6B6AFE2; deferrable=true; members=Value:System.Numerics.BigInteger:bigint";
+    nino::type_consts!(0xA6B6AFE2u32 as i32, "Conformance.Targets.BigSlot", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xA6B6AFE2; deferrable=true; members=Value:System.Numerics.BigInteger:bigint");
 }
 
 /// `Conformance.BigValues`: Positional, header Presence.
@@ -2295,6 +1716,8 @@ pub struct BigValues {
 }
 
 impl NinoReadBody for BigValues {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.big)?;
         r.read_into(&mut self.version)?;
@@ -2303,6 +1726,8 @@ impl NinoReadBody for BigValues {
 }
 
 impl NinoWriteBody for BigValues {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.big)?;
         w.write(&self.version)?;
@@ -2320,12 +1745,7 @@ impl NinoWrite for BigValues {
 }
 
 impl BigValues {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xD56E77DAu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.BigValues";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xD56E77DA; deferrable=true; members=Big:System.Numerics.BigInteger:bigint;Version:System.Version:version";
+    nino::type_consts!(0xD56E77DAu32 as i32, "Conformance.BigValues", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xD56E77DA; deferrable=true; members=Big:System.Numerics.BigInteger:bigint;Version:System.Version:version");
 }
 
 /// `Conformance.BlueLink`: Positional, header Presence.
@@ -2338,6 +1758,8 @@ pub struct BlueLink {
 }
 
 impl NinoReadBody for BlueLink {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         r.read_member_into(&mut self.next, nino::field!(Self, next))?;
@@ -2347,6 +1769,8 @@ impl NinoReadBody for BlueLink {
 }
 
 impl NinoWriteBody for BlueLink {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         w.write(&self.next)?;
@@ -2365,12 +1789,7 @@ impl NinoWrite for BlueLink {
 }
 
 impl BlueLink {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xA9C583C8u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.BlueLink";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xA9C583C8; deferrable=true; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link);Note:string:string";
+    nino::type_consts!(0xA9C583C8u32 as i32, "Conformance.BlueLink", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xA9C583C8; deferrable=true; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link);Note:string:string");
 }
 
 /// `Conformance.Targets.BoolArray`: Positional, header Presence.
@@ -2381,6 +1800,8 @@ pub struct BoolArray {
 }
 
 impl NinoReadBody for BoolArray {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -2388,6 +1809,8 @@ impl NinoReadBody for BoolArray {
 }
 
 impl NinoWriteBody for BoolArray {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -2415,12 +1838,7 @@ impl NinoWrite for BoolArray {
 }
 
 impl BoolArray {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x2C38911Du32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.BoolArray";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x2C38911D; deferrable=true; members=Values:bool[]:seq(raw(1))";
+    nino::type_consts!(0x2C38911Du32 as i32, "Conformance.Targets.BoolArray", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x2C38911D; deferrable=true; members=Values:bool[]:seq(raw(1))");
 }
 
 /// `Conformance.Targets.BoolValue`: Positional, header Presence.
@@ -2431,6 +1849,8 @@ pub struct BoolValue {
 }
 
 impl NinoReadBody for BoolValue {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         Ok(())
@@ -2438,6 +1858,8 @@ impl NinoReadBody for BoolValue {
 }
 
 impl NinoWriteBody for BoolValue {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -2454,12 +1876,7 @@ impl NinoWrite for BoolValue {
 }
 
 impl BoolValue {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x65FCB927u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.BoolValue";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x65FCB927; deferrable=true; members=Value:bool:raw(1)";
+    nino::type_consts!(0x65FCB927u32 as i32, "Conformance.Targets.BoolValue", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x65FCB927; deferrable=true; members=Value:bool:raw(1)");
 }
 
 /// `Conformance.Box<T>`: Positional, header Presence.
@@ -2507,10 +1924,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for BoxType<T> {
 }
 
 impl<T> BoxType<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Box<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Name:string:string;Value:T:type(T)";
+    nino::type_consts!("Conformance.Box<T>", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Name:string:string;Value:T:type(T)");
 }
 
 /// `Conformance.Targets.ByteArray`: Positional, header Presence.
@@ -2521,6 +1935,8 @@ pub struct ByteArray {
 }
 
 impl NinoReadBody for ByteArray {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -2528,6 +1944,8 @@ impl NinoReadBody for ByteArray {
 }
 
 impl NinoWriteBody for ByteArray {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -2555,12 +1973,7 @@ impl NinoWrite for ByteArray {
 }
 
 impl ByteArray {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xEE43CD01u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.ByteArray";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xEE43CD01; deferrable=true; members=Values:byte[]:seq(raw(1))";
+    nino::type_consts!(0xEE43CD01u32 as i32, "Conformance.Targets.ByteArray", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xEE43CD01; deferrable=true; members=Values:byte[]:seq(raw(1))");
 }
 
 /// `Conformance.Bytes`: Positional, header Presence.
@@ -2573,6 +1986,8 @@ pub struct Bytes {
 }
 
 impl NinoReadBody for Bytes {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.array)?;
         r.read_into(&mut self.list)?;
@@ -2582,6 +1997,8 @@ impl NinoReadBody for Bytes {
 }
 
 impl NinoWriteBody for Bytes {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.array)?;
         w.write(&self.list)?;
@@ -2617,12 +2034,7 @@ impl NinoWrite for Bytes {
 }
 
 impl Bytes {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x40CE351Fu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Bytes";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x40CE351F; deferrable=true; members=Array:byte[]:seq(raw(1));List:System.Collections.Generic.List<byte>:seq(raw(1));Signed:sbyte[]:seq(raw(1))";
+    nino::type_consts!(0x40CE351Fu32 as i32, "Conformance.Bytes", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x40CE351F; deferrable=true; members=Array:byte[]:seq(raw(1));List:System.Collections.Generic.List<byte>:seq(raw(1));Signed:sbyte[]:seq(raw(1))");
 }
 
 /// `Conformance.Cat`: Positional, header Presence.
@@ -2634,6 +2046,8 @@ pub struct Cat {
 }
 
 impl NinoReadBody for Cat {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.name)?;
         r.read_into(&mut self.lives)?;
@@ -2642,6 +2056,8 @@ impl NinoReadBody for Cat {
 }
 
 impl NinoWriteBody for Cat {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.name)?;
         w.write(&self.lives)?;
@@ -2659,12 +2075,7 @@ impl NinoWrite for Cat {
 }
 
 impl Cat {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xAD792380u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Cat";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xAD792380; deferrable=true; members=Name:string:string;Lives:float:raw(4)";
+    nino::type_consts!(0xAD792380u32 as i32, "Conformance.Cat", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xAD792380; deferrable=true; members=Name:string:string;Lives:float:raw(4)");
 }
 
 /// `Conformance.Chain`: Positional, header Presence.
@@ -2676,6 +2087,8 @@ pub struct Chain {
 }
 
 impl NinoReadBody for Chain {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         r.read_member_into(&mut self.next, nino::field!(Self, next))?;
@@ -2684,6 +2097,8 @@ impl NinoReadBody for Chain {
 }
 
 impl NinoWriteBody for Chain {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         w.write(&self.next)?;
@@ -2712,12 +2127,7 @@ impl NinoWrite for Chain {
 }
 
 impl Chain {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x8147BA33u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Chain";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8147BA33; deferrable=true; members=Value:int:raw(4);Next:Conformance.Chain:type(Conformance.Chain)";
+    nino::type_consts!(0x8147BA33u32 as i32, "Conformance.Chain", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8147BA33; deferrable=true; members=Value:int:raw(4);Next:Conformance.Chain:type(Conformance.Chain)");
 }
 
 /// `Conformance.Circle`: Positional, header TypeId.
@@ -2729,6 +2139,8 @@ pub struct Circle {
 }
 
 impl NinoReadBody for Circle {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.area)?;
         r.read_into(&mut self.radius)?;
@@ -2737,6 +2149,8 @@ impl NinoReadBody for Circle {
 }
 
 impl NinoWriteBody for Circle {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.area)?;
         w.write(&self.radius)?;
@@ -2745,12 +2159,7 @@ impl NinoWriteBody for Circle {
 }
 
 impl Circle {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xD0A6E3F4u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Circle";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0xD0A6E3F4; deferrable=true; members=Area:double:raw(8);Radius:double:raw(8)";
+    nino::type_consts!(0xD0A6E3F4u32 as i32, "Conformance.Circle", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0xD0A6E3F4; deferrable=true; members=Area:double:raw(8);Radius:double:raw(8)");
 }
 
 /// `Conformance.Collections`: Positional, header Presence.
@@ -2781,6 +2190,8 @@ pub struct Collections {
 }
 
 impl NinoReadBody for Collections {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.ints)?;
         r.read_into(&mut self.int_list)?;
@@ -2808,6 +2219,8 @@ impl NinoReadBody for Collections {
 }
 
 impl NinoWriteBody for Collections {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.ints)?;
         w.write(&self.int_list)?;
@@ -2891,12 +2304,7 @@ impl NinoWrite for Collections {
 }
 
 impl Collections {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xFECE6DDBu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Collections";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xFECE6DDB; deferrable=true; members=Ints:int[]:seq(raw(4));IntList:System.Collections.Generic.List<int>:seq(raw(4));IntSet:System.Collections.Generic.HashSet<int>:seq(raw(4));Longs:long[]:seq(raw(8));Doubles:double[]:seq(raw(8));Bools:bool[]:seq(raw(1));Chars:char[]:seq(raw(2));Strings:System.Collections.Generic.List<string>:seq(string);StringSet:System.Collections.Generic.HashSet<string>:seq(string);Points:Conformance.Point[]:seq(type(Conformance.Point));PointList:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point));IntMap:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4));StringMap:System.Collections.Generic.Dictionary<string, string>:map(string,string);PointMap:System.Collections.Generic.Dictionary<string, Conformance.Point>:map(string,type(Conformance.Point));ListMap:System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>>:map(raw(4),seq(string));SortedInts:System.Collections.Generic.SortedDictionary<int, string>:map(raw(4),string);SortedStrings:System.Collections.Generic.SortedDictionary<string, int>:map(string,raw(4));Nested:System.Collections.Generic.List<System.Collections.Generic.List<int>>:seq(seq(raw(4)));Jagged:int[][]:seq(seq(raw(4)));Grid:int[,]:grid(2,raw(4));StringGrid:string[,]:grid(2,string)";
+    nino::type_consts!(0xFECE6DDBu32 as i32, "Conformance.Collections", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xFECE6DDB; deferrable=true; members=Ints:int[]:seq(raw(4));IntList:System.Collections.Generic.List<int>:seq(raw(4));IntSet:System.Collections.Generic.HashSet<int>:seq(raw(4));Longs:long[]:seq(raw(8));Doubles:double[]:seq(raw(8));Bools:bool[]:seq(raw(1));Chars:char[]:seq(raw(2));Strings:System.Collections.Generic.List<string>:seq(string);StringSet:System.Collections.Generic.HashSet<string>:seq(string);Points:Conformance.Point[]:seq(type(Conformance.Point));PointList:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point));IntMap:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4));StringMap:System.Collections.Generic.Dictionary<string, string>:map(string,string);PointMap:System.Collections.Generic.Dictionary<string, Conformance.Point>:map(string,type(Conformance.Point));ListMap:System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>>:map(raw(4),seq(string));SortedInts:System.Collections.Generic.SortedDictionary<int, string>:map(raw(4),string);SortedStrings:System.Collections.Generic.SortedDictionary<string, int>:map(string,raw(4));Nested:System.Collections.Generic.List<System.Collections.Generic.List<int>>:seq(seq(raw(4)));Jagged:int[][]:seq(seq(raw(4)));Grid:int[,]:grid(2,raw(4));StringGrid:string[,]:grid(2,string)");
 }
 
 /// `Conformance.Crate<T>`: Positional, header TypeId.
@@ -2921,10 +2329,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for Crate<T> {
 }
 
 impl<T> Crate<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Crate<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Content:T:type(T)";
+    nino::type_consts!("Conformance.Crate<T>", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Content:T:type(T)");
 }
 
 /// `Conformance.Dates`: Positional, header Presence.
@@ -2938,6 +2343,8 @@ pub struct Dates {
 }
 
 impl NinoReadBody for Dates {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.utc)?;
         r.read_into(&mut self.local)?;
@@ -2948,6 +2355,8 @@ impl NinoReadBody for Dates {
 }
 
 impl NinoWriteBody for Dates {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.utc)?;
         w.write(&self.local)?;
@@ -2967,12 +2376,7 @@ impl NinoWrite for Dates {
 }
 
 impl Dates {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x004F73C1u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Dates";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x004F73C1; deferrable=true; members=Utc:System.DateTime:raw(8);Local:System.DateTime:raw(8);Unspecified:System.DateTime:raw(8);Offset:System.DateTimeOffset:datetimeoffset";
+    nino::type_consts!(0x004F73C1u32 as i32, "Conformance.Dates", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x004F73C1; deferrable=true; members=Utc:System.DateTime:raw(8);Local:System.DateTime:raw(8);Unspecified:System.DateTime:raw(8);Offset:System.DateTimeOffset:datetimeoffset");
 }
 
 /// `Conformance.Dog`: Positional, header TypeId.
@@ -2984,6 +2388,8 @@ pub struct Dog {
 }
 
 impl NinoReadBody for Dog {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.name)?;
         r.read_into(&mut self.bones)?;
@@ -2992,6 +2398,8 @@ impl NinoReadBody for Dog {
 }
 
 impl NinoWriteBody for Dog {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.name)?;
         w.write(&self.bones)?;
@@ -3000,12 +2408,7 @@ impl NinoWriteBody for Dog {
 }
 
 impl Dog {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x69ACA68Au32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Dog";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x69ACA68A; deferrable=true; members=Name:string:string;Bones:int:raw(4)";
+    nino::type_consts!(0x69ACA68Au32 as i32, "Conformance.Dog", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x69ACA68A; deferrable=true; members=Name:string:string;Bones:int:raw(4)");
 }
 
 /// `Conformance.Targets.DogSlot`: Positional, header Presence.
@@ -3016,6 +2419,8 @@ pub struct DogSlot {
 }
 
 impl NinoReadBody for DogSlot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.value, nino::field!(Self, value))?;
         Ok(())
@@ -3023,6 +2428,8 @@ impl NinoReadBody for DogSlot {
 }
 
 impl NinoWriteBody for DogSlot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -3039,12 +2446,7 @@ impl NinoWrite for DogSlot {
 }
 
 impl DogSlot {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x47F317D2u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.DogSlot";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x47F317D2; deferrable=true; members=Value:Conformance.Dog:type(Conformance.Dog)";
+    nino::type_consts!(0x47F317D2u32 as i32, "Conformance.Targets.DogSlot", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x47F317D2; deferrable=true; members=Value:Conformance.Dog:type(Conformance.Dog)");
 }
 
 /// `Conformance.Empties`: Positional, header Presence.
@@ -3058,6 +2460,8 @@ pub struct Empties {
 }
 
 impl NinoReadBody for Empties {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.class, nino::field!(Self, class))?;
         r.read_into(&mut self.r#struct)?;
@@ -3068,6 +2472,8 @@ impl NinoReadBody for Empties {
 }
 
 impl NinoWriteBody for Empties {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.class)?;
         w.write(&self.r#struct)?;
@@ -3104,12 +2510,7 @@ impl NinoWrite for Empties {
 }
 
 impl Empties {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xF6777155u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Empties";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xF6777155; deferrable=true; members=Class:Conformance.Empty:type(Conformance.Empty);Struct:Conformance.EmptyStruct:raw;Structs:Conformance.EmptyStruct[]:seq(raw);Classes:System.Collections.Generic.List<Conformance.Empty>:seq(type(Conformance.Empty))";
+    nino::type_consts!(0xF6777155u32 as i32, "Conformance.Empties", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xF6777155; deferrable=true; members=Class:Conformance.Empty:type(Conformance.Empty);Struct:Conformance.EmptyStruct:raw;Structs:Conformance.EmptyStruct[]:seq(raw);Classes:System.Collections.Generic.List<Conformance.Empty>:seq(type(Conformance.Empty))");
 }
 
 /// `Conformance.Empty`: Positional, header Presence.
@@ -3118,6 +2519,8 @@ impl Empties {
 pub struct Empty {}
 
 impl NinoReadBody for Empty {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let _ = r;
         Ok(())
@@ -3125,6 +2528,8 @@ impl NinoReadBody for Empty {
 }
 
 impl NinoWriteBody for Empty {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let _ = w;
         Ok(())
@@ -3141,12 +2546,11 @@ impl NinoWrite for Empty {
 }
 
 impl Empty {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x0C95741Bu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Empty";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x0C95741B; deferrable=true; members=";
+    nino::type_consts!(
+        0x0C95741Bu32 as i32,
+        "Conformance.Empty",
+        "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x0C95741B; deferrable=true; members="
+    );
 }
 
 /// `Conformance.Enums`: Positional, header Presence.
@@ -3167,6 +2571,8 @@ pub struct Enums {
 }
 
 impl NinoReadBody for Enums {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.a)?;
         r.read_into(&mut self.b)?;
@@ -3184,6 +2590,8 @@ impl NinoReadBody for Enums {
 }
 
 impl NinoWriteBody for Enums {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.a)?;
         w.write(&self.b)?;
@@ -3221,12 +2629,7 @@ impl NinoWrite for Enums {
 }
 
 impl Enums {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x47EFBBD6u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Enums";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x47EFBBD6; deferrable=true; members=A:Conformance.E8:raw(1);B:Conformance.EU8:raw(1);C:Conformance.E16:raw(2);D:Conformance.EU16:raw(2);E:Conformance.E32:raw(4);F:Conformance.EU32:raw(4);G:Conformance.E64:raw(8);H:Conformance.EU64:raw(8);Flags:Conformance.Permissions:raw(1);Wide:Conformance.WideFlags:raw(8);Array:Conformance.E32[]:seq(raw(4))";
+    nino::type_consts!(0x47EFBBD6u32 as i32, "Conformance.Enums", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x47EFBBD6; deferrable=true; members=A:Conformance.E8:raw(1);B:Conformance.EU8:raw(1);C:Conformance.E16:raw(2);D:Conformance.EU16:raw(2);E:Conformance.E32:raw(4);F:Conformance.EU32:raw(4);G:Conformance.E64:raw(8);H:Conformance.EU64:raw(8);Flags:Conformance.Permissions:raw(1);Wide:Conformance.WideFlags:raw(8);Array:Conformance.E32[]:seq(raw(4))");
 }
 
 /// `Conformance.Floats`: Positional, header Presence.
@@ -3239,6 +2642,8 @@ pub struct Floats {
 }
 
 impl NinoReadBody for Floats {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.f16)?;
         r.read_into(&mut self.f32)?;
@@ -3248,6 +2653,8 @@ impl NinoReadBody for Floats {
 }
 
 impl NinoWriteBody for Floats {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.f16)?;
         w.write(&self.f32)?;
@@ -3266,12 +2673,7 @@ impl NinoWrite for Floats {
 }
 
 impl Floats {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x3504C24Du32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Floats";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3504C24D; deferrable=true; members=F16:System.Half:raw(2);F32:float:raw(4);F64:double:raw(8)";
+    nino::type_consts!(0x3504C24Du32 as i32, "Conformance.Floats", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3504C24D; deferrable=true; members=F16:System.Half:raw(2);F32:float:raw(4);F64:double:raw(8)");
 }
 
 /// `Conformance.GenericSlots`: Positional, header Presence.
@@ -3287,6 +2689,8 @@ pub struct GenericSlots {
 }
 
 impl NinoReadBody for GenericSlots {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.int_shelf, nino::field!(Self, int_shelf))?;
         r.read_member_into(&mut self.text_shelf, nino::field!(Self, text_shelf))?;
@@ -3299,6 +2703,8 @@ impl NinoReadBody for GenericSlots {
 }
 
 impl NinoWriteBody for GenericSlots {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.int_shelf)?;
         w.write(&self.text_shelf)?;
@@ -3331,12 +2737,7 @@ impl NinoWrite for GenericSlots {
 }
 
 impl GenericSlots {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x81599708u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.GenericSlots";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x81599708; deferrable=true; members=IntShelf:Conformance.Shelf<int>:type(Conformance.Shelf<int>);TextShelf:Conformance.Shelf<string>:type(Conformance.Shelf<string>);Crate:Conformance.Crate<int>:type(Conformance.Crate<int>);TextCrate:Conformance.Crate<string>:type(Conformance.Crate<string>);Holder:Conformance.IHolder<long>:type(Conformance.IHolder<long>);Shelves:System.Collections.Generic.List<Conformance.Shelf<int>>:seq(type(Conformance.Shelf<int>))";
+    nino::type_consts!(0x81599708u32 as i32, "Conformance.GenericSlots", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x81599708; deferrable=true; members=IntShelf:Conformance.Shelf<int>:type(Conformance.Shelf<int>);TextShelf:Conformance.Shelf<string>:type(Conformance.Shelf<string>);Crate:Conformance.Crate<int>:type(Conformance.Crate<int>);TextCrate:Conformance.Crate<string>:type(Conformance.Crate<string>);Holder:Conformance.IHolder<long>:type(Conformance.IHolder<long>);Shelves:System.Collections.Generic.List<Conformance.Shelf<int>>:seq(type(Conformance.Shelf<int>))");
 }
 
 /// `Conformance.Targets.Grid`: Positional, header Presence.
@@ -3347,6 +2748,8 @@ pub struct Grid {
 }
 
 impl NinoReadBody for Grid {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -3354,6 +2757,8 @@ impl NinoReadBody for Grid {
 }
 
 impl NinoWriteBody for Grid {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -3370,12 +2775,7 @@ impl NinoWrite for Grid {
 }
 
 impl Grid {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xF8F3033Au32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.Grid";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xF8F3033A; deferrable=true; members=Values:int[,]:grid(2,raw(4))";
+    nino::type_consts!(0xF8F3033Au32 as i32, "Conformance.Targets.Grid", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xF8F3033A; deferrable=true; members=Values:int[,]:grid(2,raw(4))");
 }
 
 /// `Conformance.Holder<T>`: Positional, header Presence.
@@ -3423,10 +2823,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Holder<T> {
 }
 
 impl<T> Holder<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Holder<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Held:T:type(T);Count:int:raw(4)";
+    nino::type_consts!("Conformance.Holder<T>", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Held:T:type(T);Count:int:raw(4)");
 }
 
 /// `Conformance.Inner`: Positional, header Presence.
@@ -3439,6 +2836,8 @@ pub struct Inner {
 }
 
 impl NinoReadBody for Inner {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         r.read_into(&mut self.text)?;
@@ -3448,6 +2847,8 @@ impl NinoReadBody for Inner {
 }
 
 impl NinoWriteBody for Inner {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         w.write(&self.text)?;
@@ -3477,12 +2878,7 @@ impl NinoWrite for Inner {
 }
 
 impl Inner {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x8EDDB9E8u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Inner";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8EDDB9E8; deferrable=true; members=Value:long:raw(8);Text:string:string;Point:Conformance.Point:type(Conformance.Point)";
+    nino::type_consts!(0x8EDDB9E8u32 as i32, "Conformance.Inner", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8EDDB9E8; deferrable=true; members=Value:long:raw(8);Text:string:string;Point:Conformance.Point:type(Conformance.Point)");
 }
 
 /// `Conformance.Targets.IntArray`: Positional, header Presence.
@@ -3493,6 +2889,8 @@ pub struct IntArray {
 }
 
 impl NinoReadBody for IntArray {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -3500,6 +2898,8 @@ impl NinoReadBody for IntArray {
 }
 
 impl NinoWriteBody for IntArray {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -3527,12 +2927,7 @@ impl NinoWrite for IntArray {
 }
 
 impl IntArray {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x694D6EF8u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.IntArray";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x694D6EF8; deferrable=true; members=Values:int[]:seq(raw(4))";
+    nino::type_consts!(0x694D6EF8u32 as i32, "Conformance.Targets.IntArray", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x694D6EF8; deferrable=true; members=Values:int[]:seq(raw(4))");
 }
 
 /// `Conformance.Targets.IntMap`: Positional, header Presence.
@@ -3543,6 +2938,8 @@ pub struct IntMap {
 }
 
 impl NinoReadBody for IntMap {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -3550,6 +2947,8 @@ impl NinoReadBody for IntMap {
 }
 
 impl NinoWriteBody for IntMap {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -3566,12 +2965,7 @@ impl NinoWrite for IntMap {
 }
 
 impl IntMap {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xD32CFD85u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.IntMap";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xD32CFD85; deferrable=true; members=Values:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4))";
+    nino::type_consts!(0xD32CFD85u32 as i32, "Conformance.Targets.IntMap", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xD32CFD85; deferrable=true; members=Values:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4))");
 }
 
 /// `Conformance.Targets.IntSet`: Positional, header Presence.
@@ -3582,6 +2976,8 @@ pub struct IntSet {
 }
 
 impl NinoReadBody for IntSet {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -3589,6 +2985,8 @@ impl NinoReadBody for IntSet {
 }
 
 impl NinoWriteBody for IntSet {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -3616,12 +3014,7 @@ impl NinoWrite for IntSet {
 }
 
 impl IntSet {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xAA98C54Bu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.IntSet";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xAA98C54B; deferrable=true; members=Values:System.Collections.Generic.HashSet<int>:seq(raw(4))";
+    nino::type_consts!(0xAA98C54Bu32 as i32, "Conformance.Targets.IntSet", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xAA98C54B; deferrable=true; members=Values:System.Collections.Generic.HashSet<int>:seq(raw(4))");
 }
 
 /// `Conformance.IntShelf`: Positional, header Presence.
@@ -3633,6 +3026,8 @@ pub struct IntShelf {
 }
 
 impl NinoReadBody for IntShelf {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.item)?;
         r.read_into(&mut self.extra)?;
@@ -3641,6 +3036,8 @@ impl NinoReadBody for IntShelf {
 }
 
 impl NinoWriteBody for IntShelf {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.item)?;
         w.write(&self.extra)?;
@@ -3658,12 +3055,7 @@ impl NinoWrite for IntShelf {
 }
 
 impl IntShelf {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x6370ECA9u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.IntShelf";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x6370ECA9; deferrable=true; members=Item:int:raw(4);Extra:int:raw(4)";
+    nino::type_consts!(0x6370ECA9u32 as i32, "Conformance.IntShelf", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x6370ECA9; deferrable=true; members=Item:int:raw(4);Extra:int:raw(4)");
 }
 
 /// `Conformance.Integers`: Positional, header Presence.
@@ -3683,6 +3075,8 @@ pub struct Integers {
 }
 
 impl NinoReadBody for Integers {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.i8)?;
         r.read_into(&mut self.u8)?;
@@ -3699,6 +3093,8 @@ impl NinoReadBody for Integers {
 }
 
 impl NinoWriteBody for Integers {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.i8)?;
         w.write(&self.u8)?;
@@ -3724,12 +3120,7 @@ impl NinoWrite for Integers {
 }
 
 impl Integers {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x14BD31D3u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Integers";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x14BD31D3; deferrable=true; members=I8:sbyte:raw(1);U8:byte:raw(1);I16:short:raw(2);U16:ushort:raw(2);I32:int:raw(4);U32:uint:raw(4);I64:long:raw(8);U64:ulong:raw(8);I128:System.Int128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)};U128:System.UInt128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}";
+    nino::type_consts!(0x14BD31D3u32 as i32, "Conformance.Integers", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x14BD31D3; deferrable=true; members=I8:sbyte:raw(1);U8:byte:raw(1);I16:short:raw(2);U16:ushort:raw(2);I32:int:raw(4);U32:uint:raw(4);I64:long:raw(8);U64:ulong:raw(8);I128:System.Int128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)};U128:System.UInt128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}");
 }
 
 /// `Conformance.KeyedBag`: Keyed, header Presence.
@@ -3742,6 +3133,8 @@ pub struct KeyedBag {
 }
 
 impl NinoReadBody for KeyedBag {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         r.read_into(&mut self.elements)?;
@@ -3763,6 +3156,8 @@ impl NinoReadBody for KeyedBag {
 }
 
 impl NinoWriteBody for KeyedBag {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.write(&self.elements)?;
@@ -3796,12 +3191,7 @@ impl NinoWrite for KeyedBag {
 }
 
 impl KeyedBag {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x414A8EE4u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.KeyedBag";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0x414A8EE4; deferrable=true; members=[elements]::map(string,raw(4));Version:int:raw(4):key=0x8E2BF89F";
+    nino::type_consts!(0x414A8EE4u32 as i32, "Conformance.KeyedBag", "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0x414A8EE4; deferrable=true; members=[elements]::map(string,raw(4));Version:int:raw(4):key=0x8E2BF89F");
 }
 
 /// `Conformance.KeyedChain`: Keyed, header Presence.
@@ -3813,6 +3203,8 @@ pub struct KeyedChain {
 }
 
 impl NinoReadBody for KeyedChain {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         while r.has_more() {
@@ -3834,6 +3226,8 @@ impl NinoReadBody for KeyedChain {
 }
 
 impl NinoWriteBody for KeyedChain {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.i32(0xC373233Eu32 as i32);
@@ -3870,12 +3264,7 @@ impl NinoWrite for KeyedChain {
 }
 
 impl KeyedChain {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xCBFD8A55u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.KeyedChain";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0xCBFD8A55; deferrable=true; members=Value:int:raw(4):key=0xC373233E;Next:Conformance.KeyedChain:type(Conformance.KeyedChain):key=0xC9A6113A";
+    nino::type_consts!(0xCBFD8A55u32 as i32, "Conformance.KeyedChain", "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0xCBFD8A55; deferrable=true; members=Value:int:raw(4):key=0xC373233E;Next:Conformance.KeyedChain:type(Conformance.KeyedChain):key=0xC9A6113A");
 }
 
 /// `Conformance.KeyedHolder`: Positional, header Presence.
@@ -3888,6 +3277,8 @@ pub struct KeyedHolder {
 }
 
 impl NinoReadBody for KeyedHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.keyed, nino::field!(Self, keyed))?;
         r.read_into(&mut self.r#struct)?;
@@ -3897,6 +3288,8 @@ impl NinoReadBody for KeyedHolder {
 }
 
 impl NinoWriteBody for KeyedHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.keyed)?;
         w.write(&self.r#struct)?;
@@ -3932,12 +3325,7 @@ impl NinoWrite for KeyedHolder {
 }
 
 impl KeyedHolder {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x7FBDA208u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.KeyedHolder";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x7FBDA208; deferrable=true; members=Keyed:Conformance.KeyedV1:type(Conformance.KeyedV1);Struct:Conformance.KeyedStruct:type(Conformance.KeyedStruct);Array:Conformance.KeyedV1[]:seq(type(Conformance.KeyedV1))";
+    nino::type_consts!(0x7FBDA208u32 as i32, "Conformance.KeyedHolder", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x7FBDA208; deferrable=true; members=Keyed:Conformance.KeyedV1:type(Conformance.KeyedV1);Struct:Conformance.KeyedStruct:type(Conformance.KeyedStruct);Array:Conformance.KeyedV1[]:seq(type(Conformance.KeyedV1))");
 }
 
 /// `Conformance.KeyedStruct`: Keyed, header None.
@@ -3950,6 +3338,7 @@ pub struct KeyedStruct {
 
 impl NinoReadBody for KeyedStruct {
     const DEFERRABLE: bool = false;
+    const TYPE_ID: i32 = Self::TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -3973,6 +3362,7 @@ impl NinoReadBody for KeyedStruct {
 
 impl NinoWriteBody for KeyedStruct {
     const DEFERRABLE: bool = false;
+    const TYPE_ID: i32 = Self::TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -4008,12 +3398,7 @@ impl NinoWrite for KeyedStruct {
 }
 
 impl KeyedStruct {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x64822AB7u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.KeyedStruct";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=None; trackReferences=false; raw=false; id=0x64822AB7; deferrable=false; members=A:int:raw(4):key=0x6AD58324;B:double:raw(8):key=0xDCDCF25F";
+    nino::type_consts!(0x64822AB7u32 as i32, "Conformance.KeyedStruct", "format=Keyed; header=None; trackReferences=false; raw=false; id=0x64822AB7; deferrable=false; members=A:int:raw(4):key=0x6AD58324;B:double:raw(8):key=0xDCDCF25F");
 }
 
 /// `Conformance.KeyedV1`: Keyed, header Presence.
@@ -4027,6 +3412,8 @@ pub struct KeyedV1 {
 }
 
 impl NinoReadBody for KeyedV1 {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         while r.has_more() {
@@ -4050,6 +3437,8 @@ impl NinoReadBody for KeyedV1 {
 }
 
 impl NinoWriteBody for KeyedV1 {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.i32(0x99A16761u32 as i32);
@@ -4094,12 +3483,7 @@ impl NinoWrite for KeyedV1 {
 }
 
 impl KeyedV1 {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x8F865207u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.KeyedV1";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;Name:string:string:key=0x3085B3E2;Items:System.Collections.Generic.List<int>:seq(raw(4)):key=0xDCA8A053;Score:long:raw(8):key=0x044AB14D";
+    nino::type_consts!(0x8F865207u32 as i32, "Conformance.KeyedV1", "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;Name:string:string:key=0x3085B3E2;Items:System.Collections.Generic.List<int>:seq(raw(4)):key=0xDCA8A053;Score:long:raw(8):key=0x044AB14D");
 }
 
 /// `Conformance.KeyedV2`: Keyed, header Presence.
@@ -4113,6 +3497,8 @@ pub struct KeyedV2 {
 }
 
 impl NinoReadBody for KeyedV2 {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         while r.has_more() {
@@ -4136,6 +3522,8 @@ impl NinoReadBody for KeyedV2 {
 }
 
 impl NinoWriteBody for KeyedV2 {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.i32(0x044AB14Du32 as i32);
@@ -4169,12 +3557,7 @@ impl NinoWrite for KeyedV2 {
 }
 
 impl KeyedV2 {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x1D7EE2CCu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.KeyedV2";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0x1D7EE2CC; deferrable=true; members=Score:long:raw(8):key=0x044AB14D;Name:string:string:key=0x3085B3E2;Hp:int:raw(4):key=0xA17135AD:former=0x99A16761;Level:int:raw(4):key=0xEAA8149B";
+    nino::type_consts!(0x1D7EE2CCu32 as i32, "Conformance.KeyedV2", "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0x1D7EE2CC; deferrable=true; members=Score:long:raw(8):key=0x044AB14D;Name:string:string:key=0x3085B3E2;Hp:int:raw(4):key=0xA17135AD:former=0x99A16761;Level:int:raw(4):key=0xEAA8149B");
 }
 
 /// `Conformance.Label`: Positional, header None.
@@ -4187,6 +3570,7 @@ pub struct Label {
 
 impl NinoReadBody for Label {
     const DEFERRABLE: bool = false;
+    const TYPE_ID: i32 = Self::TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.name)?;
@@ -4197,6 +3581,7 @@ impl NinoReadBody for Label {
 
 impl NinoWriteBody for Label {
     const DEFERRABLE: bool = false;
+    const TYPE_ID: i32 = Self::TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.name)?;
@@ -4224,12 +3609,7 @@ impl NinoWrite for Label {
 }
 
 impl Label {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x344F08B8u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Label";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=false; id=0x344F08B8; deferrable=false; members=Name:string:string;Weight:int:raw(4)";
+    nino::type_consts!(0x344F08B8u32 as i32, "Conformance.Label", "format=Positional; header=None; trackReferences=false; raw=false; id=0x344F08B8; deferrable=false; members=Name:string:string;Weight:int:raw(4)");
 }
 
 /// `Conformance.LabeledCrate<T>`: Positional, header Presence.
@@ -4277,10 +3657,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for LabeledCrate<T> 
 }
 
 impl<T> LabeledCrate<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.LabeledCrate<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Content:T:type(T);Label:string:string";
+    nino::type_consts!("Conformance.LabeledCrate<T>", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Content:T:type(T);Label:string:string");
 }
 
 /// `Conformance.ListShelf<T>`: Positional, header Presence.
@@ -4331,10 +3708,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for ListShelf<T> {
 }
 
 impl<T> ListShelf<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.ListShelf<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Item:T:type(T);More:System.Collections.Generic.List<T>:seq(type(T))";
+    nino::type_consts!("Conformance.ListShelf<T>", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Item:T:type(T);More:System.Collections.Generic.List<T>:seq(type(T))");
 }
 
 /// `Conformance.Targets.LongList`: Positional, header Presence.
@@ -4345,6 +3719,8 @@ pub struct LongList {
 }
 
 impl NinoReadBody for LongList {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -4352,6 +3728,8 @@ impl NinoReadBody for LongList {
 }
 
 impl NinoWriteBody for LongList {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -4379,12 +3757,7 @@ impl NinoWrite for LongList {
 }
 
 impl LongList {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xCECF34D2u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.LongList";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xCECF34D2; deferrable=true; members=Values:System.Collections.Generic.List<long>:seq(raw(8))";
+    nino::type_consts!(0xCECF34D2u32 as i32, "Conformance.Targets.LongList", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xCECF34D2; deferrable=true; members=Values:System.Collections.Generic.List<long>:seq(raw(8))");
 }
 
 /// `Conformance.Targets.MaybeInt`: Positional, header Presence.
@@ -4395,6 +3768,8 @@ pub struct MaybeInt {
 }
 
 impl NinoReadBody for MaybeInt {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         Ok(())
@@ -4402,6 +3777,8 @@ impl NinoReadBody for MaybeInt {
 }
 
 impl NinoWriteBody for MaybeInt {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -4429,12 +3806,7 @@ impl NinoWrite for MaybeInt {
 }
 
 impl MaybeInt {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x3E8CF8A3u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.MaybeInt";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3E8CF8A3; deferrable=true; members=Value:System.Nullable<int>:nullable(raw(4))";
+    nino::type_consts!(0x3E8CF8A3u32 as i32, "Conformance.Targets.MaybeInt", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3E8CF8A3; deferrable=true; members=Value:System.Nullable<int>:nullable(raw(4))");
 }
 
 /// `Conformance.Targets.MaybeIntArray`: Positional, header Presence.
@@ -4445,6 +3817,8 @@ pub struct MaybeIntArray {
 }
 
 impl NinoReadBody for MaybeIntArray {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -4452,6 +3826,8 @@ impl NinoReadBody for MaybeIntArray {
 }
 
 impl NinoWriteBody for MaybeIntArray {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -4479,12 +3855,7 @@ impl NinoWrite for MaybeIntArray {
 }
 
 impl MaybeIntArray {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x436A69B2u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.MaybeIntArray";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x436A69B2; deferrable=true; members=Values:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})";
+    nino::type_consts!(0x436A69B2u32 as i32, "Conformance.Targets.MaybeIntArray", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x436A69B2; deferrable=true; members=Values:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})");
 }
 
 /// `Conformance.Middle`: Positional, header Presence.
@@ -4497,6 +3868,8 @@ pub struct Middle {
 }
 
 impl NinoReadBody for Middle {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.first, nino::field!(Self, first))?;
         r.read_member_into(&mut self.second, nino::field!(Self, second))?;
@@ -4506,6 +3879,8 @@ impl NinoReadBody for Middle {
 }
 
 impl NinoWriteBody for Middle {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.first)?;
         w.write(&self.second)?;
@@ -4541,12 +3916,7 @@ impl NinoWrite for Middle {
 }
 
 impl Middle {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xD25B7AB3u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Middle";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xD25B7AB3; deferrable=true; members=First:Conformance.Point:type(Conformance.Point);Second:Conformance.Point:type(Conformance.Point);Inner:Conformance.Inner:type(Conformance.Inner)";
+    nino::type_consts!(0xD25B7AB3u32 as i32, "Conformance.Middle", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xD25B7AB3; deferrable=true; members=First:Conformance.Point:type(Conformance.Point);Second:Conformance.Point:type(Conformance.Point);Inner:Conformance.Inner:type(Conformance.Inner)");
 }
 
 /// `Conformance.Nullables`: Positional, header Presence.
@@ -4569,6 +3939,8 @@ pub struct Nullables {
 }
 
 impl NinoReadBody for Nullables {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.int)?;
         r.read_into(&mut self.long)?;
@@ -4588,6 +3960,8 @@ impl NinoReadBody for Nullables {
 }
 
 impl NinoWriteBody for Nullables {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.int)?;
         w.write(&self.long)?;
@@ -4660,12 +4034,7 @@ impl NinoWrite for Nullables {
 }
 
 impl Nullables {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x3920173Cu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Nullables";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3920173C; deferrable=true; members=Int:System.Nullable<int>:nullable(raw(4));Long:System.Nullable<long>:nullable(raw(8));Double:System.Nullable<double>:nullable(raw(8));Bool:System.Nullable<bool>:nullable(raw(1));Guid:System.Nullable<System.Guid>:nullable(raw(16));Enum:System.Nullable<Conformance.E16>:nullable(raw(2));Vec:System.Nullable<Conformance.Vec2>:nullable(raw(8){X:float@0:raw(4),Y:float@4:raw(4)});Padded:System.Nullable<Conformance.Padded>:nullable(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});Label:System.Nullable<Conformance.Label>:nullable(type(Conformance.Label));IntArray:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});LongList:System.Collections.Generic.List<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});PaddedArray:System.Nullable<Conformance.Padded>[]:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});Map:System.Collections.Generic.Dictionary<int, System.Nullable<int>>:map(raw(4),nullable(raw(4)))";
+    nino::type_consts!(0x3920173Cu32 as i32, "Conformance.Nullables", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3920173C; deferrable=true; members=Int:System.Nullable<int>:nullable(raw(4));Long:System.Nullable<long>:nullable(raw(8));Double:System.Nullable<double>:nullable(raw(8));Bool:System.Nullable<bool>:nullable(raw(1));Guid:System.Nullable<System.Guid>:nullable(raw(16));Enum:System.Nullable<Conformance.E16>:nullable(raw(2));Vec:System.Nullable<Conformance.Vec2>:nullable(raw(8){X:float@0:raw(4),Y:float@4:raw(4)});Padded:System.Nullable<Conformance.Padded>:nullable(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});Label:System.Nullable<Conformance.Label>:nullable(type(Conformance.Label));IntArray:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});LongList:System.Collections.Generic.List<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});PaddedArray:System.Nullable<Conformance.Padded>[]:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});Map:System.Collections.Generic.Dictionary<int, System.Nullable<int>>:map(raw(4),nullable(raw(4)))");
 }
 
 /// `Conformance.Targets.ObjectSlot`: Positional, header Presence.
@@ -4676,6 +4045,8 @@ pub struct ObjectSlot {
 }
 
 impl NinoReadBody for ObjectSlot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.value, nino::field!(Self, value))?;
         Ok(())
@@ -4683,6 +4054,8 @@ impl NinoReadBody for ObjectSlot {
 }
 
 impl NinoWriteBody for ObjectSlot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -4699,12 +4072,7 @@ impl NinoWrite for ObjectSlot {
 }
 
 impl ObjectSlot {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x7A16C8DBu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.ObjectSlot";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x7A16C8DB; deferrable=true; members=Value:object:object";
+    nino::type_consts!(0x7A16C8DBu32 as i32, "Conformance.Targets.ObjectSlot", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x7A16C8DB; deferrable=true; members=Value:object:object");
 }
 
 /// `Conformance.Outer`: Positional, header Presence.
@@ -4717,6 +4085,8 @@ pub struct Outer {
 }
 
 impl NinoReadBody for Outer {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.name)?;
         r.read_member_into(&mut self.point, nino::field!(Self, point))?;
@@ -4726,6 +4096,8 @@ impl NinoReadBody for Outer {
 }
 
 impl NinoWriteBody for Outer {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.name)?;
         w.write(&self.point)?;
@@ -4758,12 +4130,7 @@ impl NinoWrite for Outer {
 }
 
 impl Outer {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x3F58E13Fu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Outer";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3F58E13F; deferrable=true; members=Name:string:string;Point:Conformance.Point:type(Conformance.Point);Middle:Conformance.Middle:type(Conformance.Middle)";
+    nino::type_consts!(0x3F58E13Fu32 as i32, "Conformance.Outer", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3F58E13F; deferrable=true; members=Name:string:string;Point:Conformance.Point:type(Conformance.Point);Middle:Conformance.Middle:type(Conformance.Middle)");
 }
 
 /// `Conformance.Targets.PaddedArray`: Positional, header Presence.
@@ -4774,6 +4141,8 @@ pub struct PaddedArray {
 }
 
 impl NinoReadBody for PaddedArray {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -4781,6 +4150,8 @@ impl NinoReadBody for PaddedArray {
 }
 
 impl NinoWriteBody for PaddedArray {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -4808,12 +4179,7 @@ impl NinoWrite for PaddedArray {
 }
 
 impl PaddedArray {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x1805EDC3u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.PaddedArray";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x1805EDC3; deferrable=true; members=Values:Conformance.Padded[]:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)})";
+    nino::type_consts!(0x1805EDC3u32 as i32, "Conformance.Targets.PaddedArray", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x1805EDC3; deferrable=true; members=Values:Conformance.Padded[]:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)})");
 }
 
 /// `Conformance.Plain`: Positional, header TypeId.
@@ -4824,6 +4190,8 @@ pub struct Plain {
 }
 
 impl NinoReadBody for Plain {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         Ok(())
@@ -4831,6 +4199,8 @@ impl NinoReadBody for Plain {
 }
 
 impl NinoWriteBody for Plain {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -4838,12 +4208,7 @@ impl NinoWriteBody for Plain {
 }
 
 impl Plain {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x3124185Cu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Plain";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x3124185C; deferrable=true; members=Value:int:raw(4)";
+    nino::type_consts!(0x3124185Cu32 as i32, "Conformance.Plain", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x3124185C; deferrable=true; members=Value:int:raw(4)");
 }
 
 /// `Conformance.Point`: Positional, header Presence.
@@ -4855,6 +4220,8 @@ pub struct Point {
 }
 
 impl NinoReadBody for Point {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.x)?;
         r.read_into(&mut self.y)?;
@@ -4863,6 +4230,8 @@ impl NinoReadBody for Point {
 }
 
 impl NinoWriteBody for Point {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.x)?;
         w.write(&self.y)?;
@@ -4880,12 +4249,7 @@ impl NinoWrite for Point {
 }
 
 impl Point {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x964B64BAu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Point";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x964B64BA; deferrable=true; members=X:int:raw(4);Y:int:raw(4)";
+    nino::type_consts!(0x964B64BAu32 as i32, "Conformance.Point", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x964B64BA; deferrable=true; members=X:int:raw(4);Y:int:raw(4)");
 }
 
 /// `Conformance.Targets.PointList`: Positional, header Presence.
@@ -4896,6 +4260,8 @@ pub struct PointList {
 }
 
 impl NinoReadBody for PointList {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.values, nino::field!(Self, values))?;
         Ok(())
@@ -4903,6 +4269,8 @@ impl NinoReadBody for PointList {
 }
 
 impl NinoWriteBody for PointList {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -4930,12 +4298,7 @@ impl NinoWrite for PointList {
 }
 
 impl PointList {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x2EA152CCu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.PointList";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x2EA152CC; deferrable=true; members=Values:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point))";
+    nino::type_consts!(0x2EA152CCu32 as i32, "Conformance.Targets.PointList", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x2EA152CC; deferrable=true; members=Values:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point))");
 }
 
 /// `Conformance.PointSet`: Positional, header Presence.
@@ -4948,6 +4311,8 @@ pub struct PointSet {
 }
 
 impl NinoReadBody for PointSet {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.elements)?;
         r.read_member_into(&mut self.origin, nino::field!(Self, origin))?;
@@ -4956,6 +4321,8 @@ impl NinoReadBody for PointSet {
 }
 
 impl NinoWriteBody for PointSet {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.elements)?;
         w.write(&self.origin)?;
@@ -4987,12 +4354,7 @@ impl NinoWrite for PointSet {
 }
 
 impl PointSet {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x14E7B060u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.PointSet";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x14E7B060; deferrable=true; members=[elements]::seq(raw(4));Origin:Conformance.Point:type(Conformance.Point)";
+    nino::type_consts!(0x14E7B060u32 as i32, "Conformance.PointSet", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x14E7B060; deferrable=true; members=[elements]::seq(raw(4));Origin:Conformance.Point:type(Conformance.Point)");
 }
 
 /// `Conformance.Puppy`: Positional, header Presence.
@@ -5005,6 +4367,8 @@ pub struct Puppy {
 }
 
 impl NinoReadBody for Puppy {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.name)?;
         r.read_into(&mut self.bones)?;
@@ -5014,6 +4378,8 @@ impl NinoReadBody for Puppy {
 }
 
 impl NinoWriteBody for Puppy {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.name)?;
         w.write(&self.bones)?;
@@ -5032,12 +4398,7 @@ impl NinoWrite for Puppy {
 }
 
 impl Puppy {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x94310DEAu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Puppy";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x94310DEA; deferrable=true; members=Name:string:string;Bones:int:raw(4);Sleepy:bool:raw(1)";
+    nino::type_consts!(0x94310DEAu32 as i32, "Conformance.Puppy", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x94310DEA; deferrable=true; members=Name:string:string;Bones:int:raw(4);Sleepy:bool:raw(1)");
 }
 
 /// `Conformance.RecordChain`: Positional, header Presence.
@@ -5050,6 +4411,7 @@ pub struct RecordChain {
 
 impl NinoReadBody for RecordChain {
     const DEFERRABLE: bool = false;
+    const TYPE_ID: i32 = Self::TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -5060,6 +4422,7 @@ impl NinoReadBody for RecordChain {
 
 impl NinoWriteBody for RecordChain {
     const DEFERRABLE: bool = false;
+    const TYPE_ID: i32 = Self::TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -5089,12 +4452,7 @@ impl NinoWrite for RecordChain {
 }
 
 impl RecordChain {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x20F10406u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.RecordChain";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x20F10406; deferrable=false; members=Value:int:raw(4);Next:Conformance.RecordChain:type(Conformance.RecordChain)";
+    nino::type_consts!(0x20F10406u32 as i32, "Conformance.RecordChain", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x20F10406; deferrable=false; members=Value:int:raw(4);Next:Conformance.RecordChain:type(Conformance.RecordChain)");
 }
 
 /// `Conformance.RedLink`: Positional, header Presence.
@@ -5106,6 +4464,8 @@ pub struct RedLink {
 }
 
 impl NinoReadBody for RedLink {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         r.read_member_into(&mut self.next, nino::field!(Self, next))?;
@@ -5114,6 +4474,8 @@ impl NinoReadBody for RedLink {
 }
 
 impl NinoWriteBody for RedLink {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         w.write(&self.next)?;
@@ -5131,12 +4493,7 @@ impl NinoWrite for RedLink {
 }
 
 impl RedLink {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x9F90173Du32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.RedLink";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x9F90173D; deferrable=true; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link)";
+    nino::type_consts!(0x9F90173Du32 as i32, "Conformance.RedLink", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x9F90173D; deferrable=true; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link)");
 }
 
 /// `Conformance.Scalars`: Positional, header Presence.
@@ -5153,6 +4510,8 @@ pub struct Scalars {
 }
 
 impl NinoReadBody for Scalars {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.flag)?;
         r.read_into(&mut self.char)?;
@@ -5166,6 +4525,8 @@ impl NinoReadBody for Scalars {
 }
 
 impl NinoWriteBody for Scalars {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.flag)?;
         w.write(&self.char)?;
@@ -5188,12 +4549,7 @@ impl NinoWrite for Scalars {
 }
 
 impl Scalars {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xD2727283u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Scalars";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xD2727283; deferrable=true; members=Flag:bool:raw(1);Char:char:raw(2);Decimal:decimal:raw(16);Guid:System.Guid:raw(16);Span:System.TimeSpan:raw(8);Date:System.DateOnly:raw(4);Time:System.TimeOnly:raw(8)";
+    nino::type_consts!(0xD2727283u32 as i32, "Conformance.Scalars", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xD2727283; deferrable=true; members=Flag:bool:raw(1);Char:char:raw(2);Decimal:decimal:raw(16);Guid:System.Guid:raw(16);Span:System.TimeSpan:raw(8);Date:System.DateOnly:raw(4);Time:System.TimeOnly:raw(8)");
 }
 
 /// `Conformance.Targets.ShapeSlot`: Positional, header Presence.
@@ -5204,6 +4560,8 @@ pub struct ShapeSlot {
 }
 
 impl NinoReadBody for ShapeSlot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.value, nino::field!(Self, value))?;
         Ok(())
@@ -5211,6 +4569,8 @@ impl NinoReadBody for ShapeSlot {
 }
 
 impl NinoWriteBody for ShapeSlot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -5227,12 +4587,7 @@ impl NinoWrite for ShapeSlot {
 }
 
 impl ShapeSlot {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xFDAADCC1u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.ShapeSlot";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xFDAADCC1; deferrable=true; members=Value:Conformance.IShape:type(Conformance.IShape)";
+    nino::type_consts!(0xFDAADCC1u32 as i32, "Conformance.Targets.ShapeSlot", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xFDAADCC1; deferrable=true; members=Value:Conformance.IShape:type(Conformance.IShape)");
 }
 
 /// `Conformance.Targets.SortedMap`: Positional, header Presence.
@@ -5243,6 +4598,8 @@ pub struct SortedMap {
 }
 
 impl NinoReadBody for SortedMap {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -5250,6 +4607,8 @@ impl NinoReadBody for SortedMap {
 }
 
 impl NinoWriteBody for SortedMap {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -5266,12 +4625,7 @@ impl NinoWrite for SortedMap {
 }
 
 impl SortedMap {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x3F694A3Du32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.SortedMap";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3F694A3D; deferrable=true; members=Values:System.Collections.Generic.SortedDictionary<int, int>:map(raw(4),raw(4))";
+    nino::type_consts!(0x3F694A3Du32 as i32, "Conformance.Targets.SortedMap", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3F694A3D; deferrable=true; members=Values:System.Collections.Generic.SortedDictionary<int, int>:map(raw(4),raw(4))");
 }
 
 /// `Conformance.Square`: Positional, header Presence.
@@ -5283,6 +4637,8 @@ pub struct Square {
 }
 
 impl NinoReadBody for Square {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.area)?;
         r.read_into(&mut self.side)?;
@@ -5291,6 +4647,8 @@ impl NinoReadBody for Square {
 }
 
 impl NinoWriteBody for Square {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.area)?;
         w.write(&self.side)?;
@@ -5308,12 +4666,7 @@ impl NinoWrite for Square {
 }
 
 impl Square {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x844A4BA7u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Square";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x844A4BA7; deferrable=true; members=Area:double:raw(8);Side:double:raw(8)";
+    nino::type_consts!(0x844A4BA7u32 as i32, "Conformance.Square", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x844A4BA7; deferrable=true; members=Area:double:raw(8);Side:double:raw(8)");
 }
 
 /// `Conformance.StringCollections`: Positional, header Presence.
@@ -5328,6 +4681,8 @@ pub struct StringCollections {
 }
 
 impl NinoReadBody for StringCollections {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.array)?;
         r.read_into(&mut self.list)?;
@@ -5339,6 +4694,8 @@ impl NinoReadBody for StringCollections {
 }
 
 impl NinoWriteBody for StringCollections {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.array)?;
         w.write(&self.list)?;
@@ -5373,12 +4730,7 @@ impl NinoWrite for StringCollections {
 }
 
 impl StringCollections {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x744CD3F6u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.StringCollections";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x744CD3F6; deferrable=true; members=Array:string[]:seq(string);List:System.Collections.Generic.List<string>:seq(string);Utf8A:string:utf8;Plain:string:string;Utf8B:string:utf8";
+    nino::type_consts!(0x744CD3F6u32 as i32, "Conformance.StringCollections", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x744CD3F6; deferrable=true; members=Array:string[]:seq(string);List:System.Collections.Generic.List<string>:seq(string);Utf8A:string:utf8;Plain:string:string;Utf8B:string:utf8");
 }
 
 /// `Conformance.Targets.StringList`: Positional, header Presence.
@@ -5389,6 +4741,8 @@ pub struct StringList {
 }
 
 impl NinoReadBody for StringList {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -5396,6 +4750,8 @@ impl NinoReadBody for StringList {
 }
 
 impl NinoWriteBody for StringList {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -5423,12 +4779,7 @@ impl NinoWrite for StringList {
 }
 
 impl StringList {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x30796D4Du32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.StringList";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x30796D4D; deferrable=true; members=Values:System.Collections.Generic.List<string>:seq(string)";
+    nino::type_consts!(0x30796D4Du32 as i32, "Conformance.Targets.StringList", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x30796D4D; deferrable=true; members=Values:System.Collections.Generic.List<string>:seq(string)");
 }
 
 /// `Conformance.Targets.StringMap`: Positional, header Presence.
@@ -5439,6 +4790,8 @@ pub struct StringMap {
 }
 
 impl NinoReadBody for StringMap {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -5446,6 +4799,8 @@ impl NinoReadBody for StringMap {
 }
 
 impl NinoWriteBody for StringMap {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -5462,12 +4817,7 @@ impl NinoWrite for StringMap {
 }
 
 impl StringMap {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x4B1A1F3Bu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.StringMap";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x4B1A1F3B; deferrable=true; members=Values:System.Collections.Generic.Dictionary<string, int>:map(string,raw(4))";
+    nino::type_consts!(0x4B1A1F3Bu32 as i32, "Conformance.Targets.StringMap", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x4B1A1F3B; deferrable=true; members=Values:System.Collections.Generic.Dictionary<string, int>:map(string,raw(4))");
 }
 
 /// `Conformance.Targets.StringSet`: Positional, header Presence.
@@ -5478,6 +4828,8 @@ pub struct StringSet {
 }
 
 impl NinoReadBody for StringSet {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
         Ok(())
@@ -5485,6 +4837,8 @@ impl NinoReadBody for StringSet {
 }
 
 impl NinoWriteBody for StringSet {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
         Ok(())
@@ -5512,12 +4866,7 @@ impl NinoWrite for StringSet {
 }
 
 impl StringSet {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x73FC2C95u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.StringSet";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x73FC2C95; deferrable=true; members=Values:System.Collections.Generic.HashSet<string>:seq(string)";
+    nino::type_consts!(0x73FC2C95u32 as i32, "Conformance.Targets.StringSet", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x73FC2C95; deferrable=true; members=Values:System.Collections.Generic.HashSet<string>:seq(string)");
 }
 
 /// `Conformance.Strings`: Positional, header Presence.
@@ -5529,6 +4878,8 @@ pub struct Strings {
 }
 
 impl NinoReadBody for Strings {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.text)?;
         r.read_into(&mut self.utf8)?;
@@ -5537,6 +4888,8 @@ impl NinoReadBody for Strings {
 }
 
 impl NinoWriteBody for Strings {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.text)?;
         w.write(&self.utf8)?;
@@ -5554,12 +4907,7 @@ impl NinoWrite for Strings {
 }
 
 impl Strings {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xCDBD0018u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Strings";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xCDBD0018; deferrable=true; members=Text:string:string;Utf8:string:utf8";
+    nino::type_consts!(0xCDBD0018u32 as i32, "Conformance.Strings", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xCDBD0018; deferrable=true; members=Text:string:string;Utf8:string:utf8");
 }
 
 /// `Conformance.Structs`: Positional, header Presence.
@@ -5583,6 +4931,8 @@ pub struct Structs {
 }
 
 impl NinoReadBody for Structs {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.vec)?;
         r.read_into(&mut self.padded)?;
@@ -5603,6 +4953,8 @@ impl NinoReadBody for Structs {
 }
 
 impl NinoWriteBody for Structs {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.vec)?;
         w.write(&self.padded)?;
@@ -5655,12 +5007,7 @@ impl NinoWrite for Structs {
 }
 
 impl Structs {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x24768402u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Structs";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x24768402; deferrable=true; members=Vec:Conformance.Vec2:raw(8){X:float@0:raw(4),Y:float@4:raw(4)};Padded:Conformance.Padded:raw(16){A:byte@0:raw(1),B:long@8:raw(8)};Mixed:Conformance.Mixed:raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)};Packed:Conformance.Packed:raw(11){A:byte@0:raw(1),B:long@1:raw(8),C:short@9:raw(2)};Sized:Conformance.Sized:raw(16){A:int@0:raw(4)};Nested:Conformance.Nested:raw(32){Inner:Conformance.Padded@0:raw(16){A:byte@0:raw(1),B:long@8:raw(8)},Position:Conformance.Vec2@16:raw(8){X:float@0:raw(4),Y:float@4:raw(4)},Kind:Conformance.EU8@24:raw(1),Flag:bool@25:raw(1)};Label:Conformance.Label:type(Conformance.Label);VecArray:Conformance.Vec2[]:seq(raw(8){X:float@0:raw(4),Y:float@4:raw(4)});PaddedList:System.Collections.Generic.List<Conformance.Padded>:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});MixedArray:Conformance.Mixed[]:seq(raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)});Labels:Conformance.Label[]:seq(type(Conformance.Label));RawTuple:System.ValueTuple<byte, long>:tuple(raw(1),raw(8));Tuple:System.ValueTuple<int, string>:tuple(raw(4),string);Pair:System.Collections.Generic.KeyValuePair<string, Conformance.Vec2>:pair(string,raw(8){X:float@0:raw(4),Y:float@4:raw(4)})";
+    nino::type_consts!(0x24768402u32 as i32, "Conformance.Structs", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x24768402; deferrable=true; members=Vec:Conformance.Vec2:raw(8){X:float@0:raw(4),Y:float@4:raw(4)};Padded:Conformance.Padded:raw(16){A:byte@0:raw(1),B:long@8:raw(8)};Mixed:Conformance.Mixed:raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)};Packed:Conformance.Packed:raw(11){A:byte@0:raw(1),B:long@1:raw(8),C:short@9:raw(2)};Sized:Conformance.Sized:raw(16){A:int@0:raw(4)};Nested:Conformance.Nested:raw(32){Inner:Conformance.Padded@0:raw(16){A:byte@0:raw(1),B:long@8:raw(8)},Position:Conformance.Vec2@16:raw(8){X:float@0:raw(4),Y:float@4:raw(4)},Kind:Conformance.EU8@24:raw(1),Flag:bool@25:raw(1)};Label:Conformance.Label:type(Conformance.Label);VecArray:Conformance.Vec2[]:seq(raw(8){X:float@0:raw(4),Y:float@4:raw(4)});PaddedList:System.Collections.Generic.List<Conformance.Padded>:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});MixedArray:Conformance.Mixed[]:seq(raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)});Labels:Conformance.Label[]:seq(type(Conformance.Label));RawTuple:System.ValueTuple<byte, long>:tuple(raw(1),raw(8));Tuple:System.ValueTuple<int, string>:tuple(raw(4),string);Pair:System.Collections.Generic.KeyValuePair<string, Conformance.Vec2>:pair(string,raw(8){X:float@0:raw(4),Y:float@4:raw(4)})");
 }
 
 /// `Conformance.Targets.TextValue`: Positional, header Presence.
@@ -5671,6 +5018,8 @@ pub struct TextValue {
 }
 
 impl NinoReadBody for TextValue {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         Ok(())
@@ -5678,6 +5027,8 @@ impl NinoReadBody for TextValue {
 }
 
 impl NinoWriteBody for TextValue {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -5694,12 +5045,7 @@ impl NinoWrite for TextValue {
 }
 
 impl TextValue {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x825A7C6Cu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.TextValue";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x825A7C6C; deferrable=true; members=Value:string:string";
+    nino::type_consts!(0x825A7C6Cu32 as i32, "Conformance.Targets.TextValue", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x825A7C6C; deferrable=true; members=Value:string:string");
 }
 
 /// `Conformance.TolerantBag`: VersionTolerant, header Presence.
@@ -5712,6 +5058,8 @@ pub struct TolerantBag {
 }
 
 impl NinoReadBody for TolerantBag {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.elements)?;
         let body = r.begin_region()?;
@@ -5724,6 +5072,8 @@ impl NinoReadBody for TolerantBag {
 }
 
 impl NinoWriteBody for TolerantBag {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.elements)?;
         let body = w.begin_region();
@@ -5754,12 +5104,7 @@ impl NinoWrite for TolerantBag {
 }
 
 impl TolerantBag {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x2101A619u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TolerantBag";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x2101A619; deferrable=true; members=[elements]::seq(string);Tag:string:string";
+    nino::type_consts!(0x2101A619u32 as i32, "Conformance.TolerantBag", "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x2101A619; deferrable=true; members=[elements]::seq(string);Tag:string:string");
 }
 
 /// `Conformance.TolerantBase`: VersionTolerant, header TypeId.
@@ -5770,6 +5115,8 @@ pub struct TolerantBase {
 }
 
 impl NinoReadBody for TolerantBase {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -5781,6 +5128,8 @@ impl NinoReadBody for TolerantBase {
 }
 
 impl NinoWriteBody for TolerantBase {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.write(&self.a)?;
@@ -5790,12 +5139,7 @@ impl NinoWriteBody for TolerantBase {
 }
 
 impl TolerantBase {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x9536FE88u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TolerantBase";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=TypeId; trackReferences=false; raw=false; id=0x9536FE88; deferrable=true; members=A:int:raw(4)";
+    nino::type_consts!(0x9536FE88u32 as i32, "Conformance.TolerantBase", "format=VersionTolerant; header=TypeId; trackReferences=false; raw=false; id=0x9536FE88; deferrable=true; members=A:int:raw(4)");
 }
 
 /// `Conformance.TolerantChain`: VersionTolerant, header Presence.
@@ -5807,6 +5151,8 @@ pub struct TolerantChain {
 }
 
 impl NinoReadBody for TolerantChain {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -5821,6 +5167,8 @@ impl NinoReadBody for TolerantChain {
 }
 
 impl NinoWriteBody for TolerantChain {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.write(&self.value)?;
@@ -5851,12 +5199,7 @@ impl NinoWrite for TolerantChain {
 }
 
 impl TolerantChain {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x18DAD008u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TolerantChain";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x18DAD008; deferrable=true; members=Value:int:raw(4);Next:Conformance.TolerantChain:type(Conformance.TolerantChain)";
+    nino::type_consts!(0x18DAD008u32 as i32, "Conformance.TolerantChain", "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x18DAD008; deferrable=true; members=Value:int:raw(4);Next:Conformance.TolerantChain:type(Conformance.TolerantChain)");
 }
 
 /// `Conformance.TolerantEmpty`: VersionTolerant, header Presence.
@@ -5865,6 +5208,8 @@ impl TolerantChain {
 pub struct TolerantEmpty {}
 
 impl NinoReadBody for TolerantEmpty {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         r.end_region(body, self)?;
@@ -5873,6 +5218,8 @@ impl NinoReadBody for TolerantEmpty {
 }
 
 impl NinoWriteBody for TolerantEmpty {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.end_region(body)?;
@@ -5890,12 +5237,7 @@ impl NinoWrite for TolerantEmpty {
 }
 
 impl TolerantEmpty {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x85A223A0u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TolerantEmpty";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x85A223A0; deferrable=true; members=";
+    nino::type_consts!(0x85A223A0u32 as i32, "Conformance.TolerantEmpty", "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x85A223A0; deferrable=true; members=");
 }
 
 /// `Conformance.TolerantHolder`: Positional, header Presence.
@@ -5909,6 +5251,8 @@ pub struct TolerantHolder {
 }
 
 impl NinoReadBody for TolerantHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.first, nino::field!(Self, first))?;
         r.read_member_into(&mut self.polymorphic, nino::field!(Self, polymorphic))?;
@@ -5919,6 +5263,8 @@ impl NinoReadBody for TolerantHolder {
 }
 
 impl NinoWriteBody for TolerantHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.first)?;
         w.write(&self.polymorphic)?;
@@ -5952,12 +5298,7 @@ impl NinoWrite for TolerantHolder {
 }
 
 impl TolerantHolder {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x2DA994EDu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TolerantHolder";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x2DA994ED; deferrable=true; members=First:Conformance.TolerantV1:type(Conformance.TolerantV1);Polymorphic:Conformance.TolerantBase:type(Conformance.TolerantBase);Empty:Conformance.TolerantEmpty:type(Conformance.TolerantEmpty);After:int:raw(4)";
+    nino::type_consts!(0x2DA994EDu32 as i32, "Conformance.TolerantHolder", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x2DA994ED; deferrable=true; members=First:Conformance.TolerantV1:type(Conformance.TolerantV1);Polymorphic:Conformance.TolerantBase:type(Conformance.TolerantBase);Empty:Conformance.TolerantEmpty:type(Conformance.TolerantEmpty);After:int:raw(4)");
 }
 
 /// `Conformance.TolerantLeaf`: VersionTolerant, header Presence.
@@ -5969,6 +5310,8 @@ pub struct TolerantLeaf {
 }
 
 impl NinoReadBody for TolerantLeaf {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -5983,6 +5326,8 @@ impl NinoReadBody for TolerantLeaf {
 }
 
 impl NinoWriteBody for TolerantLeaf {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.write(&self.a)?;
@@ -6002,12 +5347,7 @@ impl NinoWrite for TolerantLeaf {
 }
 
 impl TolerantLeaf {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x6B83150Bu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TolerantLeaf";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x6B83150B; deferrable=true; members=A:int:raw(4);B:int:raw(4)";
+    nino::type_consts!(0x6B83150Bu32 as i32, "Conformance.TolerantLeaf", "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x6B83150B; deferrable=true; members=A:int:raw(4);B:int:raw(4)");
 }
 
 /// `Conformance.TolerantRoot`: VersionTolerant, header Presence.
@@ -6020,6 +5360,8 @@ pub struct TolerantRoot {
 }
 
 impl NinoReadBody for TolerantRoot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -6037,6 +5379,8 @@ impl NinoReadBody for TolerantRoot {
 }
 
 impl NinoWriteBody for TolerantRoot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.write(&self.name)?;
@@ -6068,12 +5412,7 @@ impl NinoWrite for TolerantRoot {
 }
 
 impl TolerantRoot {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xF7F6B6D3u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TolerantRoot";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0xF7F6B6D3; deferrable=true; members=Name:string:string;Chain:Conformance.Chain:type(Conformance.Chain);After:int:raw(4)";
+    nino::type_consts!(0xF7F6B6D3u32 as i32, "Conformance.TolerantRoot", "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0xF7F6B6D3; deferrable=true; members=Name:string:string;Chain:Conformance.Chain:type(Conformance.Chain);After:int:raw(4)");
 }
 
 /// `Conformance.TolerantV1`: VersionTolerant, header Presence.
@@ -6085,6 +5424,8 @@ pub struct TolerantV1 {
 }
 
 impl NinoReadBody for TolerantV1 {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -6099,6 +5440,8 @@ impl NinoReadBody for TolerantV1 {
 }
 
 impl NinoWriteBody for TolerantV1 {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.write(&self.a)?;
@@ -6118,12 +5461,7 @@ impl NinoWrite for TolerantV1 {
 }
 
 impl TolerantV1 {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x1DBD9212u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TolerantV1";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x1DBD9212; deferrable=true; members=A:int:raw(4);B:string:string";
+    nino::type_consts!(0x1DBD9212u32 as i32, "Conformance.TolerantV1", "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x1DBD9212; deferrable=true; members=A:int:raw(4);B:string:string");
 }
 
 /// `Conformance.TolerantV2`: VersionTolerant, header Presence.
@@ -6137,6 +5475,8 @@ pub struct TolerantV2 {
 }
 
 impl NinoReadBody for TolerantV2 {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -6157,6 +5497,8 @@ impl NinoReadBody for TolerantV2 {
 }
 
 impl NinoWriteBody for TolerantV2 {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.write(&self.a)?;
@@ -6189,12 +5531,7 @@ impl NinoWrite for TolerantV2 {
 }
 
 impl TolerantV2 {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xF7BB17A9u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TolerantV2";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0xF7BB17A9; deferrable=true; members=A:int:raw(4);B:string:string;C:long:raw(8);D:System.Collections.Generic.List<int>:seq(raw(4))";
+    nino::type_consts!(0xF7BB17A9u32 as i32, "Conformance.TolerantV2", "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0xF7BB17A9; deferrable=true; members=A:int:raw(4);B:string:string;C:long:raw(8);D:System.Collections.Generic.List<int>:seq(raw(4))");
 }
 
 /// `Conformance.Tracked`: Positional, header TypeId.
@@ -6207,6 +5544,8 @@ pub struct Tracked {
 }
 
 impl NinoReadBody for Tracked {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         r.read_member_into(&mut self.next, nino::field!(Self, next))?;
@@ -6216,6 +5555,8 @@ impl NinoReadBody for Tracked {
 }
 
 impl NinoWriteBody for Tracked {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         w.write(&self.next)?;
@@ -6225,12 +5566,7 @@ impl NinoWriteBody for Tracked {
 }
 
 impl Tracked {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x8E7C9360u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Tracked";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=true; raw=false; id=0x8E7C9360; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked)";
+    nino::type_consts!(0x8E7C9360u32 as i32, "Conformance.Tracked", "format=Positional; header=TypeId; trackReferences=true; raw=false; id=0x8E7C9360; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked)");
 }
 
 /// `Conformance.TrackedHolder`: Positional, header Presence.
@@ -6244,6 +5580,8 @@ pub struct TrackedHolder {
 }
 
 impl NinoReadBody for TrackedHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.a, nino::field!(Self, a))?;
         r.read_member_into(&mut self.b, nino::field!(Self, b))?;
@@ -6254,6 +5592,8 @@ impl NinoReadBody for TrackedHolder {
 }
 
 impl NinoWriteBody for TrackedHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.a)?;
         w.write(&self.b)?;
@@ -6284,12 +5624,7 @@ impl NinoWrite for TrackedHolder {
 }
 
 impl TrackedHolder {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xFA74F460u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TrackedHolder";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xFA74F460; deferrable=true; members=A:Conformance.Tracked:type(Conformance.Tracked);B:Conformance.Tracked:type(Conformance.Tracked);All:System.Collections.Generic.List<Conformance.Tracked>:seq(type(Conformance.Tracked));Any:object:object";
+    nino::type_consts!(0xFA74F460u32 as i32, "Conformance.TrackedHolder", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xFA74F460; deferrable=true; members=A:Conformance.Tracked:type(Conformance.Tracked);B:Conformance.Tracked:type(Conformance.Tracked);All:System.Collections.Generic.List<Conformance.Tracked>:seq(type(Conformance.Tracked));Any:object:object");
 }
 
 /// `Conformance.TrackedLeaf`: Positional, header Presence.
@@ -6303,6 +5638,8 @@ pub struct TrackedLeaf {
 }
 
 impl NinoReadBody for TrackedLeaf {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         r.read_member_into(&mut self.next, nino::field!(Self, next))?;
@@ -6313,6 +5650,8 @@ impl NinoReadBody for TrackedLeaf {
 }
 
 impl NinoWriteBody for TrackedLeaf {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         w.write(&self.next)?;
@@ -6323,12 +5662,7 @@ impl NinoWriteBody for TrackedLeaf {
 }
 
 impl TrackedLeaf {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x671FC086u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TrackedLeaf";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=true; raw=false; id=0x671FC086; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked);Name:string:string";
+    nino::type_consts!(0x671FC086u32 as i32, "Conformance.TrackedLeaf", "format=Positional; header=Presence; trackReferences=true; raw=false; id=0x671FC086; deferrable=true; members=Value:int:raw(4);Next:Conformance.Tracked:type(Conformance.Tracked);Other:Conformance.Tracked:type(Conformance.Tracked);Name:string:string");
 }
 
 /// `Conformance.TrackedMix`: Positional, header Presence.
@@ -6344,6 +5678,8 @@ pub struct TrackedMix {
 }
 
 impl NinoReadBody for TrackedMix {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.any, nino::field!(Self, any))?;
         r.read_member_into(&mut self.node, nino::field!(Self, node))?;
@@ -6356,6 +5692,8 @@ impl NinoReadBody for TrackedMix {
 }
 
 impl NinoWriteBody for TrackedMix {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.any)?;
         w.write(&self.node)?;
@@ -6388,12 +5726,7 @@ impl NinoWrite for TrackedMix {
 }
 
 impl TrackedMix {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x429143A4u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TrackedMix";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x429143A4; deferrable=true; members=Any:object:object;Node:Conformance.TrackedNode:type(Conformance.TrackedNode);Base:Conformance.Tracked:type(Conformance.Tracked);Nodes:System.Collections.Generic.List<Conformance.TrackedNode>:seq(type(Conformance.TrackedNode));ById:System.Collections.Generic.Dictionary<int, Conformance.TrackedNode>:map(raw(4),type(Conformance.TrackedNode));Tolerant:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)";
+    nino::type_consts!(0x429143A4u32 as i32, "Conformance.TrackedMix", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x429143A4; deferrable=true; members=Any:object:object;Node:Conformance.TrackedNode:type(Conformance.TrackedNode);Base:Conformance.Tracked:type(Conformance.Tracked);Nodes:System.Collections.Generic.List<Conformance.TrackedNode>:seq(type(Conformance.TrackedNode));ById:System.Collections.Generic.Dictionary<int, Conformance.TrackedNode>:map(raw(4),type(Conformance.TrackedNode));Tolerant:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)");
 }
 
 /// `Conformance.TrackedNode`: Positional, header Presence.
@@ -6405,6 +5738,8 @@ pub struct TrackedNode {
 }
 
 impl NinoReadBody for TrackedNode {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         r.read_member_into(&mut self.next, nino::field!(Self, next))?;
@@ -6413,6 +5748,8 @@ impl NinoReadBody for TrackedNode {
 }
 
 impl NinoWriteBody for TrackedNode {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         w.write(&self.next)?;
@@ -6421,12 +5758,7 @@ impl NinoWriteBody for TrackedNode {
 }
 
 impl TrackedNode {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x8AEB65A0u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TrackedNode";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=true; raw=false; id=0x8AEB65A0; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedNode:type(Conformance.TrackedNode)";
+    nino::type_consts!(0x8AEB65A0u32 as i32, "Conformance.TrackedNode", "format=Positional; header=Presence; trackReferences=true; raw=false; id=0x8AEB65A0; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedNode:type(Conformance.TrackedNode)");
 }
 
 /// `Conformance.TrackedTolerant`: VersionTolerant, header Presence.
@@ -6438,6 +5770,8 @@ pub struct TrackedTolerant {
 }
 
 impl NinoReadBody for TrackedTolerant {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         if r.has_more() {
@@ -6452,6 +5786,8 @@ impl NinoReadBody for TrackedTolerant {
 }
 
 impl NinoWriteBody for TrackedTolerant {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.write(&self.value)?;
@@ -6462,12 +5798,7 @@ impl NinoWriteBody for TrackedTolerant {
 }
 
 impl TrackedTolerant {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xB5BC74F3u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TrackedTolerant";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=true; raw=false; id=0xB5BC74F3; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)";
+    nino::type_consts!(0xB5BC74F3u32 as i32, "Conformance.TrackedTolerant", "format=VersionTolerant; header=Presence; trackReferences=true; raw=false; id=0xB5BC74F3; deferrable=true; members=Value:int:raw(4);Next:Conformance.TrackedTolerant:type(Conformance.TrackedTolerant)");
 }
 
 /// `Conformance.TreeHolder`: Positional, header Presence.
@@ -6479,6 +5810,8 @@ pub struct TreeHolder {
 }
 
 impl NinoReadBody for TreeHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.tree, nino::field!(Self, tree))?;
         r.read_member_into(&mut self.dict_tree, nino::field!(Self, dict_tree))?;
@@ -6487,6 +5820,8 @@ impl NinoReadBody for TreeHolder {
 }
 
 impl NinoWriteBody for TreeHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.tree)?;
         w.write(&self.dict_tree)?;
@@ -6515,12 +5850,7 @@ impl NinoWrite for TreeHolder {
 }
 
 impl TreeHolder {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xA20A5480u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TreeHolder";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xA20A5480; deferrable=true; members=Tree:Conformance.Tree:seq(type(Conformance.Tree));DictTree:Conformance.DictTree:map(string,type(Conformance.DictTree))";
+    nino::type_consts!(0xA20A5480u32 as i32, "Conformance.TreeHolder", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xA20A5480; deferrable=true; members=Tree:Conformance.Tree:seq(type(Conformance.Tree));DictTree:Conformance.DictTree:map(string,type(Conformance.DictTree))");
 }
 
 /// `Conformance.TreeNode`: Positional, header Presence.
@@ -6532,6 +5862,8 @@ pub struct TreeNode {
 }
 
 impl NinoReadBody for TreeNode {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         r.read_member_into(&mut self.children, nino::field!(Self, children))?;
@@ -6540,6 +5872,8 @@ impl NinoReadBody for TreeNode {
 }
 
 impl NinoWriteBody for TreeNode {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         w.write(&self.children)?;
@@ -6568,12 +5902,7 @@ impl NinoWrite for TreeNode {
 }
 
 impl TreeNode {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x760566C0u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.TreeNode";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x760566C0; deferrable=true; members=Value:int:raw(4);Children:System.Collections.Generic.List<Conformance.TreeNode>:seq(type(Conformance.TreeNode))";
+    nino::type_consts!(0x760566C0u32 as i32, "Conformance.TreeNode", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x760566C0; deferrable=true; members=Value:int:raw(4);Children:System.Collections.Generic.List<Conformance.TreeNode>:seq(type(Conformance.TreeNode))");
 }
 
 /// `Conformance.Targets.Utf8Value`: Positional, header Presence.
@@ -6584,6 +5913,8 @@ pub struct Utf8Value {
 }
 
 impl NinoReadBody for Utf8Value {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         Ok(())
@@ -6591,6 +5922,8 @@ impl NinoReadBody for Utf8Value {
 }
 
 impl NinoWriteBody for Utf8Value {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -6607,12 +5940,7 @@ impl NinoWrite for Utf8Value {
 }
 
 impl Utf8Value {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x49EFED16u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.Utf8Value";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x49EFED16; deferrable=true; members=Value:string:utf8";
+    nino::type_consts!(0x49EFED16u32 as i32, "Conformance.Targets.Utf8Value", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x49EFED16; deferrable=true; members=Value:string:utf8");
 }
 
 /// `Conformance.Targets.VersionSlot`: Positional, header Presence.
@@ -6623,6 +5951,8 @@ pub struct VersionSlot {
 }
 
 impl NinoReadBody for VersionSlot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         Ok(())
@@ -6630,6 +5960,8 @@ impl NinoReadBody for VersionSlot {
 }
 
 impl NinoWriteBody for VersionSlot {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -6646,12 +5978,7 @@ impl NinoWrite for VersionSlot {
 }
 
 impl VersionSlot {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x9D692494u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Targets.VersionSlot";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x9D692494; deferrable=true; members=Value:System.Version:version";
+    nino::type_consts!(0x9D692494u32 as i32, "Conformance.Targets.VersionSlot", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x9D692494; deferrable=true; members=Value:System.Version:version");
 }
 
 /// `Conformance.Wrap<T>`: Positional, header Presence.
@@ -6696,10 +6023,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Wrap<T> {
 }
 
 impl<T> Wrap<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Wrap<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T)";
+    nino::type_consts!("Conformance.Wrap<T>", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T)");
 }
 
 /// `Conformance.WrappedArgs`: Positional, header Presence.
@@ -6716,6 +6040,8 @@ pub struct WrappedArgs {
 }
 
 impl NinoReadBody for WrappedArgs {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.nullable_array, nino::field!(Self, nullable_array))?;
         r.read_member_into(&mut self.nullable_list, nino::field!(Self, nullable_list))?;
@@ -6729,6 +6055,8 @@ impl NinoReadBody for WrappedArgs {
 }
 
 impl NinoWriteBody for WrappedArgs {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.nullable_array)?;
         w.write(&self.nullable_list)?;
@@ -6780,12 +6108,7 @@ impl NinoWrite for WrappedArgs {
 }
 
 impl WrappedArgs {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xE29BBB74u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.WrappedArgs";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xE29BBB74; deferrable=true; members=NullableArray:Conformance.Wrap<System.Nullable<int>[]>:type(Conformance.Wrap<System.Nullable<int>[]>);NullableList:Conformance.Wrap<System.Collections.Generic.List<System.Nullable<int>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Nullable<int>>>);NullableSet:Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<int>>>:type(Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<int>>>);NullableStructs:Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>);NullableValues:Conformance.Wrap<System.Collections.Generic.Dictionary<int, System.Nullable<double>>>:type(Conformance.Wrap<System.Collections.Generic.Dictionary<int, System.Nullable<double>>>);Pairs:Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, string>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, string>>>);PairArray:Conformance.Wrap<System.Collections.Generic.KeyValuePair<string, System.Nullable<int>>[]>:type(Conformance.Wrap<System.Collections.Generic.KeyValuePair<string, System.Nullable<int>>[]>)";
+    nino::type_consts!(0xE29BBB74u32 as i32, "Conformance.WrappedArgs", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xE29BBB74; deferrable=true; members=NullableArray:Conformance.Wrap<System.Nullable<int>[]>:type(Conformance.Wrap<System.Nullable<int>[]>);NullableList:Conformance.Wrap<System.Collections.Generic.List<System.Nullable<int>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Nullable<int>>>);NullableSet:Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<int>>>:type(Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<int>>>);NullableStructs:Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>);NullableValues:Conformance.Wrap<System.Collections.Generic.Dictionary<int, System.Nullable<double>>>:type(Conformance.Wrap<System.Collections.Generic.Dictionary<int, System.Nullable<double>>>);Pairs:Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, string>>>:type(Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, string>>>);PairArray:Conformance.Wrap<System.Collections.Generic.KeyValuePair<string, System.Nullable<int>>[]>:type(Conformance.Wrap<System.Collections.Generic.KeyValuePair<string, System.Nullable<int>>[]>)");
 }
 
 /// `Conformance.Zoo`: Positional, header Presence.
@@ -6804,6 +6127,8 @@ pub struct Zoo {
 }
 
 impl NinoReadBody for Zoo {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.star, nino::field!(Self, star))?;
         r.read_member_into(&mut self.dog, nino::field!(Self, dog))?;
@@ -6819,6 +6144,8 @@ impl NinoReadBody for Zoo {
 }
 
 impl NinoWriteBody for Zoo {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.star)?;
         w.write(&self.dog)?;
@@ -6860,12 +6187,7 @@ impl NinoWrite for Zoo {
 }
 
 impl Zoo {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x6E8C85FCu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Conformance.Zoo";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x6E8C85FC; deferrable=true; members=Star:Conformance.Animal:type(Conformance.Animal);Dog:Conformance.Dog:type(Conformance.Dog);Animals:System.Collections.Generic.List<Conformance.Animal>:seq(type(Conformance.Animal));Cages:Conformance.Animal[]:seq(type(Conformance.Animal));Shape:Conformance.IShape:type(Conformance.IShape);Shapes:System.Collections.Generic.List<Conformance.IShape>:seq(type(Conformance.IShape));Plain:Conformance.Plain:type(Conformance.Plain);Anything:object:object;ByName:System.Collections.Generic.Dictionary<string, Conformance.Animal>:map(string,type(Conformance.Animal))";
+    nino::type_consts!(0x6E8C85FCu32 as i32, "Conformance.Zoo", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x6E8C85FC; deferrable=true; members=Star:Conformance.Animal:type(Conformance.Animal);Dog:Conformance.Dog:type(Conformance.Dog);Animals:System.Collections.Generic.List<Conformance.Animal>:seq(type(Conformance.Animal));Cages:Conformance.Animal[]:seq(type(Conformance.Animal));Shape:Conformance.IShape:type(Conformance.IShape);Shapes:System.Collections.Generic.List<Conformance.IShape>:seq(type(Conformance.IShape));Plain:Conformance.Plain:type(Conformance.Plain);Anything:object:object;ByName:System.Collections.Generic.Dictionary<string, Conformance.Animal>:map(string,type(Conformance.Animal))");
 }
 
 /// A `Conformance.Animal` slot: a type id, then the body of one of these types.

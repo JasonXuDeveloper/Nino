@@ -46,31 +46,11 @@ impl nino::Raw for DateTimeOffset {
 }
 
 impl NinoRead for DateTimeOffset {
-    const MIN_SIZE: usize = 16;
-    const FIXED_SIZE: usize = 16;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for DateTimeOffset {
-    const FIXED_SIZE: usize = 16;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Shapes.Gappy`: raw, 8 bytes.
@@ -107,40 +87,15 @@ impl nino::Raw for Gappy {
 }
 
 impl NinoRead for Gappy {
-    const MIN_SIZE: usize = 8;
-    const FIXED_SIZE: usize = 8;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Gappy {
-    const FIXED_SIZE: usize = 8;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 8];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl Gappy {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x82B9FBC0u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Gappy";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0x82B9FBC0; deferrable=false; members=raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)}";
+    nino::type_consts!(0x82B9FBC0u32 as i32, "Shapes.Gappy", "format=Positional; header=None; trackReferences=false; raw=true; id=0x82B9FBC0; deferrable=false; members=raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)}");
 }
 
 /// `Shapes.HostLeaves`: raw, 64 bytes.
@@ -197,31 +152,11 @@ impl nino::Raw for HostLeaves {
 }
 
 impl NinoRead for HostLeaves {
-    const MIN_SIZE: usize = 64;
-    const FIXED_SIZE: usize = 64;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<64>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for HostLeaves {
-    const FIXED_SIZE: usize = 64;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 64];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Shapes.Marked`: raw, 8 bytes.
@@ -265,40 +200,15 @@ impl nino::Raw for Marked {
 }
 
 impl NinoRead for Marked {
-    const MIN_SIZE: usize = 8;
-    const FIXED_SIZE: usize = 8;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for Marked {
-    const FIXED_SIZE: usize = 8;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 8];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl Marked {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xA8246323u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Marked";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0xA8246323; deferrable=false; members=raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)}";
+    nino::type_consts!(0xA8246323u32 as i32, "Shapes.Marked", "format=Positional; header=None; trackReferences=false; raw=true; id=0xA8246323; deferrable=false; members=raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)}");
 }
 
 /// `Shapes.OffsetLeaf`: raw, 24 bytes.
@@ -335,31 +245,11 @@ impl nino::Raw for OffsetLeaf {
 }
 
 impl NinoRead for OffsetLeaf {
-    const MIN_SIZE: usize = 24;
-    const FIXED_SIZE: usize = 24;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<24>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for OffsetLeaf {
-    const FIXED_SIZE: usize = 24;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 24];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Shapes.ThingStruct`: raw, 16 bytes.
@@ -396,40 +286,15 @@ impl nino::Raw for ThingStruct {
 }
 
 impl NinoRead for ThingStruct {
-    const MIN_SIZE: usize = 16;
-    const FIXED_SIZE: usize = 16;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<16>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for ThingStruct {
-    const FIXED_SIZE: usize = 16;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 16];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl ThingStruct {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x254C375Cu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.ThingStruct";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0x254C375C; deferrable=false; members=raw(16){Id:int@0:raw(4),Extra:long@8:raw(8)}";
+    nino::type_consts!(0x254C375Cu32 as i32, "Shapes.ThingStruct", "format=Positional; header=None; trackReferences=false; raw=true; id=0x254C375C; deferrable=false; members=raw(16){Id:int@0:raw(4),Extra:long@8:raw(8)}");
 }
 
 /// `Shapes.TupleCell`: raw, 12 bytes.
@@ -466,40 +331,15 @@ impl nino::Raw for TupleCell {
 }
 
 impl NinoRead for TupleCell {
-    const MIN_SIZE: usize = 12;
-    const FIXED_SIZE: usize = 12;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<12>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for TupleCell {
-    const FIXED_SIZE: usize = 12;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 12];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 impl TupleCell {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x794AD791u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.TupleCell";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=true; id=0x794AD791; deferrable=false; members=raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}";
+    nino::type_consts!(0x794AD791u32 as i32, "Shapes.TupleCell", "format=Positional; header=None; trackReferences=false; raw=true; id=0x794AD791; deferrable=false; members=raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}");
 }
 
 /// `Shapes.TupleInside`: raw, 8 bytes.
@@ -536,31 +376,11 @@ impl nino::Raw for TupleInside {
 }
 
 impl NinoRead for TupleInside {
-    const MIN_SIZE: usize = 8;
-    const FIXED_SIZE: usize = 8;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<8>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for TupleInside {
-    const FIXED_SIZE: usize = 8;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 8];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `System.ValueTuple<System.Byte,System.Int16>`: raw, 4 bytes.
@@ -597,31 +417,11 @@ impl nino::Raw for ValueTupleByteInt16 {
 }
 
 impl NinoRead for ValueTupleByteInt16 {
-    const MIN_SIZE: usize = 4;
-    const FIXED_SIZE: usize = 4;
-
-    fn decode_fixed(b: &[u8]) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(b)
-    }
-
-    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        <Self as nino::Raw>::decode_raw(&r.array::<4>()?)
-    }
+    nino::raw_read!();
 }
 
 impl NinoWrite for ValueTupleByteInt16 {
-    const FIXED_SIZE: usize = 4;
-
-    fn encode_fixed(&self, out: &mut [u8]) {
-        nino::Raw::encode_raw(self, out);
-    }
-
-    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
-        let mut b = [0u8; 4];
-        nino::Raw::encode_raw(self, &mut b);
-        w.array(b);
-        Ok(())
-    }
+    nino::raw_write!();
 }
 
 /// `Shapes.Generic.Bag<T>`: VersionTolerant, header Presence.
@@ -714,10 +514,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Bag<T> {
 }
 
 impl<T> Bag<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Bag<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Items:System.Collections.Generic.List<T>:seq(type(T));ByName:System.Collections.Generic.Dictionary<string, T>:map(string,type(T));Array:T[]:seq(type(T));Inner:Shapes.Generic.Box<T>:type(Shapes.Generic.Box<T>);Pair:Shapes.Generic.Pair<int, T>:type(Shapes.Generic.Pair<int, T>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<T>>:seq(type(Shapes.Generic.Box<T>));Tuple:System.ValueTuple<int, T>:tuple(raw(4),type(T))";
+    nino::type_consts!("Shapes.Generic.Bag<T>", "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Items:System.Collections.Generic.List<T>:seq(type(T));ByName:System.Collections.Generic.Dictionary<string, T>:map(string,type(T));Array:T[]:seq(type(T));Inner:Shapes.Generic.Box<T>:type(Shapes.Generic.Box<T>);Pair:Shapes.Generic.Pair<int, T>:type(Shapes.Generic.Pair<int, T>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<T>>:seq(type(Shapes.Generic.Box<T>));Tuple:System.ValueTuple<int, T>:tuple(raw(4),type(T))");
 }
 
 /// `Shapes.Generic.Box<T>`: Positional, header Presence.
@@ -762,10 +559,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for BoxType<T> {
 }
 
 impl<T> BoxType<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Box<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T)";
+    nino::type_consts!("Shapes.Generic.Box<T>", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T)");
 }
 
 /// `Shapes.ForestHolder`: Positional, header Presence.
@@ -776,6 +570,8 @@ pub struct ForestHolder {
 }
 
 impl NinoReadBody for ForestHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.forest, nino::field!(Self, forest))?;
         Ok(())
@@ -783,6 +579,8 @@ impl NinoReadBody for ForestHolder {
 }
 
 impl NinoWriteBody for ForestHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.forest)?;
         Ok(())
@@ -810,12 +608,7 @@ impl NinoWrite for ForestHolder {
 }
 
 impl ForestHolder {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xA67B9EFEu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.ForestHolder";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xA67B9EFE; deferrable=true; members=Forest:Shapes.Forest:seq(type(Shapes.Forest))";
+    nino::type_consts!(0xA67B9EFEu32 as i32, "Shapes.ForestHolder", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xA67B9EFE; deferrable=true; members=Forest:Shapes.Forest:seq(type(Shapes.Forest))");
 }
 
 /// `Shapes.Holder`: Positional, header Presence.
@@ -839,6 +632,8 @@ pub struct Holder {
 }
 
 impl NinoReadBody for Holder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.thing, nino::field!(Self, thing))?;
         r.read_member_into(&mut self.things, nino::field!(Self, things))?;
@@ -859,6 +654,8 @@ impl NinoReadBody for Holder {
 }
 
 impl NinoWriteBody for Holder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.thing)?;
         w.write(&self.things)?;
@@ -923,12 +720,7 @@ impl NinoWrite for Holder {
 }
 
 impl Holder {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x839907D7u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Holder";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x839907D7; deferrable=true; members=Thing:Shapes.IThing:type(Shapes.IThing);Things:System.Collections.Generic.List<Shapes.IThing>:seq(type(Shapes.IThing));Tree:Shapes.Recursive:type(Shapes.Recursive);Inner:Shapes.Outer.Inner:type(Shapes.Outer.Inner);LeftItem:Shapes.Left.Item:type(Shapes.Left.Item);RightItem:Shapes.Right.Item:type(Shapes.Right.Item);Flags:Shapes.Flags:raw(8);Gaps:Shapes.Gappy[]:seq(raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)});Names:System.Collections.Generic.Dictionary<int, string>:map(raw(4),string);Tags:System.Collections.Generic.HashSet<string>:seq(string);Pair:System.ValueTuple<int, string>:tuple(raw(4),string);Entry:System.Collections.Generic.KeyValuePair<string, int>:pair(string,raw(4));Maybe:System.Nullable<int>:nullable(raw(4));Keywords:Shapes.Keywords:type(Shapes.Keywords)";
+    nino::type_consts!(0x839907D7u32 as i32, "Shapes.Holder", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x839907D7; deferrable=true; members=Thing:Shapes.IThing:type(Shapes.IThing);Things:System.Collections.Generic.List<Shapes.IThing>:seq(type(Shapes.IThing));Tree:Shapes.Recursive:type(Shapes.Recursive);Inner:Shapes.Outer.Inner:type(Shapes.Outer.Inner);LeftItem:Shapes.Left.Item:type(Shapes.Left.Item);RightItem:Shapes.Right.Item:type(Shapes.Right.Item);Flags:Shapes.Flags:raw(8);Gaps:Shapes.Gappy[]:seq(raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)});Names:System.Collections.Generic.Dictionary<int, string>:map(raw(4),string);Tags:System.Collections.Generic.HashSet<string>:seq(string);Pair:System.ValueTuple<int, string>:tuple(raw(4),string);Entry:System.Collections.Generic.KeyValuePair<string, int>:pair(string,raw(4));Maybe:System.Nullable<int>:nullable(raw(4));Keywords:Shapes.Keywords:type(Shapes.Keywords)");
 }
 
 /// `Shapes.HostHolder`: Positional, header Presence.
@@ -940,6 +732,8 @@ pub struct HostHolder {
 }
 
 impl NinoReadBody for HostHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.leaves)?;
         r.read_into(&mut self.gaps)?;
@@ -948,6 +742,8 @@ impl NinoReadBody for HostHolder {
 }
 
 impl NinoWriteBody for HostHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.leaves)?;
         w.write(&self.gaps)?;
@@ -976,12 +772,7 @@ impl NinoWrite for HostHolder {
 }
 
 impl HostHolder {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x73E57D3Fu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.HostHolder";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x73E57D3F; deferrable=true; members=Leaves:Shapes.HostLeaves:raw(64){A:byte@0:raw(1),Wide:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},Signed:System.IntPtr@32:raw(8),Unsigned:System.UIntPtr@40:raw(8),Pointer:int*@48:raw(8),Callback:delegate*<int>@56:raw(8)};Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})";
+    nino::type_consts!(0x73E57D3Fu32 as i32, "Shapes.HostHolder", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x73E57D3F; deferrable=true; members=Leaves:Shapes.HostLeaves:raw(64){A:byte@0:raw(1),Wide:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},Signed:System.IntPtr@32:raw(8),Unsigned:System.UIntPtr@40:raw(8),Pointer:int*@48:raw(8),Callback:delegate*<int>@56:raw(8)};Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})");
 }
 
 /// `Shapes.Generic.Keys<T>`: Positional, header Presence.
@@ -1029,10 +820,7 @@ impl<T: NinoRead + NinoWrite + Default + Eq + core::hash::Hash + Clone + 'static
 }
 
 impl<T: Eq + core::hash::Hash> Keys<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Keys<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Set:System.Collections.Generic.HashSet<T>:seq(type(T));ByKey:System.Collections.Generic.Dictionary<T, int>:map(type(T),raw(4))";
+    nino::type_consts!("Shapes.Generic.Keys<T>", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Set:System.Collections.Generic.HashSet<T>:seq(type(T));ByKey:System.Collections.Generic.Dictionary<T, int>:map(type(T),raw(4))");
 }
 
 /// `Shapes.Keywords`: Positional, header Presence.
@@ -1053,6 +841,8 @@ pub struct Keywords {
 }
 
 impl NinoReadBody for Keywords {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.r#type)?;
         r.read_into(&mut self.self_)?;
@@ -1069,6 +859,8 @@ impl NinoReadBody for Keywords {
 }
 
 impl NinoWriteBody for Keywords {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.r#type)?;
         w.write(&self.self_)?;
@@ -1105,12 +897,7 @@ impl NinoWrite for Keywords {
 }
 
 impl Keywords {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x58F430A5u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Keywords";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x58F430A5; deferrable=true; members=Type:int:raw(4);Self:int:raw(4);Match:int:raw(4);Default:string:string;Body:int:raw(4);Key:int:raw(4);Value:int:raw(4);R:int:raw(4);W:int:raw(4);V:int:raw(4)";
+    nino::type_consts!(0x58F430A5u32 as i32, "Shapes.Keywords", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x58F430A5; deferrable=true; members=Type:int:raw(4);Self:int:raw(4);Match:int:raw(4);Default:string:string;Body:int:raw(4);Key:int:raw(4);Value:int:raw(4);R:int:raw(4);W:int:raw(4);V:int:raw(4)");
 }
 
 /// `Shapes.Generic.MoreOpen<T>`: Positional, header TypeId.
@@ -1138,10 +925,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for MoreOpen<T> 
 }
 
 impl<T> MoreOpen<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.MoreOpen<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T);Extra:T:type(T)";
+    nino::type_consts!("Shapes.Generic.MoreOpen<T>", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T);Extra:T:type(T)");
 }
 
 /// `Shapes.NinoGrid`: Positional, header Presence.
@@ -1152,6 +936,8 @@ pub struct NinoGrid {
 }
 
 impl NinoReadBody for NinoGrid {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         Ok(())
@@ -1159,6 +945,8 @@ impl NinoReadBody for NinoGrid {
 }
 
 impl NinoWriteBody for NinoGrid {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -1175,12 +963,7 @@ impl NinoWrite for NinoGrid {
 }
 
 impl NinoGrid {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x03FA7FE9u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.NinoGrid";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x03FA7FE9; deferrable=true; members=Value:int:raw(4)";
+    nino::type_consts!(0x03FA7FE9u32 as i32, "Shapes.NinoGrid", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x03FA7FE9; deferrable=true; members=Value:int:raw(4)");
 }
 
 /// `Shapes.Generic.Node<T>`: Keyed, header Presence.
@@ -1252,10 +1035,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for Node<T> {
 }
 
 impl<T> Node<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Node<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T):key=0xC373233E;Next:Shapes.Generic.Node<T>:type(Shapes.Generic.Node<T>):key=0xC9A6113A";
+    nino::type_consts!("Shapes.Generic.Node<T>", "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T):key=0xC373233E;Next:Shapes.Generic.Node<T>:type(Shapes.Generic.Node<T>):key=0xC9A6113A");
 }
 
 /// `Shapes.OffsetHolder`: Positional, header Presence.
@@ -1266,6 +1046,8 @@ pub struct OffsetHolder {
 }
 
 impl NinoReadBody for OffsetHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.leaf)?;
         Ok(())
@@ -1273,6 +1055,8 @@ impl NinoReadBody for OffsetHolder {
 }
 
 impl NinoWriteBody for OffsetHolder {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.leaf)?;
         Ok(())
@@ -1289,12 +1073,7 @@ impl NinoWrite for OffsetHolder {
 }
 
 impl OffsetHolder {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x36E5D592u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.OffsetHolder";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x36E5D592; deferrable=true; members=Leaf:Shapes.OffsetLeaf:raw(24){A:short@0:raw(2),At:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}}";
+    nino::type_consts!(0x36E5D592u32 as i32, "Shapes.OffsetHolder", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x36E5D592; deferrable=true; members=Leaf:Shapes.OffsetLeaf:raw(24){A:short@0:raw(2),At:System.DateTimeOffset@8:raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}}");
 }
 
 /// `Shapes.Generic.Open<T>`: Positional, header TypeId.
@@ -1319,10 +1098,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for Open<T> {
 }
 
 impl<T> Open<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Open<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T)";
+    nino::type_consts!("Shapes.Generic.Open<T>", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T)");
 }
 
 /// `Shapes.Generic.OpenHolder<T>`: Positional, header Presence.
@@ -1383,10 +1159,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static, S0: NinoRead + NinoWrite + 'st
 }
 
 impl<T, S0> OpenHolder<T, S0> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.OpenHolder<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Inner:Shapes.Generic.Open<T>:type(Shapes.Generic.Open<T>);All:System.Collections.Generic.List<Shapes.Generic.Open<T>>:seq(type(Shapes.Generic.Open<T>))";
+    nino::type_consts!("Shapes.Generic.OpenHolder<T>", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Inner:Shapes.Generic.Open<T>:type(Shapes.Generic.Open<T>);All:System.Collections.Generic.List<Shapes.Generic.Open<T>>:seq(type(Shapes.Generic.Open<T>))");
 }
 
 /// `Shapes.Generic.OpenHolderUse`: Positional, header Presence.
@@ -1397,6 +1170,8 @@ pub struct OpenHolderUse {
 }
 
 impl NinoReadBody for OpenHolderUse {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.holder, nino::field!(Self, holder))?;
         Ok(())
@@ -1404,6 +1179,8 @@ impl NinoReadBody for OpenHolderUse {
 }
 
 impl NinoWriteBody for OpenHolderUse {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.holder)?;
         Ok(())
@@ -1431,12 +1208,7 @@ impl NinoWrite for OpenHolderUse {
 }
 
 impl OpenHolderUse {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x9E569D67u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.OpenHolderUse";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x9E569D67; deferrable=true; members=Holder:Shapes.Generic.OpenHolder<long>:type(Shapes.Generic.OpenHolder<long>)";
+    nino::type_consts!(0x9E569D67u32 as i32, "Shapes.Generic.OpenHolderUse", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x9E569D67; deferrable=true; members=Holder:Shapes.Generic.OpenHolder<long>:type(Shapes.Generic.OpenHolder<long>)");
 }
 
 /// `Shapes.Generic.OpenUse`: Positional, header Presence.
@@ -1447,6 +1219,8 @@ pub struct OpenUse {
 }
 
 impl NinoReadBody for OpenUse {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.open, nino::field!(Self, open))?;
         Ok(())
@@ -1454,6 +1228,8 @@ impl NinoReadBody for OpenUse {
 }
 
 impl NinoWriteBody for OpenUse {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.open)?;
         Ok(())
@@ -1470,12 +1246,7 @@ impl NinoWrite for OpenUse {
 }
 
 impl OpenUse {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xFA892147u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.OpenUse";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xFA892147; deferrable=true; members=Open:Shapes.Generic.Open<int>:type(Shapes.Generic.Open<int>)";
+    nino::type_consts!(0xFA892147u32 as i32, "Shapes.Generic.OpenUse", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xFA892147; deferrable=true; members=Open:Shapes.Generic.Open<int>:type(Shapes.Generic.Open<int>)");
 }
 
 /// `Shapes.Outer+Inner`: Positional, header Presence.
@@ -1486,6 +1257,8 @@ pub struct OuterInner {
 }
 
 impl NinoReadBody for OuterInner {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
         Ok(())
@@ -1493,6 +1266,8 @@ impl NinoReadBody for OuterInner {
 }
 
 impl NinoWriteBody for OuterInner {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
         Ok(())
@@ -1509,12 +1284,7 @@ impl NinoWrite for OuterInner {
 }
 
 impl OuterInner {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x583BB773u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Outer+Inner";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x583BB773; deferrable=true; members=Value:int:raw(4)";
+    nino::type_consts!(0x583BB773u32 as i32, "Shapes.Outer+Inner", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x583BB773; deferrable=true; members=Value:int:raw(4)");
 }
 
 /// `Shapes.Generic.Pair<TKey,TValue>`: Positional, header None.
@@ -1601,10 +1371,7 @@ impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrit
 }
 
 impl<TKey, TValue> Pair<TKey, TValue> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Pair<TKey,TValue>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=false; id=0x00000000; deferrable=false; members=Key:TKey:type(TKey);Value:TValue:type(TValue)";
+    nino::type_consts!("Shapes.Generic.Pair<TKey,TValue>", "format=Positional; header=None; trackReferences=false; raw=false; id=0x00000000; deferrable=false; members=Key:TKey:type(TKey);Value:TValue:type(TValue)");
 }
 
 /// `Shapes.Generic.RawPair<T>`: Positional, header None.
@@ -1691,10 +1458,7 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for RawPair<T> {
 }
 
 impl<T> RawPair<T> {
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.RawPair<T>";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=false; id=0x00000000; deferrable=false; members=A:T:type(T);B:T:type(T)";
+    nino::type_consts!("Shapes.Generic.RawPair<T>", "format=Positional; header=None; trackReferences=false; raw=false; id=0x00000000; deferrable=false; members=A:T:type(T);B:T:type(T)");
 }
 
 /// `Shapes.Recursive`: Positional, header None.
@@ -1707,6 +1471,7 @@ pub struct Recursive {
 
 impl NinoReadBody for Recursive {
     const DEFERRABLE: bool = false;
+    const TYPE_ID: i32 = Self::TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -1717,6 +1482,7 @@ impl NinoReadBody for Recursive {
 
 impl NinoWriteBody for Recursive {
     const DEFERRABLE: bool = false;
+    const TYPE_ID: i32 = Self::TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -1759,12 +1525,7 @@ impl NinoWrite for Recursive {
 }
 
 impl Recursive {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x044D76CDu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Recursive";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=None; trackReferences=false; raw=false; id=0x044D76CD; deferrable=false; members=Value:int:raw(4);Children:System.Collections.Generic.List<Shapes.Recursive>:seq(type(Shapes.Recursive))";
+    nino::type_consts!(0x044D76CDu32 as i32, "Shapes.Recursive", "format=Positional; header=None; trackReferences=false; raw=false; id=0x044D76CD; deferrable=false; members=Value:int:raw(4);Children:System.Collections.Generic.List<Shapes.Recursive>:seq(type(Shapes.Recursive))");
 }
 
 /// `Shapes.Renamed`: Keyed, header Presence.
@@ -1776,6 +1537,8 @@ pub struct Renamed {
 }
 
 impl NinoReadBody for Renamed {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
         while r.has_more() {
@@ -1797,6 +1560,8 @@ impl NinoReadBody for Renamed {
 }
 
 impl NinoWriteBody for Renamed {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
         w.i32(0xAC8120CEu32 as i32);
@@ -1833,12 +1598,7 @@ impl NinoWrite for Renamed {
 }
 
 impl Renamed {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xD813B273u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Renamed";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0xD813B273; deferrable=true; members=NewName:int:raw(4):key=0xAC8120CE:former=0x4B4D09F5;Other:string:string:key=0x4D897D71";
+    nino::type_consts!(0xD813B273u32 as i32, "Shapes.Renamed", "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0xD813B273; deferrable=true; members=NewName:int:raw(4):key=0xAC8120CE:former=0x4B4D09F5;Other:string:string:key=0x4D897D71");
 }
 
 /// `Shapes.Left.Item`: Positional, header Presence.
@@ -1849,6 +1609,8 @@ pub struct ShapesLeftItem {
 }
 
 impl NinoReadBody for ShapesLeftItem {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.left)?;
         Ok(())
@@ -1856,6 +1618,8 @@ impl NinoReadBody for ShapesLeftItem {
 }
 
 impl NinoWriteBody for ShapesLeftItem {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.left)?;
         Ok(())
@@ -1872,12 +1636,7 @@ impl NinoWrite for ShapesLeftItem {
 }
 
 impl ShapesLeftItem {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x8E4FFE47u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Left.Item";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8E4FFE47; deferrable=true; members=Left:int:raw(4)";
+    nino::type_consts!(0x8E4FFE47u32 as i32, "Shapes.Left.Item", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8E4FFE47; deferrable=true; members=Left:int:raw(4)");
 }
 
 /// `Shapes.Right.Item`: Positional, header Presence.
@@ -1888,6 +1647,8 @@ pub struct ShapesRightItem {
 }
 
 impl NinoReadBody for ShapesRightItem {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.right)?;
         Ok(())
@@ -1895,6 +1656,8 @@ impl NinoReadBody for ShapesRightItem {
 }
 
 impl NinoWriteBody for ShapesRightItem {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.right)?;
         Ok(())
@@ -1911,12 +1674,7 @@ impl NinoWrite for ShapesRightItem {
 }
 
 impl ShapesRightItem {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x3418E03Cu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Right.Item";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3418E03C; deferrable=true; members=Right:int:raw(4)";
+    nino::type_consts!(0x3418E03Cu32 as i32, "Shapes.Right.Item", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3418E03C; deferrable=true; members=Right:int:raw(4)");
 }
 
 /// `Shapes.Stamps`: Positional, header Presence.
@@ -1934,6 +1692,8 @@ pub struct Stamps {
 }
 
 impl NinoReadBody for Stamps {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.times)?;
         r.read_into(&mut self.days)?;
@@ -1948,6 +1708,8 @@ impl NinoReadBody for Stamps {
 }
 
 impl NinoWriteBody for Stamps {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.times)?;
         w.write(&self.days)?;
@@ -2003,12 +1765,7 @@ impl NinoWrite for Stamps {
 }
 
 impl Stamps {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xB5FF2A7Fu32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Stamps";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xB5FF2A7F; deferrable=true; members=Times:System.DateTime[]:seq(raw(8));Days:System.Collections.Generic.List<System.DateOnly>:seq(raw(4));Clocks:System.TimeOnly[]:seq(raw(8));Prices:decimal[]:seq(raw(16));Ids:System.Collections.Generic.List<System.Guid>:seq(raw(16));Signed:System.Int128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Unsigned:System.UInt128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Marks:Shapes.Marked[]:seq(raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)})";
+    nino::type_consts!(0xB5FF2A7Fu32 as i32, "Shapes.Stamps", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xB5FF2A7F; deferrable=true; members=Times:System.DateTime[]:seq(raw(8));Days:System.Collections.Generic.List<System.DateOnly>:seq(raw(4));Clocks:System.TimeOnly[]:seq(raw(8));Prices:decimal[]:seq(raw(16));Ids:System.Collections.Generic.List<System.Guid>:seq(raw(16));Signed:System.Int128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Unsigned:System.UInt128[]:seq(raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)});Marks:Shapes.Marked[]:seq(raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)})");
 }
 
 /// `Shapes.Strides`: Positional, header Presence.
@@ -2020,6 +1777,8 @@ pub struct Strides {
 }
 
 impl NinoReadBody for Strides {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.cells)?;
         r.read_member_into(&mut self.boxed, nino::field!(Self, boxed))?;
@@ -2028,6 +1787,8 @@ impl NinoReadBody for Strides {
 }
 
 impl NinoWriteBody for Strides {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.cells)?;
         w.write(&self.boxed)?;
@@ -2059,12 +1820,7 @@ impl NinoWrite for Strides {
 }
 
 impl Strides {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xBF48C221u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Strides";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xBF48C221; deferrable=true; members=Cells:System.Nullable<Shapes.TupleCell>[]:seq(raw(16){hasValue:bool@0:raw(1),value:Shapes.TupleCell@4:raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}});Boxed:Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>:type(Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>)";
+    nino::type_consts!(0xBF48C221u32 as i32, "Shapes.Strides", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xBF48C221; deferrable=true; members=Cells:System.Nullable<Shapes.TupleCell>[]:seq(raw(16){hasValue:bool@0:raw(1),value:Shapes.TupleCell@4:raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}});Boxed:Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>:type(Shapes.Generic.Box<System.Nullable<Shapes.TupleCell>[]>)");
 }
 
 /// `Shapes.ThingClass`: Positional, header Presence.
@@ -2076,6 +1832,8 @@ pub struct ThingClass {
 }
 
 impl NinoReadBody for ThingClass {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.id)?;
         r.read_into(&mut self.label)?;
@@ -2084,6 +1842,8 @@ impl NinoReadBody for ThingClass {
 }
 
 impl NinoWriteBody for ThingClass {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.id)?;
         w.write(&self.label)?;
@@ -2112,12 +1872,7 @@ impl NinoWrite for ThingClass {
 }
 
 impl ThingClass {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0x35AA4E2Du32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.ThingClass";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x35AA4E2D; deferrable=true; members=Id:int:raw(4);Label:string:string";
+    nino::type_consts!(0x35AA4E2Du32 as i32, "Shapes.ThingClass", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x35AA4E2D; deferrable=true; members=Id:int:raw(4);Label:string:string");
 }
 
 /// `Shapes.Generic.Uses`: Positional, header Presence.
@@ -2146,6 +1901,8 @@ pub struct Uses {
 }
 
 impl NinoReadBody for Uses {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.number, nino::field!(Self, number))?;
         r.read_member_into(&mut self.text, nino::field!(Self, text))?;
@@ -2171,6 +1928,8 @@ impl NinoReadBody for Uses {
 }
 
 impl NinoWriteBody for Uses {
+    const TYPE_ID: i32 = Self::TYPE_ID;
+
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.number)?;
         w.write(&self.text)?;
@@ -2267,12 +2026,7 @@ impl NinoWrite for Uses {
 }
 
 impl Uses {
-    /// The .NET type's id, written in front of its body in a polymorphic slot.
-    pub const TYPE_ID: i32 = 0xCF00B9E0u32 as i32;
-    /// The .NET type's name (`Namespace.Outer+Inner`).
-    pub const NINO_TYPE_NAME: &str = "Shapes.Generic.Uses";
-    /// The layout this code was generated from (`NinoTypeLayout`).
-    pub const NINO_LAYOUT: &str = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xCF00B9E0; deferrable=true; members=Number:Shapes.Generic.Box<int>:type(Shapes.Generic.Box<int>);Text:Shapes.Generic.Box<string>:type(Shapes.Generic.Box<string>);Pair:Shapes.Generic.Pair<int, string>:type(Shapes.Generic.Pair<int, string>);Nested:Shapes.Generic.Box<Shapes.Generic.Box<int>>:type(Shapes.Generic.Box<Shapes.Generic.Box<int>>);Mixed:Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>:type(Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<int>>:seq(type(Shapes.Generic.Box<int>));Bag:Shapes.Generic.Bag<Shapes.Generic.Box<long>>:type(Shapes.Generic.Bag<Shapes.Generic.Box<long>>);Chain:Shapes.Generic.Node<string>:type(Shapes.Generic.Node<string>);Thing:Shapes.Generic.Box<Shapes.IThing>:type(Shapes.Generic.Box<Shapes.IThing>);Array:Shapes.Generic.Box<int[]>:type(Shapes.Generic.Box<int[]>);Complex:Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>:type(Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>);Pairs:System.Collections.Generic.Dictionary<string, Shapes.Generic.Pair<int, int>>:map(string,type(Shapes.Generic.Pair<int, int>));Raw:Shapes.Generic.RawPair<int>:type(Shapes.Generic.RawPair<int>);Tuple:Shapes.Generic.Box<System.ValueTuple<int, string>>:type(Shapes.Generic.Box<System.ValueTuple<int, string>>);Maybe:Shapes.Generic.Box<System.Nullable<int>>:type(Shapes.Generic.Box<System.Nullable<int>>);Entry:Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>:type(Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>);Set:Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>:type(Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>);IntKeys:Shapes.Generic.Keys<int>:type(Shapes.Generic.Keys<int>);StringKeys:Shapes.Generic.Keys<string>:type(Shapes.Generic.Keys<string>)";
+    nino::type_consts!(0xCF00B9E0u32 as i32, "Shapes.Generic.Uses", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xCF00B9E0; deferrable=true; members=Number:Shapes.Generic.Box<int>:type(Shapes.Generic.Box<int>);Text:Shapes.Generic.Box<string>:type(Shapes.Generic.Box<string>);Pair:Shapes.Generic.Pair<int, string>:type(Shapes.Generic.Pair<int, string>);Nested:Shapes.Generic.Box<Shapes.Generic.Box<int>>:type(Shapes.Generic.Box<Shapes.Generic.Box<int>>);Mixed:Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>:type(Shapes.Generic.Box<Shapes.Generic.Pair<string, Shapes.Gappy>>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<int>>:seq(type(Shapes.Generic.Box<int>));Bag:Shapes.Generic.Bag<Shapes.Generic.Box<long>>:type(Shapes.Generic.Bag<Shapes.Generic.Box<long>>);Chain:Shapes.Generic.Node<string>:type(Shapes.Generic.Node<string>);Thing:Shapes.Generic.Box<Shapes.IThing>:type(Shapes.Generic.Box<Shapes.IThing>);Array:Shapes.Generic.Box<int[]>:type(Shapes.Generic.Box<int[]>);Complex:Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>:type(Shapes.Generic.Pair<Shapes.Generic.Box<int>, System.Collections.Generic.Dictionary<int, string>>);Pairs:System.Collections.Generic.Dictionary<string, Shapes.Generic.Pair<int, int>>:map(string,type(Shapes.Generic.Pair<int, int>));Raw:Shapes.Generic.RawPair<int>:type(Shapes.Generic.RawPair<int>);Tuple:Shapes.Generic.Box<System.ValueTuple<int, string>>:type(Shapes.Generic.Box<System.ValueTuple<int, string>>);Maybe:Shapes.Generic.Box<System.Nullable<int>>:type(Shapes.Generic.Box<System.Nullable<int>>);Entry:Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>:type(Shapes.Generic.Box<System.Collections.Generic.KeyValuePair<int, string>>);Set:Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>:type(Shapes.Generic.Box<System.Collections.Generic.HashSet<string>>);IntKeys:Shapes.Generic.Keys<int>:type(Shapes.Generic.Keys<int>);StringKeys:Shapes.Generic.Keys<string>:type(Shapes.Generic.Keys<string>)");
 }
 
 /// A `Shapes.IThing` slot: a type id, then the body of one of these types.

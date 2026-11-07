@@ -491,9 +491,10 @@ public class Implementation : IBase
     }
 
     [TestMethod]
-    public async Task AllowInheritance_RenamedToInheritedBySubtypes()
+    public async Task FormerTypeArguments_Renamed()
     {
-        // The name before 4.0 is a compiler error (CS1739); the fix renames it, the value stays.
+        // The names before 4.0 (containNonPublicMembers in v3, allowInheritance in the release candidates) are a
+        // compiler error (CS1739); the fix renames each, the value stays. Other arguments and attributes stay.
         var code = @"
 using Nino.Core;
 
@@ -507,6 +508,12 @@ public class Base
 public class Other
 {
     public int B;
+}
+
+[NinoType(false, {|#2:containNonPublicMembers|}: true)]
+public partial class Private
+{
+    [NinoMember(0)] private int {|#3:_c|};
 }";
 
         var fixedCode = @"
@@ -522,11 +529,21 @@ public class Base
 public class Other
 {
     public int B;
+}
+
+[NinoType(false, includeNonPublicMembers: true)]
+public partial class Private
+{
+    [NinoMember(0)] private int _c;
 }";
 
         await SetUpCodeFixTest(code, fixedCode,
             DiagnosticResult.CompilerError("CS1739").WithLocation(0).WithArguments("NinoTypeAttribute", "allowInheritance"),
-            DiagnosticResult.CompilerError("CS1739").WithLocation(1).WithArguments("NinoTypeAttribute", "allowInheritance"))
+            DiagnosticResult.CompilerError("CS1739").WithLocation(1).WithArguments("NinoTypeAttribute", "allowInheritance"),
+            DiagnosticResult.CompilerError("CS1739").WithLocation(2)
+                .WithArguments("NinoTypeAttribute", "containNonPublicMembers"),
+            // Until the rename, the option is not set.
+            VerifyCF.Diagnostic("NINO009").WithLocation(3).WithArguments("_c", "Private"))
             .RunAsync();
     }
 
@@ -562,7 +579,7 @@ public class TestClass
 
         await SetUpCodeFixTest(code, fixedCode,
             VerifyCF.Diagnostic("NINO030").WithLocation(0)
-                .WithArguments("A", "TestClass", "its type 'int' holds no string Nino writes")).RunAsync();
+                .WithArguments("A", "TestClass", "its type 'int' holds no string")).RunAsync();
     }
 
     [TestMethod]
@@ -603,6 +620,229 @@ public class TestClass
             VerifyCF.Diagnostic("NINO031").WithLocation(0).WithArguments("A", "TestClass"),
             VerifyCF.Diagnostic("NINO031").WithLocation(1).WithArguments("B", "TestClass"),
             VerifyCF.Diagnostic("NINO031").WithLocation(2).WithArguments("C", "TestClass")).RunAsync();
+    }
+
+    #endregion
+
+    #region NINO033 - Attribute on an interface member
+
+    private const string Compact = @"
+public struct Compact : INinoFormatter<int>
+{
+    public void Serialize(int value, ref Writer writer) { }
+    public void Deserialize(ref Reader reader, ref int value) { }
+}";
+
+    [TestMethod]
+    public async Task NINO033_MoveToTheImplementingMembers()
+    {
+        // To each member the generator writes: a class's, a struct's, a base class's for its subtypes. A member with
+        // the attribute keeps its own; an explicit implementation is not written by name.
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public interface IShape
+{
+    [{|#0:NinoUtf8|}] string Name { get; set; }
+
+    [{|#1:NinoMemberFormatter(typeof(Compact))|}]
+    int Sides { get; set; }
+
+    [{|#2:NinoIgnore|}] int Cache { get; set; }
+}
+
+public class Square : IShape
+{
+    public string Name { get; set; }
+    public int Sides { get; set; }
+    public int Cache { get; set; }
+}
+
+public struct Dot : IShape
+{
+    [NinoUtf8] public string Name { get; set; }
+    public int Sides { get; set; }
+    public int Cache { get; set; }
+}
+
+public abstract class ShapeBase : IShape
+{
+    public string Name { get; set; }
+    public int Sides { get; set; }
+    public int Cache { get; set; }
+}
+
+public sealed class Circle : ShapeBase
+{
+}
+
+public class Hidden : IShape
+{
+    string IShape.Name { get; set; }
+    int IShape.Sides { get; set; }
+    int IShape.Cache { get; set; }
+}
+" + Compact;
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType]
+public interface IShape
+{
+    string Name { get; set; }
+
+    int Sides { get; set; }
+
+    int Cache { get; set; }
+}
+
+public class Square : IShape
+{
+    [NinoUtf8]
+    public string Name { get; set; }
+    [NinoMemberFormatter(typeof(Compact))]
+    public int Sides { get; set; }
+    [NinoIgnore]
+    public int Cache { get; set; }
+}
+
+public struct Dot : IShape
+{
+    [NinoUtf8] public string Name { get; set; }
+    [NinoMemberFormatter(typeof(Compact))]
+    public int Sides { get; set; }
+    [NinoIgnore]
+    public int Cache { get; set; }
+}
+
+public abstract class ShapeBase : IShape
+{
+    [NinoUtf8]
+    public string Name { get; set; }
+    [NinoMemberFormatter(typeof(Compact))]
+    public int Sides { get; set; }
+    [NinoIgnore]
+    public int Cache { get; set; }
+}
+
+public sealed class Circle : ShapeBase
+{
+}
+
+public class Hidden : IShape
+{
+    string IShape.Name { get; set; }
+    int IShape.Sides { get; set; }
+    int IShape.Cache { get; set; }
+}
+" + Compact;
+
+        await SetUpCodeFixTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO033").WithLocation(0).WithArguments("NinoUtf8", "Name", "IShape"),
+            VerifyCF.Diagnostic("NINO033").WithLocation(1).WithArguments("NinoMemberFormatter", "Sides", "IShape"),
+            VerifyCF.Diagnostic("NINO033").WithLocation(2).WithArguments("NinoIgnore", "Cache", "IShape")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO033_NamesTheAttributeAsTheOtherFileCan()
+    {
+        // The implementation is in a file without using directives, and a record declares it by a parameter.
+        var code = @"
+using Formats;
+using Nino.Core;
+
+namespace Shapes
+{
+    [NinoType]
+    public interface IShape
+    {
+        [{|#0:NinoMemberFormatter(typeof(Compact))|}] int Sides { get; init; }
+        [{|#1:NinoUtf8|}, System.Obsolete] string Name { get; init; }
+    }
+}
+
+namespace Formats
+{
+" + Compact + @"
+}";
+        const string Other = @"
+namespace Shapes
+{
+    public class Square : IShape
+    {
+        public int Sides { get; init; }
+        public string Name { get; init; }
+    }
+
+    public record Label(int Sides, string Name) : IShape;
+}";
+
+        var fixedCode = @"
+using Formats;
+using Nino.Core;
+
+namespace Shapes
+{
+    [NinoType]
+    public interface IShape
+    {
+        int Sides { get; init; }
+        [System.Obsolete] string Name { get; init; }
+    }
+}
+
+namespace Formats
+{
+" + Compact + @"
+}";
+        const string FixedOther = @"
+namespace Shapes
+{
+    public class Square : IShape
+    {
+        [Nino.Core.NinoMemberFormatter(typeof(Formats.Compact))]
+        public int Sides { get; init; }
+        [Nino.Core.NinoUtf8]
+        public string Name { get; init; }
+    }
+
+    public record Label([property: Nino.Core.NinoMemberFormatter(typeof(Formats.Compact))] int Sides, [property: Nino.Core.NinoUtf8] string Name) : IShape;
+}";
+
+        var test = SetUpCodeFixTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO033").WithLocation(0).WithArguments("NinoMemberFormatter", "Sides", "Shapes.IShape"),
+            VerifyCF.Diagnostic("NINO033").WithLocation(1).WithArguments("NinoUtf8", "Name", "Shapes.IShape"));
+        test.TestState.Sources.Add(Other);
+        test.FixedState.Sources.Add(FixedOther);
+        await test.RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO033_RemovedWithoutImplementations()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public interface IShape
+{
+    [{|#0:NinoUtf8|}]
+    string Name { get; set; }
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType]
+public interface IShape
+{
+    string Name { get; set; }
+}";
+
+        await SetUpCodeFixTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO033").WithLocation(0).WithArguments("NinoUtf8", "Name", "IShape")).RunAsync();
     }
 
     #endregion
@@ -686,7 +926,7 @@ public struct Point
     [NinoMember(1)] public int Y;
 }
 
-[Nino.Core.NinoType(true, false, true, Nino.Core.NinoFormat.VersionTolerant)]
+[Nino.Core.NinoType(true, false, true, NinoFormat.VersionTolerant)]
 public interface IShape
 {
 }
@@ -741,6 +981,32 @@ public partial class Derived : Nino.UnitTests.Subset.SubsetClassWithPrivateField
         test.TestState.AdditionalReferences.Add(subset);
         test.FixedState.AdditionalReferences.Add(subset);
         await test.RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO032_NamesTheFormatAsTheFileCan()
+    {
+        // Without using Nino.Core (the attribute through an alias), the format is written qualified.
+        var code = @"
+using Tolerant = Nino.Core.NinoTypeAttribute;
+
+[{|#0:Tolerant|}]
+public class Plain
+{
+    public int A;
+}";
+
+        var fixedCode = @"
+using Tolerant = Nino.Core.NinoTypeAttribute;
+
+[Tolerant(format: Nino.Core.NinoFormat.VersionTolerant)]
+public class Plain
+{
+    public int A;
+}";
+
+        await WeakToleranceTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO032").WithLocation(0).WithArguments("Plain", KeepBytes)).RunAsync();
     }
 
     [TestMethod]
@@ -1084,13 +1350,19 @@ public class TestClass
 {
     [NinoMember(0)] public int A;
     public static int Shared;
-    [NinoUtf8] public string Name => ""n"";
+    public string Name => ""n"";
 }";
 
-        await SetUpCodeFixTest(code, fixedCode,
+        // Without [NinoMember], the [NinoUtf8] of the member never serialized is NINO030's, whose fix removes it next.
+        var test = SetUpCodeFixTest(code, fixedCode,
             VerifyCF.Diagnostic("NINO028").WithLocation(0).WithArguments("Shared", "TestClass", "it is static"),
             VerifyCF.Diagnostic("NINO028").WithLocation(1)
-                .WithArguments("Name", "TestClass", "it has no setter, and no constructor takes it")).RunAsync();
+                .WithArguments("Name", "TestClass", "it has no setter, and no constructor takes it"));
+        test.NumberOfIncrementalIterations = 3;
+        test.NumberOfFixAllIterations = 2;
+        test.NumberOfFixAllInDocumentIterations = 2;
+        test.NumberOfFixAllInProjectIterations = 2;
+        await test.RunAsync();
     }
 
     #endregion

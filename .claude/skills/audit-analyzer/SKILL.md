@@ -107,13 +107,34 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   reports (the same model rules and `NinoSymbols` helpers); a rule never re-derives it.
 - **One mistake, one diagnostic**: when two rules fire on the same code, the one whose fix removes the other's case
   reports it.
+- **A member's mistake is reported once, by the type that declares it**, not by every type that writes it: a base
+  member with an `Action` was NINO007 once for the base and once per subtype, at one location (round 129). Member
+  findings come from `MemberCollector` for the declared level only; NINO007 and NINO029 from `ModelBuilder` go
+  through `ReportsOwnProblems` (each subtype reports only when the declaring type is not built here: a closed
+  generic base, another assembly); NINO030/031 run per declared member in the analyzer, so interfaces, abstract
+  classes and raw structs are covered (`NINO007_PropertiesAndInheritedMembers`, `NINO030_NINO031_OncePerMember`).
+- **An attribute on an interface member does not reach the implementing type's bytes**: the implementing member is
+  written with its own attributes; only the interface's `[NinoMember(index)]` collects and places it (measured, class
+  and struct: `InterfaceMemberAttributeTests`, round 129). NINO033 reports `[NinoUtf8]`, `[NinoMemberFormatter]` and
+  `[NinoIgnore]` there, once, at the attribute, implemented in this compilation or not; it owns an interface's
+  `[NinoUtf8]` outright (NINO030's never-serialized reason is not reported on interfaces), other findings on the
+  member (NINO008, NINO011) are left to them. Its fix copies the attribute, names in full through the simplifier, to
+  every implicit implementation in the solution's source (`SymbolFinder.FindImplementationsAsync`; a record parameter
+  gets `[property: ...]`; one with the attribute's class keeps its own) and removes it from the interface; with none,
+  the fix is "Remove". An explicit implementation is skipped: generated code names the member on the class and does
+  not compile (CS1061, a generator bug, round 129).
 - **Messages** name the type or member, what happens (skipped, throws when written, never called) and what to write
   instead; placeholders are all filled; attributes are spelled `[NinoMember]`, never `NinoMemberAttribute`. A title
   or message may change (round 101 reworded NINO003, 005, 007, 010-012 and 017); the id never does, and the title
   in `AnalyzerReleases.Shipped.md` follows the descriptor (`ReleaseTrackingMatchesTheDescriptors`).
 - **A code fix for every rule whose fix is mechanical and always correct**; otherwise the message says what to do.
-  Removing an attribute that has no effect (NINO010, 011, 024, 025) is always correct; removing one that changes the
+  Removing an attribute that has no effect (NINO010, 011, 024, 025) is always correct, and so is moving one to where it
+  takes effect when that place is certain (NINO033); removing one that changes the
   bytes (NINO027's former name changes the type id) or choosing between two (NINO026) is not.
+- **One equivalence key per fix, whatever form the diagnostic takes**: two keys for the CS1739 renames
+  (`containNonPublicMembers`, `allowInheritance`) made fix-all take one pass per key. Names a fix writes go through
+  the simplifier (`global::Nino.Core....` with `Simplifier.Annotation`), so they compile under an alias without
+  `using Nino.Core;` (`NINO032_NamesTheFormatAsTheFileCan`).
 - **Ids are stable**; a removed id is never reused; new ids are taken at landing (two branches can pick the same).
 - **Cost**: rules run on every build and keystroke. `EnableConcurrentExecution`, no analysis of generated code,
   symbols resolved once per compilation, cheapest rejection first (syntax kind and names before the semantic

@@ -31,6 +31,9 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
 - Rust: a sealed class's forwarding methods with `#[inline]` (`nino::sealed_read!` / `sealed_write!`, as the derive
   had them and the template did not) read records-1000 2.0-4.3 % and wrote it 2.0-9.2 % faster on EPYC 7763, 9V45 and
   Neoverse-N2 (run 41042990902; floor -2.1 to +0.7 %).
+  A raw struct's impls followed in round 129 (`nino::raw_read!` / `raw_write!`, the derive's code with `#[inline]`;
+  the template's had none): in the release build of `tests/generated` the standalone raw `read`/`write` symbols are
+  gone and their callers inline them (no runner number yet: the benches' `Point` uses the macros since).
 
 ## Reuse branches
 
