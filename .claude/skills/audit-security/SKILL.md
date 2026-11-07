@@ -45,6 +45,17 @@ the runtime it targets.
   (T?[], List<T?>, bool lists, Untrusted checks) store a new array once filled (`NinoElements.NewOrSame`, `Publish`);
   `UntrustedInputTests.ARejectedReadKeepsNewArraysOutOfTheSlot` covers each, over 0xCD-filled freed memory. A new read
   of that kind gets a member in the fuzzer's `Stale` type (below).
+- A check or copy that reads a run of strided values as whole strides (vectors over `count * stride` bytes): the
+  run's last value need not be followed by the rest of a stride. The values of raw dictionary pairs start a key into
+  each pair and end a key before the next, maybe on the data's last byte, so `NinoValueChecks`' vector passes read up
+  to a key past the input: `Dictionary<long, DateTime>` in Untrusted mode at the end of a guarded page was an access
+  violation (rc.8 to round 129; the fix checks whole strides of all values but the last, the last by the scalar loop).
+  Test such a read with its bytes placed against an inaccessible page (`GuardedMemory` in the unit tests,
+  `UntrustedModeTests.RawPairsAreCheckedWithinTheData`), and make the input of a fuzz target end with the collection
+  (the fuzzer's `RawUntrusted.Dates`): the fuzzer places inputs against such a page, but only a value that ends the
+  input shows an over-read. A vector check of values is proven against the types' own constructors over random
+  layouts, strides and run lengths, run at every vector width (`ValueCheckLayoutTests`; `DOTNET_MaxVectorTBitWidth=512`,
+  `DOTNET_EnableAVX2=0`, `DOTNET_EnableHWIntrinsic=0`); its mutations of `Plan.Joins` and of the bool mask fail it.
 - A read that allocates from a count before checking it against the bytes left (collections, strings, multi-dim
   arrays, `BigInteger`, `BitArray`, `StringBuilder`, custom formatters' helpers).
 - A hash table filled from the data whose hash the data can predict. In other runtimes the language's own table may
