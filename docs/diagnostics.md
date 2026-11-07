@@ -200,7 +200,8 @@ written as its raw memory (1 byte) and is not reported.
 ### NINO028
 
 `[NinoMember]` on a member Nino never serializes, whatever the type's options: a static field or property, a
-constant, an indexer, a fixed-size buffer, a property without a getter or implemented explicitly for an interface,
+constant, an indexer, a fixed-size buffer, a property without a getter or implemented explicitly for an interface (for a `[NinoType]` interface, its member is
+written in its place, with the interface member's attributes: put `[NinoMember]` there),
 a property without a setter that no constructor takes (`int Sum => A + B;`, or `int Id { get; }` without a
 constructor parameter `id`), or a backing field (`[field: NinoMember]`; mark the property). Nothing is written for
 it. This is the only diagnostic about that `[NinoMember]` (not NINO009, NINO010 or NINO013). To serialize a get-only
@@ -234,7 +235,9 @@ There is no code fix: the stored form is yours to choose.
   attributes ("it does not reach the strings a [NinoType], object or type parameter in its type 'X' writes");
 - a `[NinoMemberFormatter]` writes the member, which decides the encoding itself;
 - the member is never serialized: it is `[NinoIgnore]`, not public in a type without `includeNonPublicMembers`,
-  get-only with no constructor parameter, static, or lacks `[NinoMember]` in an `autoCollect: false` type.
+  get-only with no constructor parameter, static, an explicit interface implementation (a `[NinoType]` interface's
+  member is written in its place, with the interface member's attributes), or lacks `[NinoMember]` in an
+  `autoCollect: false` type.
 
 `[NinoUtf8]` reaches every string the built-in formatters write in the member's type: the member itself, the elements
 of arrays and collections, dictionary keys and values, tuple items. The bytes are the same without it. Reported once,
@@ -254,10 +257,13 @@ not a string, the formatter cannot write it: NINO008.
 `[NinoUtf8]`, `[NinoMemberFormatter]` or `[NinoIgnore]` on a member of an interface. A type implementing the
 interface writes its own member, with that member's attributes, so these never reach the bytes: the string stays
 UTF-16, the formatter is not called, and the "ignored" member is written. Only the interface member's
-`[NinoMember(index)]` counts: it places the member in the implementing types. A member with another finding (NINO008,
-NINO011) is left to that one. 🔧 Move the attribute to the members implementing it in the solution's source (a member
-that already has one keeps its own; a record's parameter gets `[property: ...]`), or remove it when nothing
-implements the member.
+`[NinoMember(index)]` counts: it places the member in the implementing types. The exception is a type that implements
+the member explicitly (`int IFoo.X { get; set; }`) or takes its default implementation: the interface's member is
+written there, with the interface member's attributes, so they take effect and NINO033 is not reported when a type of
+the compilation does so. A member with another finding (NINO008, NINO011) is left to that one. 🔧 Move the attribute
+to the members implementing it implicitly in the solution's source (a member that already has one keeps its own; a
+record's parameter gets `[property: ...]`), or remove it when nothing implements the member; when the solution has an
+explicit implementation, the fix copies it to the implicit ones and keeps it on the interface.
 
 ## Features
 
