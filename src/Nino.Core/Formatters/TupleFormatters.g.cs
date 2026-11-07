@@ -34,7 +34,7 @@ namespace Nino.Core
 
         NinoBlockMap INinoBlockFormatter<ValueTuple<T1>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>()))
+            if (!RawFormatter.Is<T1, TF1>())
                 return null;
             var value = default(ValueTuple<T1>);
             return new NinoBlockMap()

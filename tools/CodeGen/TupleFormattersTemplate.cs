@@ -116,7 +116,7 @@ namespace Nino.CodeGen
                 sb.Append($"            default(TF{i}).Deserialize(ref reader, ref value.Item{i});\n");
             sb.Append("        }\n");
             sb.Append("\n");
-            string allRaw = arity > 1 ? AllRaw(arity) : "RawFormatter.Is<T1, TF1>()";
+            string allRaw = AllRaw(arity), notAllRaw = arity > 1 ? $"!({allRaw})" : "!" + allRaw;
             sb.Append($"        int INinoFixedSizeFormatter<{type}>.FixedSize\n");
             sb.Append("        {\n");
             sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
@@ -125,7 +125,7 @@ namespace Nino.CodeGen
             sb.Append("\n");
             sb.Append($"        NinoBlockMap INinoBlockFormatter<{type}>.BlockMap()\n");
             sb.Append("        {\n");
-            sb.Append($"            if (!({allRaw}))\n");
+            sb.Append($"            if ({notAllRaw})\n");
             sb.Append("                return null;\n");
             sb.Append($"            var value = default({type});\n");
             sb.Append("            return new NinoBlockMap()");
