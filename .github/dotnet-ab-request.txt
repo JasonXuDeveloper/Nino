@@ -252,6 +252,12 @@
 # done (run 41806557589): cpu='Xeon' 0af6bb5e c9c405ff 20 *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf large array first copy 2
 # r129-perf: an Untrusted bool joins a wider check pass (8ab71205) against main 79fdcd8a, main against itself (floor),
 # and the line again for a second Arm64 job; 12 rounds each.
-cpu='EPYC|Xeon|Neoverse' 79fdcd8a 8ab71205 12 *UntrustedTest* # r129-perf bool join
-cpu='EPYC|Xeon|Neoverse' 79fdcd8a 79fdcd8a 12 *UntrustedTest* # r129-perf floor
-cpu='EPYC|Xeon|Neoverse' 79fdcd8a 8ab71205 12 *UntrustedTest* # r129-perf bool join copy 2
+# done (run 42341861781): cpu='EPYC|Xeon|Neoverse' 79fdcd8a 8ab71205 12 *UntrustedTest* # r129-perf bool join
+# done (run 42341861781): cpu='EPYC|Xeon|Neoverse' 79fdcd8a 79fdcd8a 12 *UntrustedTest* # r129-perf floor
+# done (run 42341861781): cpu='EPYC|Xeon|Neoverse' 79fdcd8a 8ab71205 12 *UntrustedTest* # r129-perf bool join copy 2
+# r129-security 668d1edb: Untrusted value checks stop a stride before a run's last value (over-read fix), one scalar
+# value per run. Against main before it (13ec4369, with the bool join), against main before the bool join (79fdcd8a,
+# for the rc.9 Performance note), and 13ec4369's floor.
+cpu='EPYC|Xeon|Neoverse' 13ec4369 668d1edb 12 *UntrustedTest* # r129-security fix vs main
+cpu='EPYC|Xeon|Neoverse' 79fdcd8a 668d1edb 12 *UntrustedTest* # r129-security fix vs before the bool join
+cpu='EPYC|Xeon|Neoverse' 13ec4369 13ec4369 12 *UntrustedTest* # r129-security floor
