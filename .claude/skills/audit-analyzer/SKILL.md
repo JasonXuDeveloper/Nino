@@ -113,16 +113,24 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   through `ReportsOwnProblems` (each subtype reports only when the declaring type is not built here: a closed
   generic base, another assembly); NINO030/031 run per declared member in the analyzer, so interfaces, abstract
   classes and raw structs are covered (`NINO007_PropertiesAndInheritedMembers`, `NINO030_NINO031_OncePerMember`).
-- **An attribute on an interface member does not reach the implementing type's bytes**: the implementing member is
-  written with its own attributes; only the interface's `[NinoMember(index)]` collects and places it (measured, class
-  and struct: `InterfaceMemberAttributeTests`, round 129). NINO033 reports `[NinoUtf8]`, `[NinoMemberFormatter]` and
-  `[NinoIgnore]` there, once, at the attribute, implemented in this compilation or not; it owns an interface's
-  `[NinoUtf8]` outright (NINO030's never-serialized reason is not reported on interfaces), other findings on the
-  member (NINO008, NINO011) are left to them. Its fix copies the attribute, names in full through the simplifier, to
-  every implicit implementation in the solution's source (`SymbolFinder.FindImplementationsAsync`; a record parameter
-  gets `[property: ...]`; one with the attribute's class keeps its own) and removes it from the interface; with none,
-  the fix is "Remove". An explicit implementation is skipped: generated code names the member on the class and does
-  not compile (CS1061, a generator bug, round 129).
+- **An attribute on an interface member reaches only the types that write the interface's member**: an implicit
+  implementation is written with its own attributes, and only the interface's `[NinoMember(index)]` collects and
+  places it; an explicit (or default) implementation has no member of its own, so the interface's member is written in
+  its place with the interface's `[NinoUtf8]`, `[NinoMemberFormatter]` and `[NinoIgnore]`, and attributes on the
+  explicit implementation itself do nothing (measured, class, struct, record, keyed and positional:
+  `InterfaceMemberAttributeTests`, round 129). NINO033 reports those three attributes, once, at the attribute, unless
+  a `[NinoType]` class or struct of the compilation implements the member with no field or property of its name
+  (`TypeFacts.ImplementsAsInterface`, indexed once per compilation with `MemberCollector.FindImplementation`, the
+  generator's own test); it owns an interface's `[NinoUtf8]` outright (NINO030's never-serialized reason is not
+  reported on interfaces), other findings on the member (NINO008, NINO011) are left to them. Its fix copies the
+  attribute, names in full through the simplifier, to every implicit implementation in the solution's source
+  (`SymbolFinder.FindImplementationsAsync`; a record parameter gets `[property: ...]`; one with the attribute's class
+  keeps its own) and removes it from the interface; with none, the fix is "Remove"; when the solution has an explicit
+  implementation (another project), the attribute stays on the interface ("Copy ... to the implicit
+  implementations"), and with no implicit one there is no fix (`NINO033_KeptForAnExplicitImplementationElsewhere`,
+  two projects through `AdditionalProjects` and `TestReferences.Apply`). `[NinoMemberFormatter]` or `[NinoIgnore]`
+  on an explicit implementation has no rule yet (its `[NinoMember]` is NINO028, its `[NinoUtf8]` NINO030, with the
+  reason naming the interface's member).
 - **Messages** name the type or member, what happens (skipped, throws when written, never called) and what to write
   instead; placeholders are all filled; attributes are spelled `[NinoMember]`, never `NinoMemberAttribute`. A title
   or message may change (round 101 reworded NINO003, 005, 007, 010-012 and 017); the id never does, and the title
