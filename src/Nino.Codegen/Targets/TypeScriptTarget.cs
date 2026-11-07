@@ -50,7 +50,6 @@ namespace Nino.Codegen.Targets
         private readonly Dictionary<TypeModel, List<TsDerived>> _derived = new();
         private readonly Dictionary<string, TsDerived> _closedByKey = new(StringComparer.Ordinal);
         private readonly List<TsDerived> _closed = new();
-        private readonly HashSet<ClosedTypeModel> _closedSupported = new();
         private readonly List<TsSlotClosed> _slotClosed = new();
         // The slots of closed generic types written behind type ids that the values hold (slot$0...).
         private readonly Dictionary<SlotModel, TsSlot> _slotByModel = new();
@@ -82,10 +81,7 @@ namespace Nino.Codegen.Targets
         /// <summary>The generated file for the types of the model.</summary>
         public string Render(string source)
         {
-            ResolveSupported();
-            ResolveClosed();
-            var layouts = _model.Types.Where(_supported.Contains).ToList();
-            AssignNames(layouts.Select(t => (object)t).Concat(_enums).Concat(_rawStructs.Select(r => r.Struct)));
+            var layouts = ResolveTypes();
             NameClosed(layouts);
 
             var enums = _enums.OrderBy(e => Name(e), StringComparer.Ordinal)
@@ -169,29 +165,10 @@ namespace Nino.Codegen.Targets
             _slots.Clear();
         }
 
-        /// <summary>
-        /// The closed generic types the assembly names (<see cref="CodegenModel.ClosedTypes"/>) that TypeScript can
-        /// write behind their type ids, in the polymorphic slots (and the registry) they are assignable to.
-        /// </summary>
-        private void ResolveClosed()
-        {
-            foreach (var closed in _model.ClosedTypes)
-            {
-                if (!_supported.Contains(closed.Definition))
-                    continue;
-                try
-                {
-                    ClosedShape(closed);
-                    _closedSupported.Add(closed);
-                }
-                catch (UnsupportedException e)
-                {
-                    WarnClosed(closed, e.Message);
-                }
-            }
+        protected override void ShapeClosed(ClosedTypeModel closed) => ClosedShape(closed);
 
-            ResetResolved();
-        }
+        protected override IEnumerable<object> Declared =>
+            _enums.Cast<object>().Concat(_rawStructs.Select(r => r.Struct));
 
         /// <summary>
         /// A closed generic type in a slot: the shapes of its arguments and of the slots its codecs need (its codecs

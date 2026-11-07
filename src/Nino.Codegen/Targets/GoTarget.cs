@@ -51,7 +51,6 @@ namespace Nino.Codegen.Targets
         private readonly Dictionary<TypeModel, GoGeneric> _generics = new();
         private readonly Dictionary<string, GoClosed> _closedByKey = new(StringComparer.Ordinal);
         private readonly List<GoClosed> _closed = new();
-        private readonly HashSet<ClosedTypeModel> _closedSupported = new();
         private readonly List<GoSlotClosed> _slotClosed = new();
         private readonly Dictionary<SlotModel, GoSlot> _slotByModel = new();
         private readonly List<GoSlot> _slots = new();
@@ -65,13 +64,7 @@ namespace Nino.Codegen.Targets
 
         public string Render(string source)
         {
-            ResolveSupported();
-            ResolveClosed();
-            var types = _model.Types.Where(_supported.Contains).ToList();
-            // A raw type no member holds (one only a polymorphic slot can hold) is declared too.
-            foreach (var raw in types.Where(t => t.Raw))
-                Raw(raw.RawValue!);
-            AssignNames(types.Cast<object>().Concat(_enums).Concat(_rawStructs));
+            var types = ResolveTypes();
 
             var classes = types.Select(t => new GoType(this, t)).ToList();
             // Shape every member once more, so every helper, tuple, enum and slot is known before the template asks.
@@ -170,29 +163,11 @@ namespace Nino.Codegen.Targets
             .Select(g => $"it implements {g.Key!.FullName} with two sets of type arguments, which one Go method " +
                          "cannot mark").FirstOrDefault();
 
-        /// <summary>
-        /// The closed generic types the assembly names (<see cref="CodegenModel.ClosedTypes"/>) that Go can write
-        /// behind their type ids, in the polymorphic slots they are assignable to.
-        /// </summary>
-        private void ResolveClosed()
-        {
-            foreach (var closed in _model.ClosedTypes)
-            {
-                if (!_supported.Contains(closed.Definition))
-                    continue;
-                try
-                {
-                    ClosedShape(closed);
-                    _closedSupported.Add(closed);
-                }
-                catch (UnsupportedException e)
-                {
-                    WarnClosed(closed, e.Message);
-                }
-            }
+        protected override void ShapeClosed(ClosedTypeModel closed) => ClosedShape(closed);
 
-            Reset();
-        }
+        protected override IEnumerable<object> Declared => _enums.Cast<object>().Concat(_rawStructs);
+
+        protected override void DeclareRaw(TypeModel type) => Raw(type.RawValue!);
 
         /// <summary>A closed generic type in a slot: the shapes of its arguments, its codec built in <c>init</c>.</summary>
         private GoShape ClosedShape(ClosedTypeModel closed) => new("generic")

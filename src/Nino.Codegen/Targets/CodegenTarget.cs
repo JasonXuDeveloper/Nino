@@ -116,6 +116,62 @@ namespace Nino.Codegen.Targets
             ResetResolved();
         }
 
+        /// <summary>
+        /// The closed generic types the assembly names (<see cref="CodegenModel.ClosedTypes"/>) whose definition is
+        /// written and whose arguments the target can express (<see cref="ShapeClosed"/>), once <see cref="ResolveTypes"/>
+        /// has run: written behind their type ids, in the polymorphic slots they are assignable to.
+        /// </summary>
+        private protected readonly HashSet<ClosedTypeModel> _closedSupported = new();
+
+        /// <summary>Shapes a closed generic type in a slot, throwing <see cref="UnsupportedException"/> for what it cannot.</summary>
+        protected abstract void ShapeClosed(ClosedTypeModel closed);
+
+        /// <summary>
+        /// What is forgotten once the closed generic types are shaped: <see cref="ResetResolved"/> unless a target keeps
+        /// their shapes.
+        /// </summary>
+        protected virtual void ResetClosed() => ResetResolved();
+
+        /// <summary>The enums and raw structs shaping met, which are named with the types.</summary>
+        protected abstract IEnumerable<object> Declared { get; }
+
+        /// <summary>
+        /// Declares a raw type no member holds (one only a polymorphic slot can hold), so that it is written too: by
+        /// default nothing.
+        /// </summary>
+        protected virtual void DeclareRaw(TypeModel type)
+        {
+        }
+
+        /// <summary>
+        /// What every target's rendering starts with: the types written (<see cref="ResolveSupported"/>), the closed
+        /// generic types (<see cref="_closedSupported"/>), the raw types no member holds, and the names of everything
+        /// declared. Returns the types written, in the model's order.
+        /// </summary>
+        private protected List<TypeModel> ResolveTypes()
+        {
+            ResolveSupported();
+            foreach (var closed in _model.ClosedTypes.Where(c => _supported.Contains(c.Definition)))
+            {
+                try
+                {
+                    ShapeClosed(closed);
+                    _closedSupported.Add(closed);
+                }
+                catch (UnsupportedException e)
+                {
+                    WarnClosed(closed, e.Message);
+                }
+            }
+
+            ResetClosed();
+            var types = _model.Types.Where(_supported.Contains).ToList();
+            foreach (var raw in types.Where(t => t.Raw))
+                DeclareRaw(raw);
+            AssignNames(types.Cast<object>().Concat(Declared));
+            return types;
+        }
+
         // ---------------------------------------------------------------- names
 
         /// <summary>A type's name before it is made unique (<see cref="TypeNames.Definition"/> in the language's form).</summary>

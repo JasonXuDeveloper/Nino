@@ -56,13 +56,7 @@ namespace Nino.Codegen.Targets
 
         public string Render(string source)
         {
-            ResolveSupported();
-            ResolveClosed();
-            var types = _model.Types.Where(_supported.Contains).ToList();
-            // A raw type no member holds (one only a polymorphic slot can hold) is declared too.
-            foreach (var raw in types.Where(t => t.Raw))
-                Raw(raw.RawValue!);
-            AssignNames(types.Cast<object>().Concat(_enums).Concat(_rawStructs));
+            var types = ResolveTypes();
 
             var all = types.Select(t => new RustType(this, t)).ToList();
             foreach (var t in all)
@@ -123,21 +117,16 @@ namespace Nino.Codegen.Targets
         /// </summary>
         private readonly Dictionary<ClosedTypeModel, RustShape> _closed = new();
 
-        private void ResolveClosed()
+        protected override void ShapeClosed(ClosedTypeModel closed) => _closed[closed] = ClosedShape(closed);
+
+        /// <summary>The closed types' shapes keep the enums, raw structs and slots they met.</summary>
+        protected override void ResetClosed()
         {
-            _closed.Clear();
-            foreach (var closed in _model.ClosedTypes.Where(c => _supported.Contains(c.Definition)))
-            {
-                try
-                {
-                    _closed[closed] = ClosedShape(closed);
-                }
-                catch (UnsupportedException e)
-                {
-                    WarnClosed(closed, e.Message);
-                }
-            }
         }
+
+        protected override IEnumerable<object> Declared => _enums.Cast<object>().Concat(_rawStructs);
+
+        protected override void DeclareRaw(TypeModel type) => Raw(type.RawValue!);
 
         /// <summary>A closed generic type's body: the generic class or struct with its arguments.</summary>
         private RustShape ClosedShape(ClosedTypeModel closed) => GenericShape(closed.Value);
