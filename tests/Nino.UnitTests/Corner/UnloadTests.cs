@@ -182,12 +182,20 @@ namespace Unloadable
             return new WeakReference(dynamic);
         }
 
+        /// <summary>
+        /// Collects until <paramref name="context"/> is gone, for up to 10 s: another test class running in parallel
+        /// can hold the assembly for a moment (a scan of every loaded assembly holds the list it iterates), and 20
+        /// collections back to back passed within such a moment on a loaded machine.
+        /// </summary>
         private static void Collect(WeakReference context)
         {
-            for (int i = 0; i < 20 && context.IsAlive; i++)
+            var time = System.Diagnostics.Stopwatch.StartNew();
+            for (int i = 0; context.IsAlive && (i < 20 || time.ElapsedMilliseconds < 10000); i++)
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
+                if (i >= 20)
+                    System.Threading.Thread.Sleep(10);
             }
         }
 
