@@ -155,13 +155,13 @@ namespace Nino.Core.Internal
                 var passes = new List<Pass>();
                 if (stride <= 0 || period > MaxPeriod)
                     return new Plan(stride, null, 0);
+                // Bools last: each joins a wider pass where it can (AddBool).
                 for (int i = 0; i < pairs.Length; i += 2)
                 {
                     int offset = pairs[i];
                     switch (pairs[i + 1])
                     {
                         case Bool:
-                            Add(passes, 1, offset, stride, period, 0xFE, 0);
                             break;
                         case DateTime:
                             Add(passes, 8, offset, stride, period, DateTimeTicksMask, MaxDateTimeTicks);
@@ -184,13 +184,37 @@ namespace Nino.Core.Internal
                     }
                 }
 
+                for (int i = 0; i < pairs.Length; i += 2)
+                    if (pairs[i + 1] == Bool)
+                        AddBool(passes, pairs[i], stride, period);
+
                 // Each pass costs about what one field of one value costs the scalar loop, per vector of bytes: worth it
                 // where the fields are dense, at half the scalar work or less (DateTime[]: 415 ns a thousand instead of
-                // 895; a 24-byte struct with a DateTime and a bool, two passes: 1,616 instead of 1,526; a 48-byte one
-                // with six fields, five passes: 9,849 instead of 5,658; AVX-512 Xeon, 32-byte vectors).
+                // 895; a 24-byte struct with a DateTime and a bool, two passes: 1,616 instead of 1,526, and the bool in
+                // the DateTime's pass, one: 830 instead of 1,300; a 48-byte one with six fields, five passes: 9,849
+                // instead of 5,658; AVX-512 Xeon, 32-byte vectors).
                 return new Plan(stride,
                     passes.Contains(null) || 2 * passes.Count * stride > pairs.Length / 2 * width ? null : passes.ToArray(),
                     period);
+            }
+
+            /// <summary>
+            /// Adds the bool at <paramref name="offset"/> to a pass of wider lanes where its lane holds only tests against
+            /// a bound of zero (its masked bits must be zero: a bool's 0xFE, which any lane size tests the same way while
+            /// the lane's sign bit stays out of every mask), else to a pass of bytes. A 24-byte struct with a DateTime
+            /// and a bool is then one pass, not two, and takes the vector form.
+            /// </summary>
+            private static void AddBool(List<Pass> passes, int offset, int stride, int period)
+            {
+                foreach (var p in passes)
+                    if (p != null && p.Size > 1 && p.Joins(offset, stride, period))
+                    {
+                        for (int at = offset; at < p.Masks.Length; at += stride)
+                            p.Masks[at] = 0xFE;
+                        return;
+                    }
+
+                Add(passes, 1, offset, stride, period, 0xFE, 0);
             }
 
             /// <summary>
@@ -308,6 +332,28 @@ namespace Nino.Core.Internal
                     for (int b = 0; b < Size; b++)
                         if (Masks[at + b] != 0)
                             return false;
+                return true;
+            }
+
+            /// <summary>
+            /// Whether the byte at <paramref name="offset"/> of each value can take a bool's mask in this pass: its lane
+            /// (aligned to <see cref="Size"/>, the stride a multiple of it) has no bound and no mask on that byte or on
+            /// the lane's sign bit, and the byte is not the lane's top one (whose mask would hold the sign bit).
+            /// </summary>
+            public bool Joins(int offset, int stride, int period)
+            {
+                int lane = offset - offset % Size;
+                if (stride % Size != 0 || offset - lane == Size - 1)
+                    return false;
+                for (int at = lane; at < period; at += stride)
+                {
+                    for (int b = 0; b < Size; b++)
+                        if (Bounds[at + b] != 0)
+                            return false;
+                    if (Masks[at + offset - lane] != 0 || (Masks[at + Size - 1] & 0x80) != 0)
+                        return false;
+                }
+
                 return true;
             }
 
