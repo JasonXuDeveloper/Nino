@@ -137,7 +137,9 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   README.zh.md but "read from the segment without a copy" on the streams and ASP.NET Core pages.
 - **Renaming, merging or removing a site page** ([references/ia.md](references/ia.md), "Renaming, merging or
   removing a site page"): a 301 for the old URL and its `.md` copy, `_routes.json`, the csharp-check Context file,
-  links from v2/v3 pages and Nino's READMEs, and a grep of `src/` and `scripts/` for the slug.
+  links from v2/v3 pages and Nino's READMEs, and a grep of `src/` and `scripts/` for the slug. A removed URL with no
+  page to go to answers 404, never a redirect to a 404 or a 200 not-found page (nino.docs AGENTS.md, Redirects: no
+  soft 404s, which Google Search Console reports).
 
 - The code standard (`audit-code`: DRY, decoupled, clear) applies to these files, and redundancy in them
   (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is
