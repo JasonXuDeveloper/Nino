@@ -168,3 +168,17 @@ and when `asm.py compare` lists methods the change did not touch.
   the struct field works there. Read and write such a field through a local (`count = s.Line.Count` ... `s.Line.Count =
   count + 1`), not with `s.Line.Count++` in an expression: that took the field's address and loaded it a second time in
   `TryTake` and `Add` (one `add` and one load more per call); with the local the listing is main's, one `add` fewer.
+
+## Startup: code run once per type
+
+- **A Nino.Core method that generated code calls once per type (a registration) builds what it needs itself and calls
+  only methods that are not generic over the formatter**, rather than calling another per-formatter generic helper.
+  Why: for a class `T` its code is shared over `T` (`__Canon`) but compiled per struct formatter, and stays Tier0 (it
+  runs once): a call from it to another method generic over the formatter is a second method compiled per type and a
+  generic-dictionary lookup at run time, where the registry's exact code resolved it while compiling. Evidence (round
+  129, `NinoTypes`, 160 types in fresh processes, local, direction only): `NinoTypes.Register<T, F>` calling
+  `NinoFormatterCache<T>.TryRegister<F>()` registered them in a median 46.7 ms against main's 43.6 ms (two calls in the
+  registry); building `new StructFormatter<T, F>()` itself and calling the non-generic
+  `NinoFormatterCache<T>.TryRegister(NinoFormatterBase<T>)` took 34.3 ms against 37.4 ms, 2,277 methods jitted against
+  2,396. Count with `DOTNET_JitStdOutFile=f DOTNET_JitDisasmSummary=1` (one line per compiled method, with its code
+  size); time `NinoPolymorphic.TryRegister(typeof(X))` over many types, which registers without compiling formatters.

@@ -13,7 +13,9 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
 ## Look for
 
 - **Redundancy**: two mechanisms for one job (two registries, two ways to resolve a formatter, two buffer
-  abstractions); public overloads that duplicate each other; options nobody needs.
+  abstractions); public overloads that duplicate each other; options nobody needs; two CompilerServices calls that
+  generated code always makes together for one type (one entry point does both, as `NinoTypes` does; once per type at
+  startup it calls nothing generic over the formatter: `optimize`, references/jit.md, Startup).
 - **The code standard** (`audit-code`: DRY, decoupled, clear) applies to these files, here in its Nino.Core forms:
   the same loop or bookkeeping per collection kind, per TFM or per formatter family; a generic method with a body of
   its own per T (one core with thin typed wrappers; families from `tools/CodeGen`). Redundancy in them (duplicated

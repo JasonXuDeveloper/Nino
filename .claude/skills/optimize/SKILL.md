@@ -40,7 +40,8 @@ says which CPUs and cases moved.
   `Reader`/`Writer` instance method) where it is not inlined; mark every small helper `AggressiveInlining`; add nothing
   to a method whose inlinee sits at the edge of the budget; write a platform test as `A || B` of branch-free operands at
   each site; fold JIT-time checks into one `static readonly`; keep locals few; a smaller listing is not a faster one;
-  fast modulo on x64 only; keep a hot field off other threads' cache lines with a padded struct field.
+  fast modulo on x64 only; keep a hot field off other threads' cache lines with a padded struct field; code run once
+  per type at startup calls nothing generic over the formatter.
 - **Dispatch** ([references/dispatch.md](references/dispatch.md)): no virtual dispatch on a serialize or deserialize
   path where a direct form exists (the owner's rule); call a formatter known only at run time through a `static
   readonly` field read directly, never through `??`, and keep it never null; the inventory of the indirect calls that

@@ -94,8 +94,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   inferring `T` from the argument (1.0% / 1.2%, new public API); a non-generic `NinoSubtypes` for the dispatch's
   one-line forwarders (0.1% / 0.5%); one `[DynamicallyAccessedMembers]` instead of a `[DynamicDependency]` per
   measured struct (0.2% / 0.4%, and an annotation names no list of types); tabs (6.3% / 7.3% more: C# is indented with
-  spaces). A value a `switch` case already holds is its variable: the registry's polymorphic registration takes
-  `(id)`, not the case's literal again (round 129).
+  spaces). A value a `switch` case already holds is its variable: the registry's registration takes `(id)`, not the
+  case's literal again (round 129). One act is one call that names each type once: a concrete type's formatter and
+  handler are one `NinoTypes.Register<T, F>(id)` (`RegisterFixed`, `RegisterTop`, `RegisterTracked`), not
+  `NinoFormatterCache<T>.TryRegister<F>()` plus `NinoPolymorphic.Register<T, F>(id)`: the registry 38% smaller in the
+  unit tests, 32% in the benchmarks (2.3% / 2.0% of all output), its IL 22% smaller, and registration faster once the
+  Nino.Core side calls nothing generic over the formatter (`optimize`, references/jit.md, Startup).
 
 - The code standard (`audit-code`: DRY, decoupled, clear) applies to these files, and redundancy in them
   (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is
