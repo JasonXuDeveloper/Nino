@@ -68,7 +68,16 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   generator's time on tests/Nino.UnitTests (about 2,400 calls; local trace, round 128), more than building the models.
   Skipping identifier receivers that are neither `NinoSerializer`/`NinoDeserializer` nor a `using` alias of one
   (alias names from syntax, per compilation) measured within the noise on `GeneratorBenchmark --calls` (a call in a
-  one-statement method binds in microseconds) and was not kept (round 128).
+  one-statement method binds in microseconds) and was not kept (round 128). Look a transform's result up before
+  binding anything: a call is reused unbound while its tree is the same instance and no tree's declarations changed
+  (`ModelCache` epochs: `SyntaxTree.IsEquivalentTo(topLevel: true)`, which ignores method bodies and non-constant
+  field initializers), which only holds for a result read from declarations; models are not (`ConstructsDefaults`,
+  `StartsDefault` and `IsAutoProperty` read constructor bodies, initializers and accessors) and keep the tree check.
+  Chained comment edits on tests/Nino.UnitTests took 150 ms instead of 520 ms, TopLevelCall 2 ms instead of 290 ms
+  (round 129). Measure edits there, not on `GeneratorBenchmark` alone: its comment edit lands in the file of every
+  model, which rebuilds them all.
+- Walk an assembly's types only through `AssemblyTypes.Of`; per-compilation setup still costs about 9 ms an edit in
+  `FormatterRules`' constructor, which reads every referenced assembly's attributes again (round 129, not cached yet).
 - `cancellationToken.ThrowIfCancellationRequested()` in loops over members and types.
 - `WithTrackingName` on every stage; `tests/Nino.UnitTests/Generator/IncrementalGeneratorTests.cs` asserts that
   edits elsewhere and in method bodies hit the cache for every tracked stage (a rerun that returns an equal model is
