@@ -1,0 +1,1 @@
+Performance: Reading a list of plain structs with `NinoSettings.Untrusted` checks a `bool` field in the same SIMD pass as its neighbours: 11-20 % faster on x64 including rc.9's over-read fix (EPYC 7763: 2.70 → 2.40 µs for 1,000 values; EPYC 9V45: 1.40 → 1.11 µs; runs 42341861781 and 42365821207), on par on Arm64.
