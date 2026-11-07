@@ -76,8 +76,12 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   Chained comment edits on tests/Nino.UnitTests took 150 ms instead of 520 ms, TopLevelCall 2 ms instead of 290 ms
   (round 129). Measure edits there, not on `GeneratorBenchmark` alone: its comment edit lands in the file of every
   model, which rebuilds them all.
-- Walk an assembly's types only through `AssemblyTypes.Of`; per-compilation setup still costs about 9 ms an edit in
-  `FormatterRules`' constructor, which reads every referenced assembly's attributes again (round 129, not cached yet).
+- Walk an assembly's types only through `AssemblyTypes.Of`.
+- Do not cache `FormatterRules` per referenced assembly: its 5-6 ms an edit on tests/Nino.UnitTests is the project's
+  own `[assembly: NinoFormatter]` registrations (binding the new source assembly's attributes, then `Read`), which hold
+  that compilation's symbols and cannot outlive it; every reference together read in 25 ms once. A per-
+  `IAssemblySymbol` cache (`ConditionalWeakTable`) left the output byte-identical and chained edits within the noise
+  (90-94 ms against 80-87 ms) and was not kept (round 129).
 - `cancellationToken.ThrowIfCancellationRequested()` in loops over members and types.
 - `WithTrackingName` on every stage; `tests/Nino.UnitTests/Generator/IncrementalGeneratorTests.cs` asserts that
   edits elsewhere and in method bodies hit the cache for every tracked stage (a rerun that returns an equal model is
